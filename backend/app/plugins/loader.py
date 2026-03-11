@@ -1,7 +1,9 @@
 """
-插件加载器
+Plugin loader.
+/ 插件加载器
 
-负责插件发现、清单解析、主类动态导入、README 和 i18n 加载。
+Responsible for plugin discovery, manifest parsing, main class dynamic import, README and i18n loading.
+/ 负责插件发现、清单解析、主类动态导入、README 和 i18n 加载。
 """
 
 from __future__ import annotations
@@ -24,23 +26,25 @@ from app.plugins.manifest import PluginManifest
 
 logger = get_logger(__name__)
 
-# 已安装插件的存放根目录
+# Root directory for installed plugins / 已安装插件的存放根目录
 PLUGINS_DIR = Path(__file__).parent.parent.parent / "plugins"
 
 
 class PluginLoader:
-    """插件发现与加载"""
+    """Plugin discovery and loading / 插件发现与加载"""
 
     def __init__(self, plugins_dir: Path | None = None) -> None:
         self.plugins_dir = plugins_dir or PLUGINS_DIR
 
-    # ── 1. 发现 ──
+    # ── 1. Discovery / 发现 ──
 
     def discover_plugins(self) -> list[str]:
         """
-        扫描插件目录，返回所有包含 plugin.yaml 的子目录名。
+        Scan plugins directory, return all subdirectory names containing plugin.yaml.
+        / 扫描插件目录，返回所有包含 plugin.yaml 的子目录名。
 
-        跳过隐藏目录和 __pycache__。
+        Skips hidden directories and __pycache__.
+        / 跳过隐藏目录和 __pycache__。
         """
         if not self.plugins_dir.exists():
             return []
@@ -55,7 +59,7 @@ class PluginLoader:
                 names.append(child.name)
         return names
 
-    # ── 2. 清单解析 ──
+    # ── 2. Manifest parsing / 清单解析 ──
 
     def _load_manifest_from_yaml(
         self,
@@ -63,11 +67,12 @@ class PluginLoader:
         plugin_name: str,
     ) -> PluginManifest:
         """
-        从指定 plugin.yaml 路径解析 PluginManifest。
+        Parse PluginManifest from the specified plugin.yaml path.
+        / 从指定 plugin.yaml 路径解析 PluginManifest。
 
         Raises:
-            PluginNotFoundError: plugin.yaml 不存在
-            PluginManifestError: YAML 解析或 Schema 校验失败
+            PluginNotFoundError: plugin.yaml does not exist / plugin.yaml 不存在
+            PluginManifestError: YAML parse or schema validation failed / YAML 解析或 Schema 校验失败
         """
         if not yaml_path.is_file():
             raise PluginNotFoundError(
@@ -96,36 +101,41 @@ class PluginLoader:
 
     def load_manifest(self, plugin_name: str) -> PluginManifest:
         """
-        读取并解析 plugin.yaml → PluginManifest。
+        Read and parse plugin.yaml → PluginManifest.
+        / 读取并解析 plugin.yaml → PluginManifest。
 
         Raises:
-            PluginNotFoundError: plugin.yaml 不存在
-            PluginManifestError: YAML 解析或 Schema 校验失败
+            PluginNotFoundError: plugin.yaml does not exist / plugin.yaml 不存在
+            PluginManifestError: YAML parse or schema validation failed / YAML 解析或 Schema 校验失败
         """
         yaml_path = self.plugins_dir / plugin_name / "plugin.yaml"
         return self._load_manifest_from_yaml(yaml_path, plugin_name)
 
     def load_manifest_from_path(self, plugin_dir: Path) -> PluginManifest:
         """
-        从任意插件目录读取并解析 plugin.yaml。
+        Read and parse plugin.yaml from any plugin directory.
+        / 从任意插件目录读取并解析 plugin.yaml。
 
-        用于临时解压目录、升级源目录等不在默认 PLUGINS_DIR 下的场景。
+        Used for temp extraction dirs, upgrade source dirs, etc. not under the default PLUGINS_DIR.
+        / 用于临时解压目录、升级源目录等不在默认 PLUGINS_DIR 下的场景。
         """
         plugin_name = plugin_dir.name
         yaml_path = plugin_dir / "plugin.yaml"
         return self._load_manifest_from_yaml(yaml_path, plugin_name)
 
-    # ── 3. 主类加载 ──
+    # ── 3. Main class loading / 主类加载 ──
 
     def load_plugin_class(self, plugin_name: str) -> type[PluginBase]:
         """
-        动态导入插件主类（PluginBase 子类）。
+        Dynamically import the plugin main class (PluginBase subclass).
+        / 动态导入插件主类（PluginBase 子类）。
 
-        约定路径: backend/plugins/{name}/backend/main.py
+        Convention path: backend/plugins/{name}/backend/main.py
+        / 约定路径: backend/plugins/{name}/backend/main.py
 
         Raises:
-            PluginNotFoundError: main.py 不存在
-            PluginError: 导入失败或找不到 PluginBase 子类
+            PluginNotFoundError: main.py does not exist / main.py 不存在
+            PluginError: Import failed or no PluginBase subclass found / 导入失败或找不到 PluginBase 子类
         """
         main_path = self.plugins_dir / plugin_name / "backend" / "main.py"
         if not main_path.is_file():
@@ -135,7 +145,7 @@ class PluginLoader:
 
         module_name = f"plugins.{plugin_name}.backend.main"
         try:
-            # 优先使用已缓存的模块
+            # Prefer using cached module / 优先使用已缓存的模块
             import sys
             if module_name in sys.modules:
                 module = sys.modules[module_name]
@@ -150,7 +160,8 @@ class PluginLoader:
                 try:
                     spec.loader.exec_module(module)
                 except Exception:
-                    # 清除失败的模块条目，防止后续调用取到破损缓存
+                    # Clear failed module entry to prevent subsequent calls from getting corrupted cache
+                    # / 清除失败的模块条目，防止后续调用取到破损缓存
                     sys.modules.pop(module_name, None)
                     raise
         except Exception as exc:
@@ -160,7 +171,7 @@ class PluginLoader:
                 message=f"Failed to import plugin '{plugin_name}': {exc}",
             )
 
-        # 查找 PluginBase 子类
+        # Find PluginBase subclass / 查找 PluginBase 子类
         for _name, obj in inspect.getmembers(module, inspect.isclass):
             if issubclass(obj, PluginBase) and obj is not PluginBase:
                 return obj
@@ -169,14 +180,15 @@ class PluginLoader:
             message=f"No PluginBase subclass found in '{main_path}'",
         )
 
-    # ── 4. README ──
+    # ── 4. README / README 加载 ──
 
     def load_readme(
         self, plugin_name: str, locale: str = "zh-CN"
     ) -> str | None:
         """
-        按优先级查找 README:
+        Find README by priority:
         README.{locale}.md → README.md → None
+        / 按优先级查找 README
         """
         plugin_dir = self.plugins_dir / plugin_name
         candidates = [
@@ -188,13 +200,15 @@ class PluginLoader:
                 return path.read_text(encoding="utf-8")
         return None
 
-    # ── 5. i18n ──
+    # ── 5. i18n / 国际化 ──
 
     def load_locales(self, plugin_name: str) -> dict[str, dict]:
         """
-        扫描 locales/ 目录，加载所有 .json 翻译文件。
+        Scan locales/ directory, load all .json translation files.
+        / 扫描 locales/ 目录，加载所有 .json 翻译文件。
 
-        返回: {"zh-CN": {...}, "en": {...}}
+        Returns: {"zh-CN": {...}, "en": {...}}
+        / 返回: {"zh-CN": {...}, "en": {...}}
         """
         locales_dir = self.plugins_dir / plugin_name / "locales"
         if not locales_dir.is_dir():

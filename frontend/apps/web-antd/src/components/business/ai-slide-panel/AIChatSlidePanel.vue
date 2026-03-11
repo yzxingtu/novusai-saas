@@ -2,12 +2,12 @@
 /**
  * AI Chat Slide Panel
  *
- * 右侧滑入面板，集成智能路由：
- * - 复用 useAIChat 处理消息、SSE 流式、对话管理
- * - 集成 useAgentRouter 实现 P1-P4 智能路由
- * - 由 useAIPanelStore 控制面板状态
- * - 路由结果提示 badge
- * - Pin 智能体 UI
+ * Right slide-in panel with intelligent routing / 右侧滑入面板，集成智能路由：
+ * - Reuses useAIChat for messages, SSE streaming, conversation management / 复用 useAIChat 处理消息、SSE 流式、对话管理
+ * - Integrates useAgentRouter for P1-P4 intelligent routing / 集成 useAgentRouter 实现 P1-P4 智能路由
+ * - Panel state controlled by useAIPanelStore / 由 useAIPanelStore 控制面板状态
+ * - Route result notification badge / 路由结果提示 badge
+ * - Pin agent UI / Pin 智能体 UI
  */
 import { computed, onMounted, onUnmounted, reactive, ref, toRef, watch, watchEffect } from 'vue';
 
@@ -34,17 +34,17 @@ defineOptions({ name: 'AIChatSlidePanel' });
 
 const props = withDefaults(
   defineProps<{
-    /** API 前缀 */
+    /** API prefix / API 前缀 */
     apiPrefix: string;
-    /** 页面级 pageContextKey（来自 route.meta.ai） */
+    /** Page-level pageContextKey (from route.meta.ai) / 页面级 pageContextKey（来自 route.meta.ai） */
     pageContextKey?: string;
-    /** 外部传入的消息（来自 CommandBar） */
+    /** External pending message (from CommandBar) / 外部传入的消息（来自 CommandBar） */
     pendingMessage?: null | string;
-    /** 外部传入的待恢复对话 ID（来自 CommandBar） */
+    /** External pending conversation ID to restore (from CommandBar) / 外部传入的待恢复对话 ID（来自 CommandBar） */
     pendingConversationId?: null | number;
-    /** 是否显示附件按钮 */
+    /** Whether to show attachment button / 是否显示附件按钮 */
     showAttachments?: boolean;
-    /** 上传地址 */
+    /** Upload URL / 上传地址 */
     uploadUrl: string;
   }>(),
   {
@@ -56,9 +56,9 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  /** 对话已恢复 */
+  /** Conversation restored / 对话已恢复 */
   conversationRestored: [];
-  /** 消息已消费 */
+  /** Message consumed / 消息已消费 */
   messageSent: [];
 }>();
 
@@ -269,7 +269,7 @@ const { routing, routeMessage } = useAgentRouter({
   activeConversationId,
 });
 
-/** 路由结果提示（渐隐） */
+/** Route result notice (fade out) / 路由结果提示（渐隐） */
 const routeNotice = ref<null | string>(null);
 let routeNoticeTimer: null | ReturnType<typeof setTimeout> = null;
 
@@ -300,7 +300,7 @@ const currentPageOperations = computed(() => {
 /** Whether the current page has registered AI context */
 const hasPageAI = computed(() => !!currentPageContext.value);
 
-// ============ 发送消息（路由 + 流式） ============
+// ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
 /**
  * Enrich page_context with available_operations so LLM can discover
@@ -335,7 +335,7 @@ async function handleSendMessage() {
     resolvePageContext(props.pageContextKey),
   );
 
-  // P0: 已固定智能体 → 跳过路由，直接发送
+  // P0: Agent is pinned → skip routing, send directly / 已固定智能体 → 跳过路由，直接发送
   if (isPinned.value && aiPanelStore.pinnedAgentId) {
     const pinnedId = aiPanelStore.pinnedAgentId;
     if (pinnedId !== selectedAgentId.value) {
@@ -360,12 +360,17 @@ async function handleSendMessage() {
   try {
     const result = await routeMessage(text, undefined, pageContext);
 
-    // 更新当前智能体上下文（不清除消息/对话，支持多智能体对话）
+    // Update current agent context (don't clear messages/conversations, support multi-agent chat) / 更新当前智能体上下文（不清除消息/对话，支持多智能体对话）
     if (result.agentId !== selectedAgentId.value) {
       selectedAgentId.value = result.agentId;
     }
 
-    // 显示路由提示（pinned 和 default 不显示）
+    // On @mention routing, replace input with cleaned message (remove @name prefix) / @mention 路由时，用清理后的消息替换输入（去除 @name 前缀）
+    if (result.routedBy === 'mention' && result.cleanedMessage !== undefined) {
+      inputMessage.value = result.cleanedMessage;
+    }
+
+    // Show route notice (pinned and default don't show) / 显示路由提示（pinned 和 default 不显示）
     if (result.routedBy === 'router' || result.routedBy === 'mention') {
       showRouteNotice(
         $t('common.aiPanel.routedTo', { agent: result.agentName }),
@@ -387,7 +392,7 @@ async function handleSendMessage() {
       }
     }
 
-    // 发送消息（使用路由后的智能体 ID）
+    // Send message (using routed agent ID) / 发送消息（使用路由后的智能体 ID）
     sendMessage({ agentId: result.agentId, pageContext });
   } catch (error: unknown) {
     if (selectedAgentId.value) {
@@ -418,7 +423,7 @@ async function handleSendMessage() {
   }
 }
 
-// ============ 输入键盘处理 ============
+// ============ Input keyboard handling / 输入键盘处理 ============
 
 function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -429,7 +434,7 @@ function handleKeyDown(e: KeyboardEvent) {
   handleInputKeyDown(e);
 }
 
-// ============ 历史面板 ============
+// ============ History panel / 历史面板 ============
 
 const showHistory = ref(false);
 const conversationSearch = ref('');
@@ -641,7 +646,7 @@ async function onCopyMessage(content: string) {
   await copyMessage(content);
 }
 
-// ============ 面板宽度 ============
+// ============ Panel width / 面板宽度 ============
 
 const STORAGE_KEY = 'ai-slide-panel-width';
 const MIN_WIDTH = 400;
@@ -704,7 +709,7 @@ function onDragStart(e: MouseEvent) {
   document.addEventListener('mouseup', onMouseUp);
 }
 
-// ============ 外部消息处理 ============
+// ============ External message handling / 外部消息处理 ============
 
 watch(
   () => props.pendingMessage,
@@ -717,7 +722,7 @@ watch(
   },
 );
 
-// ============ 外部对话恢复处理 ============
+// ============ External conversation restore handling / 外部对话恢复处理 ============
 
 watch(
   () => props.pendingConversationId,
@@ -734,7 +739,7 @@ watch(
   },
 );
 
-// ============ 面板打开时加载数据 ============
+// ============ Load data on panel open / 面板打开时加载数据 ============
 
 watch(
   () => aiPanelStore.visible,
@@ -752,7 +757,7 @@ watch(
   },
 );
 
-// ============ Agent 切换时加载 KB 绑定 ============
+// ============ Load KB bindings on agent switch / Agent 切换时加载 KB 绑定 ============
 
 watch(selectedAgentId, (agentId) => {
   if (agentId) {
@@ -762,7 +767,7 @@ watch(selectedAgentId, (agentId) => {
   }
 });
 
-// ============ 同步对话状态到 store ============
+// ============ Sync conversation state to store / 同步对话状态到 store ============
 
 watch(activeConversationId, (id) => {
   aiPanelStore.setConversation(id, selectedAgentId.value ?? undefined);

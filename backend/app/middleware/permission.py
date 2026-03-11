@@ -1,8 +1,10 @@
 """
-RBAC 权限检查中间件
+RBAC Permission Check Middleware / RBAC 权限检查中间件
 
+Pre-loads current user's permissions into request.state before route handler.
 在请求到达路由处理函数之前，预加载当前用户的权限到 request.state。
-装饰器可以直接从 request.state.user_permissions 读取权限进行检查。
+Decorators can read permissions from request.state.user_permissions directly.
+装饰器可以直接从 request.state.user_permissions 读取权限。
 """
 
 from sqlalchemy import select
@@ -25,15 +27,16 @@ from app.models.auth.tenant_user_role import TenantUserRole
 
 class PermissionMiddleware:
     """
-    权限预加载中间件（ASGI 实现）
+    Permission Pre-load Middleware (ASGI implementation).
+    权限预加载中间件（ASGI 实现）。
 
-    功能：
-    1. 从请求头解析 Bearer Token
-    2. 验证 Token 并获取用户
-    3. 加载用户权限到 request.state.user_permissions
+    Features / 功能：
+    1. Parse Bearer Token from request headers / 从请求头解析 Bearer Token
+    2. Validate Token and get user / 验证 Token 并获取用户
+    3. Load user permissions to request.state.user_permissions / 加载用户权限
 
-    装饰器可以直接从 request.state 读取权限进行检查，
-    避免重复查询数据库。
+    Decorators can read permissions from request.state directly, avoiding duplicate DB queries.
+    装饰器可以直接从 request.state 读取权限，避免重复查询数据库。
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -44,25 +47,25 @@ class PermissionMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # 创建 Request 对象来访问 state
+        # Create Request object to access state / 创建 Request 对象来访问 state
         request = Request(scope, receive, send)
 
-        # 初始化 user_permissions 和 user
+        # Initialize user_permissions and user / 初始化 user_permissions 和 user
         request.state.user_permissions = set()
         request.state.user = None
 
-        # 从请求头获取 Token
+        # Get Token from headers / 从请求头获取 Token
         token = self._get_token_from_headers(scope)
 
         if token:
-            # 尝试加载权限
+            # Try to load permissions / 尝试加载权限
             await self._load_permissions(request, token)
 
-        # 继续处理请求
+        # Continue processing request / 继续处理请求
         await self.app(scope, receive, send)
 
     def _get_token_from_headers(self, scope: Scope) -> str | None:
-        """从请求头获取 Bearer Token"""
+        """Get Bearer Token from request headers / 从请求头获取 Bearer Token"""
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode("utf-8")
 
@@ -71,7 +74,7 @@ class PermissionMiddleware:
         return None
 
     async def _load_permissions(self, request: Request, token: str) -> None:
-        """加载用户权限到 request.state"""
+        """Load user permissions to request.state / 加载用户权限到 request.state"""
         from app.core.security import decode_token
 
         payload = decode_token(token)
@@ -93,7 +96,7 @@ class PermissionMiddleware:
     async def _load_admin_permissions(
         self, request: Request, admin_id: int
     ) -> None:
-        """加载平台管理员权限"""
+        """Load platform admin permissions / 加载平台管理员权限"""
         async with async_session_factory() as db:
             result = await db.execute(
                 select(Admin).where(Admin.id == admin_id)
@@ -103,21 +106,21 @@ class PermissionMiddleware:
             if admin is None or not admin.is_active:
                 return
 
-            # 将用户对象存入 state（供审计日志等使用）
+            # Store user object in state (for audit log etc.) / 将用户对象存入 state
             request.state.user = admin
 
-            # 超级管理员拥有所有权限
+            # Super admin has all permissions / 超级管理员拥有所有权限
             if admin.is_super:
                 request.state.user_permissions = {"*"}
                 return
 
-            # 无角色则无权限
+            # No role means no permissions / 无角色则无权限
             if admin.role_id is None:
                 return
 
             permissions: set[str] = set()
 
-            # 获取当前角色的权限
+            # Get current role's permissions / 获取当前角色的权限
             result = await db.execute(
                 select(AdminRole)
                 .where(AdminRole.id == admin.role_id)
@@ -135,7 +138,7 @@ class PermissionMiddleware:
     async def _load_tenant_admin_permissions(
         self, request: Request, tenant_admin_id: int
     ) -> None:
-        """加载租户管理员权限"""
+        """Load tenant admin permissions / 加载租户管理员权限"""
         from app.models.tenant.tenant import Tenant
 
         async with async_session_factory() as db:
@@ -147,30 +150,30 @@ class PermissionMiddleware:
             if tenant_admin is None or not tenant_admin.is_active:
                 return
 
-            # 将用户对象存入 state（供审计日志等使用）
+            # Store user object in state (for audit log etc.) / 将用户对象存入 state
             request.state.user = tenant_admin
 
-            # 严格模式：无套餐 → 无权限（所有租户管理员，包括 owner）
+            # Strict mode: no plan → no permissions (all tenant admins, including owner) / 严格模式：无套餐 → 无权限
             plan_result = await db.execute(
                 select(Tenant.plan_id).where(Tenant.id == tenant_admin.tenant_id)
             )
             plan_id = plan_result.scalar_one_or_none()
             if plan_id is None:
-                # 租户未分配套餐，拒绝所有功能访问
+                # Tenant has no plan, deny all feature access / 租户未分配套餐
                 return
 
-            # 租户所有者拥有套餐内全部权限
+            # Tenant owner has all plan permissions / 租户所有者拥有套餐内全部权限
             if tenant_admin.is_owner:
                 request.state.user_permissions = {"*"}
                 return
 
-            # 无角色则无权限
+            # No role means no permissions / 无角色则无权限
             if tenant_admin.role_id is None:
                 return
 
             permissions: set[str] = set()
 
-            # 获取当前角色的权限
+            # Get current role's permissions / 获取当前角色的权限
             result = await db.execute(
                 select(TenantAdminRole)
                 .where(TenantAdminRole.id == tenant_admin.role_id)
@@ -188,7 +191,7 @@ class PermissionMiddleware:
     async def _load_tenant_user_permissions(
         self, request: Request, tenant_user_id: int
     ) -> None:
-        """加载租户业务用户权限"""
+        """Load tenant business user permissions / 加载租户业务用户权限"""
         async with async_session_factory() as db:
             result = await db.execute(
                 select(TenantUser).where(TenantUser.id == tenant_user_id)
@@ -198,16 +201,16 @@ class PermissionMiddleware:
             if tenant_user is None or not tenant_user.is_active:
                 return
 
-            # 将用户对象存入 state
+            # Store user object in state / 将用户对象存入 state
             request.state.user = tenant_user
 
-            # 无角色则无权限
+            # No role means no permissions / 无角色则无权限
             if tenant_user.role_id is None:
                 return
 
             permissions: set[str] = set()
 
-            # 获取当前角色的权限
+            # Get current role's permissions / 获取当前角色的权限
             result = await db.execute(
                 select(TenantUserRole)
                 .where(TenantUserRole.id == tenant_user.role_id)

@@ -1,29 +1,29 @@
 /**
- * 系统日志 API
- * 对接后端 /admin/system-logs/* 接口
+ * System log API / 系统日志 API
+ * Backend: /admin/system-logs/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 日志统计信息（后端原始格式） */
+/** Log statistics (backend raw format) / 日志统计信息（后端原始格式） */
 export interface SystemLogStatsRaw {
   total_files: number;
   total_size: number;
 }
 
-/** 日志统计信息（前端格式） */
+/** Log statistics (frontend format) / 日志统计信息（前端格式） */
 export interface SystemLogStats {
   totalFiles: number;
   totalSize: number;
   totalSizeFormatted: string;
 }
 
-/** 日志分类信息（后端原始格式） */
+/** Log category info (backend raw format) / 日志分类信息（后端原始格式） */
 export interface SystemLogCategoryRaw {
   code: string;
   name: string;
@@ -32,7 +32,7 @@ export interface SystemLogCategoryRaw {
   total_size: number;
 }
 
-/** 日志分类信息（前端格式） */
+/** Log category info (frontend format) / 日志分类信息（前端格式） */
 export interface SystemLogCategory {
   code: string;
   name: string;
@@ -42,7 +42,7 @@ export interface SystemLogCategory {
   totalSizeFormatted: string;
 }
 
-/** 日志文件信息（后端原始格式） */
+/** Log file info (backend raw format) / 日志文件信息（后端原始格式） */
 export interface SystemLogFileRaw {
   name: string;
   category: string;
@@ -51,7 +51,7 @@ export interface SystemLogFileRaw {
   is_current?: boolean;
 }
 
-/** 日志文件信息（前端格式） */
+/** Log file info (frontend format) / 日志文件信息（前端格式） */
 export interface SystemLogFile {
   filename: string;
   category: string;
@@ -61,7 +61,7 @@ export interface SystemLogFile {
   isCurrent?: boolean;
 }
 
-/** 日志文件内容响应（后端原始格式） */
+/** Log file content response (backend raw format) / 日志文件内容响应（后端原始格式） */
 export interface SystemLogContentRaw {
   filename: string;
   lines: string[];
@@ -71,7 +71,7 @@ export interface SystemLogContentRaw {
   has_more: boolean;
 }
 
-/** 日志文件内容响应（前端格式） */
+/** Log file content response (frontend format) / 日志文件内容响应（前端格式） */
 export interface SystemLogContent {
   filename: string;
   lines: string[];
@@ -82,10 +82,10 @@ export interface SystemLogContent {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 格式化文件大小 */
+/** Format file size / 格式化文件大小 */
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -136,13 +136,13 @@ function transformContent(raw: SystemLogContentRaw): SystemLogContent {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/system-logs';
 
 /**
- * 获取系统日志统计
+ * Get system log statistics / 获取系统日志统计
  * GET /admin/system-logs/stats
  */
 export async function getSystemLogStatsApi(
@@ -156,7 +156,7 @@ export async function getSystemLogStatsApi(
 }
 
 /**
- * 获取日志分类列表
+ * Get log category list / 获取日志分类列表
  * GET /admin/system-logs/categories
  */
 export async function getSystemLogCategoriesApi(
@@ -170,7 +170,7 @@ export async function getSystemLogCategoriesApi(
 }
 
 /**
- * 获取日志文件列表
+ * Get log file list / 获取日志文件列表
  * GET /admin/system-logs/files
  */
 export async function getSystemLogFilesApi(
@@ -185,7 +185,7 @@ export async function getSystemLogFilesApi(
 }
 
 /**
- * 获取日志文件内容
+ * Get log file content / 获取日志文件内容
  * GET /admin/system-logs/files/{filename}/content
  */
 export async function getSystemLogContentApi(
@@ -201,7 +201,7 @@ export async function getSystemLogContentApi(
 }
 
 /**
- * 下载日志文件
+ * Download log file / 下载日志文件
  * GET /admin/system-logs/files/{filename}/download
  */
 export function getSystemLogDownloadUrl(filename: string): string {
@@ -209,7 +209,7 @@ export function getSystemLogDownloadUrl(filename: string): string {
 }
 
 /**
- * 删除日志文件
+ * Delete log file / 删除日志文件
  * DELETE /admin/system-logs/files/{filename}
  */
 export async function deleteSystemLogFileApi(

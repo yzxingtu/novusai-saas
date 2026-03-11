@@ -1,7 +1,8 @@
 """
-公共认证 Schema
+公共认证 Schema / Common Auth Schema
 
 定义三端共用的认证相关数据结构
+Defines authentication data structures shared across all endpoints.
 """
 
 from pydantic import Field

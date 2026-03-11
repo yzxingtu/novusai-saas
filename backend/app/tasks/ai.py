@@ -1,7 +1,9 @@
 """
-AI 相关的 Celery 任务
+AI-related Celery tasks / AI 相关的 Celery 任务
 
+Asynchronously handles time-consuming operations like AI call log recording.
 异步处理 AI 调用日志记录等耗时操作。
+Celery Worker is a synchronous process, writing directly with sync DB Session.
 Celery Worker 是同步进程，使用同步 DB Session 直接写入。
 """
 
@@ -17,7 +19,7 @@ logger = LogManager.get_logger("tasks.ai")
 
 
 def _sanitize_request(request_data: dict) -> dict:
-    """请求体脱敏处理"""
+    """Sanitize request body / 请求体脱敏处理"""
     if not request_data:
         return request_data
 
@@ -32,7 +34,7 @@ def _sanitize_request(request_data: dict) -> dict:
 
 
 def _truncate_response(response_data) -> dict | None:
-    """响应体截断处理（超过 10KB 截断）"""
+    """Truncate response body (truncate if > 10KB) / 响应体截断处理（超过 10KB 截断）"""
     if not response_data:
         return response_data
 
@@ -56,7 +58,7 @@ def _generate_request_hash(
     temperature: float,
     tools: list | None,
 ) -> str:
-    """生成请求哈希（用于缓存命中检测）"""
+    """Generate request hash (for cache hit detection) / 生成请求哈希（用于缓存命中检测）"""
     params = {
         "model_id": model_id,
         "messages": messages,
@@ -70,7 +72,7 @@ def _generate_request_hash(
 @register_task(
     name="tasks.ai.log_ai_call",
     queue="ai_gateway",
-    description="异步记录 AI 调用日志",
+    description="Async AI call log recording / 异步记录 AI 调用日志",
     max_retries=3,
 )
 def log_ai_call_task(
@@ -92,27 +94,29 @@ def log_ai_call_task(
     user_type: str = None,
 ):
     """
-    异步记录 AI 调用日志（同步写入）
+    Async AI call log recording (sync write) / 异步记录 AI 调用日志（同步写入）
 
+    Celery Worker is a synchronous process, writing directly with sync Session to AICallLog.
     Celery Worker 是同步进程，直接用同步 Session 写入 AICallLog。
+    Does not use async Service to avoid asyncio issues in sync environment.
     不使用异步 Service，避免 asyncio 在同步环境中的问题。
 
     Args:
-        tenant_id: 租户 ID
-        model_id: 模型 ID
-        provider_id: 供应商 ID
-        request_type: 请求类型
-        request_data: 请求数据
-        response_data: 响应数据
-        input_tokens: 输入 tokens
-        output_tokens: 输出 tokens
-        total_tokens: 总 tokens
-        cost: 费用
-        latency_ms: 延迟
-        status: 调用状态
-        error_message: 错误信息
-        user_id: 用户 ID
-        user_type: 用户类型
+        tenant_id: Tenant ID / 租户 ID
+        model_id: Model ID / 模型 ID
+        provider_id: Provider ID / 供应商 ID
+        request_type: Request type / 请求类型
+        request_data: Request data / 请求数据
+        response_data: Response data / 响应数据
+        input_tokens: Input tokens / 输入 tokens
+        output_tokens: Output tokens / 输出 tokens
+        total_tokens: Total tokens / 总 tokens
+        cost: Cost / 费用
+        latency_ms: Latency / 延迟
+        status: Call status / 调用状态
+        error_message: Error message / 错误信息
+        user_id: User ID / 用户 ID
+        user_type: User type / 用户类型
     """
     from app.models.ai.call_log import AICallLog
 
@@ -123,17 +127,17 @@ def log_ai_call_task(
             self.request.id, tenant_id, model_id,
         )
 
-        # 脱敏和截断处理
+        # Sanitize and truncate / 脱敏和截断处理
         sanitized_request = _sanitize_request(request_data)
         truncated_response = _truncate_response(response_data)
 
-        # 生成请求哈希
+        # Generate request hash / 生成请求哈希
         messages = request_data.get("messages", []) if request_data else []
         temperature = request_data.get("temperature", 0.7) if request_data else 0.7
         tools = request_data.get("tools") if request_data else None
         request_hash = _generate_request_hash(model_id, messages, temperature, tools)
 
-        # 直接创建 AICallLog 记录（同步写入）
+        # Create AICallLog record directly (sync write) / 直接创建 AICallLog 记录（同步写入）
         call_log = AICallLog(
             tenant_id=tenant_id,
             user_id=user_id,

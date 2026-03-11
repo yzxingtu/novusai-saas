@@ -1,6 +1,7 @@
 /**
+ * Multi-endpoint architecture - endpoint routing and path configuration
+ * Unified management of route prefixes, login paths, home paths, etc. for each endpoint
  * 多端架构 - 端路由和路径配置
- *
  * 统一管理各端的路由前缀、登录路径、首页路径等配置
  */
 
@@ -9,83 +10,83 @@ import type { EndpointConfig } from '#/types/endpoint';
 import { EndpointType } from '#/types/endpoint';
 
 // ============================================================
-// 路由前缀常量
+// Route prefix constants / 路由前缀常量
 // ============================================================
 
-/** 平台管理端路由前缀 */
+/** Admin route prefix / 平台管理端路由前缀 */
 export const ADMIN_ROUTE_PREFIX = '/admin';
 
-/** 租户管理端路由前缀 */
+/** Tenant route prefix / 租户管理端路由前缀 */
 export const TENANT_ROUTE_PREFIX = '/tenant';
 
-/** 用户端路由前缀（根路径） */
+/** User route prefix (root path) / 用户端路由前缀（根路径） */
 export const USER_ROUTE_PREFIX = '';
 
 // ============================================================
-// 登录路径常量
+// Login path constants / 登录路径常量
 // ============================================================
 
-/** 平台管理端登录路径 */
+/** Admin login path / 平台管理端登录路径 */
 export const ADMIN_LOGIN_PATH = '/admin/login';
 
-/** 租户管理端登录路径 */
+/** Tenant login path / 租户管理端登录路径 */
 export const TENANT_LOGIN_PATH = '/tenant/login';
 
-/** 用户端登录路径 */
+/** User login path / 用户端登录路径 */
 export const USER_LOGIN_PATH = '/auth/login';
 
 // ============================================================
-// 默认首页路径常量
+// Default home path constants / 默认首页路径常量
 // ============================================================
 
-/** 平台管理端默认首页 */
+/** Admin default home / 平台管理端默认首页 */
 export const ADMIN_HOME_PATH = '/admin/dashboard';
 
-/** 租户管理端默认首页 */
+/** Tenant default home / 租户管理端默认首页 */
 export const TENANT_HOME_PATH = '/tenant/dashboard';
 
-/** 用户端默认首页 */
+/** User default home / 用户端默认首页 */
 export const USER_HOME_PATH = '/';
 
 // ============================================================
-// API 前缀常量
+// API prefix constants / API 前缀常量
 // ============================================================
 
-/** 平台管理端 API 前缀 */
+/** Admin API prefix / 平台管理端 API 前缀 */
 export const ADMIN_API_PREFIX = '/api/v1/admin';
 
-/** 租户管理端 API 前缀 */
+/** Tenant API prefix / 租户管理端 API 前缀 */
 export const TENANT_API_PREFIX = '/api/v1/tenant';
 
-/** 用户端 API 前缀 */
+/** User API prefix / 用户端 API 前缀 */
 export const USER_API_PREFIX = '/api/user';
 
 // ============================================================
-// 路径映射表
+// Path mapping tables / 路径映射表
 // ============================================================
 
-/** 各端登录路径映射 */
+/** Login path mapping for each endpoint / 各端登录路径映射 */
 export const LOGIN_PATHS: Record<EndpointType, string> = {
   [EndpointType.ADMIN]: ADMIN_LOGIN_PATH,
   [EndpointType.TENANT]: TENANT_LOGIN_PATH,
   [EndpointType.USER]: USER_LOGIN_PATH,
 };
 
-/** 各端默认首页路径映射 */
+/** Default home path mapping for each endpoint / 各端默认首页路径映射 */
 export const HOME_PATHS: Record<EndpointType, string> = {
   [EndpointType.ADMIN]: ADMIN_HOME_PATH,
   [EndpointType.TENANT]: TENANT_HOME_PATH,
   [EndpointType.USER]: USER_HOME_PATH,
 };
 
-/** 各端路由前缀映射 */
+/** Route prefix mapping for each endpoint / 各端路由前缀映射 */
 export const ROUTE_PREFIXES: Record<EndpointType, string> = {
   [EndpointType.ADMIN]: ADMIN_ROUTE_PREFIX,
   [EndpointType.TENANT]: TENANT_ROUTE_PREFIX,
   [EndpointType.USER]: USER_ROUTE_PREFIX,
 };
 
-/** 各端 API 前缀映射 */
+/** API prefix mapping for each endpoint / 各端 API 前缀映射 */
 export const API_PREFIXES: Record<EndpointType, string> = {
   [EndpointType.ADMIN]: ADMIN_API_PREFIX,
   [EndpointType.TENANT]: TENANT_API_PREFIX,
@@ -93,10 +94,10 @@ export const API_PREFIXES: Record<EndpointType, string> = {
 };
 
 // ============================================================
-// 完整端配置
+// Full endpoint configuration / 完整端配置
 // ============================================================
 
-/** 各端完整配置 */
+/** Full configuration for each endpoint / 各端完整配置 */
 export const ENDPOINT_CONFIGS: Record<EndpointType, EndpointConfig> = {
   [EndpointType.ADMIN]: {
     apiPrefix: ADMIN_API_PREFIX,
@@ -128,24 +129,27 @@ export const ENDPOINT_CONFIGS: Record<EndpointType, EndpointConfig> = {
 };
 
 /**
+ * Get configuration for a specific endpoint
  * 获取指定端的配置
- * @param endpoint 端类型
+ * @param endpoint - Endpoint type / 端类型
  */
 export function getEndpointConfig(endpoint: EndpointType): EndpointConfig {
   return ENDPOINT_CONFIGS[endpoint];
 }
 
 /**
+ * Get login path for a specific endpoint
  * 获取指定端的登录路径
- * @param endpoint 端类型
+ * @param endpoint - Endpoint type / 端类型
  */
 export function getLoginPath(endpoint: EndpointType): string {
   return LOGIN_PATHS[endpoint];
 }
 
 /**
+ * Get home path for a specific endpoint
  * 获取指定端的首页路径
- * @param endpoint 端类型
+ * @param endpoint - Endpoint type / 端类型
  */
 export function getHomePath(endpoint: EndpointType): string {
   return HOME_PATHS[endpoint];

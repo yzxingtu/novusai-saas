@@ -1,5 +1,5 @@
 """
-租户 AI 模型速率限制配置 Schema
+租户 AI 模型速率限制配置 Schema / Tenant AI Rate Limit Schema
 """
 
 from __future__ import annotations

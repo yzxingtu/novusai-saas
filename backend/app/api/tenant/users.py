@@ -1,7 +1,8 @@
 """
-租户用户管理 API（租户端）
+租户用户管理 API（租户端） / Tenant User Management API (Tenant Side)
 
 提供租户业务用户的 CRUD、重置密码、状态切换、审批等接口
+Provides tenant user CRUD, password reset, status toggle, approval endpoints
 """
 
 from fastapi import Query, Request
@@ -29,7 +30,7 @@ from app.services.tenant.tenant_user_service import TenantUserService
 
 
 def _serialize_user(user) -> dict:
-    """序列化用户信息"""
+    """序列化用户信息 / Serialize user info"""
     return {
         "id": user.id,
         "tenant_id": user.tenant_id,
@@ -57,16 +58,17 @@ def _serialize_user(user) -> dict:
 )
 class TenantUserController(TenantController):
     """
-    租户用户管理控制器
+    租户用户管理控制器 / Tenant User Management Controller
 
     提供租户业务用户 CRUD、密码重置、状态切换、审批等接口
+    Provides tenant user CRUD, password reset, status toggle, approval endpoints
     """
 
     prefix = "/users"
     tags = ["Tenant User Management"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取用户列表")
@@ -77,7 +79,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             query: QueryParams,
         ):
-            """获取租户用户分页列表"""
+            """获取租户用户分页列表 / Get tenant user paginated list"""
             service = TenantUserService(db, current_admin.tenant_id)
             items, total = await service.query_list(spec=query)
 
@@ -96,7 +98,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """获取单个租户用户详情"""
+            """获取单个租户用户详情 / Get single tenant user details"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.get_by_id(user_id)
             if not user:
@@ -112,7 +114,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             data: TenantUserCreateRequest,
         ):
-            """创建租户用户"""
+            """创建租户用户 / Create tenant user"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.create_user(
                 username=data.username,
@@ -135,7 +137,7 @@ class TenantUserController(TenantController):
             user_id: int,
             data: TenantUserUpdateRequest,
         ):
-            """更新租户用户信息"""
+            """更新租户用户信息 / Update tenant user info"""
             service = TenantUserService(db, current_admin.tenant_id)
             update_data = data.model_dump(exclude_unset=True)
             user = await service.update_user(user_id, update_data)
@@ -150,7 +152,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """删除租户用户"""
+            """删除租户用户 / Delete tenant user"""
             service = TenantUserService(db, current_admin.tenant_id)
             await service.delete(user_id)
 
@@ -165,7 +167,7 @@ class TenantUserController(TenantController):
             user_id: int,
             is_active: bool = Query(...),
         ):
-            """切换用户启用/禁用状态"""
+            """切换用户启用/禁用状态 / Toggle user enabled/disabled status"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.toggle_status(user_id, is_active)
 
@@ -180,7 +182,7 @@ class TenantUserController(TenantController):
             user_id: int,
             data: dict,
         ):
-            """重置用户密码（管理员操作）"""
+            """重置用户密码（管理员操作） / Reset user password (admin operation)"""
             new_password = data.get("new_password", "")
             if not new_password or len(new_password) < 6:
                 from app.exceptions import ValidationException
@@ -201,7 +203,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """审批通过用户注册"""
+            """审批通过用户注册 / Approve user registration"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.approve_user(user_id)
 
@@ -215,7 +217,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """审批拒绝用户注册"""
+            """审批拒绝用户注册 / Reject user registration"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.reject_user(user_id)
 
@@ -229,7 +231,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             data: dict,
         ):
-            """批量审批通过用户"""
+            """批量审批通过用户 / Batch approve users"""
             user_ids = data.get("ids", [])
             service = TenantUserService(db, current_admin.tenant_id)
             users = await service.batch_approve(user_ids)
@@ -244,7 +246,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             data: dict,
         ):
-            """批量审批拒绝用户"""
+            """批量审批拒绝用户 / Batch reject users"""
             user_ids = data.get("ids", [])
             service = TenantUserService(db, current_admin.tenant_id)
             users = await service.batch_reject(user_ids)

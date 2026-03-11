@@ -1,54 +1,60 @@
 /**
- * 组织架构树组件类型定义
+ * Organization Tree Component Type Definitions
+ * 组织树组件类型定义
  */
 import type { OrgNodeInfo, OrgNodeType } from '#/api/admin/organization';
 
-/** 组织架构树节点数据（扩展 OrgNodeInfo） */
+/** Organization tree node data (extends OrgNodeInfo) / 组织架构树节点数据（扩展 OrgNodeInfo） */
 export interface OrgTreeNodeData extends OrgNodeInfo {
-  /** 子节点（懒加载时动态填充） */
+  /** Child nodes (dynamically filled during lazy loading) / 子节点（懒加载时动态填充） */
   children: OrgTreeNodeData[];
-  /** 是否正在加载子节点 */
+  /** Whether loading child nodes / 是否正在加载子节点 */
   loading?: boolean;
-  /** 是否已加载子节点 */
+  /** Whether child nodes have been loaded / 是否已加载子节点 */
   loaded?: boolean;
 }
 
-/** 节点类型配置 */
+/** Node type configuration / 节点类型配置 */
 export interface NodeTypeConfig {
-  /** 图标 */
-  icon: string;
-  /** 标签文本 key */
+  /** Label / 标签 */
   label: string;
-  /** 颜色主题 */
-  color: string;
+  /** Icon / 图标 */
+  icon: string;
+  /** Background color / 背景色 */
+  bgColor: string;
+  /** Text color / 文本色 */
+  textColor: string;
 }
 
-/** 节点类型配置映射 */
+/** Node type configuration mapping / 节点类型配置映射 */
 export const NODE_TYPE_CONFIG: Record<OrgNodeType, NodeTypeConfig> = {
   department: {
     icon: 'lucide:building-2',
     label: 'organization.nodeType.department',
-    color: 'blue',
+    bgColor: 'blue',
+    textColor: 'white',
   },
   position: {
     icon: 'lucide:briefcase',
     label: 'organization.nodeType.position',
-    color: 'purple',
+    bgColor: 'purple',
+    textColor: 'white',
   },
   role: {
     icon: 'lucide:shield',
     label: 'organization.nodeType.role',
-    color: 'green',
+    bgColor: 'green',
+    textColor: 'white',
   },
 };
 
-/** 层级颜色配置 */
+/** Level color configuration / 层级颜色配置 */
 export interface LevelColorConfig {
   bar: string;
   badge: string;
 }
 
-/** 右键菜单操作类型 */
+/** Context menu action / 上下文菜单操作 */
 export type ContextMenuAction =
   | 'addDepartment'
   | 'addPosition'
@@ -59,31 +65,41 @@ export type ContextMenuAction =
   | 'setLeader'
   | 'viewMembers';
 
-/** 右键菜单项 */
+/** Context menu item / 上下文菜单项 */
 export interface ContextMenuItem {
-  key: ContextMenuAction;
+  /** Action type / 操作类型 */
+  action: ContextMenuAction;
+  /** Display text / 显示文本 */
   label: string;
+  /** Icon / 图标 */
   icon: string;
+  /** Whether it is a dangerous action / 是否危险操作 */
   danger?: boolean;
-  /** 是否显示（根据节点类型判断） */
+  /** Whether disabled / 是否禁用 */
+  disabled?: boolean;
+  /** Disabled tooltip / 禁用提示 */
+  disabledTip?: string;
+  /** Whether visible (determined by node type) / 是否显示（根据节点类型判断） */
   visible?: (node: OrgTreeNodeData) => boolean;
 }
 
-/** 组织架构树组件 Props */
+/** Organization tree Props / 组织树 Props */
 export interface OrgTreeProps {
-  /** API 前缀（admin 或 tenant） */
+  /** Currently selected node ID / 当前选中的节点 ID */
+  selectedNodeId?: null | number;
+  /** Whether in readonly mode (disables context menu) / 是否只读模式（禁用右键菜单） */
+  readonly?: boolean;
+  /** API prefix (admin or tenant) / API 前缀（admin 或 tenant） */
   apiPrefix?: 'admin' | 'tenant';
-  /** 是否显示右键菜单 */
+  /** Whether to show context menu / 是否显示右键菜单 */
   showContextMenu?: boolean;
-  /** 是否支持拖拽排序 */
+  /** Whether to support drag-and-drop sorting / 是否支持拖拽排序 */
   draggable?: boolean;
-  /** 选中的节点 ID */
-  selectedId?: null | number;
-  /** i18n 前缀 */
+  /** i18n prefix / i18n 前缀 */
   i18nPrefix?: 'admin' | 'tenant';
 }
 
-/** 组织架构树组件 Emits */
+/** Organization tree Emits / 组织树 Emits */
 /* eslint-disable @typescript-eslint/unified-signatures */
 export interface OrgTreeEmits {
   (e: 'select', node: OrgTreeNodeData): void;
@@ -97,32 +113,32 @@ export interface OrgTreeEmits {
 }
 /* eslint-enable @typescript-eslint/unified-signatures */
 
-/** useOrgTree hook 返回类型 */
+/** useOrgTree return type / useOrgTree 返回类型 */
 export interface UseOrgTreeReturn {
-  /** 树形数据 */
+  /** Tree node data / 树节点数据 */
   treeData: import('vue').ShallowRef<OrgTreeNodeData[]>;
-  /** 根节点加载状态 */
+  /** Whether loading root nodes / 是否正在加载根节点 */
   loading: import('vue').Ref<boolean>;
-  /** 展开的节点 ID 集合 */
+  /** Currently expanded node IDs / 当前展开的节点 ID 集合 */
   expandedIds: import('vue').Ref<Set<number>>;
-  /** 加载根节点，返回第一个根节点（用于自动选择） */
+  /** Load root nodes / 加载根节点 */
   loadRootNodes: () => Promise<null | OrgTreeNodeData>;
-  /** 加载子节点 */
+  /** Load child nodes / 加载子节点 */
   loadChildren: (nodeId: number) => Promise<void>;
-  /** 切换展开状态 */
+  /** Toggle node expand/collapse / 切换节点展开/收起 */
   toggleExpand: (nodeId: number) => Promise<void>;
-  /** 展开所有已加载节点 */
+  /** Expand all loaded nodes / 展开所有已加载的节点 */
   expandAll: () => void;
-  /** 收起所有节点 */
+  /** Collapse all nodes / 收起所有节点 */
   collapseAll: () => void;
-  /** 检查节点是否展开 */
+  /** Check if a node is expanded / 检查节点是否展开 */
   isExpanded: (nodeId: number) => boolean;
-  /** 刷新数据，返回第一个根节点 */
+  /** Refresh entire tree / 刷新整棵树 */
   refresh: () => Promise<null | OrgTreeNodeData>;
-  /** 更新单个节点数据 */
+  /** Update a single node's data / 更新单个节点数据 */
   updateNode: (nodeId: number, data: Partial<OrgTreeNodeData>) => void;
-  /** 删除节点 */
+  /** Remove a node / 删除节点 */
   removeNode: (nodeId: number) => void;
-  /** 添加节点 */
+  /** Add a node / 添加节点 */
   addNode: (parentId: null | number, node: OrgTreeNodeData) => void;
 }

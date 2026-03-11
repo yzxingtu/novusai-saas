@@ -1,5 +1,5 @@
 """
-插件 Repository
+插件 Repository / Plugin Repository
 """
 
 from sqlalchemy import select

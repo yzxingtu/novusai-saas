@@ -1,7 +1,8 @@
 """
-枚举模块
+枚举模块 / Enum Module
 
-提供应用的枚举类定义 v2
+提供应用的枚举类定义
+Provides application enum class definitions.
 """
 
 from app.enums.agent import (
@@ -68,11 +69,11 @@ from app.enums.role import RoleType
 from app.enums.task import ScheduleTypeEnum, TaskScopeEnum, TaskStatusEnum
 
 __all__ = [
-    # 基类
+    # 基类 / Base Classes
     "BaseEnum",
     "IntEnum",
     "StrEnum",
-    # 通用枚举
+    # 通用枚举 / Common Enums
     "StatusEnum",
     "BoolEnum",
     "GenderEnum",
@@ -86,31 +87,31 @@ __all__ = [
     "DeleteLevelEnum",
     "UserRoleEnum",
     "AudienceEnum",
-    # RBAC
+    # RBAC 权限 / RBAC Permissions
     "PermissionType",
     "PermissionScope",
-    # 角色/组织架构
+    # 角色/组织架构 / Role/Organization
     "RoleType",
-    # 配置
+    # 配置 / Configuration
     "ConfigScope",
     "ConfigValueType",
-    # 计费
+    # 计费 / Billing
     "BillingCycle",
-    # 日志
+    # 日志 / Logging
     "UserTypeEnum",
     "LogModuleEnum",
     "LogCategoryEnum",
-    # 附件
+    # 附件 / Attachment
     "AttachmentVisibility",
     "AttachmentStatus",
     "AttachmentSource",
-    # 错误码
+    # 错误码 / Error Codes
     "ErrorCode",
-    # 任务
+    # 任务 / Tasks
     "TaskStatusEnum",
     "ScheduleTypeEnum",
     "TaskScopeEnum",
-    # 智能体
+    # 智能体 / Agent
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
     "ToolTypeEnum",
@@ -122,21 +123,21 @@ __all__ = [
     "BatchRunStatusEnum",
     # AI
     "ToolParameterTypeEnum",
-    # 域名
+    # 域名 / Domain
     "DomainSslStatus",
     "DomainType",
     "SslCertType",
     "SslCertStatus",
-    # 知识库
+    # 知识库 / Knowledge Base
     "KBStatusEnum",
     "DocumentStatusEnum",
     "DocumentTypeEnum",
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
-    # 缓存
+    # 缓存 / Cache
     "CacheCategoryEnum",
-    # 插件
+    # 插件 / Plugin
     "PluginStatusEnum",
     "PluginScopeEnum",
     "PluginTierEnum",

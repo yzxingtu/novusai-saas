@@ -1,12 +1,13 @@
 """
+Read-Only Database Executor (ReadOnlyExecutor)
 只读数据库执行器（ReadOnlyExecutor）
 
-安全措施：
-1. 使用独立的只读数据库连接（非主连接池）
-2. SET default_transaction_read_only = ON（事务级只读）
-3. SET statement_timeout = '10s'（防止慢查询 DoS）
-4. 最大返回 200 行（LIMIT 强制注入）
-5. 结果输出脱敏（email/phone/ip_address 列值替换为 ***）
+Security measures / 安全措施：
+1. Uses independent read-only DB connection (not main pool) / 使用独立的只读数据库连接
+2. SET default_transaction_read_only = ON (transaction-level read-only) / 事务级只读
+3. SET statement_timeout = '10s' (prevent slow query DoS) / 防止慢查询 DoS
+4. Max 200 rows returned (LIMIT forced injection) / 最大返回 200 行
+5. Result masking (email/phone/ip_address column values replaced with ***) / 结果脱敏
 """
 
 from __future__ import annotations
@@ -26,19 +27,19 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 
 # ============================================
-# 数据结构
+# Data Structures / 数据结构
 # ============================================
 
 @dataclass
 class QueryResult:
-    """查询结果"""
+    """Query result / 查询结果"""
 
     columns: list[str] = field(default_factory=list)
     rows: list[dict[str, Any]] = field(default_factory=list)
     row_count: int = 0
-    truncated: bool = False    # 是否被 LIMIT 截断
-    duration_ms: int = 0       # 执行耗时（毫秒）
-    masked_columns: list[str] = field(default_factory=list)  # 被脱敏的列
+    truncated: bool = False    # Whether truncated by LIMIT / 是否被 LIMIT 截断
+    duration_ms: int = 0       # Execution duration (ms) / 执行耗时（毫秒）
+    masked_columns: list[str] = field(default_factory=list)  # Masked columns / 被脱敏的列
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -52,11 +53,11 @@ class QueryResult:
 
 
 # ============================================
-# 结果脱敏
+# Result Masking / 结果脱敏
 # ============================================
 
 def _mask_email(value: Any) -> str:
-    """邮箱脱敏: abc***@example.com"""
+    """Email masking: abc***@example.com / 邮箱脱敏"""
     val = str(value)
     if "@" in val:
         local, domain = val.split("@", 1)
@@ -65,7 +66,7 @@ def _mask_email(value: Any) -> str:
 
 
 def _mask_phone(value: Any) -> str:
-    """手机号脱敏: 138****1234"""
+    """Phone masking: 138****1234 / 手机号脱敏"""
     val = str(value)
     if len(val) >= 7:
         return val[:3] + "****" + val[-4:]
@@ -73,7 +74,7 @@ def _mask_phone(value: Any) -> str:
 
 
 def _mask_ip(value: Any) -> str:
-    """IP 脱敏: ***.***.***.123"""
+    """IP masking: ***.***.***.123 / IP 脱敏"""
     val = str(value)
     if "." in val:
         parts = val.split(".")
@@ -81,7 +82,7 @@ def _mask_ip(value: Any) -> str:
     return "***"
 
 
-# 需要脱敏的列名 → 脱敏函数
+# Column names requiring masking -> masking function / 需要脱敏的列名 → 脱敏函数
 _MASK_COLUMNS: dict[str, Any] = {
     "email": _mask_email,
     "phone": _mask_phone,
@@ -95,7 +96,7 @@ _MASK_COLUMNS: dict[str, Any] = {
 
 
 def _mask_row(row: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """对单行数据进行脱敏，返回 (脱敏后的行, 脱敏的列名列表)"""
+    """Mask a single row, returns (masked_row, masked_column_names) / 对单行数据进行脱敏"""
     masked: dict[str, Any] = {}
     masked_cols: list[str] = []
 
@@ -117,8 +118,10 @@ def _mask_row(row: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
 class ReadOnlyExecutor:
     """
-    只读数据库执行器
+    Read-Only Database Executor / 只读数据库执行器
 
+    Executes SQL queries using independent read-only connections,
+    ensuring no impact on the main business database connection pool.
     使用独立只读连接执行 SQL 查询，
     确保不会影响主业务数据库连接池。
     """
@@ -137,19 +140,21 @@ class ReadOnlyExecutor:
         params: dict[str, Any] | None = None,
     ) -> QueryResult:
         """
-        在只读连接上执行 SQL
+        Execute SQL on read-only connection.
+        在只读连接上执行 SQL。
 
+        Prefers independent read-only connection; falls back to main connection (still enforces read-only transaction) if not configured.
         优先使用独立只读连接，未配置时回退到主连接（仍强制只读事务）。
 
         Args:
-            sql: SQL 查询语句（已注入 tenant_id）
-            params: SQL 参数（用于参数化查询）
+            sql: SQL query (with tenant_id injected) / SQL 查询语句（已注入 tenant_id）
+            params: SQL parameters (for parameterized queries) / SQL 参数
 
         Returns:
-            QueryResult 执行结果
+            QueryResult execution result / 执行结果
 
         Raises:
-            Exception: 执行失败
+            Exception: Execution failure / 执行失败
         """
         session_factory = get_readonly_session_factory()
         if session_factory is None:
@@ -160,14 +165,14 @@ class ReadOnlyExecutor:
                 "(read-only transaction enforced)"
             )
 
-        # 强制注入 LIMIT
+        # Force inject LIMIT / 强制注入 LIMIT
         sql = SQLSafetyValidator.inject_limit(sql, self.max_rows)
 
         start_time = time.monotonic()
 
         async with session_factory() as session:
             try:
-                # 设置事务级只读和超时
+                # Set transaction-level read-only and timeout / 设置事务级只读和超时
                 await session.execute(
                     text("SET LOCAL default_transaction_read_only = ON")
                 )
@@ -175,14 +180,14 @@ class ReadOnlyExecutor:
                     text(f"SET LOCAL statement_timeout = '{self.timeout_seconds * 1000}'")
                 )
 
-                # 执行查询
+                # Execute query / 执行查询
                 result = await session.execute(text(sql), params or {})
                 raw_rows = result.fetchall()
                 columns = list(result.keys()) if result.keys() else []
 
                 duration_ms = int((time.monotonic() - start_time) * 1000)
 
-                # 转换为字典列表并脱敏
+                # Convert to dict list and mask / 转换为字典列表并脱敏
                 rows: list[dict[str, Any]] = []
                 all_masked_cols: set[str] = set()
 
@@ -192,7 +197,7 @@ class ReadOnlyExecutor:
                     rows.append(masked_row)
                     all_masked_cols.update(masked_cols)
 
-                # 判断是否被截断
+                # Check if truncated / 判断是否被截断
                 truncated = len(rows) >= self.max_rows
 
                 logger.info(
@@ -220,7 +225,7 @@ class ReadOnlyExecutor:
                 await session.rollback()
 
     async def check_connection(self) -> bool:
-        """检查只读连接是否可用"""
+        """Check if read-only connection is available / 检查只读连接是否可用"""
         session_factory = get_readonly_session_factory()
         if session_factory is None:
             return False

@@ -1,7 +1,8 @@
 """
-权限模型
+权限模型 / Permission Model
 
 定义系统中的所有权限点，支持装饰器自动同步
+Defines all permission points in the system, supports decorator-based auto synchronization.
 """
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint

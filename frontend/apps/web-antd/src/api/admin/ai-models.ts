@@ -1,19 +1,19 @@
 /**
- * AI 模型管理 API
- * 对接后端 /admin/ai/models 接口
+ * AI model management API / AI 模型管理 API
+ * Backend: /admin/ai/models
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - AI 模型
+// Type definitions - AI models / 类型定义 - AI 模型
 // ============================================================
 
-/** 模型类型 */
+/** Model type / 模型类型 */
 export type ModelType = 'chat' | 'embedding' | 'image';
 
-/** AI 模型信息 */
+/** AI model info / AI 模型信息 */
 export interface AIModelInfo {
   id: number;
   provider_id: number;
@@ -38,7 +38,7 @@ export interface AIModelInfo {
   updated_at: string;
 }
 
-/** 创建模型请求 */
+/** Create model request / 创建模型请求 */
 export interface AIModelCreateRequest {
   provider_id: number;
   name: string;
@@ -59,7 +59,7 @@ export interface AIModelCreateRequest {
   config?: null | Record<string, unknown>;
 }
 
-/** 更新模型请求 */
+/** Update model request / 更新模型请求 */
 export interface AIModelUpdateRequest {
   provider_id?: null | number;
   name?: null | string;
@@ -80,14 +80,14 @@ export interface AIModelUpdateRequest {
   config?: null | Record<string, unknown>;
 }
 
-/** 远程模型信息（从供应商 API 拉取） */
+/** Remote model info (fetched from provider API) / 远程模型信息 */
 export interface RemoteModelInfo {
   id: string;
   owned_by: null | string;
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -98,12 +98,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - AI 模型
+// API - AI models / API 接口 - AI 模型
 // ============================================================
 
 const MODEL_PREFIX = '/admin/ai/models';
 
-/** 获取模型列表 */
+/** Get model list / 获取模型列表 */
 export async function getAIModelListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -114,7 +114,7 @@ export async function getAIModelListApi(
   });
 }
 
-/** 获取供应商的模型列表 */
+/** Get models by provider / 获取供应商的模型列表 */
 export async function getAIModelsByProviderApi(
   providerId: number,
   options?: ApiRequestOptions,
@@ -125,7 +125,7 @@ export async function getAIModelsByProviderApi(
   );
 }
 
-/** 从供应商远程拉取可用模型列表 */
+/** Fetch available models remotely from provider / 从供应商远程拉取可用模型列表 */
 export async function fetchRemoteModelsApi(
   providerId: number,
   options?: ApiRequestOptions,
@@ -136,7 +136,7 @@ export async function fetchRemoteModelsApi(
   );
 }
 
-/** 获取模型详情 */
+/** Get model detail / 获取模型详情 */
 export async function getAIModelDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -144,7 +144,7 @@ export async function getAIModelDetailApi(
   return requestClient.get<AIModelInfo>(`${MODEL_PREFIX}/${id}`, options);
 }
 
-/** 创建模型 */
+/** Create model / 创建模型 */
 export async function createAIModelApi(
   data: AIModelCreateRequest,
   options?: ApiRequestOptions,
@@ -152,7 +152,7 @@ export async function createAIModelApi(
   return requestClient.post<AIModelInfo>(MODEL_PREFIX, data, options);
 }
 
-/** 更新模型 */
+/** Update model / 更新模型 */
 export async function updateAIModelApi(
   id: number,
   data: AIModelUpdateRequest,
@@ -161,7 +161,7 @@ export async function updateAIModelApi(
   return requestClient.put<AIModelInfo>(`${MODEL_PREFIX}/${id}`, data, options);
 }
 
-/** 删除模型 */
+/** Delete model / 删除模型 */
 export async function deleteAIModelApi(
   id: number,
   options?: ApiRequestOptions,
@@ -169,7 +169,7 @@ export async function deleteAIModelApi(
   await requestClient.delete(`${MODEL_PREFIX}/${id}`, options);
 }
 
-/** 切换模型状态 */
+/** Toggle model status / 切换模型状态 */
 export async function toggleAIModelStatusApi(
   id: number,
   options?: ApiRequestOptions,

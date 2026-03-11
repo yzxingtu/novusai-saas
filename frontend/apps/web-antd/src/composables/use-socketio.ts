@@ -1,8 +1,10 @@
 /**
+ * Socket.IO connection composable
  * Socket.IO 连接 Composable
  *
- * 封装 socket.io-client 的连接管理，提供响应式状态跟踪、
- * Token 刷新重连、事件监听/发送等能力。
+ * Encapsulates socket.io-client connection management with reactive status tracking,
+ * token refresh reconnection, and event listen/emit capabilities.
+ * 封装 socket.io-client 的连接管理，提供响应式状态跟踪、Token 刷新重连、事件监听/发送等能力。
  */
 
 import type { Socket } from 'socket.io-client';
@@ -20,40 +22,40 @@ export type SocketIOStatus =
   | 'disconnected'
   | 'reconnecting';
 
-/** Composable 选项 */
+/** Composable options / Composable 选项 */
 export interface UseSocketIOOptions {
-  /** Socket.IO namespace，如 '/admin'、'/tenant'、'/user' */
+  /** Socket.IO namespace, e.g. '/admin', '/tenant', '/user' / Socket.IO 命名空间 */
   namespace: string;
-  /** JWT access token（响应式 Ref、静态字符串、或 getter 函数） */
+  /** JWT access token (reactive Ref, static string, or getter function) / JWT 访问令牌 */
   token: (() => string) | Ref<string> | string;
-  /** 服务器 URL，默认当前 origin */
+  /** Server URL, defaults to current origin / 服务器 URL */
   serverUrl?: string;
-  /** Socket.IO path，默认 '/sio' */
+  /** Socket.IO path, default '/sio' / Socket.IO 路径 */
   path?: string;
-  /** 是否自动连接，默认 false */
+  /** Whether to auto-connect, default false / 是否自动连接 */
   autoConnect?: boolean;
 }
 
-/** Composable 返回值 */
+/** Composable return value / Composable 返回值 */
 export interface UseSocketIOReturn {
-  /** Socket.IO 客户端实例 */
+  /** Socket.IO client instance / Socket.IO 客户端实例 */
   socket: ShallowRef<null | Socket>;
-  /** 连接状态 */
+  /** Connection status / 连接状态 */
   status: Ref<SocketIOStatus>;
-  /** 手动连接 */
+  /** Manual connect / 手动连接 */
   connect: () => void;
-  /** 手动断开 */
+  /** Manual disconnect / 手动断开 */
   disconnect: () => void;
-  /** 监听事件 */
+  /** Listen to event / 监听事件 */
   on: <T = unknown>(event: string, handler: (data: T) => void) => void;
-  /** 取消监听 */
+  /** Remove event listener / 取消监听 */
   off: (event: string, handler?: (...args: unknown[]) => void) => void;
-  /** 发送事件 */
+  /** Emit event / 发送事件 */
   emit: (event: string, data?: unknown) => void;
 }
 
 /**
- * Socket.IO 连接 composable
+ * Socket.IO connection composable / Socket.IO 连接 composable
  *
  * @example
  * ```ts
@@ -81,7 +83,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
   let authErrorCount = 0;
   const MAX_AUTH_ERRORS = 3;
 
-  /** 获取当前 token 值（支持 Ref、getter 函数、静态字符串） */
+  /** Get current token value (supports Ref, getter function, static string) / 获取当前 token 值 */
   function getToken(): string {
     if (typeof token === 'function') {
       return token();
@@ -89,7 +91,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     return toValue(token);
   }
 
-  /** 创建 Socket.IO 连接 */
+  /** Create Socket.IO connection / 创建 Socket.IO 连接 */
   function createSocket(): Socket {
     const url = serverUrl || window.location.origin;
     const currentToken = getToken();
@@ -105,7 +107,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       transports: ['websocket'],
     });
 
-    // 连接状态事件
+    // Connection status events / 连接状态事件
     sock.on('connect', () => {
       status.value = 'connected';
       authErrorCount = 0;
@@ -130,7 +132,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       console.error('[Socket.IO] Reconnection failed');
     });
 
-    // Token 过期 / 认证失败处理
+    // Token expired / auth failure handling / Token 过期认证失败处理
     sock.on('connect_error', (err: Error) => {
       if (
         err.message === 'token_expired' ||
@@ -140,14 +142,14 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
         const latestToken = getToken();
 
         if (latestToken && latestToken !== currentToken) {
-          // Token 已刷新，用新 token 重连
+          // Token refreshed, reconnect with new token / Token 已刷新，用新 token 重连
           sock.auth = { token: `Bearer ${latestToken}` };
           authErrorCount = 0;
           console.warn(
             '[Socket.IO] Token refreshed, reconnecting with new token',
           );
         } else if (authErrorCount >= MAX_AUTH_ERRORS) {
-          // 多次认证失败且 token 未刷新，停止重连
+          // Multiple auth failures without token refresh, stop reconnecting / 多次认证失败停止重连
           sock.disconnect();
           status.value = 'disconnected';
           console.warn(
@@ -164,7 +166,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     return sock;
   }
 
-  /** 连接 */
+  /** Connect / 连接 */
   function connect() {
     isManualDisconnect = false;
     authErrorCount = 0;
@@ -174,12 +176,12 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       return;
     }
 
-    // 如果已有连接且 connected，忽略
+    // Ignore if already connected / 如果已有连接且 connected，忽略
     if (socket.value?.connected) {
       return;
     }
 
-    // 如果已有 socket 但未连接，先销毁
+    // Destroy existing socket if not connected / 如果已有 socket 但未连接，先销毁
     if (socket.value) {
       socket.value.removeAllListeners();
       socket.value.disconnect();
@@ -191,7 +193,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     sock.connect();
   }
 
-  /** 断开连接 */
+  /** Disconnect / 断开连接 */
   function disconnect() {
     isManualDisconnect = true;
     if (socket.value) {
@@ -202,12 +204,12 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     status.value = 'disconnected';
   }
 
-  /** 监听事件 */
+  /** Listen to event / 监听事件 */
   function on<T = unknown>(event: string, handler: (data: T) => void) {
     socket.value?.on(event, handler as (...args: unknown[]) => void);
   }
 
-  /** 取消监听 */
+  /** Remove event listener / 取消监听 */
   function off(event: string, handler?: (...args: unknown[]) => void) {
     if (handler) {
       socket.value?.off(event, handler);
@@ -216,42 +218,42 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     }
   }
 
-  /** 发送事件 */
+  /** Emit event / 发送事件 */
   function emit(event: string, data?: unknown) {
     if (socket.value?.connected) {
       socket.value.emit(event, data);
     }
   }
 
-  // Token 变化时断开重连（仅对 Ref 类型有效，getter 函数无需 watch）
+  // Disconnect and reconnect on token change (only for Ref type, getter functions don't need watch) / Token 变化时断开重连
   if (typeof token !== 'string' && typeof token !== 'function') {
     watch(token, (newToken, oldToken) => {
       if (newToken === oldToken) return;
 
       if (!newToken) {
-        // Token 清空 → 断开
+        // Token cleared → disconnect / Token 清空 → 断开
         disconnect();
         return;
       }
 
       if (socket.value) {
-        // Token 更新 → 重连（更新 auth）
+        // Token updated → reconnect (update auth) / Token 更新 → 重连
         socket.value.auth = { token: `Bearer ${newToken}` };
         if (socket.value.connected) {
-          // 已连接状态下 token 变化：断开重连以使用新 token
+          // Token changed while connected: disconnect and reconnect with new token / 已连接状态下断开重连
           socket.value.disconnect();
           socket.value.connect();
         } else {
           socket.value.connect();
         }
       } else if (oldToken === '') {
-        // 首次获得 token → 连接
+        // First token received → connect / 首次获得 token → 连接
         connect();
       }
     });
   }
 
-  // 自动连接
+  // Auto-connect / 自动连接
   if (autoConnect && getToken()) {
     connect();
   }

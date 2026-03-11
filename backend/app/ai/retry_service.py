@@ -1,6 +1,9 @@
 """
+AI Retry Service
 AI 重试服务
 
+Handles exponential backoff retry and API Key rotation logic.
+Extracted from AIGateway to reduce God Object complexity.
 负责指数退避重试、API Key 轮换逻辑。
 从 AIGateway 提取，降低 God Object 复杂度。
 """
@@ -24,22 +27,22 @@ from app.repositories.ai import ProviderApiKeyRepository
 
 logger = LogManager.get_logger("ai")
 
-# 重试配置
+# Retry configuration / 重试配置
 MAX_RETRIES = 3
-RETRY_BASE_DELAY = 1.0  # 基础延迟（秒）
-RETRY_MULTIPLIER = 2.0  # 指数倍数
+RETRY_BASE_DELAY = 1.0  # Base delay (seconds) / 基础延迟（秒）
+RETRY_MULTIPLIER = 2.0  # Exponential multiplier / 指数倍数
 
 _T = TypeVar("_T")
 
 
 class RetryService:
     """
-    AI 调用重试服务
+    AI Call Retry Service / AI 调用重试服务
 
-    职责：
-    - 指数退避重试
-    - API Key 轮换
-    - 适配器创建
+    Responsibilities / 职责：
+    - Exponential backoff retry / 指数退避重试
+    - API Key rotation / API Key 轮换
+    - Adapter creation / 适配器创建
     """
 
     def __init__(self, api_key_repo: ProviderApiKeyRepository) -> None:
@@ -55,23 +58,25 @@ class RetryService:
         log_key: str = "ai.log.gateway_chat_call",
     ) -> tuple[_T, int, ProviderApiKey]:
         """
-        通用指数退避重试
+        Generic exponential backoff retry.
+        通用指数退避重试。
 
+        Create adapter → call call_fn(adapter) → handle exceptions/retry/Key rotation.
         创建适配器 → 调用 call_fn(adapter) → 处理异常/重试/Key 轮换。
 
         Args:
-            provider: AI 供应商
-            api_key: 当前 API Key
-            model: 模型名称
-            call_fn: 接收 adapter 实例并返回结果的异步函数
-            tenant_id: 租户 ID（用于获取备用 Key）
-            log_key: 日志 i18n key
+            provider: AI provider / AI 供应商
+            api_key: Current API Key / 当前 API Key
+            model: Model name / 模型名称
+            call_fn: Async function that receives adapter and returns result / 接收 adapter 实例并返回结果的异步函数
+            tenant_id: Tenant ID (for getting backup Key) / 租户 ID（用于获取备用 Key）
+            log_key: Log i18n key / 日志 i18n key
 
         Returns:
-            (response, retry_count, used_api_key) 元组
+            (response, retry_count, used_api_key) tuple / 元组
 
         Raises:
-            AIGatewayError: 所有重试均失败后抛出最后一个异常
+            AIGatewayError: Raises the last exception after all retries fail / 所有重试均失败后抛出最后一个异常
         """
         current_key = api_key
         last_error: AIGatewayError | None = None
@@ -169,18 +174,21 @@ class RetryService:
         tenant_id: int | None = None,
     ) -> ProviderApiKey | None:
         """
-        获取下一个可用的 API Key（用于重试时轮换）
+        Get next available API Key (for rotation on retry).
+        获取下一个可用的 API Key（用于重试时轮换）。
 
+        Prioritizes same-level Keys (same tenant_id),
+        falls back to platform-level Key if none found.
         优先查找同级别（同 tenant_id）的其他 Key，
         如果没有则回退到平台级 Key。
 
         Args:
-            provider_id: 供应商 ID
-            current_key_id: 当前 Key 的 ID（排除）
-            tenant_id: 租户 ID
+            provider_id: Provider ID / 供应商 ID
+            current_key_id: Current Key ID (excluded) / 当前 Key 的 ID（排除）
+            tenant_id: Tenant ID / 租户 ID
 
         Returns:
-            下一个可用的 API Key，如果没有则返回 None
+            Next available API Key, or None / 下一个可用的 API Key，如果没有则返回 None
         """
         return await self._api_key_repo.get_next_available_key(
             provider_id=provider_id,

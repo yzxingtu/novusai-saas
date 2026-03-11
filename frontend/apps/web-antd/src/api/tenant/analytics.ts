@@ -1,6 +1,6 @@
 /**
- * Tenant 数据分析 API
- * 对接后端 /tenant/analytics/* 接口
+ * Tenant analytics API / 租户数据分析 API
+ * Backend: /tenant/analytics/* / 对接后端 /tenant/analytics/* 接口
  */
 import { requestClient } from '#/utils/request';
 

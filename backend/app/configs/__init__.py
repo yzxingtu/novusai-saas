@@ -1,6 +1,6 @@
-"""
-配置模块
+"""Configuration module / 配置模块
 
+Provides config metadata definitions and registry functionality.
 提供配置元数据定义和注册中心功能
 """
 
@@ -12,7 +12,7 @@ from app.configs.meta import (
     max_length,
     max_value,
     min_length,
-    # 便捷函数
+    # Convenience functions / 便捷函数
     min_value,
     option,
     pattern,
@@ -33,26 +33,26 @@ from app.configs.sync import (
 )
 
 __all__ = [
-    # 元数据类
+    # Metadata classes / 元数据类
     "ConfigMeta",
     "ConfigGroupMeta",
     "ConfigOption",
     "ValidationRule",
-    # 注册中心
+    # Registry / 注册中心
     "ConfigRegistry",
     "config_registry",
     "get_config_registry",
-    # 便捷函数
+    # Convenience functions / 便捷函数
     "min_value",
     "max_value",
     "min_length",
     "max_length",
     "pattern",
     "option",
-    # 同步服务
+    # Sync service / 同步服务
     "ConfigSyncService",
     "sync_configs_on_startup",
-    # 配置服务
+    # Config service / 配置服务
     "ConfigService",
     "get_config_service",
     "PLATFORM_TENANT_ID",

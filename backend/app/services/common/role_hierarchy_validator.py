@@ -1,7 +1,8 @@
 """
-角色层级校验服务
+角色层级校验服务 / Role Hierarchy Validator Service
 
 提供基于角色层级的访问控制校验方法
+Provides role hierarchy-based access control validation methods.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession

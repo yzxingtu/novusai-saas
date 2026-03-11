@@ -1,16 +1,16 @@
 /**
- * AI 对话管理 API
- * 对接后端 /admin/ai/conversations 接口
+ * AI conversation management API / AI 对话管理 API
+ * Backend: /admin/ai/conversations
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - 对话管理
+// Type definitions - Conversation management / 类型定义 - 对话管理
 // ============================================================
 
-/** 用户简要信息 */
+/** User brief info / 用户简要信息 */
 export interface ConversationUserInfo {
   id: number;
   username: string;
@@ -18,7 +18,7 @@ export interface ConversationUserInfo {
   avatar: null | string;
 }
 
-/** 管理端对话列表项 */
+/** Admin conversation list item / 管理端对话列表项 */
 export interface AIConversationInfo {
   id: number;
   tenant_id: number;
@@ -37,7 +37,7 @@ export interface AIConversationInfo {
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -48,12 +48,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - 对话管理
+// API - Conversation management / API 接口 - 对话管理
 // ============================================================
 
 const CONV_PREFIX = '/admin/ai/conversations';
 
-/** 获取全租户对话列表 */
+/** Get all-tenant conversation list / 获取全租户对话列表 */
 export async function getAIConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -64,7 +64,7 @@ export async function getAIConversationListApi(
   });
 }
 
-/** 获取对话详情 */
+/** Get conversation detail / 获取对话详情 */
 export async function getAIConversationDetailApi(
   id: number,
   options?: ApiRequestOptions,

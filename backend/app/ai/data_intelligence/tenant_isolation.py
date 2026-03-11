@@ -1,14 +1,18 @@
 """
+Tenant Isolation Injector (TenantIsolationInjector)
 租户隔离注入器（TenantIsolationInjector）
 
+Automatically injects tenant_id conditions for each queried table.
+This is the most critical security layer — even if the SQL is valid,
+without tenant_id filtering, other tenants' data would be leaked.
 自动为每个查询表注入 tenant_id 条件。
 这是最关键的安全层 —— 即使 SQL 本身合法，
 没有 tenant_id 过滤就会泄露其他租户数据。
 
-安全保证：
-- 不依赖 LLM 生成 tenant_id 条件（LLM 可能遗漏或被注入）
-- 在代码层强制注入，无法绕过
-- 如果表没有 tenant_column，拒绝执行
+Security guarantees / 安全保证：
+- Does not rely on LLM to generate tenant_id conditions (LLM may omit or be injected) / 不依赖 LLM 生成 tenant_id 条件（LLM 可能遗漏或被注入）
+- Enforced at code level, cannot be bypassed / 在代码层强制注入，无法绕过
+- If table has no tenant_column, execution is rejected / 如果表没有 tenant_column，拒绝执行
 """
 
 from __future__ import annotations
@@ -25,34 +29,34 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 
 # ============================================
-# 异常定义
+# Exception Definition / 异常定义
 # ============================================
 
 class TenantIsolationError(Exception):
-    """租户隔离注入异常"""
+    """Tenant isolation injection exception / 租户隔离注入异常"""
     pass
 
 
 # ============================================
-# 表引用提取
+# Table Reference Extraction / 表引用提取
 # ============================================
 
 @dataclass
 class TableReference:
-    """SQL 中的表引用"""
-    table_name: str        # 原始表名
-    alias: str | None      # 别名（AS）
-    tenant_column: str     # 租户隔离列名
+    """Table reference in SQL / SQL 中的表引用"""
+    table_name: str        # Original table name / 原始表名
+    alias: str | None      # Alias (AS) / 别名（AS）
+    tenant_column: str     # Tenant isolation column name / 租户隔离列名
 
     @property
     def qualified_tenant_column(self) -> str:
-        """带表名/别名前缀的 tenant_column"""
+        """tenant_column with table name/alias prefix / 带表名/别名前缀的 tenant_column"""
         prefix = self.alias if self.alias else self.table_name
         return f"{prefix}.{self.tenant_column}"
 
 
-# FROM / JOIN 后的表引用提取
-# 匹配模式:
+# Table reference extraction after FROM / JOIN / FROM / JOIN 后的表引用提取
+# Match patterns / 匹配模式:
 #   FROM table_name
 #   FROM table_name AS alias
 #   FROM table_name alias
@@ -68,7 +72,7 @@ _TABLE_REF_RE = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-# 需要排除的 SQL 关键字（不是别名）
+# SQL keywords to exclude (not aliases) / 需要排除的 SQL 关键字（不是别名）
 _SQL_KEYWORDS = {
     "on", "where", "and", "or", "inner", "outer", "left", "right",
     "cross", "full", "join", "set", "group", "order", "having",
@@ -81,7 +85,8 @@ _SQL_KEYWORDS = {
 
 def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
     """
-    提取 SQL 中所有的表引用（表名 + 别名）
+    Extract all table references (table name + alias) from SQL.
+    提取 SQL 中所有的表引用（表名 + 别名）。
 
     Returns:
         [(table_name, alias_or_none), ...]
@@ -93,14 +98,14 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
         as_alias = match.group(2)   # AS 别名
         implicit_alias = match.group(3)  # 隐式别名
 
-        # 确定最终别名
+        # Determine final alias / 确定最终别名
         alias = as_alias
         if (
             not alias
             and implicit_alias
             and implicit_alias.lower() not in _SQL_KEYWORDS
         ):
-            # 检查是否是关键字
+            # Check if it's a keyword / 检查是否是关键字
             alias = implicit_alias
 
         refs.append((table_name, alias))
@@ -114,21 +119,22 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
 
 class TenantIsolationInjector:
     """
-    自动为 SQL 中每个 FROM/JOIN 的表注入隔离条件
+    Automatically injects isolation conditions for each FROM/JOIN table in SQL.
+    自动为 SQL 中每个 FROM/JOIN 的表注入隔离条件。
 
-    按 user_role 决定隔离策略：
-    - platform_admin: 平台表不注入，租户表注入 tenant_id
-    - tenant_admin: 所有表强制 tenant_id 隔离
-    - tenant_user: 强制 tenant_id + user_id 隔离（仅限自身数据）
+    Isolation strategy by user_role / 按 user_role 决定隔离策略：
+    - platform_admin: No injection for platform tables, inject tenant_id for tenant tables / 平台表不注入，租户表注入 tenant_id
+    - tenant_admin: Force tenant_id isolation on all tables / 所有表强制 tenant_id 隔离
+    - tenant_user: Force tenant_id + user_id isolation (own data only) / 强制 tenant_id + user_id 隔离（仅限自身数据）
 
-    示例:
-        输入: SELECT COUNT(*) FROM tenant_users WHERE created_at > '2026-02-01'
-        输出: SELECT COUNT(*) FROM tenant_users
+    Example / 示例:
+        Input: SELECT COUNT(*) FROM tenant_users WHERE created_at > '2026-02-01'
+        Output: SELECT COUNT(*) FROM tenant_users
               WHERE tenant_users.tenant_id = 123
                 AND (created_at > '2026-02-01')
     """
 
-    # 含 user_id 列的表（用于 tenant_user 角色的用户级隔离）
+    # Tables with user_id column (for user-level isolation of tenant_user role) / 含 user_id 列的表
     _USER_ISOLATION_TABLES: set[str] = {
         "agent_conversations",
         "conversation_messages",
@@ -143,31 +149,32 @@ class TenantIsolationInjector:
         user_id: int | None = None,
     ) -> str:
         """
-        为 SQL 中每个 FROM/JOIN 的表自动注入隔离条件
+        Automatically inject isolation conditions for each FROM/JOIN table in SQL.
+        为 SQL 中每个 FROM/JOIN 的表自动注入隔离条件。
 
         Args:
-            sql: 原始 SQL（已通过 SQLSafetyValidator 校验）
-            tenant_id: 租户 ID
-            schema: 表结构信息（用于确认 tenant_column）
-            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
-            user_id: 用户 ID（tenant_user 角色时用于用户级隔离）
+            sql: Original SQL (already validated by SQLSafetyValidator) / 原始 SQL（已通过 SQLSafetyValidator 校验）
+            tenant_id: Tenant ID / 租户 ID
+            schema: Table schema info (to confirm tenant_column) / 表结构信息（用于确认 tenant_column）
+            user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色（platform_admin / tenant_admin / tenant_user）
+            user_id: User ID (for user-level isolation in tenant_user role) / 用户 ID（tenant_user 角色时用于用户级隔离）
 
         Returns:
-            注入隔离条件后的 SQL
+            SQL with isolation conditions injected / 注入隔离条件后的 SQL
 
         Raises:
-            TenantIsolationError: 表缺少 tenant_column
+            TenantIsolationError: Table missing tenant_column / 表缺少 tenant_column
         """
-        # platform_admin 可查看所有数据，不注入 tenant_id 隔离
+        # platform_admin can view all data, no tenant_id injection / 平台管理员可以查看所有数据，不注入 tenant_id 隔离
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
             return sql
 
-        # 构建 schema 字典
+        # Build schema dictionary / 构建 schema 字典
         schema_map: dict[str, TableSchema] = {
             t.table_name.lower(): t for t in schema
         }
 
-        # 提取表引用
+        # Extract table references / 提取表引用
         table_refs = _extract_table_refs(sql)
         if not table_refs:
             logger.warning(
@@ -178,7 +185,7 @@ class TenantIsolationInjector:
                 _("data_intelligence.isolation.no_table_ref")
             )
 
-        # 为每个表构建 TableReference
+        # Build TableReference for each table / 为每个表构建 TableReference
         refs: list[TableReference] = []
         for table_name, alias in table_refs:
             table_lower = table_name.lower()
@@ -191,14 +198,15 @@ class TenantIsolationInjector:
                 )
 
             if not table_schema.tenant_column:
-                # 平台级表（如 tenants、tenant_plans）无 tenant_id
-                # 非平台管理员禁止查询无隔离列的表（防止数据泄露）
+                # Platform-level tables (e.g. tenants, tenant_plans) have no tenant_id
+                # Non-platform admins cannot query tables without isolation column (prevent data leaks)
+                # 平台级表（如 tenants、tenant_plans）无 tenant_id，非平台管理员禁止查询无隔离列的表（防止数据泄露）
                 if user_role != UserRoleEnum.PLATFORM_ADMIN.value:
                     raise TenantIsolationError(
                         _("data_intelligence.isolation.no_tenant_column",
                           table=table_name)
                     )
-                # 平台管理员跳过隔离
+                # Platform admin skips isolation / 平台管理员跳过隔离
                 logger.debug(
                     "Table %s has no tenant_column, skipping isolation (platform_admin)",
                     table_name,
@@ -211,10 +219,10 @@ class TenantIsolationInjector:
                 tenant_column=table_schema.tenant_column,
             ))
 
-        # 注入 tenant_id 条件
+        # Inject tenant_id conditions / 注入 tenant_id 条件
         result = _inject_conditions(sql, refs, tenant_id)
 
-        # tenant_user 角色：额外注入 user_id 条件（仅限自身数据）
+        # tenant_user role: additionally inject user_id condition (own data only) / 额外注入 user_id 条件（仅限自身数据）
         if user_role == "tenant_user" and user_id:
             user_refs = [
                 ref for ref in refs
@@ -238,7 +246,7 @@ class TenantIsolationInjector:
         table_name: str,
         schema: list[TableSchema],
     ) -> bool:
-        """检查表是否有 tenant_column"""
+        """Check if table has tenant_column / 检查表是否有 tenant_column"""
         for t in schema:
             if t.table_name.lower() == table_name.lower():
                 return bool(t.tenant_column)
@@ -252,6 +260,8 @@ def _find_at_depth_zero(
     """
     Find the first match of *pattern* that sits at parenthesis depth 0,
     i.e. in the outermost query rather than inside a subquery.
+    在括号深度为 0 处查找 *pattern* 的第一个匹配项，
+    即在最外层查询中而不是在子查询内部。
     """
     depth = 0
     i = 0
@@ -291,6 +301,12 @@ def _inject_conditions(
     1. If the outermost query has a WHERE clause, prepend AND conditions.
     2. If not, insert a WHERE clause before GROUP BY / ORDER BY / LIMIT etc.
     3. Subquery WHERE clauses (depth > 0) are left untouched.
+    注入 tenant_id WHERE 条件到 *sql* 的最外层查询中。
+
+    策略：
+    1. 如果最外层查询有 WHERE 子句，追加 AND 条件。
+    2. 如果没有，插入 WHERE 子句在 GROUP BY / ORDER BY / LIMIT 等之前。
+    3. 子查询的 WHERE 子句（深度 > 0）保持不变。
     """
     conditions: list[str] = []
     for ref in refs:
@@ -337,27 +353,29 @@ def _inject_conditions(
 
 
 def _build_user_condition(ref: TableReference, user_id: int) -> str:
-    """构建 user_id 隔离条件"""
+    """Build user_id isolation condition / 构建 user_id 隔离条件"""
     prefix = ref.alias if ref.alias else ref.table_name
     return f"{prefix}.user_id = {user_id}"
 
 
 def _inject_extra_conditions(sql: str, conditions: list[str]) -> str:
     """
-    向已有 SQL 追加额外 AND 条件
+    Append extra AND conditions to existing SQL.
+    向已有 SQL 追加额外 AND 条件。
 
-    假设 SQL 已经有 WHERE 子句（由 _inject_conditions 注入的 tenant_id），
-    在 WHERE 子句尾部追加 AND 条件。
+    Assumes SQL already has WHERE clause (injected by _inject_conditions for tenant_id),
+    appends AND conditions at the end of WHERE clause.
+    假设 SQL 已经有 WHERE 子句（由 _inject_conditions 注入的 tenant_id），追加 AND 条件在 WHERE 子句尾部。
     """
     if not conditions:
         return sql
 
     extra_clause = " AND ".join(conditions)
 
-    # 已有 WHERE（由前一步 tenant_id 注入保证），追加 AND
+    # Already has WHERE (guaranteed by previous tenant_id injection), append AND / 已有 WHERE 子句，追加 AND
     where_match = _find_at_depth_zero(sql, _WHERE_RE)
     if where_match:
-        # 在 GROUP BY / ORDER BY / LIMIT 等之前插入
+        # Insert before GROUP BY / ORDER BY / LIMIT etc. / 在尾部子句之前插入
         insert_match = _find_at_depth_zero(sql, _INSERT_BEFORE_RE)
         if insert_match:
             insert_pos = insert_match.start()
@@ -366,11 +384,11 @@ def _inject_extra_conditions(sql: str, conditions: list[str]) -> str:
                 + f" AND {extra_clause} "
                 + sql[insert_pos:]
             )
-        # 无尾部子句，直接追加
+        # No trailing clauses, append directly / 无尾部子句，直接追加
         stripped = sql.rstrip().rstrip(";")
         return f"{stripped} AND {extra_clause}"
 
-    # 无 WHERE（不应发生，但兜底）
+    # No WHERE (should not happen, but fallback) / 无 WHERE（不应发生，但兜底）
     stripped = sql.rstrip().rstrip(";")
     return f"{stripped} WHERE {extra_clause}"
 

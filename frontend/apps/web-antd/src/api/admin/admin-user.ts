@@ -1,19 +1,19 @@
 /**
- * 平台管理员管理 API
- * 对接后端 /admin/admins/* 接口
+ * Platform admin user management API / 平台管理员管理 API
+ * Backend: /admin/admins/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 管理员列表查询参数 */
+/** Admin list query params / 管理员列表查询参数 */
 export type AdminListParams = Record<string, unknown>;
 
-/** 创建管理员请求 */
+/** Create admin request / 创建管理员请求 */
 export interface AdminCreateRequest {
   username: string;
   email: string;
@@ -25,7 +25,7 @@ export interface AdminCreateRequest {
   role_id?: null | number;
 }
 
-/** 更新管理员请求 */
+/** Update admin request / 更新管理员请求 */
 export interface AdminUpdateRequest {
   email?: null | string;
   phone?: null | string;
@@ -36,24 +36,24 @@ export interface AdminUpdateRequest {
   role_id?: null | number;
 }
 
-/** 重置密码请求 */
+/** Reset password request / 重置密码请求 */
 export interface AdminResetPasswordRequest {
   new_password: string;
 }
 
-/** 切换状态请求 */
+/** Toggle status request / 切换状态请求 */
 export interface AdminStatusRequest {
   is_active: boolean;
 }
 
-/** 角色信息 */
+/** Role basic info / 角色信息 */
 export interface RoleBasicInfo {
   id: number;
   code: string;
   name: string;
 }
 
-/** 管理员信息（后端原始格式 snake_case） */
+/** Admin info (backend raw snake_case) / 管理员信息（后端原始格式） */
 export interface AdminInfoRaw {
   id: number;
   username: string;
@@ -70,7 +70,7 @@ export interface AdminInfoRaw {
   updated_at?: string;
 }
 
-/** 管理员信息（前端格式 camelCase） */
+/** Admin info (frontend camelCase) / 管理员信息（前端格式） */
 export interface AdminInfo {
   id: number;
   username: string;
@@ -87,7 +87,7 @@ export interface AdminInfo {
   updatedAt?: string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface AdminListResponse {
   items: AdminInfo[];
   total: number;
@@ -96,10 +96,10 @@ export interface AdminListResponse {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 将后端 snake_case 转换为前端 camelCase */
 function transformAdminInfo(raw: AdminInfoRaw): AdminInfo {
   return {
     id: raw.id,
@@ -119,13 +119,13 @@ function transformAdminInfo(raw: AdminInfoRaw): AdminInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/admins';
 
 /**
- * 获取管理员列表
+ * Get admin list / 获取管理员列表
  * GET /admin/admins
  */
 export async function getAdminListApi(
@@ -148,7 +148,7 @@ export async function getAdminListApi(
 }
 
 /**
- * 获取管理员详情
+ * Get admin detail / 获取管理员详情
  * GET /admin/admins/{admin_id}
  */
 export async function getAdminDetailApi(
@@ -163,7 +163,7 @@ export async function getAdminDetailApi(
 }
 
 /**
- * 创建管理员
+ * Create admin / 创建管理员
  * POST /admin/admins
  */
 export async function createAdminApi(
@@ -175,7 +175,7 @@ export async function createAdminApi(
 }
 
 /**
- * 更新管理员
+ * Update admin / 更新管理员
  * PUT /admin/admins/{admin_id}
  */
 export async function updateAdminApi(
@@ -192,7 +192,7 @@ export async function updateAdminApi(
 }
 
 /**
- * 删除管理员
+ * Delete admin / 删除管理员
  * DELETE /admin/admins/{admin_id}
  */
 export async function deleteAdminApi(
@@ -203,7 +203,7 @@ export async function deleteAdminApi(
 }
 
 /**
- * 重置管理员密码
+ * Reset admin password / 重置管理员密码
  * PUT /admin/admins/{admin_id}/reset-password
  */
 export async function resetAdminPasswordApi(
@@ -219,7 +219,7 @@ export async function resetAdminPasswordApi(
 }
 
 /**
- * 切换管理员状态
+ * Toggle admin status / 切换管理员状态
  * PUT /admin/admins/{admin_id}/status?is_active=true/false
  */
 export async function toggleAdminStatusApi(

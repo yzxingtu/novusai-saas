@@ -1,8 +1,8 @@
 """
-智能体访问权限模型
+智能体访问权限模型 / Agent Access Model
 
-定义智能体的访问控制配置：可见范围、授权用户/组织节点
-与 Agent 为一对一关系
+定义智能体的访问控制配置：可见范围、授权用户/组织节点，与 Agent 为一对一关系
+Defines agent access control config: visibility scope, authorized users/org nodes. One-to-one with Agent.
 """
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String

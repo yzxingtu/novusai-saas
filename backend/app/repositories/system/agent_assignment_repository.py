@@ -1,7 +1,8 @@
 """
-系统智能体绑定仓储
+系统智能体绑定仓储 / System Agent Assignment Repository
 
 提供系统智能体绑定的数据访问操作
+Provides system agent assignment data access operations.
 """
 
 from sqlalchemy import select

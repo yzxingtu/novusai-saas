@@ -1,6 +1,6 @@
 /**
- * 租户用户端认证 API
- * 对接后端 /api/user/auth/* 接口
+ * Tenant user auth API / 租户用户端认证 API
+ * Backend: /api/user/auth/* / 对接后端 /api/user/auth/* 接口
  */
 import type {
   ChangePasswordParams,
@@ -18,30 +18,30 @@ import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from '#/utils/request';
 
-// Logout 使用 baseRequestClient 避免 401 时循环调用
+// Logout uses baseRequestClient to avoid circular calls on 401 / Logout 使用 baseRequestClient 避免 401 时循环调用
 
 const API_PREFIX = '/api/user/auth';
 
 /**
- * 用户登录 (JSON 格式)
- * 后端返回 snake_case，转换为 camelCase
+ * User login (JSON format) / 用户登录 (JSON 格式)
+ * Backend returns snake_case, converted to camelCase / 后端返回 snake_case，转换为 camelCase
  */
 export async function userLoginApi(
   data: LoginParams,
   options?: ApiRequestOptions,
 ): Promise<LoginResult> {
-  // 构建请求体，转换为 snake_case
+  // Build request body, convert to snake_case / 构建请求体，转换为 snake_case
   const requestBody: Record<string, unknown> = {
     password: data.password,
     username: data.username,
   };
 
-  // 添加租户编码（如果有）
+  // Add tenant code (if present) / 添加租户编码（如果有）
   if (data.tenantCode) {
     requestBody.tenant_code = data.tenantCode;
   }
 
-  // 添加验证码参数（如果有）
+  // Add captcha params (if present) / 添加验证码参数（如果有）
   if (data.captchaChallengeId) {
     requestBody.captcha_challenge_id = data.captchaChallengeId;
   }
@@ -64,8 +64,8 @@ export async function userLoginApi(
 }
 
 /**
- * 刷新 Token
- * 后端返回 snake_case，转换为 camelCase
+ * Refresh token / 刷新 Token
+ * Backend returns snake_case, converted to camelCase / 后端返回 snake_case，转换为 camelCase
  */
 export async function userRefreshTokenApi(
   refreshToken: string,
@@ -83,8 +83,8 @@ export async function userRefreshTokenApi(
 }
 
 /**
- * 用户登出
- * 使用 baseRequestClient 避免 401 时触发循环调用
+ * User logout / 用户登出
+ * Uses baseRequestClient to avoid circular calls on 401 / 使用 baseRequestClient 避免 401 时触发循环调用
  */
 export async function userLogoutApi() {
   try {
@@ -96,12 +96,12 @@ export async function userLogoutApi() {
       headers,
     });
   } catch {
-    // 登出失败不影响主流程
+    // Logout failure does not affect main flow / 登出失败不影响主流程
   }
 }
 
 /**
- * 后端返回的用户信息原始格式
+ * User info raw format from backend / 后端返回的用户信息原始格式
  */
 interface UserInfoRaw {
   id: number;
@@ -119,12 +119,12 @@ interface UserInfoRaw {
   last_login_at?: string;
   created_at?: string;
   updated_at?: string;
-  /** 权限码列表 */
+  /** Permission code list / 权限码列表 */
   permissions?: string[];
 }
 
 /**
- * 用户完整资料信息（前端格式）
+ * User full profile info (frontend format) / 用户完整资料信息（前端格式）
  */
 export interface UserProfileInfo {
   id: number;
@@ -145,8 +145,8 @@ export interface UserProfileInfo {
 }
 
 /**
- * 获取当前用户信息
- * 将后端 snake_case 转换为前端 camelCase
+ * Get current user info / 获取当前用户信息
+ * Converts backend snake_case to frontend camelCase / 将后端 snake_case 转换为前端 camelCase
  */
 export async function getUserInfoApi(
   options?: ApiRequestOptions,
@@ -165,7 +165,7 @@ export async function getUserInfoApi(
 }
 
 /**
- * 获取当前用户完整资料
+ * Get current user full profile / 获取当前用户完整资料
  */
 export async function getUserProfileApi(
   options?: ApiRequestOptions,
@@ -191,7 +191,7 @@ export async function getUserProfileApi(
 }
 
 /**
- * 更新个人资料参数
+ * Update profile params / 更新个人资料参数
  */
 export interface UpdateProfileParams {
   avatar?: string;
@@ -202,7 +202,7 @@ export interface UpdateProfileParams {
 }
 
 /**
- * 更新个人资料
+ * Update user profile / 更新个人资料
  */
 export async function updateUserProfileApi(
   data: UpdateProfileParams,
@@ -233,7 +233,7 @@ export async function updateUserProfileApi(
 }
 
 /**
- * 注册参数
+ * Register params / 注册参数
  */
 export interface RegisterParams {
   captchaChallengeId?: string;
@@ -249,7 +249,7 @@ export interface RegisterParams {
 }
 
 /**
- * 注册结果（后端原始格式）
+ * Register result (backend raw format) / 注册结果（后端原始格式）
  */
 interface RegisterResultRaw {
   approval_status?: string;
@@ -259,7 +259,7 @@ interface RegisterResultRaw {
 }
 
 /**
- * 注册结果
+ * Register result / 注册结果
  */
 export interface RegisterResult {
   approvalStatus?: string;
@@ -269,7 +269,7 @@ export interface RegisterResult {
 }
 
 /**
- * 用户注册
+ * User register / 用户注册
  */
 export async function userRegisterApi(
   data: RegisterParams,
@@ -316,7 +316,7 @@ export async function userRegisterApi(
 }
 
 /**
- * 忘记密码参数
+ * Forgot password params / 忘记密码参数
  */
 export interface ForgotPasswordParams {
   email: string;
@@ -324,7 +324,7 @@ export interface ForgotPasswordParams {
 }
 
 /**
- * 重置密码参数
+ * Reset password params / 重置密码参数
  */
 export interface ResetPasswordParams {
   code: string;
@@ -335,7 +335,7 @@ export interface ResetPasswordParams {
 }
 
 /**
- * 忘记密码 - 发送验证码
+ * Forgot password - send verification code / 忘记密码 - 发送验证码
  */
 export async function userForgotPasswordApi(
   data: ForgotPasswordParams,
@@ -358,7 +358,7 @@ export async function userForgotPasswordApi(
 }
 
 /**
- * 重置密码
+ * Reset password / 重置密码
  */
 export async function userResetPasswordApi(
   data: ResetPasswordParams,
@@ -383,7 +383,7 @@ export async function userResetPasswordApi(
 }
 
 /**
- * 修改密码
+ * Change password / 修改密码
  */
 export async function userChangePasswordApi(
   data: ChangePasswordParams,

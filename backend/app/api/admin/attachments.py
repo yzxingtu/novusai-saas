@@ -1,7 +1,8 @@
 """
-平台端附件管理 API
+平台端附件管理 API / Platform Attachment API
 
 提供跨租户的附件管理接口（平台管理员专用）
+Provides cross-tenant attachment management endpoints (platform admin only).
 """
 
 from fastapi import File, Form, Query, Request, UploadFile
@@ -55,9 +56,9 @@ from app.services.tenant.attachment_download_service import AttachmentDownloadSe
 )
 class AdminAttachmentController(GlobalController):
     """
-    平台端附件管理控制器
+    平台端附件管理控制器 / Platform Attachment Management Controller
 
-    提供跨租户的附件管理接口
+    提供跨租户的附件管理接口 / Provides cross-tenant attachment management endpoints
     """
 
     prefix = "/attachments"
@@ -66,7 +67,7 @@ class AdminAttachmentController(GlobalController):
     def _register_routes(self) -> None:
         router = self.router
 
-        # ========== 上传规则 ==========
+        # ========== 上传规则 / Upload Rules ==========
 
         @router.get("/upload-rules", summary="获取上传规则")
         @action_read("action.attachment.upload_rules")
@@ -77,10 +78,12 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取平台上传规则（扩展名白名单、黑名单、大小限制）
+            Get platform upload rules (extension whitelist, blacklist, size limit)
 
             前端用于预校验，避免无效上传。
+            Used by frontend for pre-validation to avoid invalid uploads.
 
-            权限: attachment:upload_rules
+            权限 / Permission: attachment:upload_rules
             """
             from app.configs.service import ConfigService
             config_service = ConfigService(db)
@@ -101,7 +104,7 @@ class AdminAttachmentController(GlobalController):
                 "max_file_size_mb": int(max_size) if max_size else 100,
             })
 
-        # ========== 预检接口（秒传） ==========
+        # ========== 预检接口（秒传） / Preflight (Instant Upload) ==========
 
         @router.post("/preflight", summary="预检文件是否已存在（秒传）")
         @action_create("action.attachment.upload")
@@ -113,14 +116,16 @@ class AdminAttachmentController(GlobalController):
             tenant_id: int = Query(0, ge=0, description="目标租户 ID，0 表示平台附件"),
         ):
             """
-            预检文件是否已存在
+            预检文件是否已存在 / Check if file already exists (preflight)
 
             前端计算文件 SHA-256 哈希后调用此接口，如果服务端已有相同文件，
             则直接返回已有附件信息（秒传），无需再次上传文件。
+            Frontend computes file SHA-256 hash then calls this endpoint; if server already has
+            the same file, returns existing attachment info (instant upload) without re-uploading.
 
-            hash 格式: sha256:{hex_digest}
+            hash 格式 / format: sha256:{hex_digest}
 
-            权限: attachment:upload
+            权限 / Permission: attachment:upload
             """
             raw_hash = body.hash
             if raw_hash.startswith("sha256:"):
@@ -145,7 +150,7 @@ class AdminAttachmentController(GlobalController):
             )
             return success(data=resp, message=_("common.success"))
 
-        # ========== 上传接口 ==========
+        # ========== 上传接口 / Upload Endpoints ==========
 
         @router.post("/upload", summary="上传附件")
         @action_create("action.attachment.upload")
@@ -160,16 +165,16 @@ class AdminAttachmentController(GlobalController):
             business_id: int | None = Form(None, description="业务 ID"),
         ):
             """
-            平台端上传附件
+            平台端上传附件 / Platform upload attachment
 
-            - tenant_id=0: 平台附件（站点 Logo、系统资源等）
-            - tenant_id>0: 代租户上传附件
+            - tenant_id=0: 平台附件（站点 Logo、系统资源等） / Platform attachment (site logo, system resources, etc.)
+            - tenant_id>0: 代租户上传附件 / Upload on behalf of tenant
 
-            不受租户配额限制，使用平台存储配置
+            不受租户配额限制，使用平台存储配置 / Not subject to tenant quota, uses platform storage config
 
-            权限: attachment:upload
+            权限 / Permission: attachment:upload
             """
-            # 未指定 visibility 时使用平台配置的默认值
+            # 未指定 visibility 时使用平台配置的默认值 / Use platform default when visibility not specified
             if not visibility:
                 config_svc = ConfigService(db)
                 visibility = await config_svc.get_platform_config(
@@ -212,13 +217,13 @@ class AdminAttachmentController(GlobalController):
             business_id: int | None = Form(None, description="业务 ID"),
         ):
             """
-            平台端批量上传附件
+            平台端批量上传附件 / Platform batch upload attachments
 
-            - 最多一次上传 20 个文件
-            - 单个文件失败不影响其他文件
-            - 不受租户配额限制
+            - 最多一次上传 20 个文件 / Max 20 files per batch
+            - 单个文件失败不影响其他文件 / Single file failure doesn't affect others
+            - 不受租户配额限制 / Not subject to tenant quota
 
-            权限: attachment:upload
+            权限 / Permission: attachment:upload
             """
             if len(files) > 20:
                 files = files[:20]
@@ -263,7 +268,7 @@ class AdminAttachmentController(GlobalController):
                     items=items,
                     success_count=success_count,
                     failure_count=len(items) - success_count,
-                    used_bytes=0,  # 平台端不追踪配额
+                    used_bytes=0,  # 平台端不追踪配额 / Platform doesn't track quota
                 ),
                 message=_(
                     "file.upload_success"
@@ -281,12 +286,12 @@ class AdminAttachmentController(GlobalController):
             body: AdminChunkUploadInitRequest,
         ):
             """
-            初始化分片上传会话（平台端）
+            初始化分片上传会话（平台端） / Initialize chunk upload session (platform)
 
-            - tenant_id=0: 平台附件
-            - tenant_id>0: 代租户上传
+            - tenant_id=0: 平台附件 / Platform attachment
+            - tenant_id>0: 代租户上传 / Upload on behalf of tenant
 
-            权限: attachment:chunk_init
+            权限 / Permission: attachment:chunk_init
             """
             service = AdminAttachmentService(db)
             result = await service.start_chunk_upload(
@@ -317,9 +322,9 @@ class AdminAttachmentController(GlobalController):
             file: UploadFile = File(..., description="分片数据"),
         ):
             """
-            上传分片数据
+            上传分片数据 / Upload chunk data
 
-            权限: attachment:chunk_upload
+            权限 / Permission: attachment:chunk_upload
             """
             service = AdminAttachmentService(db)
             result = await service.upload_chunk(
@@ -341,9 +346,9 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            完成分片上传并合并文件
+            完成分片上传并合并文件 / Complete chunk upload and merge files
 
-            权限: attachment:chunk_complete
+            权限 / Permission: attachment:chunk_complete
             """
             service = AdminAttachmentService(db)
             result = await service.complete_chunk_upload(upload_id)
@@ -367,9 +372,9 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取分片上传进度
+            获取分片上传进度 / Get chunk upload progress
 
-            权限: attachment:chunk_status
+            权限 / Permission: attachment:chunk_status
             """
             service = AdminAttachmentService(db)
             result = await service.get_upload_status(upload_id)
@@ -387,15 +392,15 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            取消分片上传并清理临时文件
+            取消分片上传并清理临时文件 / Abort chunk upload and clean up temp files
 
-            权限: attachment:chunk_abort
+            权限 / Permission: attachment:chunk_abort
             """
             service = AdminAttachmentService(db)
             await service.abort_upload(upload_id)
             return success(message=_("common.success"))
 
-        # ========== 附件管理接口 ==========
+        # ========== 附件管理接口 / Attachment Management Endpoints ==========
 
         @router.get("/select", summary="获取附件下拉选项")
         @action_read("action.attachment.select")
@@ -409,11 +414,11 @@ class AdminAttachmentController(GlobalController):
             page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
             """
-            获取附件下拉选项
+            获取附件下拉选项 / Get attachment dropdown options
 
-            用于从现有附件中选择文件
+            用于从现有附件中选择文件 / For selecting files from existing attachments
 
-            权限: attachment:select
+            权限 / Permission: attachment:select
             """
             service = AdminAttachmentService(db)
             filters = {}
@@ -437,12 +442,12 @@ class AdminAttachmentController(GlobalController):
             tenant_id: int | None = Query(None, description="租户 ID"),
         ):
             """
-            获取附件存储统计
+            获取附件存储统计 / Get attachment storage statistics
 
-            - 不传 tenant_id: 统计所有租户
-            - 传入 tenant_id: 统计指定租户
+            - 不传 tenant_id: 统计所有租户 / Without tenant_id: stats for all tenants
+            - 传入 tenant_id: 统计指定租户 / With tenant_id: stats for specified tenant
 
-            权限: attachment:stats
+            权限 / Permission: attachment:stats
             """
             service = AdminAttachmentService(db)
             stats = await service.get_storage_stats(tenant_id)
@@ -456,11 +461,11 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取按租户分组的存储统计
+            获取按租户分组的存储统计 / Get storage statistics grouped by tenant
 
-            返回各租户的附件数量和存储用量
+            返回各租户的附件数量和存储用量 / Returns attachment count and storage usage per tenant
 
-            权限: attachment:stats_by_tenant
+            权限 / Permission: attachment:stats_by_tenant
             """
             service = AdminAttachmentService(db)
             stats = await service.get_storage_stats_by_tenant()
@@ -475,14 +480,14 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取附件列表
+            获取附件列表 / Get attachment list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持按租户筛选: filter[tenant_id][eq]=1
-            - 支持排序: sort=-created_at,name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / General filtering: filter[field][op]=value
+            - 支持按租户筛选 / Tenant filtering: filter[tenant_id][eq]=1
+            - 支持排序 / Sorting: sort=-created_at,name
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
 
-            权限: attachment:list
+            权限 / Permission: attachment:list
             """
             service = AdminAttachmentService(db)
             items, total = await service.query_list(spec, scope="admin")
@@ -505,9 +510,9 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取附件详情
+            获取附件详情 / Get attachment details
 
-            权限: attachment:detail
+            权限 / Permission: attachment:detail
             """
             service = AdminAttachmentService(db)
             attachment = await service.get_by_id(attachment_id)
@@ -527,15 +532,15 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            删除附件（软删除 + 物理文件删除 + 依赖检查）
+            删除附件（软删除 + 物理文件删除 + 依赖检查） / Delete attachment (soft delete + physical file deletion + dependency check)
 
-            权限: attachment:delete
+            权限 / Permission: attachment:delete
             """
             service = AdminAttachmentService(db)
             await service.delete(attachment_id)
             return deleted()
 
-        # ========== 附件访问接口 ==========
+        # ========== 附件访问接口 / Attachment Access Endpoints ==========
 
         @router.get("/{attachment_id}/download-url", summary="获取下载链接")
         @action_read("action.attachment.download_url")
@@ -546,11 +551,11 @@ class AdminAttachmentController(GlobalController):
             expires: int = Query(3600, ge=60, le=86400),
         ):
             """
-            获取附件下载 URL
+            获取附件下载 URL / Get attachment download URL
 
-            权限: attachment:download_url
+            权限 / Permission: attachment:download_url
             """
-            # 平台端不做租户隔离，传入 None
+            # 平台端不做租户隔离，传入 None / Platform doesn't enforce tenant isolation, pass None
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)
             data = await service.build_access_url(
@@ -567,9 +572,9 @@ class AdminAttachmentController(GlobalController):
             expires: int = Query(3600, ge=60, le=86400),
         ):
             """
-            获取附件预览 URL
+            获取附件预览 URL / Get attachment preview URL
 
-            权限: attachment:preview_url
+            权限 / Permission: attachment:preview_url
             """
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)
@@ -587,9 +592,9 @@ class AdminAttachmentController(GlobalController):
             expires: int = Query(3600, ge=60, le=86400),
         ):
             """
-            下载附件
+            下载附件 / Download attachment
 
-            权限: attachment:download
+            权限 / Permission: attachment:download
             """
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)
@@ -610,9 +615,9 @@ class AdminAttachmentController(GlobalController):
             expires: int = Query(3600, ge=60, le=86400),
         ):
             """
-            预览附件
+            预览附件 / Preview attachment
 
-            权限: attachment:preview
+            权限 / Permission: attachment:preview
             """
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)

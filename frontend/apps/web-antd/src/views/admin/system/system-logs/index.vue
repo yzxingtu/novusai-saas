@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 /**
+ * System Log Management Page
  * 系统日志管理页面
+ * Deep customization with Vben Admin style
  * Vben Admin 风格深度定制
  */
 import type { adminApi } from '#/api';
@@ -36,7 +38,7 @@ type SystemLogFile = adminApi.SystemLogFile;
 type SystemLogContent = adminApi.SystemLogContent;
 type SystemLogStats = adminApi.SystemLogStats;
 
-// 状态
+// State / 状态
 const loading = ref(false);
 const filesLoading = ref(false);
 const statsLoading = ref(false);
@@ -49,13 +51,13 @@ const activeCategory = ref<string>('');
 const selectedFile = ref<null | SystemLogFile>(null);
 const logContent = ref<null | SystemLogContent>(null);
 
-// 视图控制
+// View controls / 视图控制
 const logSearchQuery = ref('');
 const autoScroll = ref(false);
-const isDarkTheme = ref(true); // 默认深色模式
+const isDarkTheme = ref(true); // Default dark mode / 默认深色模式
 const logContainerRef = ref<HTMLDivElement | null>(null);
 
-// 计算高亮的日志行
+// Compute highlighted log lines / 计算高亮的日志行
 const highlightLines = computed(() => {
   if (!logContent.value) return [];
   const query = logSearchQuery.value.toLowerCase();
@@ -72,6 +74,7 @@ const highlightLines = computed(() => {
 });
 
 /**
+ * Copy text to clipboard
  * 复制文本到剪贴板
  */
 async function copyToClipboard(text: string) {
@@ -102,6 +105,7 @@ async function copyToClipboard(text: string) {
 }
 
 /**
+ * Load statistics
  * 加载统计信息
  */
 async function loadStats() {
@@ -116,6 +120,7 @@ async function loadStats() {
 }
 
 /**
+ * Load category list
  * 加载分类列表
  */
 async function loadCategories() {
@@ -133,19 +138,20 @@ async function loadCategories() {
 }
 
 /**
+ * Load file list
  * 加载文件列表
  */
 async function loadFiles() {
   if (!activeCategory.value) return;
 
   filesLoading.value = true;
-  // 切换分类时清空文件列表，触发骨架屏
+  // Clear file list on category switch, trigger skeleton / 切换分类时清空文件列表，触发骨架屏
   files.value = [];
   try {
     files.value = await admin.getSystemLogFilesApi({
       category: activeCategory.value,
     });
-    // 自动选中第一个
+    // Auto-select first file / 自动选中第一个
     if (files.value.length > 0) {
       const firstFile = files.value[0]!;
       selectedFile.value = firstFile;
@@ -164,6 +170,7 @@ async function loadFiles() {
 }
 
 /**
+ * Load log content
  * 加载日志内容
  */
 async function loadContent(file: SystemLogFile, nextPage = false) {
@@ -173,7 +180,7 @@ async function loadContent(file: SystemLogFile, nextPage = false) {
     const result = await admin.getSystemLogContentApi(file.filename, {
       page,
       page_size: 100,
-      reverse: true, // 最新在前
+      reverse: true, // Newest first / 最新在前
     });
     logContent.value =
       nextPage && logContent.value
@@ -183,7 +190,7 @@ async function loadContent(file: SystemLogFile, nextPage = false) {
           }
         : result;
 
-    // 自动滚动 (仅当 autoScroll 开启且非追加模式，或追加模式下确实需要滚动时)
+    // Auto-scroll (only when autoScroll enabled and not append mode) / 自动滚动
     if (autoScroll.value && logContainerRef.value && !nextPage) {
       nextTick(() => {
         logContainerRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -210,7 +217,7 @@ function onLoadMore() {
 }
 
 async function onDownload(file: SystemLogFile) {
-  // 如果是当前选中的文件且已加载内容，直接使用已加载的内容
+  // If currently selected file with loaded content, use it directly / 如果是当前选中的文件且已加载内容，直接使用
   if (selectedFile.value?.filename === file.filename && logContent.value) {
     downloadText(logContent.value.lines.join('\n'), {
       filename: file.filename,
@@ -219,7 +226,7 @@ async function onDownload(file: SystemLogFile) {
     return;
   }
 
-  // 加载文件内容后直接下载
+  // Load file content then download / 加载文件内容后直接下载
   downloadingFile.value = file.filename;
   try {
     const result = await admin.getSystemLogContentApi(file.filename, {
@@ -250,6 +257,7 @@ async function onDelete(file: SystemLogFile) {
 }
 
 /**
+ * Copy all logs
  * 复制全部日志
  */
 async function onCopyAll() {
@@ -263,6 +271,7 @@ async function onCopyAll() {
 }
 
 /**
+ * Copy single log line
  * 复制单行日志
  */
 async function onCopyLine(line: string) {
@@ -319,6 +328,7 @@ function parseLogLine(line: string): {
 }
 
 /**
+ * Log level style (dynamically adjusted based on dark/light mode)
  * 日志级别样式 (根据深色/浅色模式动态调整)
  */
 function getLevelBadgeClass(level: string): string {
@@ -331,7 +341,7 @@ function getLevelBadgeClass(level: string): string {
         : 'bg-red-50 text-red-600 border border-red-200';
     }
     case 'DEBUG': {
-      // 紫色/靛青色，不再是灰色
+      // Purple/indigo, no longer gray / 紫色/靛青色，不再是灰色
       return isDarkTheme.value
         ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
         : 'bg-purple-50 text-purple-600 border border-purple-200';
@@ -365,14 +375,14 @@ function getContentClass(parsed: ReturnType<typeof parseLogLine>): string {
     return 'text-red-400/80 italic font-mono';
   }
   if (!isDarkTheme.value) {
-    // 浅色模式下的文字颜色
+    // Light mode text color / 浅色模式下的文字颜色
     return 'text-gray-700';
   }
-  // 深色模式下的文字颜色
+  // Dark mode text color / 深色模式下的文字颜色
   switch (parsed.level) {
     case 'DEBUG': {
       return 'text-purple-300';
-    } // 紫色高亮
+    } // Purple highlight / 紫色高亮
     case 'ERROR': {
       return 'text-red-300';
     }
@@ -441,9 +451,9 @@ onUnmounted(() => {
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
-    <!-- 1. 顶部统计卡片 (重写) -->
+    <!-- 1. Top statistics cards / 顶部统计卡片 -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <!-- 文件总数 -->
+      <!-- Total files / 文件总数 -->
       <div
         class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
       >
@@ -465,7 +475,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 总大小 -->
+      <!-- Total size / 总大小 -->
       <div
         class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
       >
@@ -487,7 +497,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 日志分类 -->
+      <!-- Log categories / 日志分类 -->
       <div
         class="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
       >
@@ -510,15 +520,15 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 2. 主内容区域 -->
+    <!-- 2. Main content area / 主内容区域 -->
     <div
       class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden rounded-xl bg-card p-1 shadow-sm md:flex-row"
     >
-      <!-- 左侧：文件列表 (折叠面板风格) -->
+      <!-- Left: File list (collapsible panel style) / 左侧文件列表 -->
       <div
         class="flex max-h-[300px] min-h-0 w-full flex-shrink-0 flex-col border-b md:h-full md:max-h-none md:w-[320px] md:border-b-0 md:border-r"
       >
-        <!-- 头部 -->
+        <!-- Header / 头部 -->
         <div class="flex items-center justify-between border-b p-3">
           <span class="font-semibold text-foreground">{{
             $t('admin.system.systemLog.files')
@@ -533,12 +543,12 @@ onUnmounted(() => {
           </Button>
         </div>
 
-        <!-- 分类与文件列表 -->
+        <!-- Categories and file list / 分类与文件列表 -->
         <div class="min-h-0 flex-1 overflow-y-auto p-2">
           <Spin :spinning="loading && categories.length === 0">
             <div class="flex flex-col gap-1">
               <template v-for="cat in categories" :key="cat.code">
-                <!-- 分类标题 -->
+                <!-- Category title / 分类标题 -->
                 <div
                   class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent"
                   :class="
@@ -572,9 +582,9 @@ onUnmounted(() => {
                   </Tag>
                 </div>
 
-                <!-- 该分类下的文件列表 (仅当分类选中时显示) -->
+                <!-- File list under this category (shown only when selected) / 该分类下的文件列表 -->
                 <div v-show="activeCategory === cat.code" class="pl-4">
-                  <!-- 文件加载中 - 骨架屏 -->
+                  <!-- File loading - skeleton / 文件加载中骨架屏 -->
                   <div
                     v-if="filesLoading"
                     class="flex flex-col gap-2 border-l py-2 pl-2"
@@ -599,7 +609,7 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <!-- 文件列表 -->
+                  <!-- File list / 文件列表 -->
                   <div
                     v-else-if="files.length > 0"
                     class="flex flex-col gap-1 border-l py-1 pl-2"
@@ -618,7 +628,7 @@ onUnmounted(() => {
                       ]"
                       @click="onSelectFile(file)"
                     >
-                      <!-- 文件信息 -->
+                      <!-- File info / 文件信息 -->
                       <div class="flex items-center gap-2">
                         <span
                           class="min-w-0 flex-1 truncate text-xs font-medium"
@@ -649,7 +659,7 @@ onUnmounted(() => {
                         <span>{{ formatDate(file.modifiedAt, 'MM-DD') }}</span>
                       </div>
 
-                      <!-- 悬停操作 - 动画展开 -->
+                      <!-- Hover actions - animated expand / 悬停操作动画展开 -->
                       <div
                         class="file-actions mt-0 grid max-h-0 grid-cols-2 gap-1.5 overflow-hidden opacity-0 transition-all duration-200 ease-out group-hover:mt-2 group-hover:max-h-10 group-hover:opacity-100"
                       >
@@ -699,7 +709,7 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <!-- 无文件 -->
+                  <!-- No files / 无文件 -->
                   <div
                     v-else
                     class="py-2 text-center text-xs text-muted-foreground"
@@ -713,9 +723,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 右侧：日志详情 (重写) -->
+      <!-- Right: Log detail / 右侧日志详情 -->
       <div class="flex flex-1 flex-col overflow-hidden bg-card">
-        <!-- 头部工具栏 -->
+        <!-- Header toolbar / 头部工具栏 -->
         <div class="flex h-14 items-center justify-between border-b px-4">
           <div class="flex items-center gap-3">
             <div
@@ -733,7 +743,7 @@ onUnmounted(() => {
           </div>
 
           <div class="flex items-center gap-3">
-            <!-- 搜索 -->
+            <!-- Search / 搜索 -->
             <Input
               v-model:value="logSearchQuery"
               :placeholder="$t('admin.system.systemLog.searchContent')"
@@ -748,7 +758,7 @@ onUnmounted(() => {
 
             <div class="h-4 w-px bg-border"></div>
 
-            <!-- 操作按钮组 -->
+            <!-- Action buttons / 操作按钮组 -->
             <Tooltip :title="$t('admin.system.systemLog.toggleTheme')">
               <Button
                 type="text"
@@ -793,7 +803,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 日志内容容器 -->
+        <!-- Log content container / 日志内容容器 -->
         <div
           ref="logContainerRef"
           class="scrollbar-thin relative flex-1 overflow-auto"
@@ -812,14 +822,14 @@ onUnmounted(() => {
                     'bg-yellow-100/50 dark:bg-yellow-500/20': item.isMatch,
                   }"
                 >
-                  <!-- 行号 -->
+                  <!-- Line number / 行号 -->
                   <div
                     class="w-10 flex-shrink-0 select-none text-right opacity-30"
                   >
                     {{ index + logContent.page * 100 - 99 }}
                   </div>
 
-                  <!-- 日志本体 -->
+                  <!-- Log body / 日志本体 -->
                   <div class="relative ml-4 flex min-w-0 flex-1 gap-3">
                     <template v-if="item.timestamp">
                       <span class="flex-shrink-0 opacity-50">{{
@@ -848,7 +858,7 @@ onUnmounted(() => {
                     </template>
                   </div>
 
-                  <!-- 单行复制按钮 (悬停显示) - 绝对定位到行末尾 -->
+                  <!-- Single line copy button (hover visible) - absolute positioned at line end / 单行复制按钮 -->
                   <div
                     class="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 group-hover:flex"
                   >
@@ -863,7 +873,7 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <!-- 加载更多 -->
+                <!-- Load more / 加载更多 -->
                 <div class="mt-8 flex justify-center pb-8">
                   <Button
                     v-if="logContent.hasMore"
@@ -892,7 +902,7 @@ onUnmounted(() => {
           </Spin>
         </div>
 
-        <!-- 底部状态栏 -->
+        <!-- Bottom status bar / 底部状态栏 -->
         <div
           class="flex h-8 items-center justify-between border-t border-gray-100 bg-gray-50 px-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400"
         >
@@ -917,7 +927,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 滚动条样式优化 */
+/* Scrollbar style optimization / 滚动条样式优化 */
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;
   height: 8px;

@@ -6,10 +6,14 @@ import type {
 } from '#/api/admin/recycle-bin';
 
 /**
+ * Admin global recycle bin page
  * 管理端总回收站页面
  *
- * - 高级搜索：继承原 CRUD 模块的声明式搜索 Schema（searchInput / statusSelect / select）
+ * - Advanced search: inherits declarative search Schema from original CRUD modules
+ * - 高级搜索：继承原 CRUD 模块的声明式搜索 Schema
+ * - Dynamic columns: renders different columns based on module metadata
  * - 动态列：根据模块元数据渲染不同列
+ * - Tenant distinction: tenant-level modules show "Tenant" column
  * - 租户区分：租户级模块展示「所属租户」列
  */
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
@@ -45,7 +49,7 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { getColumnLabel, getModuleSearchSchema } from './data';
 
-// ==================== 状态 ====================
+// ==================== State / 状态 ====================
 const summaryLoading = ref(false);
 const listLoading = ref(false);
 const summary = ref<RecycleBinModuleSummary[]>([]);
@@ -56,7 +60,7 @@ const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(20);
 
-// ==================== 搜索表单 ====================
+// ==================== Search form / 搜索表单 ====================
 const [SearchForm, searchFormApi] = useVbenForm({
   schema: [],
   commonConfig: {
@@ -73,17 +77,17 @@ const [SearchForm, searchFormApi] = useVbenForm({
   wrapperClass: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
 });
 
-// ==================== 总数 ====================
+// ==================== Total count / 总数 ====================
 const totalDeletedCount = computed(() =>
   summary.value.reduce((sum, m) => sum + m.count, 0),
 );
 
-// ==================== 当前模块元数据 ====================
+// ==================== Current module metadata / 当前模块元数据 ====================
 const currentMeta = computed(
   () => moduleMeta.value[activeModule.value] ?? null,
 );
 
-// ==================== 模块图标映射 ====================
+// ==================== Module icon map / 模块图标映射 ====================
 const moduleIcons: Record<string, string> = {
   ai_providers: 'lucide:server',
   ai_models: 'lucide:brain',
@@ -97,7 +101,7 @@ const moduleIcons: Record<string, string> = {
   table_policies: 'lucide:table',
 };
 
-// ==================== 加载 ====================
+// ==================== Loading / 加载 ====================
 async function loadModuleMeta() {
   try {
     const res = await getRecycleBinModulesApi();
@@ -134,7 +138,7 @@ async function loadList() {
       'page[size]': pageSize.value,
       sort: '-deleted_at',
     };
-    // 从搜索表单获取过滤参数
+    // Get filter params from search form / 从搜索表单获取过滤参数
     const formValues = await searchFormApi.getValues();
     for (const [key, val] of Object.entries(formValues)) {
       if (val !== undefined && val !== null && val !== '') {
@@ -152,7 +156,7 @@ async function loadList() {
   }
 }
 
-// ==================== 操作 ====================
+// ==================== Operations / 操作 ====================
 async function handleRestore(record: RecycleBinItem) {
   try {
     await restoreRecycleBinItemApi(activeModule.value, record.id);
@@ -195,7 +199,7 @@ async function handleCleanup() {
 async function onTabChange(key: number | string) {
   activeModule.value = String(key);
   currentPage.value = 1;
-  // 切换搜索 Schema 并重置表单
+  // Switch search Schema and reset form / 切换搜索 Schema 并重置表单
   const schema = getModuleSearchSchema(activeModule.value);
   await searchFormApi.setState({ schema });
   await nextTick();
@@ -209,7 +213,7 @@ function onPageChange(p: number, ps: number) {
   loadList();
 }
 
-// ==================== 动态列定义 ====================
+// ==================== Dynamic column definitions / 动态列定义 ====================
 const columns = computed(() => {
   const meta = currentMeta.value;
   const cols: Record<string, unknown>[] = [];
@@ -266,11 +270,11 @@ const columns = computed(() => {
   return cols;
 });
 
-// ==================== 初始化 ====================
+// ==================== Initialization / 初始化 ====================
 onMounted(async () => {
   await loadModuleMeta();
   await loadSummary();
-  // 初始化第一个模块的搜索 Schema
+  // Initialize search Schema for the first module / 初始化第一个模块的搜索 Schema
   if (activeModule.value) {
     const schema = getModuleSearchSchema(activeModule.value);
     await searchFormApi.setState({ schema });

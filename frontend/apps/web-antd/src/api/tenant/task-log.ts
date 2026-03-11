@@ -4,18 +4,18 @@ import type {
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 /**
- * 任务日志 API（租户端）
- * 对接后端 /tenant/tasks/* 接口
+ * Task log API (tenant side) / 任务日志 API（租户端）
+ * Backend: /tenant/tasks/* / 对接后端 /tenant/tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（从 shared 导入）
+// Type definitions (imported from shared) / 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -26,7 +26,7 @@ export type {
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 
-/** 后端原始格式（内部使用） */
+/** Backend raw format (internal use) / 后端原始格式（内部使用） */
 interface TaskLogInfoRaw {
   id: number;
   task_id: string;
@@ -84,7 +84,7 @@ function transformTaskLogDetailInfo(
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/tenant/tasks';

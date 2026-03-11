@@ -1,7 +1,8 @@
 """
-任务日志仓储
+任务日志仓储 / Task Log Repository
 
 提供任务日志的数据访问操作
+Provides task log data access operations.
 """
 
 from datetime import datetime

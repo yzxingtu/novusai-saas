@@ -1,7 +1,9 @@
 """
+RBAC Permission Check Dependencies
 RBAC 权限检查依赖
 
-提供 FastAPI 依赖注入函数，用于接口级别的权限控制
+Provides FastAPI dependency injection functions for endpoint-level permission control.
+提供 FastAPI 依赖注入函数，用于接口级别的权限控制。
 """
 
 from collections.abc import Callable
@@ -22,13 +24,14 @@ from app.rbac.services.permission_service import PermissionService
 
 def require_admin_permissions(*permissions: str) -> Callable:
     """
-    要求平台管理员拥有指定权限
+    Require platform admin to have specified permissions.
+    要求平台管理员拥有指定权限。
 
     Args:
-        *permissions: 需要的权限代码列表
+        *permissions: Required permission codes / 需要的权限代码列表
 
     Returns:
-        FastAPI 依赖函数
+        FastAPI dependency function / FastAPI 依赖函数
 
     Example:
         @router.get("/users")
@@ -57,13 +60,14 @@ def require_admin_permissions(*permissions: str) -> Callable:
 
 def require_any_admin_permission(*permissions: str) -> Callable:
     """
-    要求平台管理员拥有任意一个指定权限
+    Require platform admin to have any one of the specified permissions.
+    要求平台管理员拥有任意一个指定权限。
 
     Args:
-        *permissions: 需要的权限代码列表（满足任意一个即可）
+        *permissions: Required permission codes (any one suffices) / 需要的权限代码列表（满足任意一个即可）
 
     Returns:
-        FastAPI 依赖函数
+        FastAPI dependency function / FastAPI 依赖函数
     """
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
@@ -85,13 +89,14 @@ def require_any_admin_permission(*permissions: str) -> Callable:
 
 def require_tenant_admin_permissions(*permissions: str) -> Callable:
     """
-    要求租户管理员拥有指定权限
+    Require tenant admin to have specified permissions.
+    要求租户管理员拥有指定权限。
 
     Args:
-        *permissions: 需要的权限代码列表
+        *permissions: Required permission codes / 需要的权限代码列表
 
     Returns:
-        FastAPI 依赖函数
+        FastAPI dependency function / FastAPI 依赖函数
 
     Example:
         @router.get("/orders")
@@ -120,13 +125,14 @@ def require_tenant_admin_permissions(*permissions: str) -> Callable:
 
 def require_any_tenant_admin_permission(*permissions: str) -> Callable:
     """
-    要求租户管理员拥有任意一个指定权限
+    Require tenant admin to have any one of the specified permissions.
+    要求租户管理员拥有任意一个指定权限。
 
     Args:
-        *permissions: 需要的权限代码列表（满足任意一个即可）
+        *permissions: Required permission codes (any one suffices) / 需要的权限代码列表（满足任意一个即可）
 
     Returns:
-        FastAPI 依赖函数
+        FastAPI dependency function / FastAPI 依赖函数
     """
     async def checker(
         db: Annotated[AsyncSession, Depends(get_db)],
@@ -146,17 +152,17 @@ def require_any_tenant_admin_permission(*permissions: str) -> Callable:
     return checker
 
 
-# 别名（兼容规范文档中的命名）
+# Alias (compatible with naming in spec docs) / 别名（兼容规范文档中的命名）
 require_permissions = require_tenant_admin_permissions
 
 
 __all__ = [
-    # 平台管理员
+    # Platform admin / 平台管理员
     "require_admin_permissions",
     "require_any_admin_permission",
-    # 租户管理员
+    # Tenant admin / 租户管理员
     "require_tenant_admin_permissions",
     "require_any_tenant_admin_permission",
-    # 别名
+    # Alias / 别名
     "require_permissions",
 ]

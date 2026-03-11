@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 /**
+ * Icon Picker Component
  * 图标选择器组件
  *
- * 核心设计：
- * 1. 常用图标预设（无需搜索直接选）
- * 2. 浏览标签：按集合分页加载（lucide / simple-icons 等），滚动到底部自动加载更多
- * 3. Iconify API 在线搜索（按需加载）
- * 4. 手动输入图标名称 + 实时预览
- * 5. Popover 替代 Modal，更轻量
+ * Core design / 核心设计：
+ * 1. Common icon presets (select directly without searching) / 常用图标预设（无需搜索直接选）
+ * 2. Browse tab: paginated loading by collection (lucide / simple-icons etc.), auto-load more on scroll / 浏览标签：按集合分页加载，滚动到底部自动加载更多
+ * 3. Iconify API online search (on-demand loading) / Iconify API 在线搜索（按需加载）
+ * 4. Manual icon name input + live preview / 手动输入图标名称 + 实时预览
+ * 5. Popover instead of Modal, more lightweight / Popover 替代 Modal，更轻量
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
@@ -35,10 +36,10 @@ const emit = defineEmits<{
   'update:value': [value: string];
 }>();
 
-// ==================== 常用图标预设 ====================
+// ==================== Common icon presets / 常用图标预设 ====================
 
 const PRESET_ICONS: Array<{ icon: string; label: string }> = [
-  // AI / 机器学习
+  // AI / Machine Learning / 机器学习
   { icon: 'lucide:brain', label: 'brain' },
   { icon: 'lucide:cpu', label: 'cpu' },
   { icon: 'lucide:bot', label: 'bot' },
@@ -47,7 +48,7 @@ const PRESET_ICONS: Array<{ icon: string; label: string }> = [
   { icon: 'lucide:zap', label: 'zap' },
   { icon: 'lucide:lightbulb', label: 'lightbulb' },
   { icon: 'lucide:atom', label: 'atom' },
-  // 云服务 / 技术
+  // Cloud / Technology / 云服务 / 技术
   { icon: 'lucide:cloud', label: 'cloud' },
   { icon: 'lucide:server', label: 'server' },
   { icon: 'lucide:database', label: 'database' },
@@ -56,34 +57,34 @@ const PRESET_ICONS: Array<{ icon: string; label: string }> = [
   { icon: 'lucide:satellite', label: 'satellite' },
   { icon: 'lucide:terminal', label: 'terminal' },
   { icon: 'lucide:code', label: 'code' },
-  // 通信 / 消息
+  // Communication / Messaging / 通信 / 消息
   { icon: 'lucide:message-circle', label: 'message' },
   { icon: 'lucide:send', label: 'send' },
   { icon: 'lucide:mail', label: 'mail' },
   { icon: 'lucide:phone', label: 'phone' },
-  // 安全 / 管理
+  // Security / Admin / 安全 / 管理
   { icon: 'lucide:shield', label: 'shield' },
   { icon: 'lucide:key', label: 'key' },
   { icon: 'lucide:lock', label: 'lock' },
   { icon: 'lucide:settings', label: 'settings' },
-  // 媒体 / 视觉
+  // Media / Visual / 媒体 / 视觉
   { icon: 'lucide:image', label: 'image' },
   { icon: 'lucide:eye', label: 'eye' },
   { icon: 'lucide:mic', label: 'mic' },
   { icon: 'lucide:video', label: 'video' },
-  // 数据 / 分析
+  // Data / Analytics / 数据 / 分析
   { icon: 'lucide:bar-chart-3', label: 'chart' },
   { icon: 'lucide:activity', label: 'activity' },
   { icon: 'lucide:trending-up', label: 'trending' },
   { icon: 'lucide:layers', label: 'layers' },
-  // 品牌相关
+  // Brand / 品牌相关
   { icon: 'simple-icons:openai', label: 'openai' },
   { icon: 'simple-icons:anthropic', label: 'anthropic' },
   { icon: 'simple-icons:google', label: 'google' },
   { icon: 'simple-icons:meta', label: 'meta' },
 ];
 
-// ==================== 集合定义 ====================
+// ==================== Collection definitions / 集合定义 ====================
 
 const COLLECTIONS = [
   { label: 'Lucide', value: 'lucide' },
@@ -93,7 +94,7 @@ const COLLECTIONS = [
   { label: 'Tabler', value: 'tabler' },
 ];
 
-// ==================== 状态 ====================
+// ==================== State / 状态 ====================
 
 const popoverOpen = ref(false);
 const searchKeyword = ref('');
@@ -101,7 +102,7 @@ const searchResults = ref<Array<{ icon: string; label: string }>>([]);
 const searchLoading = ref(false);
 const activeTab = ref<'browse' | 'preset' | 'search'>('preset');
 
-// ==================== 浏览集合状态 ====================
+// ==================== Browse collection state / 浏览集合状态 ====================
 
 const browseCollection = ref('lucide');
 const browseAllIcons = ref<string[]>([]);
@@ -125,7 +126,7 @@ const browseHasMore = computed(
   () => browseVisibleCount.value < browseAllIcons.value.length,
 );
 
-/** 通过 Iconify API 加载集合的所有图标名称 */
+/** Load all icon names of a collection via Iconify API / 通过 Iconify API 加载集合的所有图标名称 */
 async function loadCollection(prefix: string) {
   browseLoading.value = true;
   browseAllIcons.value = [];
@@ -201,7 +202,7 @@ watch(browseCollection, async (prefix) => {
   }
 });
 
-// ==================== 搜索 ====================
+// ==================== Search / 搜索 ====================
 
 async function searchIcons(query: string) {
   if (!query.trim()) {
@@ -239,7 +240,7 @@ watch(searchKeyword, (val) => {
   }
 });
 
-// ==================== 操作 ====================
+// ==================== Actions / 操作 ====================
 
 function onSelectIcon(icon: string) {
   emit('update:value', icon);
@@ -279,7 +280,7 @@ const displayCount = computed(() => {
     >
       <template #content>
         <div class="w-[360px]">
-          <!-- 搜索框 -->
+          <!-- Search box / 搜索框 -->
           <Input
             v-model:value="searchKeyword"
             :placeholder="$t('admin.ai.provider.iconPicker.searchPlaceholder')"
@@ -295,7 +296,7 @@ const displayCount = computed(() => {
             </template>
           </Input>
 
-          <!-- Tab 切换 -->
+          <!-- Tab switch / Tab 切换 -->
           <div class="mb-2 flex items-center justify-between">
             <div class="flex gap-1 text-xs">
               <button
@@ -343,7 +344,7 @@ const displayCount = computed(() => {
             </span>
           </div>
 
-          <!-- 集合选择器（仅浏览模式） -->
+          <!-- Collection selector (browse mode only) / 集合选择器（仅浏览模式） -->
           <div v-if="activeTab === 'browse'" class="mb-2">
             <Select
               v-model:value="browseCollection"
@@ -353,7 +354,7 @@ const displayCount = computed(() => {
             />
           </div>
 
-          <!-- 图标网格 -->
+          <!-- Icon grid / 图标网格 -->
           <Spin :spinning="searchLoading || browseLoading" size="small">
             <div
               v-if="displayIcons.length > 0"
@@ -379,7 +380,7 @@ const displayCount = computed(() => {
                   />
                 </button>
               </Tooltip>
-              <!-- 哨兵元素：滚动到此处触发加载更多 -->
+              <!-- Sentinel element: triggers load more on scroll / 哨兵元素：滚动到此处触发加载更多 -->
               <div
                 v-if="activeTab === 'browse' && browseHasMore"
                 ref="sentinelRef"
@@ -400,7 +401,7 @@ const displayCount = computed(() => {
             </div>
           </Spin>
 
-          <!-- 手动输入 -->
+          <!-- Manual input / 手动输入 -->
           <div class="mt-3 border-t border-border pt-3">
             <div class="flex items-center gap-2">
               <Input
@@ -421,7 +422,7 @@ const displayCount = computed(() => {
         </div>
       </template>
 
-      <!-- 触发器 -->
+      <!-- Trigger / 触发器 -->
       <Input
         :value="value"
         :placeholder="placeholder"

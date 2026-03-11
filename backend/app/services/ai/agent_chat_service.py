@@ -1,7 +1,8 @@
 """
-智能体对话执行 Service
+智能体对话执行 Service / Agent Chat Service
 
 编排完整对话流程：创建/续接对话 → 加载历史 → 调 ExecutionDispatcher → 持久化消息
+Orchestrates full chat flow: create/resume conversation → load history → call ExecutionDispatcher → persist messages.
 """
 
 import json
@@ -792,6 +793,19 @@ class AgentChatService:
                     config=quota_config,
                 )
 
+            # 套餐月 API 调用次数配额检查（与 dispatcher 对等）
+            if self.tenant_id:
+                from app.enums import ErrorCode
+                from app.services.tenant.quota_service import QuotaService
+                api_check = await QuotaService.check_api_quota_for_tenant_id(
+                    self.db, self.tenant_id
+                )
+                if not api_check.allowed:
+                    raise BusinessException(
+                        message=api_check.message or _("quota.api_calls_exceeded"),
+                        code=ErrorCode.CONFLICT,
+                    )
+
             # BEFORE_EXECUTE 钩子（hook_registry 已在 step 3.5 获取）
             hook_context = await hook_registry.trigger(
                 HookPoint.BEFORE_EXECUTE,
@@ -807,7 +821,7 @@ class AgentChatService:
             # ExecutionStarted 事件
             await BaseEngine._publish_execution_started(request, agent)
 
-        except (AgentQuotaExceeded, AgentConcurrencyExceeded):
+        except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
             # 释放并发锁后重新抛出
             if lock_token:
                 await AgentConcurrencyLimiter.release(

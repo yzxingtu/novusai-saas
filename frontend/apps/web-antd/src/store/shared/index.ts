@@ -1,6 +1,6 @@
 /**
- * 共享状态模块
- * 包含多端共享的状态管理
+ * Shared state module / 共享状态模块
+ * Contains cross-endpoint shared state management / 包含多端共享的状态管理
  */
 
 export * from './ai-panel';

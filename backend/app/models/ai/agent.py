@@ -1,7 +1,8 @@
 """
-智能体模型
+智能体模型 / Agent Model
 
 定义智能体的基本信息、模型配置、工具绑定等
+Defines agent basic info, model configuration, tool bindings, etc.
 """
 
 from typing import TYPE_CHECKING

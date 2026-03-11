@@ -1,7 +1,8 @@
 """
-智能体列表项构建共享逻辑
+智能体列表项构建共享逻辑 / Agent List Item Build Shared Logic
 
 admin/tenant 两端 _build_agent_item 的公共部分提取。
+Common logic extracted from admin/tenant _build_agent_item.
 """
 
 from __future__ import annotations
@@ -12,9 +13,10 @@ from typing import Any
 def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
     """
     从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skill_packages。
+    Safely extract related model_name, model_capabilities and skill_packages from ORM Agent object.
 
     Returns:
-        (model_name, model_capabilities, skill_packages) 元组
+        (model_name, model_capabilities, skill_packages) 元组 / tuple
     """
     model_name = None
     model_capabilities: dict | None = None
@@ -47,8 +49,10 @@ def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[d
 def build_agent_base_item(agent: Any) -> dict[str, Any]:
     """
     构建智能体列表项的公共字段。
+    Build common fields for agent list item.
 
     admin/tenant 各自在此基础上追加端特有的字段。
+    admin/tenant each append endpoint-specific fields on top of this.
     """
     model_name, model_capabilities, skill_packages = extract_agent_relations(agent)
 

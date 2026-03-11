@@ -1,7 +1,9 @@
 """
+Tool Execution Module
 工具执行模块
 
-提供工具定义、注册、安全沙箱执行的完整框架
+Provides a complete framework for tool definition, registration, and secure sandbox execution.
+提供工具定义、注册、安全沙箱执行的完整框架。
 """
 
 from app.ai.tools.executors.base import BaseToolExecutor
@@ -11,14 +13,14 @@ from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolParameter, ToolResult
 
 __all__ = [
-    # 类型
+    # Types / 类型
     "ToolParameter",
     "ToolDefinition",
     "ToolResult",
-    # 沙箱
+    # Sandbox / 沙箱
     "ToolSandbox",
     "SandboxConfig",
-    # 执行器
+    # Executors / 执行器
     "BaseToolExecutor",
     "BuiltinToolExecutor",
     "ToolkitExecutor",

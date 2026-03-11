@@ -1,7 +1,8 @@
 """
-邮件日志管理 API
+邮件日志管理 API / Email Log Management API
 
 提供邮件发送日志查看 + 手动发送邮件接口（平台管理员专用）
+Provides email sending log viewing + manual email sending endpoints (platform admin only)
 """
 
 from fastapi import Request
@@ -43,9 +44,10 @@ from app.services.common.email_templates import render_manual_email, render_test
 )
 class AdminEmailLogController(GlobalController):
     """
-    邮件日志控制器
+    邮件日志控制器 / Email Log Controller
 
     提供邮件日志查询 + 手动发送 + 测试邮件接口
+    Provides email log query + manual send + test email endpoints
     """
 
     prefix = "/email-logs"
@@ -107,7 +109,7 @@ class AdminEmailLogController(GlobalController):
             current_admin: ActiveAdmin,
             body: EmailSendRequest,
         ):
-            # 将用户输入的内容包裹在品牌 HTML 模板中
+            # 将用户输入的内容包裹在品牌 HTML 模板中 / Wrap user input content in branded HTML template
             raw_content = body.html_body or body.text_body or ""
             html_body, text_body = render_manual_email(
                 subject=body.subject,
@@ -125,7 +127,7 @@ class AdminEmailLogController(GlobalController):
             )
             result = await service.send(message)
 
-            # 记录日志
+            # 记录日志 / Record log
             from app.core.base_model import utc_now
             from app.models.system.email_log import EmailLog
             log = EmailLog(
@@ -157,7 +159,7 @@ class AdminEmailLogController(GlobalController):
             current_admin: ActiveAdmin,
             body: EmailTestRequest,
         ):
-            # 使用品牌模板渲染测试邮件
+            # 使用品牌模板渲染测试邮件 / Render test email with branded template
             subject, html_body, text_body = render_test_email(
                 admin_name=current_admin.username,
             )
@@ -171,7 +173,7 @@ class AdminEmailLogController(GlobalController):
             )
             result = await service.send(message)
 
-            # 记录日志
+            # 记录日志 / Record log
             from app.core.base_model import utc_now
             from app.models.system.email_log import EmailLog
             log = EmailLog(

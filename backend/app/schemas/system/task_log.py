@@ -1,7 +1,8 @@
 """
-任务日志相关 Schema
+任务日志相关 Schema / Task Log Schema
 
 定义任务管理 API 的请求和响应数据结构
+Defines task management API request and response data structures.
 """
 
 from datetime import datetime

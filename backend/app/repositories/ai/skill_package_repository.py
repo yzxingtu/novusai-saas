@@ -1,5 +1,5 @@
 """
-技能包 Repository
+技能包 Repository / Skill Package Repository
 """
 
 
@@ -8,19 +8,11 @@ from sqlalchemy import delete as sa_delete
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.enums.common import DeleteLevelEnum
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
-from app.repositories.system.resource_tenant_assignment_repository import (
-    assigned_resource_ids_subquery,
-)
 from app.schemas.common.query import FilterRule, QuerySpec
-
-_ASSIGNED_SCOPES = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
 
 
 class _SkillPackageCascadeMixin:
@@ -123,9 +115,10 @@ class _SkillPackageCascadeMixin:
 class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPackage]):
     """
     租户级技能包 Repository
+    Tenant-level Skill Package Repository
 
-    提供基于租户隔离的技能包数据访问。
-    查询时自动包含 scope=global 的全局技能包。
+    提供基于租户隔离的技能包数据访问，自动包含平台级包（tenant_id=NULL）。
+    Provides tenant-isolated data access, automatically includes platform-level packages (tenant_id=NULL).
     """
 
     model = SkillPackage
@@ -133,24 +126,15 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
-        """根据 ID 获取技能包，允许访问全局 + 全部租户可见 + 已分配的技能包"""
+        """根据 ID 获取技能包（同租户包 + 平台级包均可访问）
+        Get skill package by ID (same-tenant + platform-level packages are accessible)"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+            if instance.tenant_id == self.tenant_id:
                 return instance
-            # 平台创建的全局资源（tenant_id=null，对全部租户可见）
-            if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
+            if instance.tenant_id is None:
                 return instance
-            if instance.scope in _ASSIGNED_SCOPES:
-                from app.repositories.system.resource_tenant_assignment_repository import (
-                    ResourceTenantAssignmentRepository,
-                )
-                repo = ResourceTenantAssignmentRepository(self.db)
-                if await repo.check_assignment("skill_package", instance.id, self.tenant_id):
-                    return instance
-                return None
-            if instance.tenant_id != self.tenant_id:
-                return None
+            return None
         return instance
 
     async def query_list(
@@ -162,9 +146,13 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     ) -> tuple[list[SkillPackage], int]:
         """
         租户级技能包列表查询
+        Tenant-level skill package list query
 
-        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
+        自动注入条件：(tenant_id = X) OR (平台级包 tenant_id=NULL)
+        Auto-inject: (tenant_id = X) OR (platform-level tenant_id=NULL)
         """
+        from app.enums.common import AudienceEnum
+
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
@@ -173,24 +161,16 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
                 and_(
-                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
                     self.model.tenant_id.is_(None),
-                ),
-                and_(
-                    self.model.scope.in_(_ASSIGNED_SCOPES),
-                    self.model.id.in_(assigned_subq),
+                    self.model.target_audience != AudienceEnum.ADMIN_ONLY.value,
                 ),
             )
         )
 
-        # 排除系统内部技能包（SystemAgentService 基础设施）
         query = query.where(self.model.is_system.is_(False))
 
         if forced_filters:
@@ -235,9 +215,11 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_active_packages(self) -> list[SkillPackage]:
         """
-        获取当前租户所有已激活的技能包（含 global scope + 已分配包）
+        获取当前租户所有已激活的技能包（含平台级包）
+        Get all active skill packages for the current tenant (including platform-level packages)
         """
-        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
+        from app.enums.common import AudienceEnum
+
         stmt = (
             select(SkillPackage)
             .where(
@@ -247,10 +229,9 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_system.is_(False),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
-                        SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
                         and_(
-                            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
-                            SkillPackage.id.in_(assigned_subq),
+                            SkillPackage.tenant_id.is_(None),
+                            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
                         ),
                     ),
                 )
@@ -262,20 +243,18 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_available_for_binding(self) -> list[SkillPackage]:
         """
-        获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+        获取租户可绑定的所有技能包（用于智能体技能绑定下拉）
+        Get all skill packages available for tenant binding (for agent skill binding dropdown)
 
-        包括：
-          - 同租户的 all_tenants 包
-          - admin_and_all 共享包（全局）
-          - assigned_tenants / admin_and_assigned 已分配包
+        包括 / Includes:
+          - 同租户自有包 / Same tenant's own packages
+          - 平台级包（tenant_id=NULL）且 target_audience != admin_only / Platform packages visible to tenants
 
-        不包括：
-          - admin_only 包（仅管理端智能体可用）
-          - target_audience=admin_only 的包（三端隔离：租户端不应见到此类包）
+        不包括 / Excludes:
+          - target_audience=admin_only 的包（仅管理端可见）/ Admin-only audience packages
         """
         from app.enums.common import AudienceEnum
 
-        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         stmt = (
             select(SkillPackage)
             .where(
@@ -283,22 +262,14 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
                     SkillPackage.is_system.is_(False),
-                    # 三端隔离：租户端不返回 admin_only 目标受众的包
                     SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
-                        and_(
-                            SkillPackage.tenant_id.is_(None),
-                            SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                        ),
-                        and_(
-                            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
-                            SkillPackage.id.in_(assigned_subq),
-                        ),
+                        SkillPackage.tenant_id.is_(None),
                     ),
                 )
             )
-            .order_by(SkillPackage.scope, SkillPackage.sort_order, SkillPackage.name)
+            .order_by(SkillPackage.sort_order, SkillPackage.name)
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -340,30 +311,20 @@ class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[Skil
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_by_name_in_scope(
+    async def get_by_name_global(
         self,
         name: str,
-        scope: str,
-        tenant_id: int | None = None,
         exclude_id: int | None = None,
     ) -> SkillPackage | None:
         """
-        在指定作用域内按名称查找技能包
+        在平台级包（tenant_id=NULL）中按名称查找技能包
+        Find a platform-level package (tenant_id=NULL) by name
         """
         conditions = [
             SkillPackage.name == name,
-            SkillPackage.scope == scope,
+            SkillPackage.tenant_id.is_(None),
             SkillPackage.is_deleted.is_(False),
         ]
-        if scope == ResourceScopeEnum.ALL_TENANTS.value and tenant_id is not None:
-            conditions.append(SkillPackage.tenant_id == tenant_id)
-        elif scope in (
-            ResourceScopeEnum.ADMIN_ONLY.value,
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
-        ):
-            conditions.append(SkillPackage.tenant_id.is_(None))
 
         if exclude_id is not None:
             conditions.append(SkillPackage.id != exclude_id)

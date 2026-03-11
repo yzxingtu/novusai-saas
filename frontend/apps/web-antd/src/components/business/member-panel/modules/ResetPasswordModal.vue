@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 /**
+ * Reset Password Modal
  * 重置密码弹窗
- * 用于在成员管理面板中重置管理员密码
+ *
+ * Used to reset admin password in the member management panel.
+ * 用于在成员管理面板中重置管理员密码。
  */
 import { ref } from 'vue';
 
@@ -15,7 +18,7 @@ import { $t } from '#/locales';
 
 import { useResetPasswordSchema } from '../data';
 
-/** 重置密码所需的最小用户信息 */
+/** Minimum user info required for password reset / 重置密码所需的最小用户信息 */
 interface ResetPasswordTarget {
   id: number;
   username: string;
@@ -24,9 +27,9 @@ interface ResetPasswordTarget {
 
 const props = withDefaults(
   defineProps<{
-    /** API 前缀 */
+    /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** 角色 ID（调用组织架构 API 需要） */
+    /** Role ID (required for org API calls) / 角色 ID */
     roleId?: number;
   }>(),
   {
@@ -41,13 +44,13 @@ const emits = defineEmits<{
 
 const adminData = ref<ResetPasswordTarget>();
 
-// 表单
+// Form / 表单
 const [Form, formApi] = useVbenForm({
   schema: useResetPasswordSchema(),
   showDefaultActions: false,
 });
 
-// 弹窗
+// Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();
@@ -60,7 +63,7 @@ const [Modal, modalApi] = useVbenModal({
     try {
       const { new_password } = values;
       const adminId = adminData.value.id;
-      // 优先使用传入的 roleId (成员所属角色)，否则使用 props.roleId (当前选中节点)
+      // Prefer passed roleId (member's role), fallback to props.roleId (current selected node) / 优先使用传入的 roleId
       const roleId = adminData.value.roleId ?? props.roleId;
 
       const options = {
@@ -69,10 +72,8 @@ const [Modal, modalApi] = useVbenModal({
       };
 
       if (props.apiPrefix === 'tenant') {
-        // 租户端 (目前需要 roleId)
-        // 注意：如果是从成员面板调用，roleId 应由 props 传入
-        // 如果是从其他地方调用且没有 roleId，这个 API 可能会失败，
-        // 但目前 member-panel 主要用于组织架构管理，应该都有 roleId
+        // Tenant side (requires roleId) / 租户端（目前需要 roleId）
+        // Note: When called from member panel, roleId should be passed via props. / 注意：从成员面板调用时，roleId 应由 props 传入
         if (roleId) {
           await tenantApi.resetTenantMemberPasswordApi(
             roleId,
@@ -83,12 +84,12 @@ const [Modal, modalApi] = useVbenModal({
         } else {
           message.error($t('common.error.missingRequiredParam'));
           console.error('Missing roleId for tenant member password reset');
-          // 停止执行并保持弹窗打开（或者关闭？这里选择不抛出错误，但逻辑已中断）
+          // Stop execution and keep modal open (choose not to throw, but logic is interrupted) / 停止执行并保持弹窗打开
           modalApi.unlock();
           return;
         }
       } else {
-        // 平台端
+        // Platform side / 平台端
         if (roleId) {
           await adminApi.resetMemberPasswordApi(
             roleId,
@@ -123,8 +124,8 @@ const [Modal, modalApi] = useVbenModal({
 });
 
 /**
- * 打开弹窗
- * @param record 包含 id 和 username 的用户信息
+ * Open modal / 打开弹窗
+ * @param record User info containing id and username / 包含 id 和 username 的用户信息
  */
 function open(record: ResetPasswordTarget) {
   modalApi.setData(record).open();

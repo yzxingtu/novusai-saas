@@ -1,13 +1,14 @@
 /**
- * Admin 数据分析 API
- * 对接后端 /admin/analytics/* 接口
+ * Admin analytics API / Admin 数据分析 API
+ * Backend: /admin/analytics/*
  */
 import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/admin/analytics';
 
-// ── Types ──
+// ── Types / 类型定义 ──
 
+/** Call trend item / 调用趋势项 */
 export interface CallTrendItem {
   date: string;
   calls: number;
@@ -19,6 +20,7 @@ export interface CallTrendItem {
   failed: number;
 }
 
+/** Model distribution item / 模型分布项 */
 export interface ModelDistributionItem {
   model_id: number;
   model_name: string;
@@ -27,6 +29,7 @@ export interface ModelDistributionItem {
   cost: number;
 }
 
+/** Provider performance item / 供应商性能项 */
 export interface ProviderPerformanceItem {
   provider_id: number;
   provider_name: string;
@@ -37,6 +40,7 @@ export interface ProviderPerformanceItem {
   total_cost: number;
 }
 
+/** Tenant ranking item / 租户排名项 */
 export interface TenantRankingItem {
   tenant_id: null | number;
   tenant_name: string;
@@ -45,11 +49,13 @@ export interface TenantRankingItem {
   cost: number;
 }
 
+/** Latency distribution item / 延迟分布项 */
 export interface LatencyDistributionItem {
   range: string;
   count: number;
 }
 
+/** Success rate trend item / 成功率趋势项 */
 export interface SuccessRateTrendItem {
   date: string;
   total: number;
@@ -58,14 +64,16 @@ export interface SuccessRateTrendItem {
   rate: number;
 }
 
+/** Date range query params / 日期范围查询参数 */
 export interface DateRangeParams {
   start_date?: string;
   end_date?: string;
   tenant_id?: number;
 }
 
-// ── API Functions ──
+// ── API Functions / API 接口 ──
 
+/** Get call trend / 获取调用趋势 */
 export async function getCallTrendApi(
   params?: DateRangeParams,
 ): Promise<CallTrendItem[]> {
@@ -74,6 +82,7 @@ export async function getCallTrendApi(
   });
 }
 
+/** Get model distribution / 获取模型分布 */
 export async function getModelDistributionApi(
   params?: DateRangeParams,
 ): Promise<ModelDistributionItem[]> {
@@ -83,6 +92,7 @@ export async function getModelDistributionApi(
   );
 }
 
+/** Get provider performance / 获取供应商性能 */
 export async function getProviderPerformanceApi(
   params?: Omit<DateRangeParams, 'tenant_id'>,
 ): Promise<ProviderPerformanceItem[]> {
@@ -92,6 +102,7 @@ export async function getProviderPerformanceApi(
   );
 }
 
+/** Get tenant ranking / 获取租户排名 */
 export async function getTenantRankingApi(
   topN = 10,
   params?: Omit<DateRangeParams, 'tenant_id'>,
@@ -102,6 +113,7 @@ export async function getTenantRankingApi(
   );
 }
 
+/** Get latency distribution / 获取延迟分布 */
 export async function getLatencyDistributionApi(
   params?: DateRangeParams,
 ): Promise<LatencyDistributionItem[]> {
@@ -111,6 +123,7 @@ export async function getLatencyDistributionApi(
   );
 }
 
+/** Get success rate trend / 获取成功率趋势 */
 export async function getSuccessRateTrendApi(
   params?: DateRangeParams,
 ): Promise<SuccessRateTrendItem[]> {

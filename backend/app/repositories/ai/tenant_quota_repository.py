@@ -1,5 +1,5 @@
 """
-租户 AI 配额配置 Repository
+租户 AI 配额 Repository / Tenant AI Quota Repository
 """
 
 

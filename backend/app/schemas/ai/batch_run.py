@@ -1,7 +1,8 @@
 """
-批量运行相关 Schema
+批量运行相关 Schema / Batch Run Schema
 
 定义批量执行的请求和响应数据结构
+Defines batch execution request and response data structures.
 """
 
 from datetime import datetime

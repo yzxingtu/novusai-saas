@@ -1,7 +1,8 @@
 """
-平台端 AI 供应商管理 API
+平台端 AI 供应商管理 API / Platform AI Provider API
 
 提供 AI 供应商的 CRUD 接口（平台管理员专用）
+Provides AI provider CRUD endpoints (platform admin only).
 """
 
 from fastapi import Request
@@ -45,9 +46,9 @@ from app.services.ai import AIProviderService
 )
 class AdminAIProviderController(GlobalController):
     """
-    AI 供应商管理控制器
+    AI 供应商管理控制器 / AI Provider Management Controller
 
-    提供 AI 供应商 CRUD、状态切换等接口
+    提供 AI 供应商 CRUD、状态切换等接口 / Provides AI provider CRUD, status toggle endpoints
     """
 
     prefix = "/ai/providers"
@@ -55,10 +56,10 @@ class AdminAIProviderController(GlobalController):
     service_class = AIProviderService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AIProviderService,
@@ -73,10 +74,11 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取所有可用的适配器类型（内置 + 插件注册）
+            获取所有可用的适配器类型（内置 + 插件注册） / Get all available adapter types (builtin + plugin registered)
 
             返回每种适配器类型的名称、来源（builtin/plugin）、供应商信息。
-            前端用于供应商类型下拉列表。
+            Returns each adapter type's name, source (builtin/plugin), and provider info.
+            前端用于供应商类型下拉列表。 / Used by frontend for provider type dropdown.
             """
             from app.ai.adapters import AdapterRegistry
 
@@ -102,13 +104,13 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 供应商列表
+            获取 AI 供应商列表 / Get AI provider list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / General filtering: filter[field][op]=value
+            - 支持排序 / Sorting: sort=-created_at,name
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
 
-            权限: ai_provider:list
+            权限 / Permission: ai_provider:list
             """
             service = AIProviderService(db)
             items, total = await service.query_list(spec)
@@ -123,8 +125,8 @@ class AdminAIProviderController(GlobalController):
                 message=_("common.success"),
             )
 
-        # ========== 排序管理 ==========
-        # 注意：/reorder 必须放在 /{provider_id} 之前
+        # ========== 排序管理 / Sort Management ==========
+        # 注意：/reorder 必须放在 /{provider_id} 之前 / Note: /reorder must be before /{provider_id}
 
         @router.put("/reorder", summary="批量重排序 AI 供应商")
         @action_update("action.ai_provider.reorder")
@@ -135,9 +137,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            批量重排序 AI 供应商
+            批量重排序 AI 供应商 / Batch reorder AI providers
 
-            权限: ai_provider:reorder
+            权限 / Permission: ai_provider:reorder
             """
             service = AIProviderService(db)
             try:
@@ -163,9 +165,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 供应商详情
+            获取 AI 供应商详情 / Get AI provider details
 
-            权限: ai_provider:detail
+            权限 / Permission: ai_provider:detail
             """
             service = AIProviderService(db)
             provider = await service.get_by_id(provider_id)
@@ -188,9 +190,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建 AI 供应商
+            创建 AI 供应商 / Create AI provider
 
-            权限: ai_provider:create
+            权限 / Permission: ai_provider:create
             """
             service = AIProviderService(db)
             provider = await service.create_provider(data)
@@ -211,9 +213,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新 AI 供应商信息
+            更新 AI 供应商信息 / Update AI provider info
 
-            权限: ai_provider:update
+            权限 / Permission: ai_provider:update
             """
             service = AIProviderService(db)
             provider = await service.update_provider(provider_id, data)
@@ -233,9 +235,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除 AI 供应商（软删除）
+            删除 AI 供应商（软删除） / Delete AI provider (soft delete)
 
-            权限: ai_provider:delete
+            权限 / Permission: ai_provider:delete
             """
             service = AIProviderService(db)
             await service.delete_provider(provider_id)
@@ -252,9 +254,9 @@ class AdminAIProviderController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            启用或禁用 AI 供应商
+            启用或禁用 AI 供应商 / Enable or disable AI provider
 
-            权限: ai_provider:toggle_status
+            权限 / Permission: ai_provider:toggle_status
             """
             service = AIProviderService(db)
             provider = await service.toggle_status(provider_id)
@@ -266,7 +268,7 @@ class AdminAIProviderController(GlobalController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIProviderController.get_router()
 
 __all__ = ["router", "AdminAIProviderController"]

@@ -1,6 +1,9 @@
 """
+Agent-level Quota & Concurrency Control
 智能体级配额与并发控制
 
+Provides per-agent Token quota and concurrency limits on top of tenant-level quota.
+Redis-based for low latency and high concurrency safety.
 在租户级配额之上，提供按智能体粒度的 Token 配额和并发执行数限制。
 基于 Redis 实现，低延迟、高并发安全。
 """
@@ -23,11 +26,11 @@ logger = LogManager.get_logger("ai.agent_quota")
 
 
 # ============================================
-# 异常
+# Exceptions / 异常
 # ============================================
 
 class AgentQuotaExceeded(BusinessException):
-    """智能体配额超出异常"""
+    """Agent quota exceeded exception / 智能体配额超出异常"""
 
     code = 4293
     status_code = 429
@@ -41,7 +44,7 @@ class AgentQuotaExceeded(BusinessException):
 
 
 class AgentConcurrencyExceeded(BusinessException):
-    """智能体并发超出异常"""
+    """Agent concurrency exceeded exception / 智能体并发超出异常"""
 
     code = 4294
     status_code = 429
@@ -53,25 +56,25 @@ class AgentConcurrencyExceeded(BusinessException):
 
 
 # ============================================
-# 配额配置
+# Quota Configuration / 配额配置
 # ============================================
 
 @dataclass
 class AgentQuotaConfig:
     """
-    智能体配额配置
+    Agent Quota Configuration / 智能体配额配置
 
     Attributes:
-        daily_token_limit: 每日 Token 上限（0 = 不限制）
-        monthly_token_limit: 每月 Token 上限（0 = 不限制）
-        conversations_per_day: 每日最大对话数（0 = 不限制）
-        max_turns_per_conversation: 单次对话最大轮次（0 = 不限制）
-        max_tokens_per_conversation: 单次对话最大 Token（0 = 不限制）
-        user_conversations_per_day: 每用户每日对话上限（0 = 不限制）
-        user_tokens_per_day: 每用户每日 Token 上限（0 = 不限制）
-        max_concurrent: 最大并发执行数（0 = 不限制）
-        tenant_max_concurrent: 全租户最大并发（0 = 不限制）
-        warning_threshold: 预警阈值百分比（0-100）
+        daily_token_limit: Daily token cap (0 = unlimited) / 每日 Token 上限（0 = 不限制）
+        monthly_token_limit: Monthly token cap (0 = unlimited) / 每月 Token 上限（0 = 不限制）
+        conversations_per_day: Max daily conversations (0 = unlimited) / 每日最大对话数（0 = 不限制）
+        max_turns_per_conversation: Max turns per conversation (0 = unlimited) / 单次对话最大轮次（0 = 不限制）
+        max_tokens_per_conversation: Max tokens per conversation (0 = unlimited) / 单次对话最大 Token（0 = 不限制）
+        user_conversations_per_day: Per-user daily conversation cap (0 = unlimited) / 每用户每日对话上限（0 = 不限制）
+        user_tokens_per_day: Per-user daily token cap (0 = unlimited) / 每用户每日 Token 上限（0 = 不限制）
+        max_concurrent: Max concurrent executions (0 = unlimited) / 最大并发执行数（0 = 不限制）
+        tenant_max_concurrent: Tenant-wide max concurrency (0 = unlimited) / 全租户最大并发（0 = 不限制）
+        warning_threshold: Warning threshold percentage (0-100) / 预警阈值百分比（0-100）
     """
 
     daily_token_limit: int = 0
@@ -87,7 +90,7 @@ class AgentQuotaConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "AgentQuotaConfig":
-        """从 Agent.quota_config JSON 字段构建配置"""
+        """Build config from Agent.quota_config JSON field / 从 Agent.quota_config JSON 字段构建配置"""
         if not data:
             return cls()
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
@@ -96,17 +99,18 @@ class AgentQuotaConfig:
 
 
 # ============================================
-# 配额管理器
+# Quota Manager / 配额管理器
 # ============================================
 
 class AgentQuotaManager:
     """
-    智能体配额管理器
+    Agent Quota Manager / 智能体配额管理器
 
-    基于 Redis 追踪每个智能体的 Token 使用量，
-    支持每日和每月两个维度的配额检查。
+    Tracks per-agent Token usage via Redis, supporting daily and monthly quota checks.
+    基于 Redis 追踪每个智能体的 Token 使用量，支持每日和每月两个维度的配额检查。
 
-    使用示例:
+    Usage::
+
         manager = AgentQuotaManager()
         await manager.check_quota(tenant_id=1, agent_id=42, estimated_tokens=500)
         await manager.record_usage(tenant_id=1, agent_id=42, tokens=350)
@@ -117,6 +121,7 @@ class AgentQuotaManager:
     PREFIX_DAILY_CONV = "ai:agent_quota:daily_conv:"
     PREFIX_USER = "ai:agent_quota:user:"
 
+    # Lua script: atomically adjust usage (INCRBY + floor-at-zero guard)
     # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
     # KEYS[1] = key, ARGV[1] = diff
     _ADJUST_LUA = """
@@ -128,8 +133,10 @@ class AgentQuotaManager:
     return new_val
     """
 
+    # Lua script: atomic pre-deduct + check (same pattern as UsageTracker)
     # Lua 脚本：原子预扣减+检查（与 UsageTracker 同模式）
     # KEYS[1] = key, ARGV[1] = estimated_tokens, ARGV[2] = limit, ARGV[3] = expire_seconds
+    # Returns -1 on success (pre-deducted), >= 0 = current usage (exceeded, rolled back)
     # 返回 -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
     _CHECK_AND_RECORD_LUA = """
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
@@ -149,9 +156,11 @@ class AgentQuotaManager:
         expire_seconds: int,
     ) -> int:
         """
-        原子检查+预扣减 Token 使用量
+        Atomically check + pre-deduct token usage.
+        原子检查+预扣减 Token 使用量。
 
         Returns:
+            -1 on success (pre-deducted), >= 0 = current usage (exceeded, rolled back)
             -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
         """
         redis = await get_redis()
@@ -189,23 +198,25 @@ class AgentQuotaManager:
         estimated_tokens: int = 0,
     ) -> bool:
         """
-        检查智能体配额
+        Check agent quota.
+        检查智能体配额。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            config: 配额配置
-            estimated_tokens: 预估 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            config: Quota config / 配额配置
+            estimated_tokens: Estimated token count / 预估 Token 数量
 
         Returns:
-            True 表示允许
+            True if allowed / True 表示允许
 
         Raises:
-            AgentQuotaExceeded: 配额超出
+            AgentQuotaExceeded: Quota exceeded / 配额超出
         """
         today = date.today()
         event_bus = get_event_bus()
 
+        # Daily quota check (atomic pre-deduct, prevents TOCTOU race)
         # 日配额检查（原子预扣减，防止 TOCTOU 竞态）
         if config.daily_token_limit > 0 and estimated_tokens > 0:
             daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
@@ -217,6 +228,7 @@ class AgentQuotaManager:
             )
 
             if result >= 0:
+                # Exceeded: result is current usage after rollback
                 # 超限：result 是回滚后的当前用量
                 logger.warning(
                     "Agent daily quota exceeded: tenant=%d agent=%d usage=%d limit=%d",
@@ -237,6 +249,7 @@ class AgentQuotaManager:
                     limit=config.daily_token_limit,
                 )
 
+            # Warning check (after successful pre-deduction)
             # 预警检查（在预扣成功后）
             if config.warning_threshold > 0:
                 daily_usage = await AgentQuotaManager.get_daily_usage(
@@ -251,7 +264,7 @@ class AgentQuotaManager:
                         threshold=config.warning_threshold,
                     ))
 
-        # 日对话数检查
+        # Daily conversation count check / 日对话数检查
         if config.conversations_per_day > 0:
             conv_count = await AgentQuotaManager.get_daily_conversations(
                 tenant_id, agent_id, today,
@@ -264,7 +277,7 @@ class AgentQuotaManager:
                     limit=config.conversations_per_day,
                 )
 
-        # 月配额检查（原子预扣减）
+        # Monthly quota check (atomic pre-deduct) / 月配额检查（原子预扣减）
         if config.monthly_token_limit > 0 and estimated_tokens > 0:
             monthly_key = AgentQuotaManager._monthly_key(
                 tenant_id, agent_id, today.year, today.month,
@@ -289,6 +302,7 @@ class AgentQuotaManager:
                     agent_id=agent_id,
                     quota_type="monthly",
                 ))
+                # Rollback daily pre-deduction (atomic, prevents negative)
                 # 回滚日配额预扣减（原子操作，防止值为负）
                 if config.daily_token_limit > 0:
                     await AgentQuotaManager._atomic_adjust(
@@ -303,7 +317,7 @@ class AgentQuotaManager:
                     limit=config.monthly_token_limit,
                 )
 
-            # 预警检查
+            # Warning check / 预警检查
             if config.warning_threshold > 0:
                 monthly_usage = await AgentQuotaManager.get_monthly_usage(
                     tenant_id, agent_id, today.year, today.month,
@@ -322,14 +336,15 @@ class AgentQuotaManager:
     @staticmethod
     async def _atomic_adjust(key: str, diff: int) -> int:
         """
-        原子调整用量（INCRBY + 不低于 0 保护）
+        Atomically adjust usage (INCRBY + floor-at-zero guard).
+        原子调整用量（INCRBY + 不低于 0 保护）。
 
         Args:
-            key: Redis 键
-            diff: 调整量（可正可负）
+            key: Redis key / Redis 键
+            diff: Adjustment amount (positive or negative) / 调整量（可正可负）
 
         Returns:
-            调整后的值
+            Adjusted value / 调整后的值
         """
         redis = await get_redis()
         result = await redis.eval(
@@ -349,14 +364,15 @@ class AgentQuotaManager:
         config: AgentQuotaConfig | None = None,
     ) -> None:
         """
-        响应后调整配额用量：从预估值调整为实际值
+        Adjust quota usage after response: from estimated to actual.
+        响应后调整配额用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            estimated_tokens: 预估 Token 数量（已预扣）
-            actual_tokens: 实际 Token 数量
-            config: 配额配置（可选，用于判断哪些维度需要调整）
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
+            actual_tokens: Actual token count / 实际 Token 数量
+            config: Quota config (optional, to determine which dimensions to adjust) / 配额配置（可选，用于判断哪些维度需要调整）
         """
         diff = actual_tokens - estimated_tokens
         if diff == 0:
@@ -364,12 +380,12 @@ class AgentQuotaManager:
 
         today = date.today()
 
-        # 调整日配额
+        # Adjust daily quota / 调整日配额
         if not config or config.daily_token_limit > 0:
             daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
             await AgentQuotaManager._atomic_adjust(daily_key, diff)
 
-        # 调整月配额
+        # Adjust monthly quota / 调整月配额
         if not config or config.monthly_token_limit > 0:
             monthly_key = AgentQuotaManager._monthly_key(
                 tenant_id, agent_id, today.year, today.month,
@@ -384,23 +400,24 @@ class AgentQuotaManager:
         stat_date: date | None = None,
     ) -> None:
         """
-        记录智能体 Token 使用量
+        Record agent token usage.
+        记录智能体 Token 使用量。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            tokens: Token 数量
-            stat_date: 统计日期
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            tokens: Token count / Token 数量
+            stat_date: Statistics date / 统计日期
         """
         redis = await get_redis()
         stat_date = stat_date or date.today()
 
-        # 每日
+        # Daily / 每日
         daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, stat_date)
         await redis.incrby(daily_key, tokens)
         await redis.expire(daily_key, 86400 * 2)
 
-        # 每月
+        # Monthly / 每月
         monthly_key = AgentQuotaManager._monthly_key(
             tenant_id, agent_id, stat_date.year, stat_date.month,
         )
@@ -415,10 +432,11 @@ class AgentQuotaManager:
         config: AgentQuotaConfig,
     ) -> bool:
         """
-        检查用户级配额
+        Check user-level quota.
+        检查用户级配额。
 
         Raises:
-            AgentQuotaExceeded: 用户级配额超出
+            AgentQuotaExceeded: User-level quota exceeded / 用户级配额超出
         """
         if not user_id:
             return True
@@ -458,10 +476,11 @@ class AgentQuotaManager:
         current_tokens: int = 0,
     ) -> bool:
         """
-        检查单次对话限制
+        Check per-conversation limits.
+        检查单次对话限制。
 
         Raises:
-            AgentQuotaExceeded: 对话级限制超出
+            AgentQuotaExceeded: Conversation-level limit exceeded / 对话级限制超出
         """
         if config.max_turns_per_conversation > 0 and current_turns >= config.max_turns_per_conversation:
             raise AgentQuotaExceeded(
@@ -487,16 +506,16 @@ class AgentQuotaManager:
         agent_id: int,
         user_id: int | None = None,
     ) -> None:
-        """记录新对话（智能体级 + 用户级）"""
+        """Record new conversation (agent-level + user-level) / 记录新对话（智能体级 + 用户级）"""
         redis = await get_redis()
         today = date.today()
 
-        # 智能体级日对话数
+        # Agent-level daily conversation count / 智能体级日对话数
         conv_key = AgentQuotaManager._daily_conv_key(tenant_id, agent_id, today)
         await redis.incr(conv_key)
         await redis.expire(conv_key, 86400 * 2)
 
-        # 用户级日对话数
+        # User-level daily conversation count / 用户级日对话数
         if user_id:
             user_key = AgentQuotaManager._user_daily_key(tenant_id, agent_id, user_id, today)
             await redis.hincrby(user_key, "conversations", 1)
@@ -509,7 +528,7 @@ class AgentQuotaManager:
         user_id: int,
         tokens: int,
     ) -> None:
-        """记录用户级 Token 使用量"""
+        """Record user-level token usage / 记录用户级 Token 使用量"""
         if not user_id or tokens <= 0:
             return
         redis = await get_redis()
@@ -524,7 +543,7 @@ class AgentQuotaManager:
         agent_id: int,
         stat_date: date | None = None,
     ) -> int:
-        """获取智能体当日对话数"""
+        """Get agent's daily conversation count / 获取智能体当日对话数"""
         redis = await get_redis()
         stat_date = stat_date or date.today()
         key = AgentQuotaManager._daily_conv_key(tenant_id, agent_id, stat_date)
@@ -537,7 +556,7 @@ class AgentQuotaManager:
         agent_id: int,
         stat_date: date | None = None,
     ) -> int:
-        """获取智能体当日 Token 使用量"""
+        """Get agent's daily token usage / 获取智能体当日 Token 使用量"""
         redis = await get_redis()
         stat_date = stat_date or date.today()
         key = AgentQuotaManager._daily_key(tenant_id, agent_id, stat_date)
@@ -551,7 +570,7 @@ class AgentQuotaManager:
         year: int | None = None,
         month: int | None = None,
     ) -> int:
-        """获取智能体当月 Token 使用量"""
+        """Get agent's monthly token usage / 获取智能体当月 Token 使用量"""
         redis = await get_redis()
         today = date.today()
         year = year or today.year
@@ -566,7 +585,7 @@ class AgentQuotaManager:
         agent_id: int,
         config: AgentQuotaConfig | None = None,
     ) -> dict[str, Any]:
-        """获取使用量摘要（含配额上限）"""
+        """Get usage summary (with quota limits) / 获取使用量摘要（含配额上限）"""
         today = date.today()
         daily_tokens = await AgentQuotaManager.get_daily_usage(tenant_id, agent_id, today)
         monthly_tokens = await AgentQuotaManager.get_monthly_usage(
@@ -600,18 +619,20 @@ class AgentQuotaManager:
 
 
 # ============================================
-# 并发控制器
+# Concurrency Limiter / 并发控制器
 # ============================================
 
 class AgentConcurrencyLimiter:
     """
-    智能体并发执行限制器
+    Agent Concurrency Limiter / 智能体并发执行限制器
 
-    使用 Redis Sorted Set 实现分布式信号量，
-    member=lock_token, score=expire_timestamp。
+    Distributed semaphore via Redis Sorted Set (member=lock_token, score=expire_timestamp).
+    Auto-cleans expired entries so abnormal releases won't cause permanent occupation.
+    使用 Redis Sorted Set 实现分布式信号量，member=lock_token, score=expire_timestamp。
     自动清理过期项，确保异常未释放时不会永久占用。
 
-    使用示例:
+    Usage::
+
         token = await AgentConcurrencyLimiter.acquire(
             tenant_id=1, agent_id=42, max_concurrent=5,
         )
@@ -625,7 +646,9 @@ class AgentConcurrencyLimiter:
     PREFIX_TENANT = "ai:agent_concurrency:tenant:"
     LOCK_TTL = 300  # 5 分钟自动过期
 
+    # Lua script: atomic cleanup-expired → check-count → add-token
     # Lua 脚本：原子化 清理过期 → 检查计数 → 添加令牌
+    # Returns -1 on success, >= 0 = current concurrency (exceeded, not added)
     # 返回 -1 表示成功添加，>= 0 表示当前并发数（超限未添加）
     _ACQUIRE_LUA = """
     redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
@@ -653,28 +676,30 @@ class AgentConcurrencyLimiter:
         tenant_max_concurrent: int = 0,
     ) -> str:
         """
-        获取并发许可（原子操作，防止 TOCTOU 竞态）
+        Acquire concurrency permit (atomic, prevents TOCTOU race).
+        获取并发许可（原子操作，防止 TOCTOU 竞态）。
 
+        Uses Redis Lua script for atomic cleanup → check → add.
         使用 Redis Lua 脚本确保 清理过期→检查计数→添加令牌 三步原子执行。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            max_concurrent: 每智能体最大并发数
-            tenant_max_concurrent: 全租户最大并发数
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            max_concurrent: Per-agent max concurrency / 每智能体最大并发数
+            tenant_max_concurrent: Tenant-wide max concurrency / 全租户最大并发数
 
         Returns:
-            lock_token 用于释放
+            lock_token for release / lock_token 用于释放
 
         Raises:
-            AgentConcurrencyExceeded: 并发超出
+            AgentConcurrencyExceeded: Concurrency exceeded / 并发超出
         """
         redis = await get_redis()
         now = time.time()
         expire_at = now + AgentConcurrencyLimiter.LOCK_TTL
         lock_token = uuid.uuid4().hex
 
-        # 智能体级并发检查（原子操作）
+        # Agent-level concurrency check (atomic) / 智能体级并发检查（原子操作）
         if max_concurrent > 0:
             agent_key = AgentConcurrencyLimiter._key(tenant_id, agent_id)
             result = await redis.eval(
@@ -695,7 +720,7 @@ class AgentConcurrencyLimiter:
                     _("agent.error.concurrency_exceeded"), retry_after=5,
                 )
 
-        # 租户级并发检查（原子操作）
+        # Tenant-level concurrency check (atomic) / 租户级并发检查（原子操作）
         if tenant_max_concurrent > 0:
             tenant_key = AgentConcurrencyLimiter._tenant_key(tenant_id)
             result = await redis.eval(
@@ -708,7 +733,7 @@ class AgentConcurrencyLimiter:
                 lock_token,
             )
             if result >= 0:
-                # 回滚智能体级
+                # Rollback agent-level / 回滚智能体级
                 if max_concurrent > 0:
                     agent_key = AgentConcurrencyLimiter._key(tenant_id, agent_id)
                     await redis.zrem(agent_key, lock_token)
@@ -725,12 +750,13 @@ class AgentConcurrencyLimiter:
         lock_token: str,
     ) -> None:
         """
-        释放并发许可
+        Release concurrency permit.
+        释放并发许可。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            lock_token: acquire() 返回的令牌
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            lock_token: Token returned by acquire() / acquire() 返回的令牌
         """
         redis = await get_redis()
         agent_key = AgentConcurrencyLimiter._key(tenant_id, agent_id)
@@ -743,7 +769,7 @@ class AgentConcurrencyLimiter:
         tenant_id: int,
         agent_id: int,
     ) -> int:
-        """获取当前并发数"""
+        """Get current concurrency count / 获取当前并发数"""
         redis = await get_redis()
         key = AgentConcurrencyLimiter._key(tenant_id, agent_id)
         now = time.time()

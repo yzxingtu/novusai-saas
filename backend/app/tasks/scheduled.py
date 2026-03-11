@@ -1,7 +1,10 @@
 """
-内置定时任务
+Built-in scheduled tasks / 内置定时任务
 
+System built-in periodic maintenance tasks.
 系统内置的周期性维护任务
+Note: Celery Worker is an independent synchronous process that does not go through FastAPI lifespan,
+so RedisManager will not be initialized. All Redis operations must use a sync redis client.
 注意：Celery Worker 是独立的同步进程，不经过 FastAPI lifespan，
 因此 RedisManager 不会被初始化。所有 Redis 操作必须使用同步 redis 客户端。
 """
@@ -22,13 +25,13 @@ logger = LogManager.get_logger("task")
 
 
 def _get_sync_redis() -> redis.Redis:
-    """获取同步 Redis 客户端（Celery Worker 专用）"""
+    """Get sync Redis client (Celery Worker only) / 获取同步 Redis 客户端（Celery Worker 专用）"""
     return redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 @register_task(
     queue="scheduled",
-    description="清理过期验证码缓存",
+    description="Clean up expired captcha cache / 清理过期验证码缓存",
     max_retries=1,
 )
 def clean_expired_captchas(self: BaseTask) -> dict:
@@ -60,7 +63,7 @@ def clean_expired_captchas(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="系统健康检查（Redis/DB 连接状态）",
+    description="System health check (Redis/DB connection status) / 系统健康检查（Redis/DB 连接状态）",
     max_retries=1,
 )
 def system_health_check(self: BaseTask) -> dict:
@@ -94,7 +97,7 @@ def system_health_check(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="重置智能体每日配额（清理无 TTL 的 Redis key）",
+    description="Reset agent daily quotas (clean up Redis keys without TTL) / 重置智能体每日配额（清理无 TTL 的 Redis key）",
     max_retries=1,
 )
 def reset_agent_daily_quotas(self: BaseTask) -> dict:
@@ -130,7 +133,7 @@ def reset_agent_daily_quotas(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="重置智能体每日统计（Redis 当日计数归零）",
+    description="Reset agent daily stats (Redis daily count reset) / 重置智能体每日统计（Redis 当日计数归零）",
     max_retries=1,
 )
 def reset_agent_daily_stats(self: BaseTask) -> dict:
@@ -155,11 +158,11 @@ def reset_agent_daily_stats(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="检查插件试用期到期，自动禁用到期插件并发出预警提醒",
+    description="Check plugin trial expirations, auto-disable expired plugins and send warnings / 检查插件试用期到期，自动禁用到期插件并发出预警提醒",
     max_retries=1,
 )
 def check_plugin_trial_expirations(self: BaseTask) -> dict:
-    """检查插件 License 试用期，到期自动禁用，即将到期发提醒。"""
+    """Check plugin license trial period; auto-disable on expiry, send reminders for upcoming expiry. / 检查插件 License 试用期，到期自动禁用，即将到期发提醒。"""
     import asyncio
 
     from app.tasks.async_db import task_async_session
@@ -168,8 +171,12 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
         from app.core.redis import RedisManager
         from app.plugins.license import check_trial_expirations
 
+        # Celery worker doesn't go through FastAPI lifespan, RedisManager is not initialized.
         # Celery worker 不走 FastAPI lifespan，RedisManager 未初始化。
+        # lifecycle.disable() → _plugin_lock() → get_redis_client() needs Redis.
         # lifecycle.disable() → _plugin_lock() → get_redis_client() 需要 Redis。
+        # Without initialization, disable() will silently fail (RuntimeError caught by license.py),
+        # and plugins will never be disabled even if trial period has expired.
         # 若不初始化，disable() 会 silently fail (RuntimeError 被 license.py 捕获)，
         # 插件将永远不会被禁用，即使试用期已到期。
         redis_was_initialized = RedisManager._pool is not None
@@ -177,6 +184,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
             try:
                 await RedisManager.init()
             except Exception as redis_err:
+                # Redis unavailable: downgrade — license will still be marked invalid, but disable() may fail
                 # Redis 不可用时降级：license 仍会标记为 invalid，但 disable() 可能失败
                 logger.warning(
                     "Plugin trial check: Redis unavailable (%s), "
@@ -190,6 +198,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
                 await db.commit()
                 return actions
         finally:
+            # If this call initialized Redis, close connection pool to avoid reusing old pool across event-loop
             # 若本次调用初始化了 Redis，关闭连接池避免跨 event-loop 复用旧 pool
             if not redis_was_initialized:
                 with contextlib.suppress(Exception):
@@ -217,7 +226,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="清理过期任务日志（保留30天）",
+    description="Clean up expired task logs (retain 30 days) / 清理过期任务日志（保留 30 天）",
     max_retries=1,
 )
 def clean_expired_task_logs(self: BaseTask) -> dict:
@@ -247,15 +256,17 @@ def clean_expired_task_logs(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="清理过期会话记忆（24h 兜底）",
+    description="Clean up expired session memories (24h fallback) / 清理过期会话记忆（24h 兜底）",
     max_retries=1,
 )
 def clean_expired_session_memories(self: BaseTask) -> dict:
     """
-    清理过期会话记忆 key（兜底）
+    Clean up expired session memory keys (fallback) / 清理过期会话记忆 key（兜底）
 
-    说明：
+    Note:
+    - Normally session memory keys auto-expire via TTL;
     - 正常情况下会话记忆 key 使用 TTL 自动过期；
+    - This task provides fallback cleanup for keys without TTL or abnormal residual keys.
     - 本任务用于兜底清理无 TTL 或异常残留 key。
     """
     try:
@@ -270,7 +281,7 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
             )
             if keys:
                 ttls = [client.ttl(key) for key in keys]
-                # ttl == -1 表示无过期时间，需要清理
+                # ttl == -1 means no expiration, needs cleanup / ttl == -1 表示无过期时间，需要清理
                 no_ttl = [
                     k for k, t in zip(keys, ttls, strict=False) if t == -1
                 ]

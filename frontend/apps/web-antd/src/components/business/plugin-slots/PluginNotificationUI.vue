@@ -4,9 +4,9 @@ import { computed } from 'vue';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 
 const props = defineProps<{
-  /** 通知数据，传递给插件组件 */
+  /** Notification data, passed to plugin component / 通知数据 */
   data?: Record<string, unknown>;
-  /** 通知事件名（对应 manifest notification_ui[].event） */
+  /** Notification event name (corresponds to manifest notification_ui[].event) / 通知事件名 */
   event: string;
 }>();
 

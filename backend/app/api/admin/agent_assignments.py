@@ -1,7 +1,8 @@
 """
-平台端系统智能体绑定管理 API
+平台端系统智能体绑定管理 API / Platform System Agent Assignment Management API
 
 管理功能代码与智能体的映射关系
+Manages the mapping between feature codes and agents.
 """
 
 from fastapi import Request
@@ -34,7 +35,7 @@ logger = LogManager.get_logger("app")
 
 
 class AgentAssignmentUpdate(PydanticBaseModel):
-    """更新绑定请求"""
+    """更新绑定请求 / Update assignment request"""
     agent_id: int | None = Field(None, description=_("system_agent_assignment.field.agent_id"))
     config: dict | None = Field(None, description=_("system_agent_assignment.field.config"))
     is_active: bool | None = Field(None, description=_("system_agent_assignment.field.is_active"))
@@ -55,7 +56,7 @@ class AgentAssignmentUpdate(PydanticBaseModel):
 )
 class AdminAgentAssignmentController(GlobalController):
     """
-    平台端系统智能体绑定管理控制器
+    平台端系统智能体绑定管理控制器 / Platform System Agent Assignment Management Controller
     """
 
     prefix = "/ai/agent-assignments"
@@ -71,11 +72,11 @@ class AdminAgentAssignmentController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            """获取所有全局默认系统智能体绑定"""
+            """获取所有全局默认系统智能体绑定 / Get all global default system agent assignments"""
             service = AgentAssignmentService(db)
             all_items = await service.get_all_global()
 
-            # 构建插件 feature 多语言映射
+            # 构建插件 feature 多语言映射 / Build plugin feature i18n mapping
             i18n_map = await _build_plugin_feature_i18n_map(db)
 
             result = [_build_assignment_item(item, i18n_map=i18n_map) for item in all_items]
@@ -91,8 +92,10 @@ class AdminAgentAssignmentController(GlobalController):
         ):
             """
             公共 resolve API：按 feature_code 获取绑定的 agent_id
+            Public resolve API: get bound agent_id by feature_code
 
             仅需登录，无需特殊权限。返回 agent_id + agent_name + config。
+            Login required only, no special permissions needed. Returns agent_id + agent_name + config.
             """
             service = AgentAssignmentService(db)
             assignment = await service.resolve(feature_code)
@@ -127,7 +130,7 @@ class AdminAgentAssignmentController(GlobalController):
             admin: ActiveAdmin,
             feature_code: str,
         ):
-            """按 feature_code 获取绑定详情"""
+            """按 feature_code 获取绑定详情 / Get assignment details by feature_code"""
             service = AgentAssignmentService(db)
             assignment = await service.repo.get_by_feature_code(feature_code)
             if not assignment:
@@ -146,7 +149,7 @@ class AdminAgentAssignmentController(GlobalController):
             feature_code: str,
             body: AgentAssignmentUpdate,
         ):
-            """更新绑定（agent_id, config, is_active）"""
+            """更新绑定（agent_id, config, is_active） / Update assignment (agent_id, config, is_active)"""
             service = AgentAssignmentService(db)
             assignment = await service.repo.get_by_feature_code(feature_code)
             if not assignment:
@@ -157,10 +160,10 @@ class AdminAgentAssignmentController(GlobalController):
             update_data = body.model_dump(exclude_unset=True)
             i18n_map = await _build_plugin_feature_i18n_map(db)
             if update_data:
-                # 校验 agent_id 有效性（admin 端 tenant_id=None，不做 scope 校验）
+                # 校验 agent_id 有效性（admin 端 tenant_id=None，不做 scope 校验） / Validate agent_id (admin side tenant_id=None, skip scope check)
                 if "agent_id" in update_data:
                     await service.validate_agent_id(update_data["agent_id"])
-                # 启用时校验已绑定的 agent 仍可用（防止启用指向已删除/下架 Agent 的绑定）
+                # 启用时校验已绑定的 agent 仍可用（防止启用指向已删除/下架 Agent 的绑定） / Validate bound agent is still available when enabling (prevent enabling bindings pointing to deleted/unpublished agents)
                 elif update_data.get("is_active") is True and assignment.agent_id:
                     await service.validate_agent_id(assignment.agent_id)
                 updated = await service.update(assignment.id, update_data)

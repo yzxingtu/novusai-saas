@@ -1,13 +1,15 @@
 """
+Unified Tool Call Processor
 统一工具调用处理器
 
+Extracts shared tool call core logic for execute() and stream_execute():
 提取 execute() 和 stream_execute() 共享的工具调用核心逻辑：
-- 参数解析
-- 沙箱执行
-- 消息构建
-- 确认拦截
-- consent_mode 检查
-- SSE 事件构建
+- Argument parsing / 参数解析
+- Sandbox execution / 沙箱执行
+- Message building / 消息构建
+- Confirmation interception / 确认拦截
+- consent_mode checking / consent_mode 检查
+- SSE event building / SSE 事件构建
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
-# 用户确认/拒绝触发词
+# User confirmation/rejection trigger words / 用户确认/拒绝触发词
 _CONFIRMATION_TEXTS: frozenset[str] = frozenset({
     "确认执行", "确认", "执行", "好的", "是", "好", "可以",
     "confirm", "yes", "ok", "sure", "go ahead",
@@ -38,7 +40,7 @@ _REJECTION_TEXTS: frozenset[str] = frozenset({
 
 @dataclass
 class SingleToolResult:
-    """单个工具调用处理结果"""
+    """Single tool call processing result / 单个工具调用处理结果"""
 
     tool_result: ToolResult | None = None
     duration_ms: int = 0
@@ -50,8 +52,9 @@ class SingleToolResult:
 
 class ToolCallProcessor:
     """
-    统一工具调用处理器
+    Unified Tool Call Processor / 统一工具调用处理器
 
+    Encapsulates core tool call logic, shared by execute() and stream_execute().
     封装工具调用的核心逻辑，供 execute() 和 stream_execute() 共用。
     """
 
@@ -66,12 +69,12 @@ class ToolCallProcessor:
         self.consent_modes = consent_modes or {}
 
     # ========================================
-    # 核心方法
+    # Core Methods / 核心方法
     # ========================================
 
     @staticmethod
     def parse_arguments(raw_args: str | dict) -> dict[str, Any]:
-        """解析工具调用参数（JSON 字符串 → dict）"""
+        """Parse tool call arguments (JSON string → dict) / 解析工具调用参数"""
         if isinstance(raw_args, dict):
             return raw_args
         try:
@@ -87,7 +90,8 @@ class ToolCallProcessor:
         conversation_id: int,
     ) -> tuple[ToolResult, int]:
         """
-        通过沙箱执行单个工具调用
+        Execute single tool call via sandbox.
+        通过沙箱执行单个工具调用。
 
         Returns:
             (result, duration_ms)
@@ -105,7 +109,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def build_tool_message(result: ToolResult, tc_id: str) -> ChatMessage:
-        """构建 tool 角色消息"""
+        """Build tool role message / 构建 tool 角色消息"""
         content = (
             result.output
             if result.success
@@ -118,7 +122,7 @@ class ToolCallProcessor:
         content: str,
         tool_calls: list[dict[str, Any]],
     ) -> ChatMessage:
-        """构建包含 tool_calls 的 assistant 消息"""
+        """Build assistant message containing tool_calls / 构建包含 tool_calls 的 assistant 消息"""
         return ChatMessage(
             role="assistant",
             content=content,
@@ -126,12 +130,13 @@ class ToolCallProcessor:
         )
 
     # ========================================
-    # consent_mode 检查
+    # consent_mode Check / consent_mode 检查
     # ========================================
 
     def check_consent(self, func_name: str) -> str:
         """
-        检查工具的 consent_mode
+        Check tool's consent_mode.
+        检查工具的 consent_mode。
 
         Returns:
             "auto" | "ask" | "reject"
@@ -141,7 +146,7 @@ class ToolCallProcessor:
     def build_consent_reject_message(
         self, tc_id: str,
     ) -> ChatMessage:
-        """构建 consent 被拒绝的 tool 消息"""
+        """Build tool message for consent rejection / 构建 consent 被拒绝的 tool 消息"""
         return ChatMessage(
             role="tool",
             content=_("tool.error.consent_rejected"),
@@ -154,7 +159,7 @@ class ToolCallProcessor:
         func_name: str,
         arguments: dict[str, Any],
     ) -> ChatMessage:
-        """构建 consent 需要用户确认的 tool 消息"""
+        """Build tool message for consent requiring user confirmation / 构建 consent 需要用户确认的 tool 消息"""
         payload = json.dumps({
             "requires_confirmation": True,
             "consent_required": True,
@@ -165,16 +170,17 @@ class ToolCallProcessor:
         return ChatMessage(role="tool", content=payload, tool_call_id=tc_id)
 
     # ========================================
-    # 确认拦截
+    # Confirmation Interception / 确认拦截
     # ========================================
 
     @staticmethod
     def check_confirmation_output(result: ToolResult) -> dict[str, Any] | None:
         """
-        检查工具输出是否包含 requires_confirmation（CRUD 预览确认）
+        Check if tool output contains requires_confirmation (CRUD preview confirmation).
+        检查工具输出是否包含 requires_confirmation（CRUD 预览确认）。
 
         Returns:
-            解析后的确认数据 dict，或 None
+            Parsed confirmation data dict, or None / 解析后的确认数据 dict，或 None
         """
         if not (result.success and result.output):
             return None
@@ -191,13 +197,16 @@ class ToolCallProcessor:
         messages: list[ChatMessage],
     ) -> dict[str, Any] | None:
         """
-        搜索消息历史中待确认的工具调用
+        Search message history for pending tool call confirmation.
+        搜索消息历史中待确认的工具调用。
 
+        Searches backward, finds tool message with requires_confirmation,
+        matches corresponding assistant tool_call, returns directly executable tool call info.
         从后往前搜索，找到 requires_confirmation 的 tool 消息后，
-        匹配对应的 assistant tool_call，返回可直接执行的工具调用信息。
+        匹配对应的 assistant tool_call。
 
         Returns:
-            {"name", "arguments", "tool_call_id"} 或 None
+            {"name", "arguments", "tool_call_id"} or None
         """
         pending_tc_id: str | None = None
         for msg in reversed(messages):
@@ -213,7 +222,7 @@ class ToolCallProcessor:
         if not pending_tc_id:
             return None
 
-        # 找到对应的 assistant tool_call
+        # Find corresponding assistant tool_call / 找到对应的 assistant tool_call
         for msg in reversed(messages):
             if msg.role == "assistant" and msg.tool_calls:
                 for tc in msg.tool_calls:
@@ -228,7 +237,7 @@ class ToolCallProcessor:
                             )
                         except json.JSONDecodeError:
                             arguments = {}
-                        # 注入 confirmed=True
+                        # Inject confirmed=True / 注入 confirmed=True
                         arguments["confirmed"] = True
                         return {
                             "name": func.get("name", ""),
@@ -239,16 +248,16 @@ class ToolCallProcessor:
 
     @staticmethod
     def is_confirmation_text(text: str) -> bool:
-        """检查文本是否为确认触发词"""
+        """Check if text is a confirmation trigger word / 检查文本是否为确认触发词"""
         return text.strip() in _CONFIRMATION_TEXTS
 
     @staticmethod
     def is_rejection_text(text: str) -> bool:
-        """检查文本是否为拒绝触发词"""
+        """Check if text is a rejection trigger word / 检查文本是否为拒绝触发词"""
         return text.strip() in _REJECTION_TEXTS
 
     # ========================================
-    # SSE 事件构建
+    # SSE Event Building / SSE 事件构建
     # ========================================
 
     @staticmethod
@@ -257,7 +266,7 @@ class ToolCallProcessor:
         arguments: dict[str, Any],
         skill_info: dict[str, str | None] | None = None,
     ) -> dict[str, Any]:
-        """构建 tool_start SSE 事件"""
+        """Build tool_start SSE event / 构建 tool_start SSE 事件"""
         event: dict[str, Any] = {
             "event": "tool_start",
             "name": func_name,
@@ -273,7 +282,7 @@ class ToolCallProcessor:
         duration_ms: int,
         skill_info: dict[str, str | None] | None = None,
     ) -> dict[str, Any]:
-        """构建 tool_call SSE 事件"""
+        """Build tool_call SSE event / 构建 tool_call SSE 事件"""
         event: dict[str, Any] = {
             "event": "tool_call",
             "name": result.name,
@@ -307,7 +316,7 @@ class ToolCallProcessor:
     def build_confirmation_event(
         parsed: dict[str, Any],
     ) -> dict[str, Any]:
-        """构建 confirmation_request SSE 事件"""
+        """Build confirmation_request SSE event / 构建 confirmation_request SSE 事件"""
         event: dict[str, Any] = {
             "event": "confirmation_request",
             "action": parsed.get("action", ""),
@@ -318,7 +327,7 @@ class ToolCallProcessor:
                 or parsed.get("record")
             ),
         }
-        # CRUD Generator 文件生成确认
+        # CRUD Generator file generation confirmation / CRUD Generator 文件生成确认
         if parsed.get("files"):
             event["files"] = parsed["files"]
             event["message"] = parsed.get("message", "")
@@ -331,7 +340,7 @@ class ToolCallProcessor:
         func_name: str,
         skill_info: dict[str, str | None] | None = None,
     ) -> dict[str, Any]:
-        """构建 consent 拒绝的 tool_call SSE 事件"""
+        """Build consent rejection tool_call SSE event / 构建 consent 拒绝的 tool_call SSE 事件"""
         event: dict[str, Any] = {
             "event": "tool_call",
             "name": func_name,
@@ -349,7 +358,7 @@ class ToolCallProcessor:
         arguments: dict[str, Any],
         skill_info: dict[str, str | None] | None = None,
     ) -> dict[str, Any]:
-        """构建 consent 询问的 SSE 事件"""
+        """Build consent ask SSE event / 构建 consent 询问的 SSE 事件"""
         event: dict[str, Any] = {
             "event": "tool_consent_request",
             "name": func_name,
@@ -360,11 +369,11 @@ class ToolCallProcessor:
         return event
 
     # ========================================
-    # Skill 信息查找
+    # Skill Info Lookup / Skill 信息查找
     # ========================================
 
     def get_skill_info(self, tool_name: str) -> dict[str, str | None]:
-        """从 ToolDefinition 列表中查找工具对应的 Skill 来源信息"""
+        """Find tool's Skill source info from ToolDefinition list / 从 ToolDefinition 列表中查找工具对应的 Skill 来源信息"""
         for td in self.tools:
             if td.name == tool_name:
                 return {
@@ -374,7 +383,7 @@ class ToolCallProcessor:
         return {"skill_name": None, "package_name": None}
 
     # ========================================
-    # 完整单工具处理（execute 路径使用）
+    # Complete Single Tool Processing (for execute path) / 完整单工具处理（execute 路径使用）
     # ========================================
 
     async def process_single(
@@ -383,13 +392,15 @@ class ToolCallProcessor:
         conversation_id: int,
     ) -> SingleToolResult:
         """
-        处理单个工具调用（解析 + 执行 + 构建消息）
+        Process single tool call (parse + execute + build message).
+        处理单个工具调用（解析 + 执行 + 构建消息）。
 
+        Used by _handle_tool_calls to simplify non-streaming path code.
         供 _handle_tool_calls 使用，简化非流式路径代码。
 
         Args:
-            tc: LLM 返回的 tool_call dict
-            conversation_id: 对话 ID
+            tc: tool_call dict returned by LLM / LLM 返回的 tool_call dict
+            conversation_id: Conversation ID / 对话 ID
 
         Returns:
             SingleToolResult

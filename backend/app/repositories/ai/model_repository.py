@@ -1,7 +1,8 @@
 """
-AI 模型 Repository
+AI 模型 Repository / AI Model Repository
 
 处理 AI 模型数据访问
+Handles AI model data access.
 """
 
 from sqlalchemy import nulls_last, select

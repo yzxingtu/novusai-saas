@@ -1,7 +1,9 @@
 """
+Tool Executors
 工具执行器
 
-提供不同类型工具的具体执行实现
+Provides concrete execution implementations for different tool types.
+提供不同类型工具的具体执行实现。
 """
 
 from app.ai.tools.executors.base import BaseToolExecutor

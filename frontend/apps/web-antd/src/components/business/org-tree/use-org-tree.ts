@@ -1,23 +1,34 @@
 import type { OrgTreeNodeData, UseOrgTreeReturn } from './types';
 
 /**
- * 组织架构树 Hook
- * 管理树数据状态、懒加载、展开状态等
+ * Organization tree management hook
+ * Supports both admin and tenant API prefixes
+ * 组织树管理 hook
+ * 支持 admin 和 tenant 两种 API 前缀
  */
 import type { OrgNodeInfo } from '#/api/admin/organization';
 
 import { ref, shallowRef } from 'vue';
 
-import { adminApi, tenantApi } from '#/api';
+import {
+  getNodeChildrenApi,
+  getOrganizationRootNodesApi,
+} from '#/api/admin/organization';
+import {
+  getTenantNodeChildrenApi,
+  getTenantOrganizationRootNodesApi,
+} from '#/api/tenant/organization';
 
+/** useOrgTree options / useOrgTree 选项 */
 export interface UseOrgTreeOptions {
-  /** API 前缀 */
+  /** API prefix: 'admin' or 'tenant' / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
-  /** 初始化时自动加载根节点 */
+  /** Whether to load root nodes immediately / 是否立即加载根节点 */
   immediate?: boolean;
 }
 
 /**
+ * Convert OrgNodeInfo to OrgTreeNodeData
  * 将 OrgNodeInfo 转换为 OrgTreeNodeData
  */
 function toTreeNode(node: OrgNodeInfo): OrgTreeNodeData {
@@ -30,6 +41,7 @@ function toTreeNode(node: OrgNodeInfo): OrgTreeNodeData {
 }
 
 /**
+ * Recursively find a node by ID
  * 递归查找节点
  */
 function findNode(
@@ -47,6 +59,7 @@ function findNode(
 }
 
 /**
+ * Collect all node IDs (for expanding all)
  * 收集所有节点 ID（用于展开全部）
  */
 function collectAllIds(nodes: OrgTreeNodeData[]): number[] {
@@ -61,31 +74,33 @@ function collectAllIds(nodes: OrgTreeNodeData[]): number[] {
 }
 
 /**
- * 组织架构树 Hook
+ * Organization Tree Business Logic Composable
+ * 组织树业务逻辑 composable
  */
 export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   const { apiPrefix = 'admin', immediate = true } = options;
 
-  // 获取 API
+  // Admin API / 管理端 API
   const api =
     apiPrefix === 'admin'
       ? {
-          getRootNodes: adminApi.getOrganizationRootNodesApi,
-          getChildren: adminApi.getNodeChildrenApi,
+          getRootNodes: getOrganizationRootNodesApi,
+          getChildren: getNodeChildrenApi,
         }
       : {
-          getRootNodes: tenantApi.getTenantOrganizationRootNodesApi,
-          getChildren: tenantApi.getTenantNodeChildrenApi,
+          getRootNodes: getTenantOrganizationRootNodesApi,
+          getChildren: getTenantNodeChildrenApi,
         };
 
-  // 状态
+  // State
   const treeData = shallowRef<OrgTreeNodeData[]>([]);
   const loading = ref(false);
   const expandedIds = ref<Set<number>>(new Set());
 
   /**
+   * Load root nodes
    * 加载根节点
-   * @returns 第一个根节点（用于自动选择）
+   * @returns First root node (for auto-select)
    */
   async function loadRootNodes(): Promise<null | OrgTreeNodeData> {
     loading.value = true;
@@ -102,7 +117,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
-   * 递归克隆并更新节点
+   * Recursively clone and update nodes
    */
   function cloneAndUpdate(
     nodes: OrgTreeNodeData[],
@@ -124,13 +139,14 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Load child nodes
    * 加载子节点
    */
   async function loadChildren(nodeId: number): Promise<void> {
     const node = findNode(treeData.value, nodeId);
     if (!node || node.loaded) return;
 
-    // 设置 loading 状态
+    // Set loading state
     treeData.value = cloneAndUpdate(treeData.value, nodeId, (n) => ({
       ...n,
       loading: true,
@@ -154,7 +170,8 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
-   * 切换展开状态
+   * Toggle node expand/collapse
+   * 切换节点展开/收起
    */
   async function toggleExpand(nodeId: number): Promise<void> {
     const node = findNode(treeData.value, nodeId);
@@ -162,16 +179,16 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
 
     const isCurrentlyExpanded = expandedIds.value.has(nodeId);
 
-    // 如果有子节点且未加载，先加载
+    // Convert to frontend tree node format / 转换为前端树节点格式且未加载，先加载
     if (node.hasChildren && !node.loaded) {
       await loadChildren(nodeId);
-      // 加载完成后展开
+      // Load children on first expand / 首次展开时加载子节点完成后展开
       expandedIds.value.add(nodeId);
       expandedIds.value = new Set(expandedIds.value);
       return;
     }
 
-    // 已加载的节点，切换展开/收起状态
+    // Reload this node's info and children / 重新加载该节点的信息和子节点，切换展开/收起状态
     if (isCurrentlyExpanded) {
       expandedIds.value.delete(nodeId);
     } else {
@@ -181,6 +198,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Expand all loaded nodes
    * 展开所有已加载的节点
    */
   function expandAll(): void {
@@ -189,6 +207,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Collapse all nodes
    * 收起所有节点
    */
   function collapseAll(): void {
@@ -196,6 +215,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Check if a node is expanded
    * 检查节点是否展开
    */
   function isExpanded(nodeId: number): boolean {
@@ -203,14 +223,15 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
-   * 刷新数据
-   * @returns 第一个根节点
+   * Refresh entire tree
+   * 刷新整棵树
+   * @returns First root node
    */
   async function refresh(): Promise<null | OrgTreeNodeData> {
-    // 保存当前展开状态
+    // Save current expanded state
     const currentExpanded = new Set(expandedIds.value);
     const firstNode = await loadRootNodes();
-    // 恢复展开状态（只保留仍存在的节点）
+    // Restore expanded state (only keep existing nodes)
     const allIds = new Set(collectAllIds(treeData.value));
     expandedIds.value = new Set(
       [...currentExpanded].filter((id) => allIds.has(id)),
@@ -219,7 +240,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
-   * 递归删除节点（不可变版本）
+   * Recursively delete a node (immutable version)
    */
   function cloneAndRemove(
     nodes: OrgTreeNodeData[],
@@ -247,7 +268,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
-   * 更新单个节点数据
+   * Update a single node's data
    */
   function updateNode(nodeId: number, data: Partial<OrgTreeNodeData>): void {
     treeData.value = cloneAndUpdate(treeData.value, nodeId, (n) => ({
@@ -257,6 +278,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Delete a node
    * 删除节点
    */
   function removeNode(nodeId: number): void {
@@ -269,6 +291,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
   }
 
   /**
+   * Add a node
    * 添加节点
    */
   function addNode(parentId: null | number, node: OrgTreeNodeData): void {
@@ -283,7 +306,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
           }));
   }
 
-  // 立即加载
+  // Load immediately / 立即加载
   if (immediate) {
     loadRootNodes();
   }

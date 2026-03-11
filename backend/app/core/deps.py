@@ -1,12 +1,13 @@
 """
-依赖注入模块
+依赖注入模块 / Dependency Injection Module
 
 提供 FastAPI 依赖注入函数
+Provides FastAPI dependency injection functions.
 
-认证架构:
-- Admin: 平台管理员 (/admin/login)
-- TenantAdmin: 租户管理员 (/tenant/login)
-- TenantUser: 租户业务用户 (/api/user/auth/login)
+认证架构 / Authentication Architecture:
+- Admin: 平台管理员 / Platform admin (/admin/login)
+- TenantAdmin: 租户管理员 / Tenant admin (/tenant/login)
+- TenantUser: 租户业务用户 / Tenant business user (/api/user/auth/login)
 """
 
 from collections.abc import AsyncGenerator
@@ -33,22 +34,22 @@ from app.core.security import (
 from app.models import Admin, TenantAdmin, TenantUser
 
 # ========================================
-# OAuth2 配置
+# OAuth2 配置 / OAuth2 Configuration
 # ========================================
 
-# 平台管理员 OAuth2
+# 平台管理员 OAuth2 / Platform admin OAuth2
 oauth2_admin_scheme = OAuth2PasswordBearer(
     tokenUrl="/admin/auth/login",
     auto_error=False,
 )
 
-# 租户管理员 OAuth2
+# 租户管理员 OAuth2 / Tenant admin OAuth2
 oauth2_tenant_admin_scheme = OAuth2PasswordBearer(
     tokenUrl="/tenant/auth/login",
     auto_error=False,
 )
 
-# 租户业务用户 OAuth2
+# 租户业务用户 OAuth2 / Tenant business user OAuth2
 oauth2_tenant_user_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_PREFIX}/auth/login",
     auto_error=False,
@@ -58,12 +59,13 @@ oauth2_tenant_user_scheme = OAuth2PasswordBearer(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    获取数据库会话
+    获取数据库会话 / Get database session
 
     请求成功时自动提交，异常时自动回滚
+    Auto-commits on success, auto-rollbacks on exception.
 
     Yields:
-        AsyncSession: 异步数据库会话
+        AsyncSession: 异步数据库会话 / Async database session
     """
     async with async_session_factory() as session:
         try:
@@ -77,7 +79,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 # ========================================
-# 平台管理员认证
+# 平台管理员认证 / Platform Admin Authentication
 # ========================================
 
 async def get_current_admin(
@@ -85,7 +87,7 @@ async def get_current_admin(
     token: Annotated[str | None, Depends(oauth2_admin_scheme)],
 ) -> Admin:
     """
-    获取当前平台管理员
+    获取当前平台管理员 / Get current platform admin
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -96,7 +98,7 @@ async def get_current_admin(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope
+    # 验证 Token 并检查 scope / Verify token and check scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
     )
@@ -121,7 +123,7 @@ async def get_current_active_admin(
     current_admin: Annotated[Admin, Depends(get_current_admin)],
 ) -> Admin:
     """
-    获取当前激活的平台管理员
+    获取当前激活的平台管理员 / Get current active platform admin
     """
     if not current_admin.is_active:
         raise HTTPException(
@@ -135,7 +137,7 @@ async def get_current_super_admin(
     current_admin: Annotated[Admin, Depends(get_current_active_admin)],
 ) -> Admin:
     """
-    获取当前超级管理员
+    获取当前超级管理员 / Get current super admin
     """
     if not current_admin.is_super:
         raise HTTPException(
@@ -146,7 +148,7 @@ async def get_current_super_admin(
 
 
 # ========================================
-# 租户管理员认证
+# 租户管理员认证 / Tenant Admin Authentication
 # ========================================
 
 async def get_current_tenant_admin(
@@ -154,7 +156,7 @@ async def get_current_tenant_admin(
     token: Annotated[str | None, Depends(oauth2_tenant_admin_scheme)],
 ) -> TenantAdmin:
     """
-    获取当前租户管理员
+    获取当前租户管理员 / Get current tenant admin
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -165,7 +167,7 @@ async def get_current_tenant_admin(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope
+    # 验证 Token 并检查 scope / Verify token and check scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
     )
@@ -190,7 +192,7 @@ async def get_current_active_tenant_admin(
     current_tenant_admin: Annotated[TenantAdmin, Depends(get_current_tenant_admin)],
 ) -> TenantAdmin:
     """
-    获取当前激活的租户管理员
+    获取当前激活的租户管理员 / Get current active tenant admin
     """
     if not current_tenant_admin.is_active:
         raise HTTPException(
@@ -204,7 +206,7 @@ async def get_current_tenant_owner(
     current_tenant_admin: Annotated[TenantAdmin, Depends(get_current_active_tenant_admin)],
 ) -> TenantAdmin:
     """
-    获取当前租户所有者
+    获取当前租户所有者 / Get current tenant owner
     """
     if not current_tenant_admin.is_owner:
         raise HTTPException(
@@ -215,7 +217,7 @@ async def get_current_tenant_owner(
 
 
 # ========================================
-# 租户业务用户认证
+# 租户业务用户认证 / Tenant Business User Authentication
 # ========================================
 
 async def get_current_tenant_user(
@@ -223,7 +225,7 @@ async def get_current_tenant_user(
     token: Annotated[str | None, Depends(oauth2_tenant_user_scheme)],
 ) -> TenantUser:
     """
-    获取当前租户业务用户
+    获取当前租户业务用户 / Get current tenant business user
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -234,7 +236,7 @@ async def get_current_tenant_user(
     if token is None:
         raise credentials_exception
 
-    # 验证 Token 并检查 scope
+    # 验证 Token 并检查 scope / Verify token and check scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS
     )
@@ -259,7 +261,7 @@ async def get_current_active_tenant_user(
     current_user: Annotated[TenantUser, Depends(get_current_tenant_user)],
 ) -> TenantUser:
     """
-    获取当前激活的租户业务用户
+    获取当前激活的租户业务用户 / Get current active tenant business user
     """
     if not current_user.is_active:
         raise HTTPException(
@@ -270,7 +272,7 @@ async def get_current_active_tenant_user(
 
 
 # ========================================
-# 类型别名
+# 类型别名 / Type Aliases
 # ========================================
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -278,24 +280,24 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 # Redis
 RedisClient = Annotated[AioRedis, Depends(get_redis)]
 
-# 平台管理员
+# 平台管理员 / Platform admin
 CurrentAdmin = Annotated[Admin, Depends(get_current_admin)]
 ActiveAdmin = Annotated[Admin, Depends(get_current_active_admin)]
 SuperAdmin = Annotated[Admin, Depends(get_current_super_admin)]
 
-# 租户管理员
+# 租户管理员 / Tenant admin
 CurrentTenantAdmin = Annotated[TenantAdmin, Depends(get_current_tenant_admin)]
 ActiveTenantAdmin = Annotated[TenantAdmin, Depends(get_current_active_tenant_admin)]
 TenantOwner = Annotated[TenantAdmin, Depends(get_current_tenant_owner)]
 
-# 租户业务用户
+# 租户业务用户 / Tenant business user
 CurrentTenantUser = Annotated[TenantUser, Depends(get_current_tenant_user)]
 ActiveTenantUser = Annotated[TenantUser, Depends(get_current_active_tenant_user)]
 
 
 __all__ = [
     "get_db",
-    # 平台管理员
+    # 平台管理员 / Platform admin
     "get_current_admin",
     "get_current_active_admin",
     "get_current_super_admin",
@@ -303,7 +305,7 @@ __all__ = [
     "CurrentAdmin",
     "ActiveAdmin",
     "SuperAdmin",
-    # 租户管理员
+    # 租户管理员 / Tenant admin
     "get_current_tenant_admin",
     "get_current_active_tenant_admin",
     "get_current_tenant_owner",
@@ -311,16 +313,16 @@ __all__ = [
     "CurrentTenantAdmin",
     "ActiveTenantAdmin",
     "TenantOwner",
-    # 租户业务用户
+    # 租户业务用户 / Tenant business user
     "get_current_tenant_user",
     "get_current_active_tenant_user",
     "oauth2_tenant_user_scheme",
     "CurrentTenantUser",
     "ActiveTenantUser",
-    # 通用
+    # 通用 / Common
     "DbSession",
     "RedisClient",
-    # 查询参数
+    # 查询参数 / Query parameters
     "get_query_spec",
     "QueryParams",
 ]

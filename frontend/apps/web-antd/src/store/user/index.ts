@@ -1,5 +1,5 @@
 /**
- * 用户端状态模块
+ * User endpoint state module / 用户端状态模块
  */
 
 export * from './auth';

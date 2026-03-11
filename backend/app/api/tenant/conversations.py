@@ -1,7 +1,8 @@
 """
-租户端对话管理 API
+租户端对话管理 API / Tenant Conversation Management API
 
 提供对话列表、详情、搜索、归档、批量归档、删除和导出接口
+Provides conversation list, details, search, archive, batch archive, delete and export endpoints
 """
 
 from fastapi import Query, Request
@@ -23,11 +24,11 @@ from app.rbac.decorators import (
 from app.services.ai.conversation_service import ConversationService
 
 # ============================================
-# 请求 Schema
+# 请求 Schema / Request Schema
 # ============================================
 
 class BatchArchiveRequest(BaseModel):
-    """批量归档请求"""
+    """批量归档请求 / Batch archive request"""
     agent_id: int | None = Field(None, description=_("conversation.agent_id"))
     before_days: int = Field(90, ge=1, le=365, description=_("conversation.before_days"))
 
@@ -51,16 +52,17 @@ class BatchArchiveRequest(BaseModel):
 )
 class TenantConversationController(TenantController):
     """
-    租户端对话管理控制器
+    租户端对话管理控制器 / Tenant Conversation Management Controller
 
     提供对话列表、详情、搜索、归档、批量归档、删除和导出操作
+    Provides conversation list, details, search, archive, batch archive, delete and export operations
     """
 
     prefix = "/ai/conversations"
     tags = [_("tag.conversation_management")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取对话列表")
@@ -72,10 +74,10 @@ class TenantConversationController(TenantController):
             query: QueryParams,
         ):
             """
-            获取对话列表
+            获取对话列表 / Get conversation list
 
-            支持 JSON:API 分页、筛选、排序
-            权限: agent_conversation:list
+            支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting
+            权限 / Permission: agent_conversation:list
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
@@ -100,9 +102,9 @@ class TenantConversationController(TenantController):
             page_size: int = Query(20, ge=1, le=100),
         ):
             """
-            跨对话全文搜索消息内容
+            跨对话全文搜索消息内容 / Full-text search message content across conversations
 
-            权限: agent_conversation:search
+            权限 / Permission: agent_conversation:search
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             result = await service.search_messages(
@@ -124,9 +126,9 @@ class TenantConversationController(TenantController):
             message_limit: int = Query(50, ge=1, le=200),
         ):
             """
-            获取对话详情（含分页消息列表）
+            获取对话详情（含分页消息列表） / Get conversation details (with paginated message list)
 
-            权限: agent_conversation:detail
+            权限 / Permission: agent_conversation:detail
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             result = await service.get_conversation_detail(
@@ -150,9 +152,9 @@ class TenantConversationController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            归档对话
+            归档对话 / Archive conversation
 
-            权限: agent_conversation:archive
+            权限 / Permission: agent_conversation:archive
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             conv = await service.archive_conversation(conversation_id)
@@ -172,9 +174,9 @@ class TenantConversationController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            批量归档 N 天前的对话
+            批量归档 N 天前的对话 / Batch archive conversations older than N days
 
-            权限: agent_conversation:batch_archive
+            权限 / Permission: agent_conversation:batch_archive
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             count = await service.batch_archive(
@@ -197,9 +199,9 @@ class TenantConversationController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除对话（软删除）
+            删除对话（软删除） / Delete conversation (soft delete)
 
-            权限: agent_conversation:delete
+            权限 / Permission: agent_conversation:delete
             """
             service = ConversationService(db, tenant_admin.tenant_id)
 
@@ -222,9 +224,9 @@ class TenantConversationController(TenantController):
             format: str = Query("json", pattern="^(json|markdown)$"),
         ):
             """
-            导出对话数据（JSON / Markdown）
+            导出对话数据（JSON / Markdown） / Export conversation data (JSON / Markdown)
 
-            权限: agent_conversation:export
+            权限 / Permission: agent_conversation:export
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             result = await service.export_conversation(
@@ -238,7 +240,7 @@ class TenantConversationController(TenantController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantConversationController.get_router()
 
 __all__ = ["router", "TenantConversationController"]

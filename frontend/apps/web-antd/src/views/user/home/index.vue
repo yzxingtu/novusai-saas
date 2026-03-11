@@ -70,7 +70,7 @@ const quickActions = computed<QuickAction[]>(() => [
   },
 ]);
 
-// 域名感知
+// Domain detection / 域名感知
 const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
 
 // ── 平台域名品牌 ──────────────────────────────────────────
@@ -118,7 +118,7 @@ const tenantLogo = computed(() => {
   );
 });
 
-// 注册是否可用
+// Registration enabled / 注册是否可用
 const registrationEnabled = computed(() => publicConfigStore.isRegistrationEnabled);
 
 interface FeatureItem {

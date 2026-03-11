@@ -1,6 +1,9 @@
 """
+Image Generation Engine
 图像生成引擎
 
+Handles Agent requests with model.type=image, calls image generation API
+via AIGateway.generate_image(), and pushes results as SSE events.
 处理 model.type=image 的 Agent 请求，通过 AIGateway.generate_image()
 调用生图 API，并以 SSE 事件推送结果。
 """
@@ -26,15 +29,16 @@ logger = LogManager.get_logger("ai.engine.image_generation")
 
 class ImageGenerationEngine:
     """
-    图像生成引擎
+    Image Generation Engine / 图像生成引擎
 
+    Sends user prompt to image generation model, pushes image_result events via SSE.
     将用户 prompt 发送到生图模型，通过 SSE 推送 image_result 事件。
 
-    SSE 事件类型：
-    - thinking: 正在生成图片
-    - image_result: 图片生成结果（含 url、revised_prompt）
-    - done: 完成
-    - [DONE]: SSE 结束标记
+    SSE event types / SSE 事件类型：
+    - thinking: Generating image / 正在生成图片
+    - image_result: Image result (with url, revised_prompt) / 图片生成结果
+    - done: Completion / 完成
+    - [DONE]: SSE end marker / SSE 结束标记
     """
 
     def __init__(self, gateway: AIGateway):
@@ -48,13 +52,14 @@ class ImageGenerationEngine:
         image_params: dict | None = None,
     ) -> StreamingResponse:
         """
-        SSE 流式执行图像生成
+        SSE streaming image generation.
+        SSE 流式执行图像生成。
 
         Args:
-            agent: 智能体（绑定的 model.type=image）
-            request: 执行请求（messages 中最后一条 user 消息作为 prompt）
-            on_complete: 完成回调
-            image_params: 图像生成参数（size/quality/style/n）
+            agent: Agent (bound model.type=image) / 智能体（绑定的 model.type=image）
+            request: Execution request (last user message as prompt) / 执行请求
+            on_complete: Completion callback / 完成回调
+            image_params: Image generation parameters (size/quality/style/n) / 图像生成参数
 
         Returns:
             StreamingResponse (SSE)
@@ -64,7 +69,7 @@ class ImageGenerationEngine:
         async def generate() -> AsyncIterator[str]:
             output = ""
             try:
-                # 提取 prompt（最后一条 user 消息）
+                # Extract prompt (last user message) / 提取 prompt（最后一条 user 消息）
                 prompt = ""
                 for msg in reversed(request.messages):
                     if msg.role == "user":
@@ -79,10 +84,10 @@ class ImageGenerationEngine:
                     yield SSEChunkEncoder.done()
                     return
 
-                # 通知前端正在生成
+                # Notify frontend that generation is in progress / 通知前端正在生成
                 yield SSEChunkEncoder.encode({"event": "thinking"})
 
-                # 获取模型信息
+                # Get model info / 获取模型信息
                 model_obj = agent.model
                 provider_code = (
                     model_obj.provider.code
@@ -91,7 +96,7 @@ class ImageGenerationEngine:
                 )
                 model_code = model_obj.code if model_obj else ""
 
-                # 调用 AIGateway 生图
+                # Call AIGateway for image generation / 调用 AIGateway 生图
                 params = image_params or {}
                 response = await self.gateway.generate_image(
                     provider_code=provider_code,
@@ -105,7 +110,7 @@ class ImageGenerationEngine:
                     user_id=request.user_id,
                 )
 
-                # 推送每张图片的结果
+                # Push each image result / 推送每张图片的结果
                 for img in response.images:
                     yield SSEChunkEncoder.encode({
                         "event": "image_result",
@@ -114,12 +119,12 @@ class ImageGenerationEngine:
                         "revised_prompt": img.revised_prompt,
                     })
 
-                # 生成文本描述作为 output
+                # Generate text description as output / 生成文本描述作为 output
                 output = prompt
                 if response.revised_prompt:
                     output = response.revised_prompt
 
-                # 推送消息内容（让前端显示文字）
+                # Push message content (display text in frontend) / 推送消息内容（让前端显示文字）
                 display_text = f"![generated image]({response.images[0].url})" if response.images else ""
                 if display_text:
                     yield SSEChunkEncoder.encode({
@@ -127,7 +132,7 @@ class ImageGenerationEngine:
                         "delta": display_text,
                     })
 
-                # 回调（在 done 事件之前）
+                # Callback (before done event) / 回调（在 done 事件之前）
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 extra_done_data: dict = {}
                 if on_complete:
@@ -149,7 +154,7 @@ class ImageGenerationEngine:
                     except Exception as cb_exc:
                         logger.error("on_complete callback error: %s", str(cb_exc))
 
-                # 完成事件
+                # Completion event / 完成事件
                 yield SSEChunkEncoder.encode({
                     "event": "done",
                     "conversation_id": request.conversation_id,

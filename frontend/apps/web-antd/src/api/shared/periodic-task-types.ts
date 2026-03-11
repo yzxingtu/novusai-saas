@@ -1,12 +1,12 @@
 /**
- * 定时任务共享类型定义
- * Admin 端和 Tenant 端共同使用
+ * Periodic task shared type definitions / 定时任务共享类型定义
+ * Used by both Admin and Tenant endpoints / Admin 端和 Tenant 端共同使用
  */
 
-/** 定时任务列表查询参数 */
+/** Periodic task list query params / 定时任务列表查询参数 */
 export type PeriodicTaskListParams = Record<string, unknown>;
 
-/** 定时任务信息（前端格式 camelCase） */
+/** Periodic task info (frontend camelCase format) / 定时任务信息 */
 export interface PeriodicTaskInfo {
   id: number;
   name: string;
@@ -30,7 +30,7 @@ export interface PeriodicTaskInfo {
   notifyEmails: null | string;
 }
 
-/** 定时任务创建/更新请求 */
+/** Periodic task create/update request / 定时任务创建/更新请求 */
 export interface PeriodicTaskFormData {
   name: string;
   task_path: string;
@@ -43,7 +43,7 @@ export interface PeriodicTaskFormData {
   description?: null | string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface PeriodicTaskListResponse {
   items: PeriodicTaskInfo[];
   total: number;

@@ -2,9 +2,11 @@
 import type { Key } from 'ant-design-vue/es/table/interface';
 
 /**
+ * RecycleBinDrawer - Recycle bin drawer component
  * RecycleBinDrawer - 回收站抽屉组件
  *
- * 展示已删除记录列表，支持恢复/永久删除/批量操作
+ * Displays deleted records list, supports restore/permanent delete/batch operations.
+ * 展示已删除记录列表，支持恢复/永久删除/批量操作。
  */
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -38,11 +40,11 @@ const emit = defineEmits<{
 }>();
 
 interface Props {
-  /** API 资源路径 (e.g. '/tenant/ai/agents') */
+  /** API resource path (e.g. '/tenant/ai/agents') / API 资源路径 */
   resource: string;
-  /** 名称字段 (默认 'name') */
+  /** Name field (default 'name') / 名称字段 */
   nameField?: string;
-  /** 自定义列配置 */
+  /** Custom column config / 自定义列配置 */
   columns?: Array<{ dataIndex: string; title: string; width?: number }>;
 }
 
@@ -56,19 +58,19 @@ const selectedRowKeys = ref<number[]>([]);
 const deletedCount = ref(0);
 const hasRestored = ref(false);
 
-/** 打开抽屉 */
+/** Open drawer / 打开抽屉 */
 function open() {
   visible.value = true;
   hasRestored.value = false;
   fetchList();
 }
 
-/** 关闭抽屉 */
+/** Close drawer / 关闭抽屉 */
 function close() {
   visible.value = false;
 }
 
-/** 刷新计数（供外部调用） */
+/** Refresh count (for external calls) / 刷新计数（供外部调用） */
 async function refreshCount() {
   try {
     const res = await requestClient.get(`${props.resource}/recycle-bin/count`);
@@ -78,7 +80,7 @@ async function refreshCount() {
   }
 }
 
-/** 获取回收站列表 */
+/** Fetch recycle bin list / 获取回收站列表 */
 async function fetchList() {
   loading.value = true;
   try {
@@ -100,7 +102,7 @@ async function fetchList() {
   }
 }
 
-/** 恢复单条记录 */
+/** Restore single record / 恢复单条记录 */
 async function handleRestore(record: Record<string, unknown>) {
   try {
     await requestClient.post(
@@ -116,7 +118,7 @@ async function handleRestore(record: Record<string, unknown>) {
   }
 }
 
-/** 永久删除单条记录 */
+/** Permanently delete single record / 永久删除单条记录 */
 function handlePermanentDelete(record: Record<string, unknown>) {
   const displayName = String(record[props.nameField] || record.id);
   Modal.confirm({
@@ -135,7 +137,7 @@ function handlePermanentDelete(record: Record<string, unknown>) {
   });
 }
 
-/** 批量恢复 */
+/** Batch restore / 批量恢复 */
 async function handleBatchRestore() {
   if (selectedRowKeys.value.length === 0) return;
   try {
@@ -152,7 +154,7 @@ async function handleBatchRestore() {
   }
 }
 
-/** 批量永久删除 */
+/** Batch permanent delete / 批量永久删除 */
 function handleBatchPermanentDelete() {
   if (selectedRowKeys.value.length === 0) return;
   Modal.confirm({
@@ -173,7 +175,7 @@ function handleBatchPermanentDelete() {
   });
 }
 
-/** 表格列定义 */
+/** Table column definitions / 表格列定义 */
 const tableColumns = computed(() => {
   if (props.columns) {
     return [
@@ -215,7 +217,7 @@ const tableColumns = computed(() => {
   ];
 });
 
-/** 行选择配置 */
+/** Row selection config / 行选择配置 */
 const rowSelection = computed(() => ({
   selectedRowKeys: selectedRowKeys.value,
   onChange: (keys: Key[]) => {
@@ -223,7 +225,7 @@ const rowSelection = computed(() => ({
   },
 }));
 
-/** 分页配置 */
+/** Pagination config / 分页配置 */
 const pagination = computed(() => ({
   current: page.value,
   pageSize: pageSize.value,
@@ -242,7 +244,7 @@ watch(visible, (val) => {
   }
 });
 
-// 初始化获取计数（延迟到 mounted，避免 setup 阶段 API 调用出错）
+// Initialize count on mount (delay to avoid API errors during setup) / 初始化获取计数（延迟到 mounted）
 onMounted(() => refreshCount());
 
 defineExpose({ open, close, refreshCount, deletedCount });
@@ -256,7 +258,7 @@ defineExpose({ open, close, refreshCount, deletedCount });
     placement="right"
     :destroy-on-close="false"
   >
-    <!-- 批量操作栏 -->
+    <!-- Batch operations bar / 批量操作栏 -->
     <div
       v-if="selectedRowKeys.length > 0"
       class="mb-3 flex items-center justify-between rounded-lg bg-primary/5 px-4 py-2"
@@ -282,13 +284,13 @@ defineExpose({ open, close, refreshCount, deletedCount });
       </Space>
     </div>
 
-    <!-- 保留天数提示 -->
+    <!-- Retention days notice / 保留天数提示 -->
     <div class="mb-3 flex items-center gap-1 text-xs text-muted-foreground/70">
       <IconifyIcon icon="lucide:info" class="size-3.5" />
       <span>{{ $t('common.recycleBin.retentionDays', { days: 30 }) }}</span>
     </div>
 
-    <!-- 表格 -->
+    <!-- Table / 表格 -->
     <Spin :spinning="loading">
       <Table
         v-if="items.length > 0"
@@ -339,7 +341,7 @@ defineExpose({ open, close, refreshCount, deletedCount });
         </template>
       </Table>
 
-      <!-- 空状态 -->
+      <!-- Empty state / 空状态 -->
       <div
         v-else-if="!loading"
         class="flex flex-col items-center justify-center py-16"

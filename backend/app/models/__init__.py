@@ -1,17 +1,18 @@
 """
-数据模型模块
+数据模型模块 / Data Model Module
 
 导出所有数据库模型
+Exports all database models.
 
-目录结构:
-- system/: 平台级模型 (Admin)
-- tenant/: 租户级模型 (Tenant, TenantAdmin, TenantUser)
-- auth/: RBAC 模型 (Permission, AdminRole, TenantAdminRole)
-- ai/: AI 网关模型 (AIProvider, AIModel, ProviderApiKey, AICallLog)
+目录结构 / Directory structure:
+- system/: 平台级模型 / Platform models (Admin)
+- tenant/: 租户级模型 / Tenant models (Tenant, TenantAdmin, TenantUser)
+- auth/: RBAC 模型 / RBAC models (Permission, AdminRole, TenantAdminRole)
+- ai/: AI 网关模型 / AI gateway models (AIProvider, AIModel, ProviderApiKey, AICallLog)
 """
 
-# 平台级模型
-# AI 模型
+# 平台级模型 / Platform Models
+# AI 模型 / AI Models
 from app.models.ai import (
     Agent,
     AgentAccess,

@@ -1,7 +1,8 @@
 """
-平台配置管理 API
+平台配置管理 API / Platform Config API
 
 提供平台级配置管理接口（平台管理员专用）
+Provides platform-level config management endpoints (platform admin only).
 """
 
 from typing import Any
@@ -36,8 +37,8 @@ from app.schemas.system.config import (
 
 
 def _translate_config_item(config: dict) -> ConfigItemResponse:
-    """将配置项字典转换为响应对象并翻译 i18n 键"""
-    # 翻译选项标签
+    """将配置项字典转换为响应对象并翻译 i18n 键 / Convert config item dict to response object and translate i18n keys"""
+    # 翻译选项标签 / Translate option labels
     translated_options = []
     for opt in config.get("options", []):
         translated_options.append({
@@ -45,7 +46,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "label": _(opt["label_key"]) if opt.get("label_key") else str(opt.get("value", "")),
         })
 
-    # 翻译验证规则消息
+    # 翻译验证规则消息 / Translate validation rule messages
     translated_rules = []
     for rule in config.get("validation_rules", []):
         translated_rules.append({
@@ -54,7 +55,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "message": _(rule["message_key"]) if rule.get("message_key") else "",
         })
 
-    # 转换显示规则
+    # 转换显示规则 / Convert display rules
     display_rules = [
         DisplayRuleSchema(
             field=rule["field"],
@@ -65,7 +66,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         for rule in config.get("display_rules", [])
     ]
 
-    # 递归转换子字段
+    # 递归转换子字段 / Recursively convert child fields
     children = [
         _translate_config_item(child)
         for child in config.get("children", [])
@@ -106,16 +107,16 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 )
 class AdminConfigController(GlobalController):
     """
-    平台配置管理控制器
+    平台配置管理控制器 / Platform Config Management Controller
 
-    提供平台级配置的查看和修改接口
+    提供平台级配置的查看和修改接口 / Provides platform-level config view and update endpoints
     """
 
     prefix = "/configs"
     tags = ["System Configuration"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/groups", summary="获取配置分组列表")
@@ -126,11 +127,11 @@ class AdminConfigController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取平台配置分组列表
+            获取平台配置分组列表 / Get platform config group list
 
-            返回所有平台级配置分组（不含具体配置项）
+            返回所有平台级配置分组（不含具体配置项） / Returns all platform-level config groups (without config items)
 
-            权限: platform_config:groups
+            权限 / Permission: platform_config:groups
             """
             groups = config_registry.get_groups_by_scope(ConfigScope.ADMIN_ONLY)
 
@@ -139,7 +140,7 @@ class AdminConfigController(GlobalController):
                 if not group.is_active:
                     continue
 
-                # 计算可见配置项数量
+                # 计算可见配置项数量 / Count visible config items
                 visible_count = sum(
                     1 for c in group.configs if c.is_visible
                 )
@@ -167,11 +168,11 @@ class AdminConfigController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取指定分组的配置项列表（含当前值）
+            获取指定分组的配置项列表（含当前值） / Get config items for specified group (with current values)
 
-            权限: platform_config:detail
+            权限 / Permission: platform_config:detail
             """
-            # 验证分组存在
+            # 验证分组存在 / Validate group exists
             group = config_registry.get_group(group_code)
             if not group or group.scope != ConfigScope.ADMIN_ONLY:
                 raise NotFoundException(
@@ -179,13 +180,13 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 获取配置值
+            # 获取配置值 / Get config values
             config_service = ConfigService(db)
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ADMIN_ONLY,
             )
 
-            # 找到目标分组
+            # 找到目标分组 / Find target group
             target_group = None
             for g in groups_with_configs:
                 if g["code"] == group_code:
@@ -198,7 +199,7 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 转换响应
+            # 转换响应 / Convert response
             configs = [
                 _translate_config_item(c)
                 for c in target_group["configs"]
@@ -226,15 +227,15 @@ class AdminConfigController(GlobalController):
             body: dict[str, Any] = Body(...),
         ):
             """
-            批量更新分组下的配置项
+            批量更新分组下的配置项 / Batch update config items in group
 
-            支持两种格式：
-            1. 扁平格式: {"site_name": "xxx", "site_logo": "xxx"}
-            2. 包裹格式: {"configs": {"site_name": "xxx", ...}}
+            支持两种格式 / Supports two formats:
+            1. 扁平格式 / Flat format: {"site_name": "xxx", "site_logo": "xxx"}
+            2. 包裹格式 / Wrapped format: {"configs": {"site_name": "xxx", ...}}
 
-            权限: platform_config:update
+            权限 / Permission: platform_config:update
             """
-            # 验证分组存在
+            # 验证分组存在 / Validate group exists
             group = config_registry.get_group(group_code)
             if not group or group.scope != ConfigScope.ADMIN_ONLY:
                 raise NotFoundException(
@@ -242,16 +243,16 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 支持两种格式
+            # 支持两种格式 / Support two formats
             if "configs" in body and isinstance(body["configs"], dict):
                 configs = body["configs"]
             else:
                 configs = body
 
-            # 获取分组下的配置键列表
+            # 获取分组下的配置键列表 / Get config key list for the group
             valid_keys = {c.key for c in group.configs}
 
-            # 验证传入的配置键
+            # 验证传入的配置键 / Validate incoming config keys
             invalid_keys = set(configs.keys()) - valid_keys
             if invalid_keys:
                 raise BusinessException(
@@ -259,14 +260,14 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_INVALID_KEYS,
                 )
 
-            # 更新配置
+            # 更新配置 / Update configs
             config_service = ConfigService(db)
             for key, value in configs.items():
                 await config_service.set_platform_config(key, value)
 
             await db.commit()
 
-            # 返回更新后的配置
+            # 返回更新后的配置 / Return updated configs
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ADMIN_ONLY,
             )
@@ -302,8 +303,9 @@ class AdminConfigController(GlobalController):
         ):
             """
             生成一个随机的 Fernet 密钥（用于 SSL 私钥加密等场景）
+            Generate a random Fernet key (for SSL private key encryption, etc.)
 
-            权限: platform_config:update
+            权限 / Permission: platform_config:update
             """
             from cryptography.fernet import Fernet
             key = Fernet.generate_key().decode()
@@ -320,11 +322,12 @@ class AdminConfigController(GlobalController):
             config: dict[str, Any] = Body({}, embed=True),
         ):
             """
-            测试存储驱动连接是否可用
+            测试存储驱动连接是否可用 / Test if storage driver connection is available
 
             执行完整测试流程：实例化 → 上传测试文件 → 检查存在 → 删除
+            Full test flow: instantiate → upload test file → check exists → delete
 
-            权限: platform_config:update
+            权限 / Permission: platform_config:update
             """
             import io
             import uuid
@@ -368,8 +371,9 @@ class AdminConfigController(GlobalController):
         ):
             """
             获取所有可用的存储驱动列表（含内置和插件驱动，标记插件启用状态）
+            Get all available storage driver list (builtin + plugin drivers, with plugin enable status)
 
-            权限: platform_config:read
+            权限 / Permission: platform_config:read
             """
             from app.storage import storage_manager
 
@@ -386,9 +390,9 @@ class AdminConfigController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取指定存储驱动的配置 Schema
+            获取指定存储驱动的配置 Schema / Get config schema for specified storage driver
 
-            权限: platform_config:read
+            权限 / Permission: platform_config:read
             """
             from app.storage import storage_manager
 
@@ -399,7 +403,7 @@ class AdminConfigController(GlobalController):
             return success(data={"schema": schema, "defaults": {}})
 
 
-# 导出路由
+# 导出路由 / Export router
 router = AdminConfigController.get_router()
 
 

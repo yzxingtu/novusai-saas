@@ -1,7 +1,7 @@
 """
-Storage configuration resolver
+存储配置解析器 / Storage Configuration Resolver
 
-Centralizes storage config resolution logic shared by:
+集中存储配置解析逻辑 / Centralizes storage config resolution logic shared by:
 - tenant/attachment_service.py
 - tenant/attachment_download_service.py
 - system/attachment_service.py

@@ -1,7 +1,8 @@
 """
-SSL 证书仓储
+SSL 证书仓储 / SSL Certificate Repository
 
 提供 SSL 证书的数据访问操作（平台级，非租户隔离）
+Provides SSL certificate data access (platform-level, no tenant isolation).
 """
 
 from datetime import timedelta

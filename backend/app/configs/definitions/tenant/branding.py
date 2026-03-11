@@ -1,6 +1,6 @@
-"""
-租户品牌设置配置项
+"""Tenant branding settings config items / 租户品牌设置配置项
 
+Includes tenant Logo, login page customization, etc.
 包含租户 Logo、登录页定制等配置
 """
 
@@ -9,10 +9,10 @@ from app.configs.meta import ConfigMeta, max_length
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
-# Logo 和图标
+# Logo and icons / Logo 和图标
 # ==========================================
 
-# 租户 Logo
+# Tenant Logo / 租户 Logo
 TENANT_LOGO = ConfigMeta(
     key="tenant_logo",
     name_key="config.tenant.logo.name",
@@ -23,7 +23,7 @@ TENANT_LOGO = ConfigMeta(
     sort_order=10,
 )
 
-# 租户 Favicon
+# Tenant Favicon / 租户 Favicon
 TENANT_FAVICON = ConfigMeta(
     key="tenant_favicon",
     name_key="config.tenant.favicon.name",
@@ -34,7 +34,7 @@ TENANT_FAVICON = ConfigMeta(
     sort_order=20,
 )
 
-# 登录页背景图
+# Login page background image / 登录页背景图
 TENANT_LOGIN_BG = ConfigMeta(
     key="tenant_login_bg",
     name_key="config.tenant.login_bg.name",
@@ -47,10 +47,10 @@ TENANT_LOGIN_BG = ConfigMeta(
 
 
 # ==========================================
-# 自定义文本
+# Custom text / 自定义文本
 # ==========================================
 
-# 登录页标题
+# Login page title / 登录页标题
 TENANT_LOGIN_TITLE = ConfigMeta(
     key="tenant_login_title",
     name_key="config.tenant.login_title.name",
@@ -64,7 +64,7 @@ TENANT_LOGIN_TITLE = ConfigMeta(
     sort_order=60,
 )
 
-# 登录页副标题
+# Login page subtitle / 登录页副标题
 TENANT_LOGIN_SUBTITLE = ConfigMeta(
     key="tenant_login_subtitle",
     name_key="config.tenant.login_subtitle.name",
@@ -78,7 +78,7 @@ TENANT_LOGIN_SUBTITLE = ConfigMeta(
     sort_order=70,
 )
 
-# 页脚版权
+# Footer copyright / 页脚版权
 TENANT_FOOTER_COPYRIGHT = ConfigMeta(
     key="tenant_footer_copyright",
     name_key="config.tenant.footer_copyright.name",
@@ -94,7 +94,7 @@ TENANT_FOOTER_COPYRIGHT = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
+# Register configs to group / 注册配置到分组
 # ==========================================
 
 TENANT_APPEARANCE_GROUP.configs = [

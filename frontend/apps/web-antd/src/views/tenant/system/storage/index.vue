@@ -1,10 +1,15 @@
 <script lang="ts" setup>
 /**
+ * Tenant storage configuration page
  * 租户端存储配置页面
  *
+ * Displays tenant's current storage status, supports three modes:
  * 展示租户当前存储状态，支持三种模式：
+ * - Mode 1 (platform): use platform global storage (readonly)
  * - 模式 1 (platform): 使用平台全局存储（只读展示）
+ * - Mode 2 (admin_override): admin-specified storage (readonly)
  * - 模式 2 (admin_override): 管理端指定存储（只读展示）
+ * - Mode 3 (custom): tenant self-configured cloud storage (editable)
  * - 模式 3 (custom): 租户自主配置云存储（可编辑）
  */
 import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
@@ -57,20 +62,20 @@ const credentials = ref({
 });
 const credentialsVersion = ref(0);
 
-/** 是否可以自主配置（模式 3 的两个开关都打开） */
+/** Whether self-config is allowed (both mode 3 switches are on) / 是否可以自主配置（模式 3 的两个开关都打开） */
 const canSelfConfig = computed(() => status.value?.can_self_config ?? false);
 
-/** 当前生效的存储模式 */
+/** Current effective storage mode / 当前生效的存储模式 */
 const effectiveMode = computed(
   () => status.value?.effective_mode ?? 'platform',
 );
 
-/** 当前生效的驱动 */
+/** Current effective driver / 当前生效的驱动 */
 const effectiveDriver = computed(
   () => status.value?.effective_driver ?? 'local',
 );
 
-/** 模式标签颜色 */
+/** Mode tag color / 模式标签颜色 */
 function getModeColor(mode: string): string {
   switch (mode) {
     case 'admin_override': {
@@ -88,7 +93,7 @@ function getModeColor(mode: string): string {
   }
 }
 
-/** 模式显示文本 */
+/** Mode display text / 模式显示文本 */
 function getModeText(mode: string): string {
   switch (mode) {
     case 'admin_override': {
@@ -106,19 +111,19 @@ function getModeText(mode: string): string {
   }
 }
 
-/** 驱动名称翻译（同 StorageDriverSelector 逻辑） */
+/** Driver name translation (same as StorageDriverSelector logic) / 驱动名称翻译（同 StorageDriverSelector 逻辑） */
 function getDriverDisplayName(name: string): string {
   if (!name) return '-';
   if (name.startsWith('storage.driver.')) {
     return $t(`shared.${name}`);
   }
-  // 驱动代码名（如 qiniu-kodo）→ 尝试翻译
+  // Driver code name (e.g. qiniu-kodo) → try translating / 驱动代码名（如 qiniu-kodo）→ 尝试翻译
   const key = `shared.storage.driver.${name.replaceAll('-', '_')}`;
   const result = $t(key);
   return result === key ? name : result;
 }
 
-/** 加载数据 */
+/** Load data / 加载数据 */
 async function loadData() {
   loading.value = true;
   try {
@@ -136,7 +141,9 @@ async function loadData() {
     const statusData = await getTenantStorageStatusApi();
     status.value = statusData;
 
+    // Custom mode: backfill non-sensitive fields (driver/bucket/domain), but start secrets from blank
     // custom 模式回填非敏感字段（驱动/Bucket/域名），但密钥从空白开始
+    // Backend returns desensitized options (e.g. AK****CD), cannot backfill to password inputs
     // 后端返回的 options 是脱敏的（如 AK****CD），不能回填到密码输入框
     if (
       statusData.effective_mode === 'custom' &&
@@ -146,10 +153,10 @@ async function loadData() {
       credentials.value = {
         root_path: statusData.tenant_storage_root_path || '',
         base_url: statusData.tenant_storage_base_url || '',
-        options: {}, // 密钥不回填，从空白开始
+        options: {}, // Don't backfill secrets, start from blank / 密钥不回填，从空白开始
       };
     } else {
-      // 非 custom 模式（platform/admin_override）: 仅用于状态展示，不需要回填表单
+      // Non-custom mode (platform/admin_override): display-only, no form backfill needed / 非 custom 模式（platform/admin_override）: 仅用于状态展示，不需要回填表单
       selectedDriver.value = undefined;
       credentials.value = { root_path: '', base_url: '', options: {} };
     }
@@ -159,7 +166,7 @@ async function loadData() {
   }
 }
 
-/** 保存自定义存储配置 */
+/** Save custom storage config / 保存自定义存储配置 */
 async function onSave() {
   if (!selectedDriver.value) {
     message.warning($t('shared.storage.selectDriver'));
@@ -173,7 +180,9 @@ async function onSave() {
   }
   saving.value = true;
   try {
+    // Build save data: skip empty options to avoid overwriting backend secrets
     // 构建保存数据：如果 options 为空对象则不发送，避免覆盖后端已有的密钥
+    // (loadData doesn't backfill desensitized options, so don't overwrite if tenant didn't re-enter secrets)
     // （因为 loadData 时不回填脱敏的 options，如果租户没重新填写密钥就不应覆盖）
     const saveData: Record<string, unknown> = {
       tenant_storage_mode: 'custom',
@@ -192,7 +201,7 @@ async function onSave() {
   }
 }
 
-/** 测试连接 */
+/** Test connection / 测试连接 */
 async function onTestConnection() {
   if (!selectedDriver.value) return;
   testing.value = true;
@@ -268,7 +277,7 @@ onUnmounted(() => {
 <template>
   <Spin :spinning="loading">
     <div class="mx-auto max-w-[800px] space-y-6 py-2">
-      <!-- 当前存储状态卡片 -->
+      <!-- Current storage status card / 当前存储状态卡片 -->
       <Card>
         <template #title>
           <div class="flex items-center gap-2">
@@ -290,7 +299,7 @@ onUnmounted(() => {
           </DescriptionsItem>
         </Descriptions>
 
-        <!-- 只读提示：模式 1 或模式 2 -->
+        <!-- Readonly hint: mode 1 or mode 2 / 只读提示：模式 1 或模式 2 -->
         <Alert
           v-if="
             effectiveMode === 'platform' || effectiveMode === 'admin_override'
@@ -301,7 +310,7 @@ onUnmounted(() => {
           class="mt-4"
         />
 
-        <!-- 未开放自主配置提示 -->
+        <!-- Self-config not allowed hint / 未开放自主配置提示 -->
         <Alert
           v-if="effectiveMode === 'platform' && !canSelfConfig"
           type="warning"
@@ -311,7 +320,7 @@ onUnmounted(() => {
         />
       </Card>
 
-      <!-- 管理员帮配模式：展示脱敏后的配置信息（只读） -->
+      <!-- Admin override mode: show desensitized config info (readonly) / 管理员帮配模式：展示脱敏后的配置信息（只读） -->
       <Card v-if="effectiveMode === 'admin_override' && status">
         <template #title>
           <div class="flex items-center gap-2">
@@ -349,7 +358,7 @@ onUnmounted(() => {
         </Descriptions>
       </Card>
 
-      <!-- 自主配置表单（仅模式 3 开放时显示） -->
+      <!-- Self-config form (only shown when mode 3 is enabled) / 自主配置表单（仅模式 3 开放时显示） -->
       <Card v-if="canSelfConfig">
         <template #title>
           <div class="flex items-center gap-2">
@@ -385,7 +394,7 @@ onUnmounted(() => {
           class="mb-4"
         />
 
-        <!-- 驱动选择 -->
+        <!-- Driver selection / 驱动选择 -->
         <div class="mb-4">
           <div class="mb-2 text-sm font-medium">
             {{ $t('shared.storage.selectDriver') }}
@@ -399,7 +408,7 @@ onUnmounted(() => {
 
         <Divider />
 
-        <!-- 凭证表单 -->
+        <!-- Credential form / 凭证表单 -->
         <StorageCredentialForm
           :key="credentialsVersion"
           v-model:value="credentials"

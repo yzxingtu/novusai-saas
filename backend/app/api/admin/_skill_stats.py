@@ -1,7 +1,8 @@
 """
-Skill 使用统计查询辅助模块
+Skill 使用统计查询辅助模块 / Skill Usage Statistics Query Helper Module
 
 供 admin 和 tenant 端 Skill stats API 共用
+Shared by admin and tenant Skill stats API
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ async def get_skill_stats_by_id(
     skill_id: int,
 ) -> dict[str, Any]:
     """
-    查询单个 Skill 的调用统计
+    查询单个 Skill 的调用统计 / Query single Skill call statistics
 
     Returns:
         {
@@ -70,14 +71,14 @@ async def get_all_skills_stats(
     tenant_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """
-    查询所有 Skill 的汇总统计
+    查询所有 Skill 的汇总统计 / Query aggregated statistics for all Skills
 
     Args:
-        db: 数据库会话
-        tenant_id: 可选租户 ID 过滤
+        db: 数据库会话 / Database session
+        tenant_id: 可选租户 ID 过滤 / Optional tenant ID filter
 
     Returns:
-        按调用次数降序排列的统计列表
+        按调用次数降序排列的统计列表 / Statistics list sorted by call count in descending order
     """
     from app.models.ai.skill import Skill
 

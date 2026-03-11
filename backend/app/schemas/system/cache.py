@@ -1,5 +1,5 @@
 """
-缓存管理相关 Schema
+缓存管理相关 Schema / Cache Management Schema
 """
 
 from pydantic import Field, field_validator

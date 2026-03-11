@@ -1,7 +1,8 @@
 """
-AI 调用日志服务
+AI 调用日志服务 / AI Call Log Service
 
 使用 Celery 异步记录 AI 调用日志，不阻塞主请求
+Uses Celery to asynchronously record AI call logs without blocking main requests.
 """
 
 import hashlib

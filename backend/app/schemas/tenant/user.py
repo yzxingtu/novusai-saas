@@ -1,7 +1,8 @@
 """
-租户用户相关 Schema
+租户用户相关 Schema / Tenant User Schema
 
 定义租户用户（C端用户）API 的请求和响应数据结构
+Defines tenant user (end-user) API request and response data structures.
 """
 
 from datetime import datetime

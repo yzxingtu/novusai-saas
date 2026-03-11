@@ -1,6 +1,9 @@
 """
+Conversation Complexity Classifier
 对话复杂度分类器
 
+Pure synchronous computation logic, no I/O operations, no AI calls, call time < 1ms.
+Used for request classification in multi-model routing strategies.
 纯同步计算逻辑，无 IO 操作，无 AI 调用，调用时间 < 1ms
 用于多模型路由策略中的请求分级
 """
@@ -17,7 +20,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.routing")
 
-# ==================== 关键词评分规则 ====================
+# ==================== Keyword Scoring Rules / 关键词评分规则 ====================
 
 _KEYWORDS_SCORE_2: frozenset[str] = frozenset({
     "分析", "推理", "规划", "代码", "编写", "实现", "设计", "对比",
@@ -39,7 +42,7 @@ _TOOLS_SCORE = 2
 
 
 class ComplexityLevel(str, Enum):
-    """对话复杂度级别"""
+    """Conversation complexity level / 对话复杂度级别"""
 
     SIMPLE = "simple"
     MEDIUM = "medium"
@@ -48,19 +51,25 @@ class ComplexityLevel(str, Enum):
 
 class ComplexityClassifier:
     """
+    Conversation Complexity Classifier
     对话复杂度分类器
 
+    Evaluates conversation complexity based on message turns, message length, keywords, tool count, and attachments.
     基于消息轮数、消息长度、关键词、工具数量和附件评估对话复杂度。
 
-    评分规则：
-    - 消息轮数 > 10：+2 分
-    - 最新用户消息 > 500 字符：+1 分
-    - 消息含 +2 关键词（分析/推理/代码/analyze/reasoning/...）：+2 分
-    - 消息含 +1 关键词（综合/评估/数学/synthesize/evaluate/...）：+1 分
-    - 工具数量 > 5：+2 分
-    - 消息轮数 > 20：额外 +1 分
-    - 有附件（图片等）：自动升为 MEDIUM 及以上
+    Scoring rules / 评分规则：
+    - Message turns > 10: +2 / 消息轮数 > 10：+2 分
+    - Latest user message > 500 chars: +1 / 最新用户消息 > 500 字符：+1 分
+    - Message contains +2 keywords (analyze/reasoning/code/...): +2
+      消息含 +2 关键词（分析/推理/代码/analyze/reasoning/...）：+2 分
+    - Message contains +1 keywords (synthesize/evaluate/math/...): +1
+      消息含 +1 关键词（综合/评估/数学/synthesize/evaluate/...）：+1 分
+    - Tool count > 5: +2 / 工具数量 > 5：+2 分
+    - Message turns > 20: additional +1 / 消息轮数 > 20：额外 +1 分
+    - Has attachments (images, etc.): auto-elevated to MEDIUM or higher
+      有附件（图片等）：自动升为 MEDIUM 及以上
 
+    Levels: 0-1 → SIMPLE, 2-3 → MEDIUM, 4+ → COMPLEX
     分级：0-1 → SIMPLE，2-3 → MEDIUM，4+ → COMPLEX
     """
 
@@ -71,15 +80,16 @@ class ComplexityClassifier:
         has_attachments: bool = False,
     ) -> ComplexityLevel:
         """
+        Classify conversation complexity
         对话复杂度分类
 
         Args:
-            messages: 对话消息列表
-            tools: 可用工具列表（可选）
-            has_attachments: 是否含附件（图片等）
+            messages: List of chat messages / 对话消息列表
+            tools: List of available tools (optional) / 可用工具列表（可选）
+            has_attachments: Whether there are attachments (images, etc.) / 是否含附件（图片等）
 
         Returns:
-            ComplexityLevel 枚举值
+            ComplexityLevel enum value / ComplexityLevel 枚举值
         """
         score = self._compute_score(messages, tools)
         level = self._score_to_level(score)
@@ -98,7 +108,7 @@ class ComplexityClassifier:
 
         return level
 
-    # ==================== 内部评分逻辑 ====================
+    # ==================== Internal Scoring Logic / 内部评分逻辑 ====================
 
     def _compute_score(
         self,
@@ -142,7 +152,7 @@ class ComplexityClassifier:
 
     @staticmethod
     def _elevate_for_attachments(level: ComplexityLevel) -> ComplexityLevel:
-        """有附件时至少升为 MEDIUM"""
+        """Elevate to at least MEDIUM when attachments are present / 有附件时至少升为 MEDIUM"""
         if level == ComplexityLevel.SIMPLE:
             return ComplexityLevel.MEDIUM
         return level
@@ -156,7 +166,7 @@ class ComplexityClassifier:
 
     @staticmethod
     def _get_turn_count(messages: list[ChatMessage]) -> int:
-        """Count conversation turns only when user intent exists."""
+        """Count conversation turns only when user intent exists. / 仅在用户意图存在时计算对话轮数。"""
         if not any(msg.role == "user" for msg in messages):
             return 0
         return len(messages)

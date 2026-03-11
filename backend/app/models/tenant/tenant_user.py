@@ -1,7 +1,8 @@
 """
-租户业务用户模型
+租户业务用户模型 / Tenant User Model
 
 租户的终端用户（C端用户/业务用户）
+Tenant end-users (C-side users / business users).
 """
 
 from __future__ import annotations

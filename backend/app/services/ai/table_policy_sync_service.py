@@ -1,8 +1,10 @@
 """
-AI 表策略自动发现与同步服务
+AI 表策略自动发现与同步服务 / AI Table Policy Auto-Discovery & Sync Service
 
 负责扫描 SQLAlchemy 模型元数据，自动创建 ai_table_policies 默认记录。
+Scans SQLAlchemy model metadata to auto-create ai_table_policies default records.
 支持启动时自动同步和管理员手动触发同步。
+Supports auto-sync at startup and manual trigger by admins.
 """
 
 from enum import Enum

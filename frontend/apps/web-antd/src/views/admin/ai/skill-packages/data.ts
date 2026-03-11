@@ -7,11 +7,6 @@ import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
-import {
-  getScopeColor,
-  getScopeOptions,
-  getScopeText,
-} from '#/utils/scope-helpers';
 
 export function getAudienceColor(audience: string | undefined): string {
   switch (audience) {
@@ -30,18 +25,6 @@ export function getAudienceOptions() {
   ];
 }
 
-export { getScopeColor, getScopeText };
-
-function getScopeFilterOptions() {
-  return getScopeOptions([
-    'admin_only',
-    'all_tenants',
-    'admin_and_all',
-    'admin_and_assigned',
-    'assigned_tenants',
-  ]);
-}
-
 /** 表格列定义 */
 export function useColumns<T = AdminSkillPackageInfo>(
   onActionClick: OnActionClickFn<T>,
@@ -52,13 +35,6 @@ export function useColumns<T = AdminSkillPackageInfo>(
       title: $t('admin.ai.skillPackage.name'),
       minWidth: 200,
       slots: { default: 'name_cell' },
-    },
-    {
-      field: 'scope',
-      title: $t('admin.ai.skillPackage.scope'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'scope_cell' },
     },
     {
       field: 'bind_mode',
@@ -133,10 +109,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('filter[name][ilike]', $t('admin.ai.skillPackage.name'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.searchName'),
-    }),
-    select('filter[scope][eq]', $t('admin.ai.skillPackage.scope'), {
-      options: getScopeFilterOptions(),
-      placeholder: $t('admin.ai.skillPackage.placeholder.allScopes'),
     }),
     select('filter[target_audience][eq]', $t('admin.ai.skillPackage.targetAudience'), {
       options: getAudienceOptions(),

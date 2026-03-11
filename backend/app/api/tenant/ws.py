@@ -1,7 +1,8 @@
 """
-租户管理端 WebSocket 相关 HTTP API
+租户管理端 WebSocket 相关 HTTP API / Tenant WebSocket HTTP API
 
 提供当前租户管理员在线状态查询接口。
+Provides online presence query endpoints for current tenant admins.
 """
 
 from fastapi import APIRouter
@@ -20,10 +21,12 @@ async def get_tenant_presence(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户的管理员在线状态
+    获取当前租户的管理员在线状态 / Get admin online presence for current tenant
 
     自动从当前登录的租户管理员获取 tenant_id，
+    Automatically gets tenant_id from the currently logged-in tenant admin,
     确保租户隔离（只能查看本租户的在线状态）。
+    ensuring tenant isolation (can only view own tenant's online status).
     """
     tenant_id = tenant_admin.tenant_id
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
@@ -43,10 +46,12 @@ async def get_tenant_user_presence(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户的业务用户在线状态
+    获取当前租户的业务用户在线状态 / Get business user online presence for current tenant
 
     自动从当前登录的租户管理员获取 tenant_id，
+    Automatically gets tenant_id from the currently logged-in tenant admin,
     确保租户隔离（只能查看本租户的用户在线状态）。
+    ensuring tenant isolation (can only view own tenant's user online status).
     """
     tenant_id = tenant_admin.tenant_id
     details = await PresenceManager.get_online_details("tenant_user", tenant_id)

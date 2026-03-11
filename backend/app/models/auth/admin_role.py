@@ -1,7 +1,8 @@
 """
-平台管理员角色模型
+平台管理员角色模型 / Admin Role Model
 
 平台级别的角色，用于平台管理员权限控制，支持多级角色层级结构
+Platform-level roles for admin permission control, supports multi-level role hierarchy.
 """
 
 from typing import TYPE_CHECKING

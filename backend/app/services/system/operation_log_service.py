@@ -1,7 +1,8 @@
 """
-操作日志服务
+操作日志服务 / Operation Log Service
 
 提供操作日志的业务逻辑
+Provides operation log business logic.
 """
 
 import asyncio

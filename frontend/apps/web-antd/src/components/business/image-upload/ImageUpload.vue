@@ -1,9 +1,13 @@
 <script setup lang="ts">
 /**
+ * Image Upload Component
  * 图片上传组件
  *
+ * v-model binds attachment ID (string), automatically converts to image URL for display.
  * v-model 绑定附件 ID（字符串），显示时自动转为图片 URL。
+ * Auto-detects admin/tenant endpoint from URL, calls corresponding upload API.
  * 自动根据 URL 检测 admin/tenant 端，调用对应的上传 API。
+ * Legacy compatible: if modelValue is a URL path, displays directly.
  * 兼容旧值：如果 modelValue 是 URL 路径则直接显示。
  */
 import { computed, ref } from 'vue';
@@ -20,11 +24,11 @@ import { getProcessedImageUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
-    /** 允许的文件类型 */
+    /** Allowed file types / 允许的文件类型 */
     accept?: string;
-    /** API 端类型，默认从 URL 自动检测 */
+    /** API endpoint type, defaults to auto-detect from URL / API 端类型，默认从 URL 自动检测 */
     endpoint?: 'admin' | 'tenant' | 'user';
-    /** 当前值：附件 ID（字符串）或旧格式 URL */
+    /** Current value: attachment ID (string) or legacy URL format / 当前值：附件 ID（字符串）或旧格式 URL */
     modelValue?: string;
   }>(),
   {
@@ -47,6 +51,7 @@ const resolvedEndpoint = computed(() => {
 });
 
 /**
+ * Convert modelValue (attachment ID or legacy URL) to displayable image URL
  * 将 modelValue（附件 ID 或旧 URL）转为可显示的图片 URL
  */
 function toDisplayUrl(val: string | undefined): string {
@@ -109,7 +114,7 @@ function handleRemove() {
 
 <template>
   <div class="flex items-start gap-3">
-    <!-- 已上传预览 -->
+    <!-- Uploaded preview / 已上传预览 -->
     <div
       v-if="modelValue"
       class="group relative size-[120px] overflow-hidden rounded-lg border border-border"
@@ -133,7 +138,7 @@ function handleRemove() {
       </div>
     </div>
 
-    <!-- 上传按钮 -->
+    <!-- Upload button / 上传按钮 -->
     <Spin :spinning="uploading" size="small">
       <Upload
         :custom-request="handleCustomRequest"

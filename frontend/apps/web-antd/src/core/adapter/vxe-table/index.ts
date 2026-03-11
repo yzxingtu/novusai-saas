@@ -1,13 +1,15 @@
 /**
+ * Declarative table module
  * 声明式表格模块
  *
+ * Unified export of all table-related functionality
  * 统一导出所有表格相关功能
  */
 
-// 导出弹窗组件
+// Export modal components / 导出弹窗组件
 export { ExportModal, useExportModal } from './components';
 
-// 拖拽排序
+// Drag sort / 拖拽排序
 export {
   dragColumn,
   type DragSortConfig,
@@ -16,8 +18,8 @@ export {
   useTableDragSort,
 } from './drag-sort';
 
-// ============ 扩展功能 ============
-// 批量选择
+// ============ Extensions / 扩展功能 ============
+// Batch selection / 批量选择
 export {
   checkboxColumn,
   clearSelection,
@@ -26,24 +28,24 @@ export {
   seqColumn,
 } from './extensions';
 
-// Excel 导出
+// Excel export / Excel 导出
 export {
   type ExportColumn,
   type ExportOptions,
   exportToExcel,
 } from './extensions';
 
-// 展开行
+// Expandable rows / 展开行
 export {
   createExpandConfig,
   expandColumn,
   type ExpandConfig,
 } from './extensions';
 
-// ============ 初始化（应用启动时调用） ============
+// ============ Initialization (called at app startup) / 初始化（应用启动时调用） ============
 export { setupVxeTable } from './setup';
 
-// ============ 类型定义 ============
+// ============ Type Definitions / 类型定义 ============
 export type {
   BaseRow,
   ColumnsFactory,
@@ -57,16 +59,16 @@ export type {
   VxeTableGridOptions,
 } from './types';
 
-// ============ 核心 Hook ============
-// 推荐使用 useCrudPage，一行代码搞定列表页
+// ============ Core Hooks / 核心 Hook ============
+// Recommend useCrudPage - one-liner for list pages / 推荐使用 useCrudPage，一行代码搞定列表页
 export { useCrudPage } from './use-crud-page';
 
-// 基础 Hook（useCrudPage 内部使用，也可单独使用）
+// Base Hooks (used internally by useCrudPage, can also be used standalone) / 基础 Hook（useCrudPage 内部使用，也可单独使用）
 export {
   useGridOptions,
   useGridSearchFormOptions,
   useVbenVxeGrid,
 } from './use-vxe-grid';
 
-// ============ 从 vben 插件导出基础类型 ============
+// ============ Export base types from vben plugin / 从 vben 插件导出基础类型 ============
 export type * from '@vben/plugins/vxe-table';

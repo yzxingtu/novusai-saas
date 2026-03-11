@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Admin knowledge base detail drawer
  * 管理端知识库详情抽屉
  *
+ * Tab 1: Document management (list + upload + delete + retry + progress)
  * Tab 1: 文档管理（列表+上传+删除+重试+进度）
- * Tab 2: 检索测试
+ * Tab 2: Search test / 检索测试
  */
 import type {
   AdminKnowledgeDocumentItem,
@@ -76,14 +78,14 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
 });
 
-// ========== 基础状态 ==========
+// ========== Base state / 基础状态 ==========
 const kbId = ref(0);
 const kbName = ref('');
 const isDrawerOpen = ref(false);
 const activeTab = ref('documents');
 const loading = ref(false);
 
-// ========== 文档管理 ==========
+// ========== Document management / 文档管理 ==========
 const documents = ref<AdminKnowledgeDocumentItem[]>([]);
 const docTotal = ref(0);
 const docPage = ref(1);
@@ -106,7 +108,7 @@ async function loadDocuments() {
   }
 }
 
-// 文档录入回调（传给 KnowledgeDocumentPicker）
+// Document input callbacks (passed to KnowledgeDocumentPicker) / 文档录入回调（传给 KnowledgeDocumentPicker）
 async function handleUploadFile(file: File) {
   await uploadAdminDocumentApi(kbId.value, file);
 }
@@ -132,7 +134,7 @@ function handleDocPickerSuccess() {
   emit('success');
 }
 
-// 删除文档
+// Delete document / 删除文档
 function handleDeleteDoc(doc: AdminKnowledgeDocumentItem) {
   Modal.confirm({
     title: $t('admin.knowledgeBase.document.delete'),
@@ -146,7 +148,7 @@ function handleDeleteDoc(doc: AdminKnowledgeDocumentItem) {
   });
 }
 
-// 重试文档
+// Retry document / 重试文档
 async function handleRetryDoc(doc: AdminKnowledgeDocumentItem) {
   try {
     await retryAdminDocumentApi(kbId.value, doc.id);
@@ -157,7 +159,7 @@ async function handleRetryDoc(doc: AdminKnowledgeDocumentItem) {
   }
 }
 
-// 重新向量化
+// Reindex / 重新向量化
 function handleReindex() {
   Modal.confirm({
     title: $t('admin.knowledgeBase.reindex.title'),
@@ -173,7 +175,7 @@ function handleReindex() {
   });
 }
 
-// ========== WS 实时进度 ==========
+// ========== WS real-time progress / WS 实时进度 ==========
 interface DocProgressInfo {
   stage: string;
   progress: number;
@@ -193,7 +195,7 @@ function handleWsNotification(payload: unknown) {
   const docId = d.document_id as number;
   const kbIdFromWs = d.kb_id as number;
 
-  // 只处理当前打开的知识库
+  // Only handle the currently opened knowledge base / 只处理当前打开的知识库
   if (kbIdFromWs && kbIdFromWs !== kbId.value) return;
 
   const prog: DocProgressInfo = {
@@ -205,13 +207,13 @@ function handleWsNotification(payload: unknown) {
 
   docProgress.value[docId] = prog;
 
-  // 实时更新文档状态 Tag
+  // Update document status tag in real-time / 实时更新文档状态 Tag
   const found = documents.value.find((doc) => doc.id === docId);
   if (found && prog.stage && prog.stage !== found.status) {
     found.status = prog.stage;
   }
 
-  // 完成或失败时刷新文档列表
+  // Refresh document list on completion or failure / 完成或失败时刷新文档列表
   if (['completed', 'error'].includes(prog.stage)) {
     loadDocuments();
     emit('success');
@@ -228,7 +230,7 @@ function stopWsListener() {
   socketStore.unregisterHandler('notification', handleWsNotification);
 }
 
-// 打开抽屉时一次性拉取处理中文档的进度（兜底：WS 可能未连接）
+// Fetch initial progress for processing docs on drawer open (fallback: WS may not be connected) / 打开抽屉时一次性拉取处理中文档的进度（兜底：WS 可能未连接）
 async function fetchInitialProgress() {
   const processingDocs = documents.value.filter(
     (d) => !['completed', 'error', 'pending'].includes(d.status),
@@ -254,7 +256,7 @@ onActivated(() => {
   }
 });
 
-// ========== 文档状态辅助 ==========
+// ========== Document status helpers / 文档状态辅助 ==========
 function getDocStatusText(status: string | undefined): string {
   if (!status) return '-';
   return $t(`admin.knowledgeBase.document.status.${status}`);
@@ -315,7 +317,7 @@ function getFileIconColor(fileType: string): string {
   return 'text-muted-foreground';
 }
 
-// ========== 分块预览 ==========
+// ========== Chunk preview / 分块预览 ==========
 const chunkPreviewVisible = ref(false);
 const chunkPreviewDoc = ref<AdminKnowledgeDocumentItem | null>(null);
 const chunkList = ref<
@@ -355,7 +357,7 @@ async function loadChunks() {
   }
 }
 
-// ========== 检索测试 ==========
+// ========== Search test / 检索测试 ==========
 const searchQuery = ref('');
 const searchLoading = ref(false);
 const searchResults = ref<AdminSearchResultItem[]>([]);
@@ -398,7 +400,7 @@ watch(activeTab, (tab) => {
     class="w-[960px]"
   >
     <Tabs v-model:active-key="activeTab">
-      <!-- ==================== 文档管理 ==================== -->
+      <!-- ==================== Document management / 文档管理 ==================== -->
       <Tabs.TabPane
         key="documents"
         :tab="$t('admin.knowledgeBase.document.title')"
@@ -587,7 +589,7 @@ watch(activeTab, (tab) => {
         </Spin>
       </Tabs.TabPane>
 
-      <!-- ==================== 检索测试 ==================== -->
+      <!-- ==================== Search test / 检索测试 ==================== -->
       <Tabs.TabPane
         key="search"
         :tab="$t('admin.knowledgeBase.searchTest.title')"
@@ -718,7 +720,7 @@ watch(activeTab, (tab) => {
       </Tabs.TabPane>
     </Tabs>
 
-    <!-- ==================== 分块预览 Modal ==================== -->
+    <!-- ==================== Chunk preview Modal / 分块预览 Modal ==================== -->
     <Modal
       v-model:open="chunkPreviewVisible"
       :title="`${$t('admin.knowledgeBase.document.viewChunks')} - ${chunkPreviewDoc?.file_name ?? ''}`"

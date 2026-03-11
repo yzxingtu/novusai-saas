@@ -1,6 +1,7 @@
 import type { UseMemberPanelOptions, UseMemberPanelReturn } from './types';
 
 /**
+ * Member Panel Business Logic Composable
  * 成员面板业务逻辑 composable
  */
 import type { MemberListParams, OrgMember } from '#/api/admin/organization';
@@ -10,14 +11,14 @@ import { ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
-// Admin API
+// Admin API / 管理端 API
 import {
   addMemberToNodeApi as adminAddMemberApi,
   getNodeMembersApi as adminGetMembersApi,
   removeMemberFromNodeApi as adminRemoveMemberApi,
   setNodeLeaderApi as adminSetLeaderApi,
 } from '#/api/admin/organization';
-// Tenant API
+// Tenant API / 租户端 API
 import {
   addTenantMemberToNodeApi as tenantAddMemberApi,
   getTenantNodeMembersApi as tenantGetMembersApi,
@@ -26,10 +27,12 @@ import {
 } from '#/api/tenant/organization';
 import { $t } from '#/locales';
 
-/** 默认每页数量 */
+/** Default page size / 默认每页数量 */
 const DEFAULT_PAGE_SIZE = 20;
 
 /**
+ * Member panel management hook
+ * Supports both admin and tenant API prefixes
  * 成员面板管理 hook
  * 支持 admin 和 tenant 两种 API 前缀
  */
@@ -38,26 +41,26 @@ export function useMemberPanel(
 ): UseMemberPanelReturn {
   const { nodeId, apiPrefix = 'admin' } = options;
 
-  // 状态
+  // State / 状态
   const members = ref<OrgMember[]>([]);
   const loading = ref(false);
   const operating = ref(false);
   const error = ref<null | string>(null);
 
-  // 分页状态
+  // Pagination state / 分页状态
   const pagination = ref({
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
     total: 0,
   });
 
-  // 搜索关键词
+  // Search keyword / 搜索关键词
   const searchKeyword = ref('');
 
-  // 是否包含子节点成员（递归查询）
+  // Whether to include descendant node members (recursive query) / 是否包含子节点成员（递归查询）
   const includeDescendants = ref(true);
 
-  // 根据前缀选择 API
+  // Select API based on prefix / 根据前缀选择 API
   const getMembersApi =
     apiPrefix === 'tenant' ? tenantGetMembersApi : adminGetMembersApi;
   const addMemberApi =
@@ -68,8 +71,9 @@ export function useMemberPanel(
     apiPrefix === 'tenant' ? tenantSetLeaderApi : adminSetLeaderApi;
 
   /**
+   * Load member list
    * 加载成员列表
-   * @param resetPage - 是否重置到第一页
+   * @param resetPage - Whether to reset to first page / 是否重置到第一页
    */
   async function loadMembers(resetPage = false): Promise<void> {
     const id = nodeId();
@@ -111,6 +115,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Add a single member
    * 添加单个成员
    */
   async function addMember(adminId: number): Promise<boolean> {
@@ -136,6 +141,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Batch add members
    * 批量添加成员
    */
   async function addMembers(adminIds: number[]): Promise<boolean> {
@@ -151,7 +157,7 @@ export function useMemberPanel(
 
     operating.value = true;
     try {
-      // 串行添加，避免并发问题
+      // Add sequentially to avoid concurrency issues / 串行添加，避免并发问题
       for (const adminId of adminIds) {
         await addMemberApi(id, adminId);
       }
@@ -163,7 +169,7 @@ export function useMemberPanel(
     } catch (error_) {
       console.error('Failed to add members:', error_);
       message.error($t('shared.memberPanel.batchAddFailed'));
-      // 即使部分失败也刷新列表
+      // Refresh list even if partially failed / 即使部分失败也刷新列表
       await loadMembers();
       return false;
     } finally {
@@ -172,13 +178,14 @@ export function useMemberPanel(
   }
 
   /**
+   * Remove a member
    * 移除成员
    */
   async function removeMember(
     adminId: number,
     targetRoleId?: number,
   ): Promise<boolean> {
-    // 优先使用传入的 roleId，否则使用当前选中节点
+    // Prefer passed roleId, otherwise use currently selected node / 优先使用传入的 roleId，否则使用当前选中节点
     const id = targetRoleId ?? nodeId();
     if (!id) {
       message.error($t('shared.memberPanel.selectNodeFirst'));
@@ -189,7 +196,7 @@ export function useMemberPanel(
     try {
       await removeMemberApi(id, adminId);
       message.success($t('shared.memberPanel.removeSuccess'));
-      // 从本地列表移除
+      // Remove from local list / 从本地列表移除
       members.value = members.value.filter((m) => m.id !== adminId);
       return true;
     } catch (error_) {
@@ -202,15 +209,16 @@ export function useMemberPanel(
   }
 
   /**
+   * Set leader
    * 设置负责人
-   * @param adminId - 负责人 ID，传 null 取消负责人
-   * @param targetRoleId - 目标节点 ID（可选，用于跨节点设置负责人）
+   * @param adminId - Leader ID, pass null to cancel leader / 负责人 ID，传 null 取消负责人
+   * @param targetRoleId - Target node ID (optional, for cross-node leader setting) / 目标节点 ID（可选，用于跨节点设置负责人）
    */
   async function setLeader(
     adminId: null | number,
     targetRoleId?: number,
   ): Promise<boolean> {
-    // 如果指定了 targetRoleId 则使用它，否则使用当前选中的节点
+    // Use targetRoleId if specified, otherwise use currently selected node / 如果指定了 targetRoleId 则使用它，否则使用当前选中的节点
     const id = targetRoleId ?? nodeId();
     if (!id) {
       message.error($t('shared.memberPanel.selectNodeFirst'));
@@ -225,7 +233,7 @@ export function useMemberPanel(
           ? $t('shared.memberPanel.setLeaderSuccess')
           : $t('shared.memberPanel.cancelLeaderSuccess'),
       );
-      // 重新加载列表以获取最新的 isLeader 状态
+      // Reload list to get latest isLeader status / 重新加载列表以获取最新的 isLeader 状态
       await loadMembers();
       return true;
     } catch (error_) {
@@ -238,6 +246,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Refresh list
    * 刷新列表
    */
   async function refresh(): Promise<void> {
@@ -245,6 +254,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Change page
    * 切换页码
    */
   async function changePage(page: number): Promise<void> {
@@ -253,6 +263,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Change page size
    * 切换每页数量
    */
   async function changePageSize(pageSize: number): Promise<void> {
@@ -262,6 +273,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Search members
    * 搜索成员
    */
   async function search(keyword: string): Promise<void> {
@@ -270,6 +282,7 @@ export function useMemberPanel(
   }
 
   /**
+   * Toggle include descendant members
    * 切换是否包含子节点成员
    */
   async function toggleIncludeDescendants(value: boolean): Promise<void> {
@@ -277,12 +290,12 @@ export function useMemberPanel(
     await loadMembers(true);
   }
 
-  // 监听节点 ID 变化，自动加载成员
+  // Watch node ID changes, auto-load members / 监听节点 ID 变化，自动加载成员
   watch(
     () => nodeId(),
     (newId) => {
       if (newId) {
-        // 切换节点时重置搜索和分页
+        // Reset search and pagination when switching nodes / 切换节点时重置搜索和分页
         searchKeyword.value = '';
         pagination.value.page = 1;
         loadMembers();

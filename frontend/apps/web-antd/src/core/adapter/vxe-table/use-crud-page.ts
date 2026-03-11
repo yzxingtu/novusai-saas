@@ -1,6 +1,9 @@
 /**
+ * Declarative CRUD list page composable
  * 声明式 CRUD 列表页 Composable
  *
+ * Unifies table, form popup, CRUD operations, pagination, sorting, etc.
+ * Users only need to care about: column definitions, API, form component.
  * 将表格、表单弹窗、CRUD 操作、分页、排序等统一封装，
  * 用户只需关心：列定义、API、表单组件。
  *
@@ -45,11 +48,11 @@ import { requestClient } from '#/utils/request';
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 
-/** 依赖阻止错误码 */
+/** Dependency blocked error code / 依赖阻止错误码 */
 const DEPENDENCY_BLOCKED_CODE = 4221;
 
 /**
- * 声明式 CRUD 列表页 Composable
+ * Declarative CRUD list page composable / 声明式 CRUD 列表页 Composable
  */
 export function useCrudPage<T extends BaseRow = BaseRow>(
   options: UseCrudPageOptions<T>,
@@ -80,18 +83,18 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     gridOptions: extraGridOptions = {},
   } = options;
 
-  // ==================== 回收站配置 ====================
+  // ==================== Recycle bin config / 回收站配置 ====================
   const recycleBinEnabled = !!recycleBin;
   const recycleBinConfig: RecycleBinConfig =
     typeof recycleBin === 'object' ? recycleBin : {};
   const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
 
-  // ==================== 依赖阻止弹窗 ====================
+  // ==================== Dependency block modal / 依赖阻止弹窗 ====================
   const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(
     null,
   );
 
-  // ==================== 表单弹窗 ====================
+  // ==================== Form popup / 表单弹窗 ====================
   let FormPopup:
     | null
     | ReturnType<typeof useVbenDrawer>[0]
@@ -119,26 +122,26 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     }
   }
 
-  // ==================== 导出弹窗 ====================
-  // 前置声明 gridApi（用于闭包引用）
+  // ==================== Export modal / 导出弹窗 ====================
+  // Pre-declare gridApi (for closure reference) / 前置声明 gridApi（用于闭包引用）
   let gridApi: ReturnType<typeof useVbenVxeGrid>[1];
 
-  // 导出弹窗
+  // Export modal / 导出弹窗
   const { ExportModal, openExportModal } = useExportModal(() => gridApi?.grid);
 
-  // ==================== CRUD 操作 ====================
+  // ==================== CRUD Operations / CRUD 操作 ====================
 
-  /** 刷新列表 */
+  /** Refresh list / 刷新列表 */
   function onRefresh() {
     gridApi?.query();
   }
 
-  /** 重载列表（回到第一页） */
+  /** Reload list (back to first page) / 重载列表（回到第一页） */
   function onReload() {
     gridApi?.reload();
   }
 
-  /** 新建 */
+  /** Create / 新建 */
   function onCreate() {
     const defaults =
       typeof formDefaults === 'function' ? formDefaults() : formDefaults;
@@ -151,22 +154,22 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       .open();
   }
 
-  /** 编辑 */
+  /** Edit / 编辑 */
   function onEdit(row: T) {
     formPopupApi
       ?.setData({ ...row, mode: 'edit' as FormMode, _resource: api.resource })
       .open();
   }
 
-  // 防抖状态：记录正在处理的操作
+  // Debounce state: track in-progress operations / 防抖状态：记录正在处理的操作
   const processingIds = ref<Set<number | string>>(new Set());
 
-  /** 检查是否正在处理中（防抖） */
+  /** Check if processing (debounce) / 检查是否正在处理中（防抖） */
   function isProcessing(id: number | string): boolean {
     return processingIds.value.has(id);
   }
 
-  /** 设置处理状态 */
+  /** Set processing state / 设置处理状态 */
   function setProcessing(id: number | string, processing: boolean) {
     if (processing) {
       processingIds.value.add(id);
@@ -176,17 +179,19 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
+   * Delete (auto-constructs DELETE {resource}/{id} request)
    * 删除（自动构造 DELETE {resource}/{id} 请求）
+   * Note: CellOperation renderer already provides Popconfirm, this directly executes delete
    * 注意：CellOperation 渲染器已经提供了 Popconfirm 确认，此处直接执行删除
    */
   async function onDelete(row: T) {
-    // 防抖：如果正在处理中，直接返回
+    // Debounce: return if already processing / 防抖：如果正在处理中，直接返回
     if (isProcessing(row.id)) return;
 
     setProcessing(row.id, true);
     try {
-      // 自动构造 DELETE 请求：DELETE {resource}/{id}
-      // 关闭默认错误消息，由下方 catch 手动处理 4221
+      // Auto-construct DELETE request: DELETE {resource}/{id} / 自动构造 DELETE 请求
+      // Disable default error message, handled by catch below for 4221 / 关闭默认错误消息，由下方 catch 手动处理 4221
       await requestClient.delete(`${api.resource}/${row.id}`, {
         loading: true,
         showCodeMessage: false,
@@ -194,18 +199,18 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
       });
       onRefresh();
-      // 刷新回收站计数
+      // Refresh recycle bin count / 刷新回收站计数
       if (recycleBinEnabled) {
         recycleBinRef.value?.refreshCount();
       }
     } catch (error: unknown) {
       const resp = (error as any)?.response?.data;
       if (resp?.code === DEPENDENCY_BLOCKED_CODE && resp?.dependencies) {
-        // 4221: 依赖阻止 → 弹出依赖详情弹窗
+        // 4221: Dependency blocked → show dependency details modal / 依赖阻止 → 弹出依赖详情弹窗
         const displayName = String(row[nameField] || row.id);
         depBlockRef.value?.open(resp.dependencies, displayName);
       } else if (resp?.message) {
-        // 其他业务错误 → 显示错误消息
+        // Other business errors → show error message / 其他业务错误 → 显示错误消息
         message.error(resp.message);
       }
     } finally {
@@ -214,17 +219,18 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
+   * Toggle status (supports multiple fields)
    * 切换状态（支持多个字段）
-   * @param fieldName 字段名，如 'is_active', 'is_visible'
-   * @param newStatus 新状态值
-   * @param row 行数据
+   * @param fieldName Field name, e.g. 'is_active', 'is_visible' / 字段名
+   * @param newStatus New status value / 新状态值
+   * @param row Row data / 行数据
    */
   async function onToggleField(
     fieldName: string,
     newStatus: boolean,
     row: T,
   ): Promise<boolean> {
-    // 防抖：如果正在处理中，直接返回
+    // Debounce: return if already processing / 防抖：如果正在处理中，直接返回
     if (isProcessing(row.id)) return false;
 
     const toggleApi = api.toggles?.[fieldName] as ToggleStatusApi | undefined;
@@ -265,17 +271,17 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
-   * 切换 is_active 状态
+   * Toggle is_active status / 切换 is_active 状态
    */
   async function onToggleStatus(newStatus: boolean, row: T): Promise<boolean> {
     return onToggleField('is_active', newStatus, row);
   }
 
-  // ==================== 操作处理器 ====================
+  // ==================== Action Handlers / 操作处理器 ====================
 
-  /** 操作按钮点击处理 */
+  /** Action button click handler / 操作按钮点击处理 */
   function handleActionClick(e: OnActionClickParams<T>) {
-    // 自定义操作优先于内置操作
+    // Custom actions take priority over built-in / 自定义操作优先于内置操作
     const customAction = customActions[e.code];
     if (customAction) {
       customAction(e.row);
@@ -297,57 +303,60 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     }
   }
 
-  /** 状态切换处理（供列定义使用） */
+  /** Status toggle handler (for column definitions) / 状态切换处理（供列定义使用） */
   function handleToggleStatus(newStatus: boolean, row: T) {
     return onToggleStatus(newStatus, row);
   }
 
   /**
+   * Create toggle handler for specified field (for column definitions)
    * 创建指定字段的 toggle 处理函数（供列定义使用）
-   * @param fieldName 字段名，如 'is_active', 'is_visible'
+   * @param fieldName Field name, e.g. 'is_active', 'is_visible' / 字段名
    */
   function createToggleHandler(fieldName: string) {
     return (newStatus: boolean, row: T) =>
       onToggleField(fieldName, newStatus, row);
   }
 
-  // ==================== 表格配置 ====================
+  // ==================== Table Config / 表格配置 ====================
 
-  // 构建工具栏配置
+  // Build toolbar config / 构建工具栏配置
   const showExportButton = toolbar.export !== false;
   const toolbarConfig = {
     ...toolbar,
-    export: false, // 禁用原生导出，使用自定义导出按钮
-    refresh: false, // 禁用原生刷新，CrudGrid 左侧自定义渲染
+    export: false, // Disable native export, use custom export button / 禁用原生导出，使用自定义导出按钮
+    refresh: false, // Disable native refresh, CrudGrid renders custom left-side / 禁用原生刷新，CrudGrid 左侧自定义渲染
   };
 
-  // 创建按钮文案：默认取 i18nPrefix + '.create'
+  // Create button label: defaults to i18nPrefix + '.create' / 创建按钮文案：默认取 i18nPrefix + '.create'
   const createLabel = formComponent ? $t(`${i18nPrefix}.create`) : '';
 
   /**
+   * Process form params, convert date ranges and other special fields.
    * 处理表单参数，转换日期范围等特殊字段
+   * Date ranges use between operator: filter[field][between]=start,end
    * 日期范围使用 between 操作符: filter[field][between]=start,end
    */
   function processFormValues(formValues: Record<string, any>) {
     const result: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(formValues)) {
-      // 处理日期范围字段: _dateRange_xxx -> filter[xxx][between]=start,end
+      // Process date range fields: _dateRange_xxx -> filter[xxx][between]=start,end / 处理日期范围字段
       if (key.startsWith('_dateRange_') && Array.isArray(value)) {
         const field = key.replace('_dateRange_', '');
         const [startDate, endDate] = value;
         if (startDate && endDate) {
-          // 使用 between 操作符，格式: filter[field][between]=start,end
+          // Use between operator, format: filter[field][between]=start,end / 使用 between 操作符
           result[`filter[${field}][between]`] = `${startDate},${endDate}`;
         } else if (startDate) {
-          // 只有开始日期，使用 gte
+          // Only start date, use gte / 只有开始日期，使用 gte
           result[`filter[${field}][gte]`] = startDate;
         } else if (endDate) {
-          // 只有结束日期，使用 lte
+          // Only end date, use lte / 只有结束日期，使用 lte
           result[`filter[${field}][lte]`] = endDate;
         }
       } else if (value !== undefined && value !== null && value !== '') {
-        // 过滤空值
+        // Filter empty values / 过滤空值
         result[key] = value;
       }
     }
@@ -379,7 +388,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     ...extraGridOptions,
   };
 
-  // 创建表格
+  // Create table / 创建表格
   const [OriginalGrid, _gridApi] = useVbenVxeGrid({
     formOptions: searchSchema
       ? useGridSearchFormOptions(searchSchema)
@@ -387,15 +396,15 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     gridOptions,
   });
 
-  // 赋值给闭包引用
+  // Assign to closure reference / 赋值给闭包引用
   gridApi = _gridApi;
 
-  /** 打开回收站 */
+  /** Open recycle bin / 打开回收站 */
   function openRecycleBin() {
     recycleBinRef.value?.open();
   }
 
-  // 包装 Grid 组件，自动添加导出按钮、回收站按钮和弹窗
+  // Wrap Grid component, auto-add export button, recycle bin button and popups / 包装 Grid 组件，自动添加导出按钮、回收站按钮和弹窗
   const Grid = defineComponent({
     name: 'CrudPageGrid',
     inheritAttrs: false,
@@ -426,7 +435,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           h(ExportModal),
         ];
 
-        // 渲染回收站抽屉
+        // Render recycle bin drawer / 渲染回收站抽屉
         if (recycleBinEnabled) {
           children.push(
             h(RecycleBinDrawer, {
@@ -439,7 +448,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           );
         }
 
-        // 渲染依赖阻止弹窗
+        // Render dependency block modal / 渲染依赖阻止弹窗
         children.push(h(DependencyBlockModal, { ref: depBlockRef }));
 
         return h('div', { class: 'crud-page-grid h-full' }, children);
@@ -448,14 +457,14 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   });
 
   return {
-    // 组件
+    // Components / 组件
     Grid,
     gridApi,
     FormDrawer: FormPopup,
     formApi: formPopupApi,
     ExportModal,
 
-    // CRUD 操作
+    // CRUD Operations / CRUD 操作
     onCreate,
     onEdit,
     onDelete,
@@ -464,15 +473,15 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     onRefresh,
     onReload,
 
-    // 导出
+    // Export / 导出
     openExportModal,
 
-    // 处理器
+    // Handlers / 处理器
     handleActionClick,
     handleToggleStatus,
     createToggleHandler,
 
-    // 回收站
+    // Recycle bin / 回收站
     openRecycleBin,
     recycleBinRef,
   };

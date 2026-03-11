@@ -1,7 +1,9 @@
 """
-邮件发送 Celery 任务
+Email sending Celery task / 邮件发送 Celery 任务
 
+Async email sending with retry support.
 异步发送邮件，支持重试。
+Follows project scheduled task conventions: sync DB, return dict, logger formatting.
 遵循项目定时任务开发规范：sync DB、返回 dict、logger 格式化。
 """
 
@@ -13,7 +15,7 @@ logger = LogManager.get_logger("task")
 
 @register_task(
     queue="default",
-    description="异步发送邮件",
+    description="Async email sending / 异步发送邮件",
     max_retries=3,
     default_retry_delay=60,
 )
@@ -29,20 +31,20 @@ def send_email_task(
     tenant_id: int | None = None,
 ) -> dict:
     """
-    异步发送邮件
+    Async email sending / 异步发送邮件
 
     Args:
-        to: 收件人列表
-        subject: 邮件主题
-        html_body: HTML 正文
-        text_body: 纯文本正文
-        cc: 抄送列表
-        bcc: 密送列表
-        triggered_by: 触发来源 (manual/task_failure/password_reset/test/welcome/ssl_expiry)
-        tenant_id: 关联租户 ID（可选）
+        to: Recipient list / 收件人列表
+        subject: Email subject / 邮件主题
+        html_body: HTML body / HTML 正文
+        text_body: Plain text body / 纯文本正文
+        cc: CC list / 抄送列表
+        bcc: BCC list / 密送列表
+        triggered_by: Trigger source / 触发来源 (manual/task_failure/password_reset/test/welcome/ssl_expiry)
+        tenant_id: Associated tenant ID (optional) / 关联租户 ID（可选）
 
     Returns:
-        发送结果 dict
+        Send result dict / 发送结果 dict
     """
     from app.services.common.email_service import send_email_sync
 
@@ -56,7 +58,7 @@ def send_email_task(
             bcc=bcc,
         )
 
-        # 记录邮件日志
+        # Record email log / 记录邮件日志
         _record_email_log(
             to=to,
             cc=cc,
@@ -81,7 +83,7 @@ def send_email_task(
                 "triggered_by": triggered_by,
             }
 
-        # 发送失败但非异常（配置缺失/校验失败）—— 不重试
+        # Send failed but not exception (config missing/validation failed) — no retry / 发送失败但非异常（配置缺失/校验失败）—— 不重试
         if result.message in (
             "email_disabled", "config_incomplete", "no_recipients",
             "too_many_recipients", "invalid_email", "attachment_too_large",
@@ -96,7 +98,7 @@ def send_email_task(
                 "triggered_by": triggered_by,
             }
 
-        # SMTP 错误 —— 重试
+        # SMTP error — retry / SMTP 错误 —— 重试
         raise RuntimeError(result.error or result.message)
 
     except RuntimeError:
@@ -127,7 +129,7 @@ def _record_email_log(
     html_body: str | None = None,
     text_body: str | None = None,
 ) -> None:
-    """记录邮件发送日志到 email_logs 表"""
+    """Record email sending log to email_logs table / 记录邮件发送日志到 email_logs 表"""
     from app.core.base_model import utc_now
     from app.core.database import sync_session_factory
 

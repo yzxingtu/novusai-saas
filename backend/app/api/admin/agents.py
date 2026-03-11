@@ -1,7 +1,7 @@
 """
-平台端智能体管理 API
+平台端智能体管理 API / Platform Agent Management API
 
-提供跨租户智能体列表、详情、状态管理接口（平台管理员专用）
+提供跨租户智能体列表、详情、状态管理接口（平台管理员专用）/ Provides cross-tenant agent list, details, and status management interfaces (for platform administrators only)
 """
 
 from fastapi import Query, Request
@@ -53,7 +53,7 @@ logger = LogManager.get_logger("ai")
 
 
 def _build_admin_agent_item(agent) -> dict:
-    """从 ORM 对象构建管理端列表项字典，提取 model_name + skill_packages"""
+    """从 ORM 对象构建管理端列表项字典，提取 model_name + skill_packages / Build admin list item dict from ORM object, extracting model_name + skill_packages"""
     from app.api.shared._agent_helpers import build_agent_base_item
 
     item = build_agent_base_item(agent)
@@ -77,19 +77,19 @@ def _build_admin_agent_item(agent) -> dict:
 )
 class AdminAgentController(GlobalController):
     """
-    平台端智能体管理控制器
+    平台端智能体管理控制器 / Platform Agent Management Controller
 
-    跨租户只读查看 + 状态管理
+    跨租户只读查看 + 状态管理 / Cross-tenant read-only view + status management
     """
 
     prefix = "/ai/agents"
     tags = [_("menu.tags.admin_agent_mgmt")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AdminAgentService,
@@ -106,13 +106,13 @@ class AdminAgentController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户智能体列表
+            获取全租户智能体列表 / Get all-tenant agent list
 
-            支持 JSON:API 风格筛选、排序、分页
-            - filter[tenant_id][eq]=1  按租户筛选
-            - filter[status][eq]=published  按状态筛选
-            - filter[name][ilike]=xxx  按名称模糊搜索
-            权限: ai_agent:list
+            支持 JSON:API 风格筛选、排序、分页 / Supports JSON:API style filtering, sorting, pagination
+            - filter[tenant_id][eq]=1  按租户筛选 / Filter by tenant
+            - filter[status][eq]=published  按状态筛选 / Filter by status
+            - filter[name][ilike]=xxx  按名称模糊搜索 / Fuzzy search by name
+            权限 / Permission: ai_agent:list
             """
             service = AdminAgentService(db)
             items, total = await service.query_list(query)
@@ -135,21 +135,21 @@ class AdminAgentController(GlobalController):
             body: AdminAgentCreate,
         ):
             """
-            管理端创建智能体
+            管理端创建智能体 / Admin create agent
 
-            支持 3 种 scope:
-            - tenant: 属于指定租户（需提供 tenant_id）
-            - global: 全局共享（所有租户可见）
-            - admin: 仅管理端可见
+            支持 3 种 scope / Supports 3 scopes:
+            - tenant: 属于指定租户（需提供 tenant_id） / Belongs to specified tenant (tenant_id required)
+            - global: 全局共享（所有租户可见） / Global shared (visible to all tenants)
+            - admin: 仅管理端可见 / Admin-only visible
 
-            权限: ai_agent:create
+            权限 / Permission: ai_agent:create
             """
             service = AdminAgentService(db)
             data = body.model_dump(exclude_unset=True)
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.create(data)
 
-            # 同步租户分配
+            # 同步租户分配 / Sync tenant assignments
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
@@ -172,9 +172,9 @@ class AdminAgentController(GlobalController):
             body: AdminAgentUpdate,
         ):
             """
-            管理端更新智能体
+            管理端更新智能体 / Admin update agent
 
-            权限: ai_agent:update
+            权限 / Permission: ai_agent:update
             """
             service = AdminAgentService(db)
             agent = await service.get_by_id(agent_id)
@@ -185,7 +185,7 @@ class AdminAgentController(GlobalController):
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.update(agent_id, data)
 
-            # 同步租户分配
+            # 同步租户分配 / Sync tenant assignments
             effective_scope = agent.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -211,9 +211,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            管理端删除智能体
+            管理端删除智能体 / Admin delete agent
 
-            权限: ai_agent:delete
+            权限 / Permission: ai_agent:delete
             """
             service = AdminAgentService(db)
             agent = await service.get_by_id(agent_id)
@@ -234,9 +234,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体详情（跨租户只读）
+            获取智能体详情（跨租户只读） / Get agent details (cross-tenant read-only)
 
-            权限: ai_agent:detail
+            权限 / Permission: ai_agent:detail
             """
             admin_service = AdminAgentService(db)
             agent = await admin_service.get_by_id(agent_id)
@@ -244,11 +244,11 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            # 使用租户 Service 获取完整详情（含模型关联）
+            # 使用租户 Service 获取完整详情（含模型关联） / Use tenant Service to get full details (including model associations)
             service = AgentService(db, agent.tenant_id)
             detail = await service.get_agent_detail(agent_id)
 
-            # 追加已分配的租户 ID 列表
+            # 追加已分配的租户 ID 列表 / Append assigned tenant ID list
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
@@ -269,9 +269,9 @@ class AdminAgentController(GlobalController):
             status: str = Query(..., description="目标状态: disabled / draft / published"),
         ):
             """
-            管理员更新智能体状态（启用/禁用）
+            管理员更新智能体状态（启用/禁用） / Admin update agent status (enable/disable)
 
-            权限: ai_agent:update_status
+            权限 / Permission: ai_agent:update_status
             """
             service = AdminAgentService(db)
             updated = await service.update_status(agent_id, status)
@@ -284,11 +284,11 @@ class AdminAgentController(GlobalController):
             )
 
         # ========================================
-        # 技能绑定
+        # 技能绑定 / Skill Bindings
         # ========================================
 
         async def _get_agent_for_binding(db, agent_id: int):
-            """获取智能体（用于绑定操作，需要 tenant_id）"""
+            """获取智能体（用于绑定操作，需要 tenant_id） / Get agent (for binding operations, requires tenant_id)"""
             service = AdminAgentService(db)
             agent = await service.get_by_id(agent_id)
             if not agent:
@@ -304,9 +304,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体绑定的所有技能包（含 SkillPackage 详情）
+            获取智能体绑定的所有技能包（含 SkillPackage 详情） / Get all skill packages bound to agent (with SkillPackage details)
 
-            权限: ai_agent:skills
+            权限 / Permission: ai_agent:skills
             """
             agent = await _get_agent_for_binding(db, agent_id)
             binding_service = AgentSkillBindingService(db, agent.tenant_id)
@@ -323,9 +323,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            绑定单个技能包到智能体
+            绑定单个技能包到智能体 / Bind a single skill package to agent
 
-            权限: ai_agent:bind_skill
+            权限 / Permission: ai_agent:bind_skill
             """
             agent = await _get_agent_for_binding(db, agent_id)
             binding_service = AgentSkillBindingService(db, agent.tenant_id)
@@ -349,9 +349,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            批量绑定技能包（替换模式：先清空再批量插入）
+            批量绑定技能包（替换模式：先清空再批量插入） / Batch bind skill packages (replace mode: clear then bulk insert)
 
-            权限: ai_agent:batch_bind_skills
+            权限 / Permission: ai_agent:batch_bind_skills
             """
             agent = await _get_agent_for_binding(db, agent_id)
             binding_service = AgentSkillBindingService(db, agent.tenant_id)
@@ -403,9 +403,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            解绑指定技能包
+            解绑指定技能包 / Unbind specified skill package
 
-            权限: ai_agent:unbind_skill
+            权限 / Permission: ai_agent:unbind_skill
             """
             agent = await _get_agent_for_binding(db, agent_id)
             binding_service = AgentSkillBindingService(db, agent.tenant_id)
@@ -416,7 +416,7 @@ class AdminAgentController(GlobalController):
             return deleted()
 
         # ========================================
-        # 知识库绑定
+        # 知识库绑定 / Knowledge Base Bindings
         # ========================================
 
         @router.get("/{agent_id}/knowledge-bases", summary="获取智能体知识库绑定列表")
@@ -428,9 +428,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体绑定的所有知识库（含 KnowledgeBase 详情）
+            获取智能体绑定的所有知识库（含 KnowledgeBase 详情） / Get all knowledge bases bound to agent (with KnowledgeBase details)
 
-            权限: ai_agent:knowledge_bases
+            权限 / Permission: ai_agent:knowledge_bases
             """
             agent = await _get_agent_for_binding(db, agent_id)
             kb_service = AgentKBBindingService(db, agent.tenant_id)
@@ -447,9 +447,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            绑定单个知识库到智能体
+            绑定单个知识库到智能体 / Bind a single knowledge base to agent
 
-            权限: ai_agent:bind_kb
+            权限 / Permission: ai_agent:bind_kb
             """
             agent = await _get_agent_for_binding(db, agent_id)
             kb_service = AgentKBBindingService(db, agent.tenant_id)
@@ -473,9 +473,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            批量绑定知识库（替换模式：先清空再批量插入）
+            批量绑定知识库（替换模式：先清空再批量插入） / Batch bind knowledge bases (replace mode: clear then bulk insert)
 
-            权限: ai_agent:batch_bind_kbs
+            权限 / Permission: ai_agent:batch_bind_kbs
             """
             agent = await _get_agent_for_binding(db, agent_id)
             kb_service = AgentKBBindingService(db, agent.tenant_id)
@@ -497,9 +497,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新知识库绑定（weight / enabled / sort_order）
+            更新知识库绑定（weight / enabled / sort_order） / Update knowledge base binding (weight / enabled / sort_order)
 
-            权限: ai_agent:update_kb_binding
+            权限 / Permission: ai_agent:update_kb_binding
             """
             agent = await _get_agent_for_binding(db, agent_id)
             kb_service = AgentKBBindingService(db, agent.tenant_id)
@@ -524,9 +524,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            解绑指定知识库
+            解绑指定知识库 / Unbind specified knowledge base
 
-            权限: ai_agent:unbind_kb
+            权限 / Permission: ai_agent:unbind_kb
             """
             agent = await _get_agent_for_binding(db, agent_id)
             kb_service = AgentKBBindingService(db, agent.tenant_id)
@@ -537,7 +537,7 @@ class AdminAgentController(GlobalController):
             return deleted()
 
         # ========================================
-        # 发布 / 版本管理
+        # 发布 / 版本管理 / Publish / Version Management
         # ========================================
 
         @router.post("/{agent_id}/publish", summary="发布智能体")
@@ -550,9 +550,9 @@ class AdminAgentController(GlobalController):
             data: AgentPublishRequest,
         ):
             """
-            发布智能体（冻结当前配置为新版本快照）
+            发布智能体（冻结当前配置为新版本快照） / Publish agent (freeze current config as new version snapshot)
 
-            权限: ai_agent:publish
+            权限 / Permission: ai_agent:publish
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -576,9 +576,9 @@ class AdminAgentController(GlobalController):
             data: AgentRollbackRequest,
         ):
             """
-            回滚智能体到指定版本
+            回滚智能体到指定版本 / Rollback agent to specified version
 
-            权限: ai_agent:rollback
+            权限 / Permission: ai_agent:rollback
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -599,9 +599,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体版本历史列表
+            获取智能体版本历史列表 / Get agent version history list
 
-            权限: ai_agent:versions
+            权限 / Permission: ai_agent:versions
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -622,9 +622,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取指定版本的完整配置快照
+            获取指定版本的完整配置快照 / Get full config snapshot of specified version
 
-            权限: ai_agent:version_detail
+            权限 / Permission: ai_agent:version_detail
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -636,7 +636,7 @@ class AdminAgentController(GlobalController):
             return success(data=detail)
 
         # ========================================
-        # 访问权限配置
+        # 访问权限配置 / Access Permission Config
         # ========================================
 
         @router.get("/{agent_id}/access", summary="获取访问权限配置")
@@ -648,9 +648,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体访问权限配置
+            获取智能体访问权限配置 / Get agent access permission config
 
-            权限: ai_agent:access_config
+            权限 / Permission: ai_agent:access_config
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -671,9 +671,9 @@ class AdminAgentController(GlobalController):
             data: AgentAccessUpdate,
         ):
             """
-            更新智能体访问权限配置
+            更新智能体访问权限配置 / Update agent access permission config
 
-            权限: ai_agent:update_access
+            权限 / Permission: ai_agent:update_access
             """
             admin_svc = AdminAgentService(db)
             agent = await admin_svc.get_by_id(agent_id)
@@ -699,9 +699,9 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取管理端智能体记忆配置状态
+            获取管理端智能体记忆配置状态 / Get admin agent memory config status
 
-            权限: ai_agent:detail
+            权限 / Permission: ai_agent:detail
             """
             service = AdminAgentService(db)
             config = await service.get_memory_config(agent_id)
@@ -717,9 +717,9 @@ class AdminAgentController(GlobalController):
             data: AgentMemoryToggleRequest,
         ):
             """
-            管理端更新 Agent 级记忆开关
+            管理端更新 Agent 级记忆开关 / Admin update agent-level memory toggle
 
-            权限: ai_agent:update
+            权限 / Permission: ai_agent:update
             """
             service = AdminAgentService(db)
             config = await service.set_memory_enabled(agent_id, data.enabled)
@@ -727,7 +727,7 @@ class AdminAgentController(GlobalController):
             return success(data=config, message=_("agent.updated"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAgentController.get_router()
 
 __all__ = ["router", "AdminAgentController"]

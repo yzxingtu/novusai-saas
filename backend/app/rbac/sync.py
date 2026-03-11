@@ -1,16 +1,18 @@
 """
+Permission Sync Service
 权限同步服务
 
-应用启动时调用，将装饰器定义的权限同步到数据库
+Syncs permissions defined by decorators + menu definitions to database, executed on app startup.
+将装饰器定义的权限 + 菜单定义同步到数据库，应用启动时执行。
 
-同步策略:
-- 新权限（代码有，DB 无）: 创建
-- 已存在（代码有，DB 有）: 更新所有字段（name, icon, path, parent_id 等）
-- 代码删除（代码无，DB 有）: 禁用（is_enabled=False），不物理删除
+Sync strategy / 同步策略:
+- New permission (in code, not in DB): create / 新权限（代码有，DB 无）: 创建
+- Existing (in code and DB): update all fields (name, icon, path, parent_id etc.) / 已存在（代码有，DB 有）: 更新所有字段
+- Removed from code (not in code, in DB): disable (is_enabled=False), no physical delete / 代码删除（代码无，DB 有）: 禁用，不物理删除
 
-父子关系处理:
-- 使用拓扑排序确保父级先于子级处理
-- 支持菜单层级变更（移动到不同父级）
+Parent-child relationship handling / 父子关系处理:
+- Uses topological sort to ensure parents processed before children / 使用拓扑排序确保父级先于子级处理
+- Supports menu hierarchy changes (moving to different parent) / 支持菜单层级变更（移动到不同父级）
 """
 
 from sqlalchemy import select
@@ -24,9 +26,11 @@ from app.rbac.registry import permission_registry
 
 class PermissionSyncService(LoggerMixin):
     """
-    权限同步服务
+    Permission Sync Service.
+    权限同步服务。
 
-    应用启动时调用，将装饰器/菜单定义文件中的权限同步到数据库
+    Syncs permissions defined by decorators + menu definitions to database.
+    将装饰器定义的权限 + 菜单定义同步到数据库。
     """
 
     def __init__(self, db: AsyncSession):
@@ -34,18 +38,19 @@ class PermissionSyncService(LoggerMixin):
 
     def _topological_sort(self, permissions: list[PermissionMeta]) -> list[PermissionMeta]:
         """
-        拓扑排序，确保父级权限先于子级处理
+        Topological sort, ensures parent permissions processed before children.
+        拓扑排序，确保父级权限先于子级处理。
 
         Args:
-            permissions: 权限列表
+            permissions: Permission list / 权限列表
 
         Returns:
-            排序后的权限列表
+            Sorted permission list / 排序后的权限列表
         """
         code_to_perm = {p.code: p for p in permissions}
         depth_cache: dict[str, int] = {}
 
-        # 计算每个权限的深度（到根的距离），带缓存
+        # Calculate depth of each permission (distance to root), with cache / 计算每个权限的深度（到根的距离），带缓存
         def get_depth(perm: PermissionMeta, visited: set[str] | None = None) -> int:
             if perm.code in depth_cache:
                 return depth_cache[perm.code]
@@ -53,7 +58,7 @@ class PermissionSyncService(LoggerMixin):
             if visited is None:
                 visited = set()
             if perm.code in visited:
-                # 循环引用，返回 0 避免无限递归
+                # Circular reference, return 0 to avoid infinite recursion / 循环引用，返回 0 避免无限递归
                 return 0
             visited.add(perm.code)
 
@@ -68,31 +73,33 @@ class PermissionSyncService(LoggerMixin):
             depth_cache[perm.code] = depth
             return depth
 
-        # 按深度排序，深度小的（父级）先处理
+        # Sort by depth, lower depth (parents) processed first / 按深度排序，深度小的（父级）先处理
         return sorted(permissions, key=lambda p: get_depth(p))
 
     def _make_key(self, code: str, scope: str) -> str:
-        """生成权限唯一标识（code + scope）"""
+        """Generate permission unique key (code + scope) / 生成权限唯一标识（code + scope）"""
         return f"{code}:{scope}"
 
     async def sync_permissions(self) -> dict[str, int]:
         """
-        同步权限到数据库
+        Sync permissions to database.
+        同步权限到数据库。
 
+        Uses (code, scope) combination as unique identifier, since same code under different scopes are different permissions.
         使用 (code, scope) 组合作为唯一标识，因为同一个 code 在不同 scope 下是不同权限。
 
         Returns:
-            {"created": n, "updated": n, "disabled": n}
+            Sync statistics / 同步结果统计: {created: N, updated: N, disabled: N}
         """
         registered_permissions = permission_registry.get_all()
-        # 使用 code:scope 作为唯一标识
+        # Use code:scope as unique identifier / 使用 code:scope 作为唯一标识
         registered_keys = {
             self._make_key(p.code, p.scope.value) for p in registered_permissions
         }
-        # 获取数据库中现有权限
+        # Get existing permissions from DB / 获取数据库中现有权限
         result = await self.db.execute(select(Permission))
         existing_permissions = result.scalars().all()
-        # 使用 code:scope 作为唯一标识
+        # Use code:scope as unique identifier / 使用 code:scope 作为唯一标识
         existing_keys = {
             self._make_key(p.code, p.scope): p for p in existing_permissions
         }
@@ -102,25 +109,25 @@ class PermissionSyncService(LoggerMixin):
         updated_count = 0
         disabled_count = 0
 
-        # (code, scope) -> db_id 映射（用于父子关联，精确匹配）
-        # 注意：parent_code 不含 scope，需要根据同 scope 查找
+        # (code, scope) -> db_id mapping (for parent-child association, exact match) / 映射（用于父子关联，精确匹配）
+        # Note: parent_code has no scope, needs same-scope lookup / 注意：parent_code 不含 scope，需要根据同 scope 查找
         code_scope_to_id: dict[str, int] = {
             self._make_key(p.code, p.scope): p.id for p in existing_permissions
         }
-        # code-only 回退映射：当父级 scope 与子级不同时（如插件租户菜单挂载到系统菜单）避免误报
+        # code-only fallback mapping: when parent scope differs from child (e.g. plugin tenant menu mounted to system menu) / 回退映射：当父级 scope 与子级不同时避免误报
         code_to_id: dict[str, int] = {
             p.code: p.id for p in existing_permissions
         }
 
-        # 拓扑排序，确保父级先于子级处理
+        # Topological sort, ensure parents processed before children / 拓扑排序，确保父级先于子级处理
         sorted_permissions = self._topological_sort(registered_permissions)
 
         for perm_meta in sorted_permissions:
             perm_key = self._make_key(perm_meta.code, perm_meta.scope.value)
 
-            # 解析父级 ID
-            # 1) 先按 code+scope 精确匹配（父子同 scope 的场景）
-            # 2) 回退到 code-only 匹配（插件菜单挂载到系统菜单，父子 scope 可能不同）
+            # Resolve parent ID / 解析父级 ID
+            # 1) First try code+scope exact match (same-scope parent-child) / 先按 code+scope 精确匹配
+            # 2) Fallback to code-only match (plugin menu mounted to system menu, scope may differ) / 回退到 code-only 匹配
             parent_id = None
             if perm_meta.parent_code:
                 parent_key = self._make_key(perm_meta.parent_code, perm_meta.scope.value)
@@ -131,7 +138,7 @@ class PermissionSyncService(LoggerMixin):
                     )
 
             if perm_key in existing_map:
-                # 更新已存在的权限
+                # Update existing permission / 更新已存在的权限
                 db_perm = existing_map[perm_key]
                 db_perm.name = perm_meta.name
                 db_perm.description = perm_meta.description
@@ -145,12 +152,12 @@ class PermissionSyncService(LoggerMixin):
                 db_perm.sort_order = perm_meta.sort_order
                 db_perm.hidden = perm_meta.hidden
                 db_perm.is_enabled = True
-                # 始终更新 parent_id（支持菜单移动）
+                # Always update parent_id (supports menu moving) / 始终更新 parent_id（支持菜单移动）
                 db_perm.parent_id = parent_id
 
                 updated_count += 1
             else:
-                # 创建新权限
+                # Create new permission / 创建新权限
                 db_perm = Permission(
                     code=perm_meta.code,
                     name=perm_meta.name,
@@ -168,12 +175,12 @@ class PermissionSyncService(LoggerMixin):
                     is_enabled=True,
                 )
                 self.db.add(db_perm)
-                await self.db.flush()  # 获取 ID
+                await self.db.flush()  # Get ID / 获取 ID
                 code_scope_to_id[perm_key] = db_perm.id
                 code_to_id[perm_meta.code] = db_perm.id
                 created_count += 1
 
-        # 禁用代码中已删除的权限
+        # Disable permissions removed from code / 禁用代码中已删除的权限
         orphan_keys = set(existing_map.keys()) - registered_keys
         for key in orphan_keys:
             db_perm = existing_map[key]
@@ -197,22 +204,25 @@ class PermissionSyncService(LoggerMixin):
 
     async def sync_plugin_permissions(self, plugin_name: str) -> int:
         """
+        Sync only specified plugin's menu permissions (flush, no commit, no orphan handling).
         仅同步指定插件的菜单权限（flush，不 commit，不处理孤儿权限）。
 
+        Used during plugin enable flow, avoids sync_permissions()'s commit breaking outer transaction atomicity.
+        Only processes registered plugin permissions (create/update), won't disable any existing permissions.
         用于插件 enable 流程中途调用，避免 sync_permissions() 的 commit 破坏外层事务原子性。
-        只处理代码中已注册的该插件权限（create/update），不会禁用任何现有权限。
+        只处理代码中已注册的该插件权限，不会禁用任何现有权限。
 
         Args:
-            plugin_name: 插件名称（用于前缀过滤，如 "my-plugin"）
+            plugin_name: Plugin name (for prefix filtering, e.g. "my-plugin") / 插件名称（用于前缀过滤）
 
         Returns:
-            创建或更新的权限数量
+            Number of permissions created or updated / 创建或更新的权限数量
         """
         safe_name = plugin_name.replace("-", "_")
         prefix_admin = f"menu:admin.plugin_{safe_name}_"
         prefix_tenant = f"menu:tenant.plugin_{safe_name}_"
 
-        # 只处理属于此插件的权限
+        # Only process permissions belonging to this plugin / 只处理属于此插件的权限
         plugin_perms = [
             p for p in permission_registry.get_all()
             if p.code.startswith(prefix_admin) or p.code.startswith(prefix_tenant)
@@ -220,7 +230,7 @@ class PermissionSyncService(LoggerMixin):
         if not plugin_perms:
             return 0
 
-        # 查询已有的插件权限（含 is_deleted）
+        # Query existing plugin permissions (including is_deleted) / 查询已有的插件权限（含 is_deleted）
         result = await self.db.execute(
             select(Permission).where(
                 (Permission.code.startswith(prefix_admin, autoescape=True))
@@ -232,7 +242,7 @@ class PermissionSyncService(LoggerMixin):
             for p in result.scalars().all()
         }
 
-        # 构建父级 ID 映射（先查出所有已有 ID 以便关联父级）
+        # Build parent ID mapping (query all existing IDs for parent association) / 构建父级 ID 映射（先查出所有已有 ID 以便关联父级）
         all_result = await self.db.execute(select(Permission.code, Permission.id))
         code_to_id: dict[str, int] = {row[0]: row[1] for row in all_result.all()}
 
@@ -287,13 +297,14 @@ class PermissionSyncService(LoggerMixin):
 
 async def sync_permissions_on_startup(db: AsyncSession) -> dict[str, int]:
     """
-    启动时同步权限
+    Sync permissions on startup.
+    启动时同步权限。
 
     Args:
-        db: 数据库会话
+        db: Database session / 数据库会话
 
     Returns:
-        同步结果统计
+        Sync statistics / 同步结果统计
     """
     sync_service = PermissionSyncService(db)
     return await sync_service.sync_permissions()

@@ -1,6 +1,6 @@
-"""
-平台 AI 记忆配置项
+"""Platform AI memory config items / 平台 AI 记忆配置项
 
+Controls platform-level conversation memory default toggle.
 控制平台层面的会话记忆默认开关。
 """
 

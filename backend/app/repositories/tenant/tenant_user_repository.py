@@ -1,7 +1,8 @@
 """
-租户用户仓储
+租户用户仓储 / Tenant User Repository
 
 提供租户业务用户的数据访问操作（租户隔离）
+Provides tenant business user data access operations (tenant-isolated).
 """
 
 from sqlalchemy import or_, select

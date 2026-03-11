@@ -1,6 +1,6 @@
 /**
- * 平台端附件管理 API
- * 对接后端 /admin/attachments/* 接口
+ * Platform attachment management API / 平台端附件管理 API
+ * Backend: /admin/attachments/*
  *
  * @module api/admin/attachment
  */
@@ -20,10 +20,10 @@ import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 将后端 snake_case 转换为前端 camelCase */
 function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
   return {
     id: raw.id,
@@ -51,10 +51,10 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
 }
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 附件列表响应 */
+/** Attachment list response / 附件列表响应 */
 export interface AttachmentListResponse {
   items: AttachmentInfo[];
   total: number;
@@ -63,17 +63,17 @@ export interface AttachmentListResponse {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/attachments';
 
 /**
- * 获取附件列表
+ * Get attachment list / 获取附件列表
  * GET /admin/attachments
  *
- * 权限: attachment:list
- * 支持按租户筛选: filter[tenant_id][eq]=1
+ * Permission: attachment:list
+ * Supports tenant filter: filter[tenant_id][eq]=1
  */
 export async function getAttachmentListApi(
   params?: AttachmentListParams,
@@ -92,10 +92,10 @@ export async function getAttachmentListApi(
 }
 
 /**
- * 获取附件详情
+ * Get attachment detail / 获取附件详情
  * GET /admin/attachments/{attachment_id}
  *
- * 权限: attachment:detail
+ * Permission: attachment:detail
  */
 export async function getAttachmentDetailApi(
   attachmentId: number,
@@ -109,10 +109,10 @@ export async function getAttachmentDetailApi(
 }
 
 /**
- * 删除附件
+ * Delete attachment / 删除附件
  * DELETE /admin/attachments/{attachment_id}
  *
- * 权限: attachment:delete
+ * Permission: attachment:delete
  */
 export async function deleteAttachmentApi(
   attachmentId: number,
@@ -122,7 +122,7 @@ export async function deleteAttachmentApi(
 }
 
 /**
- * 获取附件下拉选项
+ * Get attachment select options / 获取附件下拉选项
  * GET /admin/attachments/select
  */
 export async function getAttachmentSelectApi(
@@ -137,7 +137,7 @@ export async function getAttachmentSelectApi(
 }
 
 /**
- * 获取附件统计
+ * Get attachment stats / 获取附件统计
  * GET /admin/attachments/stats
  */
 export async function getAttachmentStatsApi(
@@ -151,7 +151,7 @@ export async function getAttachmentStatsApi(
 }
 
 /**
- * 获取按租户分组的附件统计
+ * Get attachment stats by tenant / 获取按租户分组的附件统计
  * GET /admin/attachments/stats/by-tenant
  */
 export async function getAttachmentStatsByTenantApi(
@@ -165,7 +165,7 @@ export async function getAttachmentStatsByTenantApi(
 }
 
 /**
- * 获取下载链接
+ * Get download URL / 获取下载链接
  * GET /admin/attachments/{attachment_id}/download-url
  */
 export async function getAttachmentDownloadUrlApi(
@@ -180,7 +180,7 @@ export async function getAttachmentDownloadUrlApi(
 }
 
 /**
- * 获取预览链接
+ * Get preview URL / 获取预览链接
  * GET /admin/attachments/{attachment_id}/preview-url
  */
 export async function getAttachmentPreviewUrlApi(
@@ -195,17 +195,17 @@ export async function getAttachmentPreviewUrlApi(
 }
 
 // ============================================================
-// 上传接口
+// Upload API / 上传接口
 // ============================================================
 
-/** 上传附件响应（后端返回嵌套结构） */
+/** Upload attachment response (backend nested structure) / 上传附件响应 */
 export interface AdminUploadAttachmentResponse {
   attachment: AttachmentInfoRaw;
   url: string;
   used_bytes: number;
 }
 
-/** 分片上传初始化响应 */
+/** Chunk upload init response / 分片上传初始化响应 */
 export interface AdminChunkUploadInitResponse {
   upload_id: string;
   filename: string;
@@ -217,7 +217,7 @@ export interface AdminChunkUploadInitResponse {
   progress: number;
 }
 
-/** 分片上传进度响应 */
+/** Chunk upload progress response / 分片上传进度响应 */
 export interface AdminChunkUploadResponse {
   upload_id: string;
   filename: string;
@@ -230,12 +230,12 @@ export interface AdminChunkUploadResponse {
 }
 
 /**
- * 上传附件（平台端）
+ * Upload attachment (platform) / 上传附件（平台端）
  * POST /admin/attachments/upload
  *
- * 权限: attachment:upload
+ * Permission: attachment:upload
  */
-/** @internal 仅供 smartUploadFile 内部调用，外部请使用 smartUploadFile */
+/** @internal Only for smartUploadFile internal use / 仅供 smartUploadFile 内部调用 */
 async function uploadAttachmentApi(
   params: {
     business_id?: number;
@@ -280,7 +280,7 @@ async function uploadAttachmentApi(
   );
 }
 
-/** 批量上传单文件结果 */
+/** Batch upload single file result / 批量上传单文件结果 */
 export interface AdminBatchUploadItemResult {
   filename: string;
   success: boolean;
@@ -289,7 +289,7 @@ export interface AdminBatchUploadItemResult {
   error?: string;
 }
 
-/** 批量上传响应 */
+/** Batch upload response / 批量上传响应 */
 export interface AdminBatchUploadResponse {
   items: AdminBatchUploadItemResult[];
   success_count: number;
@@ -298,13 +298,13 @@ export interface AdminBatchUploadResponse {
 }
 
 /**
- * 批量上传附件（平台端）
+ * Batch upload attachments (platform) / 批量上传附件（平台端）
  * POST /admin/attachments/batch-upload
  *
- * 一次提交多个文件（最多 20 个），单文件失败不影响其他。
- * 不受租户配额限制。
+ * Submit multiple files at once (max 20). Single file failure doesn't affect others.
+ * Not subject to tenant quota limits.
  *
- * 权限: attachment:upload
+ * Permission: attachment:upload
  */
 export async function batchUploadAttachmentsApi(
   params: {
@@ -339,7 +339,7 @@ export async function batchUploadAttachmentsApi(
 }
 
 /**
- * 初始化分片上传（平台端）
+ * Init chunk upload (platform) / 初始化分片上传（平台端）
  * POST /admin/attachments/chunk/init
  */
 export async function initChunkUploadApi(
@@ -362,7 +362,7 @@ export async function initChunkUploadApi(
 }
 
 /**
- * 上传分片（平台端）
+ * Upload chunk (platform) / 上传分片（平台端）
  * POST /admin/attachments/chunk/{upload_id}
  */
 export async function uploadChunkApi(
@@ -397,7 +397,7 @@ export async function uploadChunkApi(
 }
 
 /**
- * 完成分片上传（平台端）
+ * Complete chunk upload (platform) / 完成分片上传（平台端）
  * POST /admin/attachments/chunk/{upload_id}/complete
  */
 export async function completeChunkUploadApi(
@@ -412,7 +412,7 @@ export async function completeChunkUploadApi(
 }
 
 /**
- * 取消分片上传（平台端）
+ * Cancel chunk upload (platform) / 取消分片上传（平台端）
  * DELETE /admin/attachments/chunk/{upload_id}
  */
 export async function cancelChunkUploadApi(
@@ -422,7 +422,7 @@ export async function cancelChunkUploadApi(
   await requestClient.delete(`${API_PREFIX}/chunk/${uploadId}`, options);
 }
 
-/** 预检响应 */
+/** Preflight response / 预检响应 */
 export interface AdminPreflightResponse {
   exists: boolean;
   attachment: AttachmentInfoRaw | null;
@@ -430,7 +430,7 @@ export interface AdminPreflightResponse {
   used_bytes: number | null;
 }
 
-/** 上传规则响应 */
+/** Upload rules response / 上传规则响应 */
 export interface AdminUploadRulesResponse {
   allowed_extensions: string;
   denied_extensions: string;
@@ -438,7 +438,7 @@ export interface AdminUploadRulesResponse {
 }
 
 /**
- * 预检文件是否已存在（秒传检查，平台端）
+ * Preflight check if file already exists (instant upload, platform) / 预检文件是否已存在（秒传检查）
  * POST /admin/attachments/preflight
  */
 export async function preflightCheckApi(
@@ -459,7 +459,7 @@ export async function preflightCheckApi(
 }
 
 /**
- * 获取上传规则（平台端）
+ * Get upload rules (platform) / 获取上传规则（平台端）
  * GET /admin/attachments/upload-rules
  */
 export async function getUploadRulesApi(
@@ -472,12 +472,13 @@ export async function getUploadRulesApi(
 }
 
 /**
+ * Smart upload file (platform, auto-select normal or chunk upload)
  * 智能上传文件（平台端，自动选择普通上传或分片上传）
  *
- * 流程：
- * 1. 计算文件 SHA-256 哈希（进度 0~5%）
- * 2. 预检接口检查秒传（进度 5%）
- * 3. 未命中→根据文件大小选择普通/分片上传（进度 5~100%）
+ * Flow / 流程:
+ * 1. Compute file SHA-256 hash (progress 0~5%) / 计算文件哈希
+ * 2. Preflight check for instant upload (progress 5%) / 预检秒传
+ * 3. If miss → choose normal/chunk upload by file size (progress 5~100%) / 未命中→选择上传方式
  */
 export async function smartUploadFile(
   params: {
@@ -495,7 +496,7 @@ export async function smartUploadFile(
   const CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB
   const HASH_PROGRESS_END = 5;
 
-  // ===== 第一步：计算文件哈希 =====
+  // ===== Step 1: Compute file hash / 第一步：计算文件哈希 =====
   const fileHash = await computeFileHash(file, {
     onProgress: (pct) => {
       onProgress?.({ percent: Math.round((pct / 100) * HASH_PROGRESS_END) });
@@ -503,7 +504,7 @@ export async function smartUploadFile(
     signal: options?.signal,
   });
 
-  // ===== 第二步：预检（秒传，仅在哈希可用时执行）=====
+  // ===== Step 2: Preflight (instant upload, only when hash available) / 第二步：预检秒传 =====
   onProgress?.({ percent: HASH_PROGRESS_END });
   if (fileHash) {
     try {
@@ -526,11 +527,11 @@ export async function smartUploadFile(
         };
       }
     } catch {
-      // 预检失败不影响正常上传流程
+      // Preflight failure doesn't affect normal upload flow / 预检失败不影响正常上传流程
     }
   }
 
-  // ===== 第三步：实际上传 =====
+  // ===== Step 3: Actual upload / 第三步：实际上传 =====
   const uploadProgressStart = HASH_PROGRESS_END;
   const uploadProgressRange = 100 - uploadProgressStart;
 
@@ -540,7 +541,7 @@ export async function smartUploadFile(
     );
   };
 
-  // 小文件直接上传
+  // Small file: direct upload / 小文件直接上传
   if (file.size <= CHUNK_THRESHOLD) {
     return uploadAttachmentApi(
       params,
@@ -551,7 +552,7 @@ export async function smartUploadFile(
     );
   }
 
-  // 大文件分片上传（带片内实时进度）
+  // Large file: chunk upload (with per-chunk real-time progress) / 大文件分片上传
   const {
     tenant_id = 0,
     visibility = 'private',

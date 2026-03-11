@@ -1,10 +1,11 @@
 /**
- * 平台端插件管理 API
+ * Platform plugin management API / 平台端插件管理 API
  */
 import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/plugins';
 
+/** Plugin dependency status / 插件依赖状态 */
 export interface PluginDependencyStatus {
   overall: 'installed' | 'missing';
   production_mode: boolean;
@@ -22,7 +23,7 @@ export interface PluginDependencyStatus {
   };
 }
 
-/** 插件信息 */
+/** Plugin info / 插件信息 */
 export interface PluginInfo {
   id: number;
   name: string;
@@ -58,7 +59,7 @@ export interface PluginInfo {
   dependency_status?: PluginDependencyStatus;
 }
 
-/** 安装预览 */
+/** Install preview / 安装预览 */
 export interface InstallPreview {
   plugin_info: Record<string, unknown>;
   install_manifest: Record<string, unknown>;
@@ -69,7 +70,7 @@ export interface InstallPreview {
   warnings: string[];
 }
 
-/** 版本历史 */
+/** Version history / 版本历史 */
 export interface PluginVersionInfo {
   id: number;
   version: string;
@@ -79,7 +80,7 @@ export interface PluginVersionInfo {
   rolled_back_at: null | string;
 }
 
-/** 租户分配 */
+/** Tenant assignment / 租户分配 */
 export interface PluginTenantAssignmentInfo {
   id: number;
   plugin_id: number;
@@ -89,7 +90,7 @@ export interface PluginTenantAssignmentInfo {
   created_at: string;
 }
 
-/** AI 功能绑定 */
+/** AI feature binding / AI 功能绑定 */
 export interface PluginAIFeatureInfo {
   id: number;
   feature_code: string;
@@ -99,7 +100,7 @@ export interface PluginAIFeatureInfo {
   is_active: boolean;
 }
 
-/** 健康状态 */
+/** Health status / 健康状态 */
 export interface PluginHealthInfo {
   status: string;
   error_count: number;
@@ -107,18 +108,21 @@ export interface PluginHealthInfo {
   enabled_at: null | string;
 }
 
-// ── 列表 & 详情 ──
+// ── List & Detail / 列表 & 详情 ──
 
+/** Get plugin list / 获取插件列表 */
 export function getPluginListApi(params?: Record<string, unknown>) {
   return requestClient.get(BASE_URL, { params });
 }
 
+/** Get plugin detail / 获取插件详情 */
 export function getPluginDetailApi(id: number, params?: { locale?: string }) {
   return requestClient.get<PluginInfo>(`${BASE_URL}/${id}`, { params });
 }
 
-// ── 安装 ──
+// ── Install / 安装 ──
 
+/** Preview plugin install / 预览插件安装 */
 export function previewPluginInstallApi(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -127,6 +131,7 @@ export function previewPluginInstallApi(file: File) {
   });
 }
 
+/** Install plugin / 安装插件 */
 export function installPluginApi(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -135,8 +140,9 @@ export function installPluginApi(file: File) {
   });
 }
 
-// ── 菜单配置 ──
+// ── Menu config / 菜单配置 ──
 
+/** Menu parent option / 菜单父级选项 */
 export interface MenuParentOption {
   value: string;
   label: string;
@@ -146,23 +152,27 @@ export interface MenuParentOption {
   children?: MenuParentOption[];
 }
 
+/** Menu parent options response / 菜单父级选项响应 */
 export interface MenuParentOptionsResponse {
   admin: MenuParentOption[];
   tenant: MenuParentOption[];
 }
 
+/** Menu override item / 菜单覆盖项 */
 export interface MenuOverrideItem {
   name: string;
   parent: string;
   tenant_parent?: string;
 }
 
+/** Get menu parent options / 获取菜单父级选项 */
 export function getMenuParentOptionsApi() {
   return requestClient.get<MenuParentOptionsResponse>(
     `${BASE_URL}/menu-parent-options`,
   );
 }
 
+/** Update plugin menu config / 更新插件菜单配置 */
 export function updatePluginMenuConfigApi(
   id: number,
   menuOverrides: MenuOverrideItem[],
@@ -172,8 +182,9 @@ export function updatePluginMenuConfigApi(
   });
 }
 
-// ── 启用/禁用/卸载/修复 ──
+// ── Enable/Disable/Uninstall/Repair / 启用/禁用/卸载/修复 ──
 
+/** Enable plugin / 启用插件 */
 export function enablePluginApi(
   id: number,
   menuOverrides?: MenuOverrideItem[],
@@ -185,14 +196,17 @@ export function enablePluginApi(
   );
 }
 
+/** Disable plugin / 禁用插件 */
 export function disablePluginApi(id: number, force = false) {
   return requestClient.post(`${BASE_URL}/${id}/disable`, null, {
     params: force ? { force: true } : undefined,
-    // 当不是强制禁用时，关闭自动 toast，改由 onDisable 处理强制禁用确认弹框
+    // When not force-disabling, disable auto toast, let onDisable handle force-disable confirm dialog
+    // 当不是强制禁用时，关闭自动 toast
     showCodeMessage: force,
   });
 }
 
+/** Install plugin dependencies / 安装插件依赖 */
 export function installPluginDependenciesApi(
   id: number,
   payload: { force?: boolean; npm?: boolean; python?: boolean } = {},
@@ -202,6 +216,7 @@ export function installPluginDependenciesApi(
   });
 }
 
+/** Uninstall plugin dependencies / 卸载插件依赖 */
 export function uninstallPluginDependenciesApi(
   id: number,
   payload: { force?: boolean; npm?: boolean; python?: boolean } = {},
@@ -215,6 +230,7 @@ export function uninstallPluginDependenciesApi(
   );
 }
 
+/** Uninstall plugin / 卸载插件 */
 export function uninstallPluginApi(
   id: number,
   confirmDataDelete = false,
@@ -229,18 +245,21 @@ export function uninstallPluginApi(
   });
 }
 
+/** Repair plugin / 修复插件 */
 export function repairPluginApi(id: number) {
   return requestClient.post(`${BASE_URL}/${id}/repair`, undefined, {
     timeout: 300_000,
   });
 }
 
+/** Force cleanup plugin / 强制清理插件 */
 export function forceCleanupPluginApi(id: number) {
   return requestClient.delete(`${BASE_URL}/${id}/force-cleanup`);
 }
 
-// ── 配置 ──
+// ── Config / 配置 ──
 
+/** Update plugin config / 更新插件配置 */
 export function updatePluginConfigApi(
   id: number,
   config: Record<string, unknown>,
@@ -248,6 +267,7 @@ export function updatePluginConfigApi(
   return requestClient.put(`${BASE_URL}/${id}/config`, { config });
 }
 
+/** Update plugin capabilities / 更新插件能力 */
 export function updatePluginCapabilitiesApi(
   id: number,
   capabilities: string[],
@@ -255,58 +275,67 @@ export function updatePluginCapabilitiesApi(
   return requestClient.put(`${BASE_URL}/${id}/capabilities`, { capabilities });
 }
 
-// ── 图标 ──
+// ── Icon / 图标 ──
 
+/** Upload plugin icon / 上传插件图标 */
 export function uploadPluginIconApi(id: number, file: File) {
   const formData = new FormData();
   formData.append('file', file);
   return requestClient.post(`${BASE_URL}/${id}/icon`, formData);
 }
 
-// ── 版本 ──
+// ── Version / 版本 ──
 
+/** Get plugin versions / 获取插件版本列表 */
 export function getPluginVersionsApi(id: number) {
   return requestClient.get<PluginVersionInfo[]>(`${BASE_URL}/${id}/versions`);
 }
 
+/** Upgrade plugin / 升级插件 */
 export function upgradePluginApi(id: number, file: File) {
   const formData = new FormData();
   formData.append('file', file);
   return requestClient.post(`${BASE_URL}/${id}/upgrade`, formData);
 }
 
+/** Rollback plugin / 回滚插件 */
 export function rollbackPluginApi(id: number, targetVersion: string) {
   return requestClient.post(`${BASE_URL}/${id}/rollback`, {
     target_version: targetVersion,
   });
 }
 
-// ── 租户分配 ──
+// ── Tenant assignment / 租户分配 ──
 
+/** Get plugin tenants / 获取插件租户分配 */
 export function getPluginTenantsApi(id: number) {
   return requestClient.get<PluginTenantAssignmentInfo[]>(
     `${BASE_URL}/${id}/tenants`,
   );
 }
 
+/** Assign plugin to tenants / 分配插件到租户 */
 export function assignPluginTenantsApi(id: number, tenantIds: number[]) {
   return requestClient.post(`${BASE_URL}/${id}/tenants`, {
     tenant_ids: tenantIds,
   });
 }
 
+/** Unassign plugin from tenant / 取消分配插件 */
 export function unassignPluginTenantApi(id: number, tenantId: number) {
   return requestClient.delete(`${BASE_URL}/${id}/tenants/${tenantId}`);
 }
 
-// ── AI 功能 ──
+// ── AI features / AI 功能 ──
 
+/** Get plugin AI features / 获取插件 AI 功能 */
 export function getPluginAIFeaturesApi(id: number) {
   return requestClient.get<PluginAIFeatureInfo[]>(
     `${BASE_URL}/${id}/ai-features`,
   );
 }
 
+/** Bind plugin AI feature / 绑定插件 AI 功能 */
 export function bindPluginAIFeatureApi(
   id: number,
   assignmentId: number,
@@ -336,34 +365,40 @@ export interface PluginLicenseInfo {
   trial_days_remaining?: number;
 }
 
+/** Get plugin license / 获取插件许可证 */
 export function getPluginLicenseApi(id: number) {
   return requestClient.get<PluginLicenseInfo>(`${BASE_URL}/${id}/license`);
 }
 
+/** Activate plugin license / 激活插件许可证 */
 export function activatePluginLicenseApi(id: number, licenseKey: string) {
   return requestClient.post(`${BASE_URL}/${id}/activate-license`, {
     license_key: licenseKey,
   });
 }
 
+/** Activate plugin trial / 激活插件试用 */
 export function activatePluginTrialApi(id: number) {
   return requestClient.post<PluginLicenseInfo>(
     `${BASE_URL}/${id}/activate-trial`,
   );
 }
 
+/** Revoke plugin license / 撤销插件许可证 */
 export function revokePluginLicenseApi(id: number) {
   return requestClient.delete(`${BASE_URL}/${id}/license`);
 }
 
-// ── 健康 ──
+// ── Health / 健康 ──
 
+/** Get plugin health / 获取插件健康状态 */
 export function getPluginHealthApi(id: number) {
   return requestClient.get<PluginHealthInfo>(`${BASE_URL}/${id}/health`);
 }
 
-// ── 前端插槽 ──
+// ── Frontend slots / 前端插槽 ──
 
+/** Plugin slot data / 插件插槽数据 */
 export interface PluginSlotData {
   slot_type: string;
   plugin_name: string;
@@ -381,6 +416,7 @@ export interface PluginSlotData {
   [key: string]: unknown;
 }
 
+/** Plugin slots response / 插件插槽响应 */
 export interface PluginSlotsResponse {
   header_widgets: PluginSlotData[];
   dashboard_widgets: PluginSlotData[];
@@ -391,12 +427,14 @@ export interface PluginSlotsResponse {
   plugin_styles?: Record<string, string[]>;
 }
 
+/** Get plugin slots / 获取插件插槽 */
 export function getPluginSlotsApi() {
   return requestClient.get<PluginSlotsResponse>(`${BASE_URL}/slots`);
 }
 
-// ── 备份 ──
+// ── Backup / 备份 ──
 
+/** Plugin backup info / 插件备份信息 */
 export interface PluginBackupInfo {
   name: string;
   version: string;
@@ -406,10 +444,12 @@ export interface PluginBackupInfo {
   has_config: boolean;
 }
 
+/** List plugin backups / 获取插件备份列表 */
 export function listPluginBackupsApi(id: number) {
   return requestClient.get<PluginBackupInfo[]>(`${BASE_URL}/${id}/backups`);
 }
 
+/** Delete plugin backup / 删除插件备份 */
 export function deletePluginBackupApi(id: number, backupName: string) {
   return requestClient.delete(`${BASE_URL}/${id}/backups/${backupName}`);
 }

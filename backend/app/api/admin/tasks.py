@@ -1,7 +1,8 @@
 """
-任务管理 API
+任务管理 API / Task Management API
 
 提供异步任务的查询、重试、取消等管理接口（平台管理员专用）
+Provides async task query, retry, cancel and other management endpoints (platform admin only)
 """
 
 from datetime import timedelta
@@ -45,9 +46,10 @@ from app.services.system import TaskLogService, TaskManagerService
 )
 class AdminTaskController(GlobalController):
     """
-    任务管理控制器
+    任务管理控制器 / Task Management Controller
 
     提供任务日志查询、统计、重试、取消等接口
+    Provides task log query, statistics, retry, cancel and other endpoints
     """
 
     prefix = "/tasks"

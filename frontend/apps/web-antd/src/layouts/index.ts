@@ -1,3 +1,7 @@
+/**
+ * Layout components unified export
+ * 布局组件统一导出
+ */
 const BasicLayout = () => import('./basic.vue');
 const AuthPageLayout = () => import('./auth.vue');
 const UserAuthLayout = () => import('./user-auth.vue');

@@ -1,11 +1,12 @@
 """
-Tenant 数据分析 API
+Tenant 数据分析 API / Tenant Analytics API
 
 提供 Tenant 端 ECharts 图表所需的聚合分析数据端点：
-- 调用趋势（折线/面积图）
-- 模型分布（饼图）
-- Agent 调用排行（柱状图）
-- 费用趋势（折线图）
+Provides aggregated analytics data endpoints for Tenant ECharts charts:
+- 调用趋势（折线/面积图） / Call trend (line/area chart)
+- 模型分布（饼图） / Model distribution (pie chart)
+- Agent 调用排行（柱状图） / Agent call ranking (bar chart)
+- 费用趋势（折线图） / Cost trend (line chart)
 """
 
 from datetime import date
@@ -28,7 +29,7 @@ async def get_call_trend(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """按天聚合：调用量/Token/费用/成功/失败"""
+    """按天聚合：调用量/Token/费用/成功/失败 / Daily aggregation: calls/tokens/cost/success/failure"""
     svc = TenantAnalyticsService(db, admin.tenant_id)
     data = await svc.get_call_trend(start_date, end_date)
     return success(data=data)
@@ -42,7 +43,7 @@ async def get_model_distribution(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """模型调用次数/Token/费用分布（饼图）"""
+    """模型调用次数/Token/费用分布（饼图） / Model call count/token/cost distribution (pie chart)"""
     svc = TenantAnalyticsService(db, admin.tenant_id)
     data = await svc.get_model_distribution(start_date, end_date)
     return success(data=data)
@@ -57,7 +58,7 @@ async def get_agent_ranking(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """Agent Top N 调用量/Token/费用排行（柱状图）"""
+    """Agent Top N 调用量/Token/费用排行（柱状图） / Agent Top N calls/tokens/cost ranking (bar chart)"""
     svc = TenantAnalyticsService(db, admin.tenant_id)
     data = await svc.get_agent_ranking(top_n, start_date, end_date)
     return success(data=data)
@@ -71,7 +72,7 @@ async def get_cost_trend(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """按天聚合费用趋势"""
+    """按天聚合费用趋势 / Daily aggregated cost trend"""
     svc = TenantAnalyticsService(db, admin.tenant_id)
     data = await svc.get_cost_trend(start_date, end_date)
     return success(data=data)

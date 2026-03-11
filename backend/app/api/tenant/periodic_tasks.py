@@ -1,7 +1,8 @@
 """
-租户端定时任务管理 API
+租户端定时任务管理 API / Tenant Periodic Task Management API
 
 提供租户端定时任务 CRUD、启停、手动触发接口（自动按 tenant_id 过滤）
+Provides tenant periodic task CRUD, toggle, manual trigger endpoints (auto-filtered by tenant_id)
 """
 
 from fastapi import Request
@@ -42,7 +43,7 @@ from app.services.tenant.periodic_task_service import TenantPeriodicTaskService
 )
 class TenantPeriodicTaskController(TenantController):
     """
-    租户端定时任务控制器
+    租户端定时任务控制器 / Tenant Periodic Task Controller
     """
 
     prefix = "/periodic-tasks"

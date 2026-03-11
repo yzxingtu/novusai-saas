@@ -1,15 +1,18 @@
 /**
+ * Schema Helper Functions
  * Schema 辅助函数
  *
+ * Provides simplified configuration for common form fields, reducing boilerplate code.
  * 提供常用表单字段的简化配置，减少重复代码。
  *
  * @example
  * ```ts
  * import { searchInput, statusSelect } from '#/adapter/form';
+ * // Business-specific helpers (e.g. planSelect) should be defined in business code
  * // 业务特定的 helper (如 planSelect) 应在业务代码中定义
  * import { planSelect } from './data';
  *
- * // 搜索表单
+ * // Search form / 搜索表单
  * export function useGridFormSchema() {
  *   return [
  *     searchInput('code', '租户编码'),
@@ -19,7 +22,7 @@
  *   ];
  * }
  *
- * // 编辑表单
+ * // Edit form / 编辑表单
  * export function useFormSchema() {
  *   return [
  *     planSelect({ fieldName: 'plan_id', label: '所属套餐' }),
@@ -36,86 +39,88 @@ import dayjs from 'dayjs';
 
 import { $t } from '#/locales';
 
-// ============ 类型定义 ============
+// ============ Type Definitions / 类型定义 ============
 
-/** ApiSelect 简化配置 */
+/** ApiSelect simplified config / ApiSelect 简化配置 */
 export interface ApiSelectOptions {
-  /** API 函数 */
+  /** API function / API 函数 */
   api: (...args: any[]) => Promise<any>;
-  /** 字段名 */
+  /** Field name / 字段名 */
   fieldName: string;
-  /** 标签 */
+  /** Label / 标签 */
   label?: string;
-  /** 占位符 */
+  /** Placeholder / 占位符 */
   placeholder?: string;
-  /** 固定参数 */
+  /** Fixed params / 固定参数 */
   params?: Record<string, any>;
-  /** 选项右侧显示字段，支持点表语法如 'extra.code' */
+  /** Option right-side display field, supports dot notation e.g. 'extra.code' / 选项右侧显示字段，支持点表语法如 'extra.code' */
   extraField?: string;
-  /** 每页数量，默认 10 */
+  /** Page size, default 10 / 每页数量，默认 10 */
   pageSize?: number;
-  /** 是否启用点击分页，默认 true */
+  /** Enable click pagination, default true / 是否启用点击分页，默认 true */
   clickPagination?: boolean;
-  /** 是否必填 */
+  /** Required / 是否必填 */
   required?: boolean;
 }
 
-/** 搜索输入框配置 */
+/** Search input config / 搜索输入框配置 */
 export interface SearchInputOptions {
-  /** 字段名（snake_case，不含 filter 前缀） */
+  /** Field name (snake_case, without filter prefix) / 字段名（snake_case，不含 filter 前缀） */
   field: string;
-  /** 标签 */
+  /** Label / 标签 */
   label: string;
-  /** 占位符 */
+  /** Placeholder / 占位符 */
   placeholder?: string;
-  /** 操作符，默认 'ilike' */
+  /** Operator, default 'ilike' / 操作符，默认 'ilike' */
   op?: 'eq' | 'ilike' | 'like';
 }
 
-/** 状态选择器配置 */
+/** Status selector config / 状态选择器配置 */
 export interface StatusSelectOptions {
-  /** 字段名（不含 filter 前缀），默认 'is_active' */
+  /** Field name (without filter prefix), default 'is_active' / 字段名（不含 filter 前缀），默认 'is_active' */
   field?: string;
-  /** 标签，默认 '状态' */
+  /** Label, default 'Status' / 标签，默认 '状态' */
   label?: string;
-  /** 启用选项文本 */
+  /** Enabled option text / 启用选项文本 */
   enabledLabel?: string;
-  /** 禁用选项文本 */
+  /** Disabled option text / 禁用选项文本 */
   disabledLabel?: string;
-  /** 全部选项文本 */
+  /** All option text / 全部选项文本 */
   allLabel?: string;
 }
 
 /**
- * 通用选择器配置
- * 支持远程 API 和静态 Options 自动切换
+ * General selector config, supports auto-switching between remote API and static options
+ * 通用选择器配置，支持远程 API 和静态 Options 自动切换
  */
 export interface SelectOptions extends Omit<
   ApiSelectOptions,
   'api' | 'fieldName'
 > {
-  /** 远程 API */
+  /** Remote API / 远程 API */
   api?: (...args: any[]) => Promise<any>;
-  /** 静态选项 */
+  /** Static options / 静态选项 */
   options?:
     | number[]
     | string[]
     | { [key: string]: any; label: string; value: any }[];
-  /** 字段名（可选，如果作为参数传入） */
+  /** Field name (optional, if passed as parameter) / 字段名（可选，如果作为参数传入） */
   fieldName?: string;
 }
 
 /**
+ * Unified selector (Modern)
  * 统一选择器 (Modern)
  *
+ * Smart detection of remote vs static selector, hiding component differences.
  * 智能判断使用远程还是静态选择器，屏蔽组件差异。
  *
  * @example
  * ```ts
- * // 1. 远程下拉
+ * // 1. Remote dropdown / 远程下拉
  * select('plan_id', '套餐', { api: getPlanApi })
  *
- * // 2. 静态下拉 (对象数组)
+ * // 2. Static dropdown (object array) / 静态下拉 (对象数组)
  * select('gender', '性别', {
  *   options: [
  *     { label: '男', value: 1 },
@@ -123,7 +128,7 @@ export interface SelectOptions extends Omit<
  *   ]
  * })
  *
- * // 3. 静态下拉 (简单数组 -> 自动转 label=value)
+ * // 3. Static dropdown (simple array -> auto-convert to label=value) / 静态下拉 (简单数组 -> 自动转 label=value)
  * select('tags', '标签', { options: ['Vue', 'React'] })
  * ```
  */
@@ -134,7 +139,7 @@ export function select(
 ): VbenFormSchema {
   const { api, options: staticOptions, ...rest } = options;
 
-  // 1. 如果有 API，使用 ApiSelect
+  // 1. If API provided, use ApiSelect / 如果有 API，使用 ApiSelect
   if (api) {
     return apiSelect({
       api,
@@ -144,7 +149,7 @@ export function select(
     });
   }
 
-  // 2. 如果是静态 Options，使用 Select
+  // 2. If static options, use Select / 如果是静态 Options，使用 Select
   let normalizedOptions: { label: string; value: any }[] = [];
   if (staticOptions) {
     normalizedOptions =
@@ -166,7 +171,7 @@ export function select(
       placeholder: placeholder || `请选择${label}`,
       options: normalizedOptions,
       showSearch: true,
-      optionFilterProp: 'label', // 允许按 label 搜索
+      optionFilterProp: 'label', // Allow searching by label / 允许按 label 搜索
       ...componentProps,
     },
     fieldName: field,
@@ -176,23 +181,23 @@ export function select(
 }
 
 /**
- * 树形选择器配置
+ * Tree select config / 树形选择器配置
  */
 export interface TreeSelectOptions extends Omit<
   ApiSelectOptions,
   'api' | 'fieldName'
 > {
-  /** 远程 API */
+  /** Remote API / 远程 API */
   api?: (...args: any[]) => Promise<any>;
-  /** 静态树数据 */
+  /** Static tree data / 静态树数据 */
   options?: any[];
-  /** 字段名 */
+  /** Field name / 字段名 */
   fieldName?: string;
 }
 
 /**
- * 通用树形选择器
- * 自动判断使用 ApiTreeSelect 或 TreeSelect
+ * General tree select, auto-detects ApiTreeSelect or TreeSelect
+ * 通用树形选择器，自动判断使用 ApiTreeSelect 或 TreeSelect
  */
 export function treeSelect(
   field: string,
@@ -230,7 +235,7 @@ export function treeSelect(
 }
 
 /**
- * 创建 ApiTreeSelect schema
+ * Create ApiTreeSelect schema / 创建 ApiTreeSelect schema
  */
 export function apiTreeSelect(options: ApiSelectOptions): VbenFormSchema {
   const {
@@ -259,9 +264,10 @@ export function apiTreeSelect(options: ApiSelectOptions): VbenFormSchema {
   };
 }
 
-// ============ 核心辅助函数 ============
+// ============ Core Helper Functions / 核心辅助函数 ============
 
 /**
+ * Create ApiSelect schema (general)
  * 创建 ApiSelect schema（通用）
  *
  * @example
@@ -316,8 +322,10 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
 }
 
 /**
+ * Create search input schema
  * 创建搜索输入框 schema
  *
+ * Automatically adds JSON:API format field name
  * 自动添加 JSON:API 格式的字段名
  *
  * @example
@@ -336,7 +344,7 @@ export function searchInput(
 ): VbenFormSchema {
   const { placeholder, op = 'ilike' } = options;
 
-  // 构造 JSON:API 格式的字段名
+  // Build JSON:API format field name / 构造 JSON:API 格式的字段名
   const fieldName =
     op === 'eq' ? `filter[${field}]` : `filter[${field}][${op}]`;
 
@@ -352,6 +360,7 @@ export function searchInput(
 }
 
 /**
+ * Create status selector schema
  * 创建状态选择器 schema
  *
  * @example
@@ -390,6 +399,7 @@ export function statusSelect(
 }
 
 /**
+ * Create date-time picker schema
  * 创建日期时间选择器 schema
  *
  * @example
@@ -413,7 +423,7 @@ export function dateField(
   const componentProps: Record<string, any> = {
     class: 'w-full',
     placeholder: placeholder || `选择${label}`,
-    // showTime 配置(如果需要显示时间选择器)
+    // showTime config (if time picker needs to be shown) / showTime 配置(如果需要显示时间选择器)
     ...(showTime
       ? {
           showTime: {
@@ -433,30 +443,31 @@ export function dateField(
   };
 }
 
-/** 日期范围搜索配置 */
+/** Date range search config / 日期范围搜索配置 */
 export interface SearchDateRangeOptions {
-  /** 开始日期字段名，默认 'created_at' */
+  /** Start date field name, default 'created_at' / 开始日期字段名，默认 'created_at' */
   field?: string;
-  /** 标签 */
+  /** Label / 标签 */
   label?: string;
-  /** 占位符 [start, end] */
+  /** Placeholder [start, end] / 占位符 [start, end] */
   placeholder?: [string, string];
-  /** 是否显示时间，默认 true */
+  /** Whether to show time, default true / 是否显示时间，默认 true */
   showTime?: boolean;
-  /** 是否显示快捷选项，默认 true */
+  /** Whether to show preset shortcuts, default true / 是否显示快捷选项，默认 true */
   showPresets?: boolean;
 }
 
 /**
+ * Get date range preset shortcuts (using dayjs objects)
  * 获取日期范围快捷选项（使用 dayjs 对象）
- * @param withTime 是否包含时间（开始 00:00:00，结束 23:59:59）
+ * @param withTime Whether to include time (start 00:00:00, end 23:59:59) / 是否包含时间（开始 00:00:00，结束 23:59:59）
  */
 function getDateRangePresets(
   withTime = false,
 ): Array<{ label: string; value: [Dayjs, Dayjs] }> {
   const today = dayjs().startOf('day');
 
-  // 根据是否显示时间，设置开始和结束时间
+  // Set start and end time based on whether to show time / 根据是否显示时间，设置开始和结束时间
   const toStart = (d: Dayjs): Dayjs =>
     withTime ? d.startOf('day') : d.startOf('day');
   const toEnd = (d: Dayjs): Dayjs =>
@@ -498,9 +509,12 @@ function getDateRangePresets(
 }
 
 /**
+ * Create date range search schema
  * 创建日期范围搜索 schema
  *
+ * Auto-converts to JSON:API format filter params.
  * 自动转换为 JSON:API 格式的 filter 参数
+ * Default shows time picker, start 00:00:00, end 23:59:59
  * 默认显示时间选择器，开始时间 00:00:00，结束时间 23:59:59
  *
  * @example
@@ -548,6 +562,7 @@ export function searchDateRange(
 }
 
 /**
+ * Create text input schema
  * 创建文本输入框 schema
  *
  * @example
@@ -586,6 +601,7 @@ export function inputField(
 }
 
 /**
+ * Create textarea schema
  * 创建多行文本框 schema
  */
 export function textareaField(
@@ -614,6 +630,7 @@ export function textareaField(
 }
 
 /**
+ * Create number input schema
  * 创建数字输入框 schema
  *
  * @example
@@ -660,6 +677,7 @@ export function numberField(
 }
 
 /**
+ * Create switch schema
  * 创建开关 schema
  *
  * @example
@@ -683,6 +701,7 @@ export function switchField(
 }
 
 /**
+ * Create divider schema (for form grouping)
  * 创建分隔线 schema (用于表单分组)
  *
  * @example
@@ -705,8 +724,10 @@ export function dividerField(fieldName: string, label: string): VbenFormSchema {
 }
 
 /**
+ * Create icon selector schema
  * 创建图标选择器 schema
  *
+ * Uses custom component, supports IconPicker modal selection
  * 使用自定义组件，支持 IconPicker 弹窗选择
  *
  * @example
@@ -732,6 +753,8 @@ export function iconField(
   };
 }
 
-// ============ 业务预设 ============
+// ============ Business Presets / 业务预设 ============
+// Note: Business-specific helpers (e.g. planSelect) should be defined in business code,
 // 注意：业务特定的 helper (如 planSelect) 应在业务代码中定义，
+// to avoid Adapter layer depending on specific business APIs.
 // 避免 Adapter 层依赖具体业务 API。

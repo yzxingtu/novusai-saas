@@ -1,7 +1,8 @@
 """
-AI 表策略模型
+AI 表策略模型 / AI Table Policy Model
 
 管理 AI 智能体对数据库表的访问策略：
+Manages AI agent access policies for database tables:
 - 表级 CRUD 权限开关
 - 单次查询行数限制
 - 列级可见性控制（屏蔽列 / 只读列）

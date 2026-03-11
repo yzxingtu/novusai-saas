@@ -1,16 +1,16 @@
 /**
- * AI 智能体管理 API（平台级）
- * 对接后端 /admin/ai/agents 接口
+ * AI agent management API (platform level) / AI 智能体管理 API（平台级）
+ * Backend: /admin/ai/agents
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - 智能体管理
+// Type definitions - Agent management / 类型定义 - 智能体管理
 // ============================================================
 
-/** 智能体信息 */
+/** Agent info / 智能体信息 */
 export interface AIAgentInfo {
   id: number;
   tenant_id: null | number;
@@ -42,7 +42,7 @@ export interface AIAgentInfo {
   updated_at: string;
 }
 
-/** 创建智能体请求 */
+/** Create agent request / 创建智能体请求 */
 export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
@@ -58,7 +58,7 @@ export interface AIAgentCreateRequest {
   knowledge_base_ids?: number[];
 }
 
-/** 更新智能体请求 */
+/** Update agent request / 更新智能体请求 */
 export interface AIAgentUpdateRequest {
   name?: string;
   description?: null | string;
@@ -81,7 +81,7 @@ export interface AIAgentUpdateRequest {
   knowledge_base_ids?: number[];
 }
 
-/** 智能体记忆配置（管理端） */
+/** Agent memory config (admin) / 智能体记忆配置（管理端） */
 export interface AIAgentMemoryConfig {
   agent_id: number;
   platform_default_memory_enabled: boolean;
@@ -90,16 +90,16 @@ export interface AIAgentMemoryConfig {
   effective_memory_enabled: boolean;
 }
 
-/** 更新智能体记忆开关请求（管理端） */
+/** Update agent memory toggle request (admin) / 更新智能体记忆开关请求 */
 export interface AIAgentMemoryUpdateRequest {
   enabled: boolean;
 }
 
 // ============================================================
-// 类型定义 - 智能体技能绑定
+// Type definitions - Agent skill bindings / 类型定义 - 智能体技能绑定
 // ============================================================
 
-/** 技能绑定信息 */
+/** Skill binding info / 技能绑定信息 */
 export interface AIAgentSkillBindingInfo {
   id: null | number;
   agent_id: number;
@@ -111,12 +111,12 @@ export interface AIAgentSkillBindingInfo {
   is_auto_bound: boolean;
   package_name: null | string;
   package_description: null | string;
-  package_scope: null | string;
+  package_target_audience: null | string;
   package_bind_mode: string;
   package_is_system: boolean;
 }
 
-/** 绑定技能包请求 */
+/** Bind skill package request / 绑定技能包请求 */
 export interface AIAgentSkillBindRequest {
   package_id: number;
   config_override?: null | Record<string, unknown>;
@@ -124,13 +124,13 @@ export interface AIAgentSkillBindRequest {
   consent_mode?: string;
 }
 
-/** 批量绑定请求 */
+/** Batch bind request / 批量绑定请求 */
 export interface AIAgentSkillBatchBindRequest {
   package_ids: number[];
   consent_modes?: Record<string, string>;
 }
 
-/** 更新绑定请求 */
+/** Update binding request / 更新绑定请求 */
 export interface AIAgentSkillBindingUpdateRequest {
   enabled?: boolean | null;
   config_override?: null | Record<string, unknown>;
@@ -140,7 +140,7 @@ export interface AIAgentSkillBindingUpdateRequest {
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -151,12 +151,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - 智能体管理（平台）
+// API - Agent management (platform) / API 接口 - 智能体管理（平台）
 // ============================================================
 
 const AGENT_PREFIX = '/admin/ai/agents';
 
-/** 获取智能体列表 */
+/** Get agent list / 获取智能体列表 */
 export async function getAIAgentListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -167,7 +167,7 @@ export async function getAIAgentListApi(
   });
 }
 
-/** 获取智能体详情 */
+/** Get agent detail / 获取智能体详情 */
 export async function getAIAgentDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -175,7 +175,7 @@ export async function getAIAgentDetailApi(
   return requestClient.get<AIAgentInfo>(`${AGENT_PREFIX}/${id}`, options);
 }
 
-/** 更新智能体状态 */
+/** Update agent status / 更新智能体状态 */
 export async function updateAIAgentStatusApi(
   id: number,
   status: string,
@@ -188,7 +188,7 @@ export async function updateAIAgentStatusApi(
   );
 }
 
-/** 创建智能体 */
+/** Create agent / 创建智能体 */
 export async function createAIAgentApi(
   data: AIAgentCreateRequest,
   options?: ApiRequestOptions,
@@ -196,7 +196,7 @@ export async function createAIAgentApi(
   return requestClient.post<AIAgentInfo>(AGENT_PREFIX, data, options);
 }
 
-/** 更新智能体 */
+/** Update agent / 更新智能体 */
 export async function updateAIAgentApi(
   id: number,
   data: AIAgentUpdateRequest,
@@ -205,7 +205,7 @@ export async function updateAIAgentApi(
   return requestClient.put<AIAgentInfo>(`${AGENT_PREFIX}/${id}`, data, options);
 }
 
-/** 删除智能体 */
+/** Delete agent / 删除智能体 */
 export async function deleteAIAgentApi(
   id: number,
   options?: ApiRequestOptions,
@@ -213,7 +213,7 @@ export async function deleteAIAgentApi(
   await requestClient.delete(`${AGENT_PREFIX}/${id}`, options);
 }
 
-/** 获取智能体记忆配置 */
+/** Get agent memory config / 获取智能体记忆配置 */
 export async function getAIAgentMemoryConfigApi(
   id: number,
   options?: ApiRequestOptions,
@@ -224,7 +224,7 @@ export async function getAIAgentMemoryConfigApi(
   );
 }
 
-/** 更新智能体记忆开关 */
+/** Update agent memory toggle / 更新智能体记忆开关 */
 export async function updateAIAgentMemoryConfigApi(
   id: number,
   data: AIAgentMemoryUpdateRequest,
@@ -238,10 +238,10 @@ export async function updateAIAgentMemoryConfigApi(
 }
 
 // ============================================================
-// API 接口 - 智能体技能绑定（平台）
+// API - Agent skill bindings (platform) / API 接口 - 智能体技能绑定（平台）
 // ============================================================
 
-/** 获取智能体技能绑定列表 */
+/** Get agent skill binding list / 获取智能体技能绑定列表 */
 export async function getAIAgentSkillsApi(
   agentId: number,
 ): Promise<AIAgentSkillBindingInfo[]> {
@@ -250,7 +250,7 @@ export async function getAIAgentSkillsApi(
   );
 }
 
-/** 绑定技能包到智能体 */
+/** Bind skill package to agent / 绑定技能包到智能体 */
 export async function bindAIAgentSkillApi(
   agentId: number,
   data: AIAgentSkillBindRequest,
@@ -261,7 +261,7 @@ export async function bindAIAgentSkillApi(
   );
 }
 
-/** 批量绑定技能包（替换模式） */
+/** Batch bind skill packages (replace mode) / 批量绑定技能包（替换模式） */
 export async function batchBindAIAgentSkillsApi(
   agentId: number,
   data: AIAgentSkillBatchBindRequest,
@@ -272,7 +272,7 @@ export async function batchBindAIAgentSkillsApi(
   );
 }
 
-/** 更新技能绑定配置 */
+/** Update skill binding config / 更新技能绑定配置 */
 export async function updateAIAgentSkillBindingApi(
   agentId: number,
   bindingId: number,
@@ -284,7 +284,7 @@ export async function updateAIAgentSkillBindingApi(
   );
 }
 
-/** 解绑技能包 */
+/** Unbind skill package / 解绑技能包 */
 export async function unbindAIAgentSkillApi(
   agentId: number,
   packageId: number,
@@ -293,10 +293,10 @@ export async function unbindAIAgentSkillApi(
 }
 
 // ============================================================
-// 类型定义 - 智能体知识库绑定
+// Type definitions - Agent KB bindings / 类型定义 - 智能体知识库绑定
 // ============================================================
 
-/** 知识库绑定信息 */
+/** KB binding info / 知识库绑定信息 */
 export interface AIAgentKBBindingInfo {
   id: number;
   agent_id: number;
@@ -311,7 +311,7 @@ export interface AIAgentKBBindingInfo {
   kb_document_count: number | null;
 }
 
-/** 绑定知识库请求 */
+/** Bind KB request / 绑定知识库请求 */
 export interface AIAgentKBBindRequest {
   knowledge_base_id: number;
   weight?: number;
@@ -319,12 +319,12 @@ export interface AIAgentKBBindRequest {
   enabled?: boolean;
 }
 
-/** 批量绑定知识库请求 */
+/** Batch bind KB request / 批量绑定知识库请求 */
 export interface AIAgentKBBatchBindRequest {
   knowledge_base_ids: number[];
 }
 
-/** 更新知识库绑定请求 */
+/** Update KB binding request / 更新知识库绑定请求 */
 export interface AIAgentKBBindingUpdateRequest {
   weight?: number | null;
   enabled?: boolean | null;
@@ -332,10 +332,10 @@ export interface AIAgentKBBindingUpdateRequest {
 }
 
 // ============================================================
-// API 接口 - 智能体知识库绑定（平台）
+// API - Agent KB bindings (platform) / API 接口 - 智能体知识库绑定（平台）
 // ============================================================
 
-/** 获取智能体知识库绑定列表 */
+/** Get agent KB binding list / 获取智能体知识库绑定列表 */
 export async function getAIAgentKBsApi(
   agentId: number,
 ): Promise<AIAgentKBBindingInfo[]> {
@@ -344,7 +344,7 @@ export async function getAIAgentKBsApi(
   );
 }
 
-/** 绑定知识库到智能体 */
+/** Bind KB to agent / 绑定知识库到智能体 */
 export async function bindAIAgentKBApi(
   agentId: number,
   data: AIAgentKBBindRequest,
@@ -355,7 +355,7 @@ export async function bindAIAgentKBApi(
   );
 }
 
-/** 批量绑定知识库（替换模式） */
+/** Batch bind KBs (replace mode) / 批量绑定知识库（替换模式） */
 export async function batchBindAIAgentKBsApi(
   agentId: number,
   data: AIAgentKBBatchBindRequest,
@@ -366,7 +366,7 @@ export async function batchBindAIAgentKBsApi(
   );
 }
 
-/** 更新知识库绑定配置 */
+/** Update KB binding config / 更新知识库绑定配置 */
 export async function updateAIAgentKBBindingApi(
   agentId: number,
   bindingId: number,
@@ -378,7 +378,7 @@ export async function updateAIAgentKBBindingApi(
   );
 }
 
-/** 解绑知识库 */
+/** Unbind KB / 解绑知识库 */
 export async function unbindAIAgentKBApi(
   agentId: number,
   knowledgeBaseId: number,
@@ -389,10 +389,10 @@ export async function unbindAIAgentKBApi(
 }
 
 // ============================================================
-// API 接口 - 发布 / 版本管理
+// API - Publish / version management / API 接口 - 发布 / 版本管理
 // ============================================================
 
-/** 版本列表项 */
+/** Version list item / 版本列表项 */
 export interface AIAgentVersionItem {
   id: number;
   agent_id: number;
@@ -403,7 +403,7 @@ export interface AIAgentVersionItem {
   created_at: string;
 }
 
-/** 发布智能体 */
+/** Publish agent / 发布智能体 */
 export async function publishAIAgentApi(
   agentId: number,
   data: { change_log?: null | string },
@@ -414,7 +414,7 @@ export async function publishAIAgentApi(
   );
 }
 
-/** 回滚智能体 */
+/** Rollback agent / 回滚智能体 */
 export async function rollbackAIAgentApi(
   agentId: number,
   version: number,
@@ -425,7 +425,7 @@ export async function rollbackAIAgentApi(
   );
 }
 
-/** 获取版本历史 */
+/** Get version history / 获取版本历史 */
 export async function getAIAgentVersionsApi(
   agentId: number,
 ): Promise<AIAgentVersionItem[]> {
@@ -434,7 +434,7 @@ export async function getAIAgentVersionsApi(
   );
 }
 
-/** 获取版本详情 */
+/** Get version detail / 获取版本详情 */
 export async function getAIAgentVersionDetailApi(
   agentId: number,
   version: number,
@@ -445,10 +445,10 @@ export async function getAIAgentVersionDetailApi(
 }
 
 // ============================================================
-// API 接口 - 访问权限配置
+// API - Access permission config / API 接口 - 访问权限配置
 // ============================================================
 
-/** 访问权限配置 */
+/** Access permission config / 访问权限配置 */
 export interface AIAgentAccessConfig {
   agent_id: number;
   admin_role_ids: null | number[];
@@ -456,7 +456,7 @@ export interface AIAgentAccessConfig {
   user_role_ids: null | number[];
 }
 
-/** 获取访问权限配置 */
+/** Get access permission config / 获取访问权限配置 */
 export async function getAIAgentAccessApi(
   agentId: number,
 ): Promise<AIAgentAccessConfig> {
@@ -465,7 +465,7 @@ export async function getAIAgentAccessApi(
   );
 }
 
-/** 更新访问权限配置 */
+/** Update access permission config / 更新访问权限配置 */
 export async function updateAIAgentAccessApi(
   agentId: number,
   data: {
@@ -481,10 +481,10 @@ export async function updateAIAgentAccessApi(
 }
 
 // ============================================================
-// API 接口 - 回收站
+// API - Recycle bin / API 接口 - 回收站
 // ============================================================
 
-/** 获取回收站计数 */
+/** Get recycle bin count / 获取回收站计数 */
 export async function getAIAgentRecycleBinCountApi(): Promise<{
   count: number;
 }> {
@@ -493,7 +493,7 @@ export async function getAIAgentRecycleBinCountApi(): Promise<{
   );
 }
 
-/** 获取回收站列表 */
+/** Get recycle bin list / 获取回收站列表 */
 export async function getAIAgentRecycleBinApi(
   params?: Record<string, unknown>,
 ): Promise<{ items: AIAgentInfo[]; total: number }> {
@@ -503,12 +503,12 @@ export async function getAIAgentRecycleBinApi(
   );
 }
 
-/** 恢复回收站项 */
+/** Restore recycle bin item / 恢复回收站项 */
 export async function restoreAIAgentApi(id: number): Promise<void> {
   await requestClient.post(`${AGENT_PREFIX}/recycle-bin/${id}/restore`);
 }
 
-/** 永久删除回收站项 */
+/** Permanently delete recycle bin item / 永久删除回收站项 */
 export async function permanentDeleteAIAgentApi(id: number): Promise<void> {
   await requestClient.delete(`${AGENT_PREFIX}/recycle-bin/${id}`);
 }

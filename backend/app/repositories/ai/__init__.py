@@ -1,5 +1,5 @@
 """
-AI 模块 Repository 层
+AI 模块 Repository 层 / AI Module Repository Layer
 """
 
 from app.repositories.ai.action_log_repository import AIActionLogRepository

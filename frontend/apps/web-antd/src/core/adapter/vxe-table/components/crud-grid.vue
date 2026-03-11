@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 /**
+ * CrudGrid - Declarative table wrapper component
  * CrudGrid - 声明式表格包装组件
  *
- * - toolbar-actions（左侧）：刷新按钮 + 创建按钮
- * - toolbar-tools（右侧）：回收站 + 导出 + 页面自定义工具
+ * - toolbar-actions (left): refresh + create buttons / 左侧：刷新按钮 + 创建按钮
+ * - toolbar-tools (right): recycle bin + export + custom tools / 右侧：回收站 + 导出 + 页面自定义工具
  */
 import { computed, ref, useAttrs, useSlots } from 'vue';
 
@@ -31,25 +32,25 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 interface Props {
-  /** 原始 Grid 组件 */
+  /** Original Grid component / 原始 Grid 组件 */
   grid: any;
-  /** 是否显示导出按钮 */
+  /** Whether to show export button / 是否显示导出按钮 */
   showExport?: boolean;
-  /** 导出按钮点击回调 */
+  /** Export button click callback / 导出按钮点击回调 */
   onExport?: () => void;
-  /** 是否显示回收站按钮 */
+  /** Whether to show recycle bin button / 是否显示回收站按钮 */
   showRecycleBin?: boolean;
-  /** 回收站记录数量 */
+  /** Recycle bin record count / 回收站记录数量 */
   recycleBinCount?: number;
-  /** 回收站按钮点击回调 */
+  /** Recycle bin button click callback / 回收站按钮点击回调 */
   onRecycleBin?: () => void;
-  /** 刷新回调 */
+  /** Refresh callback / 刷新回调 */
   onRefresh?: () => void;
-  /** 创建回调（提供时显示创建按钮） */
+  /** Create callback (shows create button when provided) / 创建回调（提供时显示创建按钮） */
   onCreate?: () => void;
-  /** 创建按钮权限码 */
+  /** Create button permission code / 创建按钮权限码 */
   createPermission?: string;
-  /** 创建按钮文案 */
+  /** Create button label / 创建按钮文案 */
   createLabel?: string;
 }
 
@@ -57,7 +58,7 @@ const attrs = useAttrs();
 
 const slots = useSlots();
 
-// 过滤掉 toolbar-tools / toolbar-actions 插槽，单独处理
+// Filter out toolbar-tools / toolbar-actions slots, handle separately / 过滤掉 toolbar-tools / toolbar-actions 插槽，单独处理
 const filteredSlots = computed(() => {
   const result: Record<string, any> = {};
   for (const name of Object.keys(slots)) {
@@ -68,12 +69,12 @@ const filteredSlots = computed(() => {
   return result;
 });
 
-// 检查是否有 toolbar-tools 插槽
+// Check for toolbar-tools slot / 检查是否有 toolbar-tools 插槽
 const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
-// 检查是否有 toolbar-actions 插槽
+// Check for toolbar-actions slot / 检查是否有 toolbar-actions 插槽
 const hasToolbarActionsSlot = computed(() => 'toolbar-actions' in slots);
 
-// 刷新按钮旋转动画
+// Refresh button rotation animation / 刷新按钮旋转动画
 const refreshAngle = ref(0);
 function handleRefresh() {
   refreshAngle.value += 360;
@@ -83,7 +84,7 @@ function handleRefresh() {
 
 <template>
   <component :is="grid" v-bind="attrs">
-    <!-- 透传除 toolbar-tools / toolbar-actions 外的所有插槽 -->
+    <!-- Pass through all slots except toolbar-tools / toolbar-actions / 透传除 toolbar-tools / toolbar-actions 外的所有插槽 -->
     <template
       v-for="name in Object.keys(filteredSlots)"
       :key="name"
@@ -92,7 +93,7 @@ function handleRefresh() {
       <slot :name="name" v-bind="slotProps ?? {}"></slot>
     </template>
 
-    <!-- 左侧工具栏：刷新 + 创建 -->
+    <!-- Left toolbar: refresh + create / 左侧工具栏：刷新 + 创建 -->
     <template #toolbar-actions>
       <div class="flex items-center gap-2">
         <Tooltip v-if="props.onRefresh" :title="$t('common.refresh')">
@@ -137,7 +138,7 @@ function handleRefresh() {
       </div>
     </template>
 
-    <!-- 右侧工具栏：页面自定义 + 回收站 + 导出 -->
+    <!-- Right toolbar: custom + recycle bin + export / 右侧工具栏：页面自定义 + 回收站 + 导出 -->
     <template #toolbar-tools="slotProps">
       <slot
         v-if="hasToolbarToolsSlot"

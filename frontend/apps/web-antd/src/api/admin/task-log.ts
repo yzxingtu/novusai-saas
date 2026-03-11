@@ -1,3 +1,7 @@
+/**
+ * Task log API / 任务日志 API
+ * Backend: /admin/tasks/*
+ */
 import type {
   TaskLogDetailInfo,
   TaskLogInfo,
@@ -5,16 +9,12 @@ import type {
   TaskLogListResponse,
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
-/**
- * 任务日志 API
- * 对接后端 /admin/tasks/* 接口
- */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（从 shared 导入）
+// Type definitions (imported from shared) / 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -25,7 +25,7 @@ export type {
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 
-/** 任务日志信息（后端原始格式 snake_case） */
+/** Task log info (backend raw snake_case) / 任务日志信息（后端原始格式） */
 export interface TaskLogInfoRaw {
   id: number;
   task_id: string;
@@ -44,19 +44,19 @@ export interface TaskLogInfoRaw {
   created_at: string;
 }
 
-/** 任务日志详情原始格式 */
+/** Task log detail raw format / 任务日志详情原始格式 */
 interface TaskLogDetailInfoRaw extends TaskLogInfoRaw {
   traceback: null | string;
 }
 
-/** 任务统计项（后端原始格式） */
+/** Task stats item (backend raw format) / 任务统计项（后端原始格式） */
 interface TaskStatsItemRaw {
   status: string;
   count: number;
   avg_duration_ms: number;
 }
 
-/** 活跃任务（后端原始格式） */
+/** Active task (backend raw format) / 活跃任务（后端原始格式） */
 interface ActiveTaskRaw {
   task_id: string;
   task_name: string;
@@ -64,7 +64,7 @@ interface ActiveTaskRaw {
   started_at: null | number;
 }
 
-/** 活跃任务 */
+/** Active task / 活跃任务 */
 export interface ActiveTaskInfo {
   taskId: string;
   taskName: string;
@@ -73,7 +73,7 @@ export interface ActiveTaskInfo {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
 function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
@@ -115,13 +115,13 @@ function transformActiveTask(raw: ActiveTaskRaw): ActiveTaskInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/tasks';
 
 /**
- * 获取任务日志列表
+ * Get task log list / 获取任务日志列表
  * GET /admin/tasks
  */
 export async function getTaskLogListApi(
@@ -144,7 +144,7 @@ export async function getTaskLogListApi(
 }
 
 /**
- * 获取任务日志详情
+ * Get task log detail / 获取任务日志详情
  * GET /admin/tasks/{id}
  */
 export async function getTaskLogDetailApi(
@@ -159,7 +159,7 @@ export async function getTaskLogDetailApi(
 }
 
 /**
- * 获取任务统计
+ * Get task statistics / 获取任务统计
  * GET /admin/tasks/stats
  */
 export async function getTaskStatsApi(
@@ -178,7 +178,7 @@ export async function getTaskStatsApi(
 }
 
 /**
- * 获取活跃任务
+ * Get active tasks / 获取活跃任务
  * GET /admin/tasks/active
  */
 export async function getActiveTasksApi(
@@ -192,7 +192,7 @@ export async function getActiveTasksApi(
 }
 
 /**
- * 重试任务
+ * Retry task / 重试任务
  * POST /admin/tasks/{id}/retry
  */
 export async function retryTaskApi(
@@ -209,7 +209,7 @@ export async function retryTaskApi(
 }
 
 /**
- * 取消任务
+ * Cancel task / 取消任务
  * POST /admin/tasks/{id}/cancel
  */
 export async function cancelTaskApi(

@@ -1,7 +1,12 @@
+/**
+ * Recycle bin management API / 回收站管理 API
+ * Backend: /admin/recycle-bin/*
+ */
 import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/recycle-bin';
 
+/** Recycle bin module summary / 回收站模块摘要 */
 export interface RecycleBinModuleSummary {
   module: string;
   label: string;
@@ -9,6 +14,7 @@ export interface RecycleBinModuleSummary {
   is_tenant: boolean;
 }
 
+/** Recycle bin module metadata / 回收站模块元数据 */
 export interface RecycleBinModuleMeta {
   label: string;
   is_tenant: boolean;
@@ -17,6 +23,7 @@ export interface RecycleBinModuleMeta {
   filterable: string[];
 }
 
+/** Recycle bin item / 回收站记录项 */
 export interface RecycleBinItem {
   id: number;
   deleted_at: null | string;
@@ -26,19 +33,19 @@ export interface RecycleBinItem {
   [key: string]: unknown;
 }
 
-/** 获取所有可回收模块元数据（列、搜索字段、is_tenant） */
+/** Get all recyclable module metadata (columns, search fields, is_tenant) / 获取所有可回收模块元数据 */
 export function getRecycleBinModulesApi() {
   return requestClient.get<Record<string, RecycleBinModuleMeta>>(
     `${BASE_URL}/modules`,
   );
 }
 
-/** 获取各模块已删除记录数统计 */
+/** Get deleted record count statistics per module / 获取各模块已删除记录数统计 */
 export function getRecycleBinSummaryApi() {
   return requestClient.get<RecycleBinModuleSummary[]>(`${BASE_URL}/summary`);
 }
 
-/** 按模块查询已删除记录（支持 filter/sort/page） */
+/** Query deleted records by module (supports filter/sort/page) / 按模块查询已删除记录 */
 export function getRecycleBinListApi(
   module: string,
   params?: Record<string, unknown>,
@@ -49,17 +56,17 @@ export function getRecycleBinListApi(
   );
 }
 
-/** 恢复记录 */
+/** Restore record / 恢复记录 */
 export function restoreRecycleBinItemApi(module: string, id: number) {
   return requestClient.post(`${BASE_URL}/${module}/${id}/restore`);
 }
 
-/** 永久删除 */
+/** Permanently delete / 永久删除 */
 export function permanentDeleteRecycleBinItemApi(module: string, id: number) {
   return requestClient.delete(`${BASE_URL}/${module}/${id}`);
 }
 
-/** 手动触发过期清理 */
+/** Manually trigger expired cleanup / 手动触发过期清理 */
 export function triggerRecycleBinCleanupApi(retentionDays: number = 30) {
   return requestClient.delete(`${BASE_URL}/cleanup`, {
     params: { retention_days: retentionDays },

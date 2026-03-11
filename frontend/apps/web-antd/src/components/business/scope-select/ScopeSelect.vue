@@ -1,8 +1,11 @@
 <script setup lang="ts">
 /**
+ * ScopeSelect — Unified scope dropdown selector component
  * ScopeSelect — 统一作用域下拉选择组件
  *
+ * Replaces scattered scope dropdown hardcoding across modules.
  * 替代各模块分散的 scope 下拉框硬编码。
+ * Controls selectable range via allowedScopes prop.
  * 通过 allowedScopes prop 控制可选范围。
  */
 import { computed } from 'vue';

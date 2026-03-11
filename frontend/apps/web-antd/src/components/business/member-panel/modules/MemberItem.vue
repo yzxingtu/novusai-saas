@@ -12,17 +12,17 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
-    /** 是否禁用操作 */
+    /** Whether actions are disabled / 是否禁用操作 */
     disabled?: boolean;
-    /** 是否为负责人 */
+    /** Whether this member is a leader / 是否为负责人 */
     isLeader?: boolean;
-    /** 成员信息 */
+    /** Member info / 成员信息 */
     member: OrgMember;
-    /** 是否在线（仅 showOnlineStatus=true 时有效） */
+    /** Whether online (only effective when showOnlineStatus=true) / 是否在线 */
     online?: boolean;
-    /** 是否显示操作按钮 */
+    /** Whether to show action buttons / 是否显示操作按钮 */
     showActions?: boolean;
-    /** 是否显示在线状态指示器 */
+    /** Whether to show online status indicator / 是否显示在线状态指示器 */
     showOnlineStatus?: boolean;
   }>(),
   {
@@ -42,38 +42,38 @@ const emit = defineEmits<{
   (e: 'setLeader', member: OrgMember): void;
 }>();
 
-/** 显示名称：优先显示 nickname，如果为空则回退到 username */
+/** Display name: prefer nickname, fallback to username / 显示名称：优先显示 nickname，回退到 username */
 const displayName = computed(() => {
   return props.member.nickname || props.member.username;
 });
 
-/** 头像文字（取显示名称首字符） */
+/** Avatar text (first char of display name) / 头像文字（取显示名称首字符） */
 const avatarText = computed(() => {
   const name = displayName.value;
   return name.charAt(0).toUpperCase();
 });
 
-/** 处理移除成员 */
+/** Handle remove member / 处理移除成员 */
 function handleRemove() {
   emit('remove', props.member);
 }
 
-/** 处理设置为负责人 */
+/** Handle set as leader / 处理设置为负责人 */
 function handleSetLeader() {
   emit('setLeader', props.member);
 }
 
-/** 处理取消负责人 */
+/** Handle cancel leader / 处理取消负责人 */
 function handleCancelLeader() {
   emit('cancelLeader', props.member);
 }
 
-/** 处理编辑成员 */
+/** Handle edit member / 处理编辑成员 */
 function handleEdit() {
   emit('edit', props.member);
 }
 
-/** 处理重置密码 */
+/** Handle reset password / 处理重置密码 */
 function handleResetPassword() {
   emit('resetPassword', props.member);
 }
@@ -84,7 +84,7 @@ function handleResetPassword() {
     class="member-item flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
     :class="{ 'opacity-60': !member.isActive }"
   >
-    <!-- 头像 + 在线指示器 -->
+    <!-- Avatar + online indicator / 头像 + 在线指示器 -->
     <div class="relative flex-shrink-0">
       <Avatar
         v-if="member.avatar"
@@ -94,13 +94,13 @@ function handleResetPassword() {
       <Avatar v-else :size="40" class="bg-primary text-white">
         {{ avatarText }}
       </Avatar>
-      <!-- 在线状态圆点（头像右下角） -->
+      <!-- Online status dot (bottom-right of avatar) / 在线状态圆点 -->
       <span
         v-if="showOnlineStatus"
         class="absolute -bottom-0.5 -right-0.5 block size-3 rounded-full border-2 border-background"
         :class="online ? 'bg-green-500' : 'bg-muted-foreground/30'"
       ></span>
-      <!-- 负责人皇冠图标 -->
+      <!-- Leader crown icon / 负责人皇冠图标 -->
       <div
         v-if="isLeader"
         class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-warning shadow-sm"
@@ -109,7 +109,7 @@ function handleResetPassword() {
       </div>
     </div>
 
-    <!-- 成员信息 -->
+    <!-- Member info / 成员信息 -->
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2">
         <span class="truncate font-medium text-gray-900 dark:text-gray-100">
@@ -124,7 +124,7 @@ function handleResetPassword() {
         <Tag v-if="!member.isActive" color="default" class="flex-shrink-0">
           {{ $t('shared.memberPanel.item.disabled') }}
         </Tag>
-        <!-- 角色名称标签 -->
+        <!-- Role name tag / 角色名称标签 -->
         <Tag
           v-if="member.roleName"
           class="flex-shrink-0 !border-primary/30 !bg-primary/10 !text-primary"
@@ -139,7 +139,7 @@ function handleResetPassword() {
         class="flex items-center gap-2 truncate text-sm text-gray-500 dark:text-gray-400"
       >
         <span>{{ member.email || member.username }}</span>
-        <!-- 创建时间 -->
+        <!-- Created time / 创建时间 -->
         <Tooltip
           v-if="member.createdAt"
           :title="
@@ -156,9 +156,9 @@ function handleResetPassword() {
       </div>
     </div>
 
-    <!-- 操作按钮 -->
+    <!-- Action buttons / 操作按钮 -->
     <div v-if="showActions && !disabled" class="flex flex-shrink-0 gap-1">
-      <!-- 编辑成员 -->
+      <!-- Edit member / 编辑成员 -->
       <Tooltip :title="$t('shared.memberPanel.item.edit')">
         <Button
           type="text"
@@ -172,7 +172,7 @@ function handleResetPassword() {
         </Button>
       </Tooltip>
 
-      <!-- 重置密码 -->
+      <!-- Reset password / 重置密码 -->
       <Tooltip :title="$t('shared.memberPanel.item.resetPassword')">
         <Button
           type="text"
@@ -186,7 +186,7 @@ function handleResetPassword() {
         </Button>
       </Tooltip>
 
-      <!-- 设置/取消负责人 -->
+      <!-- Set/cancel leader / 设置/取消负责人 -->
       <Tooltip
         v-if="isLeader"
         :title="$t('shared.memberPanel.item.cancelLeader')"
@@ -221,7 +221,7 @@ function handleResetPassword() {
         </Button>
       </Tooltip>
 
-      <!-- 移除成员 -->
+      <!-- Remove member / 移除成员 -->
       <Tooltip :title="$t('shared.memberPanel.item.removeMember')">
         <Popconfirm
           :title="$t('shared.memberPanel.item.removeConfirm')"

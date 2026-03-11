@@ -1,6 +1,16 @@
+"""Tenant storage config items / 租户存储配置项
+
+Includes tenant storage mode, driver, options, and file restrictions.
+包含租户存储模式、驱动、选项和文件限制等配置
+"""
+
 from app.configs.definitions.groups import TENANT_STORAGE_GROUP
 from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
+
+# ==========================================
+# Storage mode and driver / 存储模式与驱动
+# ==========================================
 
 TENANT_STORAGE_MODE = ConfigMeta(
     key="tenant_storage_mode",
@@ -355,6 +365,10 @@ TENANT_STORAGE_OPTIONS = ConfigMeta(
     sort_order=50,
 )
 
+# ==========================================
+# File restrictions / 文件限制
+# ==========================================
+
 TENANT_STORAGE_DEFAULT_VISIBILITY = ConfigMeta(
     key="tenant_storage_default_visibility",
     name_key="config.tenant.storage_default_visibility.name",
@@ -397,6 +411,10 @@ TENANT_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
     tag_separator=",",
     sort_order=80,
 )
+
+# ==========================================
+# Register configs to group / 注册配置到分组
+# ==========================================
 
 TENANT_STORAGE_GROUP.configs = [
     TENANT_STORAGE_MODE,

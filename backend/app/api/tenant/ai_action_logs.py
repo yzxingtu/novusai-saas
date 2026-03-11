@@ -1,7 +1,8 @@
 """
-租户端 AI 操作审计日志 API
+租户端 AI 操作审计日志 API / Tenant AI Action Audit Log API
 
 提供审计日志列表、详情和统计接口（只读）
+Provides audit log list, details and statistics endpoints (read-only)
 """
 
 from fastapi import Request
@@ -35,16 +36,17 @@ from app.services.ai.action_log_service import AIActionLogService
 )
 class TenantAIActionLogController(TenantController):
     """
-    租户 AI 操作审计日志控制器
+    租户 AI 操作审计日志控制器 / Tenant AI Action Audit Log Controller
 
     提供只读的审计日志查询和统计接口
+    Provides read-only audit log query and statistics endpoints
     """
 
     prefix = "/ai/action-logs"
     tags = [_("menu.tags.tenant_ai_action_audit")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取审计日志列表")
@@ -56,9 +58,9 @@ class TenantAIActionLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户的 AI 操作审计日志
+            获取当前租户的 AI 操作审计日志 / Get current tenant AI action audit logs
 
-            支持 JSON:API 筛选:
+            支持 JSON:API 筛选 / Supports JSON:API filtering:
             - filter[action_name][ilike]=xxx
             - filter[action_type][eq]=query/action/confirm
             - filter[action_level][eq]=read/safe_write/dangerous
@@ -66,7 +68,7 @@ class TenantAIActionLogController(TenantController):
             - filter[created_at][gte]=2026-01-01
             - sort=-created_at
 
-            权限: ai_action_log:list
+            权限 / Permission: ai_action_log:list
             """
             service = AIActionLogService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=spec)
@@ -86,11 +88,11 @@ class TenantAIActionLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取审计日志统计信息
+            获取审计日志统计信息 / Get audit log statistics
 
-            返回: 总数、各状态计数、各级别计数、平均耗时
+            返回 / Returns: 总数、各状态计数、各级别计数、平均耗时 / total, status counts, level counts, avg duration
 
-            权限: ai_action_log:stats
+            权限 / Permission: ai_action_log:stats
             """
             service = AIActionLogService(db, tenant_admin.tenant_id)
             stats = await service.get_stats()
@@ -110,9 +112,9 @@ class TenantAIActionLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取单条审计日志详情
+            获取单条审计日志详情 / Get single audit log details
 
-            权限: ai_action_log:detail
+            权限 / Permission: ai_action_log:detail
             """
             service = AIActionLogService(db, tenant_admin.tenant_id)
             log = await service.get_by_id(log_id)
@@ -125,7 +127,7 @@ class TenantAIActionLogController(TenantController):
             return success(data=log.to_dict())
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAIActionLogController.get_router()
 
 __all__ = ["router", "TenantAIActionLogController"]

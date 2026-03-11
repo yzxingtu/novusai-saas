@@ -1,7 +1,8 @@
 """
-租户仓储
+租户仓储 / Tenant Repository
 
 提供租户的数据访问操作
+Provides tenant data access operations.
 """
 
 from sqlalchemy import select

@@ -1,7 +1,8 @@
 """
-租户管理员模型
+租户管理员模型 / Tenant Admin Model
 
 租户后台管理人员，区别于租户业务用户
+Tenant backend administrators, distinct from tenant business users.
 """
 
 from datetime import datetime

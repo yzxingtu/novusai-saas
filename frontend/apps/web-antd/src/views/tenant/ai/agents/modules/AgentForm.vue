@@ -27,7 +27,6 @@ import {
 } from '#/api/tenant/agents';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
   getFormDefaults,
@@ -214,11 +213,11 @@ const isFirstStep = computed(() => currentStep.value === 0);
             pkg.package_name
           }}</span>
           <ATag
-            v-if="pkg.package_scope"
-            :color="getScopeColor(pkg.package_scope)"
+            v-if="pkg.package_target_audience"
+            color="processing"
             class="!m-0 shrink-0 !text-[10px]"
           >
-            {{ getScopeText(pkg.package_scope) }}
+            {{ pkg.package_target_audience }}
           </ATag>
           <ATag color="blue" class="!m-0 shrink-0 !text-[10px]">
             {{ $t('common.bindMode.auto') }}
@@ -233,11 +232,11 @@ const isFirstStep = computed(() => currentStep.value === 0);
             pkg.package_name || `#${pkg.package_id}`
           }}</span>
           <ATag
-            v-if="pkg.package_scope"
-            :color="getScopeColor(pkg.package_scope)"
+            v-if="pkg.package_target_audience"
+            color="processing"
             class="!m-0 shrink-0 !text-[10px]"
           >
-            {{ getScopeText(pkg.package_scope) }}
+            {{ pkg.package_target_audience }}
           </ATag>
           <ATag
             :color="pkg.consent_mode === 'auto' ? 'green' : pkg.consent_mode === 'ask' ? 'orange' : 'red'"

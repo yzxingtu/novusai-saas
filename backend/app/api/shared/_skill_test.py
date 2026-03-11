@@ -20,13 +20,14 @@ logger = LogManager.get_logger("ai.skill.test")
 
 async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
     """
-    测试 Skill 配置是否正确
+    执行技能测试 / Execute skill test
 
     Args:
-        db: 数据库会话
-        skill: Skill 模型实例
+        db: 数据库会话 / Database session
+        skill: 技能模型实例 / Skill model instance
 
     Returns:
+        测试结果字典 / Test result dictionary
         {"success": bool, "message": str, "details": dict | None}
     """
     skill_type = skill.type
@@ -68,14 +69,14 @@ async def _test_data_intelligence(
     skill: Skill,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """测试数据智能 Skill：执行 SELECT 1 验证数据库可达"""
+    """测试数据智能 Skill：执行 SELECT 1 验证数据库可达 / Test Data Intelligence skill: execute SELECT 1 to validate database connectivity"""
     from sqlalchemy import text
 
     try:
         result = await db.execute(text("SELECT 1"))
         row = result.scalar()
         if row == 1:
-            # 检查是否有可用的表策略
+            # 检查是否有可用的表策略 / Check if there are available table policies
             table_count = 0
             try:
                 from app.ai.data_intelligence.schema_provider import SchemaProvider
@@ -107,7 +108,7 @@ def _test_builtin(
     skill: Skill,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """测试 Builtin Skill：验证内置功能标识"""
+    """测试 Builtin Skill：验证内置功能标识 / Test Builtin skill: validate built-in function identifier"""
     builtin_name = config.get("builtin_name", "") or config.get("name", "")
 
     if not builtin_name:
@@ -128,7 +129,7 @@ async def _test_toolkit(
     db: AsyncSession,
     skill: Skill,
 ) -> dict[str, Any]:
-    """测试 Toolkit Skill：验证源码可解析 + 安全扫描 + Tools 类有效"""
+    """测试 Toolkit Skill：验证源码可解析 + 安全扫描 + Tools 类有效 / Test Toolkit skill: validate source code parsing + security scanning + Tools class validity"""
     toolkit_content = getattr(skill, "toolkit_content", None) or ""
 
     if not toolkit_content:
@@ -150,7 +151,7 @@ async def _test_toolkit(
                 "details": {"validation_errors": errors},
             }
 
-        # 安全扫描（非系统技能）
+        # 安全扫描（非系统技能） / Security scanning (non-system skills)
         security_warnings: list[str] = []
         if not skill.is_system:
             from app.ai.tools.executors.toolkit_executor import _scan_toolkit_security
@@ -198,7 +199,7 @@ async def _test_http(
     skill: Skill,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """测试 HTTP Skill：验证 URL 可达性"""
+    """测试 HTTP Skill：验证 URL 可达性 / Test HTTP skill: validate URL reachability"""
     url = config.get("url", "")
     if not url:
         return {

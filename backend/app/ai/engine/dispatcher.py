@@ -1,7 +1,10 @@
 """
+Execution Dispatcher
 执行分发器
 
-根据 execution_mode 路由到对应引擎，编排并发控制、配额检查和钩子触发
+Routes to corresponding engine based on execution_mode,
+orchestrates concurrency control, quota checks, and hook triggers.
+根据 execution_mode 路由到对应引擎，编排并发控制、配额检查和钩子触发。
 """
 
 import time
@@ -36,20 +39,21 @@ logger = LogManager.get_logger("ai.engine.dispatcher")
 
 class ExecutionDispatcher:
     """
-    执行分发器
+    Execution Dispatcher / 执行分发器
 
-    完整执行编排：
-    1. 加载并校验 Agent
-    2. 并发控制 (acquire)
-    3. 配额检查
-    4. BEFORE_EXECUTE 钩子
-    5. 路由到对应 Engine
-    6. AFTER_EXECUTE 钩子
-    7. 记录配额使用
-    8. 释放并发 (release)
-    9. 发布事件
+    Full execution orchestration / 完整执行编排：
+    1. Load and validate Agent / 加载并校验 Agent
+    2. Concurrency control (acquire) / 并发控制 (acquire)
+    3. Quota check / 配额检查
+    4. BEFORE_EXECUTE hook / BEFORE_EXECUTE 钩子
+    5. Route to corresponding Engine / 路由到对应 Engine
+    6. AFTER_EXECUTE hook / AFTER_EXECUTE 钩子
+    7. Record quota usage / 记录配额使用
+    8. Release concurrency (release) / 释放并发 (release)
+    9. Publish events / 发布事件
 
-    使用示例:
+    Usage / 使用示例::
+
         dispatcher = ExecutionDispatcher(db)
         result = await dispatcher.dispatch(request)
     """
@@ -61,8 +65,8 @@ class ExecutionDispatcher:
     ):
         """
         Args:
-            db: 数据库会话
-            sandbox_config: 沙箱配置
+            db: Database session / 数据库会话
+            sandbox_config: Sandbox config / 沙箱配置
         """
         self.db = db
         self.sandbox_config = sandbox_config or SandboxConfig()
@@ -73,11 +77,15 @@ class ExecutionDispatcher:
         pre_loaded_agent: Agent | None = None,
     ) -> ExecutionResult:
         """
-        分发执行请求
+        Dispatch execution request.
+        分发执行请求。
 
         Args:
-            request: 执行请求
-            pre_loaded_agent: 调用方已校验的 Agent 实例（可选）。
+            request: Execution request / 执行请求
+            pre_loaded_agent: Pre-validated Agent instance from caller (optional).
+                If provided, skips DB load to avoid double query;
+                caller must ensure existence + published status validation.
+                调用方已校验的 Agent 实例（可选）。
                 若提供则跳过 DB 加载，避免双重查询；
                 调用方须保证已做存在性 + 发布状态校验。
 
@@ -91,7 +99,7 @@ class ExecutionDispatcher:
         quota_config = AgentQuotaConfig()
 
         try:
-            # 1. 加载 Agent（若调用方已预加载则直接使用，避免双重 DB 查询）
+            # 1. Load Agent (use pre-loaded if provided, avoid double DB query) / 加载 Agent（若调用方已预加载则直接使用，避免双重 DB 查询）
             if pre_loaded_agent is not None:
                 agent = pre_loaded_agent
             else:
@@ -111,10 +119,10 @@ class ExecutionDispatcher:
                         message=_("agent.error.not_published")
                     )
 
-            # 从 agent 加载配额配置
+            # Load quota config from agent / 从 agent 加载配额配置
             quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
 
-            # 2. 并发控制
+            # 2. Concurrency control / 并发控制
             if quota_config.max_concurrent > 0 or quota_config.tenant_max_concurrent > 0:
                 lock_token = await AgentConcurrencyLimiter.acquire(
                     tenant_id=request.tenant_id,
@@ -123,8 +131,9 @@ class ExecutionDispatcher:
                     tenant_max_concurrent=quota_config.tenant_max_concurrent,
                 )
 
-            # 3. 配额检查（API 模式跳过，由调用方负责）
+            # 3. Quota check (API mode skipped, caller responsible) / 配额检查（API 模式跳过，由调用方负责）
             if not request.skip_quota:
+                # Estimate input tokens for atomic pre-deduction, prevents exceeding under high concurrency
                 # 估算输入 Token 以启用原子预扣减，防止高并发下超限
                 estimated = 0
                 if request.messages:
@@ -132,7 +141,7 @@ class ExecutionDispatcher:
                         estimate_tokens(m.content or "")
                         for m in request.messages
                     )
-                # 至少预估 100 tokens（system prompt + 生成开销）
+                # At least 100 tokens estimate (system prompt + generation overhead) / 至少预估 100 tokens（system prompt + 生成开销）
                 estimated = max(estimated, 100)
 
                 await AgentQuotaManager.check_quota(
@@ -142,7 +151,7 @@ class ExecutionDispatcher:
                     estimated_tokens=estimated,
                 )
 
-                # 3.5 用户级配额检查
+                # 3.5 User-level quota check / 用户级配额检查
                 if request.user_id:
                     await AgentQuotaManager.check_user_quota(
                         tenant_id=request.tenant_id,
@@ -151,7 +160,7 @@ class ExecutionDispatcher:
                         config=quota_config,
                     )
 
-                # 3.6 套餐月 API 调用次数配额检查
+                # 3.6 Plan monthly API call quota check / 套餐月 API 调用次数配额检查
                 if request.tenant_id:
                     from app.enums import ErrorCode
                     from app.services.tenant.quota_service import QuotaService
@@ -164,7 +173,7 @@ class ExecutionDispatcher:
                             code=ErrorCode.CONFLICT,
                         )
 
-            # 4. BEFORE_EXECUTE 钩子
+            # 4. BEFORE_EXECUTE hook / BEFORE_EXECUTE 钩子
             hook_registry = get_hook_registry()
             hook_context = await hook_registry.trigger(
                 HookPoint.BEFORE_EXECUTE,
@@ -174,22 +183,22 @@ class ExecutionDispatcher:
                 request=request,
             )
 
-            # 钩子可阻止执行
+            # Hook can block execution / 钩子可阻止执行
             if hook_context.get("blocked"):
                 reason = hook_context.get("block_reason", _("agent.error.blocked_by_hook"))
                 return ExecutionResult(success=False, error=reason)
 
-            # 4.5 发布 ExecutionStarted 事件
+            # 4.5 Publish ExecutionStarted event / 发布 ExecutionStarted 事件
             await BaseEngine._publish_execution_started(request, agent)
 
-            # 5. 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
+            # 5. Resolve Skills (done at Dispatcher layer, not inside Engine DB queries) / 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
             skill_result = await resolve_for_agent(
                 self.db, agent,
                 tenant_id=request.tenant_id,
                 user_role=request.user_role,
             )
 
-            # 5.5 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
+            # 5.5 Load platform Toolkit security config (consistent with stream_chat path) / 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
             from app.configs.service import ConfigService
             _cfg = ConfigService(self.db)
             _toolkit_security_level = str(await _cfg.get_platform_config(
@@ -199,7 +208,7 @@ class ExecutionDispatcher:
                 "toolkit_memory_limit_mb", default=256,
             ))
 
-            # 6. 创建 Engine 并执行
+            # 6. Create Engine and execute / 创建 Engine 并执行
             engine = self._create_engine(
                 agent, request,
                 toolkit_security_level=_toolkit_security_level,
@@ -207,7 +216,7 @@ class ExecutionDispatcher:
             )
             result = await engine.execute(agent, request, skill_result=skill_result)
 
-            # 6. AFTER_EXECUTE 钩子
+            # 6. AFTER_EXECUTE hook / AFTER_EXECUTE 钩子
             await hook_registry.trigger(
                 HookPoint.AFTER_EXECUTE,
                 tenant_id=request.tenant_id,
@@ -215,7 +224,7 @@ class ExecutionDispatcher:
                 result=result,
             )
 
-            # 7. 调整配额用量：从预估调整为实际（API 模式跳过）
+            # 7. Adjust quota usage: from estimated to actual (API mode skipped) / 调整配额用量：从预估调整为实际（API 模式跳过）
             if not request.skip_quota:
                 actual_tokens = result.total_tokens or 0
                 await AgentQuotaManager.adjust_usage(
@@ -225,7 +234,7 @@ class ExecutionDispatcher:
                     actual_tokens=actual_tokens,
                     config=quota_config,
                 )
-                # 记录用户级用量
+                # Record user-level usage / 记录用户级用量
                 if request.user_id:
                     await AgentQuotaManager.record_user_usage(
                         tenant_id=request.tenant_id,
@@ -234,7 +243,7 @@ class ExecutionDispatcher:
                         tokens=result.total_tokens,
                     )
 
-            # 8. 发布事件
+            # 8. Publish events / 发布事件
             if result.success:
                 await BaseEngine._publish_execution_completed(request, agent, result)
             else:
@@ -259,7 +268,7 @@ class ExecutionDispatcher:
                 exc_info=True,
             )
 
-            # 回滚预扣配额（执行失败时释放已预扣的 estimated_tokens）
+            # Rollback pre-deducted quota (release pre-deducted estimated_tokens on failure) / 回滚预扣配额（执行失败时释放已预扣的 estimated_tokens）
             if not request.skip_quota and estimated > 0:
                 try:
                     await AgentQuotaManager.adjust_usage(
@@ -287,7 +296,7 @@ class ExecutionDispatcher:
             )
 
         finally:
-            # 9. 释放并发
+            # 9. Release concurrency / 释放并发
             if lock_token and agent:
                 await AgentConcurrencyLimiter.release(
                     tenant_id=request.tenant_id,
@@ -303,24 +312,27 @@ class ExecutionDispatcher:
         created_by: int | None = None,
     ) -> BatchResult:
         """
-        分发批量执行请求（异步提交到 Celery）
+        Dispatch batch execution request (async submit to Celery).
+        分发批量执行请求（异步提交到 Celery）。
 
+        Creates BatchRun record and returns batch_run_id immediately,
+        actual execution done asynchronously by Celery Worker.
         创建 BatchRun 记录后立即返回 batch_run_id，
         实际执行由 Celery Worker 异步完成。
 
         Args:
-            request: 基础请求
-            items: 批量项目列表
-            max_workers: 最大并行度
-            created_by: 创建者 ID
+            request: Base request / 基础请求
+            items: Batch item list / 批量项目列表
+            max_workers: Max parallelism / 最大并行度
+            created_by: Creator ID / 创建者 ID
 
         Returns:
-            BatchResult（含 batch_run_id，status=pending）
+            BatchResult (with batch_run_id, status=pending) / BatchResult（含 batch_run_id，status=pending）
         """
         from app.enums.agent import BatchRunStatusEnum
         from app.repositories.ai.batch_run_repository import BatchRunRepository
 
-        # 1. 校验 Agent
+        # 1. Validate Agent / 校验 Agent
         agent_repo = AgentRepository(self.db, request.tenant_id)
         agent = await agent_repo.get_by_id(request.agent_id)
         if not agent:
@@ -330,7 +342,7 @@ class ExecutionDispatcher:
             raise BusinessException(
                 message=_("agent.error.not_published"))
 
-        # 1.5 target_audience 校验（批处理不应绕过三端隔离）
+        # 1.5 target_audience validation (batch should not bypass tri-endpoint isolation) / target_audience 校验（批处理不应绕过三端隔离）
         if request.user_role:
             from app.ai.skills.resolver import _audience_allows_role
             from app.enums.common import AudienceEnum as _AudienceEnum
@@ -340,7 +352,7 @@ class ExecutionDispatcher:
                     message=_("agent.error.audience_not_allowed"),
                 )
 
-        # 2. 配额检查（批处理提交时检查一次）
+        # 2. Quota check (checked once at batch submission) / 配额检查（批处理提交时检查一次）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
         await AgentQuotaManager.check_quota(
             tenant_id=request.tenant_id,
@@ -348,7 +360,7 @@ class ExecutionDispatcher:
             config=quota_config,
         )
 
-        # 3. 通过 Repository 创建 BatchRun 记录
+        # 3. Create BatchRun record via Repository / 通过 Repository 创建 BatchRun 记录
         batch_repo = BatchRunRepository(self.db, request.tenant_id)
         input_snapshot = [
             {"item_id": item.item_id, "input_variables": item.input_variables}
@@ -365,14 +377,14 @@ class ExecutionDispatcher:
             "created_by": created_by,
         })
 
-        # 4. 提交 Celery 异步任务
+        # 4. Submit Celery async task / 提交 Celery 异步任务
         from app.tasks.agent_batch import execute_batch_run
         celery_result = execute_batch_run.delay(
             batch_run_id=batch_run.id,
             tenant_id=request.tenant_id,
         )
 
-        # 通过 Repository 保存 celery_task_id
+        # Save celery_task_id via Repository / 通过 Repository 保存 celery_task_id
         await batch_repo.update(batch_run.id, {
             "celery_task_id": celery_result.id,
         })
@@ -383,7 +395,7 @@ class ExecutionDispatcher:
             batch_run.id, agent.id, len(items), celery_result.id,
         )
 
-        # 5. 立即返回（非阻塞）
+        # 5. Return immediately (non-blocking) / 立即返回（非阻塞）
         return BatchResult(
             batch_run_id=batch_run.id,
             items=items,
@@ -399,7 +411,7 @@ class ExecutionDispatcher:
         toolkit_security_level: str = "normal",
         toolkit_memory_limit_mb: int = 256,
     ) -> BaseEngine:
-        """根据执行模式创建对应引擎"""
+        """Create corresponding engine based on execution mode / 根据执行模式创建对应引擎"""
         from app.ai.gateway import AIGateway
 
         gateway = AIGateway(self.db)
@@ -418,13 +430,13 @@ class ExecutionDispatcher:
             input_variables=request.input_variables,
             page_session_id=request.page_session_id,
         )
-        # 传递前端会话级授权
+        # Pass frontend session-level authorization / 传递前端会话级授权
         if request.consented_actions:
             sandbox.consented_actions = set(request.consented_actions)
 
         mode = request.execution_mode
 
-        # API 模式自动设置控制标志
+        # API mode auto-sets control flags / API 模式自动设置控制标志
         if mode == AgentExecutionModeEnum.API.value:
             request.skip_quota = True
             request.skip_persistence = True
@@ -447,8 +459,8 @@ class ExecutionDispatcher:
                 sandbox=sandbox,
             )
 
-        # batch 模式由 dispatch_batch() 处理
-        # fallback 默认 conversation
+        # batch mode handled by dispatch_batch() / batch 模式由 dispatch_batch() 处理
+        # fallback default: conversation / fallback 默认 conversation
         return ConversationEngine(
             db=self.db,
             gateway=gateway,

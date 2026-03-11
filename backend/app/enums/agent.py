@@ -1,14 +1,15 @@
 """
-智能体相关枚举模块
+智能体相关枚举模块 / Agent Enum Module
 
 定义智能体状态、执行模式、工具类型、对话状态、消息角色等枚举
+Defines agent status, execution mode, tool type, conversation status, message role enums.
 """
 
 from app.enums.base import LabeledStrEnum
 
 
 class AgentStatusEnum(LabeledStrEnum):
-    """智能体状态枚举"""
+    """Agent Status Enum / 智能体状态枚举"""
 
     DRAFT = ("draft", "enum.agent.status.draft")
     PUBLISHED = ("published", "enum.agent.status.published")
@@ -16,7 +17,7 @@ class AgentStatusEnum(LabeledStrEnum):
 
 
 class AgentExecutionModeEnum(LabeledStrEnum):
-    """智能体执行模式枚举"""
+    """Agent Execution Mode Enum / 智能体执行模式枚举"""
 
     CONVERSATION = ("conversation", "enum.agent.execution_mode.conversation")
     TASK = ("task", "enum.agent.execution_mode.task")
@@ -26,7 +27,7 @@ class AgentExecutionModeEnum(LabeledStrEnum):
 
 
 class MemorySceneEnum(LabeledStrEnum):
-    """会话记忆场景枚举"""
+    """Session Memory Scene Enum / 会话记忆场景枚举"""
 
     AI_CHAT_PAGE = ("ai_chat_page", "enum.agent.memory_scene.ai_chat_page")
     ADMIN_CHAT = ("admin_chat", "enum.agent.memory_scene.admin_chat")
@@ -36,7 +37,7 @@ class MemorySceneEnum(LabeledStrEnum):
 
 
 class MemoryChannelEnum(LabeledStrEnum):
-    """会话记忆渠道枚举"""
+    """Session Memory Channel Enum / 会话记忆渠道枚举"""
 
     TENANT_CHAT = ("tenant_chat", "enum.agent.memory_channel.tenant_chat")
     ADMIN_CHAT = ("admin_chat", "enum.agent.memory_channel.admin_chat")
@@ -46,7 +47,7 @@ class MemoryChannelEnum(LabeledStrEnum):
 
 
 class ToolTypeEnum(LabeledStrEnum):
-    """智能体工具类型枚举"""
+    """Agent Tool Type Enum / 智能体工具类型枚举"""
 
     TOOLKIT = ("toolkit", "enum.agent.tool_type.toolkit")
     BUILTIN = ("builtin", "enum.agent.tool_type.builtin")
@@ -60,14 +61,14 @@ class ToolTypeEnum(LabeledStrEnum):
 
 
 class ConversationStatusEnum(LabeledStrEnum):
-    """对话状态枚举"""
+    """Conversation Status Enum / 对话状态枚举"""
 
     ACTIVE = ("active", "enum.agent.conversation_status.active")
     ARCHIVED = ("archived", "enum.agent.conversation_status.archived")
 
 
 class MessageRoleEnum(LabeledStrEnum):
-    """对话消息角色枚举"""
+    """Message Role Enum / 对话消息角色枚举"""
 
     SYSTEM = ("system", "enum.agent.message_role.system")
     USER = ("user", "enum.agent.message_role.user")
@@ -76,14 +77,14 @@ class MessageRoleEnum(LabeledStrEnum):
 
 
 class AgentVisibilityEnum(LabeledStrEnum):
-    """智能体可见性枚举"""
+    """Agent Visibility Enum / 智能体可见性枚举"""
 
     PUBLIC = ("public", "enum.agent.visibility.public")
     PRIVATE = ("private", "enum.agent.visibility.private")
 
 
 class AccessTypeEnum(LabeledStrEnum):
-    """智能体访问类型枚举"""
+    """Agent Access Type Enum / 智能体访问类型枚举"""
 
     ALL_USERS = ("all_users", "enum.agent.access_type.all_users")
     ORG_NODE = ("org_node", "enum.agent.access_type.org_node")
@@ -92,7 +93,7 @@ class AccessTypeEnum(LabeledStrEnum):
 
 
 class InputVariableTypeEnum(LabeledStrEnum):
-    """智能体输入变量类型枚举"""
+    """Agent Input Variable Type Enum / 智能体输入变量类型枚举"""
 
     TEXT = ("text", "enum.agent.input_variable_type.text")
     NUMBER = ("number", "enum.agent.input_variable_type.number")
@@ -101,7 +102,7 @@ class InputVariableTypeEnum(LabeledStrEnum):
 
 
 class ActionLevelEnum(LabeledStrEnum):
-    """操作安全等级枚举"""
+    """Action Safety Level Enum / 操作安全等级枚举"""
 
     READ = ("read", "enum.action_level.read")
     SAFE_WRITE = ("safe_write", "enum.action_level.safe_write")
@@ -109,7 +110,7 @@ class ActionLevelEnum(LabeledStrEnum):
 
 
 class ActionTypeEnum(LabeledStrEnum):
-    """操作类型枚举"""
+    """Action Type Enum / 操作类型枚举"""
 
     QUERY = ("query", "enum.action_type.query")
     ACTION = ("action", "enum.action_type.action")
@@ -117,7 +118,7 @@ class ActionTypeEnum(LabeledStrEnum):
 
 
 class ActionStatusEnum(LabeledStrEnum):
-    """操作执行状态枚举"""
+    """Action Execution Status Enum / 操作执行状态枚举"""
 
     SUCCESS = ("success", "enum.action_status.success")
     FAILED = ("failed", "enum.action_status.failed")
@@ -126,7 +127,7 @@ class ActionStatusEnum(LabeledStrEnum):
 
 
 class ActionResultTypeEnum(LabeledStrEnum):
-    """操作返回结果类型枚举"""
+    """Action Result Type Enum / 操作返回结果类型枚举"""
 
     RESULT = ("result", "enum.action_result_type.result")
     ERROR = ("error", "enum.action_result_type.error")
@@ -135,14 +136,14 @@ class ActionResultTypeEnum(LabeledStrEnum):
 
 
 class ConfirmActionEnum(LabeledStrEnum):
-    """操作确认动作枚举"""
+    """Confirm Action Enum / 操作确认动作枚举"""
 
     CONFIRM = ("confirm", "enum.confirm_action.confirm")
     CANCEL = ("cancel", "enum.confirm_action.cancel")
 
 
 class SkillTypeEnum(LabeledStrEnum):
-    """技能类型枚举"""
+    """Skill Type Enum / 技能类型枚举"""
 
     DATA_INTELLIGENCE = ("data_intelligence", "enum.skill.type.data_intelligence")
     TOOLKIT = ("toolkit", "enum.skill.type.toolkit")
@@ -154,7 +155,7 @@ class SkillTypeEnum(LabeledStrEnum):
 
 
 class ToolConsentModeEnum(LabeledStrEnum):
-    """工具执行授权模式枚举"""
+    """Tool Consent Mode Enum / 工具执行授权模式枚举"""
 
     AUTO = ("auto", "enum.tool_consent.auto")
     ASK = ("ask", "enum.tool_consent.ask")
@@ -162,7 +163,7 @@ class ToolConsentModeEnum(LabeledStrEnum):
 
 
 class BatchRunStatusEnum(LabeledStrEnum):
-    """批处理运行状态枚举"""
+    """Batch Run Status Enum / 批处理运行状态枚举"""
 
     PENDING = ("pending", "enum.agent.batch_run_status.pending")
     RUNNING = ("running", "enum.agent.batch_run_status.running")
@@ -174,17 +175,17 @@ class BatchRunStatusEnum(LabeledStrEnum):
 
 def get_all_skill_types() -> set[str]:
     """
-    获取所有有效的技能类型
+    Get all valid skill types / 获取所有有效的技能类型
 
     Returns:
-        技能类型值的集合
+        Set of skill type values / 技能类型值的集合
     """
     return {e.value for e in SkillTypeEnum}
 
 
 def get_skill_type_options() -> list[dict[str, str]]:
     """
-    获取技能类型选项列表（供 API 返回）
+    Get skill type option list (for API response) / 获取技能类型选项列表（供 API 返回）
 
     Returns:
         [{"value": "http", "label": "...", "source": "builtin"}]

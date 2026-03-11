@@ -2,8 +2,11 @@
 import type { RoleTreeNodeData } from './types';
 
 /**
+ * Role Tree Node Component (recursive)
  * 角色树节点组件（递归）
- * 通用组件，支持 admin 和 tenant 两端
+ *
+ * Generic component, supports both admin and tenant endpoints.
+ * 通用组件，支持 admin 和 tenant 两端。
  */
 import { computed } from 'vue';
 
@@ -18,7 +21,7 @@ const props = withDefaults(
   defineProps<{
     expandedIds: Set<number>;
     getLevelColor: (level: number) => { badge: string; bar: string };
-    /** i18n 前缀，用于区分 admin/tenant */
+    /** i18n prefix, used to distinguish admin/tenant / i18n 前缀，用于区分 admin/tenant */
     i18nPrefix?: 'admin' | 'tenant';
     isExpanded: (id: number) => boolean;
     level: number;
@@ -45,7 +48,7 @@ const colors = computed(() => props.getLevelColor(props.level));
 </script>
 
 <script lang="ts">
-// 递归组件需要显式命名
+// Recursive component requires explicit name / 递归组件需要显式命名
 export default {
   name: 'RoleTreeNode',
 };
@@ -53,36 +56,36 @@ export default {
 
 <template>
   <div class="tree-node relative">
-    <!-- 树形连接线 -->
+    <!-- Tree connector lines / 树形连接线 -->
     <div
       v-if="level > 0"
       class="absolute left-0 top-0 h-full"
       :style="{ width: `${level * 28}px` }"
     >
-      <!-- 水平连接线 -->
+      <!-- Horizontal connector / 水平连接线 -->
       <div
         class="absolute top-1/2 h-px bg-border/60"
         :style="{ left: `${(level - 1) * 28 + 14}px`, width: '14px' }"
       ></div>
-      <!-- 垂直连接线 -->
+      <!-- Vertical connector / 垂直连接线 -->
       <div
         class="absolute w-px bg-border/60"
         :style="{ left: `${(level - 1) * 28 + 14}px`, top: 0, height: '50%' }"
       ></div>
     </div>
 
-    <!-- 节点卡片 -->
+    <!-- Node card / 节点卡片 -->
     <div
       class="group relative mb-1 flex items-center gap-4 rounded-xl border border-transparent bg-card/50 px-4 py-3 transition-[border-color,box-shadow] duration-200 hover:border-primary/20 hover:shadow-md"
       :style="{ marginLeft: `${level * 28}px` }"
     >
-      <!-- 左侧装饰条 -->
+      <!-- Left decorative bar / 左侧装饰条 -->
       <div
         class="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full transition-[height] duration-200 group-hover:h-10"
         :class="colors.bar"
       ></div>
 
-      <!-- 展开按钮 -->
+      <!-- Expand button / 展开按钮 -->
       <button
         class="flex size-7 flex-shrink-0 items-center justify-center rounded-lg transition-transform duration-150"
         :class="
@@ -99,14 +102,14 @@ export default {
         />
       </button>
 
-      <!-- 角色信息 -->
+      <!-- Role info / 角色信息 -->
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-3">
-          <!-- 角色名称 -->
+          <!-- Role name / 角色名称 -->
           <span class="text-sm font-semibold text-foreground">{{
             node.name
           }}</span>
-          <!-- 层级徽章 -->
+          <!-- Level badge / 层级徽章 -->
           <span
             v-if="level > 0"
             class="inline-flex size-5 items-center justify-center rounded-md text-[10px] font-bold shadow-sm"
@@ -114,7 +117,7 @@ export default {
           >
             L{{ level }}
           </span>
-          <!-- 角色编码 -->
+          <!-- Role code / 角色编码 -->
           <code
             class="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
           >
@@ -129,7 +132,7 @@ export default {
         </p>
       </div>
 
-      <!-- 权限数量 -->
+      <!-- Permission count / 权限数量 -->
       <div class="flex-shrink-0">
         <div
           v-if="(node.permissionsCount ?? 0) > 0"
@@ -146,7 +149,7 @@ export default {
         </div>
       </div>
 
-      <!-- 状态开关 -->
+      <!-- Status toggle / 状态开关 -->
       <div class="flex-shrink-0" @click.stop>
         <Tooltip
           :title="
@@ -165,14 +168,14 @@ export default {
         </Tooltip>
       </div>
 
-      <!-- 时间 -->
+      <!-- Time / 时间 -->
       <div
         class="w-32 flex-shrink-0 text-right text-xs text-muted-foreground/70"
       >
         {{ node.createdAt ? formatDate(node.createdAt) : '-' }}
       </div>
 
-      <!-- 操作按钮 -->
+      <!-- Action buttons / 操作按钮 -->
       <div
         class="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
@@ -212,10 +215,10 @@ export default {
       </div>
     </div>
 
-    <!-- 子节点 (带动画) -->
+    <!-- Child nodes (with animation) / 子节点 (带动画) -->
     <Transition name="tree-slide">
       <div v-if="hasChildren && expanded" class="tree-children relative">
-        <!-- 子节点之间的垂直连接线 -->
+        <!-- Vertical connector between children / 子节点之间的垂直连接线 -->
         <div
           class="absolute w-px bg-border/60"
           :style="{ left: `${level * 28 + 14}px`, top: 0, bottom: '50%' }"
@@ -243,7 +246,7 @@ export default {
 </template>
 
 <style scoped>
-/* 展开/收起过渡动画 - 只过渡必要属性 */
+/* Expand/collapse transition - only transition necessary properties / 展开/收起过渡动画 - 只过渡必要属性 */
 .tree-slide-enter-active,
 .tree-slide-leave-active {
   overflow: hidden;

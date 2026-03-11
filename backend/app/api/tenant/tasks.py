@@ -1,7 +1,8 @@
 """
-租户端任务日志 API
+租户端任务日志 API / Tenant Task Log API
 
 提供租户端任务日志查询接口（只读，自动按 tenant_id 过滤）
+Provides tenant task log query endpoints (read-only, auto-filtered by tenant_id)
 """
 
 from datetime import timedelta
@@ -41,7 +42,7 @@ from app.services.tenant.task_log_service import TenantTaskLogService
 )
 class TenantTaskLogController(TenantController):
     """
-    租户端任务日志控制器（只读）
+    租户端任务日志控制器（只读） / Tenant Task Log Controller (Read-only)
     """
 
     prefix = "/tasks"

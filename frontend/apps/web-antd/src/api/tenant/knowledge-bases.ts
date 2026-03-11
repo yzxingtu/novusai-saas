@@ -1,16 +1,16 @@
 /**
- * 租户端知识库管理 API
- * 对接后端 /tenant/ai/knowledge-bases/* 接口
+ * Tenant knowledge base management API / 租户端知识库管理 API
+ * Backend: /tenant/ai/knowledge-bases/* / 对接后端 /tenant/ai/knowledge-bases/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 知识库列表项 */
+/** Knowledge base list item / 知识库列表项 */
 export interface KnowledgeBaseItem {
   id: number;
   tenant_id: number;
@@ -34,7 +34,7 @@ export interface KnowledgeBaseItem {
   updated_at: string;
 }
 
-/** 创建知识库请求 */
+/** Create knowledge base request / 创建知识库请求 */
 export interface KnowledgeBaseCreateRequest {
   name: string;
   description?: null | string;
@@ -48,7 +48,7 @@ export interface KnowledgeBaseCreateRequest {
   score_threshold?: number;
 }
 
-/** 更新知识库请求 */
+/** Update knowledge base request / 更新知识库请求 */
 export interface KnowledgeBaseUpdateRequest {
   name?: null | string;
   description?: null | string;
@@ -62,7 +62,7 @@ export interface KnowledgeBaseUpdateRequest {
   status?: null | string;
 }
 
-/** 知识库文档 */
+/** Knowledge base document / 知识库文档 */
 export interface KnowledgeDocumentItem {
   id: number;
   knowledge_base_id: number;
@@ -80,7 +80,7 @@ export interface KnowledgeDocumentItem {
   updated_at: string;
 }
 
-/** 检索结果项 */
+/** Search result item / 检索结果项 */
 export interface SearchResultItem {
   chunk_id: number;
   content: string;
@@ -91,13 +91,13 @@ export interface SearchResultItem {
   highlight: null | string;
 }
 
-/** Q&A 对创建请求 */
+/** Q&A pair create request / Q&A 对创建请求 */
 export interface QAPairCreateRequest {
   question: string;
   answer: string;
 }
 
-/** 文档处理进度 */
+/** Document processing progress / 文档处理进度 */
 export interface DocumentProgress {
   stage: string;
   progress: number;
@@ -105,7 +105,7 @@ export interface DocumentProgress {
   processed_chunks: number;
 }
 
-/** 分页响应 */
+/** Paginated response / 分页响应 */
 interface PageResponse<T> {
   items: T[];
   page: number;
@@ -114,12 +114,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const PREFIX = '/tenant/ai/knowledge-bases';
 
-/** 获取知识库列表 */
+/** Get knowledge base list / 获取知识库列表 */
 export async function getKnowledgeBaseListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -130,7 +130,7 @@ export async function getKnowledgeBaseListApi(
   });
 }
 
-/** 获取知识库详情 */
+/** Get knowledge base detail / 获取知识库详情 */
 export async function getKnowledgeBaseDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -138,7 +138,7 @@ export async function getKnowledgeBaseDetailApi(
   return requestClient.get<KnowledgeBaseItem>(`${PREFIX}/${id}`, options);
 }
 
-/** 创建知识库 */
+/** Create knowledge base / 创建知识库 */
 export async function createKnowledgeBaseApi(
   data: KnowledgeBaseCreateRequest,
   options?: ApiRequestOptions,
@@ -146,7 +146,7 @@ export async function createKnowledgeBaseApi(
   return requestClient.post<KnowledgeBaseItem>(PREFIX, data, options);
 }
 
-/** 更新知识库 */
+/** Update knowledge base / 更新知识库 */
 export async function updateKnowledgeBaseApi(
   id: number,
   data: KnowledgeBaseUpdateRequest,
@@ -155,7 +155,7 @@ export async function updateKnowledgeBaseApi(
   return requestClient.put<KnowledgeBaseItem>(`${PREFIX}/${id}`, data, options);
 }
 
-/** 删除知识库 */
+/** Delete knowledge base / 删除知识库 */
 export async function deleteKnowledgeBaseApi(
   id: number,
   options?: ApiRequestOptions,
@@ -163,7 +163,7 @@ export async function deleteKnowledgeBaseApi(
   await requestClient.delete(`${PREFIX}/${id}`, options);
 }
 
-/** 获取文档列表 */
+/** Get document list / 获取文档列表 */
 export async function getDocumentListApi(
   kbId: number,
   params?: Record<string, unknown>,
@@ -175,7 +175,7 @@ export async function getDocumentListApi(
   );
 }
 
-/** 上传文档 */
+/** Upload document / 上传文档 */
 export async function uploadDocumentApi(
   kbId: number,
   file: File,
@@ -193,7 +193,7 @@ export async function uploadDocumentApi(
   );
 }
 
-/** 删除文档 */
+/** Delete document / 删除文档 */
 export async function deleteDocumentApi(
   kbId: number,
   docId: number,
@@ -202,7 +202,7 @@ export async function deleteDocumentApi(
   await requestClient.delete(`${PREFIX}/${kbId}/documents/${docId}`, options);
 }
 
-/** 重试文档 */
+/** Retry document / 重试文档 */
 export async function retryDocumentApi(
   kbId: number,
   docId: number,
@@ -215,7 +215,7 @@ export async function retryDocumentApi(
   );
 }
 
-/** 获取文档处理进度 */
+/** Get document processing progress / 获取文档处理进度 */
 export async function getDocumentProgressApi(
   kbId: number,
   docId: number,
@@ -227,7 +227,7 @@ export async function getDocumentProgressApi(
   );
 }
 
-/** 重新向量化 */
+/** Re-index (re-vectorize) / 重新向量化 */
 export async function reindexKnowledgeBaseApi(
   kbId: number,
   options?: ApiRequestOptions,
@@ -239,7 +239,7 @@ export async function reindexKnowledgeBaseApi(
   );
 }
 
-/** 直接文本输入创建文档 */
+/** Create document from text input / 直接文本输入创建文档 */
 export async function createTextDocumentApi(
   kbId: number,
   data: { content: string; title: string },
@@ -252,7 +252,7 @@ export async function createTextDocumentApi(
   );
 }
 
-/** 添加 Q&A 问答对 */
+/** Add Q&A pair / 添加 Q&A 问答对 */
 export async function createQAPairApi(
   kbId: number,
   data: QAPairCreateRequest,
@@ -265,7 +265,7 @@ export async function createQAPairApi(
   );
 }
 
-/** URL 网页导入 */
+/** Import from URL / URL 网页导入 */
 export async function importUrlApi(
   kbId: number,
   urls: string[],
@@ -280,7 +280,7 @@ export async function importUrlApi(
   );
 }
 
-/** 批量导入 Q&A 问答对（CSV/Excel） */
+/** Batch import Q&A pairs (CSV/Excel) / 批量导入 Q&A 问答对 */
 export async function batchImportQAApi(
   kbId: number,
   file: File,
@@ -295,7 +295,7 @@ export async function batchImportQAApi(
   );
 }
 
-/** 可选知识库项 */
+/** Selectable knowledge base item / 可选知识库项 */
 export interface SelectableKBItem {
   id: number;
   name: string;
@@ -303,14 +303,14 @@ export interface SelectableKBItem {
   description: null | string;
 }
 
-/** 获取可选知识库列表（租户端：自己的 + global） */
+/** Get selectable knowledge base list (tenant: own + global) / 获取可选知识库列表 */
 export async function getTenantSelectableKBApi(
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {
   return requestClient.get<SelectableKBItem[]>(`${PREFIX}/selectable`, options);
 }
 
-/** 文档分块预览 */
+/** Document chunk preview / 文档分块预览 */
 export async function getDocumentChunksApi(
   kbId: number,
   docId: number,
@@ -333,7 +333,7 @@ export async function getDocumentChunksApi(
   });
 }
 
-/** 检索测试 */
+/** Search test / 检索测试 */
 export async function searchKnowledgeBaseApi(
   kbId: number,
   data: {

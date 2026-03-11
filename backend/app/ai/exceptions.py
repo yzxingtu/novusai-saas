@@ -1,8 +1,10 @@
 """
+AI Gateway Unified Exception Hierarchy
 AI 网关统一异常层次
 
-捕获各供应商 SDK 的原始异常，转换为统一异常类型，
-使上层业务代码无需感知具体供应商差异。
+Captures raw exceptions from provider SDKs and converts them to unified types,
+so upper-layer business code need not be aware of provider differences.
+捕获各供应商 SDK 的原始异常，转换为统一异常类型，使上层业务代码无需感知具体供应商差异。
 """
 
 import contextlib
@@ -12,9 +14,10 @@ from app.core.i18n import _
 
 class AIGatewayError(Exception):
     """
-    AI 网关异常基类
+    AI Gateway base exception / AI 网关异常基类
 
-    所有 AI 网关相关异常均继承此类
+    All AI gateway exceptions inherit from this class.
+    所有 AI 网关相关异常均继承此类。
     """
 
     error_code: str = "ai_gateway_error"
@@ -31,15 +34,16 @@ class AIGatewayError(Exception):
         original_error: Exception | None = None,
     ):
         """
-        初始化 AI 网关异常
+        Initialize AI gateway exception.
+        初始化 AI 网关异常。
 
         Args:
-            message: 错误消息
-            provider_code: 供应商代码（如 openai_compatible）
-            model_code: 模型代码（如 gpt-4）
-            error_code: 供应商原始错误码
-            retry_after: 建议重试等待秒数
-            original_error: 原始异常对象
+            message: Error message / 错误消息
+            provider_code: Provider code (e.g. openai_compatible) / 供应商代码
+            model_code: Model code (e.g. gpt-4) / 模型代码
+            error_code: Provider original error code / 供应商原始错误码
+            retry_after: Suggested retry wait seconds / 建议重试等待秒数
+            original_error: Original exception object / 原始异常对象
         """
         self.message = message or _("ai.request_failed")
         self.provider_code = provider_code
@@ -50,7 +54,7 @@ class AIGatewayError(Exception):
         super().__init__(self.message)
 
     def to_dict(self) -> dict:
-        """转换为可序列化字典"""
+        """Convert to serializable dict / 转换为可序列化字典"""
         result = {
             "error_code": self.error_code,
             "message": self.message,
@@ -64,9 +68,10 @@ class AIGatewayError(Exception):
 
 class ProviderError(AIGatewayError):
     """
-    供应商通用错误
+    Provider general error / 供应商通用错误
 
-    供应商 API 返回的通用错误（非认证、非限流、非超时）
+    Generic error from provider API (not auth, rate-limit, or timeout).
+    供应商 API 返回的通用错误（非认证、非限流、非超时）。
     """
 
     error_code = "provider_error"
@@ -75,9 +80,10 @@ class ProviderError(AIGatewayError):
 
 class ProviderRateLimitError(AIGatewayError):
     """
-    供应商速率限制错误
+    Provider rate limit error / 供应商速率限制错误
 
-    供应商 API 返回 HTTP 429，表示请求过于频繁
+    Provider API returned HTTP 429, too many requests.
+    供应商 API 返回 HTTP 429，表示请求过于频繁。
     """
 
     error_code = "provider_rate_limit"
@@ -86,9 +92,10 @@ class ProviderRateLimitError(AIGatewayError):
 
 class ProviderAuthError(AIGatewayError):
     """
-    供应商认证错误
+    Provider auth error / 供应商认证错误
 
-    API Key 无效、过期或权限不足
+    API Key invalid, expired, or insufficient permissions.
+    API Key 无效、过期或权限不足。
     """
 
     error_code = "provider_auth_error"
@@ -97,9 +104,10 @@ class ProviderAuthError(AIGatewayError):
 
 class ModelNotFoundError(AIGatewayError):
     """
-    模型不存在错误
+    Model not found error / 模型不存在错误
 
-    请求的模型在供应商中不可用
+    Requested model not available at the provider.
+    请求的模型在供应商中不可用。
     """
 
     error_code = "model_not_found"
@@ -108,9 +116,10 @@ class ModelNotFoundError(AIGatewayError):
 
 class ProviderTimeoutError(AIGatewayError):
     """
-    供应商超时错误
+    Provider timeout error / 供应商超时错误
 
-    请求供应商 API 超时
+    Request to provider API timed out.
+    请求供应商 API 超时。
     """
 
     error_code = "provider_timeout"
@@ -119,9 +128,10 @@ class ProviderTimeoutError(AIGatewayError):
 
 class ProviderConnectionError(AIGatewayError):
     """
-    供应商连接错误
+    Provider connection error / 供应商连接错误
 
-    无法连接到供应商 API（网络故障等）
+    Cannot connect to provider API (network failure, etc.).
+    无法连接到供应商 API（网络故障等）。
     """
 
     error_code = "provider_connection_error"
@@ -130,9 +140,10 @@ class ProviderConnectionError(AIGatewayError):
 
 class ContentFilterError(AIGatewayError):
     """
-    内容过滤错误
+    Content filter error / 内容过滤错误
 
-    请求或响应被供应商内容安全策略拦截
+    Request or response blocked by provider content safety policy.
+    请求或响应被供应商内容安全策略拦截。
     """
 
     error_code = "content_filter"
@@ -141,16 +152,17 @@ class ContentFilterError(AIGatewayError):
 
 class ContextLengthExceededError(AIGatewayError):
     """
-    上下文长度超出错误
+    Context length exceeded error / 上下文长度超出错误
 
-    输入 tokens 超出模型上下文窗口限制
+    Input tokens exceed model context window limit.
+    输入 tokens 超出模型上下文窗口限制。
     """
 
     error_code = "context_length_exceeded"
     status_code = 400
 
 
-# ========== 供应商原始异常转换工具函数 ==========
+# ========== Provider exception conversion utilities / 供应商原始异常转换工具函数 ==========
 
 def convert_openai_error(
     error: Exception,
@@ -158,15 +170,16 @@ def convert_openai_error(
     model_code: str | None = None,
 ) -> AIGatewayError:
     """
-    将 OpenAI SDK 异常转换为统一异常
+    Convert OpenAI SDK exception to unified exception.
+    将 OpenAI SDK 异常转换为统一异常。
 
     Args:
-        error: OpenAI SDK 原始异常
-        provider_code: 供应商代码
-        model_code: 模型代码
+        error: OpenAI SDK original exception / OpenAI SDK 原始异常
+        provider_code: Provider code / 供应商代码
+        model_code: Model code / 模型代码
 
     Returns:
-        统一的 AIGatewayError 子类实例
+        Unified AIGatewayError subclass instance / 统一的 AIGatewayError 子类实例
     """
     from openai import (
         APIConnectionError,
@@ -204,7 +217,7 @@ def convert_openai_error(
         )
 
     if isinstance(error, RateLimitError):
-        # 尝试从响应头获取 retry-after
+        # Try to get retry-after from response headers / 尝试从响应头获取 retry-after
         retry_after = None
         if hasattr(error, "response") and error.response is not None:
             retry_header = error.response.headers.get("retry-after")
@@ -225,13 +238,13 @@ def convert_openai_error(
 
     if isinstance(error, BadRequestError):
         error_message = str(error)
-        # 检查是否为上下文长度超出
+        # Check if context length exceeded / 检查是否为上下文长度超出
         if "context_length" in error_message.lower() or "maximum context" in error_message.lower():
             return ContextLengthExceededError(
                 message=_("ai.error.context_length_exceeded"),
                 **kwargs,
             )
-        # 检查是否为内容过滤
+        # Check if content filter / 检查是否为内容过滤
         if "content_filter" in error_message.lower() or "content_policy" in error_message.lower():
             return ContentFilterError(
                 message=_("ai.error.content_filtered"),
@@ -245,7 +258,7 @@ def convert_openai_error(
 
     if isinstance(error, APIStatusError):
         status = getattr(error, "status_code", 500)
-        # HTTP 5xx → 供应商服务端错误
+        # HTTP 5xx → Provider server error / 供应商服务端错误
         if 500 <= status < 600:
             return ProviderError(
                 message=_("ai.error.provider_server_error"),
@@ -258,7 +271,7 @@ def convert_openai_error(
             **kwargs,
         )
 
-    # 兜底：未知异常包装为 ProviderError
+    # Fallback: wrap unknown exception as ProviderError / 兜底：未知异常包装为 ProviderError
     return ProviderError(
         message=str(error),
         **kwargs,
@@ -267,17 +280,19 @@ def convert_openai_error(
 
 def is_retryable(error: AIGatewayError) -> bool:
     """
-    判断异常是否可重试
+    Determine if an exception is retryable.
+    判断异常是否可重试。
 
+    Retryable: ProviderTimeoutError, ProviderConnectionError, 5xx ProviderError,
+    and ProviderRateLimitError with retry_after.
     仅 ProviderTimeoutError 和供应商 5xx 错误可重试。
-    ProviderRateLimitError 如果有 retry_after 也可重试。
-    4xx 错误（认证、参数等）不重试。
+    ProviderRateLimitError 如果有 retry_after 也可重试。4xx 错误不重试。
 
     Args:
-        error: AI 网关异常
+        error: AI gateway exception / AI 网关异常
 
     Returns:
-        是否可重试
+        Whether retryable / 是否可重试
     """
     if isinstance(error, ProviderTimeoutError):
         return True
@@ -292,7 +307,7 @@ def is_retryable(error: AIGatewayError) -> bool:
 
 
 __all__ = [
-    # 异常类
+    # Exception classes / 异常类
     "AIGatewayError",
     "ProviderError",
     "ProviderRateLimitError",
@@ -302,8 +317,8 @@ __all__ = [
     "ProviderConnectionError",
     "ContentFilterError",
     "ContextLengthExceededError",
-    # 转换函数
+    # Conversion functions / 转换函数
     "convert_openai_error",
-    # 工具函数
+    # Utility functions / 工具函数
     "is_retryable",
 ]

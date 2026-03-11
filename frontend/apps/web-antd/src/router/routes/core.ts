@@ -5,7 +5,7 @@ import { LOGIN_PATH } from '@vben/constants';
 import { $t } from '#/locales';
 
 const AuthPageLayout = () => import('#/layouts/auth.vue');
-/** 全局404页面 */
+/** Global 404 page / 全局 404 页面 */
 const fallbackNotFoundRoute: RouteRecordRaw = {
   component: () => import('#/views/_core/fallback/not-found.vue'),
   meta: {
@@ -18,7 +18,7 @@ const fallbackNotFoundRoute: RouteRecordRaw = {
   path: '/:path(.*)*',
 };
 
-/** 维护模式页面 */
+/** Maintenance mode page / 维护模式页面 */
 const maintenanceRoute: RouteRecordRaw = {
   component: () => import('#/views/_core/fallback/maintenance.vue'),
   meta: {
@@ -31,7 +31,7 @@ const maintenanceRoute: RouteRecordRaw = {
   path: '/maintenance',
 };
 
-/** 基本路由，这些路由是必须存在的 */
+/** Core routes, these routes must always exist / 基本路由，这些路由是必须存在的 */
 const coreRoutes: RouteRecordRaw[] = [
   maintenanceRoute,
   {

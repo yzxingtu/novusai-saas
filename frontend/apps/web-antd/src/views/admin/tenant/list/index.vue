@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Tenant list page
  * 租户列表页面
  */
 import type { adminApi } from '#/api';
@@ -46,12 +47,15 @@ defineOptions({ name: 'TenantList' });
 
 type TenantInfo = adminApi.TenantInfo;
 
-// 检测是否为开发模式
+// Check if in dev mode / 检测是否为开发模式
 const isDev = computed(() => import.meta.env.DEV);
 
 /**
+ * Build tenant origin URL
  * 构建租户端 origin URL
+ * Dev mode: tenant domain + current port
  * 开发模式下使用租户域名 + 当前端口
+ * Production: tenant primary domain
  * 生产模式下使用租户主域名
  */
 function getTenantOrigin(domain: string): string {
@@ -61,17 +65,17 @@ function getTenantOrigin(domain: string): string {
   return `${window.location.protocol}//${domain}`;
 }
 
-// 域名管理弹窗引用
+// Domain management modal ref / 域名管理弹窗引用
 const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
 
-// 重置密码弹窗引用
+// Reset password modal ref / 重置密码弹窗引用
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
-// 存储配置抽屉引用
+// Storage config drawer ref / 存储配置抽屉引用
 const storageDrawerRef = ref<InstanceType<typeof TenantStorageDrawer>>();
 
 /**
- * 复制域名到剪贴板
+ * Copy domain to clipboard / 复制域名到剪贴板
  */
 async function onCopyDomain(domain: string) {
   const success = await copyToClipboard(domain);
@@ -83,7 +87,7 @@ async function onCopyDomain(domain: string) {
 }
 
 /**
- * 打开域名管理弹窗
+ * Open domain management modal / 打开域名管理弹窗
  */
 function onManageDomains(row: TenantInfo) {
   domainsModalRef.value?.open({
@@ -94,7 +98,7 @@ function onManageDomains(row: TenantInfo) {
 }
 
 /**
- * 重置租户管理员密码
+ * Reset tenant admin password / 重置租户管理员密码
  */
 function onResetPassword(row: TenantInfo) {
   resetPasswordModalRef.value?.open({
@@ -104,7 +108,7 @@ function onResetPassword(row: TenantInfo) {
 }
 
 /**
- * 打开存储配置抽屉
+ * Open storage config drawer / 打开存储配置抽屉
  */
 function onStorageConfig(row: TenantInfo) {
   storageDrawerRef.value?.open({
@@ -114,7 +118,7 @@ function onStorageConfig(row: TenantInfo) {
 }
 
 /**
- * 一键登录租户后台(新窗口)
+ * One-click login to tenant backend (new window) / 一键登录租户后台(新窗口)
  */
 async function onImpersonate(row: TenantInfo) {
   const hideLoading = message.loading({
@@ -145,7 +149,7 @@ async function onImpersonate(row: TenantInfo) {
 }
 
 /**
- * 一键登录租户后台(当前标签页) - 仅开发模式
+ * One-click login to tenant backend (current tab) - dev mode only / 一键登录租户后台(当前标签页) - 仅开发模式
  */
 async function onImpersonateInCurrentTab(row: TenantInfo) {
   const hideLoading = message.loading({
@@ -175,7 +179,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
   }
 }
 
-// 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
+// Declarative CRUD page (plan dropdown auto-loaded by ApiSelect, export button auto-added) / 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
 const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActionClick, openExportModal } =
   useCrudPage<TenantInfo>({
     api: {

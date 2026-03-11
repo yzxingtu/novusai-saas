@@ -1,7 +1,8 @@
 """
-AI 使用量统计模型
+AI 使用量统计模型 / AI Usage Statistics Model
 
 按租户/用户/模型维度聚合 Token 使用量和费用统计
+Aggregates token usage and cost statistics by tenant/user/model dimensions.
 """
 
 from datetime import date

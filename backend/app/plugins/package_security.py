@@ -1,4 +1,5 @@
-"""插件 ZIP 包安全校验与解压工具。"""
+"""Plugin ZIP package security validation and extraction utilities.
+/ 插件 ZIP 包安全校验与解压工具。"""
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ _WINDOWS_DRIVE_RE = re.compile(r"^[a-zA-Z]:")
 
 
 def ensure_package_size_limit(size_bytes: int) -> None:
-    """校验压缩包大小是否超限。"""
+    """Check if package size exceeds the limit. / 校验压缩包大小是否超限。"""
     limit = settings.PLUGIN_MAX_PACKAGE_SIZE
     if size_bytes > limit:
         raise PluginInstallError(
@@ -26,7 +27,7 @@ def ensure_package_size_limit(size_bytes: int) -> None:
 
 
 def validate_plugin_zip_archive(zip_path: Path) -> None:
-    """对插件 ZIP 包做安全校验（不解压）。"""
+    """Security validation on plugin ZIP archive (without extraction). / 对插件 ZIP 包做安全校验（不解压）。"""
     zip_size = zip_path.stat().st_size
     ensure_package_size_limit(zip_size)
 
@@ -38,7 +39,7 @@ def validate_plugin_zip_archive(zip_path: Path) -> None:
 
 
 def extract_plugin_zip_safely(zip_path: Path, extract_dir: Path) -> Path:
-    """安全解压插件 ZIP，返回插件根目录。"""
+    """Safely extract plugin ZIP, return plugin root directory. / 安全解压插件 ZIP，返回插件根目录。"""
     zip_size = zip_path.stat().st_size
     ensure_package_size_limit(zip_size)
 
@@ -99,7 +100,7 @@ def _validate_zip_entries(
     zf: zipfile.ZipFile,
     zip_size: int,
 ) -> list[tuple[zipfile.ZipInfo, PurePosixPath]]:
-    """校验 ZIP 成员列表并返回规范化路径。"""
+    """Validate ZIP member list and return normalized paths. / 校验 ZIP 成员列表并返回规范化路径。"""
     infos = zf.infolist()
     if len(infos) > settings.PLUGIN_MAX_ARCHIVE_FILES:
         raise PluginInstallError(
@@ -159,7 +160,7 @@ def _validate_zip_entries(
 
 
 def _normalize_member_path(raw_name: str) -> PurePosixPath | None:
-    """规范化成员路径，非法路径返回 None。"""
+    """Normalize member path, return None for illegal paths. / 规范化成员路径，非法路径返回 None。"""
     name = (raw_name or "").replace("\\", "/").strip()
     if not name:
         return None
@@ -178,7 +179,7 @@ def _normalize_member_path(raw_name: str) -> PurePosixPath | None:
 
 
 def _locate_plugin_root(extract_dir: Path) -> Path | None:
-    """定位包含 plugin.yaml 的插件根目录。"""
+    """Locate plugin root directory containing plugin.yaml. / 定位包含 plugin.yaml 的插件根目录。"""
     for child in extract_dir.iterdir():
         if child.is_dir() and (child / "plugin.yaml").is_file():
             return child

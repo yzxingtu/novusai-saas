@@ -1,19 +1,19 @@
 /**
- * 操作日志 API（租户端）
- * 对接后端 /tenant/operation-logs/* 接口
+ * Operation log API (tenant side) / 操作日志 API（租户端）
+ * Backend: /tenant/operation-logs/* / 对接后端 /tenant/operation-logs/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 操作日志列表查询参数 */
+/** Operation log list query params / 操作日志列表查询参数 */
 export type OperationLogListParams = Record<string, unknown>;
 
-/** 操作人下拉选项 */
+/** Operator dropdown option / 操作人下拉选项 */
 export interface OperatorItem {
   user_id: number;
   user_type: string;
@@ -22,7 +22,7 @@ export interface OperatorItem {
   avatar?: null | string;
 }
 
-/** 操作日志信息（后端原始格式 snake_case） */
+/** Operation log info (backend raw format snake_case) / 操作日志信息（后端原始格式） */
 export interface OperationLogInfoRaw {
   id: number;
   tenant_id: null | number;
@@ -45,7 +45,7 @@ export interface OperationLogInfoRaw {
   created_at: string;
 }
 
-/** 操作日志信息（前端格式 camelCase） */
+/** Operation log info (frontend format camelCase) / 操作日志信息（前端格式） */
 export interface OperationLogInfo {
   id: number;
   tenantId: null | number;
@@ -68,7 +68,7 @@ export interface OperationLogInfo {
   createdAt: string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface OperationLogListResponse {
   items: OperationLogInfo[];
   total: number;
@@ -77,10 +77,10 @@ export interface OperationLogListResponse {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
 function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
   return {
     id: raw.id,
@@ -106,13 +106,13 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/tenant/operation-logs';
 
 /**
- * 获取操作日志列表
+ * Get operation log list / 获取操作日志列表
  * GET /tenant/operation-logs
  */
 export async function getOperationLogListApi(
@@ -135,7 +135,7 @@ export async function getOperationLogListApi(
 }
 
 /**
- * 获取操作人下拉列表（含头像，全量模式）
+ * Get operator dropdown list (with avatar, full list) / 获取操作人下拉列表（含头像，全量模式）
  * GET /tenant/operation-logs/operators
  */
 export async function getOperatorsApi(): Promise<OperatorItem[]> {
@@ -143,7 +143,7 @@ export async function getOperatorsApi(): Promise<OperatorItem[]> {
 }
 
 /**
- * 获取操作人分页下拉列表（供 ApiSelect 使用）
+ * Get operator paginated dropdown list (for ApiSelect) / 获取操作人分页下拉列表（供 ApiSelect 使用）
  * GET /tenant/operation-logs/operators?page=1&page_size=10&search=xxx&user_type=xxx
  */
 export async function getOperatorsSelectApi(
@@ -153,7 +153,7 @@ export async function getOperatorsSelectApi(
 }
 
 /**
- * 获取操作日志详情
+ * Get operation log detail / 获取操作日志详情
  * GET /tenant/operation-logs/{id}
  */
 export async function getOperationLogDetailApi(

@@ -1,8 +1,8 @@
 /**
- * Composables 统一导出
+ * Composables unified exports / Composables 统一导出
  */
 
-// 声明式表格相关（从 vxe-table 模块重新导出）
+// Declarative table related (re-exported from vxe-table module) / 声明式表格相关（从 vxe-table 模块重新导出）
 export {
   type BaseRow,
   type ColumnsFactory,

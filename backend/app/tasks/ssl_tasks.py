@@ -1,11 +1,17 @@
 """
-SSL 证书 Celery 任务
+SSL certificate Celery tasks / SSL 证书 Celery 任务
 
-包含 3 个任务：
-1. task_provision_ssl - 域名验证后自动触发 ACME 签发（default 队列，一次性）
-2. task_check_ssl_renewals - 每日巡检即将过期证书（scheduled 队列，Beat cron）
-3. task_renew_ssl - 单个证书续期（default 队列，由巡检触发）
+Contains 3 tasks: / 包含 3 个任务：
+1. task_provision_ssl - Auto-trigger ACME issuance after domain verification (default queue, one-time)
+   域名验证后自动触发 ACME 签发（default 队列，一次性）
+2. task_check_ssl_renewals - Daily inspection of expiring certificates (scheduled queue, Beat cron)
+   每日巡检即将过期证书（scheduled 队列，Beat cron）
+3. task_renew_ssl - Single certificate renewal (default queue, triggered by inspection)
+   单个证书续期（default 队列，由巡检触发）
 
+Note: In Celery Worker (Windows --pool=solo), asyncio.new_event_loop() between retries
+invalidates the module-level async_session_factory's event loop.
+Therefore, an independent async engine + session must be created on each task call.
 注意：Celery Worker (Windows --pool=solo) 中，asyncio.new_event_loop() 在 retries 之间
 会导致模块级 async_session_factory 绑定的 event loop 失效。
 因此必须在每次任务调用时创建独立的 async engine + session。
@@ -25,15 +31,17 @@ logger = LogManager.get_logger("ssl")
 
 @register_task(
     queue="default",
-    description="ACME SSL 证书签发（域名验证后自动触发）",
+    description="ACME SSL certificate issuance (auto-triggered after domain verification) / ACME SSL 证书签发（域名验证后自动触发）",
     max_retries=5,
     default_retry_delay=120,
 )
 def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
     """
-    异步签发 SSL 证书
+    Async SSL certificate issuance / 异步签发 SSL 证书
 
+    Triggered by celery_app.send_task() after domain verification succeeds.
     由域名验证成功后 celery_app.send_task() 触发
+    Uses default queue, one-time immediate task.
     走 default 队列，一次性即时任务
     """
 
@@ -46,7 +54,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
         async with _task_async_session() as db:
             try:
-                # 1. 获取域名信息
+                # 1. Get domain info / 获取域名信息
                 result = await db.execute(
                     select(TenantDomain).where(
                         TenantDomain.id == domain_id,
@@ -68,7 +76,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                     domain.domain, domain_id,
                 )
 
-                # 2. 从平台配置读取 ACME 参数
+                # 2. Read ACME params from platform config / 从平台配置读取 ACME 参数
                 from app.configs.service import ConfigService
                 config_svc = ConfigService(db)
                 acme_email = await config_svc.get_platform_config("acme_account_email", default="")
@@ -77,7 +85,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
-                # 3. 构建 DNS 提供商 + ACME 客户端签发
+                # 3. Build DNS provider + ACME client issuance / 构建 DNS 提供商 + ACME 客户端签发
                 from app.services.system.dns_provider import get_dns_provider
                 dns_provider = await get_dns_provider(db)
 
@@ -92,7 +100,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                     dns_deleter=dns_provider.delete_txt_record,
                 )
 
-                # 4. 存储证书
+                # 4. Store certificate / 存储证书
                 ssl_service = SslCertificateService(db)
                 cert = await ssl_service.store_platform_cert(
                     domain_id=domain_id,
@@ -119,7 +127,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
             except Exception as exc:
                 await db.rollback()
 
-                # dns_setter 缺失：配置问题，不重试，仅 WARNING
+                # dns_setter missing: config issue, no retry, WARNING only / dns_setter 缺失：配置问题，不重试，仅 WARNING
                 from app.services.system.acme_client import AcmeDnsSetterMissingError
                 if isinstance(exc, AcmeDnsSetterMissingError):
                     logger.warning(
@@ -132,7 +140,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                         "message": str(exc),
                     }
 
-                # 其他错误：记录 ERROR + 标记失败 + 重试
+                # Other errors: log ERROR + mark failed + retry / 其他错误：记录 ERROR + 标记失败 + 重试
                 logger.error(
                     "SSL provisioning failed for domain %d: %s",
                     domain_id, str(exc), exc_info=True,
@@ -161,16 +169,20 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="SSL 证书续期检查（每日凌晨 3:00 执行）",
+    description="SSL certificate renewal check (daily at 3:00 AM) / SSL 证书续期检查（每日凌晨 3:00 执行）",
     max_retries=1,
 )
 def task_check_ssl_renewals(self: BaseTask) -> dict:
     """
-    定期巡检即将过期的证书
+    Periodically inspect expiring certificates / 定期巡检即将过期的证书
 
+    Uses scheduled queue, triggered by Beat cron.
     走 scheduled 队列，由 Beat cron 触发
+    - platform certs: auto_renew=True → trigger task_renew_ssl
     - platform 证书：auto_renew=True → 触发 task_renew_ssl
+    - custom certs: record reminder only (no auto-renewal)
     - custom 证书：仅记录提醒（不自动续期）
+    - expired certs: mark ssl_status=expired
     - 已过期证书：标记 ssl_status=expired
     """
 
@@ -192,7 +204,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                 repo = SslCertificateRepository(db)
                 ssl_service = SslCertificateService(db)
 
-                # 1. 查询即将过期的平台证书 → 触发续期
+                # 1. Query expiring platform certs → trigger renewal / 查询即将过期的平台证书 → 触发续期
                 platform_certs = await repo.get_expiring_platform_certs(
                     days=30,
                 )
@@ -211,7 +223,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                             cert.id, str(e),
                         )
 
-                # 2. 查询即将过期的自定义证书 → 记录提醒 + 邮件通知
+                # 2. Query expiring custom certs → record reminder + email notification / 查询即将过期的自定义证书 → 记录提醒 + 邮件通知
                 custom_certs = await repo.get_expiring_custom_certs(days=30)
                 for cert in custom_certs:
                     await ssl_service.mark_expiry_warning(
@@ -223,7 +235,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                         "Custom cert %d expiring soon (domain_id=%d, expires=%s)",
                         cert.id, cert.domain_id, cert.expires_at,
                     )
-                    # 发送 SSL 到期提醒邮件（在 async 上下文中提取关联数据）
+                    # Send SSL expiry reminder email (extract associated data in async context) / 发送 SSL 到期提醒邮件（在 async 上下文中提取关联数据）
                     notify_email = await _get_cert_notify_email(db, cert.domain_id)
                     if notify_email:
                         _send_ssl_expiry_email(
@@ -233,7 +245,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                             tenant_id=notify_email["tenant_id"],
                         )
 
-                # 3. 查询已过期证书 → 标记 expired
+                # 3. Query expired certs → mark expired / 查询已过期证书 → 标记 expired
                 expired_certs = await repo.get_expired_certs()
                 for cert in expired_certs:
                     try:
@@ -276,15 +288,17 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
 
 @register_task(
     queue="default",
-    description="单个 SSL 证书续期（由巡检任务或手动触发）",
+    description="Single SSL certificate renewal (triggered by inspection task or manually) / 单个 SSL 证书续期（由巡检任务或手动触发）",
     max_retries=3,
     default_retry_delay=120,
 )
 def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
     """
-    单个平台证书续期
+    Single platform certificate renewal / 单个平台证书续期
 
+    Uses default queue, triggered by task_check_ssl_renewals or manually from admin/tenant side.
     走 default 队列，由 task_check_ssl_renewals 或管理端/租户端手动触发
+    Only platform type certificates can be renewed.
     仅 platform 类型可续期
     """
 
@@ -297,7 +311,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
             try:
                 ssl_service = SslCertificateService(db)
 
-                # 1. 获取证书信息
+                # 1. Get certificate info / 获取证书信息
                 cert = await ssl_service.get_by_id(cert_id)
                 if not cert:
                     logger.error("Cert %d not found for renewal", cert_id)
@@ -309,7 +323,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                     )
                     return {"error": "custom_cert_no_renew", "cert_id": cert_id}
 
-                # 2. 获取域名信息
+                # 2. Get domain info / 获取域名信息
                 domain = await ssl_service._get_domain(cert.domain_id)
 
                 logger.info(
@@ -317,7 +331,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                     cert_id, domain.domain,
                 )
 
-                # 3. 从平台配置读取 ACME 参数
+                # 3. Read ACME params from platform config / 从平台配置读取 ACME 参数
                 from app.configs.service import ConfigService
                 config_svc = ConfigService(db)
                 acme_email = await config_svc.get_platform_config("acme_account_email", default="")
@@ -326,7 +340,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
-                # 4. 构建 DNS 提供商 + ACME 重新签发
+                # 4. Build DNS provider + ACME re-issuance / 构建 DNS 提供商 + ACME 重新签发
                 from app.services.system.dns_provider import get_dns_provider
                 dns_provider = await get_dns_provider(db)
 
@@ -341,7 +355,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                     dns_deleter=dns_provider.delete_txt_record,
                 )
 
-                # 5. 存储新证书（会自动停用旧证书）
+                # 5. Store new certificate (auto-deactivates old one) / 存储新证书（会自动停用旧证书）
                 new_cert = await ssl_service.store_platform_cert(
                     domain_id=cert.domain_id,
                     tenant_id=cert.tenant_id,
@@ -371,7 +385,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                     cert_id, str(exc), exc_info=True,
                 )
 
-                # 记录续期失败（不改变证书状态，仍有效直到过期）
+                # Record renewal failure (does not change cert status, still valid until expiry) / 记录续期失败（不改变证书状态，仍有效直到过期）
                 try:
                     async with _task_async_session() as db2:
                         ssl_service2 = SslCertificateService(db2)
@@ -394,9 +408,11 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
 async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | None:
     """
+    Query domain + tenant contact email from domain_id (explicit query, avoid ORM lazy loading)
     从 domain_id 查询域名 + 租户联系邮箱（显式查询，避免 ORM 懒加载）
 
     Returns:
+        {"domain": str, "email": str, "tenant_id": int} or None
         {"domain": str, "email": str, "tenant_id": int} 或 None
     """
     from sqlalchemy import select
@@ -433,8 +449,10 @@ def _send_ssl_expiry_email(
     tenant_id: int,
 ) -> None:
     """
+    Send SSL certificate expiry reminder (via unified notification system)
     发送 SSL 证书到期提醒（通过统一通知系统）
 
+    Sent asynchronously via notification queue; silent failure does not affect inspection flow.
     走 notification 队列异步发送，静默失败不影响巡检主流程。
     """
     try:

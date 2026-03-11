@@ -1,7 +1,8 @@
 """
-定时任务仓储
+定时任务仓储 / Periodic Task Repository
 
 提供定时任务的数据访问操作
+Provides periodic task data access operations.
 """
 
 from app.core.base_repository import BaseRepository

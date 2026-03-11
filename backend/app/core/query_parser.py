@@ -1,14 +1,15 @@
 """
-JSON:API 查询参数解析器
+JSON:API 查询参数解析器 / JSON:API Query Parameter Parser
 
 解析 JSON:API 风格的查询参数，转换为 QuerySpec 对象
+Parses JSON:API style query parameters and converts them to QuerySpec objects.
 
-支持的参数格式:
-- filter[field]=value          等值过滤
-- filter[field][op]=value      带操作符过滤
-- sort=-created_at,name        排序（前缀 - 表示降序）
-- page[number]=1               页码
-- page[size]=20                每页数量
+支持的参数格式 / Supported parameter formats:
+- filter[field]=value          等值过滤 / Equality filter
+- filter[field][op]=value      带操作符过滤 / Operator filter
+- sort=-created_at,name        排序（前缀 - 表示降序） / Sort (prefix - for descending)
+- page[number]=1               页码 / Page number
+- page[size]=20                每页数量 / Page size
 """
 
 import re

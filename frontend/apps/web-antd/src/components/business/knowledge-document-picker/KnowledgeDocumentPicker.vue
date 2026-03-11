@@ -1,16 +1,18 @@
 <script lang="ts" setup>
 /**
+ * Knowledge Document Picker
  * 知识库文档输入器
  *
+ * Provides three document input methods:
  * 提供三种文档录入方式：
- * 1. 文件上传（支持 PDF/DOCX/TXT/MD/CSV/XLSX/HTML/PPTX/图片）
- * 2. 直接文本粘贴
- * 3. Q&A 问答对手动输入
+ * 1. File upload (supports PDF/DOCX/TXT/MD/CSV/XLSX/HTML/PPTX/images) / 文件上传
+ * 2. Direct text paste / 直接文本粘贴
+ * 3. Q&A pair manual input / Q&A 问答对手动输入
  *
  * Props:
- *  - uploadFn: 文件上传函数 (file: File) => Promise<unknown>
- *  - textFn: 文本提交函数 (data: {title, content}) => Promise<unknown>
- *  - qaFn: Q&A 提交函数 (data: {question, answer}) => Promise<unknown>
+ *  - uploadFn: File upload function / 文件上传函数
+ *  - textFn: Text submit function / 文本提交函数
+ *  - qaFn: Q&A submit function / Q&A 提交函数
  */
 import { ref } from 'vue';
 
@@ -171,7 +173,7 @@ async function handleQABatchUpload(file: File) {
 
 <template>
   <div class="flex flex-wrap items-center gap-2">
-    <!-- 上传文件按钮 -->
+    <!-- Upload file button / 上传文件按钮 -->
     <Upload
       :before-upload="handleUpload"
       :show-upload-list="false"
@@ -184,25 +186,25 @@ async function handleQABatchUpload(file: File) {
       </Button>
     </Upload>
 
-    <!-- 粘贴文本按钮 -->
+    <!-- Paste text button / 粘贴文本按钮 -->
     <Button v-if="textFn" size="small" @click="textModalVisible = true">
       <IconifyIcon icon="lucide:file-text" class="mr-1 size-3.5" />
       {{ $t('shared.knowledgeDocPicker.text.tab') }}
     </Button>
 
-    <!-- Q&A 按钮 -->
+    <!-- Q&A button / Q&A 按钮 -->
     <Button v-if="qaFn" size="small" @click="qaModalVisible = true">
       <IconifyIcon icon="lucide:message-square-plus" class="mr-1 size-3.5" />
       {{ $t('shared.knowledgeDocPicker.qa.tab') }}
     </Button>
 
-    <!-- URL 导入按钮 -->
+    <!-- URL import button / URL 导入按钮 -->
     <Button v-if="urlFn" size="small" @click="urlModalVisible = true">
       <IconifyIcon icon="lucide:globe" class="mr-1 size-3.5" />
       {{ $t('shared.knowledgeDocPicker.url.tab') }}
     </Button>
 
-    <!-- Q&A 批量导入 -->
+    <!-- Q&A batch import / Q&A 批量导入 -->
     <Upload
       v-if="qaBatchFn"
       :before-upload="handleQABatchUpload"
@@ -216,7 +218,7 @@ async function handleQABatchUpload(file: File) {
     </Upload>
   </div>
 
-  <!-- ========== 文本粘贴弹窗 ========== -->
+  <!-- ========== Text paste modal / 文本粘贴弹窗 ========== -->
   <Modal
     v-if="textFn"
     v-model:open="textModalVisible"
@@ -250,7 +252,7 @@ async function handleQABatchUpload(file: File) {
     </div>
   </Modal>
 
-  <!-- ========== Q&A 弹窗 ========== -->
+  <!-- ========== Q&A modal / Q&A 弹窗 ========== -->
   <Modal
     v-if="qaFn"
     v-model:open="qaModalVisible"
@@ -285,7 +287,7 @@ async function handleQABatchUpload(file: File) {
     </div>
   </Modal>
 
-  <!-- ========== URL 导入弹窗 ========== -->
+  <!-- ========== URL import modal / URL 导入弹窗 ========== -->
   <Modal
     v-if="urlFn"
     v-model:open="urlModalVisible"

@@ -1,5 +1,5 @@
 """
-技能 Service
+技能 Service / Skill Service
 """
 
 from typing import Any

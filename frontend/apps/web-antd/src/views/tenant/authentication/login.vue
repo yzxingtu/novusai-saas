@@ -17,18 +17,18 @@ defineOptions({ name: 'TenantLogin' });
 const publicConfigStore = usePublicConfigStore();
 const multiAuthStore = useMultiAuthStore();
 
-// 验证码组件引用
+// Captcha component ref / 验证码组件引用
 const captchaRef = ref<CaptchaAdapterExpose>();
 
-// 首次访问加载租户公开配置
+// Load tenant public config on first visit / 首次访问加载租户公开配置
 onMounted(() => {
   publicConfigStore.loadTenantConfig();
 });
 
-// 是否需要显示验证码
+// Whether to show captcha / 是否需要显示验证码
 const showCaptcha = computed(() => publicConfigStore.shouldShowTenantCaptcha);
 
-// 验证码难度
+// Captcha difficulty / 验证码难度
 const captchaDifficulty = computed((): CaptchaDifficulty => {
   const difficulty = publicConfigStore.tenantCaptcha?.difficulty;
   if (
@@ -65,28 +65,28 @@ const formSchema = computed((): VbenFormSchema[] => {
   return schema;
 });
 
-// 验证码提供商类型
+// Captcha provider type / 验证码提供商类型
 const captchaProvider = computed(() => {
   return publicConfigStore.tenantCaptcha?.provider ?? 'image';
 });
 
-// 刷新验证码
+// Refresh captcha / 刷新验证码
 function refreshCaptcha() {
   captchaRef.value?.refresh();
 }
 
 async function handleLogin(values: Record<string, unknown>) {
-  // 构建登录参数
+  // Build login params / 构建登录参数
   const loginParams: Record<string, unknown> = {
     password: values.password,
     username: values.username,
   };
 
-  // 如果需要验证码，从 CaptchaProvider 获取统一结果
+  // If captcha required, get unified result from CaptchaProvider / 如果需要验证码
   if (showCaptcha.value && captchaRef.value) {
     const result = captchaRef.value.getResult();
     if (!result) {
-      // 验证码未填写，不提交
+      // Captcha not filled, do not submit / 验证码未填写，不提交
       return;
     }
     loginParams.captchaChallengeId = result.challengeId;
@@ -98,19 +98,19 @@ async function handleLogin(values: Record<string, unknown>) {
 
   const result = await multiAuthStore.authLogin(loginParams, 'tenant');
 
-  // 登录失败时处理
+  // Handle login failure / 登录失败时处理
   if (result.userInfo) {
-    // 登录成功重置登录状态
+    // Reset login state on success / 登录成功重置登录状态
     publicConfigStore.resetTenantLoginState();
   } else {
     publicConfigStore.incrementTenantLoginFail();
 
-    // 如果后端要求显示验证码，设置强制要求状态
+    // If backend requires captcha, set forced requirement / 如果后端要求显示验证码
     if (result.captchaRequired) {
       publicConfigStore.setTenantCaptchaRequired(true);
     }
 
-    // 刷新验证码
+    // Refresh captcha / 刷新验证码
     refreshCaptcha();
   }
 }
@@ -131,7 +131,7 @@ async function handleLogin(values: Record<string, unknown>) {
       :sub-title="$t('tenant.auth.subtitle')"
       @submit="handleLogin"
     >
-      <!-- 验证码插槽 -->
+      <!-- Captcha slot / 验证码插槽 -->
       <template v-if="showCaptcha" #form-extend>
         <div class="captcha-section">
           <CaptchaProvider

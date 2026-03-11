@@ -1,7 +1,8 @@
 """
-平台端附件仓储
+平台端附件仓储 / Admin Attachment Repository
 
 提供跨租户的附件数据访问能力（平台管理员专用）
+Provides cross-tenant attachment data access (platform admin only).
 """
 
 from typing import Any

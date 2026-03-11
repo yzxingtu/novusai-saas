@@ -1,15 +1,16 @@
 """
+AI Data Intelligence Module (Text-to-SQL + Business Operations)
 AI 数据智能模块（Text-to-SQL + 业务操作）
 
-核心组件：
-- SchemaProvider: 数据字典服务，管理表白名单和列过滤
-- SQLSafetyValidator: SQL 六重安全校验
-- TenantIsolationInjector: 自动注入 tenant_id 隔离条件
-- ReadOnlyExecutor: 只读数据库执行器
-- TextToSQLGenerator: LLM 自然语言转 SQL 生成器
-- ResultFormatter: 查询结果智能格式化
+Core components / 核心组件：
+- SchemaProvider: Data dictionary service, manages table whitelist and column filtering / 数据字典服务
+- SQLSafetyValidator: Six-layer SQL safety validation / SQL 六重安全校验
+- TenantIsolationInjector: Automatic tenant_id isolation injection / 自动注入 tenant_id 隔离条件
+- ReadOnlyExecutor: Read-only database executor / 只读数据库执行器
+- TextToSQLGenerator: LLM natural language to SQL generator / LLM 自然语言转 SQL 生成器
+- ResultFormatter: Query result smart formatting / 查询结果智能格式化
 
-安全链路：
+Security chain / 安全链路：
   SchemaProvider → TextToSQLGenerator → SQLSafetyValidator
     → TenantIsolationInjector → ReadOnlyExecutor → ResultFormatter
 """

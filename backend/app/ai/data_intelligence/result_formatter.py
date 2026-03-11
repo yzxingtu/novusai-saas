@@ -1,14 +1,17 @@
 """
+Query Result Formatter (ResultFormatter)
 查询结果格式化器（ResultFormatter）
 
+Intelligently converts raw query results from ReadOnlyExecutor into frontend-renderable formats.
 将 ReadOnlyExecutor 返回的原始查询结果智能转换为前端可渲染的格式。
 
-自动检测类型：
-- number: 单值结果（如 COUNT、SUM、AVG）
-- chart: 适合图表展示的数据（时间序列 → line，分类统计 → bar/pie）
-- table: 多行多列数据
-- text: 无数据或纯文本结果
+Auto-detected types / 自动检测类型：
+- number: Single-value result (e.g. COUNT, SUM, AVG) / 单值结果
+- chart: Data suitable for charts (time series → line, category stats → bar/pie) / 图表数据
+- table: Multi-row multi-column data / 多行多列数据
+- text: No data or plain text result / 纯文本结果
 
+Generates ECharts config for direct frontend rendering.
 生成 ECharts 配置供前端直接渲染。
 """
 
@@ -28,7 +31,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 
 # ============================================
-# 显示类型枚举
+# Display Type Enum / 显示类型枚举
 # ============================================
 
 DISPLAY_TYPE_NUMBER = "number"
@@ -40,12 +43,12 @@ DISPLAY_TYPE_TEXT = "text"
 
 
 # ============================================
-# 数据结构
+# Data Structures / 数据结构
 # ============================================
 
 @dataclass
 class FormattedResult:
-    """格式化后的查询结果"""
+    """Formatted query result / 格式化后的查询结果"""
 
     display_type: str = DISPLAY_TYPE_TABLE
     data: dict[str, Any] = field(default_factory=dict)
@@ -64,7 +67,7 @@ class FormattedResult:
 
 
 # ============================================
-# 时间列检测
+# Time Column Detection / 时间列检测
 # ============================================
 
 _TIME_COLUMN_PATTERNS = re.compile(
@@ -76,22 +79,22 @@ _NUMERIC_TYPES = {"int", "float", "decimal", "numeric", "bigint", "real"}
 
 
 def _is_time_column(col_name: str) -> bool:
-    """判断列名是否为时间类型"""
+    """Check if column name is a time type / 判断列名是否为时间类型"""
     return bool(_TIME_COLUMN_PATTERNS.search(col_name))
 
 
 def _is_time_value(value: Any) -> bool:
-    """判断值是否为时间类型"""
+    """Check if value is a time type / 判断值是否为时间类型"""
     if isinstance(value, (date, datetime)):
         return True
     if isinstance(value, str):
-        # 简单检测 ISO 日期格式
+        # Simple ISO date format detection / 简单检测 ISO 日期格式
         return bool(re.match(r"^\d{4}[-/]\d{2}", value))
     return False
 
 
 def _is_numeric(value: Any) -> bool:
-    """判断值是否为数值"""
+    """Check if value is numeric / 判断值是否为数值"""
     if isinstance(value, (int, float)):
         return True
     if isinstance(value, str):
@@ -109,10 +112,12 @@ def _is_numeric(value: Any) -> bool:
 
 class ResultFormatter:
     """
-    查询结果格式化器
+    Query Result Formatter / 查询结果格式化器
 
+    Automatically selects best display method based on data characteristics,
+    generates ECharts config and summary.
     根据数据特征自动选择最佳展示方式，
-    生成 ECharts 配置和中文摘要。
+    生成 ECharts 配置和摘要。
     """
 
     @staticmethod
@@ -121,20 +126,21 @@ class ResultFormatter:
         generated_sql: GeneratedSQL | None = None,
     ) -> FormattedResult:
         """
-        格式化查询结果
+        Format query result.
+        格式化查询结果。
 
         Args:
-            query_result: 只读执行器返回的原始结果
-            generated_sql: LLM 生成的 SQL 信息（含 explanation 和 visualization 建议）
+            query_result: Raw result from read-only executor / 只读执行器返回的原始结果
+            generated_sql: LLM-generated SQL info (with explanation and visualization suggestion) / LLM 生成的 SQL 信息
 
         Returns:
-            FormattedResult 格式化结果
+            FormattedResult / 格式化结果
         """
         columns = query_result.columns
         rows = query_result.rows
         row_count = query_result.row_count
 
-        # 空结果
+        # Empty result / 空结果
         if not rows:
             return FormattedResult(
                 display_type=DISPLAY_TYPE_TEXT,
@@ -142,14 +148,14 @@ class ResultFormatter:
                 summary=_("data_intelligence.formatter.no_data"),
             )
 
-        # 检测显示类型
+        # Detect display type / 检测显示类型
         display_type = ResultFormatter._detect_display_type(
             columns,
             rows,
             generated_sql.visualization_suggestion if generated_sql else None,
         )
 
-        # 构建基础数据
+        # Build base data / 构建基础数据
         data: dict[str, Any] = {
             "columns": columns,
             "rows": rows,
@@ -157,7 +163,7 @@ class ResultFormatter:
             "truncated": query_result.truncated,
         }
 
-        # 单值 number
+        # Single value number / 单值 number
         if display_type == DISPLAY_TYPE_NUMBER:
             value = rows[0].get(columns[0]) if columns else None
             data["value"] = value
@@ -173,7 +179,7 @@ class ResultFormatter:
                 summary=summary,
             )
 
-        # 图表类型
+        # Chart types / 图表类型
         chart_config = None
         if display_type in (
             DISPLAY_TYPE_LINE_CHART,
@@ -184,7 +190,7 @@ class ResultFormatter:
                 display_type, columns, rows,
             )
 
-        # 生成摘要
+        # Generate summary / 生成摘要
         summary = ResultFormatter._generate_summary(
             query_result, generated_sql,
         )
@@ -203,25 +209,26 @@ class ResultFormatter:
         llm_suggestion: str | None = None,
     ) -> str:
         """
-        自动检测最佳显示类型
+        Auto-detect best display type.
+        自动检测最佳显示类型。
 
-        优先级：
-        1. 单行单列数值 → number
-        2. LLM 建议（如果合理）
-        3. 时间列 + 数值列 → line_chart
-        4. 2 列（分类 + 数值）→ bar_chart 或 pie_chart
-        5. 默认 → table
+        Priority / 优先级：
+        1. Single row, single column numeric → number / 单行单列数值
+        2. LLM suggestion (if reasonable) / LLM 建议
+        3. Time column + numeric column → line_chart / 时间列 + 数值列
+        4. 2 columns (category + numeric) → bar_chart or pie_chart / 分类 + 数值
+        5. Default → table / 默认
         """
         col_count = len(columns)
         row_count = len(rows)
 
-        # 单行单列 → number
+        # Single row, single column → number / 单行单列
         if row_count == 1 and col_count == 1:
             value = rows[0].get(columns[0])
             if _is_numeric(value):
                 return DISPLAY_TYPE_NUMBER
 
-        # LLM 建议映射
+        # LLM suggestion mapping / LLM 建议映射
         suggestion_map = {
             "number": DISPLAY_TYPE_NUMBER,
             "line": DISPLAY_TYPE_LINE_CHART,
@@ -232,11 +239,11 @@ class ResultFormatter:
 
         if llm_suggestion and llm_suggestion in suggestion_map:
             suggested_type = suggestion_map[llm_suggestion]
-            # 验证 LLM 建议是否合理
+            # Validate if LLM suggestion is reasonable / 验证 LLM 建议是否合理
             if suggested_type == DISPLAY_TYPE_NUMBER and (
                 row_count != 1 or col_count != 1
             ):
-                pass  # 不合理，跳过
+                pass  # Not reasonable, skip / 不合理，跳过
             elif suggested_type in (
                 DISPLAY_TYPE_LINE_CHART,
                 DISPLAY_TYPE_BAR_CHART,
@@ -244,12 +251,12 @@ class ResultFormatter:
             ) and col_count >= 2 and row_count >= 2:
                 return suggested_type
 
-        # 自动检测：时间列 + 数值列 → line
+        # Auto-detect: time column + numeric column → line / 自动检测
         if col_count >= 2 and row_count >= 2:
             first_col = columns[0]
             first_value = rows[0].get(first_col)
             if _is_time_column(first_col) or _is_time_value(first_value):
-                # 检查是否有数值列
+                # Check if there's a numeric column / 检查是否有数值列
                 has_numeric = any(
                     _is_numeric(rows[0].get(c))
                     for c in columns[1:]
@@ -257,7 +264,7 @@ class ResultFormatter:
                 if has_numeric:
                     return DISPLAY_TYPE_LINE_CHART
 
-        # 2 列（分类 + 数值）且行数适中 → bar/pie
+        # 2 columns (category + numeric) with moderate row count → bar/pie / 分类 + 数值
         if col_count == 2 and 2 <= row_count <= 20:
             second_col = columns[1]
             if _is_numeric(rows[0].get(second_col)):
@@ -274,9 +281,11 @@ class ResultFormatter:
         rows: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """
-        生成 ECharts 配置
+        Generate ECharts config.
+        生成 ECharts 配置。
 
-        返回前端可直接传给 ECharts 的 option 对象
+        Returns option object that frontend can pass directly to ECharts.
+        返回前端可直接传给 ECharts 的 option 对象。
         """
         x_col = columns[0]
         y_cols = columns[1:]
@@ -284,7 +293,7 @@ class ResultFormatter:
         x_data = [str(row.get(x_col, "")) for row in rows]
 
         if display_type == DISPLAY_TYPE_PIE_CHART:
-            # 饼图：name + value 格式
+            # Pie chart: name + value format / 饼图格式
             value_col = y_cols[0] if y_cols else columns[0]
             pie_data = [
                 {
@@ -312,7 +321,7 @@ class ResultFormatter:
                 ],
             }
 
-        # 折线图 / 柱状图
+        # Line chart / Bar chart / 折线图 / 柱状图
         chart_type = (
             "line" if display_type == DISPLAY_TYPE_LINE_CHART else "bar"
         )
@@ -347,7 +356,7 @@ class ResultFormatter:
         value: Any,
         generated_sql: GeneratedSQL | None = None,
     ) -> str:
-        """生成单值结果的摘要"""
+        """Generate summary for single-value result / 生成单值结果的摘要"""
         explanation = (
             generated_sql.explanation if generated_sql else ""
         )
@@ -368,14 +377,14 @@ class ResultFormatter:
         query_result: QueryResult,
         generated_sql: GeneratedSQL | None = None,
     ) -> str:
-        """生成通用结果摘要"""
+        """Generate general result summary / 生成通用结果摘要"""
         parts: list[str] = []
 
-        # LLM 的解释
+        # LLM explanation / LLM 的解释
         if generated_sql and generated_sql.explanation:
             parts.append(generated_sql.explanation)
 
-        # 行数统计
+        # Row count stats / 行数统计
         row_info = _("data_intelligence.formatter.row_count",
                       count=str(query_result.row_count))
         parts.append(row_info)

@@ -10,7 +10,7 @@ from app.rbac.decorators import public
 from app.services.common import ImageProcessService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
-router = APIRouter(prefix="/attachments", tags=["公开附件"])
+router = APIRouter(prefix="/attachments", tags=["公开附件 / Public Attachments"])
 
 # In-memory IP rate limiter for image processing
 _image_rate_buckets: dict[str, list[float]] = defaultdict(list)
@@ -77,39 +77,40 @@ async def get_processed_image(
     attachment_id: int,
     db: DbSession,
     token: str | None = None,
-    # 图片处理参数
-    w: int | None = Query(None, ge=1, le=4096, description="宽度"),
-    h: int | None = Query(None, ge=1, le=4096, description="高度"),
-    q: int | None = Query(None, ge=1, le=100, description="质量"),
-    f: Literal["jpg", "png", "webp", "gif"] | None = Query(None, description="格式"),
-    m: Literal["fit", "fill", "crop", "pad"] | None = Query(None, description="模式"),
-    p: str | None = Query(None, description="预设 (thumb/avatar/preview/banner/small/medium/large)"),
+    # 图片处理参数 / Image processing parameters
+    w: int | None = Query(None, ge=1, le=4096, description="宽度 / Width"),
+    h: int | None = Query(None, ge=1, le=4096, description="高度 / Height"),
+    q: int | None = Query(None, ge=1, le=100, description="质量 / Quality"),
+    f: Literal["jpg", "png", "webp", "gif"] | None = Query(None, description="格式 / Format"),
+    m: Literal["fit", "fill", "crop", "pad"] | None = Query(None, description="模式 / Mode"),
+    p: str | None = Query(None, description="预设 / Preset (thumb/avatar/preview/banner/small/medium/large)"),
 ):
     """
-    动态图片处理端点
+    动态图片处理端点 / Dynamic image processing endpoint
 
     支持通过 URL 参数进行图片缩放、裁剪、格式转换等处理。
+    Supports image resizing, cropping, format conversion via URL parameters.
 
-    **参数说明:**
-    - `w`: 宽度 (1-4096)
-    - `h`: 高度 (1-4096)
-    - `q`: 质量 (1-100，默认 85)
-    - `f`: 输出格式 (jpg/png/webp/gif)
-    - `m`: 缩放模式
-      - `fit`: 等比缩放，限制在指定宽高内
-      - `fill`: 等比缩放并居中裁剪
-      - `crop`: 裁剪指定区域
-      - `pad`: 等比缩放并填充背景
-    - `p`: 预设名称 (thumb/avatar/preview/banner/small/medium/large)
+    **参数说明 / Parameters:**
+    - `w`: 宽度 / Width (1-4096)
+    - `h`: 高度 / Height (1-4096)
+    - `q`: 质量 / Quality (1-100, default 85)
+    - `f`: 输出格式 / Output format (jpg/png/webp/gif)
+    - `m`: 缩放模式 / Resize mode
+      - `fit`: 等比缩放，限制在指定宽高内 / Scale proportionally within specified dimensions
+      - `fill`: 等比缩放并居中裁剪 / Scale and center crop
+      - `crop`: 裁剪指定区域 / Crop specified area
+      - `pad`: 等比缩放并填充背景 / Scale and pad background
+    - `p`: 预设名称 / Preset name (thumb/avatar/preview/banner/small/medium/large)
 
-    **预设配置:**
+    **预设配置 / Preset configurations:**
     - `thumb`: 150x150 fill
     - `avatar`: 200x200 fill
     - `preview`: 800x600 fit
     - `banner`: 1200x400 fill
-    - `small`: 320px 宽 fit
-    - `medium`: 640px 宽 fit
-    - `large`: 1024px 宽 fit
+    - `small`: 320px 宽 / wide fit
+    - `medium`: 640px 宽 / wide fit
+    - `large`: 1024px 宽 / wide fit
     """
     # IP rate limiting (read configurable limit)
     from app.configs.service import ConfigService
@@ -124,17 +125,17 @@ async def get_processed_image(
             content={"detail": "Too many image processing requests. Please try again later."},
         )
 
-    # 验证访问权限
+    # 验证访问权限 / Validate access permissions
     download_service = AttachmentDownloadService(db)
     attachment = await download_service.get_attachment(attachment_id)
     await download_service.validate_access(attachment, token)
 
-    # 图片处理服务
+    # 图片处理服务 / Image processing service
     image_service = ImageProcessService(db, tenant_id=attachment.tenant_id)
 
-    # 检查图片处理功能是否启用
+    # 检查图片处理功能是否启用 / Check if image processing is enabled
     if not await image_service.is_enabled():
-        # 未启用，直接重定向到原始文件
+        # 未启用，直接重定向到原始文件 / Not enabled, redirect to original file
         url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
         return RedirectResponse(url=url)
 
@@ -147,19 +148,19 @@ async def get_processed_image(
         preset=p,
     )
 
-    # 如果无需处理，重定向到原始访问 URL
+    # 如果无需处理，重定向到原始访问 URL / If no processing needed, redirect to original access URL
     if params.is_empty():
         url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
         return RedirectResponse(url=url)
 
-    # 通过服务层获取处理后的图片
+    # 通过服务层获取处理后的图片 / Get processed image via service layer
     result = await image_service.get_processed_image_response(attachment, params)
 
-    # 如果返回 URL，重定向（云存储原生处理）
+    # 如果返回 URL，重定向（云存储原生处理） / If URL returned, redirect (cloud storage native processing)
     if isinstance(result, str):
         return RedirectResponse(url=result)
 
-    # 返回处理后的图片数据（本地处理）
+    # 返回处理后的图片数据（本地处理） / Return processed image data (local processing)
     data, mime_type = result
     return Response(
         content=data,

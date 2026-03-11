@@ -1,6 +1,9 @@
 /**
+ * Vite custom plugin: novus-plugin-loader
  * Vite 自定义插件：novus-plugin-loader
  *
+ * Build mode: copies backend/plugins/{name}/frontend/dist to host output directory plugin-assets/
+ * Dev mode: directly transpiles src/ source via Vite, code changes are immediately visible without pre-building UMD bundles
  * build 模式：将 backend/plugins/{name}/frontend/dist 复制到宿主输出目录 plugin-assets/
  * dev 模式：直接通过 Vite 转译 src/ 源码，改代码即刷新可见，无需预先构建 UMD 包
  */
@@ -20,17 +23,18 @@ import { join, resolve } from 'node:path';
 
 interface PluginEntry {
   name: string;
-  /** 插件 frontend/dist/ 绝对路径（有预编译产物时） */
+  /** Plugin frontend/dist/ absolute path (when pre-compiled assets exist) / 插件 frontend/dist/ 绝对路径（有预编译产物时） */
   distDir: null | string;
-  /** 插件 frontend/src/index.ts 绝对路径（有源码时，dev 模式优先使用） */
+  /** Plugin frontend/src/index.ts absolute path (when source exists, preferred in dev mode) / 插件 frontend/src/index.ts 绝对路径（有源码时，dev 模式优先使用） */
   srcEntry: null | string;
-  /** 插件 frontend/ 绝对路径 */
+  /** Plugin frontend/ absolute path / 插件 frontend/ 绝对路径 */
   frontendDir: null | string;
-  /** 插件 package.json dependencies 的包名集合（dev 模式从插件 node_modules 解析） */
+  /** Package names from plugin package.json dependencies (resolved from plugin node_modules in dev mode) / 插件 package.json dependencies 的包名集合（dev 模式从插件 node_modules 解析） */
   deps: Set<string>;
 }
 
 /**
+ * Scan backend/plugins/ directory to discover all plugins with frontend
  * 扫描 backend/plugins/ 目录，发现所有有前端的插件
  */
 function scanPlugins(pluginsDir: string): PluginEntry[] {
@@ -80,6 +84,8 @@ function scanPlugins(pluginsDir: string): PluginEntry[] {
 
 export interface NovusPluginsOptions {
   /**
+   * Absolute path to backend/plugins/ directory
+   * Example: E:/git_clone/novusai-saas-yudi/backend/plugins
    * backend/plugins/ 目录的绝对路径
    * 例如: E:/git_clone/novusai-saas-yudi/backend/plugins
    */
@@ -105,6 +111,7 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
     enforce: 'post',
 
     // --------------------------------------------------
+    // Dev mode: allow Vite to access plugin source code & dependencies
     // Dev 模式：允许 Vite 访问插件源码 & 依赖
     // --------------------------------------------------
     config(_userConfig, { command }) {
@@ -156,6 +163,7 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
     },
 
     // --------------------------------------------------
+    // Dev mode: resolve plugin-specific dependencies from plugin node_modules
     // Dev 模式：从插件 node_modules 解析插件专有依赖
     // --------------------------------------------------
     async resolveId(id, importer, resolveOptions) {
@@ -220,6 +228,8 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
     },
 
     // --------------------------------------------------
+    // Dev mode: intercept /plugin-assets/{name}/index.js
+    //          → Vite transpiles src/index.ts source → returns ESM
     // Dev 模式：拦截 /plugin-assets/{name}/index.js
     //          → Vite 转译 src/index.ts 源码 → 返回 ESM
     // --------------------------------------------------
@@ -266,6 +276,7 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
     },
 
     // --------------------------------------------------
+    // Build mode: copy dist/ to build output directory
     // Build 模式：将 dist/ 复制到构建输出目录
     // --------------------------------------------------
     writeBundle(outputOptions) {

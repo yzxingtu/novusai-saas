@@ -2,6 +2,7 @@
 import type { MenuDeclItem } from './modules/PluginMenuConfigModal.vue';
 
 /**
+ * Platform plugin management page — card layout
  * 平台插件管理页面 — 卡片式布局
  */
 import type { MenuOverrideItem, PluginInfo } from '#/api/admin/plugin';
@@ -263,7 +264,7 @@ function getPluginMenus(plugin: PluginInfo): MenuDeclItem[] {
 function onEnable(plugin: PluginInfo) {
   const menus = getPluginMenus(plugin);
   if (menus.length > 0) {
-    // 有菜单扩展 → 先让管理员选择挂载位置
+    // Has menu extensions → let admin choose mount position first / 有菜单扩展 → 先让管理员选择挂载位置
     pendingEnablePlugin = plugin;
     const currentOverrides = ((plugin.config || {}) as Record<string, unknown>)
       .menu_overrides as
@@ -279,7 +280,7 @@ function doEnable(plugin: PluginInfo, menuOverrides?: MenuOverrideItem[]) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.enable', { name: plugin.display_name }),
     onOk() {
-      // 不 return Promise，让 Modal 立即关闭，进度由 progressStore (Socket.IO) 跟踪
+      // Don't return Promise, let Modal close immediately, progress tracked by progressStore (Socket.IO) / 不 return Promise，让 Modal 立即关闭，进度由 progressStore (Socket.IO) 跟踪
       progressStore.reset();
       progressStore.startOperation(plugin.display_name, 'enable');
       withProcessing(plugin.id, async () => {
@@ -351,7 +352,7 @@ function onDisable(plugin: PluginInfo) {
             (error as AxiosLike)?.response?.data?.message ??
             (error as AxiosLike)?.message ??
             '';
-          // 依赖插件错误 — 弹出友好提示
+          // Dependent plugin error — pop friendly hint / 依赖插件错误 — 弹出友好提示
           if (apiMsg.includes('depend on it') || apiMsg.includes('plugins [')) {
             const match = apiMsg.match(/plugins \[([^\]]+)\]/);
             const deps = match ? match[1] : apiMsg;
@@ -386,7 +387,7 @@ function onDisable(plugin: PluginInfo) {
             });
             return;
           }
-          // 其他意外错误 — 兜底提示
+          // Other unexpected error — fallback hint / 其他意外错误 — 兜底提示
           message.error(apiMsg || $t('admin.common.operationFailed'));
           return;
         }
@@ -404,7 +405,7 @@ function onUninstall(plugin: PluginInfo) {
     title: $t('admin.plugin.confirm.uninstall', { name: plugin.display_name }),
     okType: 'danger',
     onOk() {
-      // 不 return Promise，让 Modal 立即关闭
+      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
       progressStore.reset();
       progressStore.startOperation(plugin.display_name, 'uninstall');
       withProcessing(plugin.id, async () => {

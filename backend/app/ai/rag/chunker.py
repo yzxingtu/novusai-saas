@@ -1,8 +1,10 @@
 """
+Text Chunker Module
 文本分块器模块
 
-支持递归分割、语义分块、段落分块三种策略
-统一输出 ChunkData 列表供 Embedding 和存储使用
+Supports three strategies: recursive splitting, semantic chunking, and paragraph chunking.
+Unified output as ChunkData list for embedding and storage.
+支持递归分割、语义分块、段落分块三种策略，统一输出 ChunkData 列表供 Embedding 和存储使用。
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ logger = LogManager.get_logger("ai.rag.chunker")
 
 @dataclass
 class ChunkData:
-    """分块结果"""
+    """Chunk result / 分块结果"""
     content: str
     chunk_index: int
     char_count: int
@@ -29,18 +31,18 @@ class ChunkData:
 
 
 def _compute_hash(text: str) -> str:
-    """计算文本 MD5 哈希"""
+    """Compute MD5 hash of text / 计算文本 MD5 哈希"""
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
 class BaseChunker(ABC):
-    """分块器基类"""
+    """Base chunker class / 分块器基类"""
 
     def __init__(self, chunk_size: int = 512, chunk_overlap: int = 50):
         """
         Args:
-            chunk_size: 每块最大字符数
-            chunk_overlap: 块间重叠字符数
+            chunk_size: Maximum characters per chunk / 每块最大字符数
+            chunk_overlap: Overlap characters between chunks / 块间重叠字符数
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -48,17 +50,17 @@ class BaseChunker(ABC):
     @abstractmethod
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
         """
-        将解析页面列表分块
+        Chunk parsed page list / 将解析页面列表分块
 
         Args:
-            pages: ParsedPage 列表
+            pages: ParsedPage list / ParsedPage 列表
 
         Returns:
-            ChunkData 列表
+            ChunkData list / ChunkData 列表
         """
 
     def _build_chunk(self, content: str, index: int, metadata: dict) -> ChunkData:
-        """构建单个 ChunkData"""
+        """Build a single ChunkData / 构建单个 ChunkData"""
         return ChunkData(
             content=content,
             chunk_index=index,
@@ -69,19 +71,24 @@ class BaseChunker(ABC):
 
     def _merge_small_pages(self, pages: list[ParsedPage]) -> list[ParsedPage]:
         """
+        Merge adjacent small pages within chunk_size range
         合并相邻小 page 至 chunk_size 范围内
 
+        When Parser outputs many tiny pages (e.g. CSV one page per row),
+        chunking each page independently produces fragmented chunks.
+        This method merges adjacent small pages into larger ones close to chunk_size,
+        preserving semantic coherence.
         当 Parser 输出大量微型 page 时（如 CSV 每行一个 page），
         逐 page 独立分块会产生碎片化 chunk。此方法在分块前将相邻小 page
         合并为接近 chunk_size 的大 page，保留语义连贯性。
 
-        合并规则：
-        - 相邻 page 内容拼接（\\n\\n 分隔）不超过 chunk_size → 合并
-        - 超过 chunk_size → 当前累积 page 输出，开始新一轮
-        - 单个 page 已 >= chunk_size → 独立输出，不与其他 page 合并
+        Merge rules / 合并规则：
+        - Adjacent pages concatenated (\n\n separated) within chunk_size → merge / 合并
+        - Exceeds chunk_size → output accumulated, start new round / 输出，开始新一轮
+        - Single page >= chunk_size → output independently / 独立输出
 
         Returns:
-            合并后的 ParsedPage 列表
+            Merged ParsedPage list / 合并后的 ParsedPage 列表
         """
         if not pages:
             return pages
@@ -99,9 +106,10 @@ class BaseChunker(ABC):
             if not text:
                 continue
 
+            # Single page already reached chunk_size, output independently
             # 单个 page 已达 chunk_size，独立输出
             if len(text) >= self.chunk_size:
-                # 先输出缓冲区
+                # Flush buffer first / 先输出缓冲区
                 if buf_parts:
                     merged.append(ParsedPage(
                         content=separator.join(buf_parts),
@@ -113,7 +121,7 @@ class BaseChunker(ABC):
                 merged.append(page)
                 continue
 
-            # 计算合并后长度
+            # Calculate merged length / 计算合并后长度
             new_len = buf_len + (sep_len if buf_parts else 0) + len(text)
 
             if new_len <= self.chunk_size:
@@ -122,7 +130,7 @@ class BaseChunker(ABC):
                 if not buf_metadata:
                     buf_metadata = page.metadata.copy()
             else:
-                # 超出：输出缓冲区，开始新一轮
+                # Exceeded: output buffer, start new round / 超出：输出缓冲区，开始新一轮
                 if buf_parts:
                     merged.append(ParsedPage(
                         content=separator.join(buf_parts),
@@ -132,7 +140,7 @@ class BaseChunker(ABC):
                 buf_len = len(text)
                 buf_metadata = page.metadata.copy()
 
-        # 输出剩余
+        # Output remaining / 输出剩余
         if buf_parts:
             merged.append(ParsedPage(
                 content=separator.join(buf_parts),
@@ -150,20 +158,24 @@ class BaseChunker(ABC):
 
 class RecursiveChunker(BaseChunker):
     """
+    Recursive Splitting Chunker (default strategy)
     递归分割分块器（默认策略）
 
-    按分隔符优先级递归分割：\\n\\n → \\n → 。→ ！→ ？→ ；→ 空格
-    确保每块不超过 chunk_size，块间保留 chunk_overlap 字符重叠
+    Recursively splits by separator priority: \n\n → \n → 。→ ！→ ？→ ；→ space
+    Ensures each chunk ≤ chunk_size with chunk_overlap character overlap between chunks.
+    按分隔符优先级递归分割：\n\n → \n → 。→ ！→ ？→ ；→ 空格，
+    确保每块不超过 chunk_size，块间保留 chunk_overlap 字符重叠。
 
-    特殊处理：
-    - 代码块（```...```）不分割，整体作为一块
-    - 标题行自动附带到下一个内容块
+    Special handling / 特殊处理：
+    - Code blocks (```...```) are not split, kept as a whole / 代码块不分割，整体作为一块
+    - Heading lines auto-attached to next content block / 标题行自动附带到下一个内容块
     """
 
-    # 分隔符优先级
+    # Separator priority / 分隔符优先级
     SEPARATORS = ["\n\n", "\n", "。", "！", "？", "；", ". ", "! ", "? ", "; ", " "]
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # Pre-merge: merge adjacent small pages to near chunk_size, avoid fragmented chunks
         # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
         pages = self._merge_small_pages(pages)
 
@@ -175,13 +187,13 @@ class RecursiveChunker(BaseChunker):
             if not text:
                 continue
 
-            # 检测是否为代码块，不分割
+            # Detect code block, do not split / 检测是否为代码块，不分割
             if text.startswith("```") and text.endswith("```"):
                 chunks.append(self._build_chunk(text, chunk_index, page.metadata.copy()))
                 chunk_index += 1
                 continue
 
-            # 递归分割
+            # Recursive split / 递归分割
             segments = self._recursive_split(text, 0)
 
             for segment in segments:
@@ -195,19 +207,19 @@ class RecursiveChunker(BaseChunker):
         return chunks
 
     def _recursive_split(self, text: str, sep_index: int) -> list[str]:
-        """递归分割文本"""
+        """Recursively split text / 递归分割文本"""
         if len(text) <= self.chunk_size:
             return [text]
 
         if sep_index >= len(self.SEPARATORS):
-            # 所有分隔符用尽，硬切
+            # All separators exhausted, hard split / 所有分隔符用尽，硬切
             return self._hard_split(text)
 
         separator = self.SEPARATORS[sep_index]
         parts = text.split(separator)
 
         if len(parts) <= 1:
-            # 当前分隔符无效，尝试下一个
+            # Current separator ineffective, try next / 当前分隔符无效，尝试下一个
             return self._recursive_split(text, sep_index + 1)
 
         result: list[str] = []
@@ -221,13 +233,14 @@ class RecursiveChunker(BaseChunker):
             else:
                 if current:
                     result.append(current)
-                    # 保留重叠
+                    # Keep overlap / 保留重叠
                     if self.chunk_overlap > 0 and len(current) > self.chunk_overlap:
                         overlap_text = current[-self.chunk_overlap:]
                         current = overlap_text + separator + part
                     else:
                         current = part
                 else:
+                    # Single part exceeds chunk_size, recursively split
                     # 单个 part 超过 chunk_size，递归分割
                     sub_parts = self._recursive_split(part, sep_index + 1)
                     result.extend(sub_parts[:-1])
@@ -239,7 +252,7 @@ class RecursiveChunker(BaseChunker):
         return result
 
     def _hard_split(self, text: str) -> list[str]:
-        """硬切文本（最后手段）"""
+        """Hard split text (last resort) / 硬切文本（最后手段）"""
         result: list[str] = []
         start = 0
         while start < len(text):
@@ -251,13 +264,18 @@ class RecursiveChunker(BaseChunker):
 
 class ParagraphChunker(BaseChunker):
     """
+    Paragraph Chunker
     段落分块器
 
-    按自然段落分割（\\n\\n），小段落合并，大段落用递归分割
-    适用于新闻、博客等段落分明的文档
+    Splits by natural paragraphs (\n\n), merges small paragraphs,
+    recursively splits large ones. Suitable for news, blogs and other
+    well-structured documents.
+    按自然段落分割（\n\n），小段落合并，大段落用递归分割，
+    适用于新闻、博客等段落分明的文档。
     """
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # Pre-merge: merge adjacent small pages to near chunk_size, avoid fragmented chunks
         # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
         pages = self._merge_small_pages(pages)
 
@@ -289,7 +307,7 @@ class ParagraphChunker(BaseChunker):
                         current = ""
 
                     if len(para) > self.chunk_size:
-                        # 大段落递归分割
+                        # Large paragraph, recursively split / 大段落递归分割
                         sub_pages = [ParsedPage(content=para, metadata=page.metadata.copy())]
                         sub_chunks = recursive.chunk(sub_pages)
                         for sc in sub_chunks:
@@ -309,17 +327,21 @@ class ParagraphChunker(BaseChunker):
 
 class SemanticChunker(BaseChunker):
     """
+    Semantic Chunker (advanced strategy)
     语义分块器（高级策略）
 
-    先按句子分割，然后在语义转折点切分
-    由于语义分块需要额外 Embedding 计算，此处简化为基于句子边界的分块
-    后续 T9 可增强为真正的 Embedding 相似度分块
+    Splits by sentences first, then at semantic transition points.
+    Since semantic chunking requires extra embedding computation,
+    this is simplified to sentence-boundary-based chunking.
+    先按句子分割，然后在语义转折点切分。
+    由于语义分块需要额外 Embedding 计算，此处简化为基于句子边界的分块。
     """
 
-    # 中英文句子分隔符
+    # Chinese and English sentence separators / 中英文句子分隔符
     SENTENCE_SEPARATORS = re.compile(r"(?<=[。！？.!?])\s*")
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # Pre-merge: merge adjacent small pages to near chunk_size, avoid fragmented chunks
         # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
         pages = self._merge_small_pages(pages)
 
@@ -331,7 +353,7 @@ class SemanticChunker(BaseChunker):
             if not text:
                 continue
 
-            # 按句子分割
+            # Split by sentences / 按句子分割
             sentences = self.SENTENCE_SEPARATORS.split(text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
@@ -345,13 +367,13 @@ class SemanticChunker(BaseChunker):
                     if current:
                         chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
                         chunk_index += 1
-                        # 重叠
+                        # Overlap / 重叠
                         if self.chunk_overlap > 0 and len(current) > self.chunk_overlap:
                             current = current[-self.chunk_overlap:] + " " + sentence
                         else:
                             current = sentence
                     else:
-                        # 单句超长，硬切
+                        # Single sentence too long, hard split / 单句超长，硬切
                         if len(sentence) > self.chunk_size:
                             start = 0
                             while start < len(sentence):
@@ -375,15 +397,15 @@ class SemanticChunker(BaseChunker):
 
 def get_chunker(strategy: str, chunk_size: int = 512, chunk_overlap: int = 50) -> BaseChunker:
     """
-    工厂方法：根据策略获取分块器
+    Factory method: get chunker by strategy / 工厂方法：根据策略获取分块器
 
     Args:
-        strategy: 分块策略（recursive/semantic/paragraph）
-        chunk_size: 每块最大字符数
-        chunk_overlap: 块间重叠字符数
+        strategy: Chunking strategy (recursive/semantic/paragraph) / 分块策略
+        chunk_size: Maximum characters per chunk / 每块最大字符数
+        chunk_overlap: Overlap characters between chunks / 块间重叠字符数
 
     Returns:
-        对应的分块器实例
+        Corresponding chunker instance / 对应的分块器实例
     """
     chunkers: dict[str, type[BaseChunker]] = {
         "recursive": RecursiveChunker,

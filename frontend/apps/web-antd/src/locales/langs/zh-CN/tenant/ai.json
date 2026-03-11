@@ -38,31 +38,6 @@
       "premium": "高级型"
     }
   },
-  "apiKey": {
-    "title": "API Key 管理",
-    "pageDesc": "管理租户专属的 API Key。每个 Key 绑定一个供应商，用于 AI 接口调用鉴权。",
-    "name": "Key 名称",
-    "providerId": "供应商",
-    "providerName": "供应商",
-    "apiKey": "API Key",
-    "keyPreview": "Key 预览",
-    "isActive": "状态",
-    "isAvailable": "可用",
-    "unavailable": "不可用",
-    "usageCount": "使用次数",
-    "lastUsedAt": "最后使用",
-    "create": "添加 API Key",
-    "confirmDelete": "确认删除此 API Key？",
-    "placeholder": {
-      "inputName": "请输入 Key 名称",
-      "inputApiKey": "请输入 API Key",
-      "selectProvider": "请选择供应商"
-    },
-    "messages": {
-      "createSuccess": "API Key 创建成功",
-      "deleteSuccess": "API Key 已删除"
-    }
-  },
   "usage": {
     "title": "用量统计",
     "pageDesc": "查看租户的 AI 调用量、Token 消耗和费用趋势图表。",
@@ -610,102 +585,6 @@
     "countdown": "将在 {seconds} 秒后自动取消",
     "reject": "拒绝",
     "confirmExecute": "确认执行"
-  },
-  "guide": {
-    "title": "🚀 AI 智能体快速入门",
-    "subtitle": "按以下步骤创建并发布智能体，开始使用 AI 对话",
-    "dismiss": "不再显示",
-    "showGuide": "快速入门",
-    "totalTime": "预计总耗时 10~15 分钟",
-    "step1": {
-      "title": "创建智能体",
-      "desc": "配置名称、模型、系统提示词等基本信息",
-      "detail": "选择 AI 模型，编写系统提示词定义智能体角色和行为，设置温度等生成参数",
-      "time": "~3 分钟"
-    },
-    "step2": {
-      "title": "绑定工具和知识库",
-      "desc": "可选：绑定工具扩展能力，关联知识库实现 RAG 检索",
-      "detail": "创建 HTTP/数据库等工具让智能体调用外部服务；上传文档到知识库，绑定后支持文档问答",
-      "time": "~5 分钟"
-    },
-    "step3": {
-      "title": "发布智能体",
-      "desc": "发布后生成版本，用户即可开始对话",
-      "detail": "点击发布按钮创建版本快照。可随时回滚到历史版本，修改后需重新发布",
-      "time": "~1 分钟"
-    },
-    "step4": {
-      "title": "开始对话",
-      "desc": "前往对话页面，选择智能体开始对话测试",
-      "detail": "在对话页面选择已发布的智能体，测试对话效果。支持查看 RAG 来源和工具调用记录",
-      "time": "~2 分钟"
-    }
-  },
-  "guidePage": {
-    "title": "AI 智能体使用指南",
-    "subtitle": "了解 AI 模块的核心能力，快速上手创建智能体并开始对话",
-    "featuresTitle": "核心能力",
-    "features": {
-      "chat": {
-        "title": "智能对话",
-        "desc": "与 AI 智能体进行多轮对话，支持上下文记忆、工具调用、流式输出"
-      },
-      "sql": {
-        "title": "数据智能（Text-to-SQL）",
-        "desc": "用自然语言查询业务数据，AI 自动生成安全 SQL 并可视化展示结果"
-      },
-      "rag": {
-        "title": "文档问答（RAG）",
-        "desc": "上传文档到知识库，智能体基于文档内容回答问题，支持混合检索"
-      }
-    },
-    "quickStartTitle": "快速上手",
-    "quickStart": {
-      "step1": {
-        "title": "创建智能体",
-        "desc": "选择模型，编写系统提示词，配置温度等参数"
-      },
-      "step2": {
-        "title": "创建工具（可选）",
-        "desc": "配置 HTTP、数据库等工具，让智能体调用外部服务"
-      },
-      "step3": {
-        "title": "创建知识库（可选）",
-        "desc": "上传文档，系统自动解析分块和向量化，绑定到智能体后支持文档问答"
-      },
-      "step4": {
-        "title": "发布智能体",
-        "desc": "点击发布按钮创建版本快照，发布后用户即可使用"
-      },
-      "step5": {
-        "title": "开始对话",
-        "desc": "在对话页面选择已发布的智能体，开始测试对话效果"
-      }
-    },
-    "faqTitle": "常见问题",
-    "faq": {
-      "faq1": {
-        "q": "如何让智能体使用知识库回答问题？",
-        "a": "创建知识库并上传文档，等文档处理完成后，在智能体编辑页面的「知识库」部分选择该知识库并启用 RAG，发布后即可生效。"
-      },
-      "faq2": {
-        "q": "温度参数有什么作用？",
-        "a": "温度控制回答的随机性。0 最确定（适合数据查询），0.7 适中（通用对话），1.0+ 更有创造性（适合创意写作）。"
-      },
-      "faq3": {
-        "q": "工具调用是如何工作的？",
-        "a": "智能体在对话中判断需要调用工具时，会自动发起请求。HTTP 工具调用外部 API，数据库工具执行查询。工具调用结果会自动注入到对话上下文中。"
-      },
-      "faq4": {
-        "q": "如何限制智能体的使用量？",
-        "a": "在智能体编辑页面的「配额设置」部分，可配置每日对话数、每日/每月 Token 限制、最大并发数等。超出配额后将拒绝新请求。"
-      },
-      "faq5": {
-        "q": "支持哪些文档格式？",
-        "a": "知识库支持 PDF、Word（.docx）、Markdown（.md）、纯文本（.txt）和 CSV 格式的文件上传。"
-      }
-    }
   },
   "rateLimit": {
     "title": "速率限制",

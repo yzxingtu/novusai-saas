@@ -1,7 +1,8 @@
 """
-用户端附件上传 API
+用户端附件上传 API / User Attachment Upload API
 
 提供用户端头像等文件上传接口（精简版，仅上传+预检）
+Provides user file upload endpoints for avatars etc. (simplified, upload + preflight only)
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from app.services.tenant.attachment_service import AttachmentService
 router = APIRouter(prefix="/attachments", tags=["User Attachments"])
 
 
-@router.post("/preflight", summary="预检文件是否已存在（秒传）")
+@router.post("/preflight", summary="预检文件是否已存在（秒传） / Preflight check if file exists (instant upload)")
 @auth_only
 async def preflight_check(
     request: Request,
@@ -34,6 +35,7 @@ async def preflight_check(
 ):
     """
     用户端预检文件是否已存在（秒传）
+    User preflight check if file already exists (instant upload)
     """
     raw_hash = body.hash
     if raw_hash.startswith("sha256:"):
@@ -59,17 +61,18 @@ async def preflight_check(
     return success(data=resp, message=_("common.success"))
 
 
-@router.post("/upload", summary="用户端上传附件")
+@router.post("/upload", summary="用户端上传附件 / User upload attachment")
 @auth_only
 async def upload_attachment(
     request: Request,
     db: DbSession,
     current_user: ActiveTenantUser,
-    file: UploadFile = File(..., description="上传的文件"),
-    visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
+    file: UploadFile = File(..., description="上传的文件 / File to upload"),
+    visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认 / Visibility, empty uses platform default"),
 ):
     """
     用户端上传附件（头像等）
+    User upload attachment (avatars etc.)
     """
     if not visibility:
         config_svc = ConfigService(db)
@@ -98,7 +101,7 @@ async def upload_attachment(
     )
 
 
-@router.get("/upload-rules", summary="获取上传规则")
+@router.get("/upload-rules", summary="获取上传规则 / Get upload rules")
 @auth_only
 async def get_upload_rules(
     request: Request,
@@ -107,6 +110,7 @@ async def get_upload_rules(
 ):
     """
     获取用户端上传规则
+    Get user upload rules
     """
     config_service = ConfigService(db)
     tid = current_user.tenant_id

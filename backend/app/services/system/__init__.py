@@ -1,7 +1,8 @@
 """
-平台管理后台服务模块
+平台管理后台服务模块 / Platform Admin Service Module
 
 提供平台管理相关的服务
+Provides platform admin related services.
 """
 
 from app.services.system.admin_role_service import AdminRoleService

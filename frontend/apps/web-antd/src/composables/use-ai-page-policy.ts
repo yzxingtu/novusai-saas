@@ -1,13 +1,19 @@
 /**
+ * Page-level AI policy composable
  * 页面级 AI 策略 Composable
  *
- * 合并 route.meta.ai（页面策略）与 RBAC 权限，输出宿主层可直接消费的策略结果。
+ * Combines route meta.ai config with RBAC permissions to compute effective AI mode.
+ * 结合路由 meta.ai 配置与 RBAC 权限，计算当前页面的有效 AI 模式。
  *
- * 优先级：RBAC 权限 > 页面策略
- *   - 无 AI 权限 → 一律禁用（忽略页面策略）
- *   - 有 AI 权限 + 页面 mode=disabled → 禁用
- *   - 有 AI 权限 + 页面 mode=context_only/operate → 启用
- *   - 有 AI 权限 + 未声明 meta.ai → 按默认策略（context_only）启用
+ * Priority (high to low) / 优先级（从高到低）:
+ * 1. RBAC permission check (disabled if no permission) / RBAC 权限检查
+ * 2. Route meta.ai.mode (page-level config) / 路由 meta.ai.mode
+ * 3. Default mode DEFAULT_AI_MODE / 默认模式
+ *
+ * @example
+ * ```ts
+ * const { isAIEnabled, effectiveAIMode, pageContextKey } = useCurrentPageAIPolicy();
+ * ```
  */
 import type { AIPageMode } from '@vben-core/typings';
 
@@ -17,24 +23,21 @@ import { useRoute } from 'vue-router';
 
 import { useAIPermission } from './use-ai-permission';
 
-/** 未声明 meta.ai 时的默认模式 */
+/** Default AI mode: global assistant (sidebar panel, page-unaware) / 默认 AI 模式：全局助手（侧边栏浮窗，不感知页面） */
 const DEFAULT_AI_MODE: AIPageMode = 'context_only';
 
 export function useCurrentPageAIPolicy() {
   const route = useRoute();
   const { canChat, canViewHistory, canRoute, resource } = useAIPermission();
 
-  /** 当前页面声明的 AI 模式（未声明时为默认值） */
+  /** Effective AI mode: route config > default / 生效的 AI 模式：路由配置 > 默认值 */
   const pageMode = computed<AIPageMode>(
     () => route.meta?.ai?.mode ?? DEFAULT_AI_MODE,
   );
 
   /**
-   * 当前页面的 pageContextKey（用于精确匹配注册表）
-   *
-   * 优先使用 meta.ai.pageContextKey 显式声明；
-   * 未声明时自动从路由 path 推导（去掉前导 /），
-   * 与 registerPageContext 的 key 约定一致。
+   * Current page context key (prefer meta config, fallback to route name) / 页面上下文标识
+   * Used for precise matching with registered page contexts / 用于精确匹配注册表
    */
   const pageContextKey = computed<string | undefined>(
     () =>
@@ -42,20 +45,19 @@ export function useCurrentPageAIPolicy() {
       (route.path ? route.path.replace(/^\//, '') : undefined),
   );
 
-  /** 页面策略是否禁用 AI */
+  /** Page AI disabled flag / 页面 AI 禁用标志 */
   const pageDisabled = computed(() => pageMode.value === 'disabled');
 
   /**
-   * 最终 AI 可用性（权限 + 页面策略双重控制）
-   *
-   * 仅当 RBAC 允许且页面未禁用时为 true
+   * Final AI availability (permission + config) / 最终 AI 可用性（权限 + 配置）
+   * Only true when RBAC allows and page is not disabled / 仅当 RBAC 允许且页面未禁用时为 true
    */
   const aiEnabled = computed(() => canChat.value && !pageDisabled.value);
 
   /**
-   * 最终有效模式
-   *
-   * 无 AI 权限时强制为 disabled；否则使用页面声明的模式
+   * Effective AI mode for current page / 当前页面生效的 AI 模式
+   * No AI permission: disabled / 无 AI 权限：禁用
+   * Has AI permission: page config mode / 有 AI 权限：页面配置模式
    */
   const effectiveMode = computed<AIPageMode>(() => {
     if (!canChat.value) return 'disabled';
@@ -63,23 +65,23 @@ export function useCurrentPageAIPolicy() {
   });
 
   return {
-    /** AI 总开关（权限 + 页面策略） */
+    /** AI total switch (permission + config) / AI 总开关（权限 + 配置） */
     aiEnabled,
-    /** 是否有 AI 聊天权限（纯 RBAC） */
+    /** Whether has AI chat permission (pure RBAC) / 是否有 AI 聊天权限（纯 RBAC） */
     canChat,
-    /** 是否可查看对话历史（纯 RBAC） */
+    /** Whether can view conversation history (pure RBAC) / 是否可查看对话历史（纯 RBAC） */
     canViewHistory,
-    /** 是否可执行路由（纯 RBAC） */
+    /** Whether can execute route (pure RBAC) / 是否可执行路由（纯 RBAC） */
     canRoute,
-    /** 最终有效 AI 模式 */
+    /** Effective AI mode for current page / 当前页面生效的 AI 模式 */
     effectiveMode,
-    /** 页面策略是否禁用 */
+    /** Page AI disabled flag / 页面 AI 禁用标志 */
     pageDisabled,
-    /** 页面声明的 pageContextKey */
+    /** Current page context key / 页面上下文标识 */
     pageContextKey,
-    /** 页面声明的 AI 模式 */
+    /** Page AI mode / 页面 AI 模式 */
     pageMode,
-    /** 当前端权限资源名 */
+    /** Current resource name / 当前资源名 */
     resource,
   };
 }

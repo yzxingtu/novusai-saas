@@ -1,5 +1,11 @@
 /**
+ * HTTP request module
  * HTTP 请求模块
+ *
+ * Unified export of request client, interceptors, error codes, etc.
+ * External modules only need to import from here.
+ * 统一导出请求客户端、拦截器、错误码等。
+ * 外部模块只需从此导入。
  *
  * @module utils/request
  *
@@ -30,7 +36,7 @@
  * ```
  */
 
-// 错误码导出
+// Error codes / 错误码导出
 export {
   AUTH_ERROR_CODES,
   ErrorCode,
@@ -42,7 +48,7 @@ export {
 // 请求实例导出
 export { baseRequestClient, requestClient } from './instance';
 
-// 拦截器导出
+// Interceptor creation functions / 拦截器创建函数导出
 export {
   createAuthInterceptor,
   createBusinessErrorInterceptor,
@@ -56,10 +62,10 @@ export {
 
 export type { AuthHandler, MessageHandler, TokenGetter } from './interceptors';
 
-// 请求客户端导出
+// Request client instances / 请求客户端实例导出
 export { RequestClient } from './request-client';
 
-// 类型导出
+// Types / 类型导出
 export type {
   ApiEndpoint,
   ApiRequestOptions,

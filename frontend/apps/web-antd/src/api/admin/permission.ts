@@ -1,19 +1,19 @@
 /**
- * 平台权限管理 API
- * 对接后端 /admin/permissions/* 接口
+ * Platform permission management API / 平台权限管理 API
+ * Backend: /admin/permissions/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 权限类型 */
+/** Permission type / 权限类型 */
 export type PermissionType = 'api' | 'button' | 'menu';
 
-/** 权限节点（树形结构，后端原始格式） */
+/** Permission node (tree, backend raw) / 权限节点（树形，后端原始） */
 export interface PermissionNodeRaw {
   id: number;
   code: string;
@@ -21,12 +21,12 @@ export interface PermissionNodeRaw {
   type: PermissionType;
   parent_id: null | number;
   sort_order: number;
-  /** 图标（Iconify 格式，如 lucide:gauge） */
+  /** Icon (Iconify format, e.g. lucide:gauge) / 图标 */
   icon?: null | string;
   children?: PermissionNodeRaw[];
 }
 
-/** 权限节点（树形结构，前端格式） */
+/** Permission node (tree, frontend) / 权限节点（树形，前端） */
 export interface PermissionNode {
   id: number;
   code: string;
@@ -34,12 +34,12 @@ export interface PermissionNode {
   type: PermissionType;
   parentId: null | number;
   sortOrder: number;
-  /** 图标（Iconify 格式，如 lucide:gauge） */
+  /** Icon (Iconify format, e.g. lucide:gauge) / 图标 */
   icon?: null | string;
   children?: PermissionNode[];
 }
 
-/** 权限项（平铺列表，后端原始格式） */
+/** Permission item (flat list, backend raw) / 权限项（平铺，后端原始） */
 export interface PermissionItemRaw {
   id: number;
   code: string;
@@ -48,7 +48,7 @@ export interface PermissionItemRaw {
   parent_id: null | number;
 }
 
-/** 权限项（平铺列表，前端格式） */
+/** Permission item (flat list, frontend) / 权限项（平铺，前端） */
 export interface PermissionItem {
   id: number;
   code: string;
@@ -58,10 +58,10 @@ export interface PermissionItem {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 递归转换权限树节点 */
+/** Recursively transform permission tree node / 递归转换权限树节点 */
 function transformPermissionNode(raw: PermissionNodeRaw): PermissionNode {
   return {
     id: raw.id,
@@ -75,7 +75,7 @@ function transformPermissionNode(raw: PermissionNodeRaw): PermissionNode {
   };
 }
 
-/** 转换权限项 */
+/** Transform permission item / 转换权限项 */
 function transformPermissionItem(raw: PermissionItemRaw): PermissionItem {
   return {
     id: raw.id,
@@ -87,15 +87,15 @@ function transformPermissionItem(raw: PermissionItemRaw): PermissionItem {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/permissions';
 
 /**
- * 获取权限树
+ * Get permission tree / 获取权限树
  * GET /admin/permissions
- * 返回树形结构，用于角色权限配置页面
+ * Returns tree structure for role permission config page
  */
 export async function getPermissionTreeApi(
   options?: ApiRequestOptions,
@@ -108,7 +108,7 @@ export async function getPermissionTreeApi(
 }
 
 /**
- * 获取权限列表（平铺）
+ * Get permission list (flat) / 获取权限列表（平铺）
  * GET /admin/permissions/list
  */
 export async function getPermissionListApi(

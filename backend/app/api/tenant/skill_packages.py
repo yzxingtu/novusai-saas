@@ -1,8 +1,10 @@
 """
-租户端技能包管理 API（只读）
+租户端技能包管理 API（只读） / Tenant Skill Package Management API (Read-only)
 
 提供技能包的只读查询接口。
+Provides read-only query endpoints for skill packages.
 租户端不允许创建、编辑、删除技能包（最小权限原则）。
+Tenant is not allowed to create, edit, or delete skill packages (least privilege principle).
 """
 
 from typing import Any
@@ -24,7 +26,7 @@ from app.services.ai.skill_package_service import SkillPackageService
 
 
 def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
-    """从 ORM 对象构建列表项字典（不含 valves_config 敏感值）"""
+    """从 ORM 对象构建列表项字典（不含 valves_config 敏感值） / Build list item dict from ORM object (without valves_config sensitive values)"""
     data = pkg.to_dict(exclude={"valves_config"})
     data["skill_count"] = skill_count
     return data
@@ -39,16 +41,17 @@ def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, An
 )
 class TenantSkillPackageController(TenantController):
     """
-    租户技能包管理控制器（只读）
+    租户技能包管理控制器（只读） / Tenant Skill Package Management Controller (Read-only)
 
     租户端不允许创建/编辑/删除技能包，仅提供只读查询。
+    Tenant is not allowed to create/edit/delete skill packages, only read-only queries.
     """
 
     prefix = "/ai/skill-packages"
     tags = ["Skill Package Management (Tenant)"]
 
     def _register_routes(self) -> None:
-        """注册路由（仅只读端点）"""
+        """注册路由（仅只读端点） / Register routes (read-only endpoints only)"""
         router = self.router
 
         @router.get("/select", summary="技能包下拉选项")
@@ -61,6 +64,7 @@ class TenantSkillPackageController(TenantController):
         ):
             """
             获取技能包下拉选项（用于 Skill 创建时选择所属包）
+            Get skill package dropdown options (for selecting parent package when creating skills)
             """
             service = SkillPackageService(db, tenant_admin.tenant_id)
             response = await service.get_select_options(
@@ -77,14 +81,16 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取推荐技能包（is_recommended=true）
+            获取推荐技能包（is_recommended=true） / Get recommended skill packages (is_recommended=true)
 
             租户端自动过滤掉 target_audience=admin_only 的包。
+            Tenant automatically filters out packages with target_audience=admin_only.
             用于创建智能体时显示推荐绑定列表。
+            Used for displaying recommended binding list when creating agents.
             """
-            from sqlalchemy import and_, or_, select
+            from sqlalchemy import and_, select
 
-            from app.enums.common import AudienceEnum, ResourceScopeEnum
+            from app.enums.common import AudienceEnum
             from app.models.ai.skill_package import SkillPackage
 
             stmt = select(SkillPackage).where(
@@ -92,15 +98,9 @@ class TenantSkillPackageController(TenantController):
                     SkillPackage.is_recommended.is_(True),
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
-                    # 租户端不显示 admin_only 的推荐包
                     SkillPackage.target_audience.in_([
                         AudienceEnum.ALL.value,
                         AudienceEnum.ADMIN_TENANT.value,
-                    ]),
-                    # scope 可见性：租户端可见的 scope
-                    SkillPackage.scope.in_([
-                        ResourceScopeEnum.ALL_TENANTS.value,
-                        ResourceScopeEnum.ADMIN_AND_ALL.value,
                     ]),
                 )
             ).order_by(SkillPackage.sort_order)
@@ -118,7 +118,6 @@ class TenantSkillPackageController(TenantController):
                     "name": p.name,
                     "description": p.description,
                     "avatar": p.avatar,
-                    "scope": p.scope,
                     "target_audience": getattr(p, "target_audience", "all"),
                     "is_recommended": True,
                     "is_system": p.is_system,
@@ -137,8 +136,10 @@ class TenantSkillPackageController(TenantController):
         ):
             """
             获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+            Get all skill packages available for tenant binding (for agent skill binding dropdown).
 
             包括当前租户自有包 + admin 共享包，返回 label/value 格式。
+            Includes current tenant's own packages + admin shared packages, returns label/value format.
             """
             from app.repositories.ai.skill_package_repository import (
                 SkillPackageRepository,
@@ -151,7 +152,6 @@ class TenantSkillPackageController(TenantController):
                 {
                     "label": pkg.name,
                     "value": pkg.id,
-                    "scope": pkg.scope,
                     "description": pkg.description,
                     "is_system": pkg.is_system,
                 }
@@ -168,14 +168,14 @@ class TenantSkillPackageController(TenantController):
             query: QueryParams,
         ):
             """
-            获取技能包列表
+            获取技能包列表 / Get skill package list
 
-            支持 JSON:API 分页、筛选、排序
+            支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting
             """
             service = SkillPackageService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
 
-            # 批量查询每个包的技能数
+            # 批量查询每个包的技能数 / Batch query skill count for each package
             pkg_ids = [item.id for item in items]
             skill_counts = await service.get_skill_counts_batch(pkg_ids)
 
@@ -200,7 +200,7 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取技能包详情（含技能数量）
+            获取技能包详情（含技能数量） / Get skill package details (with skill count)
             """
             service = SkillPackageService(db, tenant_admin.tenant_id)
             data = await service.get_with_skill_count(package_id)
@@ -219,6 +219,7 @@ class TenantSkillPackageController(TenantController):
         ):
             """
             获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
+            Get skill package valves config (schema + current values, secret fields masked)
             """
             from app.api.shared._toolkit_helpers import mask_secret_values
 
@@ -242,7 +243,7 @@ class TenantSkillPackageController(TenantController):
             query: QueryParams,
         ):
             """
-            获取指定技能包内的技能列表
+            获取指定技能包内的技能列表 / Get skill list within specified skill package
             """
             service = SkillPackageService(db, tenant_admin.tenant_id)
             pkg = await service.get_by_id(package_id)
@@ -267,7 +268,7 @@ class TenantSkillPackageController(TenantController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantSkillPackageController.get_router()
 
 __all__ = ["router", "TenantSkillPackageController"]

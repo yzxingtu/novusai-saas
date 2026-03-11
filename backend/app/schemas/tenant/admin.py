@@ -1,7 +1,8 @@
 """
-租户管理员相关 Schema
+租户管理员相关 Schema / Tenant Admin Schema
 
 定义租户管理员 API 的请求和响应数据结构
+Defines tenant admin API request and response data structures.
 """
 
 from datetime import datetime

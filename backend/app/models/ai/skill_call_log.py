@@ -1,7 +1,8 @@
 """
-技能调用日志模型
+技能调用日志模型 / Skill Call Log Model
 
 记录每次工具/技能调用的详情，用于统计分析和审计。
+Records details of each tool/skill invocation for statistics and auditing.
 """
 
 from sqlalchemy import Index, Integer, String, Text

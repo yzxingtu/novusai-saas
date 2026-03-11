@@ -1,14 +1,20 @@
 """
+Skill Resolver
 Skill 解析器
 
+Converts Skill models to ToolDefinition lists.
 将 Skill 模型转换为 ToolDefinition 列表。
 
-转换规则：
-- data_intelligence → 1~4 个 ToolDefinition（data_query + CRUD）
-- toolkit → N 个 ToolDefinition（Tools 类的每个公开方法一个）
-- builtin → 1 个 ToolDefinition（或 N 个，通过 config.tools 列表）
+Conversion rules / 转换规则：
+- data_intelligence → 1~4 ToolDefinitions (data_query + CRUD)
+- toolkit → N ToolDefinitions (one per public method of Tools class)
+- builtin → 1 ToolDefinition (or N, via config.tools list)
 
+Knowledge base bindings have been migrated to AgentKnowledgeBaseBinding,
+no longer resolved through Skill.
 知识库绑定已迁移至 AgentKnowledgeBaseBinding 中间表，不再通过 Skill 解析。
+
+Unknown types fall through to plugin resolver path.
 未知类型走插件解析路径。
 """
 
@@ -35,10 +41,11 @@ logger = LogManager.get_logger("ai.skill.resolver")
 @dataclass
 class SkillResolveResult:
     """
-    Skill 解析结果
+    Skill resolve result.
+    Skill 解析结果。
 
     Attributes:
-        tools: 面向 LLM 的 ToolDefinition 列表
+        tools: ToolDefinition list for LLM / 面向 LLM 的 ToolDefinition 列表
     """
 
     tools: list[ToolDefinition] = field(default_factory=list)
@@ -48,8 +55,11 @@ class SkillResolveResult:
 
 class SkillResolver:
     """
-    Skill → ToolDefinition 转换器
+    Skill → ToolDefinition converter.
+    Skill → ToolDefinition 转换器。
 
+    Dispatches to corresponding conversion method by Skill type.
+    A single Skill may produce 0~N ToolDefinitions.
     按 Skill 类型分发到对应的转换方法。
     一个 Skill 可能产生 0~N 个 ToolDefinition。
     """
@@ -63,11 +73,12 @@ class SkillResolver:
         config_overrides: dict[int, dict[str, Any]] | None = None,
     ) -> SkillResolveResult:
         """
-        批量解析 Skill 列表
+        Batch resolve Skill list.
+        批量解析 Skill 列表。
 
         Args:
-            skills: Skill 模型列表（已按 sort_order 排序）
-            config_overrides: 每个 Skill 的配置覆盖（key=skill.id）
+            skills: Skill model list (sorted by sort_order) / Skill 模型列表（已按 sort_order 排序）
+            config_overrides: Config override per Skill (key=skill.id) / 每个 Skill 的配置覆盖（key=skill.id）
 
         Returns:
             SkillResolveResult
@@ -75,6 +86,7 @@ class SkillResolver:
         result = SkillResolveResult()
         overrides = config_overrides or {}
 
+        # Pre-load source_plugin for all skill packages (batch query)
         # 预加载所有技能所属技能包的 source_plugin（批量查询）
         plugin_map = await self._load_source_plugins(skills)
 
@@ -82,6 +94,7 @@ class SkillResolver:
             if not skill.is_active:
                 continue
 
+            # Merge config: Skill.config + binding.config_override
             # 合并配置：Skill.config + binding.config_override
             merged_config = dict(skill.config or {})
             if skill.id in overrides and overrides[skill.id]:
@@ -99,6 +112,7 @@ class SkillResolver:
                     skill.id, skill.name, str(exc),
                 )
 
+        # Prevent tool name duplicates causing execution and consent attribution mismatch
         # 避免工具重名导致执行与 consent 归因错配
         self._ensure_unique_tool_names(result.tools)
 
@@ -112,10 +126,12 @@ class SkillResolver:
         self, skills: list[Skill],
     ) -> dict[int, str]:
         """
-        批量查询技能包的 source_plugin 字段
+        Batch query source_plugin field for skill packages.
+        批量查询技能包的 source_plugin 字段。
 
         Returns:
-            {package_id: source_plugin_name} 仅包含有 source_plugin 的记录
+            {package_id: source_plugin_name} only includes records with source_plugin /
+            仅包含有 source_plugin 的记录
         """
         if not self.db or not skills:
             return {}
@@ -145,18 +161,25 @@ class SkillResolver:
         source_plugin: str | None = None,
     ) -> None:
         """
-        按类型分发到对应的转换方法
+        Dispatch to corresponding conversion method by type.
+        按类型分发到对应的转换方法。
 
+        Plugin skills (source_plugin has value) take priority for plugin resolver,
+        regardless of their type (can be toolkit or other standard types).
         插件技能（source_plugin 有值）优先走插件 resolver，
         不论其 type 是什么（可以是 toolkit 等标准类型）。
 
+        Skills with config.internal=true are for internal system dispatch
+        (e.g., llm_chat, llm_embedding), not resolved as function calling tools.
         config.internal=true 的技能为系统内部调度用途（如 llm_chat、
         llm_embedding），不解析为 function calling 工具。
         """
+        # Skip internal dispatch skills (not exposed to LLM as function calling tools)
         # 跳过内部调度技能（不暴露给 LLM 作为 function calling 工具）
         if config.get("internal"):
             return
 
+        # Plugin skills take priority for plugin resolver
         # 插件技能优先走插件 resolver
         if source_plugin:
             await self._resolve_plugin_skill(skill, config, result, source_plugin)
@@ -183,7 +206,7 @@ class SkillResolver:
             )
 
     # ========================================
-    # 数据智能 Skill
+    # Data Intelligence Skill / 数据智能 Skill
     # ========================================
 
     async def _resolve_data_intelligence(
@@ -193,23 +216,30 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        数据智能 Skill → 1~4 个 ToolDefinition
+        Data Intelligence Skill → 1~4 ToolDefinitions.
+        数据智能 Skill → 1~4 个 ToolDefinition。
 
+        - data_query is always generated (as long as there are accessible tables)
         - data_query 始终生成（只要有可访问的表）
+        - data_create / data_update / data_delete controlled by Table Policy's
+          per-table allow_create / allow_update / allow_delete switches
         - data_create / data_update / data_delete 由 Table Policy 的
           allow_create / allow_update / allow_delete 每表开关控制
 
+        The sole control source for CRUD permissions is the /admin/ai/table-policies page.
         CRUD 权限的唯一控制源是 /admin/ai/table-policies 页面。
 
-        Skill.config 结构：
+        Skill.config structure / Skill.config 结构：
         {
             "table_policy_ids": [1, 5, 12],
             "timeout": 60
         }
         """
+        # Extract table_policy_ids from Skill.config (which table policies to use for Agent)
         # 从 Skill.config 提取 table_policy_ids（选择哪些表策略给 Agent 用）
         table_policy_ids: list[int] | None = config.get("table_policy_ids")
 
+        # Load table descriptions and CRUD permissions from SchemaProvider (controlled by Table Policy)
         # 从 SchemaProvider 加载表描述和 CRUD 权限（由 Table Policy 控制）
         table_descriptions: list[tuple[str, str]] = []
         crud_allowed_tables: dict[str, list[tuple[str, str]]] = {}
@@ -226,7 +256,7 @@ class SkillResolver:
             except Exception as exc:
                 logger.warning("Failed to load table descriptions: %s", str(exc))
 
-        # data_query 工具（始终生成）
+        # data_query tool (always generated) / data_query 工具（始终生成）
         if table_descriptions:
             table_list = ", ".join(
                 f"{name}({label})" for name, label in table_descriptions
@@ -262,6 +292,7 @@ class SkillResolver:
             source_skill_type=skill.type,
         ))
 
+        # CRUD tools — directly controlled by Table Policy's per-table allow_create/update/delete
         # CRUD 工具 — 直接由 Table Policy 的每表 allow_create/update/delete 控制
         create_tables = crud_allowed_tables.get("create", [])
         if create_tables:
@@ -369,8 +400,11 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        Toolkit Skill → N 个 ToolDefinition
+        Toolkit Skill → N ToolDefinitions.
+        Toolkit Skill → N 个 ToolDefinition。
 
+        Parses Toolkit Python source, generates one ToolDefinition per public method of Tools class.
+        Valves config is read from config and injected into each tool's config.
         解析 Toolkit Python 源码，每个 Tools 类的公开方法生成一个 ToolDefinition。
         Valves 配置从 config 中读取并注入到每个工具的 config 中。
         """
@@ -390,6 +424,7 @@ class SkillResolver:
         meta = parse_toolkit(toolkit_content)
         tool_defs = toolkit_tools_to_definitions(meta)
 
+        # Valves config obtained from binding config_override or skill config
         # Valves 配置从 binding config_override 或 skill config 中获取
         valves_config = config.get("valves", {})
 
@@ -425,11 +460,13 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        Builtin Skill → ToolDefinition
+        Builtin Skill → ToolDefinition.
 
-        支持两种模式：
-        1. 多工具模式：config.tools 列表 → N 个 ToolDefinition
-        2. 单工具模式（默认）：skill 本身即为一个工具
+        Supports two modes / 支持两种模式：
+        1. Multi-tool mode: config.tools list → N ToolDefinitions
+           多工具模式：config.tools 列表 → N 个 ToolDefinition
+        2. Single-tool mode (default): skill itself is one tool
+           单工具模式（默认）：skill 本身即为一个工具
         """
         tools_config = config.get("tools")
         tool_type_override = config.get("tool_type", ToolTypeEnum.BUILTIN.value)
@@ -480,12 +517,14 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        HTTP/Webhook Skill → 1 个 ToolDefinition
+        HTTP/Webhook Skill → 1 ToolDefinition.
 
+        Declarative HTTP calls: users only need to fill in URL / Method / Headers / Body template,
+        no code required to integrate external APIs.
         声明式 HTTP 调用：用户只需填写 URL / Method / Headers / Body 模板，
         无需编写代码即可集成外部 API。
 
-        Skill.config 结构：
+        Skill.config structure / Skill.config 结构：
         {
             "url": "https://api.example.com/v1/data",
             "method": "POST",
@@ -510,9 +549,11 @@ class SkillResolver:
         body_template = config.get("body_template", "")
         response_path = config.get("response_path", "")
 
+        # Extract {{variable}} placeholders from body_template as LLM parameters
         # 从 body_template 提取 {{variable}} 占位符作为 LLM 参数
         import re
         template_vars = re.findall(r"\{\{(\w+)\}\}", body_template or "")
+        # Also extract variables from URL and query_params
         # 也从 URL 和 query_params 提取变量
         url_vars = re.findall(r"\{\{(\w+)\}\}", url)
         query_params = config.get("query_params", {}) or {}
@@ -532,6 +573,7 @@ class SkillResolver:
                 required=True,
             ))
 
+        # If no template variables but has body, add generic input parameter
         # 如果没有模板变量但有 body，添加通用 input 参数
         if not params and method in ("POST", "PUT", "PATCH"):
             params.append(ToolParameter(
@@ -581,11 +623,13 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        Email Skill → 1 个 ToolDefinition (send_email)
+        Email Skill → 1 ToolDefinition (send_email).
 
+        Leverages existing EmailService to send emails. Default consent_mode=ask
+        (sending emails requires user confirmation).
         利用已有的 EmailService 发送邮件。默认 consent_mode=ask（发邮件需用户确认）。
 
-        Skill.config 结构：
+        Skill.config structure / Skill.config 结构：
         {
             "subject_prefix": "[NovusAI]",
             "allowed_domains": ["example.com"],
@@ -667,11 +711,12 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        Code Execution Skill → 1 个 ToolDefinition (execute_code)
+        Code Execution Skill → 1 ToolDefinition (execute_code).
 
+        Executes user-provided code in a secure sandbox.
         在安全沙箱中执行用户提供的代码。
 
-        Skill.config 结构：
+        Skill.config structure / Skill.config 结构：
         {
             "language": "python",
             "timeout": 30,
@@ -726,7 +771,7 @@ class SkillResolver:
         )
 
     # ========================================
-    # 插件 Skill
+    # Plugin Skill / 插件 Skill
     # ========================================
 
     async def _resolve_plugin_skill(
@@ -737,8 +782,11 @@ class SkillResolver:
         source_plugin: str = "",
     ) -> None:
         """
-        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver
+        Plugin skill resolution — query ExtensionRegistry by plugin_name to get plugin resolver.
+        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver。
 
+        Plugins register resolver functions via ExtensionRegistry.register_skill(plugin_name, ...)
+        during enable; here we look up and call by source_plugin (plugin name).
         插件在 enable 时通过 ExtensionRegistry.register_skill(plugin_name, ...)
         注册了 resolver 函数，此处按 source_plugin（插件名）查找并调用。
         """
@@ -774,7 +822,7 @@ class SkillResolver:
             )
 
     # ========================================
-    # 辅助方法
+    # Helper Methods / 辅助方法
     # ========================================
 
     @staticmethod
@@ -783,7 +831,7 @@ class SkillResolver:
         suffix: str,
         used_names: set[str],
     ) -> str:
-        """构建唯一且长度可控（OpenAI function name <= 64）的工具名。"""
+        """Build unique and length-controlled (OpenAI function name <= 64) tool name. / 构建唯一且长度可控（OpenAI function name <= 64）的工具名。"""
         max_len = 64
         available = max_len - len(suffix)
         short_base = base_name[:available] if available > 0 else ""
@@ -802,7 +850,7 @@ class SkillResolver:
 
     @classmethod
     def _ensure_unique_tool_names(cls, tools: list[ToolDefinition]) -> None:
-        """去重工具名，避免同名工具导致解析/授权/归因冲突。"""
+        """Deduplicate tool names to avoid parsing/authorization/attribution conflicts. / 去重工具名，避免同名工具导致解析/授权/归因冲突。"""
         used_names: set[str] = set()
         duplicate_counts: dict[str, int] = {}
 
@@ -835,13 +883,14 @@ class SkillResolver:
         input_schema: dict[str, Any] | None,
     ) -> list[ToolParameter]:
         """
-        从 JSON Schema 构建 ToolParameter 列表
+        Build ToolParameter list from JSON Schema.
+        从 JSON Schema 构建 ToolParameter 列表。
 
-        input_schema 格式：
+        input_schema format / input_schema 格式：
         {
             "type": "object",
             "properties": {
-                "city": {"type": "string", "description": "城市名"},
+                "city": {"type": "string", "description": "City name / 城市名"},
                 "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
             },
             "required": ["city"]
@@ -869,15 +918,20 @@ class SkillResolver:
 
 def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
     """
+    Check if the given target_audience allows access for the user_role.
     判断给定的 target_audience 是否允许该 user_role 访问。
 
     Args:
-        target_audience: AudienceEnum 值（all / admin_only / admin_tenant）
-        user_role: UserRoleEnum 值（platform_admin / tenant_admin / tenant_user）或 None
+        target_audience: AudienceEnum value (all / admin_only / admin_tenant) /
+                         AudienceEnum 值（all / admin_only / admin_tenant）
+        user_role: UserRoleEnum value (platform_admin / tenant_admin / tenant_user) or None /
+                   UserRoleEnum 值（platform_admin / tenant_admin / tenant_user）或 None
 
     Returns:
+        True means access allowed, False means filtered out /
         True 表示允许访问，False 表示过滤掉
     """
+    # No user_role passed (e.g., admin direct call) → allow (backward compatible)
     # 未传 user_role（如 admin 端直调）→ 允许通过（兼容旧路径）
     if user_role is None:
         return True
@@ -894,7 +948,7 @@ def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
     if target_audience == AudienceEnum.ADMIN_ONLY.value:
         return user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
-    # 未知值兜底：允许通过
+    # Unknown value fallback: allow through / 未知值兖底：允许通过
     logger.warning("Unknown target_audience value: %s", target_audience)
     return True
 
@@ -906,21 +960,22 @@ async def _load_auto_bind_packages(
     user_role: str | None = None,
 ) -> list:
     """
-    加载 bind_mode=auto 的技能包（按 agent scope 匹配规则过滤）
+    Load bind_mode=auto skill packages filtered by target_audience.
+    加载 bind_mode=auto 的自动绑定技能包，按 target_audience 过滤。
 
-    匹配规则：
-    - admin_only agent → auto 包 scope IN (admin_only, admin_and_all, admin_and_assigned)
-    - all_tenants agent → auto 包 scope IN (all_tenants, admin_and_all)
-                         + scope IN (assigned_tenants, admin_and_assigned) 且在分配表中
-    - user_role 非空时，按 target_audience 过滤包（三端隔离）
+    Rules / 规则:
+    - Admin call (tenant_id=None): load all auto packages (any target_audience)
+      管理端调用：加载所有 auto 包
+    - Tenant call: exclude target_audience=admin_only packages
+      租户端调用：排除 admin_only 受众的包
+    - user_role filter: further filter by target_audience (three-endpoint isolation)
+      user_role 过滤：按三端隔离进一步筛选
     """
-    from sqlalchemy import and_, or_, select
+    from sqlalchemy import and_, select
 
-    from app.core.scope import ScopeChecker
     from app.enums.common import SkillBindModeEnum
     from app.models.ai.skill_package import SkillPackage
 
-    # 基础条件：bind_mode=auto + is_active + not deleted + 系统级包
     base_conditions = [
         SkillPackage.bind_mode == SkillBindModeEnum.AUTO.value,
         SkillPackage.is_active.is_(True),
@@ -928,65 +983,22 @@ async def _load_auto_bind_packages(
         SkillPackage.tenant_id.is_(None),
     ]
 
-    if tenant_id is None:
-        # 管理端调用 → agent_scope 必须是管理端相关作用域
-        if agent_scope not in (
-            ResourceScopeEnum.ADMIN_ONLY.value,
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-        ):
-            return []
-
-        admin_scopes = ScopeChecker.get_admin_visible_scopes()
-        stmt = (
-            select(SkillPackage)
-            .where(and_(*base_conditions, SkillPackage.scope.in_(admin_scopes)))
-            .order_by(SkillPackage.sort_order)
-        )
-    else:
-        # 租户端调用 → admin_only agent 不应加载租户侧 auto 包
+    if tenant_id is not None:
         if agent_scope == ResourceScopeEnum.ADMIN_ONLY.value:
             return []
-
-        all_tenant_scopes = ScopeChecker.get_all_tenants_visible_scopes()
-        scope_conditions = [SkillPackage.scope.in_(all_tenant_scopes)]
-
-        # 仅当 agent_scope 需要分配表时才查 assigned 作用域
-        if agent_scope in (
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-        ):
-            from app.models.system.resource_tenant_assignment import (
-                ResourceTenantAssignment,
-            )
-            assigned_pkg_ids_stmt = (
-                select(ResourceTenantAssignment.resource_id)
-                .where(
-                    ResourceTenantAssignment.resource_type == "skill_package",
-                    ResourceTenantAssignment.tenant_id == tenant_id,
-                    ResourceTenantAssignment.is_active.is_(True),
-                    ResourceTenantAssignment.is_deleted.is_(False),
-                )
-            )
-            assignment_scopes = ScopeChecker.get_assignment_required_scopes()
-            scope_conditions.append(
-                and_(
-                    SkillPackage.scope.in_(assignment_scopes),
-                    SkillPackage.id.in_(assigned_pkg_ids_stmt),
-                )
-            )
-
-        stmt = (
-            select(SkillPackage)
-            .where(and_(*base_conditions, or_(*scope_conditions)))
-            .order_by(SkillPackage.sort_order)
+        base_conditions.append(
+            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
         )
+
+    stmt = (
+        select(SkillPackage)
+        .where(and_(*base_conditions))
+        .order_by(SkillPackage.sort_order)
+    )
 
     result = await db.execute(stmt)
     packages = list(result.scalars().all())
 
-    # 按 target_audience 过滤（user_role 不为 None 时才过滤）
     if user_role is not None:
         packages = [
             pkg for pkg in packages
@@ -1006,27 +1018,34 @@ async def resolve_for_agent(
     user_role: str | None = None,
 ) -> SkillResolveResult | None:
     """
-    从 AgentSkillBinding 加载并解析 Agent 绑定的所有 Skill
+    Load and resolve all Skills bound to an Agent from AgentSkillBinding.
 
-    独立于 Engine 的 Skill 解析入口，供 Dispatcher / Service 层调用。
-    Engine 不再直接访问 AgentSkillBinding 或 Skill 模型。
+    Independent Skill resolution entry point for Dispatcher / Service layer.
+    Engine no longer directly accesses AgentSkillBinding or Skill models.
 
-    异常处理策略：
-    - DB 连接 / SQL 错误 → 上抛（调用方可向用户显示"技能加载失败"）
+    Error handling strategy:
+    - DB connection / SQL errors → re-raise (caller can show "skill loading failed")
+    - DB 连接 / SQL 错误 → 上抛（调用方可向用户显示“技能加载失败”）
+    - Single Skill resolution error → degrade (skip that Skill, record in result.warnings)
     - 单个 Skill 解析错误 → 降级（跳过该 Skill，记录到 result.warnings）
 
     Args:
-        db: 数据库会话
-        agent: Agent 模型实例
-        tenant_id: 租户 ID（admin 级 Agent 可为 None）
-        user_role: 调用方角色（UserRoleEnum 值，用于 target_audience 三端过滤）
-                   传 None 则跳过过滤（兼容旧路径，admin 端直调）
+        db: Database session / 数据库会话
+        agent: Agent model instance / Agent 模型实例
+        tenant_id: Tenant ID (can be None for admin-level Agent) /
+                   租户 ID（admin 级 Agent 可为 None）
+        user_role: Caller role (UserRoleEnum value, for target_audience three-endpoint filtering).
+                   Pass None to skip filtering (backward compatible, admin direct call).
+                   调用方角色（UserRoleEnum 值，用于 target_audience 三端过滤）。
+                   传 None 则跳过过滤（兼容旧路径，admin 端直调）。
 
     Returns:
+        SkillResolveResult or None (when no bindings) /
         SkillResolveResult 或 None（无绑定时）
 
     Raises:
-        sqlalchemy.exc.SQLAlchemyError: DB 连接/查询异常（不再静默吞掉）
+        sqlalchemy.exc.SQLAlchemyError: DB connection/query exception (no longer silently swallowed) /
+        DB 连接/查询异常（不再静默吞掉）
     """
     from sqlalchemy import and_, select
     from sqlalchemy.exc import SQLAlchemyError
@@ -1038,7 +1057,8 @@ async def resolve_for_agent(
     agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
     agent_scope = getattr(agent, "scope", "all_tenants")
 
-    # ── Phase 0 (NEW): 加载自动绑定技能包（bind_mode=auto） ──
+    # ── Phase 0 (NEW): Load auto-bind skill packages (bind_mode=auto) ──
+    # 加载自动绑定技能包（bind_mode=auto）
     auto_packages: list[SkillPackage] = []
     try:
         auto_packages = await _load_auto_bind_packages(
@@ -1049,6 +1069,7 @@ async def resolve_for_agent(
             "Failed to load auto-bind packages for agent %d: %s",
             agent.id, str(exc),
         )
+        # Degrade: auto-bind load failure doesn't block, continue with explicit bindings
         # 降级：auto-bind 加载失败不阻塞，继续使用 explicit bindings
 
     if auto_packages:
@@ -1059,7 +1080,8 @@ async def resolve_for_agent(
             agent_scope,
         )
 
-    # ── Phase 1: 加载显式绑定数据（DB 错误直接上抛） ──
+    # ── Phase 1: Load explicit binding data (DB errors re-raised directly) ──
+    # 加载显式绑定数据（DB 错误直接上抛）
     if agent_tenant_id:
         binding_stmt = (
             select(AgentSkillBinding)
@@ -1097,7 +1119,9 @@ async def resolve_for_agent(
         )
         raise
 
-    # ── Phase 1.5: 合并 auto + explicit，去重（explicit 优先） ──
+    # ── Phase 1.5: Merge auto + explicit, deduplicate (explicit takes priority) ──
+    # 合并 auto + explicit，去重（explicit 优先）
+    # Explicit binding package_ids take priority (filtered by target_audience)
     # explicit binding 的 package_ids 优先（按 target_audience 过滤）
     explicit_package_ids: set[int] = set()
     for binding in bindings:
@@ -1109,6 +1133,7 @@ async def resolve_for_agent(
                 continue
             explicit_package_ids.add(binding.package.id)
 
+    # If no explicit and no auto, return None
     # 如果没有 explicit 也没有 auto，返回 None
     if not bindings and not auto_packages:
         return None
@@ -1117,13 +1142,14 @@ async def resolve_for_agent(
     config_overrides: dict[int, dict[str, Any]] = {}
     consent_by_package: dict[int, str] = {}
 
+    # Add auto packages first (those not in explicit)
     # 先添加 auto 包（不在 explicit 中的）
     for pkg in auto_packages:
         if pkg.id not in explicit_package_ids:
             package_ids.append(pkg.id)
             consent_by_package[pkg.id] = "auto"  # auto 包默认 consent_mode=auto
 
-    # 再添加 explicit 包
+    # Then add explicit packages / 再添加 explicit 包
     for binding in bindings:
         if binding.package and binding.package.is_active and not binding.package.is_deleted:
             package_ids.append(binding.package.id)
@@ -1160,7 +1186,8 @@ async def resolve_for_agent(
     if not skills:
         return None
 
-    # ── Hook: BEFORE_SKILL_RESOLVE — 插件可注入/修改 skills 列表 ──
+    # ── Hook: BEFORE_SKILL_RESOLVE — plugins can inject/modify skills list ──
+    # 插件可注入/修改 skills 列表
     hook_registry = get_hook_registry()
     if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_RESOLVE):
         hook_ctx = await hook_registry.trigger(
@@ -1172,7 +1199,8 @@ async def resolve_for_agent(
         )
         skills = hook_ctx.get("skills", skills)
 
-    # ── Phase 2: 解析 Skill → ToolDefinition（单个失败降级） ──
+    # ── Phase 2: Resolve Skill → ToolDefinition (single failure degrades) ──
+    # 解析 Skill → ToolDefinition（单个失败降级）
     skill_config_overrides: dict[int, dict[str, Any]] = {}
     pkg_valves: dict[int, dict[str, Any]] = {}
     # Load valves from auto-bind packages first
@@ -1201,7 +1229,8 @@ async def resolve_for_agent(
     # Any warnings from individual skill resolution are already in resolve_result.warnings
     # via the try/except in SkillResolver._resolve_one → logged by resolver.
 
-    # ── Phase 3: 映射 consent_mode 和 package_name（纯内存操作，不应失败） ──
+    # ── Phase 3: Map consent_mode and package_name (pure memory ops, should not fail) ──
+    # 映射 consent_mode 和 package_name（纯内存操作，不应失败）
     # Build per-skill consent overrides from bindings
     skill_overrides_by_package: dict[int, dict[str, str]] = {}
     for binding in bindings:
@@ -1239,7 +1268,8 @@ async def resolve_for_agent(
         if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
             tool.source_package_name = package_name_by_skill[tool.source_skill_id]
 
-    # ── Hook: AFTER_SKILL_RESOLVE — 插件可修改 tool_definitions ──
+    # ── Hook: AFTER_SKILL_RESOLVE — plugins can modify tool_definitions ──
+    # 插件可修改 tool_definitions
     if hook_registry.has_hooks(HookPoint.AFTER_SKILL_RESOLVE):
         hook_ctx = await hook_registry.trigger(
             HookPoint.AFTER_SKILL_RESOLVE,

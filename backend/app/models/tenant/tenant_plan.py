@@ -1,7 +1,8 @@
 """
-租户套餐模型
+租户套餐模型 / Tenant Plan Model
 
 定义租户订阅套餐，控制租户可用的功能模块和配额
+Defines tenant subscription plans, controls available features and quotas.
 """
 
 from decimal import Decimal

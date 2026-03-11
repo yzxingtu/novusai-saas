@@ -1,7 +1,8 @@
 """
-AI 供应商 Service
+AI 供应商 Service / AI Provider Service
 
 处理 AI 供应商业务逻辑
+Handles AI provider business logic.
 """
 
 import re

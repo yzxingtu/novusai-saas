@@ -1,6 +1,6 @@
 /**
- * 邮件日志 API
- * 对接后端 /admin/email-logs/* 接口
+ * Email log API / 邮件日志 API
+ * Backend: /admin/email-logs/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
@@ -8,7 +8,7 @@ import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/admin/email-logs';
 
-/** 邮件日志信息（后端原始 snake_case） */
+/** Email log info (backend raw snake_case) / 邮件日志信息（后端原始） */
 interface EmailLogInfoRaw {
   id: number;
   to_address: string;
@@ -23,7 +23,7 @@ interface EmailLogInfoRaw {
   created_at: string;
 }
 
-/** 邮件日志信息（前端 camelCase） */
+/** Email log info (frontend camelCase) / 邮件日志信息（前端） */
 export interface EmailLogInfo {
   id: number;
   toAddress: string;
@@ -38,7 +38,7 @@ export interface EmailLogInfo {
   createdAt: string;
 }
 
-/** 手动发送邮件请求 */
+/** Manual send email request / 手动发送邮件请求 */
 export interface EmailSendRequest {
   to: string[];
   subject: string;
@@ -48,19 +48,19 @@ export interface EmailSendRequest {
   bcc?: null | string[];
 }
 
-/** 测试邮件请求 */
+/** Test email request / 测试邮件请求 */
 export interface EmailTestRequest {
   to: string;
 }
 
-/** 发送结果 */
+/** Send result / 发送结果 */
 export interface EmailSendResult {
   success: boolean;
   message: string;
   error: null | string;
 }
 
-/** 邮件日志详情（含 body） */
+/** Email log detail (with body) / 邮件日志详情（含 body） */
 export interface EmailLogDetail {
   id: number;
   toAddress: string;
@@ -77,7 +77,7 @@ export interface EmailLogDetail {
   createdAt: null | string;
 }
 
-/** 分页响应 */
+/** Paginated response / 分页响应 */
 export interface EmailLogListResponse {
   items: EmailLogInfo[];
   total: number;
@@ -102,7 +102,7 @@ function transformEmailLogInfo(raw: EmailLogInfoRaw): EmailLogInfo {
 }
 
 /**
- * 获取邮件日志列表
+ * Get email log list / 获取邮件日志列表
  */
 export async function getEmailLogListApi(
   params?: Record<string, unknown>,
@@ -124,7 +124,7 @@ export async function getEmailLogListApi(
 }
 
 /**
- * 获取邮件日志详情（含 body）
+ * Get email log detail (with body) / 获取邮件日志详情
  */
 export async function getEmailLogDetailApi(
   id: number,
@@ -152,7 +152,7 @@ export async function getEmailLogDetailApi(
 }
 
 /**
- * 手动发送邮件
+ * Send email manually / 手动发送邮件
  */
 export async function sendEmailApi(
   data: EmailSendRequest,
@@ -166,7 +166,7 @@ export async function sendEmailApi(
 }
 
 /**
- * 发送测试邮件
+ * Send test email / 发送测试邮件
  */
 export async function sendTestEmailApi(
   data: EmailTestRequest,

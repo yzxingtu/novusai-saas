@@ -1,6 +1,6 @@
 /**
- * 公开配置 API
- * 获取平台/租户公开配置，无需认证
+ * Public config API / 公开配置 API
+ * Get platform/tenant public config, no auth required / 获取平台/租户公开配置，无需认证
  */
 import { getProcessedImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
@@ -12,16 +12,16 @@ interface HttpResponse<T = unknown> {
 }
 
 /**
- * 从 baseRequestClient 响应中提取业务数据
- * baseRequestClient TS 类型返回 T，但运行时实际返回 AxiosResponse，.data 为 HttpResponse
+ * Extract business data from baseRequestClient response / 从 baseRequestClient 响应中提取业务数据
+ * baseRequestClient TS type returns T, but runtime returns AxiosResponse with .data as HttpResponse
  */
 function extractResponseData<T>(response: unknown): HttpResponse<T> {
   return (response as { data: HttpResponse<T> }).data;
 }
 
 /**
- * 从源对象中提取非 null/undefined 的字段，返回仅包含有值字段的对象
- * 用于构建可选特性配置，避免将 null 值覆盖到默认值上
+ * Pick non-null/undefined fields from source object / 从源对象中提取非空字段
+ * Used for building optional feature configs, avoids overwriting defaults with null
  */
 function pickDefined<T, K extends keyof T>(
   source: T,
@@ -38,8 +38,8 @@ function pickDefined<T, K extends keyof T>(
 }
 
 /**
- * 将附件 ID 字符串转为图片访问 URL
- * 配置项存储的是附件 ID（如 "10"），需转为 /api/public/attachments/{id}/image
+ * Convert attachment ID string to image URL / 将附件 ID 字符串转为图片访问 URL
+ * Config stores attachment IDs (e.g. "10"), needs conversion to /api/public/attachments/{id}/image
  */
 function attachmentIdToUrl(idStr: string | undefined): string | undefined {
   if (!idStr) return undefined;
@@ -49,132 +49,132 @@ function attachmentIdToUrl(idStr: string | undefined): string | undefined {
 }
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 品牌配置 */
+/** Brand config / 品牌配置 */
 export interface BrandConfig {
-  /** 站点名称 */
+  /** Site name / 站点名称 */
   siteName?: string;
-  /** 站点描述 */
+  /** Site description / 站点描述 */
   siteDescription?: string;
   /** Logo URL */
   logo?: string;
-  /** 深色模式 Logo URL */
+  /** Dark mode Logo URL / 深色模式 Logo */
   logoDark?: string;
   /** Favicon URL */
   favicon?: string;
-  /** 主题色（仅平台端使用） */
+  /** Primary color (platform only) / 主题色（仅平台端） */
   primaryColor?: string;
-  /** 登录页背景图 */
+  /** Login page background image / 登录页背景图 */
   loginBg?: string;
-  /** 版权信息 */
+  /** Copyright info / 版权信息 */
   copyright?: string;
-  /** ICP 备案号 */
+  /** ICP filing number / ICP 备案号 */
   icp?: string;
 }
 
-/** 验证码配置 */
+/** Captcha config / 验证码配置 */
 export interface CaptchaConfig {
-  /** 是否启用验证码 */
+  /** Whether captcha is enabled / 是否启用验证码 */
   enabled: boolean;
-  /** 验证码类型: image | slider | click */
+  /** Captcha type: image | slider | click / 验证码类型 */
   type: string;
-  /** 难度等级: easy | medium | hard */
+  /** Difficulty: easy | medium | hard / 难度等级 */
   difficulty: string;
-  /** 失败多少次后显示验证码 */
+  /** Show captcha after N failures / 失败多少次后显示验证码 */
   failedThreshold: number;
-  /** 验证码提供方标识（后端驱动类型） */
+  /** Captcha provider (backend driver type) / 验证码提供方标识 */
   provider?: string;
 }
 
-/** 登录配置 */
+/** Login config / 登录配置 */
 export interface LoginConfig {
-  /** 验证码配置 */
+  /** Captcha config / 验证码配置 */
   captcha: CaptchaConfig;
-  /** 允许的登录方式 */
+  /** Allowed login methods / 允许的登录方式 */
   allowedMethods: string[];
-  /** 最大尝试次数 */
+  /** Max attempts / 最大尝试次数 */
   maxAttempts?: number;
-  /** 锁定时间（分钟） */
+  /** Lockout duration (minutes) / 锁定时间（分钟） */
   lockoutMinutes?: number;
 }
 
-/** 密码策略 */
+/** Password policy / 密码策略 */
 export interface PasswordPolicy {
   minLength?: number;
   complexity?: string;
   expiryDays?: number;
 }
 
-/** 会话策略 */
+/** Session policy / 会话策略 */
 export interface SessionPolicy {
   timeoutMinutes?: number;
   maxDevices?: number;
 }
 
-/** 安全配置 */
+/** Security config / 安全配置 */
 export interface SecurityConfig {
   password: PasswordPolicy;
   session: SessionPolicy;
 }
 
-/** 维护配置 */
+/** Maintenance config / 维护配置 */
 export interface MaintenanceConfig {
   enabled: boolean;
   message?: string;
 }
 
-/** 域名配置 */
+/** Domain config / 域名配置 */
 export interface DomainConfig {
   suffix: string;
   verificationPrefix: string;
 }
 
-/** 平台公开配置 */
+/** Platform public config / 平台公开配置 */
 export interface PlatformPublicConfig {
-  /** 品牌配置 */
+  /** Brand config / 品牌配置 */
   brand: BrandConfig;
-  /** 登录配置 */
+  /** Login config / 登录配置 */
   login: LoginConfig;
-  /** 安全配置 */
+  /** Security config / 安全配置 */
   security: SecurityConfig;
-  /** 维护配置 */
+  /** Maintenance config / 维护配置 */
   maintenance: MaintenanceConfig;
-  /** 域名配置 */
+  /** Domain config / 域名配置 */
   domain: DomainConfig;
-  /** 平台管理端域名列表（用于域名检测） */
+  /** Platform admin domain list (for domain detection) / 平台管理端域名列表 */
   platformDomains: string[];
 }
 
-/** 租户公开配置 */
+/** Tenant public config / 租户公开配置 */
 export interface TenantPublicConfig {
-  /** 租户 ID */
+  /** Tenant ID / 租户 ID */
   tenantId: number;
-  /** 租户编码 */
+  /** Tenant code / 租户编码 */
   tenantCode: string;
-  /** 租户名称 */
+  /** Tenant name / 租户名称 */
   tenantName: string;
-  /** 品牌配置 */
+  /** Brand config / 品牌配置 */
   brand: BrandConfig;
-  /** 登录配置 */
+  /** Login config / 登录配置 */
   login: LoginConfig;
-  /** 安全配置 */
+  /** Security config / 安全配置 */
   security: SecurityConfig;
-  /** 维护配置 */
+  /** Maintenance config / 维护配置 */
   maintenance: MaintenanceConfig;
-  /** 域名配置 */
+  /** Domain config / 域名配置 */
   domain: DomainConfig;
-  /** 功能开关 */
+  /** Feature toggles / 功能开关 */
   features?: Record<string, boolean>;
-  /** 注册页隐私政策链接 */
+  /** Registration privacy policy URL / 注册页隐私政策链接 */
   privacyPolicyUrl?: string;
-  /** 注册页服务条款链接 */
+  /** Registration terms of service URL / 注册页服务条款链接 */
   termsUrl?: string;
 }
 
 // ============================================================
-// 后端原始类型 (snake_case)
+// Backend raw types (snake_case) / 后端原始类型
 // ============================================================
 
 interface PlatformPublicConfigRaw {
@@ -278,7 +278,7 @@ interface TenantPublicConfigRaw {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
 function transformPlatformConfig(
@@ -387,10 +387,10 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
 }
 
 // ============================================================
-// API 函数
+// API functions / API 函数
 // ============================================================
 
-/** HTTP 响应包装类型 */
+/** HTTP response wrapper type / HTTP 响应包装类型 */
 interface HttpResponse<T> {
   code: number;
   data: T;
@@ -398,12 +398,12 @@ interface HttpResponse<T> {
 }
 
 /**
- * 获取平台公开配置
+ * Get platform public config / 获取平台公开配置
  * GET /api/public/platform/config
- * 无需认证
+ * No auth required / 无需认证
  */
 export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig> {
-  // baseRequestClient 无拦截器，返回原始 AxiosResponse
+  // baseRequestClient has no interceptor, returns raw AxiosResponse
   // AxiosResponse.data = HttpResponse { code, message, data }
   const response = await baseRequestClient.get<
     HttpResponse<PlatformPublicConfigRaw>
@@ -419,9 +419,9 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
 }
 
 /**
- * 获取租户公开配置
+ * Get tenant public config / 获取租户公开配置
  * GET /api/public/tenant/config
- * 无需认证，根据域名中间件自动识别租户
+ * No auth required, tenant auto-detected by domain middleware / 无需认证，自动识别租户
  */
 export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
   const response = await baseRequestClient.get<

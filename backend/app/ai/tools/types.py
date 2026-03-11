@@ -1,7 +1,9 @@
 """
+Tool Type Definitions
 工具类型定义
 
-定义工具参数、工具定义、工具执行结果等数据类
+Defines data classes for tool parameters, tool definitions, and tool execution results.
+定义工具参数、工具定义、工具执行结果等数据类。
 """
 
 from __future__ import annotations
@@ -14,26 +16,27 @@ if TYPE_CHECKING:
 
 from app.enums.common import UserRoleEnum
 
-# JSON 兼容的标量值类型（用于工具参数默认值等场景）
+# JSON-compatible scalar value type (for tool parameter defaults, etc.) / JSON 兼容的标量值类型
 JsonScalar = str | int | float | bool | None
-# JSON 兼容的值类型（含嵌套）
+# JSON-compatible value type (with nesting) / JSON 兼容的值类型（含嵌套）
 JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 @dataclass
 class ToolParameter:
     """
-    工具参数定义
+    Tool Parameter Definition / 工具参数定义
 
-    描述工具函数的单个参数
+    Describes a single parameter of a tool function.
+    描述工具函数的单个参数。
 
     Attributes:
-        name: 参数名
-        type: 参数类型 (string/integer/number/boolean/array/object)
-        description: 参数描述
-        required: 是否必填
-        default: 默认值
-        enum: 可选值列表
+        name: Parameter name / 参数名
+        type: Parameter type (string/integer/number/boolean/array/object) / 参数类型
+        description: Parameter description / 参数描述
+        required: Whether required / 是否必填
+        default: Default value / 默认值
+        enum: Enum value list / 可选值列表
     """
 
     name: str
@@ -44,7 +47,7 @@ class ToolParameter:
     enum: list[str] | None = None
 
     def to_json_schema(self) -> dict[str, Any]:
-        """转换为 JSON Schema 属性"""
+        """Convert to JSON Schema property / 转换为 JSON Schema 属性"""
         schema: dict[str, Any] = {
             "type": self.type,
             "description": self.description,
@@ -59,17 +62,18 @@ class ToolParameter:
 @dataclass
 class ToolDefinition:
     """
-    工具定义
+    Tool Definition / 工具定义
 
-    描述一个可被智能体调用的工具
+    Describes a tool that can be invoked by an agent.
+    描述一个可被智能体调用的工具。
 
     Attributes:
-        name: 工具唯一标识
-        description: 工具功能描述（会传给 LLM）
-        tool_type: 工具类型（对应 ToolTypeEnum）
-        parameters: 参数列表
-        config: 工具特有配置（如 HTTP 的 url/method/headers）
-        enabled: 是否启用
+        name: Tool unique identifier / 工具唯一标识
+        description: Tool function description (passed to LLM) / 工具功能描述
+        tool_type: Tool type (corresponds to ToolTypeEnum) / 工具类型
+        parameters: Parameter list / 参数列表
+        config: Tool-specific config (e.g. HTTP url/method/headers) / 工具特有配置
+        enabled: Whether enabled / 是否启用
     """
 
     name: str
@@ -87,7 +91,7 @@ class ToolDefinition:
 
     @property
     def input_schema(self) -> dict[str, Any]:
-        """构建 JSON Schema（从 parameters 列表）"""
+        """Build JSON Schema (from parameters list) / 构建 JSON Schema"""
         properties: dict[str, Any] = {}
         required: list[str] = []
         for param in self.parameters:
@@ -101,7 +105,7 @@ class ToolDefinition:
 
     def to_openai_schema(self) -> dict[str, Any]:
         """
-        转换为 OpenAI function calling 格式
+        Convert to OpenAI function calling format / 转换为 OpenAI function calling 格式
 
         Returns:
             OpenAI tool schema dict
@@ -135,15 +139,15 @@ class ToolDefinition:
 @dataclass
 class ToolResult:
     """
-    工具执行结果
+    Tool Execution Result / 工具执行结果
 
     Attributes:
-        tool_call_id: LLM 返回的 tool_call_id
-        name: 工具名称
-        success: 是否执行成功
-        output: 输出内容（字符串）
-        error: 错误信息
-        duration_ms: 执行耗时（毫秒）
+        tool_call_id: tool_call_id returned by LLM / LLM 返回的 tool_call_id
+        name: Tool name / 工具名称
+        success: Whether execution succeeded / 是否执行成功
+        output: Output content (string) / 输出内容
+        error: Error message / 错误信息
+        duration_ms: Execution duration (milliseconds) / 执行耗时
     """
 
     tool_call_id: str
@@ -163,7 +167,7 @@ class ToolResult:
         error: str,
         name: str = "",
     ) -> ToolResult:
-        """快捷构造错误结果"""
+        """Shortcut to construct error result / 快捷构造错误结果"""
         return cls(
             tool_call_id=tool_call_id,
             name=name,
@@ -173,9 +177,10 @@ class ToolResult:
 
     def to_message(self) -> dict[str, Any]:
         """
-        转换为 OpenAI tool message 格式
+        Convert to OpenAI tool message format / 转换为 OpenAI tool message 格式
 
         Returns:
+            Dict that can be appended directly to messages list
             可直接追加到 messages 列表的 dict
         """
         content = self.output if self.success else f"Error: {self.error}"
@@ -189,18 +194,19 @@ class ToolResult:
 @dataclass
 class ExecutionContext:
     """
-    工具执行上下文
+    Tool Execution Context / 工具执行上下文
 
-    封装当前执行环境的租户、用户、权限等信息，
-    供 TextToSQLExecutor / CRUD Executor 等执行器使用。
+    Encapsulates tenant, user, permission info of the current execution environment,
+    used by TextToSQLExecutor / CRUD Executor and other executors.
+    封装当前执行环境的租户、用户、权限等信息。
 
     Attributes:
-        tenant_id: 租户 ID
-        agent_id: 智能体 ID
-        user_id: 当前操作用户 ID（可为 None 表示匿名 / API 调用）
-        user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
-        permissions: 用户权限码集合（用于 RBAC 校验）
-        db: 异步数据库会话（可选，供需要 DB 访问的执行器使用）
+        tenant_id: Tenant ID / 租户 ID
+        agent_id: Agent ID / 智能体 ID
+        user_id: Current user ID (None for anonymous/API calls) / 当前操作用户 ID
+        user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
+        permissions: User permission code set (for RBAC validation) / 用户权限码集合
+        db: Async database session (optional) / 异步数据库会话
     """
 
     tenant_id: int
@@ -225,10 +231,10 @@ class ExecutionContext:
 
 def to_openai_tools(definitions: list[ToolDefinition]) -> list[dict[str, Any]]:
     """
-    批量转换为 OpenAI function calling 格式
+    Batch convert to OpenAI function calling format / 批量转换为 OpenAI function calling 格式
 
     Args:
-        definitions: 工具定义列表
+        definitions: Tool definition list / 工具定义列表
 
     Returns:
         OpenAI tools schema list

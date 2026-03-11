@@ -1,5 +1,5 @@
 """
-智能体知识库绑定 Repository
+智能体知识库绑定 Repository / Agent KB Binding Repository
 """
 
 from sqlalchemy import and_, delete, select

@@ -1,63 +1,63 @@
 /**
- * 共享类型定义
- * 用于多端 API 的通用类型
+ * Shared type definitions / 共享类型定义
+ * Common types for multi-endpoint API / 用于多端 API 的通用类型
  */
 
-/** 登录请求参数 */
+/** Login request params / 登录请求参数 */
 export interface LoginParams {
   username: string;
   password: string;
-  /** 租户编码（可选，用于限定登录范围） */
+  /** Tenant code (optional, for scoping login) / 租户编码 */
   tenantCode?: string;
-  /** 验证码挑战 ID（可选） */
+  /** Captcha challenge ID (optional) / 验证码挑战 ID */
   captchaChallengeId?: string;
-  /** 验证码答案（可选） */
+  /** Captcha answer (optional) / 验证码答案 */
   captchaSolution?: string;
-  /** 验证码提供方标识（可选） */
+  /** Captcha provider code (optional) / 验证码提供方标识 */
   captchaProviderCode?: string;
-  /** 验证码类型（如 image） */
+  /** Captcha type (e.g. image) / 验证码类型 */
   captchaType?: string;
 }
 
-/** 登录响应（前端使用） */
+/** Login result (frontend format) / 登录响应 */
 export interface LoginResult {
   accessToken: string;
   refreshToken?: string;
 }
 
-/** 登录响应（后端原始格式） */
+/** Login result (backend raw format) / 登录响应（后端原始格式） */
 export interface LoginResultRaw {
   access_token: string;
   refresh_token?: string;
   token_type?: string;
 }
 
-/** 刷新 Token 请求参数 */
+/** Refresh token request params / 刷新 Token 请求参数 */
 export interface RefreshTokenParams {
   refreshToken: string;
 }
 
-/** 刷新 Token 响应（前端使用） */
+/** Refresh token result (frontend format) / 刷新 Token 响应 */
 export interface RefreshTokenResult {
   accessToken: string;
   refreshToken?: string;
 }
 
-/** 刷新 Token 响应（后端原始格式） */
+/** Refresh token result (backend raw format) / 刷新 Token 响应（后端原始格式） */
 export interface RefreshTokenResultRaw {
   access_token: string;
   refresh_token?: string;
   token_type?: string;
 }
 
-/** 修改密码请求参数 */
+/** Change password request params / 修改密码请求参数 */
 export interface ChangePasswordParams {
   oldPassword: string;
   newPassword: string;
   confirmPassword: string;
 }
 
-/** 用户基本信息 */
+/** Base user info / 用户基本信息 */
 export interface BaseUserInfo {
   id: number | string;
   username: string;
@@ -65,18 +65,18 @@ export interface BaseUserInfo {
   avatar?: string;
   email?: string;
   roles?: string[];
-  /** 权限码列表，用于按钮级别权限控制 */
+  /** Permission code list, for button-level access control / 权限码列表 */
   permissions?: string[];
   homePath?: string;
 }
 
-/** 平台管理员信息 */
+/** Platform admin info / 平台管理员信息 */
 export interface AdminUserInfo extends BaseUserInfo {
   email?: string;
   isSuperAdmin?: boolean;
 }
 
-/** 租户管理员信息 */
+/** Tenant admin info / 租户管理员信息 */
 export interface TenantAdminInfo extends BaseUserInfo {
   tenantId: number | string;
   tenantName?: string;
@@ -85,18 +85,18 @@ export interface TenantAdminInfo extends BaseUserInfo {
   planName?: string;
 }
 
-/** 租户用户信息 */
+/** Tenant user info / 租户用户信息 */
 export interface TenantUserInfo extends BaseUserInfo {
   tenantId: number | string;
   email?: string;
 }
 
-/** API 端类型 */
+/** API endpoint type / API 端类型 */
 export type ApiEndpoint = 'admin' | 'tenant' | 'user';
 
 /**
- * 根据路由获取 API 端类型
- * @deprecated 请使用 `getEndpointFromPath` 或 `getApiEndpoint` from '#/utils/endpoint'
+ * Get API endpoint type by route / 根据路由获取 API 端类型
+ * @deprecated Use `getEndpointFromPath` or `getApiEndpoint` from '#/utils/endpoint'
  */
 export function getApiEndpoint(path: string): ApiEndpoint {
   if (path.startsWith('/admin')) {

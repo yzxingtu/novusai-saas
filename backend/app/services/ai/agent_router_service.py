@@ -1,8 +1,10 @@
 """
-智能体路由服务
+智能体路由服务 / Agent Router Service
 
 根据用户消息和页面上下文，通过 Router 智能体智能选择最合适的目标智能体。
+Selects the most suitable target agent via Router agent based on user messages and page context.
 支持 scope-aware 候选列表过滤和多层安全校验。
+Supports scope-aware candidate filtering and multi-layer security validation.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
-from app.enums.common import ResourceScopeEnum, UserRoleEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
 from app.exceptions import BusinessException
 from app.models.ai.agent import Agent
 from app.models.system.agent_assignment import SystemAgentAssignment
@@ -211,8 +213,16 @@ class AgentRouterService:
         """
         from app.ai.skills.resolver import _audience_allows_role
 
+        from sqlalchemy.orm import selectinload
+
+        from app.models.ai.agent_skill_binding import AgentSkillBinding
+
         query = (
             select(Agent)
+            .options(
+                selectinload(Agent.skill_bindings)
+                .selectinload(AgentSkillBinding.package)
+            )
             .where(
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
@@ -302,14 +312,28 @@ class AgentRouterService:
         from app.ai.engine.types import ExecutionRequest
         from app.ai.types import ChatMessage
 
-        # 构建候选列表描述
+        # 构建候选列表描述（含能力摘要，帮助 Router 选择合适的 Agent）
         agent_list = []
         for a in candidates:
-            agent_list.append({
+            entry: dict[str, Any] = {
                 "id": a.id,
                 "name": a.name,
                 "description": a.description or "",
-            })
+            }
+            # 提取已启用技能包名称列表，让 Router 知道 Agent 的工具能力
+            # 仅包含 enabled=True 的绑定，排除被禁用的技能包
+            skill_bindings = getattr(a, "skill_bindings", None)
+            if skill_bindings:
+                pkg_names = []
+                for binding in skill_bindings:
+                    if not getattr(binding, "enabled", True):
+                        continue
+                    pkg = getattr(binding, "package", None)
+                    if pkg and getattr(pkg, "name", None):
+                        pkg_names.append(pkg.name)
+                if pkg_names:
+                    entry["capabilities"] = pkg_names
+            agent_list.append(entry)
 
         # 构建路由指令消息
         routing_prompt = (

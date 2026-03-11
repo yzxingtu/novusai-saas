@@ -1,8 +1,10 @@
 """
-用户端智能体列表 API
+用户端智能体列表 API / User Agent List API
 
 提供面向终端用户（TenantUser）的可用智能体查询接口。
+Provides available agent query endpoints for end users (TenantUser).
 仅返回已发布、当前用户有权访问的智能体。
+Only returns published agents accessible to the current user.
 """
 
 from fastapi import Request
@@ -21,7 +23,7 @@ from app.services.ai.agent_service import AgentService
 
 
 def _build_user_agent_item(agent) -> dict:
-    """构建用户端智能体列表项"""
+    """构建用户端智能体列表项 / Build user agent list item"""
     item = build_agent_base_item(agent)
     item["visibility"] = agent.visibility
     return item
@@ -35,19 +37,20 @@ def _build_user_agent_item(agent) -> dict:
 )
 class UserAgentController(BaseController):
     """
-    用户端智能体列表控制器
+    用户端智能体列表控制器 / User Agent List Controller
 
     仅提供查询接口，不提供管理操作。
+    Only provides query endpoints, no management operations.
     """
 
     prefix = "/ai/agents"
     tags = ["AI Agents (User)"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/{agent_id}/knowledge-bases", summary="获取智能体知识库绑定")
+        @router.get("/{agent_id}/knowledge-bases", summary="获取智能体知识库绑定 / Get agent knowledge base bindings")
         @auth_only
         async def get_agent_kbs(
             request: Request,
@@ -57,12 +60,13 @@ class UserAgentController(BaseController):
         ):
             """
             获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）
+            Get enabled knowledge base list bound to agent (for chat UI RAG indicator)
             """
             kb_service = AgentKBBindingService(db, current_user.tenant_id)
             result = await kb_service.get_agent_kb_bindings(agent_id)
             return success(data=result)
 
-        @router.get("", summary="获取可用智能体列表")
+        @router.get("", summary="获取可用智能体列表 / Get available agent list")
         @auth_only
         async def list_agents(
             request: Request,
@@ -72,11 +76,12 @@ class UserAgentController(BaseController):
         ):
             """
             获取当前用户可访问的已发布智能体列表
+            Get published agent list accessible to the current user
 
-            自动过滤：
-            - 仅已发布状态
-            - 排除路由智能体
-            - 按 visibility + access_type 权限过滤
+            自动过滤 / Auto filters:
+            - 仅已发布状态 / Published status only
+            - 排除路由智能体 / Exclude router agents
+            - 按 visibility + access_type 权限过滤 / Filter by visibility + access_type permissions
             """
             service = AgentService(db, current_user.tenant_id)
             items, total = await service.list_user_accessible_agents(
@@ -93,7 +98,7 @@ class UserAgentController(BaseController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = UserAgentController.get_router()
 
 __all__ = ["router", "UserAgentController"]

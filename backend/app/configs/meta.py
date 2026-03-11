@@ -1,28 +1,28 @@
-"""
-配置元数据定义
+"""Configuration metadata definitions / 配置元数据定义
 
+Defines metadata classes for config items and config groups, used for declarative config definitions.
 定义配置项和配置分组的元数据类，用于声明式配置定义
 """
 
 from dataclasses import dataclass, field
 from typing import Any
 
-# 直接从子模块导入，避免循环依赖
+# Import directly from submodule to avoid circular dependency / 直接从子模块导入，避免循环依赖
 from app.enums.config import ConfigScope, ConfigValueType
 
 
 @dataclass
 class ConfigOption:
-    """配置选项（用于 select/multi_select 类型）"""
+    """Config option (for select/multi_select types) / 配置选项（用于 select/multi_select 类型）"""
 
     value: Any
-    """选项值"""
+    """Option value / 选项值"""
 
     label_key: str
-    """选项标签的 i18n 键"""
+    """Option label i18n key / 选项标签的 i18n 键"""
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典"""
+        """Convert to dict / 转换为字典"""
         return {
             "value": self.value,
             "label_key": self.label_key,
@@ -31,19 +31,19 @@ class ConfigOption:
 
 @dataclass
 class ValidationRule:
-    """验证规则"""
+    """Validation rule / 验证规则"""
 
     type: str
-    """规则类型: min/max/min_length/max_length/pattern/custom"""
+    """Rule type: min/max/min_length/max_length/pattern/custom / 规则类型"""
 
     value: Any
-    """规则值"""
+    """Rule value / 规则值"""
 
     message_key: str = ""
-    """错误消息的 i18n 键"""
+    """Error message i18n key / 错误消息的 i18n 键"""
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典"""
+        """Convert to dict / 转换为字典"""
         return {
             "type": self.type,
             "value": self.value,
@@ -70,8 +70,9 @@ class DisplayRule:
 @dataclass
 class ConfigMeta:
     """
-    配置项元数据
+    Config item metadata / 配置项元数据
 
+    Defines complete metadata for a single config item.
     定义单个配置项的完整元数据信息
 
     Example:
@@ -87,65 +88,65 @@ class ConfigMeta:
     """
 
     key: str
-    """配置键名（组内唯一）"""
+    """Config key (unique within group) / 配置键名（组内唯一）"""
 
     name_key: str
-    """名称的 i18n 键"""
+    """Name i18n key / 名称的 i18n 键"""
 
     scope: ConfigScope = ConfigScope.ADMIN_ONLY
-    """作用域：platform/tenant"""
+    """Scope: platform/tenant / 作用域"""
 
     value_type: ConfigValueType = ConfigValueType.STRING
-    """值类型"""
+    """Value type / 值类型"""
 
     default_value: Any = None
-    """默认值"""
+    """Default value / 默认值"""
 
     description_key: str = ""
-    """描述的 i18n 键"""
+    """Description i18n key / 描述的 i18n 键"""
 
     options: list[ConfigOption] = field(default_factory=list)
-    """选项列表（用于 select/multi_select）"""
+    """Options list (for select/multi_select) / 选项列表"""
 
     validation_rules: list[ValidationRule] = field(default_factory=list)
-    """验证规则列表"""
+    """Validation rules list / 验证规则列表"""
 
     is_required: bool = False
-    """是否必填"""
+    """Whether required / 是否必填"""
 
     is_visible: bool = True
-    """是否在配置界面显示"""
+    """Whether visible in config UI / 是否在配置界面显示"""
 
     is_encrypted: bool = False
-    """是否加密存储（用于敏感配置如密码、API Key）"""
+    """Whether encrypted (for sensitive configs like passwords, API keys) / 是否加密存储"""
 
     sort_order: int = 0
-    """排序顺序"""
+    """Sort order / 排序顺序"""
 
     display_rules: list[DisplayRule] = field(default_factory=list)
-    """显示/隐藏规则"""
+    """Display/hide rules / 显示/隐藏规则"""
 
     value_path: str = ""
-    """用于子字段映射到父 JSON 的路径"""
+    """Path for mapping child fields to parent JSON / 用于子字段映射到父 JSON 的路径"""
 
     children: list["ConfigMeta"] = field(default_factory=list)
-    """子字段配置"""
+    """Child field configs / 子字段配置"""
 
-    # TAG 类型专用参数
+    # TAG type specific params / TAG 类型专用参数
     tag_separator: str = ","
-    """标签分隔符（用于 TAG 类型，默认英文逗号）"""
+    """Tag separator (for TAG type, default comma) / 标签分隔符"""
 
-    # FILE 类型专用参数
+    # FILE type specific params / FILE 类型专用参数
     file_accept: str = ""
-    """文件接受类型（用于 FILE 类型，如 '.pdf,.doc' 或 'image/*'）"""
+    """File accept types (for FILE type, e.g. '.pdf,.doc' or 'image/*') / 文件接受类型"""
 
-    # 运行时属性
+    # Runtime properties / 运行时属性
     group_code: str = ""
-    """所属分组代码（由注册中心设置）"""
+    """Group code (set by registry) / 所属分组代码"""
 
     def __post_init__(self) -> None:
-        """初始化后处理"""
-        # 密码类型默认加密
+        """Post-init processing / 初始化后处理"""
+        # Password type defaults to encrypted / 密码类型默认加密
         if self.value_type == ConfigValueType.PASSWORD:
             self.is_encrypted = True
         for child in self.children:
@@ -153,7 +154,7 @@ class ConfigMeta:
                 child.scope = self.scope
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典（用于序列化）"""
+        """Convert to dict (for serialization) / 转换为字典（用于序列化）"""
         return {
             "key": self.key,
             "name_key": self.name_key,
@@ -183,8 +184,9 @@ class ConfigMeta:
 
 class ConfigGroupMeta:
     """
-    配置分组元数据
+    Config group metadata / 配置分组元数据
 
+    Defines metadata for config groups.
     定义配置分组的元数据信息
 
     Example:
@@ -221,47 +223,47 @@ class ConfigGroupMeta:
         self._configs: list[ConfigMeta] = []
         self.children: list[ConfigGroupMeta] = children or []
 
-        # 设置配置项（通过 property setter）
+        # Set configs (via property setter) / 设置配置项（通过 property setter）
         if configs:
             self.configs = configs
 
     @property
     def configs(self) -> list[ConfigMeta]:
-        """分组下的配置项列表"""
+        """Config items list under this group / 分组下的配置项列表"""
         return self._configs
 
     @configs.setter
     def configs(self, value: list[ConfigMeta]) -> None:
-        """设置配置项列表，同时更新每个配置项的 group_code"""
+        """Set config items list, also updates each config's group_code / 设置配置项列表，同时更新 group_code"""
         self._configs = value
         for config in self._configs:
             config.set_group_code(self.code)
-            # 继承分组的作用域
+            # Inherit group scope / 继承分组的作用域
             if config.scope != self.scope:
                 config.scope = self.scope
 
     def add_config(self, config: ConfigMeta) -> "ConfigGroupMeta":
-        """添加配置项"""
+        """Add config item / 添加配置项"""
         config.group_code = self.code
         config.scope = self.scope
         self.configs.append(config)
         return self
 
     def add_child(self, child: "ConfigGroupMeta") -> "ConfigGroupMeta":
-        """添加子分组"""
+        """Add child group / 添加子分组"""
         child.parent_code = self.code
         self.children.append(child)
         return self
 
     def get_all_configs(self) -> list[ConfigMeta]:
-        """获取所有配置项（包括子分组的）"""
+        """Get all config items (including child groups) / 获取所有配置项（包括子分组的）"""
         configs = list(self.configs)
         for child in self.children:
             configs.extend(child.get_all_configs())
         return configs
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典（用于序列化）"""
+        """Convert to dict (for serialization) / 转换为字典（用于序列化）"""
         return {
             "code": self.code,
             "name_key": self.name_key,
@@ -276,34 +278,34 @@ class ConfigGroupMeta:
         }
 
 
-# 便捷函数：创建验证规则
+# Convenience functions: create validation rules / 便捷函数：创建验证规则
 def min_value(value: int | float, message_key: str = "") -> ValidationRule:
-    """最小值验证"""
+    """Min value validation / 最小值验证"""
     return ValidationRule(type="min", value=value, message_key=message_key)
 
 
 def max_value(value: int | float, message_key: str = "") -> ValidationRule:
-    """最大值验证"""
+    """Max value validation / 最大值验证"""
     return ValidationRule(type="max", value=value, message_key=message_key)
 
 
 def min_length(value: int, message_key: str = "") -> ValidationRule:
-    """最小长度验证"""
+    """Min length validation / 最小长度验证"""
     return ValidationRule(type="min_length", value=value, message_key=message_key)
 
 
 def max_length(value: int, message_key: str = "") -> ValidationRule:
-    """最大长度验证"""
+    """Max length validation / 最大长度验证"""
     return ValidationRule(type="max_length", value=value, message_key=message_key)
 
 
 def pattern(regex: str, message_key: str = "") -> ValidationRule:
-    """正则表达式验证"""
+    """Regex pattern validation / 正则表达式验证"""
     return ValidationRule(type="pattern", value=regex, message_key=message_key)
 
 
 def option(value: Any, label_key: str) -> ConfigOption:
-    """创建选项"""
+    """Create option / 创建选项"""
     return ConfigOption(value=value, label_key=label_key)
 
 
@@ -312,7 +314,7 @@ __all__ = [
     "ConfigGroupMeta",
     "ConfigOption",
     "ValidationRule",
-    # 便捷函数
+    # Convenience functions / 便捷函数
     "min_value",
     "max_value",
     "min_length",

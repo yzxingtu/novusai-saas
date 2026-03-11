@@ -1,7 +1,8 @@
 """
-邮件日志 Schema
+邮件日志 Schema / Email Log Schema
 
 定义邮件日志 API 的响应数据结构
+Defines email log API response data structures.
 """
 
 from datetime import datetime

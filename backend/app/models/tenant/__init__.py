@@ -1,7 +1,8 @@
 """
-租户模块模型
+租户模块模型 / Tenant Module Models
 
 租户级别的模型定义
+Tenant-level model definitions.
 """
 
 from app.models.tenant.attachment import Attachment

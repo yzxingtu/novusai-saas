@@ -1,7 +1,8 @@
 """
-租户端智能体技能绑定路由（只读）
+租户端智能体技能绑定路由（只读） / Tenant Agent Skill Binding Routes (Read-only)
 
 租户端不允许修改技能绑定，仅提供只读查询（最小权限原则）。
+Tenant is not allowed to modify skill bindings, only read-only queries (least privilege principle).
 """
 
 from fastapi import APIRouter, Request
@@ -27,6 +28,7 @@ async def get_agent_skills(
 ):
     """
     获取智能体绑定的所有技能包（含 SkillPackage 详情）
+    Get all skill packages bound to agent (with SkillPackage details)
     """
     agent_svc = AgentService(db, tenant_admin.tenant_id)
     agent = await agent_svc.get_by_id(agent_id)

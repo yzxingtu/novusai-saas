@@ -1,7 +1,7 @@
 """
-AI 调用日志 Repository
+AI 调用日志 Repository / AI Call Log Repository
 
-提供调用日志查询、统计和分析功能
+提供调用日志查询、统计和分析功能 / Provides AI call log query, statistics and analysis functions
 """
 
 from datetime import date

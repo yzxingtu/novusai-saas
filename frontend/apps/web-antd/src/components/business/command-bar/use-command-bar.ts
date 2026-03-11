@@ -1,11 +1,19 @@
 /**
- * Command Bar Composable
+ * Command Bar State Management Composable
+ * Command Bar 状态管理 Composable
  *
+ * Manages Command Bar logical state:
+ * - Toggle control (Ctrl+K shortcut)
+ * - Input content management
+ * - @mention agent selection
+ * - AI Panel linkage
+ * - Recent conversation list
  * 管理 Command Bar 的逻辑状态：
- * - 全局快捷键 Ctrl+J 打开/关闭
- * - 输入文本与 @mention 智能体选择
- * - 发送消息后联动 AI Panel 打开
- * - 最近对话列表快速恢复
+ * - 开关控制（Ctrl+K 快捷键）
+ * - 输入内容管理
+ * - @mention 智能体选择
+ * - AI Panel 联动
+ * - 最近对话列表
  */
 import { type Ref, computed, onMounted, onUnmounted, ref, unref } from 'vue';
 
@@ -20,48 +28,48 @@ import {
 } from '#/api/shared/ai-chat';
 import { useAIPanelStore } from '#/store';
 
-/** Command Bar 模式 */
+/** Command Bar mode / Command Bar 模式 */
 export type CommandBarMode = 'input' | 'mention';
 
 export interface UseCommandBarOptions {
-  /** API 前缀（响应式） */
+  /** API prefix / API 前缀 */
   apiPrefix: Ref<string> | string;
-  /** 是否有 AI 聊天权限 */
+  /** Whether user has AI chat permission / 是否有 AI 聊天权限 */
   canChat: Ref<boolean>;
 }
 
 export function useCommandBar(options: UseCommandBarOptions) {
   const aiPanelStore = useAIPanelStore();
 
-  // ==================== 状态 ====================
+  // ==================== State / 状态 ====================
 
-  /** Command Bar 是否打开 */
+  /** Whether Command Bar is open / 是否打开 Command Bar */
   const open = ref(false);
 
-  /** 当前输入文本 */
+  /** Input text content / 输入文本内容 */
   const inputText = ref('');
 
-  /** 当前模式 */
+  /** Current mode (input or mention) / 当前模式（输入或提及） */
   const mode = ref<CommandBarMode>('input');
 
-  /** 可用智能体列表（@mention 用） */
+  /** Available agent list / 可用智能体列表 */
   const agents = ref<AgentItem[]>([]);
 
-  /** 智能体加载中 */
+  /** Agent loading state / 智能体加载中 */
   const agentsLoading = ref(false);
 
-  /** @mention 过滤关键词 */
+  /** @mention filter keyword / @mention 过滤关键词 */
   const mentionQuery = ref('');
 
-  /** 最近对话列表（最多 7 条） */
+  /** Recent conversation list / 最近对话列表 */
   const recentConversations = ref<ConversationItem[]>([]);
 
-  /** 最近对话加载中 */
+  /** Recent conversations loading state / 最近对话加载中 */
   const recentLoading = ref(false);
 
   // ==================== 计算属性 ====================
 
-  /** @mention 过滤后的智能体列表 */
+  /** Filtered agent list by @mention query / @mention 过滤后的智能体列表 */
   const filteredAgents = computed(() => {
     const query = mentionQuery.value.toLowerCase();
     if (!query) return agents.value;
@@ -74,6 +82,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   // ==================== 打开/关闭 ====================
 
+  /**
+   * Show Command Bar / 显示 Command Bar
+   */
   function show() {
     if (!unref(options.canChat)) return;
     open.value = true;
@@ -82,6 +93,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
     loadRecentConversations();
   }
 
+  /**
+   * Hide Command Bar / 隐藏 Command Bar
+   */
   function hide() {
     open.value = false;
     inputText.value = '';
@@ -89,6 +103,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
     mentionQuery.value = '';
   }
 
+  /**
+   * Toggle Command Bar / 切换 Command Bar
+   */
   function toggle() {
     if (open.value) {
       hide();
@@ -99,15 +116,20 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   // ==================== 快捷键 ====================
 
+  /**
+   * Handle keydown event / 处理按键事件
+   * @param e KeyboardEvent
+   */
   function _handleKeydown(e: KeyboardEvent) {
-    // Ctrl+J (or Cmd+J on macOS)
-    if ((e.ctrlKey || e.metaKey) && e.key === 'j') {
+    // Ctrl+K (or Cmd+K on macOS)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       e.stopPropagation();
       toggle();
       return;
     }
 
+    // ---- State / 状态 ----
     // Esc 关闭 Command Bar
     if (e.key === 'Escape' && open.value) {
       e.preventDefault();
@@ -125,6 +147,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   // ==================== 智能体列表 ====================
 
+  /**
+   * Load agent list / 加载智能体列表
+   */
   async function loadAgents() {
     if (agents.value.length > 0) return;
     agentsLoading.value = true;
@@ -139,7 +164,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
     }
   }
 
-  /** 强制刷新智能体列表 */
+  /**
+   * Force refresh agent list / 强制刷新智能体列表
+   */
   async function refreshAgents() {
     agents.value = [];
     await loadAgents();
@@ -147,6 +174,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   // ==================== 最近对话 ====================
 
+  /**
+   * Load recent conversation list / 加载最近对话列表
+   */
   async function loadRecentConversations() {
     recentLoading.value = true;
     try {
@@ -163,8 +193,8 @@ export function useCommandBar(options: UseCommandBarOptions) {
   // ==================== @mention ====================
 
   /**
-   * 进入 @mention 模式
-   * 当用户输入 @ 时触发
+   * Enter @mention mode / 进入 @mention 模式
+   * Triggered when user types @ / 当用户输入 @ 时触发
    */
   function enterMentionMode() {
     mode.value = 'mention';
@@ -173,41 +203,46 @@ export function useCommandBar(options: UseCommandBarOptions) {
   }
 
   /**
-   * 选择 @mention 的智能体
-   * 如果已固定则取消固定（toggle），否则固定该智能体
-   * 回到输入模式
+   * Select @mention agent / 选择 @mention 智能体
+   * If already pinned, unpin (toggle); otherwise pin the agent / 如果已固定则取消固定（toggle），否则固定该智能体
+   * Return to input mode / 回到输入模式
+   * @param agent AgentItem
    */
   function selectMentionAgent(agent: AgentItem) {
     aiPanelStore.togglePin(agent.id, agent.name);
     mode.value = 'input';
     mentionQuery.value = '';
-    // 移除输入中的 @xxx 前缀
+    // Remove @xxx prefix from input / 移除输入中的 @xxx 前缀
     const text = inputText.value.replace(/^@\S*\s?/, '');
     inputText.value = text;
   }
 
-  /** 退出 @mention 模式 */
+  /**
+   * Exit @mention mode / 退出 @mention 模式
+   */
   function exitMentionMode() {
     mode.value = 'input';
     mentionQuery.value = '';
   }
 
-  // ==================== 输入处理 ====================
+  // ==================== Input handling / 输入处理 ====================
 
   /**
-   * 处理输入变化
-   * 检测 @ 字符，自动进入/退出 mention 模式
+   * Handle input change / 处理输入变化
+   * Detects @ character, auto-enters/exits mention mode / 检测 @ 字符，自动进入/退出 mention 模式
+   * @param value string
    */
   function onInputChange(value: string) {
     inputText.value = value;
 
     if (mode.value === 'mention') {
-      // 更新 mention 过滤词（@ 后面的文字）
+      // ---- Agent Loading / Agent 加载 ----
+      // Update mention filter word (text after @) / 更新 mention 过滤词（@ 后面的文字）
       const match = /^@(\S*)/.exec(value);
       if (match) {
         mentionQuery.value = match[1] || '';
       } else {
-        // 用户删除了 @，退出 mention 模式
+        // User deleted @, exit mention mode / 用户删除了 @，退出 mention 模式
         exitMentionMode();
       }
     } else if (value.startsWith('@')) {
@@ -215,23 +250,26 @@ export function useCommandBar(options: UseCommandBarOptions) {
     }
   }
 
-  // ==================== 发送消息 ====================
+  // ==================== Send message / 发送消息 ====================
 
   /**
+   * Submit message
    * 提交消息
    *
+   * Passes message to AI Panel for handling (Panel handles routing and streaming).
    * 将消息传递给 AI Panel 处理（由 Panel 负责路由和流式请求）。
+   * Command Bar only collects input and opens Panel.
    * Command Bar 只负责收集输入并打开 Panel。
    *
-   * @returns 提交的消息文本（空字符串表示仅打开面板，不发消息）
+   * @returns Submitted message text (empty string means only open panel, no message) / 提交的消息文本（空字符串表示仅打开面板，不发消息）
    */
   function submit(): string {
     const message = inputText.value.trim();
 
-    // 关闭 Command Bar
+    // Close Command Bar / 关闭 Command Bar
     hide();
 
-    // 打开 AI Panel
+    // Open AI Panel / 打开 AI Panel
     if (!aiPanelStore.visible) {
       aiPanelStore.open();
     }
@@ -239,7 +277,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     return message;
   }
 
-  // ==================== 重置 ====================
+  // ==================== Reset / 重置 ====================
 
   function $reset() {
     open.value = false;

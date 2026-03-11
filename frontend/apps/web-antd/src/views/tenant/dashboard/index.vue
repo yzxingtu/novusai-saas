@@ -203,7 +203,7 @@ function renderTrendChart() {
 
 watch(aiTrend, renderTrendChart);
 
-// 快捷操作
+// Quick actions / Fast actions
 const quickActions = computed(() => [
   {
     key: 'chat',

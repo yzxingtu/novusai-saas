@@ -1,14 +1,17 @@
 <script lang="ts" setup>
 /**
+ * Admin Platform Storage Configuration Panel
  * 管理端平台存储配置面板
  *
+ * Replaces ConfigForm for platform_storage group, providing:
  * 替代 ConfigForm 渲染 platform_storage 分组，提供：
- * - 驱动选择器（感知插件启用状态）
- * - 凭证表单（根据驱动动态切换）
- * - 连接测试按钮
- * - 通用存储参数（可见性/分片/限制/扩展名/允许的自定义驱动等，仍用 ConfigForm）
+ * - Driver selector (aware of plugin enable status) / 驱动选择器
+ * - Credential form (dynamically switches by driver) / 凭证表单
+ * - Connection test button / 连接测试按钮
+ * - General storage params (visibility/chunking/limits/extensions, still uses ConfigForm) / 通用存储参数
  *
- * 注意：租户自主配置权限改为逐租户控制（在 TenantStorageDrawer 中），不再有全局开关。
+ * Note: Tenant self-config is now per-tenant (in TenantStorageDrawer), no global switch.
+ * 注意：租户自主配置权限改为逐租户控制，不再有全局开关。
  */
 import type { ConfigItemMeta } from '#/types/config';
 import type { StorageDriverInfo } from '#/types/storage';
@@ -41,11 +44,11 @@ const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
 
-// 驱动列表
+// Driver list / 驱动列表
 const drivers = ref<StorageDriverInfo[]>([]);
-// 当前选中的驱动
+// Currently selected driver / 当前选中的驱动
 const selectedDriver = ref<string | undefined>(undefined);
-// 凭证
+// Credentials / 凭证
 const credentials = ref({
   root_path: '',
   base_url: '',
@@ -57,15 +60,15 @@ const credentialsVersion = ref(0);
 const impactModalRef = ref<InstanceType<typeof StorageSwitchImpactModal>>();
 const originalDriver = ref<string | undefined>(undefined);
 
-// 通用存储参数（由 ConfigForm 渲染）
+// General storage params (rendered by ConfigForm) / 通用存储参数
 const generalConfigs = ref<ConfigItemMeta[]>([]);
 const generalFormRef = ref<InstanceType<typeof ConfigForm>>();
 
-/** 加载数据 */
+/** Load data / 加载数据 */
 async function loadData() {
   loading.value = true;
   try {
-    // 分别加载驱动列表和配置详情，互不阻塞
+    // Load driver list and config details independently / 分别加载驱动列表和配置详情
     let driversData: StorageDriverInfo[] = [];
     try {
       driversData = await getStorageDriversApi();
@@ -76,19 +79,19 @@ async function loadData() {
 
     const groupDetail = await getAdminConfigGroupDetailApi('platform_storage');
 
-    // 从配置详情中提取当前值
+    // Extract current values from config details / 从配置详情中提取当前值
     const configs = groupDetail.configs || [];
     const configMap = new Map<string, ConfigItemMeta>();
     for (const c of configs) {
       configMap.set(c.key, c);
     }
 
-    // 驱动
+    // Driver / 驱动
     const driverConfig = configMap.get('platform_storage_driver');
     selectedDriver.value = (driverConfig?.value as string) || 'local';
     originalDriver.value = selectedDriver.value;
 
-    // 凭证
+    // Credentials / 凭证
     const rootPath = configMap.get('platform_storage_root_path');
     const baseUrl = configMap.get('platform_storage_base_url');
     const options = configMap.get('platform_storage_options');
@@ -99,13 +102,13 @@ async function loadData() {
     };
     credentialsVersion.value++;
 
-    // 通用参数（排除驱动/凭证相关的 key + 已废弃的全局开关，剩余给 ConfigForm 渲染）
+    // General params (exclude driver/credential keys + deprecated global switch, rest for ConfigForm) / 通用参数
     const excludeKeys = new Set([
       'platform_storage_base_url',
       'platform_storage_driver',
       'platform_storage_options',
       'platform_storage_root_path',
-      // 自主配置权限改为逐租户控制，全局开关不再使用
+      // Self-config permission now per-tenant, global switch no longer used / 自主配置权限逐租户控制
       'platform_tenant_storage_self_config_enabled',
     ]);
     generalConfigs.value = configs
@@ -116,9 +119,9 @@ async function loadData() {
   }
 }
 
-/** 保存全部配置（驱动变更时先展示影响分析） */
+/** Save all config (show impact analysis on driver change) / 保存全部配置 */
 async function onSave() {
-  // 非 local 驱动必须填 Bucket
+  // Non-local driver requires Bucket / 非 local 驱动必须填 Bucket
   if (
     selectedDriver.value &&
     selectedDriver.value !== 'local' &&
@@ -130,7 +133,7 @@ async function onSave() {
     return;
   }
 
-  // 驱动发生变更 → 先展示影响分析
+  // Driver changed → show impact analysis first / 驱动变更先展示影响分析
   if (
     originalDriver.value &&
     selectedDriver.value &&
@@ -143,12 +146,12 @@ async function onSave() {
   await doSave();
 }
 
-/** 影响分析后确认切换 */
+/** Confirm switch after impact analysis / 影响分析后确认切换 */
 function onConfirmSwitch() {
   doSave();
 }
 
-/** 跳转到迁移管理页 */
+/** Navigate to migration management page / 跳转到迁移管理页 */
 function onGoMigrate(source: string, target: string) {
   router.push({
     path: '/admin/system/storage-migration',
@@ -156,17 +159,17 @@ function onGoMigrate(source: string, target: string) {
   });
 }
 
-/** 实际保存逻辑 */
+/** Actual save logic / 实际保存逻辑 */
 async function doSave() {
   saving.value = true;
   try {
-    // 收集通用参数
+    // Collect general params / 收集通用参数
     let generalPayload: Record<string, unknown> = {};
     if (generalFormRef.value?.prepareSubmitData) {
       generalPayload = generalFormRef.value.prepareSubmitData();
     }
 
-    // 合并驱动 + 凭证
+    // Merge driver + credentials / 合并驱动 + 凭证
     const payload: Record<string, unknown> = {
       ...generalPayload,
       platform_storage_driver: selectedDriver.value || 'local',
@@ -184,7 +187,7 @@ async function doSave() {
   }
 }
 
-/** 测试连接 */
+/** Test connection / 测试连接 */
 async function onTestConnection() {
   if (!selectedDriver.value || selectedDriver.value === 'local') return;
   testing.value = true;
@@ -207,7 +210,7 @@ async function onTestConnection() {
   }
 }
 
-/** 驱动为 local 时不显示凭证表单 */
+/** Hide credential form when driver is local / 驱动为 local 时不显示凭证表单 */
 const showCredentials = ref(false);
 watch(
   selectedDriver,
@@ -235,7 +238,7 @@ defineExpose({ onSave, saving });
 <template>
   <Spin :spinning="loading">
     <div class="space-y-6">
-      <!-- 驱动选择 -->
+      <!-- Driver selection / 驱动选择 -->
       <div>
         <div class="mb-2 text-sm font-medium">
           {{ $t('shared.storage.selectDriver') }}
@@ -247,7 +250,7 @@ defineExpose({ onSave, saving });
         />
       </div>
 
-      <!-- 凭证表单（非 local 时显示） -->
+      <!-- Credential form (shown when not local) / 凭证表单 -->
       <template v-if="showCredentials">
         <Divider />
         <StorageCredentialForm
@@ -255,7 +258,7 @@ defineExpose({ onSave, saving });
           v-model:value="credentials"
           :driver="selectedDriver || null"
         />
-        <!-- 测试连接 -->
+        <!-- Test connection / 测试连接 -->
         <div class="flex gap-3">
           <Button
             :loading="testing"
@@ -270,7 +273,7 @@ defineExpose({ onSave, saving });
         </div>
       </template>
 
-      <!-- local 提示 -->
+      <!-- Local mode hint / local 提示 -->
       <Alert
         v-if="selectedDriver === 'local'"
         type="info"
@@ -278,14 +281,14 @@ defineExpose({ onSave, saving });
         :message="$t('shared.storage.modeDesc.platform')"
       />
 
-      <!-- 通用存储参数 -->
+      <!-- General storage params / 通用存储参数 -->
       <template v-if="generalConfigs.length > 0">
         <Divider />
         <ConfigForm ref="generalFormRef" :configs="generalConfigs" />
       </template>
     </div>
 
-    <!-- 存储切换影响分析弹窗 -->
+    <!-- Storage switch impact analysis modal / 存储切换影响分析弹窗 -->
     <StorageSwitchImpactModal
       ref="impactModalRef"
       @confirm-switch="onConfirmSwitch"

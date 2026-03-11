@@ -1,7 +1,9 @@
 """
+Execution Engine Module
 执行引擎模块
 
-提供多执行模式的引擎实现和统一分发器
+Provides multi-mode engine implementations and a unified dispatcher.
+提供多执行模式的引擎实现和统一分发器。
 """
 
 from app.ai.engine.base import BaseEngine
@@ -17,16 +19,16 @@ from app.ai.engine.types import (
 )
 
 __all__ = [
-    # 类型
+    # Types / 类型
     "ExecutionRequest",
     "ExecutionResult",
     "BatchItem",
     "BatchResult",
-    # 引擎
+    # Engines / 引擎
     "BaseEngine",
     "ConversationEngine",
     "TaskEngine",
     "BatchEngine",
-    # 分发器
+    # Dispatcher / 分发器
     "ExecutionDispatcher",
 ]

@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Notification Toast Container
  * 通知 Toast 弹窗容器
  *
+ * Displays real-time push notification toasts at the bottom-right of the page.
  * 在页面右下角显示实时推送的通知弹窗。
+ * Supports multiple stacking, auto-dismiss, click navigation, and priority-based styles.
  * 支持多条堆叠、自动消失、点击跳转、不同优先级样式。
  */
 import { useRouter } from 'vue-router';
@@ -87,7 +90,7 @@ function handleClick(toast: { id: number; link?: null | string }) {
           @click="handleClick(toast)"
         >
           <div class="flex items-start gap-3">
-            <!-- 分类图标 -->
+            <!-- Category icon / 分类图标 -->
             <div
               class="flex size-9 flex-shrink-0 items-center justify-center rounded-lg"
               :class="{
@@ -104,7 +107,7 @@ function handleClick(toast: { id: number; link?: null | string }) {
               />
             </div>
 
-            <!-- 内容 -->
+            <!-- Content / 内容 -->
             <div class="min-w-0 flex-1">
               <div class="text-sm font-medium leading-tight text-foreground">
                 {{ toast.title }}
@@ -123,7 +126,7 @@ function handleClick(toast: { id: number; link?: null | string }) {
               </div>
             </div>
 
-            <!-- 关闭按钮 -->
+            <!-- Close button / 关闭按钮 -->
             <button
               :aria-label="$t('common.close')"
               class="flex-shrink-0 text-muted-foreground transition-colors hover:text-foreground"

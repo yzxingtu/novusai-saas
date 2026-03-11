@@ -1,6 +1,8 @@
 """
+Socket.IO Namespace Module
 Socket.IO Namespace 模块
 
+Registers all Socket.IO namespaces to the AsyncServer instance.
 注册所有 Socket.IO namespace 到 AsyncServer 实例。
 """
 
@@ -13,10 +15,11 @@ logger = LogManager.get_logger("app")
 
 def register_namespaces(sio: socketio.AsyncServer) -> None:
     """
-    注册所有 Socket.IO namespace
+    Register all Socket.IO namespaces.
+    注册所有 Socket.IO namespace。
 
     Args:
-        sio: AsyncServer 实例
+        sio: AsyncServer instance / AsyncServer 实例
     """
     from app.sio.admin_ns import AdminNamespace
     from app.sio.tenant_ns import TenantNamespace

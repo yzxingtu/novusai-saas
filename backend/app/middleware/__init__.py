@@ -1,5 +1,5 @@
 """
-中间件模块
+Middleware Module / 中间件模块
 """
 
 from app.middleware.access_control import AccessControlMiddleware

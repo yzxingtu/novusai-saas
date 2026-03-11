@@ -1,7 +1,8 @@
 """
-平台管理仓储模块
+平台管理仓储模块 / Platform Admin Repository Module
 
 导出系统级仓储类
+Exports system-level repository classes.
 """
 
 from app.repositories.system.admin_repository import AdminRepository

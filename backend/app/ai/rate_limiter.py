@@ -1,6 +1,10 @@
 """
+AI Call Rate Limiting Service
 AI 调用速率限制服务
 
+Redis-based sliding window rate limiting to prevent abuse.
+RPM (requests per minute) uses sorted set + zcard counting;
+TPM (tokens per minute) uses independent INCRBY accumulation counters.
 基于 Redis 滑动窗口算法实现速率限制，防止滥用。
 RPM（每分钟请求数）使用 zcard 计数；
 TPM（每分钟 Token 数）使用独立的 INCRBY 累加计数器。
@@ -18,7 +22,7 @@ logger = LogManager.get_logger("ai.rate_limiter")
 
 
 class RateLimitExceeded(BusinessException):
-    """速率限制超出异常"""
+    """Rate limit exceeded exception / 速率限制超出异常"""
 
     code = 4292
     status_code = 429
@@ -27,18 +31,20 @@ class RateLimitExceeded(BusinessException):
 
 class RateLimiter:
     """
-    速率限制器
+    Rate Limiter / 速率限制器
 
-    RPM: 使用 sorted set 滑动窗口，zcard 计数请求次数
-    TPM: 使用独立的 string key + INCRBY 累加 token 数
+    RPM: Sorted set sliding window, zcard counts request count.
+    TPM: Independent string key + INCRBY accumulates token count.
+    RPM: 使用 sorted set 滑动窗口，zcard 计数请求次数。
+    TPM: 使用独立的 string key + INCRBY 累加 token 数。
     """
 
     PREFIX_RPM = "ai:rate_limit:rpm:"
     PREFIX_TPM = "ai:rate_limit:tpm:"
-    WINDOW_SIZE = 60  # 窗口大小: 60 秒
+    WINDOW_SIZE = 60  # Window size: 60 seconds / 窗口大小: 60 秒
 
-    # Lua 脚本：RPM 原子检查+记录
-    # 返回 -1 表示成功记录，>= 0 表示当前 RPM 数（超限未记录）
+    # Lua script: RPM atomic check + record / Lua 脚本：RPM 原子检查+记录
+    # Returns -1 on success, >= 0 = current RPM count (exceeded, not recorded) / 返回 -1 表示成功记录，>= 0 表示当前 RPM 数（超限未记录）
     _RPM_CHECK_AND_RECORD_LUA = """
     redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
     local count = redis.call('ZCARD', KEYS[1])
@@ -50,8 +56,8 @@ class RateLimiter:
     return -1
     """
 
-    # Lua 脚本：TPM 原子预扣减+检查
-    # 返回 -1 表示成功预扣，>= 0 表示当前 TPM 总量（超限未扣减）
+    # Lua script: TPM atomic pre-deduct + check / Lua 脚本：TPM 原子预扣减+检查
+    # Returns -1 on success, >= 0 = current TPM total (exceeded, not deducted) / 返回 -1 表示成功预扣，>= 0 表示当前 TPM 总量（超限未扣减）
     _TPM_CHECK_AND_RECORD_LUA = """
     local cur = redis.call('GET', KEYS[1])
     local prev = redis.call('GET', KEYS[2])
@@ -64,9 +70,9 @@ class RateLimiter:
     return -1
     """
 
-    # Lua 脚本：原子调整 TPM（INCRBY + 不低于 0 保护）
+    # Lua script: atomically adjust TPM (INCRBY + floor-at-zero guard) / Lua 脚本：原子调整 TPM（INCRBY + 不低于 0 保护）
     # KEYS[1] = tpm_key, ARGV[1] = diff
-    # 返回调整后的值
+    # Returns adjusted value / 返回调整后的值
     _TPM_ADJUST_LUA = """
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
     if new_val < 0 then
@@ -85,29 +91,32 @@ class RateLimiter:
         estimated_tokens: int = 0,
     ) -> bool:
         """
-        原子性检查并记录速率限制（消除 TOCTOU 竞态）
+        Atomically check and record rate limit (eliminates TOCTOU race).
+        原子性检查并记录速率限制（消除 TOCTOU 竞态）。
 
-        RPM: Lua 脚本原子执行 清理过期→计数→添加
-        TPM: Lua 脚本原子执行 预扣减→检查超限
+        RPM: Lua script atomically executes cleanup-expired → count → add.
+        TPM: Lua script atomically executes pre-deduct → check-exceeded.
+        RPM: Lua 脚本原子执行 清理过期→计数→添加。
+        TPM: Lua 脚本原子执行 预扣减→检查超限。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            rpm_limit: RPM 限制(每分钟请求数)
-            tpm_limit: TPM 限制(每分钟 Token 数)
-            estimated_tokens: 预估 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            rpm_limit: RPM limit (requests per minute) / RPM 限制(每分钟请求数)
+            tpm_limit: TPM limit (tokens per minute) / TPM 限制(每分钟 Token 数)
+            estimated_tokens: Estimated token count / 预估 Token 数量
 
         Returns:
-            True 表示允许调用（已原子记录）
+            True if call is allowed (atomically recorded) / True 表示允许调用（已原子记录）
 
         Raises:
-            RateLimitExceeded: 超出速率限制
+            RateLimitExceeded: Rate limit exceeded / 超出速率限制
         """
         redis = await get_redis()
         current_time = int(time.time())
         expire_seconds = RateLimiter.WINDOW_SIZE + 10
 
-        # RPM 原子检查+记录
+        # RPM atomic check + record / RPM 原子检查+记录
         if rpm_limit:
             rpm_key = f"{RateLimiter.PREFIX_RPM}{tenant_id}:{model_id}"
             window_start = current_time - RateLimiter.WINDOW_SIZE
@@ -135,7 +144,7 @@ class RateLimiter:
                     )
                 )
 
-        # TPM 原子预扣减+检查
+        # TPM atomic pre-deduct + check / TPM 原子预扣减+检查
         if tpm_limit and estimated_tokens > 0:
             minute_key = current_time // 60
             prev_minute = minute_key - 1
@@ -174,14 +183,17 @@ class RateLimiter:
         request_minute_key: int | None = None,
     ) -> None:
         """
-        响应后调整 TPM：从预估值调整为实际值
+        Adjust TPM after response: from estimated to actual.
+        响应后调整 TPM：从预估值调整为实际值。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            estimated_tokens: 预估 Token 数量（已预扣）
-            actual_tokens: 实际 Token 数量
-            request_minute_key: 请求时的分钟 key（int(start_time)//60），
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
+            actual_tokens: Actual token count / 实际 Token 数量
+            request_minute_key: Minute key at request time (int(start_time)//60),
+                avoids adjusting wrong key across minute boundary. Defaults to current time.
+                请求时的分钟 key（int(start_time)//60），
                 避免跨分钟边界时调整到错误的 key。缺省时使用当前时间。
         """
         diff = actual_tokens - estimated_tokens
@@ -190,7 +202,7 @@ class RateLimiter:
         redis = await get_redis()
         minute_key = request_minute_key if request_minute_key is not None else int(time.time()) // 60
         tpm_key = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
-        # 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
+        # Atomic adjust: INCRBY + floor-at-zero guard (eliminates TOCTOU race) / 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
         await redis.eval(
             RateLimiter._TPM_ADJUST_LUA,
             1,
@@ -205,21 +217,22 @@ class RateLimiter:
         current_time: int
     ) -> int:
         """
-        计算 RPM 滑动窗口内的请求数
+        Calculate request count within RPM sliding window.
+        计算 RPM 滑动窗口内的请求数。
 
         Args:
-            redis: Redis 客户端
-            key: sorted set 键
-            current_time: 当前时间戳
+            redis: Redis client / Redis 客户端
+            key: Sorted set key / sorted set 键
+            current_time: Current timestamp / 当前时间戳
 
         Returns:
-            窗口内的请求数
+            Request count within window / 窗口内的请求数
         """
-        # 删除窗口外的旧数据
+        # Remove expired entries outside window / 删除窗口外的旧数据
         window_start = current_time - RateLimiter.WINDOW_SIZE
         await redis.zremrangebyscore(key, 0, window_start)
 
-        # 获取当前窗口内的条目数
+        # Get entry count within current window / 获取当前窗口内的条目数
         count = await redis.zcard(key)
 
         return count
@@ -232,23 +245,25 @@ class RateLimiter:
         current_time: int,
     ) -> int:
         """
-        获取 TPM 滑动窗口内的 Token 总和
+        Get total token count within TPM sliding window.
+        获取 TPM 滑动窗口内的 Token 总和。
 
+        Uses sum of last 2 minute keys to cover a 60-second window.
         使用最近 2 个分钟 key 的值之和，覆盖 60 秒窗口。
 
         Args:
-            redis: Redis 客户端
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            current_time: 当前时间戳
+            redis: Redis client / Redis 客户端
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            current_time: Current timestamp / 当前时间戳
 
         Returns:
-            窗口内的 Token 总数
+            Total tokens within window / 窗口内的 Token 总数
         """
         current_minute = current_time // 60
         prev_minute = current_minute - 1
 
-        # 读取当前分钟和上一分钟的累加值
+        # Read accumulated values for current and previous minute / 读取当前分钟和上一分钟的累加值
         key_current = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{current_minute}"
         key_prev = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{prev_minute}"
 
@@ -269,14 +284,15 @@ class RateLimiter:
         model_id: int
     ) -> dict:
         """
-        获取当前使用量
+        Get current usage.
+        获取当前使用量。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
 
         Returns:
-            使用量字典 {rpm: int, tpm: int}
+            Usage dict {rpm: int, tpm: int} / 使用量字典 {rpm: int, tpm: int}
         """
         redis = await get_redis()
         current_time = int(time.time())

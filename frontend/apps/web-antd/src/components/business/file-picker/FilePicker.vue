@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /**
+ * File Picker - supports selecting existing attachments or uploading new files
  * 附件选择器 - 支持选择已有附件或上传新文件
  */
 import type { AttachmentInfo } from '#/types/attachment';
@@ -48,7 +49,7 @@ defineOptions({ name: 'FilePicker' });
 const props = withDefaults(
   defineProps<{
     accept?: string;
-    /** API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+    /** API endpoint type: admin uses platform attachment API, tenant uses tenant attachment API. Auto-detected from URL by default. / API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
     endpoint?: 'admin' | 'tenant';
     imageOnly?: boolean;
     maxConcurrency?: number;
@@ -73,7 +74,7 @@ const emit = defineEmits<{
   (e: 'select', files: AttachmentInfo[]): void;
 }>();
 
-/** 解析实际使用的端类型：优先 prop，否则从 URL 自动检测 */
+/** Resolve actual endpoint type: prefer prop, otherwise auto-detect from URL / 解析实际使用的端类型：优先 prop，否则从 URL 自动检测 */
 const resolvedEndpoint = computed(() => {
   if (props.endpoint) return props.endpoint;
   return window.location.pathname.startsWith('/admin') ? 'admin' : 'tenant';
@@ -91,7 +92,7 @@ interface UploadTask {
   abortController?: AbortController;
 }
 
-/** 服务端上传规则（动态加载） */
+/** Server-side upload rules (dynamically loaded) / 服务端上传规则（动态加载） */
 interface UploadRules {
   allowedExtensions: string;
   deniedExtensions: string;
@@ -101,7 +102,7 @@ interface UploadRules {
 const uploadRules = ref<UploadRules | null>(null);
 const uploadRulesLoaded = ref(false);
 
-/** 动态计算最大文件大小：优先服务端规则，其次 prop */
+/** Dynamically calculate max file size: prefer server rules, then prop / 动态计算最大文件大小：优先服务端规则，其次 prop */
 const effectiveMaxFileSize = computed(() => {
   if (uploadRules.value) {
     return uploadRules.value.maxFileSizeMb * 1024 * 1024;
@@ -124,7 +125,7 @@ async function loadUploadRules() {
     };
     uploadRulesLoaded.value = true;
   } catch {
-    // 加载失败时使用 prop 默认值
+    // Use prop defaults on load failure / 加载失败时使用 prop 默认值
   }
 }
 
@@ -161,9 +162,10 @@ const errorCount = computed(
 );
 
 /**
+ * Extract MIME major type from accept prop for backend filtering
+ * e.g. 'image/*' → 'image', 'video/*' → 'video'
+ * Non-wildcard formats (e.g. 'application/pdf,.docx') return empty, no auto-filtering
  * 从 accept prop 中提取 MIME 大类用于后端筛选
- * 如 'image/*' → 'image'，'video/*' → 'video'
- * 非通配符格式(如 'application/pdf,.docx')则返回空，不自动筛选
  */
 const acceptMimeFilter = computed(() => {
   if (!props.accept || props.accept === '*') return '';
@@ -173,7 +175,7 @@ const acceptMimeFilter = computed(() => {
   return '';
 });
 
-/** 当 imageOnly 或 accept 指定了类型时，隐藏分类下拉筛选器 */
+/** When imageOnly or accept specifies a type, hide category dropdown filter / 当 imageOnly 或 accept 指定了类型时，隐藏分类下拉筛选器 */
 const showCategoryFilter = computed(
   () => !props.imageOnly && !acceptMimeFilter.value,
 );
@@ -205,7 +207,7 @@ function getPreviewUrl(file: AttachmentInfo): null | string {
   });
 }
 
-/** 获取原图 URL（用于放大预览），不传 preset 返回原始尺寸 */
+/** Get original image URL (for zoom preview), no preset returns original size / 获取原图 URL（用于放大预览），不传 preset 返回原始尺寸 */
 function getFullPreviewUrl(file: AttachmentInfo): null | string {
   if (!isImage(file)) return null;
   return getAttachmentUrl(file);
@@ -219,7 +221,7 @@ function openPreview(file: AttachmentInfo) {
   }
 }
 
-// ============ 数据加载 ============
+// ============ Data loading / 数据加载 ============
 
 async function loadFiles() {
   loading.value = true;
@@ -232,8 +234,8 @@ async function loadFiles() {
     if (searchKeyword.value) {
       params['filter[name][ilike]'] = searchKeyword.value;
     }
-    // 按分类/文件类型筛选：优先用户选择的分类，其次 imageOnly，最后 accept prop 推导的 MIME 大类
-    // 使用 ilike 操作符，后端自动包裹 %...%，无需手动添加通配符
+    // Filter by category/file type: prefer user-selected category, then imageOnly, finally MIME type from accept prop / 按分类/文件类型筛选：优先用户选择的分类，其次 imageOnly，最后 accept prop 推导的 MIME 大类
+    // Uses ilike operator, backend auto-wraps with %...%, no need for manual wildcards
     if (categoryFilter.value) {
       params['filter[mime_type][ilike]'] = `${categoryFilter.value}/`;
     } else if (props.imageOnly) {
@@ -270,7 +272,7 @@ function handlePageChange(page: number) {
   loadFiles();
 }
 
-// ============ 文件选择 ============
+// ============ File selection / 文件选择 ============
 
 function handleFileClick(file: AttachmentInfo) {
   if (props.multiple) {
@@ -290,7 +292,7 @@ function handleFileClick(file: AttachmentInfo) {
   }
 }
 
-// ============ 上传 ============
+// ============ Upload / 上传 ============
 
 function validateFile(file: File): null | string {
   const maxSize = effectiveMaxFileSize.value;
@@ -302,7 +304,7 @@ function validateFile(file: File): null | string {
     return $t('shared.filePicker.onlyImages');
   if (!file.name?.trim()) return $t('shared.filePicker.invalidFileName');
 
-  // 服务端扩展名白/黑名单校验
+  // Server-side extension whitelist/blacklist validation / 服务端扩展名白/黑名单校验
   if (uploadRules.value) {
     const ext = file.name.includes('.')
       ? file.name.split('.').pop()!.toLowerCase()
@@ -417,14 +419,15 @@ function processQueue() {
   }
 }
 
-const BATCH_SIZE_THRESHOLD = 5 * 1024 * 1024; // ≤ 5MB 的文件可批量打包
-const BATCH_MAX_FILES = 20; // 每批最多文件数
+const BATCH_SIZE_THRESHOLD = 5 * 1024 * 1024; // Files ≤ 5MB can be batch-uploaded / ≤ 5MB 的文件可批量打包
+const BATCH_MAX_FILES = 20; // Max files per batch / 每批最多文件数
 
 /**
+ * Try to batch upload qualifying small files, remaining files go through single-file queue
  * 尝试将符合条件的小文件批量上传，剩余文件走单文件队列
  */
 async function executeBatchUpload(batchFiles: File[]): Promise<void> {
-  // 为批量中每个文件创建 task 用于 UI 展示
+  // Create task for each file in batch for UI display / 为批量中每个文件创建 task 用于 UI 展示
   const batchTasks: UploadTask[] = batchFiles.map((file) => ({
     uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     file,
@@ -494,11 +497,11 @@ function addFilesToQueue(fileList: File[]) {
   }
   if (validFiles.length === 0) return;
 
-  // 将小文件和大文件分组
+  // Group small files and large files / 将小文件和大文件分组
   const smallFiles = validFiles.filter((f) => f.size <= BATCH_SIZE_THRESHOLD);
   const largeFiles = validFiles.filter((f) => f.size > BATCH_SIZE_THRESHOLD);
 
-  // 大文件走单文件队列
+  // Large files go through single-file queue / 大文件走单文件队列
   for (const file of largeFiles) {
     uploadTasks.value.unshift({
       uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -513,9 +516,9 @@ function addFilesToQueue(fileList: File[]) {
 
   uploading.value = true;
 
-  // 小文件 ≥ 2 个时批量上传，否则也走单文件队列
+  // Batch upload when ≥ 2 small files, otherwise use single-file queue / 小文件 ≥ 2 个时批量上传，否则也走单文件队列
   if (smallFiles.length >= 2) {
-    // 按 BATCH_MAX_FILES 分批
+    // Split by BATCH_MAX_FILES / 按 BATCH_MAX_FILES 分批
     for (let i = 0; i < smallFiles.length; i += BATCH_MAX_FILES) {
       const batch = smallFiles.slice(i, i + BATCH_MAX_FILES);
       executeBatchUpload(batch).finally(() => processQueue());
@@ -583,7 +586,7 @@ function retryAllErrors() {
     .forEach((t) => retryTask(t));
 }
 
-// ============ 全弹窗拖拽 ============
+// ============ Full modal drag & drop / 全弹窗拖拽 ============
 
 function hasFiles(e: DragEvent) {
   return !!e.dataTransfer?.types?.includes('Files');
@@ -624,7 +627,7 @@ function onWindowDragOver(e: DragEvent) {
 window.addEventListener('dragover', onWindowDragOver);
 onBeforeUnmount(() => window.removeEventListener('dragover', onWindowDragOver));
 
-// ============ 确认/取消 ============
+// ============ Confirm/Cancel / 确认/取消 ============
 
 function handleConfirm() {
   emit('select', selectedFiles.value);
@@ -661,7 +664,7 @@ defineExpose({
       @dragleave="onModalDragLeave"
       @drop="onModalDrop"
     >
-      <!-- 全弹窗拖拽覆盖层 -->
+      <!-- Full modal drag overlay / 全弹窗拖拽覆盖层 -->
       <Transition name="fp-overlay">
         <div
           v-if="isDragOver"
@@ -686,9 +689,9 @@ defineExpose({
         </div>
       </Transition>
 
-      <!-- ========= 上半区：上传 + 队列 ========= -->
+      <!-- ========= Upper section: Upload + Queue / 上半区：上传 + 队列 ========= -->
       <div class="border-b border-border/60 pb-4">
-        <!-- 上传区 -->
+        <!-- Upload zone / 上传区 -->
         <div class="upload-dropzone group rounded-xl">
           <Upload.Dragger
             :custom-request="handleCustomUpload"
@@ -725,7 +728,7 @@ defineExpose({
           </Upload.Dragger>
         </div>
 
-        <!-- 上传任务队列 -->
+        <!-- Upload task queue / 上传任务队列 -->
         <Transition name="fp-slide">
           <div
             v-if="uploadTasks.length > 0"
@@ -841,9 +844,9 @@ defineExpose({
         </Transition>
       </div>
 
-      <!-- ========= 下半区：文件列表 ========= -->
+      <!-- ========= Lower section: File list / 下半区：文件列表 ========= -->
       <div class="flex flex-1 flex-col gap-3 pt-4">
-        <!-- 工具栏 -->
+        <!-- Toolbar / 工具栏 -->
         <div class="flex items-center gap-2.5">
           <Input
             v-model:value="searchKeyword"
@@ -898,7 +901,7 @@ defineExpose({
           </div>
         </div>
 
-        <!-- 文件网格 / 列表 -->
+        <!-- File grid / list / 文件网格 / 列表 -->
         <Spin :spinning="loading" class="flex-1">
           <div class="min-h-[260px]">
             <!-- Grid -->
@@ -910,7 +913,7 @@ defineExpose({
                   :span="4"
                   :style="{ '--fp-i': idx }"
                 >
-                  <!-- 文件卡片：点击整张卡片即选中/取消选中 -->
+                  <!-- File card: click entire card to select/deselect / 文件卡片：点击整张卡片即选中/取消选中 -->
                   <div
                     class="fp-card fp-fade-in group relative cursor-pointer rounded-lg border border-border/50 bg-card p-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                     :class="{
@@ -920,12 +923,12 @@ defineExpose({
                     }"
                     @click="handleFileClick(file)"
                   >
-                    <!-- 左上角：多选复选框 -->
+                    <!-- Top-left: multi-select checkbox / 左上角：多选复选框 -->
                     <div v-if="multiple" class="absolute left-2.5 top-2.5 z-10">
                       <Checkbox :checked="selectedIds.has(file.id)" />
                     </div>
 
-                    <!-- 选中状态：右上角勾选角标 -->
+                    <!-- Selected state: top-right check badge / 选中状态：右上角勾选角标 -->
                     <div
                       v-if="selectedIds.has(file.id)"
                       class="absolute right-0 top-0 z-10"
@@ -937,7 +940,7 @@ defineExpose({
                       </div>
                     </div>
 
-                    <!-- 预览区 -->
+                    <!-- Preview area / 预览区 -->
                     <div
                       class="relative mb-1.5 flex h-[90px] items-center justify-center overflow-hidden rounded-md bg-muted/30"
                     >
@@ -958,7 +961,7 @@ defineExpose({
                         :icon="getFileIcon(file.name, file.mimeType)"
                         class="size-10 text-muted-foreground/60"
                       />
-                      <!-- 图片放大按钮：仅小按钮在右下角，不遮挡整个图片 -->
+                      <!-- Image zoom button: small button at bottom-right, doesn't block the image / 图片放大按钮：仅小按钮在右下角，不遮挡整个图片 -->
                       <button
                         v-if="isImage(file)"
                         class="absolute bottom-1.5 right-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 group-hover:opacity-100"
@@ -995,7 +998,7 @@ defineExpose({
               v-else-if="viewMode === 'list' && files.length > 0"
               class="flex flex-col gap-1"
             >
-              <!-- 列表项：点击整行选中/取消选中 -->
+              <!-- List item: click entire row to select/deselect / 列表项：点击整行选中/取消选中 -->
               <div
                 v-for="file in files"
                 :key="file.id"
@@ -1006,7 +1009,7 @@ defineExpose({
                 @click="handleFileClick(file)"
               >
                 <Checkbox v-if="multiple" :checked="selectedIds.has(file.id)" />
-                <!-- 选中状态图标（单选模式下显示） -->
+                <!-- Selected state icon (shown in single-select mode) / 选中状态图标（单选模式下显示） -->
                 <IconifyIcon
                   v-if="!multiple && selectedIds.has(file.id)"
                   icon="lucide:circle-check"
@@ -1054,7 +1057,7 @@ defineExpose({
                 <span class="shrink-0 text-xs text-muted-foreground">
                   {{ formatDate(file.createdAt) }}
                 </span>
-                <!-- 列表模式下的预览按钮 -->
+                <!-- Preview button in list mode / 列表模式下的预览按钮 -->
                 <button
                   v-if="isImage(file)"
                   class="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent hover:text-foreground group-hover:opacity-100"
@@ -1085,7 +1088,7 @@ defineExpose({
           </div>
         </Spin>
 
-        <!-- 分页 -->
+        <!-- Pagination / 分页 -->
         <div v-if="total > pageSize" class="flex justify-center">
           <Pagination
             :current="currentPage"
@@ -1098,7 +1101,7 @@ defineExpose({
         </div>
       </div>
 
-      <!-- ========= 底栏 ========= -->
+      <!-- ========= Bottom bar / 底栏 ========= -->
       <div
         v-if="multiple"
         class="flex items-center justify-between border-t border-border/60 pt-4"
@@ -1124,7 +1127,7 @@ defineExpose({
         </div>
       </div>
 
-      <!-- 图片预览 -->
+      <!-- Image preview / 图片预览 -->
       <Image
         :src="previewUrl"
         :preview="{
@@ -1171,7 +1174,7 @@ defineExpose({
   padding: 0 !important;
 }
 
-/* === 渐变图标 === */
+/* === Gradient icon / 渐变图标 === */
 .fp-drop-icon {
   background: linear-gradient(
     135deg,
@@ -1180,13 +1183,13 @@ defineExpose({
   );
 }
 
-/* === 网格卡片交错淡入 === */
+/* === Grid card staggered fade-in / 网格卡片交错淡入 === */
 .fp-fade-in {
   animation: fp-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
   animation-delay: calc(var(--fp-i, 0) * 25ms);
 }
 
-/* === 拖拽覆盖层 === */
+/* === Drag overlay / 拖拽覆盖层 === */
 .fp-overlay-enter-active {
   transition: all 0.2s ease-out;
 }
@@ -1200,7 +1203,7 @@ defineExpose({
   opacity: 0;
 }
 
-/* === 上传队列动画 === */
+/* === Upload queue animation / 上传队列动画 === */
 .fp-slide-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1238,5 +1241,5 @@ defineExpose({
   transition: transform 0.25s ease;
 }
 
-/* === 上传区：渐变边框 + 拖拽激活 === */
+/* === Upload zone: gradient border + drag activation / 上传区：渐变边框 + 拖拽激活 === */
 </style>

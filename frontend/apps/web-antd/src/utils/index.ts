@@ -1,11 +1,12 @@
 /**
+ * Unified export of utility functions
  * 工具函数统一导出
  */
 
-// 权限检查工具
+// Access control utilities / 权限检查工具
 export { checkPermission, useAccess } from './access';
 
-// 通用工具函数
+// Common utility functions / 通用工具函数
 export {
   buildTree,
   type BuildTreeOptions,
@@ -29,10 +30,10 @@ export {
   useTreeExpand,
 } from './common';
 
-// 控制台过滤
+// Console filter / 控制台过滤
 export { setupConsoleFilter } from './console-filter';
 
-// 端点工具
+// Endpoint utilities / 端点工具
 export {
   ALL_ENDPOINTS,
   type ApiEndpoint,
@@ -54,8 +55,8 @@ export {
   mapEndpoints,
 } from './endpoint';
 
-// 图片处理工具
+// Image processing utilities / 图片处理工具
 export * from './image';
 
-// HTTP 请求客户端
+// HTTP request client / HTTP 请求客户端
 export { type ApiRequestOptions, requestClient } from './request';

@@ -24,6 +24,7 @@ import { $t } from '#/locales';
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 /**
+ * Get menu API with permissions by endpoint type
  * 根据端类型获取对应的菜单 API（含权限码）
  */
 function getMenuWithPermissionsApi(endpoint: ApiEndpoint) {
@@ -41,9 +42,10 @@ function getMenuWithPermissionsApi(endpoint: ApiEndpoint) {
 }
 
 /**
+ * Generate routes and menus
  * 生成路由和菜单
- * @param options 选项
- * @param endpoint 端类型（可选，不传则根据当前路由自动判断）
+ * @param options - Options / 选项
+ * @param endpoint - Endpoint type (optional, auto-detected from current route if omitted) / 端类型（可选，不传则根据当前路由自动判断）
  */
 async function generateAccess(
   options: GenerateMenuAndRoutesOptions,
@@ -88,6 +90,8 @@ async function generateAccess(
 }
 
 /**
+ * Get current endpoint type
+ * Retrieved from window.location since router instance may not exist yet
  * 获取当前端类型
  * 从 window.location 获取，因为此时可能还没有路由实例
  */

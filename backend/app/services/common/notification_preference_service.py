@@ -1,8 +1,8 @@
 """
-通知偏好服务
+通知偏好服务 / Notification Preference Service
 
-管理用户的通知渠道偏好设置（CRUD）。
-自动补全缺失分类的默认值。
+管理用户的通知渠道偏好设置（CRUD）。自动补全缺失分类的默认值。
+Manages user notification channel preferences (CRUD). Auto-fills missing categories with defaults.
 """
 
 from __future__ import annotations

@@ -1,11 +1,22 @@
 /**
+ * AI module shared utility functions (common for admin/tenant)
  * AI 模块共享工具函数（admin/tenant 通用）
  *
+ * Pure logic mapping, no i18n dependency.
+ * Provides color and icon mapping for skill types.
+ * Scope-related utilities have been moved to scope-helpers.ts.
  * 纯逻辑映射，无 i18n 依赖。
- * NOTE: getScopeColor/getScopeText 已迁移到 scope-helpers.ts，请勿在此添加 scope 相关函数。
+ * 提供技能类型的颜色和图标映射。
+ * scope 相关工具已迁移到 scope-helpers.ts
+ *
+ * NOTE: getScopeColor/getScopeText moved to scope-helpers.ts, do not add scope functions here.
+ * 注意：getScopeColor/getScopeText 已迁移到 scope-helpers.ts，请勿在此添加 scope 相关函数。
  */
 
-/** 技能类型颜色映射 */
+/**
+ * Get the color corresponding to a skill type
+ * 获取技能类型对应的颜色
+ */
 export function getSkillTypeColor(type: string | undefined): string {
   switch (type) {
     case 'builtin': {
@@ -35,7 +46,10 @@ export function getSkillTypeColor(type: string | undefined): string {
   }
 }
 
-/** 技能类型图标映射 */
+/**
+ * Get the icon corresponding to a skill type
+ * 获取技能类型对应的图标
+ */
 export function getSkillTypeIcon(type: string | undefined): string {
   switch (type) {
     case 'builtin': {

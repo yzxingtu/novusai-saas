@@ -1,7 +1,8 @@
 """
-AI 模型模块
+AI 模型模块 / AI Model Module
 
 包含 AI 供应商、模型、API Key、调用日志、使用量统计等模型
+Contains AI provider, model, API key, call log, usage statistics models.
 """
 
 from app.models.ai.action_log import AIActionLog

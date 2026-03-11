@@ -1,7 +1,8 @@
 """
-域名 SSL 证书模型
+域名 SSL 证书模型 / Domain SSL Certificate Model
 
 存储域名的 SSL 证书信息，支持平台自动签发(Let's Encrypt)和用户自定义上传两种类型
+Stores domain SSL certificate info, supports auto-issuance (Let's Encrypt) and custom upload.
 """
 
 from datetime import datetime

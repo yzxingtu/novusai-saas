@@ -56,7 +56,7 @@ function getTenantName(tenantId: number | undefined): string {
   return tenantMap.value.get(tenantId) || `#${tenantId}`;
 }
 
-// 详情抽屉
+// Detail drawer / 详情抽屉
 const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
   connectedComponent: DetailDrawer,
 });
@@ -97,7 +97,7 @@ function isImage(row: AttachmentInfo): boolean {
 async function onDownload(row: AttachmentInfo) {
   try {
     const result = await getAttachmentDownloadUrlApi(row.id);
-    // 创建隐藏的 a 标签触发下载
+    // Create hidden anchor tag to trigger download / 创建隐藏的 a 标签触发下载
     const link = document.createElement('a');
     link.href = result.url;
     link.download = row.name;

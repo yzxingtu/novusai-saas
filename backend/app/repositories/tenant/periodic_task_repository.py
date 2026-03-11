@@ -1,7 +1,8 @@
 """
-租户端定时任务仓储
+租户端定时任务仓储 / Tenant Periodic Task Repository
 
 提供定时任务数据访问能力（租户隔离）
+Provides periodic task data access (tenant-isolated).
 """
 
 from app.core.base_repository import TenantRepository

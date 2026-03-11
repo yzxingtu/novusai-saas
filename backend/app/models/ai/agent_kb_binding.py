@@ -1,7 +1,8 @@
 """
-智能体知识库绑定模型
+智能体知识库绑定模型 / Agent Knowledge Base Binding Model
 
 定义 Agent 与 KnowledgeBase 的多对多关系，支持权重和启用/禁用控制
+Defines Agent-KnowledgeBase many-to-many relationship with weight and enable/disable control.
 """
 
 from typing import TYPE_CHECKING

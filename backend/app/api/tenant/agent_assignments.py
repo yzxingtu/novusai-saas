@@ -1,7 +1,8 @@
 """
-租户端系统智能体绑定 API
+租户端系统智能体绑定 API / Tenant Agent Assignment API
 
 提供功能代码到智能体的映射解析 + 租户级覆盖管理
+Provides feature code to agent mapping resolution + tenant-level override management
 """
 
 from fastapi import Request
@@ -35,13 +36,13 @@ logger = LogManager.get_logger("app")
 
 
 class TenantOverrideRequest(PydanticBaseModel):
-    """租户覆盖绑定请求"""
+    """租户覆盖绑定请求 / Tenant override binding request"""
     agent_id: int | None = Field(None, description=_("system_agent_assignment.field.agent_id"))
     config: dict | None = Field(None, description=_("system_agent_assignment.field.config"))
 
 
 def _build_resolve_result(assignment, feature_code: str) -> dict:
-    """构建 resolve 响应"""
+    """构建 resolve 响应 / Build resolve response"""
     if not assignment:
         return {
             "feature_code": feature_code,
@@ -82,7 +83,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
 )
 class TenantAgentAssignmentController(TenantController):
     """
-    租户端系统智能体绑定控制器
+    租户端系统智能体绑定控制器 / Tenant Agent Assignment Controller
     """
 
     prefix = "/ai/agent-assignments"
@@ -99,7 +100,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
         ):
             """
-            获取所有绑定列表，含全局默认 + 租户覆盖对比
+            获取所有绑定列表，含全局默认 + 租户覆盖对比 / Get all assignment list with global defaults + tenant override comparison
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
@@ -130,9 +131,9 @@ class TenantAgentAssignmentController(TenantController):
             feature_code: str,
         ):
             """
-            按 feature_code 获取绑定的 agent_id
+            按 feature_code 获取绑定的 agent_id / Get bound agent_id by feature_code
 
-            Resolve 顺序：租户覆盖 → 全局默认
+            Resolve 顺序 / Resolve order：租户覆盖 → 全局默认 / Tenant override → Global default
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
@@ -148,7 +149,7 @@ class TenantAgentAssignmentController(TenantController):
             feature_code: str,
             body: TenantOverrideRequest,
         ):
-            """创建或更新租户覆盖绑定"""
+            """创建或更新租户覆盖绑定 / Create or update tenant override binding"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             assignment = await service.set_tenant_override(
@@ -165,7 +166,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
             feature_code: str,
         ):
-            """删除租户覆盖（恢复全局默认）"""
+            """删除租户覆盖（恢复全局默认） / Delete tenant override (restore global default)"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             removed = await service.delete_tenant_override(feature_code, tenant_id)
@@ -176,6 +177,7 @@ class TenantAgentAssignmentController(TenantController):
             return deleted()
 
 
+# 导出路由器 / Export router
 router = TenantAgentAssignmentController.get_router()
 
 __all__ = ["router", "TenantAgentAssignmentController"]

@@ -1,8 +1,11 @@
 <script setup lang="ts">
 /**
+ * Plugin Config Form
  * 插件配置表单
  *
+ * Auto-generates config form from plugin.yaml config_schema (JSON Schema).
  * 从 plugin.yaml config_schema (JSON Schema) 自动生成配置表单。
+ * Supports x-encrypted field masking, required validation, and enum select.
  * 支持 x-encrypted 字段脱敏显示、required 校验、枚举选择框。
  */
 import { computed, ref, watch } from 'vue';
@@ -74,7 +77,7 @@ function handleChange(key: string, value: unknown) {
   emit('update:modelValue', { ...form.value });
 }
 
-/** 脱敏值：已加密的字段显示为 sk-***xxx 形式 */
+/** Masked value: encrypted fields display as sk-***xxx format / 脱敏值 */
 function displayValue(key: string, schema: SchemaProperty): string {
   const v = form.value[key];
   if (!schema['x-encrypted'] || !v || typeof v !== 'string')

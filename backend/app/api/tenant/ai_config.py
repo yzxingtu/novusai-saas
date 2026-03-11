@@ -1,7 +1,8 @@
 """
-租户端 AI 配置 API
+租户端 AI 配置 API / Tenant AI Config API
 
 提供租户端 AI 模型查询、API Key 管理等接口
+Provides tenant AI model query, API Key management endpoints
 """
 
 from fastapi import Query, Request
@@ -42,16 +43,17 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
 )
 class TenantAIConfigController(TenantController):
     """
-    租户 AI 配置控制器
+    租户 AI 配置控制器 / Tenant AI Config Controller
 
     提供租户可用模型查询、API Key 管理等接口
+    Provides tenant available model query, API Key management endpoints
     """
 
     prefix = "/ai/config"
     tags = [_("menu.tags.tenant_ai_config")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/models", summary="获取可用 AI 模型列表")
@@ -63,9 +65,9 @@ class TenantAIConfigController(TenantController):
             provider_id: int | None = Query(None, description="供应商 ID"),
         ):
             """
-            获取租户可用的 AI 模型列表
+            获取租户可用的 AI 模型列表 / Get tenant available AI model list
 
-            权限: ai_config:models
+            权限 / Permission: ai_config:models
             """
             service = AIModelService(db)
 
@@ -92,9 +94,9 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户自己的 AI API Keys
+            获取租户自己的 AI API Keys / Get tenant's own AI API Keys
 
-            权限: ai_config:keys
+            权限 / Permission: ai_config:keys
             """
             service = ProviderApiKeyService(db)
             keys = await service.get_keys_by_provider(
@@ -116,11 +118,11 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            为租户创建 AI API Key
+            为租户创建 AI API Key / Create AI API Key for tenant
 
-            权限: ai_config:create_key
+            权限 / Permission: ai_config:create_key
             """
-            # 强制设置 tenant_id 为当前认证租户，忽略前端传入值
+            # 强制设置 tenant_id 为当前认证租户，忽略前端传入值 / Force set tenant_id to current authenticated tenant, ignore frontend value
             data.tenant_id = tenant_admin.tenant_id
 
             service = ProviderApiKeyService(db)
@@ -141,9 +143,9 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除租户的 AI API Key
+            删除租户的 AI API Key / Delete tenant's AI API Key
 
-            权限: ai_config:delete_key
+            权限 / Permission: ai_config:delete_key
             """
             service = ProviderApiKeyService(db)
             key = await service.get_by_id(key_id)
@@ -157,7 +159,7 @@ class TenantAIConfigController(TenantController):
             return success(message=_("ai.api_key.deleted"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAIConfigController.get_router()
 
 __all__ = ["router", "TenantAIConfigController"]

@@ -1,7 +1,8 @@
 """
-系统模块模型
+系统模块模型 / System Module Models
 
 平台级别的模型定义
+Platform-level model definitions.
 """
 
 from app.models.system.admin import Admin

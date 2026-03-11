@@ -1,7 +1,8 @@
 """
-数据库连接模块
+数据库连接模块 / Database Connection Module
 
 提供异步数据库连接、会话管理和依赖注入
+Provides async database connections, session management and dependency injection.
 """
 
 import asyncio
@@ -9,34 +10,28 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.core.base_model import Base
 from app.core.config import settings
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("db")
 
-
 # ============================================
-# 异步数据库引擎
+# 异步数据库引擎 / Async Database Engine
 # ============================================
 
 async_engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log
+    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log / SQL logs managed by logging module, output to db.log
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-    pool_pre_ping=True,  # 连接前检查
+    pool_pre_ping=True,  # 连接前检查 / Pre-ping connection check
 )
 
-# 异步会话工厂
+# 异步会话工厂 / Async session factory
 async_session_factory = async_sessionmaker(
     bind=async_engine,
     class_=AsyncSession,
@@ -47,7 +42,7 @@ async_session_factory = async_sessionmaker(
 
 
 # ============================================
-# 只读数据库引擎（用于 AI Text-to-SQL）
+# 只读数据库引擎（用于 AI Text-to-SQL） / Read-only DB Engine (for AI Text-to-SQL)
 # ============================================
 
 _readonly_engine = None
@@ -55,7 +50,7 @@ _readonly_session_factory = None
 
 
 def _get_readonly_engine():
-    """延迟初始化只读引擎（仅在配置了 AI_READONLY_DB_URL 时才创建）"""
+    """延迟初始化只读引擎 / Lazily initialize read-only engine (only created when AI_READONLY_DB_URL is configured)"""
     global _readonly_engine
     if _readonly_engine is not None:
         return _readonly_engine
@@ -76,7 +71,7 @@ def _get_readonly_engine():
 
 
 def get_readonly_session_factory():
-    """获取只读会话工厂"""
+    """获取只读会话工厂 / Get read-only session factory"""
     global _readonly_session_factory
     if _readonly_session_factory is not None:
         return _readonly_session_factory
@@ -96,12 +91,12 @@ def get_readonly_session_factory():
 
 
 # ============================================
-# 同步数据库引擎（用于 Alembic 迁移）
+# 同步数据库引擎（用于 Alembic 迁移） / Sync DB Engine (for Alembic migrations)
 # ============================================
 
 sync_engine = create_engine(
     settings.DATABASE_URL_SYNC,
-    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log
+    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log / SQL logs managed by logging module, output to db.log
     pool_pre_ping=True,
 )
 
@@ -113,14 +108,14 @@ sync_session_factory = sessionmaker(
 
 
 # ============================================
-# 依赖注入
+# 依赖注入 / Dependency Injection
 # ============================================
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    获取数据库会话（FastAPI 依赖注入）
+    获取数据库会话（FastAPI 依赖注入） / Get database session (FastAPI dependency injection)
 
-    使用示例:
+    使用示例 / Usage:
         @router.get("/users")
         async def get_users(db: AsyncSession = Depends(get_db)):
             ...
@@ -139,9 +134,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """
-    获取数据库会话（上下文管理器）
+    获取数据库会话（上下文管理器） / Get database session (context manager)
 
-    使用示例:
+    使用示例 / Usage:
         async with get_db_context() as db:
             ...
     """
@@ -157,35 +152,90 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 # ============================================
-# 数据库管理函数
+# 数据库管理函数 / Database Management Functions
 # ============================================
+
+
+def _warn_if_pg_not_running(exc: Exception) -> None:
+    """
+    检测到 PostgreSQL 未启动时，在控制台输出清晰的启动指引
+    When PostgreSQL is not running, print clear startup instructions to the console
+
+    仅当错误信息包含 "Connection refused" 时触发
+    Triggered only when the error message contains "Connection refused"
+    """
+    import platform
+
+    err_msg = str(exc)
+    if "Connection refused" not in err_msg and "connection refused" not in err_msg:
+        return
+
+    host = settings.DATABASE_HOST
+    port = settings.DATABASE_PORT
+    system = platform.system()
+
+    if system == "Windows":
+        start_cmd = (
+            f"  PowerShell（管理员）/ PowerShell (Administrator):\n"
+            f"    net start postgresql-x64-16\n"
+            f"  或 / Or: 打开 services.msc → 找到 PostgreSQL 服务 → 启动"
+            f"  (Open services.msc → Find PostgreSQL service → Start)"
+        )
+    elif system == "Darwin":
+        start_cmd = (
+            f"  brew services start postgresql\n"
+            f"  或 / Or: pg_ctl -D /usr/local/var/postgresql@16 start"
+        )
+    else:
+        start_cmd = (
+            f"  sudo systemctl start postgresql\n"
+            f"  或 / Or: sudo service postgresql start"
+        )
+
+    logger.warning(
+        "\n"
+        "╔══════════════════════════════════════════════════════════════════╗\n"
+        "║  ⚠  PostgreSQL 未启动 / PostgreSQL is NOT running               ║\n"
+        "╚══════════════════════════════════════════════════════════════════╝\n"
+        "\n"
+        "  无法连接到 PostgreSQL 服务器 / Cannot connect to PostgreSQL server\n"
+        "  地址 / Address: %s:%s\n"
+        "\n"
+        "  请启动 PostgreSQL 后重试 / Please start PostgreSQL and retry:\n"
+        "%s\n",
+        host,
+        port,
+        start_cmd,
+    )
+
 
 async def check_database_connection() -> bool:
     """
-    检查数据库连接是否正常
+    检查数据库连接是否正常 / Check if database connection is healthy
 
     Returns:
-        连接是否成功
+        连接是否成功 / Whether connection was successful
     """
     try:
         async with async_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
+        _warn_if_pg_not_running(e)
         logger.error("Database connection failed: %s", e)
         return False
 
 
 def create_database_if_not_exists() -> bool:
     """
-    检查数据库是否存在，如果不存在则创建（同步函数）
+    检查数据库是否存在，不存在则创建 / Check if database exists, create if not (sync function)
 
     Returns:
-        是否成功
+        是否成功 / Whether successful
     """
     from sqlalchemy import create_engine, text
 
-    # 连接到 postgres 默认数据库来创建目标数据库
+    # 连接到 postgres 默认数据库来创建目标数据库 / Connect to default postgres DB to create target database
     admin_url = (
         f"postgresql://{settings.DATABASE_USER}:{settings.DATABASE_PASSWORD}"
         f"@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/postgres"
@@ -195,7 +245,8 @@ def create_database_if_not_exists() -> bool:
 
     try:
         with admin_engine.connect() as conn:
-            # 检查数据库是否存在
+            # 检查数据库是否存在 / Check if database exists
+
             result = conn.execute(
                 text(
                     "SELECT 1 FROM pg_database WHERE datname = :dbname"
@@ -215,6 +266,7 @@ def create_database_if_not_exists() -> bool:
 
         return True
     except Exception as e:
+        _warn_if_pg_not_running(e)
         logger.error("Database creation failed: %s", e)
         return False
     finally:
@@ -223,13 +275,14 @@ def create_database_if_not_exists() -> bool:
 
 def run_migrations() -> bool:
     """
-    运行数据库迁移（同步方式，用于启动时）
+    运行数据库迁移 / Run database migrations (sync, called at startup)
 
-    使用子进程 + PYTHONUTF8=1 运行 Alembic，避免 Windows GBK 环境下
-    Alembic 内部用系统默认编码（GBK）读取含 UTF-8 字符的迁移文件时报错。
+    使用子进程 + PYTHONUTF8=1 运行 Alembic，避免 Windows GBK 环境下编码错误。
+    Uses subprocess + PYTHONUTF8=1 to run Alembic, avoiding Windows GBK encoding errors
+    when Alembic reads UTF-8 migration files with system default encoding.
 
     Returns:
-        是否成功
+        是否成功 / Whether successful
     """
     import os
     import subprocess
@@ -252,9 +305,11 @@ def run_migrations() -> bool:
         logger.info("Running database migrations...")
 
         # 通过子进程运行 Alembic，设置 PYTHONUTF8=1 强制 UTF-8 文件 I/O。
-        # 直接调用 Python API（command.upgrade）时，Alembic 内部用系统默认编码
-        # 打开迁移文件，在 Windows GBK 环境下若迁移文件含 em dash 等 UTF-8 字符
-        # 会报 'gbk' codec can't decode 错误。
+        # Run Alembic via subprocess with PYTHONUTF8=1 to force UTF-8 file I/O.
+        # 直接调用 Python API（command.upgrade）时，Alembic 内部用系统默认编码打开迁移文件，
+        # When calling Python API directly, Alembic uses system default encoding to open migration files,
+        # 在 Windows GBK 环境下若迁移文件含 em dash 等 UTF-8 字符会报 'gbk' codec can't decode 错误。
+        # causing 'gbk' codec can't decode errors on Windows GBK environments with UTF-8 chars.
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
 
@@ -262,7 +317,7 @@ def run_migrations() -> bool:
 
         versions_path = str(backend_dir / "migrations" / "versions")
 
-        # 将迁移脚本写入临时文件，避免复杂 one-liner 的字符串转义问题
+        # 将迁移脚本写入临时文件 / Write migration script to temp file to avoid complex one-liner escaping
         import tempfile
         migration_script = f"""
 import os
@@ -357,7 +412,7 @@ except Exception as e:
         raise
 """
 
-        # 写入临时文件并执行
+        # 写入临时文件并执行 / Write to temp file and execute
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".py", delete=False, encoding="utf-8"
         ) as tf:
@@ -395,26 +450,26 @@ except Exception as e:
 
 async def init_database() -> bool:
     """
-    初始化数据库（启动时调用）
+    初始化数据库（启动时调用） / Initialize database (called at startup)
 
-    1. 检查/创建数据库
-    2. 运行迁移
-    3. 验证连接
+    1. 检查/创建数据库 / Check/create database
+    2. 运行迁移 / Run migrations
+    3. 验证连接 / Verify connection
 
     Returns:
-        是否成功
+        是否成功 / Whether successful
     """
     logger.info("Initializing database...")
 
-    # 1. 检查/创建数据库
+    # 1. 检查/创建数据库 / Check/create database
     if not await asyncio.to_thread(create_database_if_not_exists):
         return False
 
-    # 2. 运行迁移
+    # 2. 运行迁移 / Run migrations
     if not await asyncio.to_thread(run_migrations):
         return False
 
-    # 3. 验证连接
+    # 3. 验证连接 / Verify connection
     if not await check_database_connection():
         return False
 
@@ -423,9 +478,7 @@ async def init_database() -> bool:
 
 
 async def close_database() -> None:
-    """
-    关闭数据库连接（关闭时调用）
-    """
+    """关闭数据库连接（关闭时调用） / Close database connections (called at shutdown)"""
     await async_engine.dispose()
     sync_engine.dispose()
     if _readonly_engine is not None:
@@ -433,7 +486,7 @@ async def close_database() -> None:
     logger.info("Database connections closed")
 
 
-# 导出
+# 导出 / Exports
 __all__ = [
     "async_engine",
     "async_session_factory",

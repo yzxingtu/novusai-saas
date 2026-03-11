@@ -1,7 +1,8 @@
 """
-SSL 证书 Schema
+SSL 证书 Schema / SSL Certificate Schema
 
 定义 SSL 证书管理相关的请求和响应数据结构
+Defines SSL certificate management request and response data structures.
 """
 
 from datetime import datetime

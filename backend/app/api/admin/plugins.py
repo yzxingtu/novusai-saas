@@ -1,5 +1,5 @@
 """
-插件管理 Controller（管理端）
+插件管理 Controller（管理端） / Plugin Management Controller (Admin)
 """
 
 import re
@@ -102,17 +102,17 @@ class PluginDependencyActionBody(PydanticBaseModel):
 )
 class AdminPluginController(GlobalController):
     prefix = "/plugins"
-    tags = ["插件管理"]
+    tags = ["Plugin Management"]
     service_class = PluginService
 
     def _register_routes(self):
 
-        # ── 依赖查询 ──
+        # ── 依赖查询 / Dependency Query ──
 
         @self.router.get("/{plugin_id}/dependents")
         @action_read("action.plugin.read")
         async def get_plugin_dependents(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """获取依赖此插件的插件列表"""
+            """获取依赖此插件的插件列表 / Get plugins that depend on this plugin"""
             from app.plugins.lifecycle import PluginLifecycle
 
             lifecycle = PluginLifecycle(db)
@@ -122,7 +122,7 @@ class AdminPluginController(GlobalController):
         @self.router.get("/{plugin_id}/dependencies")
         @action_read("action.plugin.read")
         async def get_plugin_dependencies(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """获取此插件的依赖插件列表"""
+            """获取此插件的依赖插件列表 / Get this plugin's dependency list"""
             from app.plugins.lifecycle import PluginLifecycle
 
             lifecycle = PluginLifecycle(db)
@@ -137,7 +137,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             body: PluginDependencyActionBody | None = None,
         ):
-            """显式安装插件依赖（不改变插件状态）"""
+            """显式安装插件依赖（不改变插件状态） / Explicitly install plugin dependencies (without changing plugin status)"""
             service = self.get_service(db)
             payload = body or PluginDependencyActionBody()
             result = await service.install_plugin_dependencies(
@@ -155,7 +155,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             body: PluginDependencyActionBody | None = None,
         ):
-            """显式卸载插件依赖（不卸载插件本体）"""
+            """显式卸载插件依赖（不卸载插件本体） / Explicitly uninstall plugin dependencies (without uninstalling the plugin itself)"""
             from app.exceptions.base import ValidationException
 
             service = self.get_service(db)
@@ -175,15 +175,16 @@ class AdminPluginController(GlobalController):
             )
             return success(data=result)
 
-        # ── 前端插槽查询 ──
+        # ── 前端插槽查询 / Frontend Slot Query ──
 
         @self.router.get("/slots")
         @action_read("action.plugin.list")
         async def get_plugin_slots(db: DbSession, admin: ActiveAdmin):
             """
             获取所有已启用插件的前端插槽数据（admin 端）。
+            Get all enabled plugins' frontend slot data (admin side).
 
-            返回格式：
+            返回格式 / Response format:
             {
               "header_widgets": [...],
               "dashboard_widgets": [...],
@@ -194,6 +195,7 @@ class AdminPluginController(GlobalController):
             }
 
             前端 pluginSlotsStore 启动时调用此接口，驱动各插槽渲染。
+            Frontend pluginSlotsStore calls this endpoint on startup to drive slot rendering.
             """
             from app.plugins.loader import PluginLoader
             from app.plugins.registry import ExtensionRegistry
@@ -232,18 +234,18 @@ class AdminPluginController(GlobalController):
                 }
             )
 
-        # ── 更新检查 ──
+        # ── 更新检查 / Update Check ──
 
         @self.router.get("/updates")
         @action_read("action.plugin.list")
         async def check_updates(db: DbSession, admin: ActiveAdmin):
-            """检查已安装插件的可用更新"""
+            """检查已安装插件的可用更新 / Check available updates for installed plugins"""
             from app.plugins.update_checker import check_updates as _check
 
             updates = await _check(db)
             return success(data=updates)
 
-        # ── 插件市场 ──
+        # ── 插件市场 / Plugin Marketplace ──
 
         @self.router.post("/marketplace/test-connection")
         @action_read("action.plugin.list")
@@ -252,7 +254,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             source_url: str = "",
         ):
-            """测试市场镜像源连通性"""
+            """测试市场镜像源连通性 / Test marketplace mirror source connectivity"""
             import time as _time
 
             import httpx as _httpx
@@ -290,7 +292,7 @@ class AdminPluginController(GlobalController):
             page_number: int = 1,
             page_size: int = 20,
         ):
-            """插件市场列表（搜索/分类/排序/分页）"""
+            """插件市场列表（搜索/分类/排序/分页） / Plugin marketplace list (search/category/sort/pagination)"""
             from app.plugins.marketplace import MarketplaceClient
 
             client = MarketplaceClient(db)
@@ -309,7 +311,7 @@ class AdminPluginController(GlobalController):
         @self.router.get("/marketplace/{slug}")
         @action_read("action.plugin.list")
         async def marketplace_detail(slug: str, db: DbSession, admin: ActiveAdmin):
-            """插件市场详情"""
+            """插件市场详情 / Plugin marketplace detail"""
             from app.plugins.marketplace import MarketplaceClient
 
             client = MarketplaceClient(db)
@@ -321,11 +323,11 @@ class AdminPluginController(GlobalController):
             readme = await client.fetch_readme(slug)
             detail["readme"] = readme
 
-            # 兼容性检查
+            # 兼容性检查 / Compatibility check
             compat = detail.get("compatibility", {})
             detail["compatibility_ok"] = True
             if compat.get("platform_version"):
-                # 简单字符串比较（后续可改为 semver）
+                # 简单字符串比较（后续可改为 semver） / Simple string comparison (can switch to semver later)
                 detail["platform_version_required"] = compat["platform_version"]
 
             return success(data=detail)
@@ -335,7 +337,7 @@ class AdminPluginController(GlobalController):
         async def marketplace_preview_install(
             slug: str, db: DbSession = None, admin: ActiveAdmin = None,
         ):
-            """市场安装预览（下载+解压+生成预览，不执行安装）"""
+            """市场安装预览（下载+解压+生成预览，不执行安装） / Marketplace install preview (download+extract+generate preview, no actual install)"""
             from app.plugins.marketplace import MarketplaceClient
 
             client = MarketplaceClient(db)
@@ -347,7 +349,7 @@ class AdminPluginController(GlobalController):
             version = detail.get("version", "1.0.0")
             zip_path = await client.download_plugin(slug, version)
 
-            # 解压并生成预览
+            # 解压并生成预览 / Extract and generate preview
             from app.plugins.loader import PluginLoader
             from app.plugins.package_security import extract_plugin_zip_safely
             from app.plugins.preview import generate_preview
@@ -370,7 +372,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            """确认从市场安装（下载+安装，设置 install_source=marketplace）"""
+            """确认从市场安装（下载+安装，设置 install_source=marketplace） / Confirm marketplace install (download+install, set install_source=marketplace)"""
             from app.enums.plugin import PluginInstallSourceEnum
             from app.plugins.marketplace import MarketplaceClient
 
@@ -400,9 +402,10 @@ class AdminPluginController(GlobalController):
                 )
                 service = self.get_service(db)
                 # 直接从 staging 目录安装，生命周期层负责复制与回滚，避免预拷贝造成脏目录残留
+                # Install directly from staging dir, lifecycle layer handles copy & rollback to avoid dirty dir residue
                 plugin = await service.install_from_path(plugin_dir, body.config)
 
-                # 更新 install_source 和 marketplace_slug
+                # 更新 install_source 和 marketplace_slug / Update install_source and marketplace_slug
                 plugin.install_source = PluginInstallSourceEnum.MARKETPLACE.value
                 plugin.marketplace_slug = slug
                 await db.flush()
@@ -416,16 +419,19 @@ class AdminPluginController(GlobalController):
         async def get_menu_parent_options(db: DbSession, admin: ActiveAdmin):
             """
             获取可用的父级菜单树，供插件菜单挂载位置选择。
+            Get available parent menu tree for plugin menu mount point selection.
 
             同时返回 admin 和 tenant 两侧的菜单树（多级嵌套），
             前端可按插件菜单的 scope 显示对应分组。
+            Returns menu trees for both admin and tenant sides (multi-level nested),
+            frontend can display corresponding groups based on plugin menu scope.
             """
             from sqlalchemy import select
 
             from app.core.i18n import translate
             from app.models.auth.permission import Permission
 
-            # 加载所有启用的菜单权限（admin + tenant）
+            # 加载所有启用的菜单权限（admin + tenant） / Load all enabled menu permissions (admin + tenant)
             result = await db.execute(
                 select(Permission)
                 .where(
@@ -438,7 +444,7 @@ class AdminPluginController(GlobalController):
             all_menus = list(result.scalars().all())
 
             def _short_name(code: str) -> str:
-                """'menu:admin.system_mgmt' → 'system_mgmt'"""
+                """'menu:admin.system_mgmt' -> 'system_mgmt'"""
                 return code.rsplit(".", 1)[-1] if "." in code else code
 
             def _label(perm: Permission) -> str:
@@ -448,7 +454,7 @@ class AdminPluginController(GlobalController):
                     return t if t != name_key else name_key.split(".")[-1]
                 return name_key
 
-            # 计算哪些 id 是父节点（有子菜单的目录型节点）
+            # 计算哪些 id 是父节点（有子菜单的目录型节点） / Determine which ids are parent nodes (directory nodes with child menus)
             def _has_menu_children(menus_subset: list, parent_id: int) -> bool:
                 return any(m.parent_id == parent_id and m.type == "menu" for m in menus_subset)
 
@@ -457,7 +463,7 @@ class AdminPluginController(GlobalController):
                 for m in menus_subset:
                     if m.parent_id == parent_id:
                         children = _build_tree(menus_subset, m.id)
-                        # 只保留目录型节点（有子菜单），叶子页面不作为父级候选
+                        # 只保留目录型节点（有子菜单），叶子页面不作为父级候选 / Only keep directory nodes (with child menus), leaf pages are not parent candidates
                         if not children and not _has_menu_children(menus_subset, m.id):
                             continue
                         node = {
@@ -471,9 +477,9 @@ class AdminPluginController(GlobalController):
                         nodes.append(node)
                 return nodes
 
-            # admin 侧：admin_only + admin_and_all
+            # admin 侧：admin_only + admin_and_all / Admin side: admin_only + admin_and_all
             admin_menus = [m for m in all_menus if m.scope in ("admin_only", "admin_and_all")]
-            # tenant 侧：all_tenants + admin_and_all
+            # tenant 侧：all_tenants + admin_and_all / Tenant side: all_tenants + admin_and_all
             tenant_menus = [m for m in all_menus if m.scope in ("all_tenants", "admin_and_all")]
 
             return success(data={
@@ -487,7 +493,7 @@ class AdminPluginController(GlobalController):
             service = self.get_service(db)
             items, total = await service.query_list(query)
 
-            # 脱敏配置
+            # 脱敏配置 / Mask sensitive config
             from app.plugins.crypto import mask_plugin_config
 
             result_items = []
@@ -518,7 +524,7 @@ class AdminPluginController(GlobalController):
 
             data = plugin.to_dict()
 
-            # 脱敏配置
+            # 脱敏配置 / Mask sensitive config
             from app.plugins.crypto import mask_plugin_config
 
             manifest_data = data.get("manifest") or {}
@@ -528,7 +534,7 @@ class AdminPluginController(GlobalController):
 
             data["dependency_status"] = service.get_dependency_status(plugin)
 
-            # 加载 README（按 locale 优先级）
+            # 加载 README（按 locale 优先级） / Load README (by locale priority)
             readme = await service.get_readme(plugin_id, locale=locale)
             data["readme"] = readme
 
@@ -537,8 +543,11 @@ class AdminPluginController(GlobalController):
         def _extract_plugin_from_zip(file_content: bytes, filename: str) -> tuple[Path, Path]:
             """
             解压 ZIP 到系统临时目录，返回 (staging_dir, plugin_dir)。
+            Extract ZIP to system temp directory, return (staging_dir, plugin_dir).
             使用系统临时目录，不在项目内，避免触发 --reload。
+            Uses system temp directory, not within project, to avoid triggering --reload.
             调用方负责清理 staging_dir。
+            Caller is responsible for cleaning up staging_dir.
             """
             from app.plugins.package_security import (
                 ensure_package_size_limit,
@@ -570,7 +579,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            """上传 ZIP 分析，返回安装预览（不安装）"""
+            """上传 ZIP 分析，返回安装预览（不安装） / Upload ZIP for analysis, return install preview (no installation)"""
             from app.plugins.preview import generate_preview
 
             content = await file.read()
@@ -593,9 +602,10 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin = None,
         ):
             """
-            上传 ZIP 并安装插件
+            上传 ZIP 并安装插件 / Upload ZIP and install plugin
 
             lifecycle.install() 内部负责把文件从 staging_dir 复制到 plugins/{name}/，
+            this endpoint only needs to extract + call install logic + clean up temp directory.
             此端点只需解压 + 调用安装逻辑 + 清理临时目录。
             """
             from sqlalchemy import select
@@ -612,7 +622,7 @@ class AdminPluginController(GlobalController):
                     manifest_data = yaml.safe_load(yf)
                 plugin_name = manifest_data.get("name", plugin_dir.name)
 
-                # 检查是否已安装（DB 有记录则提示走升级流程）
+                # 检查是否已安装（DB 有记录则提示走升级流程） / Check if already installed (prompt upgrade if DB record exists)
                 existing = await db.execute(
                     select(PluginModel.id).where(
                         PluginModel.name == plugin_name,
@@ -626,7 +636,7 @@ class AdminPluginController(GlobalController):
                                 "Please uninstall it first or use the upgrade endpoint.",
                     )
 
-                # lifecycle.install() 内部会把 plugin_dir → plugins/{name}/ 完成文件复制
+                # lifecycle.install() 内部会把 plugin_dir -> plugins/{name}/ 完成文件复制 / lifecycle.install() copies plugin_dir -> plugins/{name}/ internally
                 service = self.get_service(db)
                 plugin = await service.install_from_path(plugin_dir, operator_id=admin.id)
                 return created(data=plugin.to_dict())
@@ -641,10 +651,10 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             body: PluginEnableBody | None = None,
         ):
-            """启用插件（自动安装 pip/npm 依赖，通过 Socket.IO 推送进度）"""
+            """启用插件（自动安装 pip/npm 依赖，通过 Socket.IO 推送进度） / Enable plugin (auto-install pip/npm deps, push progress via Socket.IO)"""
             service = self.get_service(db)
 
-            # 保存管理员配置的菜单挂载位置
+            # 保存管理员配置的菜单挂载位置 / Save admin-configured menu mount positions
             if body and body.menu_overrides:
                 plugin = await service.get_by_id(plugin_id)
                 config = dict(plugin.config or {})
@@ -682,7 +692,7 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            """更新插件菜单挂载位置（已启用插件可动态调整）"""
+            """更新插件菜单挂载位置（已启用插件可动态调整） / Update plugin menu mount point (enabled plugins can be dynamically adjusted)"""
             from app.enums.plugin import PluginStatusEnum
             from app.exceptions.base import BusinessException
             from app.plugins._extension_registrar import (
@@ -696,7 +706,7 @@ class AdminPluginController(GlobalController):
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
 
-            # 保存新的菜单覆盖配置
+            # 保存新的菜单覆盖配置 / Save new menu override config
             config = dict(plugin.config or {})
             config["menu_overrides"] = {
                 item.name: (
@@ -709,7 +719,7 @@ class AdminPluginController(GlobalController):
             plugin.config = config
             await db.flush()
 
-            # 如果插件已启用，重新注册扩展点 + 同步权限到 DB
+            # 如果插件已启用，重新注册扩展点 + 同步权限到 DB / If plugin is enabled, re-register extensions + sync permissions to DB
             if plugin.status == PluginStatusEnum.ENABLED.value:
                 registry = ExtensionRegistry.get_instance()
                 registry.unregister_all(plugin.name)
@@ -721,7 +731,7 @@ class AdminPluginController(GlobalController):
 
                 failed = get_failed_extensions(plugin.name)
                 if failed:
-                    # fail-close：任一扩展加载失败，撤销本次注册，避免菜单配置“半成功”
+                    # fail-close：任一扩展加载失败，撤销本次注册，避免菜单配置“半成功” / fail-close: undo registration if any extension fails, prevent partial success
                     registry.unregister_all(plugin.name)
                     failed_summary = "; ".join(
                         f"{item['type']}:{item['entry_point']}" for item in failed[:5]
@@ -733,7 +743,7 @@ class AdminPluginController(GlobalController):
                         ),
                     )
 
-                # 仅同步当前插件权限，避免全量 sync 的事务副作用
+                # 仅同步当前插件权限，避免全量 sync 的事务副作用 / Only sync current plugin permissions to avoid side effects of full sync
                 sync_service = PermissionSyncService(db)
                 await sync_service.sync_plugin_permissions(plugin.name)
 
@@ -760,7 +770,7 @@ class AdminPluginController(GlobalController):
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """修复插件：重置错误计数并尝试重新恢复（安装依赖 + 注册扩展点）"""
+            """修复插件：重置错误计数并尝试重新恢复（安装依赖 + 注册扩展点） / Repair plugin: reset error count and attempt recovery (install deps + register extensions)"""
             from app.enums.plugin import PluginStatusEnum
             from app.exceptions.base import BusinessException
             from app.plugins._extension_registrar import (
@@ -774,7 +784,7 @@ class AdminPluginController(GlobalController):
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
 
-            # 只对 error 或 enabled 状态的插件执行修复
+            # 只对 error 或 enabled 状态的插件执行修复 / Only repair plugins in error or enabled state
             if plugin.status not in (PluginStatusEnum.ERROR.value, PluginStatusEnum.ENABLED.value):
                 raise BusinessException(message="Plugin is not in error or enabled state — repair not needed")
 
@@ -787,7 +797,7 @@ class AdminPluginController(GlobalController):
                 try:
                     manifest = loader.load_manifest(plugin.name)
 
-                    # 安装 Python 依赖
+                    # 安装 Python 依赖 / Install Python dependencies
                     if manifest.dependencies.python:
                         await emitter.emit_step("pip", "running", f"Checking {len(manifest.dependencies.python)} Python package(s)...")
                         pip_installed = await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
@@ -798,7 +808,7 @@ class AdminPluginController(GlobalController):
                     else:
                         await emitter.emit_step("pip", "success", "No Python dependencies")
 
-                    # 安装前端 npm 依赖
+                    # 安装前端 npm 依赖 / Install frontend npm dependencies
                     frontend_ext = manifest.extensions.frontend if manifest.extensions else None
                     npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
                     if npm_deps:
@@ -811,7 +821,7 @@ class AdminPluginController(GlobalController):
                     else:
                         await emitter.emit_step("npm", "success", "No npm dependencies")
 
-                    # 确保 DB 表存在（DB 重建后表可能丢失）
+                    # 确保 DB 表存在（DB 重建后表可能丢失） / Ensure DB tables exist (tables may be lost after DB rebuild)
                     from app.plugins.loader import PLUGINS_DIR as _PLUGINS_DIR
                     migrations_dir = _PLUGINS_DIR / plugin.name / "backend" / "migrations" / "versions"
                     if migrations_dir.is_dir():
@@ -822,12 +832,12 @@ class AdminPluginController(GlobalController):
                         except Exception as _alembic_exc:
                             await emitter.emit_step("alembic", "warning", f"DB migration warning: {_alembic_exc}")
 
-                    # 注册扩展点
+                    # 注册扩展点 / Register extension points
                     await emitter.emit_step("extensions", "running", "Registering extensions...")
                     menu_overrides = (plugin.config or {}).get("menu_overrides")
                     register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
 
-                    # fail-close：扩展加载失败则中止修复
+                    # fail-close：扩展加载失败则中止修复 / fail-close: abort repair if extension loading fails
                     failed = get_failed_extensions(plugin.name)
                     if failed:
                         failed_summary = "; ".join(f"{f['type']}:{f['entry_point']}" for f in failed[:5])
@@ -840,13 +850,13 @@ class AdminPluginController(GlobalController):
 
                     await emitter.emit_step("extensions", "success", f"Registered {registry.get_registered_count(plugin.name)} extension(s)")
 
-                    # 恢复成功：重置错误，恢复 enabled 状态
+                    # 恢复成功：重置错误，恢复 enabled 状态 / Recovery successful: reset errors, restore enabled state
                     plugin.status = PluginStatusEnum.ENABLED.value
                     plugin.error_count = 0
                     plugin.error_message = None
                     await db.flush()
 
-                    # 将 permission_registry 内存菜单写入 DB（首次修复时 DB 可能无记录，flush 不 commit）
+                    # 将 permission_registry 内存菜单写入 DB（首次修复时 DB 可能无记录，flush 不 commit） / Write permission_registry in-memory menus to DB (DB may have no records on first repair, flush without commit)
                     try:
                         from app.rbac.sync import PermissionSyncService
                         perm_sync = PermissionSyncService(db)
@@ -854,7 +864,7 @@ class AdminPluginController(GlobalController):
                     except Exception as _perm_exc:
                         logger.warning("Repair: permission sync failed for %s: %s", plugin.name, _perm_exc)
 
-                    # 同步启用权限（error 状态下权限可能被禁用）
+                    # 同步启用权限（error 状态下权限可能被禁用） / Sync enabled permissions (permissions may be disabled in error state)
                     await lifecycle._set_plugin_permissions_enabled(plugin.name, True)
 
                     await emitter.emit_done(f"Plugin {plugin.name} repaired successfully")
@@ -873,7 +883,7 @@ class AdminPluginController(GlobalController):
         @self.router.delete("/{plugin_id}/force-cleanup")
         @action_delete("action.plugin.uninstall")
         async def force_cleanup_orphan(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """强制清理孤立插件记录（磁盘文件已缺失的 error 状态插件）"""
+            """强制清理孤立插件记录（磁盘文件已缺失的 error 状态插件） / Force cleanup orphaned plugin records (error-state plugins with missing disk files)"""
             from sqlalchemy import delete
 
             from app.models.system.plugin import Plugin as PluginModel
@@ -902,9 +912,9 @@ class AdminPluginController(GlobalController):
             await db.execute(delete(PluginLicense).where(PluginLicense.plugin_id == plugin_id))
             await db.execute(delete(PluginModel).where(PluginModel.id == plugin_id))
 
-            # 清理 alembic_version 中的孤立版本戳
-            # 由于插件文件已不存在，无法扫描实际 revision ID，退回前缀模糊匹配
-            # 注意：LIKE 中 _ 是通配符，需转义 (escape='\\')
+            # 清理 alembic_version 中的孤立版本戳 / Clean up orphaned version stamps in alembic_version
+            # 由于插件文件已不存在，无法扫描实际 revision ID，退回前缀模糊匹配 / Since plugin files no longer exist, fall back to prefix fuzzy matching
+            # 注意：LIKE 中 _ 是通配符，需转义 (escape='\\') / Note: _ is a wildcard in LIKE, needs escaping
             from sqlalchemy import text
             _raw_prefix = plugin.name.replace("-", "_") + "_"
             await db.execute(
@@ -915,7 +925,7 @@ class AdminPluginController(GlobalController):
             await db.flush()
             return deleted()
 
-        # ── 配置 ──
+        # ── 配置 / Configuration ──
 
         @self.router.put("/{plugin_id}/config")
         @action_update("action.plugin.config")
@@ -950,7 +960,7 @@ class AdminPluginController(GlobalController):
             await service.update_capabilities(plugin_id, body.capabilities)
             return success(data={"message": "Capabilities updated"})
 
-        # ── 图标上传 ──
+        # ── 图标上传 / Icon Upload ──
 
         @self.router.post("/{plugin_id}/icon")
         @action_update("action.plugin.icon")
@@ -960,20 +970,20 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            """上传插件图标（PNG/SVG/JPG）"""
+            """上传插件图标（PNG/SVG/JPG） / Upload plugin icon (PNG/SVG/JPG)"""
             from app.plugins.loader import PLUGINS_DIR
 
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
 
-            # 验证文件类型
+            # 验证文件类型 / Validate file type
             allowed = {".png", ".svg", ".jpg", ".jpeg", ".webp"}
             suffix = Path(file.filename).suffix.lower() if file.filename else ".png"
             if suffix not in allowed:
                 from app.exceptions.base import ValidationException
                 raise ValidationException(message="Only PNG/SVG/JPG/WebP images are allowed")
 
-            # 验证文件大小（最大 2MB）
+            # 验证文件大小（最大 2MB） / Validate file size (max 2MB)
             _ICON_MAX_SIZE = 2 * 1024 * 1024
             content = await file.read()
             if len(content) > _ICON_MAX_SIZE:
@@ -982,19 +992,19 @@ class AdminPluginController(GlobalController):
                     message=f"Icon file too large ({len(content)} bytes). Maximum size is 2MB.",
                 )
 
-            # 保存文件
+            # 保存文件 / Save file
             icon_filename = f"icon{suffix}"
             icon_path = PLUGINS_DIR / plugin.name / icon_filename
             with open(icon_path, "wb") as f:
                 f.write(content)
 
-            # 更新 icon 字段为插件静态资源路径
+            # 更新 icon 字段为插件静态资源路径 / Update icon field to plugin static resource path
             plugin.icon = f"/plugin-assets/{plugin.name}/{icon_filename}"
             await db.flush()
 
             return success(data={"icon": plugin.icon})
 
-        # ── 版本 ──
+        # ── 版本 / Version ──
 
         @self.router.get("/{plugin_id}/versions")
         @action_read("action.plugin.versions")
@@ -1048,7 +1058,7 @@ class AdminPluginController(GlobalController):
             await manager.rollback(plugin_id, body.target_version)
             return success(data={"message": f"Rolled back to {body.target_version}"})
 
-        # ── 租户分配 ──
+        # ── 租户分配 / Tenant Assignment ──
 
         @self.router.get("/{plugin_id}/tenants")
         @action_read("action.plugin.tenants")
@@ -1139,12 +1149,12 @@ class AdminPluginController(GlobalController):
             await do_revoke(plugin_id, db)
             return deleted()
 
-        # ── AI 功能绑定 ──
+        # ── AI 功能绑定 / AI Feature Binding ──
 
         @self.router.get("/{plugin_id}/ai-features")
         @action_read("action.plugin.ai_features")
         async def list_ai_features(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """获取插件 AI 功能列表及其 Agent 绑定"""
+            """获取插件 AI 功能列表及其 Agent 绑定 / Get plugin AI feature list and their Agent bindings"""
             from sqlalchemy import select
 
             from app.models.system.agent_assignment import SystemAgentAssignment
@@ -1168,7 +1178,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            """为插件 AI 功能绑定 Agent"""
+            """为插件 AI 功能绑定 Agent / Bind Agent to plugin AI feature"""
             from sqlalchemy import select, update
 
             from app.models.system.agent_assignment import SystemAgentAssignment
@@ -1198,12 +1208,12 @@ class AdminPluginController(GlobalController):
             await db.flush()
             return success(data={"message": "AI feature binding updated"})
 
-        # ── 备份 ──
+        # ── 备份 / Backup ──
 
         @self.router.get("/{plugin_id}/backups")
         @action_read("action.plugin.read")
         async def list_backups(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """列出插件的所有备份记录"""
+            """列出插件的所有备份记录 / List all backup records for the plugin"""
             from app.plugins.backup import list_backups as _list
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
@@ -1213,13 +1223,13 @@ class AdminPluginController(GlobalController):
         @self.router.delete("/{plugin_id}/backups/{backup_name}")
         @action_delete("action.plugin.uninstall")
         async def delete_backup(plugin_id: int, backup_name: str, db: DbSession, admin: ActiveAdmin):
-            """删除指定备份（仅允许删除该插件的备份）"""
+            """删除指定备份（仅允许删除该插件的备份） / Delete specified backup (only backups for this plugin are allowed)"""
             import re as _re
 
             from app.exceptions.base import NotFoundException, ValidationException
             from app.plugins.backup import BACKUPS_DIR
 
-            # 安全校验：backup_name 只允许 [版本]_[时间戳] 格式，防路径穿越
+            # 安全校验：backup_name 只允许 [版本]_[时间戳] 格式，防路径穿越 / Security check: backup_name only allows [version]_[timestamp] format, prevents path traversal
             if not _re.match(r'^[a-zA-Z0-9._-]+$', backup_name) or '..' in backup_name:
                 raise ValidationException(message="Invalid backup name")
 
@@ -1231,14 +1241,14 @@ class AdminPluginController(GlobalController):
             import shutil as _shutil
             _shutil.rmtree(backup_path)
 
-            # 若该插件已无备份，清理空目录
+            # 若该插件已无备份，清理空目录 / If plugin has no backups, clean up empty directory
             plugin_backup_dir = BACKUPS_DIR / plugin.name
             if plugin_backup_dir.is_dir() and not any(plugin_backup_dir.iterdir()):
                 plugin_backup_dir.rmdir()
 
             return deleted()
 
-        # ── 健康 ──
+        # ── 健康 / Health ──
 
         @self.router.get("/{plugin_id}/health")
         @action_read("action.plugin.health")

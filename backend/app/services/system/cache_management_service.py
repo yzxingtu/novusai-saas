@@ -1,6 +1,7 @@
 """
-Cache management service
+缓存管理服务 / Cache Management Service
 
+提供 Redis 缓存、本地文件缓存和内存配置缓存的扫描、统计和清理功能。
 Provides cache scanning, statistics, and clearing for Redis-based caches,
 local filesystem caches, and in-memory config caches.
 """

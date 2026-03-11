@@ -1,8 +1,11 @@
 """
+Query Rewriter
 查询改写器
 
-提升检索召回率：将用户问题改写为多角度查询或假设性回答
-默认关闭，作为可选增强能力
+Improves retrieval recall: rewrites user questions into multi-angle queries or hypothetical answers.
+Disabled by default, serves as optional enhancement capability.
+提升检索召回率：将用户问题改写为多角度查询或假设性回答。
+默认关闭，作为可选增强能力。
 """
 
 from __future__ import annotations
@@ -19,23 +22,23 @@ logger = LogManager.get_logger("ai.rag.query_rewriter")
 
 
 class BaseRewriter(ABC):
-    """改写器基类"""
+    """Base rewriter class / 改写器基类"""
 
     @abstractmethod
     async def rewrite(self, query: str) -> list[str]:
         """
-        改写查询
+        Rewrite query / 改写查询
 
         Args:
-            query: 原始查询
+            query: Original query / 原始查询
 
         Returns:
-            改写后的查询列表（含原始查询）
+            Rewritten query list (includes original) / 改写后的查询列表（含原始查询）
         """
 
 
 class NoneRewriter(BaseRewriter):
-    """空改写器（直接返回原始查询）"""
+    """No-op rewriter (returns original query directly) / 空改写器（直接返回原始查询）"""
 
     async def rewrite(self, query: str) -> list[str]:
         return [query]
@@ -43,10 +46,12 @@ class NoneRewriter(BaseRewriter):
 
 class MultiQueryRewriter(BaseRewriter):
     """
+    Multi-Query Rewriter
     多查询改写器
 
-    调用 LLM 将用户问题改写为 3 个不同角度的查询，
-    提升检索召回率。
+    Calls LLM to rewrite user question into 3 queries from different angles,
+    improving retrieval recall.
+    调用 LLM 将用户问题改写为 3 个不同角度的查询，提升检索召回率。
     """
 
     SYSTEM_PROMPT = (
@@ -59,9 +64,9 @@ class MultiQueryRewriter(BaseRewriter):
     def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
         """
         Args:
-            db: 数据库会话
-            tenant_id: 租户 ID
-            model: LLM 模型代码（None 时使用默认）
+            db: Database session / 数据库会话
+            tenant_id: Tenant ID / 租户 ID
+            model: LLM model code (None for default) / LLM 模型代码（None 时使用默认）
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -70,9 +75,11 @@ class MultiQueryRewriter(BaseRewriter):
 
     async def rewrite(self, query: str) -> list[str]:
         """
+        Generate 3 rewritten queries from different angles
         生成 3 个不同角度的改写查询
 
-        返回列表始终包含原始查询
+        Returned list always includes the original query.
+        返回列表始终包含原始查询。
         """
         queries = [query]
 
@@ -93,7 +100,7 @@ class MultiQueryRewriter(BaseRewriter):
                 tenant_id=self.tenant_id,
             )
 
-            # 解析多行输出
+            # Parse multi-line output / 解析多行输出
             lines = [
                 line.strip()
                 for line in response.message.content.strip().split("\n")
@@ -114,7 +121,7 @@ class MultiQueryRewriter(BaseRewriter):
         return queries
 
     async def _get_model_info(self) -> tuple[str, str]:
-        """获取 LLM 模型信息"""
+        """Get LLM model info / 获取 LLM 模型信息"""
         from app.repositories.ai import AIModelRepository
         if self.model:
             model_repo = AIModelRepository(self.db)
@@ -122,15 +129,19 @@ class MultiQueryRewriter(BaseRewriter):
             if ai_model and ai_model.provider:
                 return ai_model.provider.code, ai_model.code
 
-        # 回退到默认模型
+        # Fallback to default model / 回退到默认模型
         from app.core.config import settings
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
 
 
 class HyDERewriter(BaseRewriter):
     """
-    HyDE (Hypothetical Document Embedding) 改写器
+    HyDE (Hypothetical Document Embedding) Rewriter
+    HyDE（假设性文档嵌入）改写器
 
+    Has LLM generate a hypothetical answer, then uses it for retrieval,
+    since hypothetical answers are typically closer to target document semantics
+    than short questions.
     让 LLM 生成一个假设性回答，用假设回答进行检索，
     因为假设回答通常比简短问题更接近目标文档的语义。
     """
@@ -150,9 +161,11 @@ class HyDERewriter(BaseRewriter):
 
     async def rewrite(self, query: str) -> list[str]:
         """
+        Generate hypothetical answer as retrieval query
         生成假设性回答作为检索查询
 
-        返回 [原始查询, 假设性回答]
+        Returns [original query, hypothetical answer].
+        返回 [原始查询, 假设性回答]。
         """
         queries = [query]
 
@@ -188,7 +201,7 @@ class HyDERewriter(BaseRewriter):
         return queries
 
     async def _get_model_info(self) -> tuple[str, str]:
-        """获取 LLM 模型信息"""
+        """Get LLM model info / 获取 LLM 模型信息"""
         from app.repositories.ai import AIModelRepository
         if self.model:
             model_repo = AIModelRepository(self.db)
@@ -207,16 +220,17 @@ def get_rewriter(
     model: str | None = None,
 ) -> BaseRewriter:
     """
+    Factory function: get rewriter instance by strategy name
     工厂函数：根据策略名获取改写器实例
 
     Args:
-        strategy: 改写策略 (none/multi/hyde)
-        db: 数据库会话
-        tenant_id: 租户 ID
-        model: LLM 模型代码
+        strategy: Rewrite strategy (none/multi/hyde) / 改写策略
+        db: Database session / 数据库会话
+        tenant_id: Tenant ID / 租户 ID
+        model: LLM model code / LLM 模型代码
 
     Returns:
-        改写器实例
+        Rewriter instance / 改写器实例
     """
     from app.enums.knowledge_base import RewriteStrategyEnum
     if strategy == RewriteStrategyEnum.MULTI.value:

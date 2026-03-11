@@ -1,7 +1,8 @@
 """
-租户管理员仓储
+租户管理员仓储 / Tenant Admin Repository
 
 提供租户管理员的数据访问操作（租户隔离）
+Provides tenant admin data access operations (tenant-isolated).
 """
 
 from sqlalchemy import or_, select

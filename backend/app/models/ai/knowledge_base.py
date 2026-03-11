@@ -1,7 +1,8 @@
 """
-知识库模型
+知识库模型 / Knowledge Base Model
 
 定义知识库的基本信息、Embedding 配置、分块配置、检索配置等
+Defines knowledge base basic info, embedding config, chunking config, retrieval config, etc.
 """
 
 from typing import TYPE_CHECKING

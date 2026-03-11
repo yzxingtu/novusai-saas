@@ -1,38 +1,40 @@
 """
-维护模式中间件
+Maintenance Mode Middleware / 维护模式中间件
 
+Intercepts non-admin requests with 503 when maintenance mode is enabled.
 当平台开启维护模式时，拦截非管理员请求返回 503。
-管理员端（/admin/*）不受影响，确保管理员可以正常操作。
+Admin endpoints (/admin/*) are unaffected / 管理员端不受影响。
 
-配置项：
-- maintenance_mode: bool — 维护模式开关
-- maintenance_message: str — 维护提示信息
+Config / 配置项：
+- maintenance_mode: bool — Maintenance mode toggle / 维护模式开关
+- maintenance_message: str — Maintenance message / 维护提示信息
 """
 
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-# 豁免路径：维护模式下仍可访问
+# Exempt paths: still accessible during maintenance / 豁免路径：维护模式下仍可访问
 _EXEMPT_PREFIXES = (
-    "/admin",          # 管理端（管理员需要正常操作）
-    "/api/public",     # 公开 API（获取维护状态等）
-    "/docs",           # API 文档
+    "/admin",          # Admin panel / 管理端
+    "/api/public",     # Public API / 公开 API
+    "/docs",           # API docs / API 文档
     "/redoc",
     "/openapi.json",
-    "/health",         # 健康检查
-    "/sio",            # Socket.IO（管理员连接）
-    "/files",          # 静态文件
+    "/health",         # Health check / 健康检查
+    "/sio",            # Socket.IO (admin connections) / Socket.IO（管理员连接）
+    "/files",          # Static files / 静态文件
 )
 
 
 class MaintenanceMiddleware:
     """
-    维护模式中间件
+    Maintenance Mode Middleware.
+    维护模式中间件。
 
-    读取平台配置 maintenance_mode，开启时：
-    - /admin/* 和 /api/public/* 正常放行
-    - 其他请求返回 503 + maintenance_message
-    - 使用 Redis 缓存减少 DB 查询
+    Reads platform config maintenance_mode, when enabled / 读取平台配置 maintenance_mode，开启时：
+    - /admin/* and /api/public/* pass through / 正常放行
+    - Other requests return 503 + maintenance_message / 其他请求返回 503
+    - Uses Redis cache to reduce DB queries / 使用 Redis 缓存减少 DB 查询
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -45,13 +47,13 @@ class MaintenanceMiddleware:
 
         path: str = scope.get("path", "")
 
-        # 豁免路径直接放行
+        # Exempt paths pass through / 豁免路径直接放行
         for prefix in _EXEMPT_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 await self.app(scope, receive, send)
                 return
 
-        # 检查维护模式
+        # Check maintenance mode / 检查维护模式
         if await self._is_maintenance_mode():
             message = await self._get_maintenance_message()
             response = JSONResponse(
@@ -69,7 +71,7 @@ class MaintenanceMiddleware:
 
     @staticmethod
     async def _is_maintenance_mode() -> bool:
-        """从 Redis 缓存或 DB 读取维护模式开关"""
+        """Read maintenance mode toggle from Redis cache or DB / 从 Redis 缓存或 DB 读取维护模式开关"""
         try:
             from app.core.redis import get_redis_client
             redis = get_redis_client()
@@ -79,7 +81,7 @@ class MaintenanceMiddleware:
         except Exception:
             pass
 
-        # Redis miss → 从 DB 读取
+        # Redis miss → read from DB / 从 DB 读取
         try:
             from app.configs.service import ConfigService
             from app.core.database import async_session_factory
@@ -90,7 +92,7 @@ class MaintenanceMiddleware:
 
             result = bool(value) if value is not None else False
 
-            # 写入缓存（60 秒 TTL，维护模式变更最多 1 分钟生效）
+            # Write to cache (60s TTL, maintenance mode change takes effect within 1 min) / 写入缓存
             try:
                 redis = get_redis_client()
                 await redis.set("maintenance:mode", "1" if result else "0", ex=60)
@@ -103,7 +105,7 @@ class MaintenanceMiddleware:
 
     @staticmethod
     async def _get_maintenance_message() -> str:
-        """获取维护提示信息"""
+        """Get maintenance message / 获取维护提示信息"""
         try:
             from app.core.redis import get_redis_client
             redis = get_redis_client()

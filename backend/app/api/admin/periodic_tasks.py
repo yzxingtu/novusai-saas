@@ -1,7 +1,8 @@
 """
-定时任务管理 API
+定时任务管理 API / Periodic Task API
 
 提供定时任务的 CRUD、启用/禁用、手动触发等管理接口
+Provides periodic task CRUD, enable/disable, manual trigger endpoints.
 """
 
 from fastapi import Path, Request
@@ -43,7 +44,7 @@ from app.services.system import PeriodicTaskService
 )
 class AdminPeriodicTaskController(GlobalController):
     """
-    定时任务管理控制器
+    定时任务管理控制器 / Periodic Task Management Controller
     """
 
     prefix = "/periodic-tasks"
@@ -53,7 +54,7 @@ class AdminPeriodicTaskController(GlobalController):
     def _register_routes(self) -> None:
         router = self.router
 
-        # 回收站路由必须在 /{task_id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{task_id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{task_id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=PeriodicTaskService,

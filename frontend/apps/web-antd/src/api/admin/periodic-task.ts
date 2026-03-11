@@ -1,19 +1,19 @@
+/**
+ * Periodic task API / 定时任务 API
+ * Backend: /admin/periodic-tasks/*
+ */
 import type {
   PeriodicTaskFormData,
   PeriodicTaskInfo,
   PeriodicTaskListParams,
   PeriodicTaskListResponse,
 } from '#/api/shared/periodic-task-types';
-/**
- * 定时任务 API
- * 对接后端 /admin/periodic-tasks/* 接口
- */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（从 shared 导入）
+// Type definitions (imported from shared) / 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -23,7 +23,7 @@ export type {
   PeriodicTaskListResponse,
 } from '#/api/shared/periodic-task-types';
 
-/** 定时任务信息（后端原始格式 snake_case） */
+/** Periodic task info (backend raw snake_case) / 定时任务信息（后端原始） */
 export interface PeriodicTaskInfoRaw {
   id: number;
   name: string;
@@ -48,7 +48,7 @@ export interface PeriodicTaskInfoRaw {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
 function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
@@ -77,13 +77,13 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/periodic-tasks';
 
 /**
- * 获取定时任务列表
+ * Get periodic task list / 获取定时任务列表
  * GET /admin/periodic-tasks
  */
 export async function getPeriodicTaskListApi(
@@ -106,7 +106,7 @@ export async function getPeriodicTaskListApi(
 }
 
 /**
- * 获取定时任务详情
+ * Get periodic task detail / 获取定时任务详情
  * GET /admin/periodic-tasks/{id}
  */
 export async function getPeriodicTaskDetailApi(
@@ -121,7 +121,7 @@ export async function getPeriodicTaskDetailApi(
 }
 
 /**
- * 创建定时任务
+ * Create periodic task / 创建定时任务
  * POST /admin/periodic-tasks
  */
 export async function createPeriodicTaskApi(
@@ -137,7 +137,7 @@ export async function createPeriodicTaskApi(
 }
 
 /**
- * 更新定时任务
+ * Update periodic task / 更新定时任务
  * PUT /admin/periodic-tasks/{id}
  */
 export async function updatePeriodicTaskApi(
@@ -154,7 +154,7 @@ export async function updatePeriodicTaskApi(
 }
 
 /**
- * 删除定时任务
+ * Delete periodic task / 删除定时任务
  * DELETE /admin/periodic-tasks/{id}
  */
 export async function deletePeriodicTaskApi(
@@ -165,7 +165,7 @@ export async function deletePeriodicTaskApi(
 }
 
 /**
- * 启用/禁用定时任务
+ * Enable/disable periodic task / 启用/禁用定时任务
  * POST /admin/periodic-tasks/{id}/toggle
  */
 export async function togglePeriodicTaskApi(
@@ -182,7 +182,7 @@ export async function togglePeriodicTaskApi(
 }
 
 /**
- * 手动触发定时任务
+ * Manually trigger periodic task / 手动触发定时任务
  * POST /admin/periodic-tasks/{id}/trigger
  */
 export async function triggerPeriodicTaskApi(

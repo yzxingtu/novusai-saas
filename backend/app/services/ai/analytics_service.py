@@ -1,7 +1,8 @@
 """
-AI 数据分析服务
+AI 数据分析服务 / AI Analytics Service
 
 提供 Admin 端 ECharts 图表所需的聚合分析数据：
+Provides aggregated analytics data for Admin ECharts dashboards:
 - T2: AI 调用趋势（按天聚合）
 - T3: 模型调用分布（饼图）
 - T4: 供应商性能对比（雷达图）

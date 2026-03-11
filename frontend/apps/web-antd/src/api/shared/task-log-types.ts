@@ -1,12 +1,12 @@
 /**
- * 任务日志共享类型定义
- * Admin 端和 Tenant 端共同使用
+ * Task log shared type definitions / 任务日志共享类型定义
+ * Used by both Admin and Tenant endpoints / Admin 端和 Tenant 端共同使用
  */
 
-/** 任务日志列表查询参数 */
+/** Task log list query params / 任务日志列表查询参数 */
 export type TaskLogListParams = Record<string, unknown>;
 
-/** 任务日志信息（前端格式 camelCase） */
+/** Task log info (frontend camelCase format) / 任务日志信息 */
 export interface TaskLogInfo {
   id: number;
   taskId: string;
@@ -25,19 +25,19 @@ export interface TaskLogInfo {
   createdAt: string;
 }
 
-/** 任务日志详情（含堆栈） */
+/** Task log detail (with traceback) / 任务日志详情（含堆栈） */
 export interface TaskLogDetailInfo extends TaskLogInfo {
   traceback: null | string;
 }
 
-/** 任务统计项 */
+/** Task stats item / 任务统计项 */
 export interface TaskStatsItem {
   status: string;
   count: number;
   avgDurationMs: number;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface TaskLogListResponse {
   items: TaskLogInfo[];
   total: number;

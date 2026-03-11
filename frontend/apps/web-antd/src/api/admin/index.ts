@@ -1,3 +1,7 @@
+/**
+ * Admin API module index / 平台管理端 API 模块入口
+ * Endpoints require platform admin authentication / 这些接口需要平台管理员认证
+ */
 export * from './ai';
 export * from './attachment';
 export * from './auth';

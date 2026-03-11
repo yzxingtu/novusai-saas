@@ -1,7 +1,8 @@
 """
-公共服务模块
+公共服务模块 / Common Service Module
 
 提供三端共用的服务和 Mixin
+Provides services and mixins shared across all endpoints.
 """
 
 from app.services.common.auth_service import AuthService

@@ -1,7 +1,8 @@
 """
-租户端 AI 配额和速率限制配置 API
+租户端 AI 配额和速率限制配置 API / Tenant AI Quota and Rate Limit Config API
 
 提供租户级配额管理和速率限制配置接口
+Provides tenant-level quota management and rate limit configuration endpoints
 """
 
 from fastapi import Query, Request
@@ -49,19 +50,20 @@ from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 )
 class TenantAIQuotaController(TenantController):
     """
-    租户 AI 配额和速率限制控制器
+    租户 AI 配额和速率限制控制器 / Tenant AI Quota and Rate Limit Controller
 
     提供配额管理和速率限制配置接口
+    Provides quota management and rate limit configuration endpoints
     """
 
     prefix = "/ai/quotas"
     tags = [_("menu.tags.tenant_ai_quota")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # ========== 配额管理 ==========
+        # ========== 配额管理 / Quota Management ==========
 
         @router.get("", summary="获取配额配置列表")
         @action_read("action.ai_quota.list_quotas")
@@ -74,9 +76,9 @@ class TenantAIQuotaController(TenantController):
             include_usage: bool = Query(False, description="是否包含使用量"),
         ):
             """
-            获取租户配额配置列表
+            获取租户配额配置列表 / Get tenant quota config list
 
-            权限: ai_quota:list_quotas
+            权限 / Permission: ai_quota:list_quotas
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
 
@@ -89,7 +91,7 @@ class TenantAIQuotaController(TenantController):
                 else:
                     raw_list = await service.get_all_quotas_with_usage(period)
 
-                # 将 ORM 对象序列化为包含 model_name 的字典
+                # 将 ORM 对象序列化为包含 model_name 的字典 / Serialize ORM objects to dicts containing model_name
                 result = []
                 for item in raw_list:
                     result.append({
@@ -109,9 +111,11 @@ class TenantAIQuotaController(TenantController):
 
             return success(data=result, message=_("common.success"))
 
-        # ========== 速率限制管理 ==========
+        # ========== 速率限制管理 / Rate Limit Management ==========
         # 注意：rate-limits 路由必须在 /{quota_id} 之前注册，
         # 否则 "rate-limits" 会被 FastAPI 匹配为 {quota_id} 参数
+        # Note: rate-limits routes must be registered before /{quota_id},
+        # otherwise "rate-limits" would be matched as {quota_id} parameter by FastAPI
 
         @router.get("/rate-limits", summary="获取速率限制配置列表")
         @action_read("action.ai_quota.list_rate_limits")
@@ -122,9 +126,9 @@ class TenantAIQuotaController(TenantController):
             model_id: int | None = Query(None, description="模型 ID"),
         ):
             """
-            获取速率限制配置列表
+            获取速率限制配置列表 / Get rate limit config list
 
-            权限: ai_quota:list_rate_limits
+            权限 / Permission: ai_quota:list_rate_limits
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             items = await service.get_active_limits(
@@ -143,9 +147,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取有效的速率限制
+            获取有效的速率限制 / Get effective rate limits
 
-            权限: ai_quota:effective_rate_limits
+            权限 / Permission: ai_quota:effective_rate_limits
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             result = await service.get_effective_rate_limits(model_id)
@@ -161,9 +165,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            创建速率限制配置
+            创建速率限制配置 / Create rate limit config
 
-            权限: ai_quota:create_rate_limit
+            权限 / Permission: ai_quota:create_rate_limit
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             rate_limit = await service.create_rate_limit(
@@ -186,9 +190,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            更新速率限制配置
+            更新速率限制配置 / Update rate limit config
 
-            权限: ai_quota:update_rate_limit
+            权限 / Permission: ai_quota:update_rate_limit
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             rate_limit = await service.get_by_id(rate_limit_id)
@@ -214,9 +218,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除速率限制配置
+            删除速率限制配置 / Delete rate limit config
 
-            权限: ai_quota:delete_rate_limit
+            权限 / Permission: ai_quota:delete_rate_limit
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
             rate_limit = await service.get_by_id(rate_limit_id)
@@ -232,7 +236,7 @@ class TenantAIQuotaController(TenantController):
 
             return success(message=_("ai.rate_limit.deleted"))
 
-        # ========== 配额详情与 CRUD（含路径参数） ==========
+        # ========== 配额详情与 CRUD（含路径参数） / Quota Details & CRUD (with path params) ==========
 
         @router.get("/{quota_id}", summary="获取配额配置详情")
         @action_read("action.ai_quota.detail_quota")
@@ -243,9 +247,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取配额配置详情
+            获取配额配置详情 / Get quota config details
 
-            权限: ai_quota:detail_quota
+            权限 / Permission: ai_quota:detail_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
             quota = await service.get_by_id(quota_id)
@@ -284,9 +288,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            创建配额配置
+            创建配额配置 / Create quota config
 
-            权限: ai_quota:create_quota
+            权限 / Permission: ai_quota:create_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
             quota = await service.create_quota(
@@ -311,9 +315,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            更新配额配置
+            更新配额配置 / Update quota config
 
-            权限: ai_quota:update_quota
+            权限 / Permission: ai_quota:update_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
             quota = await service.get_by_id(quota_id)
@@ -339,9 +343,9 @@ class TenantAIQuotaController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除配额配置
+            删除配额配置 / Delete quota config
 
-            权限: ai_quota:delete_quota
+            权限 / Permission: ai_quota:delete_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
             quota = await service.get_by_id(quota_id)
@@ -358,7 +362,7 @@ class TenantAIQuotaController(TenantController):
             return success(message=_("ai.quota.deleted"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAIQuotaController.get_router()
 
 __all__ = ["router", "TenantAIQuotaController"]

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Plan list page
  * 套餐列表页面
  */
 import type { adminApi } from '#/api';
@@ -36,7 +37,7 @@ defineOptions({ name: 'TenantPlanList' });
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
-/** 复制编码到剪贴板 */
+/** Copy code to clipboard / 复制编码到剪贴板 */
 async function onCopyCode(code: string) {
   const success = await copyToClipboard(code);
   if (success) {
@@ -46,15 +47,15 @@ async function onCopyCode(code: string) {
   }
 }
 
-// 权限弹窗相关
+// Permissions modal / 权限弹窗相关
 const permissionsModalRef = ref<InstanceType<typeof PermissionsModal>>();
 
-// 处理设置权限
+// Handle set permissions / 处理设置权限
 function handleSetPermissions(row: TenantPlanInfo) {
   permissionsModalRef.value?.open(row);
 }
 
-// 声明式 CRUD 页面（导出按钮自动添加）
+// Declarative CRUD page (export button auto-added) / 声明式 CRUD 页面（导出按钮自动添加）
 const { Grid, FormDrawer, ExportModal, openExportModal, gridApi, onRefresh } =
   useCrudPage<TenantPlanInfo>({
     api: {
@@ -76,7 +77,7 @@ const { Grid, FormDrawer, ExportModal, openExportModal, gridApi, onRefresh } =
     },
   });
 
-// 拖拽排序（自动初始化）
+// Drag sort (auto-initialized) / 拖拽排序（自动初始化）
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => admin.reorderTenantPlansApi(ids as number[]),
   keyField: 'id',

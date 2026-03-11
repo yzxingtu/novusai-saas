@@ -1,5 +1,5 @@
 """
-智能体知识库绑定相关 Schema
+智能体知识库绑定相关 Schema / Agent KB Binding Schema
 """
 
 from pydantic import Field

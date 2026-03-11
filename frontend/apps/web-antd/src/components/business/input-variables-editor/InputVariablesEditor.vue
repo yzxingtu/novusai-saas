@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
- * InputVariablesEditor — 输入变量可视化编辑器
+ * InputVariablesEditor — Input Variables Visual Editor
+ * 输入变量可视化编辑器
  *
+ * Replaces JSON textarea, provides row-by-row visual editing for agent input_variables.
  * 替代 JSON textarea，为智能体 input_variables 提供逐行可视化编辑体验。
+ * Non-technical user friendly: name/label/type/required/default each with independent input.
  * 非技术人员友好：名称/标签/类型/必填/默认值每项独立输入。
  */
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';

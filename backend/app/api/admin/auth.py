@@ -1,7 +1,8 @@
 """
-平台管理员认证 API
+平台管理员认证 API / Platform Admin Auth API
 
 提供平台管理员的登录、登出、Token 刷新等接口
+Provides platform admin login, logout, token refresh endpoints.
 """
 
 from fastapi import APIRouter, Request
@@ -30,10 +31,10 @@ async def admin_login(
     login_data: AdminLoginRequest,
 ):
     """
-    平台管理员登录
+    平台管理员登录 / Platform admin login
 
-    - **username**: 用户名或邮箱
-    - **password**: 密码
+    - **username**: 用户名或邮箱 / Username or email
+    - **password**: 密码 / Password
     """
     auth_service = AuthService(db)
 
@@ -60,7 +61,7 @@ async def refresh_token(
     refresh_data: RefreshTokenRequest,
 ):
     """
-    使用 Refresh Token 获取新的 Token 对
+    使用 Refresh Token 获取新的 Token 对 / Get new token pair using refresh token
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_admin_token(refresh_data.refresh_token)
@@ -77,7 +78,7 @@ async def admin_logout(
     current_admin: ActiveAdmin,
 ):
     """
-    管理员登出
+    管理员登出 / Admin logout
     """
     return success(
         message=_("auth.logout_success"),
@@ -90,7 +91,7 @@ async def get_current_admin_info(
     current_admin: ActiveAdmin,
 ):
     """
-    获取当前登录管理员的详细信息
+    获取当前登录管理员的详细信息 / Get current logged-in admin details
     """
     return success(
         data=AdminResponse.model_validate(current_admin, from_attributes=True),
@@ -106,7 +107,7 @@ async def change_password(
     password_data: AdminChangePasswordRequest,
 ):
     """
-    修改当前管理员密码
+    修改当前管理员密码 / Change current admin password
     """
     auth_service = AuthService(db)
 
@@ -130,9 +131,9 @@ async def update_profile(
     profile_data: AdminUpdateProfileRequest,
 ):
     """
-    修改当前管理员的个人信息
+    修改当前管理员的个人信息 / Update current admin profile
 
-    允许修改: nickname, avatar, email, phone
+    允许修改 / Allowed fields: nickname, avatar, email, phone
     """
     update_fields = profile_data.model_dump(exclude_unset=True)
     if not update_fields:

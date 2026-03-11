@@ -1,7 +1,8 @@
 """
-系统智能体绑定服务
+系统智能体绑定服务 / System Agent Assignment Service
 
 提供系统智能体绑定的业务逻辑
+Provides system agent assignment business logic.
 """
 
 from typing import Any

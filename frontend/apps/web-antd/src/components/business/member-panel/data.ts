@@ -1,6 +1,8 @@
 import type { AnyPromiseFunction } from '@vben/types';
 
 /**
+ * Member Management - Form Configuration
+ * Follows vben-admin conventions, independent of specific view pages
  * 成员管理 - 表单配置
  * 遵循 vben-admin 规范，独立于具体视图页面
  */
@@ -9,27 +11,28 @@ import type { VbenFormSchema } from '#/adapter/form';
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
-/** 角色树 API 类型 */
+/** Role tree API type / 角色树 API 类型 */
 export type RoleTreeApi = AnyPromiseFunction<any, any>;
 
 /**
+ * Admin create/edit form Schema
  * 管理员新建/编辑表单 Schema
- * @param options 配置选项
+ * @param options - Configuration options / 配置选项
  */
 export function useAdminFormSchema(options: {
-  /** 是否编辑模式 */
+  /** Whether in edit mode / 是否编辑模式 */
   isEdit?: boolean;
-  /** 当前组织节点 ID（用于默认选中） */
+  /** Current org node ID (for default selection) / 当前组织节点 ID（用于默认选中） */
   nodeId?: null | number;
-  /** 组织节点名称（用于默认显示） */
+  /** Org node name (for default display) / 组织节点名称（用于默认显示） */
   nodeName?: string;
-  /** 角色树 API（可选择角色） */
+  /** Role tree API (for role selection) / 角色树 API（可选择角色） */
   roleTreeApi?: RoleTreeApi;
 }): VbenFormSchema[] {
   const { isEdit = false, nodeName, nodeId, roleTreeApi } = options;
 
   return [
-    // === 基本信息 ===
+    // === Basic Info / 基本信息 ===
     {
       component: 'Divider',
       componentProps: {
@@ -62,7 +65,7 @@ export function useAdminFormSchema(options: {
       fieldName: 'nickname',
       label: $t('admin.system.admin.nickname'),
     },
-    // 密码字段仅在新建模式显示
+    // Password field only shown in create mode / 密码字段仅在新建模式显示
     ...(isEdit
       ? []
       : [
@@ -77,7 +80,7 @@ export function useAdminFormSchema(options: {
             rules: 'required',
           },
         ]),
-    // === 联系方式 ===
+    // === Contact Info / 联系方式 ===
     {
       component: 'Divider',
       componentProps: {
@@ -106,7 +109,7 @@ export function useAdminFormSchema(options: {
       fieldName: 'phone',
       label: $t('admin.system.admin.phone'),
     },
-    // === 权限设置 ===
+    // === Permission Settings / 权限设置 ===
     {
       component: 'Divider',
       componentProps: {
@@ -118,6 +121,7 @@ export function useAdminFormSchema(options: {
         default: () => $t('admin.common.permissionSettings'),
       }),
     },
+    // Role selection: if roleTreeApi provided, show selectable dropdown tree with current node selected; otherwise show read-only text
     // 角色选择：若提供 roleTreeApi，则显示可选下拉树，默认选中当前节点；否则显示只读文本
     ...(roleTreeApi
       ? [
@@ -173,9 +177,10 @@ export function useAdminFormSchema(options: {
 }
 
 /**
+ * Admin form default values (create mode)
  * 管理员表单默认值（新建模式）
- * @param nodeName 组织节点名称
- * @param nodeId 组织节点 ID（用于默认选中角色）
+ * @param nodeName - Org node name / 组织节点名称
+ * @param nodeId - Org node ID (for default role selection) / 组织节点 ID（用于默认选中角色）
  */
 export function getAdminFormDefaults(
   nodeName?: string,
@@ -189,6 +194,8 @@ export function getAdminFormDefaults(
 }
 
 /**
+ * Reset Password Form Schema
+ * Password consistency validation implemented via Zod dependencies
  * 重置密码表单 Schema
  * 密码一致性校验通过 Zod dependencies 实现
  */

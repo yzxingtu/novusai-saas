@@ -1,6 +1,6 @@
-"""
-WebSocket & 通知设置配置项
+"""WebSocket & notification settings config items / WebSocket & 通知设置配置项
 
+Includes Socket.IO connection params and notification system config.
 包含 Socket.IO 连接参数和通知系统配置
 """
 
@@ -9,10 +9,10 @@ from app.configs.meta import ConfigMeta, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
-# Socket.IO 连接配置
+# Socket.IO connection config / Socket.IO 连接配置
 # ==========================================
 
-# Socket.IO 总开关
+# Socket.IO master toggle / Socket.IO 总开关
 WS_ENABLED = ConfigMeta(
     key="ws_enabled",
     name_key="config.platform.ws_enabled.name",
@@ -23,7 +23,7 @@ WS_ENABLED = ConfigMeta(
     sort_order=10,
 )
 
-# ping 间隔（秒）
+# Ping interval (seconds) / ping 间隔（秒）
 WS_PING_INTERVAL = ConfigMeta(
     key="ws_ping_interval",
     name_key="config.platform.ws_ping_interval.name",
@@ -37,7 +37,7 @@ WS_PING_INTERVAL = ConfigMeta(
     ],
 )
 
-# ping 超时（秒）
+# Ping timeout (seconds) / ping 超时（秒）
 WS_PING_TIMEOUT = ConfigMeta(
     key="ws_ping_timeout",
     name_key="config.platform.ws_ping_timeout.name",
@@ -51,7 +51,7 @@ WS_PING_TIMEOUT = ConfigMeta(
     ],
 )
 
-# 单用户最大连接数
+# Max connections per user / 单用户最大连接数
 WS_MAX_CONNECTIONS_PER_USER = ConfigMeta(
     key="ws_max_connections_per_user",
     name_key="config.platform.ws_max_connections_per_user.name",
@@ -67,10 +67,10 @@ WS_MAX_CONNECTIONS_PER_USER = ConfigMeta(
 
 
 # ==========================================
-# 通知系统配置
+# Notification system config / 通知系统配置
 # ==========================================
 
-# 通知系统总开关
+# Notification system toggle / 通知系统总开关
 NOTIFICATION_ENABLED = ConfigMeta(
     key="notification_enabled",
     name_key="config.platform.notification_enabled.name",
@@ -81,7 +81,7 @@ NOTIFICATION_ENABLED = ConfigMeta(
     sort_order=100,
 )
 
-# 通知保留天数
+# Notification retention days / 通知保留天数
 NOTIFICATION_RETENTION_DAYS = ConfigMeta(
     key="notification_retention_days",
     name_key="config.platform.notification_retention_days.name",
@@ -95,7 +95,7 @@ NOTIFICATION_RETENTION_DAYS = ConfigMeta(
     ],
 )
 
-# 每用户最大通知存储条数
+# Max notifications stored per user / 每用户最大通知存储条数
 NOTIFICATION_MAX_PER_USER = ConfigMeta(
     key="notification_max_per_user",
     name_key="config.platform.notification_max_per_user.name",
@@ -111,7 +111,7 @@ NOTIFICATION_MAX_PER_USER = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
+# Register configs to group / 注册配置到分组
 # ==========================================
 
 PLATFORM_WEBSOCKET_GROUP.configs = [

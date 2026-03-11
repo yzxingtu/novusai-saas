@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Operation log list page (tenant)
  * 操作日志列表页面（租户端）
  */
 import type { tenantApi } from '#/api';
@@ -33,23 +34,23 @@ defineOptions({ name: 'TenantOperationLogList' });
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
 
-// 详情抽屉
+// Detail drawer / 详情抽屉
 const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
   connectedComponent: DetailDrawer,
 });
 
 /**
- * 查看详情
+ * View detail / 查看详情
  */
 function onViewDetail(row: OperationLogInfo) {
   detailDrawerApi.setData({ id: row.id }).open();
 }
 
-// 用户类型筛选联动：选择类型后，操作人下拉只显示对应类型的用户
+// User type filter linkage: after selecting type, operator dropdown only shows users of that type / 用户类型筛选联动：选择类型后，操作人下拉只显示对应类型的用户
 function onUserTypeChange(userType: string | undefined) {
-  // 清空已选操作人（因为可能不属于新类型）
+  // Clear selected operator (may not belong to the new type) / 清空已选操作人（因为可能不属于新类型）
   gridApi.formApi?.setValues({ 'filter[username]': undefined });
-  // 更新 ApiSelect 的请求参数，注入 user_type
+  // Update ApiSelect params, inject user_type / 更新 ApiSelect 的请求参数，注入 user_type
   gridApi.formApi?.updateSchema([
     {
       componentProps: {
@@ -60,7 +61,7 @@ function onUserTypeChange(userType: string | undefined) {
   ]);
 }
 
-// CRUD 页面（只读列表）
+// CRUD page (read-only list) / CRUD 页面（只读列表）
 const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
     list: tenant.getOperationLogListApi,
@@ -76,7 +77,7 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   },
 });
 
-// 头像映射（用于表格行显示头像）
+// Avatar map (for table row avatar display) / 头像映射（用于表格行显示头像）
 const avatarMap = ref<Record<number, null | string | undefined>>({});
 
 async function loadAvatarMap() {

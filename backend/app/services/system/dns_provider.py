@@ -1,7 +1,8 @@
 """
-DNS Provider 抽象层
+DNS Provider 抽象层 / DNS Provider Abstraction Layer
 
 为 ACME DNS-01 验证提供 TXT 记录设置/清理能力。
+Provides TXT record set/cleanup for ACME DNS-01 validation.
 支持多种 DNS 提供商（Cloudflare、阿里云 DNS 等），通过平台配置动态选择。
 
 使用方式（由 Celery SSL 任务调用）：

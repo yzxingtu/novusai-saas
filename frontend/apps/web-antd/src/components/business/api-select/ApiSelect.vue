@@ -1,16 +1,17 @@
 <script lang="ts" setup>
 /**
+ * ApiSelect - Remote Dropdown Select Component
  * ApiSelect - 远程下拉选择组件
  *
- * 功能：
- * - 支持静态选项 (options prop)
- * - 支持远程加载 (api prop)
- * - 支持远程搜索 (showSearch + filterOption: false)
- * - 支持分页 (pagination prop)
- * - 支持点击翻页 (clickPagination prop)
- * - 骨架屏加载效果
- * - 支持选项右侧显示额外内容 (optionRightField / option slot)
- * - 完整分页控件（总条数/总页数/每页条数/页码跳转）
+ * Features / 功能：
+ * - Static options (options prop) / 支持静态选项
+ * - Remote loading (api prop) / 支持远程加载
+ * - Remote search (showSearch + filterOption: false) / 支持远程搜索
+ * - Pagination (pagination prop) / 支持分页
+ * - Click pagination (clickPagination prop) / 支持点击翻页
+ * - Skeleton loading effect / 骨架屏加载效果
+ * - Extra content on option right side (optionRightField / option slot) / 支持选项右侧显示额外内容
+ * - Full pagination controls (total/pages/pageSize/jump) / 完整分页控件
  */
 import type { SelectProps } from 'ant-design-vue';
 
@@ -26,7 +27,7 @@ import {
 import { useDebounceFn } from '@vueuse/core';
 import { Select, SelectOption, Skeleton, Tooltip } from 'ant-design-vue';
 
-// 选项类型
+// Option type / 选项类型
 interface OptionItem {
   label: string;
   value: number | string;
@@ -35,7 +36,7 @@ interface OptionItem {
   [key: string]: any;
 }
 
-// API 响应类型
+// API response type / API 响应类型
 interface ApiResponse {
   items?: OptionItem[];
   total?: number;
@@ -69,50 +70,50 @@ const emit = defineEmits<{
   'update:value': [number | string | undefined];
 }>();
 
-// 每页条数选项
+// Page size options / 每页条数选项
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 interface Props {
-  /** 静态选项 */
+  /** Static options / 静态选项 */
   options?: OptionItem[];
-  /** 远程 API 函数 */
+  /** Remote API function / 远程 API 函数 */
   api?: (params: Record<string, any>) => Promise<ApiResponse | OptionItem[]>;
-  /** API 额外参数 */
+  /** API extra parameters / API 额外参数 */
   params?: Record<string, any>;
-  /** 从响应中提取 items 的字段路径 */
+  /** Field path to extract items from response / 从响应中提取 items 的字段路径 */
   resultField?: string;
-  /** label 字段名 */
+  /** Label field name / label 字段名 */
   labelField?: string;
-  /** value 字段名 */
+  /** Value field name / value 字段名 */
   valueField?: string;
-  /** 选项右侧显示的字段路径，支持点表语法如 'extra.code' */
+  /** Field path for option right side display, supports dot notation e.g. 'extra.code' / 选项右侧显示的字段路径，支持点表语法如 'extra.code' */
   optionRightField?: string;
-  /** 是否立即加载 */
+  /** Whether to load immediately / 是否立即加载 */
   immediate?: boolean;
-  /** 是否启用分页 */
+  /** Whether to enable pagination / 是否启用分页 */
   pagination?: boolean;
-  /** 是否显示点击分页控件 */
+  /** Whether to show click pagination controls / 是否显示点击分页控件 */
   clickPagination?: boolean;
-  /** 每页数量 */
+  /** Page size / 每页数量 */
   pageSize?: number;
-  /** 搜索参数名 */
+  /** Search parameter name / 搜索参数名 */
   searchParamName?: string;
-  /** 页码参数名 */
+  /** Page number parameter name / 页码参数名 */
   pageParamName?: string;
-  /** 每页数量参数名 */
+  /** Page size parameter name / 每页数量参数名 */
   pageSizeParamName?: string;
-  /** 搜索防抖延迟(ms) */
+  /** Search debounce delay (ms) / 搜索防抖延迟(ms) */
   debounceTime?: number;
-  /** 是否显示每页条数选择器 */
+  /** Whether to show page size changer / 是否显示每页条数选择器 */
   showSizeChanger?: boolean;
 }
 
 const slots = useSlots();
 
-// v-model:value 兼容 Ant Design Vue 的 value 属性
+// v-model:value compatible with Ant Design Vue value prop / v-model:value 兼容 Ant Design Vue 的 value 属性
 const modelValue = defineModel<number | string | undefined>('value');
 
-// 状态
+// State / 状态
 const loading = ref(false);
 const remoteOptions = ref<OptionItem[]>([]);
 const currentPage = ref(1);
@@ -123,13 +124,13 @@ const searchValue = ref('');
 const isDropdownOpen = ref(false);
 const isFirstLoad = ref(true);
 
-// 计算总页数
+// Calculate total pages / 计算总页数
 const totalPages = computed(() => {
   if (totalCount.value === 0) return 1;
   return Math.ceil(totalCount.value / currentPageSize.value);
 });
 
-// 从对象中获取嵌套属性值，支持点表语法如 'extra.code'
+// Get nested property value from object, supports dot notation e.g. 'extra.code' / 从对象中获取嵌套属性值，支持点表语法如 'extra.code'
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   if (!path) return undefined;
   let result: unknown = obj;
@@ -139,11 +140,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return result;
 }
 
-// 计算最终选项（保留完整原始数据）
+// Calculate final options (preserve complete original data) / 计算最终选项（保留完整原始数据）
 const finalOptions = computed(() => {
   if (props.api) {
     return remoteOptions.value.map((item) => ({
-      ...item, // 保留所有原始数据（包括 extra）
+      ...item, // Preserve all original data (including extra) / 保留所有原始数据（包括 extra）
       label: item[props.labelField] as string,
       value: item[props.valueField] as number | string,
       disabled: item.disabled,
@@ -152,23 +153,23 @@ const finalOptions = computed(() => {
   return props.options;
 });
 
-// 是否需要自定义渲染选项（有 optionRightField 或有 option 插槽）
+// Whether custom option rendering is needed (has optionRightField or option slot) / 是否需要自定义渲染选项（有 optionRightField 或有 option 插槽）
 const needCustomOption = computed(() => {
   return !!props.optionRightField || !!slots.option;
 });
 
-// 是否显示分页控件
+// Whether to show pagination controls / 是否显示分页控件
 const showPagination = computed(() => {
   return props.clickPagination && props.pagination && props.api;
 });
 
-// 上一页禁用状态
+// Previous page disabled state / 上一页禁用状态
 const isPrevDisabled = computed(() => loading.value || currentPage.value <= 1);
 
-// 下一页禁用状态
+// Next page disabled state / 下一页禁用状态
 const isNextDisabled = computed(() => loading.value || !hasMore.value);
 
-// 从响应中提取数据
+// Extract data from response / 从响应中提取数据
 function extractItems(response: ApiResponse | OptionItem[]): OptionItem[] {
   if (Array.isArray(response)) {
     return response;
@@ -179,7 +180,7 @@ function extractItems(response: ApiResponse | OptionItem[]): OptionItem[] {
   return [];
 }
 
-// 从响应中提取分页信息
+// Extract pagination info from response / 从响应中提取分页信息
 function extractPaginationInfo(
   response: ApiResponse | OptionItem[],
   itemCount: number,
@@ -190,18 +191,18 @@ function extractPaginationInfo(
     return;
   }
 
-  // 提取总数
+  // Extract total count / 提取总数
   if (typeof response.total === 'number') {
     totalCount.value = response.total;
   }
 
-  // 优先使用 has_more 字段
+  // Prefer has_more field / 优先使用 has_more 字段
   if (typeof response.has_more === 'boolean') {
     hasMore.value = response.has_more;
     return;
   }
 
-  // 使用 total/page/page_size 计算
+  // Calculate using total/page/page_size / 使用 total/page/page_size 计算
   if (
     typeof response.total === 'number' &&
     typeof response.page === 'number' &&
@@ -211,11 +212,11 @@ function extractPaginationInfo(
     return;
   }
 
-  // 兖底：根据返回数量判断
+  // Fallback: determine by returned count / 兖底：根据返回数量判断
   hasMore.value = itemCount >= currentPageSize.value;
 }
 
-// 加载数据
+// Load data / 加载数据
 async function fetchData(
   page: number = 1,
   append: boolean = false,
@@ -230,12 +231,12 @@ async function fetchData(
       ...props.params,
     };
 
-    // 添加搜索参数
+    // Add search params / 添加搜索参数
     if (searchValue.value) {
       params[props.searchParamName] = searchValue.value;
     }
 
-    // 添加分页参数
+    // Add pagination params / 添加分页参数
     const pageSizeToUse = newPageSize ?? currentPageSize.value;
     if (props.pagination) {
       params[props.pageParamName] = page;
@@ -245,7 +246,7 @@ async function fetchData(
     const response = await props.api(params);
     const items = extractItems(response);
 
-    // 处理分页信息
+    // Process pagination info / 处理分页信息
     if (props.pagination) {
       extractPaginationInfo(response, items.length);
       currentPage.value = page;
@@ -254,7 +255,7 @@ async function fetchData(
       }
     }
 
-    // 更新选项
+    // Update options / 更新选项
     remoteOptions.value =
       append && page > 1 ? [...remoteOptions.value, ...items] : items;
 
@@ -267,19 +268,19 @@ async function fetchData(
   }
 }
 
-// 防抖搜索
+// Debounced search / 防抖搜索
 const debouncedSearch = useDebounceFn((value: string) => {
   searchValue.value = value;
   currentPage.value = 1;
   fetchData(1, false);
 }, props.debounceTime);
 
-// 搜索处理
+// Search handler / 搜索处理
 function handleSearch(value: string) {
   debouncedSearch(value);
 }
 
-// 下拉框展开/关闭
+// Dropdown open/close / 下拉框展开/关闭
 function handleDropdownVisibleChange(open: boolean) {
   isDropdownOpen.value = open;
   if (open && props.api && remoteOptions.value.length === 0) {
@@ -287,7 +288,7 @@ function handleDropdownVisibleChange(open: boolean) {
   }
 }
 
-// 上一页
+// Previous page / 上一页
 function handlePrevPage(e: MouseEvent) {
   e.preventDefault();
   e.stopPropagation();
@@ -295,7 +296,7 @@ function handlePrevPage(e: MouseEvent) {
   fetchData(currentPage.value - 1, false);
 }
 
-// 下一页
+// Next page / 下一页
 function handleNextPage(e: MouseEvent) {
   e.preventDefault();
   e.stopPropagation();
@@ -303,14 +304,14 @@ function handleNextPage(e: MouseEvent) {
   fetchData(currentPage.value + 1, false);
 }
 
-// 每页条数变化
+// Page size change / 每页条数变化
 function handlePageSizeChange(size: number) {
   currentPageSize.value = size;
   currentPage.value = 1;
   fetchData(1, false, size);
 }
 
-// 滚动加载更多
+// Scroll to load more / 滚动加载更多
 function handlePopupScroll(e: Event) {
   if (
     !props.pagination ||
@@ -330,7 +331,7 @@ function handlePopupScroll(e: Event) {
   }
 }
 
-// 初始加载
+// Initial load / 初始加载
 watch(
   () => props.params,
   () => {
@@ -342,9 +343,9 @@ watch(
   { immediate: props.immediate, deep: true },
 );
 
-// 透传的 Select 属性
+// Pass-through Select props / 透传的 Select 属性
 const selectProps = computed<SelectProps>(() => ({
-  // 如果需要自定义渲染选项，不传 options，改用 SelectOption 子组件
+  // If custom option rendering is needed, don't pass options, use SelectOption sub-component / 如果需要自定义渲染选项，不传 options，改用 SelectOption 子组件
   options: needCustomOption.value ? undefined : finalOptions.value,
   loading: loading.value,
   showSearch: true,
@@ -355,16 +356,16 @@ const selectProps = computed<SelectProps>(() => ({
 }));
 
 defineExpose({
-  /** 刷新数据 */
+  /** Refresh data / 刷新数据 */
   refresh: () => fetchData(1, false),
-  /** 获取当前选项 */
+  /** Get current options / 获取当前选项 */
   getOptions: () => finalOptions.value,
 });
 </script>
 
 <template>
   <Select v-model:value="modelValue" v-bind="{ ...$attrs, ...selectProps }">
-    <!-- 自定义选项渲染（当有 optionRightField 或 option 插槽时） -->
+    <!-- Custom option rendering (when optionRightField or option slot is present) / 自定义选项渲染（当有 optionRightField 或 option 插槽时） -->
     <template v-if="needCustomOption">
       <SelectOption
         v-for="option in finalOptions"
@@ -373,7 +374,7 @@ defineExpose({
         :disabled="option.disabled"
         :label="option.label"
       >
-        <!-- 使用 option 插槽自定义渲染 -->
+        <!-- Use option slot for custom rendering / 使用 option 插槽自定义渲染 -->
         <slot name="option" :option="option">
           <div class="api-select-option">
             <Tooltip
@@ -391,7 +392,7 @@ defineExpose({
       </SelectOption>
     </template>
 
-    <!-- 后缀图标：加载时显示旋转图标，否则显示下拉箭头 -->
+    <!-- Suffix icon: show spinner when loading, otherwise show dropdown arrow / 后缀图标：加载时显示旋转图标，否则显示下拉箭头 -->
     <template #suffixIcon>
       <LoaderCircle v-if="loading" class="api-select-loading-icon" />
       <slot v-else name="suffixIcon">
@@ -399,10 +400,10 @@ defineExpose({
       </slot>
     </template>
 
-    <!-- 自定义下拉内容 -->
+    <!-- Custom dropdown content / 自定义下拉内容 -->
     <template #dropdownRender="{ menuNode }">
       <div class="api-select-dropdown">
-        <!-- 骨架屏加载 -->
+        <!-- Skeleton loading / 骨架屏加载 -->
         <div
           v-if="loading && (isFirstLoad || clickPagination)"
           class="api-select-skeleton"
@@ -417,14 +418,14 @@ defineExpose({
           />
         </div>
 
-        <!-- 原始菜单 -->
+        <!-- Original menu / 原始菜单 -->
         <div v-show="!loading || (!isFirstLoad && !clickPagination)">
           <component :is="menuNode" />
         </div>
 
-        <!-- 分页控件 -->
+        <!-- Pagination controls / 分页控件 -->
         <div v-if="showPagination" class="api-select-pagination">
-          <!-- 左侧：总条数 + 每页条数 -->
+          <!-- Left: total count + page size / 左侧：总条数 + 每页条数 -->
           <div class="api-select-pagination__left">
             <span class="api-select-pagination__total">
               {{ $t('shared.common.totalCount', { count: totalCount }) }}
@@ -450,7 +451,7 @@ defineExpose({
             />
           </div>
 
-          <!-- 右侧：分页按钮 -->
+          <!-- Right: pagination buttons / 右侧：分页按钮 -->
           <div class="api-select-pagination__right">
             <button
               type="button"
@@ -496,7 +497,7 @@ defineExpose({
   }
 }
 
-/* 窄屏时隐藏每页条数选择器，保留核心分页功能 */
+/* Hide page size selector on narrow screens, preserve core pagination / 窄屏时隐藏每页条数选择器，保留核心分页功能 */
 @container (max-width: 200px) {
   .api-select-pagination__size {
     display: none;
@@ -507,12 +508,12 @@ defineExpose({
   animation: spin 1s linear infinite;
 }
 
-/* 下拉容器 */
+/* Dropdown container / 下拉容器 */
 .api-select-dropdown {
   position: relative;
 }
 
-/* 骨架屏 */
+/* Skeleton loading / 骨架屏 */
 .api-select-skeleton {
   padding: 8px 12px;
 }
@@ -534,7 +535,7 @@ defineExpose({
   border-radius: 4px;
 }
 
-/* 分页控件 - 使用 container query 支持窄屏自适应 */
+/* Pagination controls - uses container query for narrow screen adaptation / 分页控件 - 使用 container query 支持窄屏自适应 */
 .api-select-pagination {
   display: flex;
   flex-wrap: wrap;
@@ -624,7 +625,7 @@ defineExpose({
   color: var(--ant-color-text-quaternary);
 }
 
-/* 下拉箭头图标 */
+/* Dropdown arrow icon / 下拉箭头图标 */
 .api-select-arrow-icon {
   width: 12px;
   height: 12px;
@@ -632,7 +633,7 @@ defineExpose({
   transition: transform 0.3s;
 }
 
-/* 选项样式 */
+/* Option styles / 选项样式 */
 .api-select-option {
   display: flex;
   gap: 8px;
@@ -643,7 +644,7 @@ defineExpose({
 
 .api-select-option__label {
   flex: 1;
-  min-width: 0; /* 确保 flex 子元素可以收缩 */
+  min-width: 0; /* Ensure flex children can shrink / 确保 flex 子元素可以收缩 */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -660,5 +661,5 @@ defineExpose({
   white-space: nowrap;
 }
 
-/* 加载图标旋转 */
+/* Loading icon spin / 加载图标旋转 */
 </style>

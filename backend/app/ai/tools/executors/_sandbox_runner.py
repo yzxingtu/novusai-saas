@@ -1,16 +1,19 @@
 """
+Toolkit Sandbox Subprocess Runner
 Toolkit 沙箱子进程运行器
 
+Loads and executes Toolkit code in an isolated process, separated from the main process.
 独立进程中加载并执行 Toolkit 代码，与主进程隔离。
+Receives JSON parameters via stdin, outputs JSON results via stdout.
 通过 stdin 接收 JSON 参数，stdout 输出 JSON 结果。
 
-协议:
+Protocol / 协议:
   stdin:  {"source_path": str, "method": str, "args": dict, "valves_config": dict}
   stdout: {"success": true, "output": str} | {"success": false, "error": str}
 
-资源限制（Linux/macOS）:
-  - 内存: 256MB (RLIMIT_AS)
-  - CPU: 由父进程 asyncio.wait_for 控制
+Resource limits (Linux/macOS) / 资源限制（Linux/macOS）:
+  - Memory / 内存: 256MB (RLIMIT_AS)
+  - CPU: Controlled by parent process asyncio.wait_for / 由父进程 asyncio.wait_for 控制
 """
 
 from __future__ import annotations
@@ -23,19 +26,19 @@ from typing import Any
 
 
 def _apply_resource_limits(memory_mb: int = 256) -> None:
-    """设置资源限制（仅 Unix 系统）"""
+    """Set resource limits (Unix systems only) / 设置资源限制（仅 Unix 系统）"""
     try:
         import resource
 
         memory_bytes = memory_mb * 1024 * 1024
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
     except (ImportError, OSError):
-        # Windows 或权限不足，跳过
+        # Windows or insufficient permissions, skip / Windows 或权限不足，跳过
         pass
 
 
 def _load_module(source_path: str) -> types.ModuleType:
-    """从文件路径加载模块"""
+    """Load module from file path / 从文件路径加载模块"""
     module_name = "_sandbox_toolkit"
     spec = importlib.util.spec_from_file_location(module_name, source_path)
     if spec is None or spec.loader is None:
@@ -52,7 +55,7 @@ def _inject_valves(
     module: types.ModuleType,
     valves_config: dict[str, Any],
 ) -> str | None:
-    """注入 Valves 配置"""
+    """Inject Valves configuration / 注入 Valves 配置"""
     if not valves_config:
         return None
 
@@ -70,7 +73,7 @@ def _inject_valves(
 
 
 def _to_string(value: Any) -> str:
-    """将返回值转为字符串"""
+    """Convert return value to string / 将返回值转为字符串"""
     if value is None:
         return ""
     if isinstance(value, str):
@@ -84,7 +87,7 @@ def _to_string(value: Any) -> str:
 
 
 def main() -> None:
-    """主入口：从 stdin 读取参数，执行后写入 stdout"""
+    """Main entry: read parameters from stdin, execute and write to stdout / 主入口：从 stdin 读取参数，执行后写入 stdout"""
     try:
         raw = sys.stdin.read()
         params = json.loads(raw)
@@ -92,7 +95,7 @@ def main() -> None:
         _write_error(f"Invalid input: {exc}")
         return
 
-    # 设置资源限制（从参数中读取内存限制）
+    # Set resource limits (read memory limit from parameters) / 设置资源限制（从参数中读取内存限制）
     memory_limit = params.get("memory_limit_mb", 256)
     _apply_resource_limits(memory_limit)
 
@@ -106,10 +109,10 @@ def main() -> None:
         return
 
     try:
-        # 加载模块
+        # Load module / 加载模块
         module = _load_module(source_path)
 
-        # 实例化 Tools 类
+        # Instantiate Tools class / 实例化 Tools 类
         tools_cls = getattr(module, "Tools", None)
         if tools_cls is None:
             _write_error("Toolkit module has no 'Tools' class")
@@ -117,16 +120,16 @@ def main() -> None:
 
         tools_instance = tools_cls()
 
-        # 注入 Valves
+        # Inject Valves / 注入 Valves
         valves_error = _inject_valves(tools_instance, module, valves_config)
 
-        # 查找方法
+        # Find method / 查找方法
         method = getattr(tools_instance, method_name, None)
         if method is None or not callable(method):
             _write_error(f"Method '{method_name}' not found in Tools class")
             return
 
-        # 执行（同步调用，async 方法用 asyncio.run）
+        # Execute (sync call; async methods use asyncio.run) / 执行（同步调用，async 方法用 asyncio.run）
         import asyncio
         import inspect
 
@@ -150,7 +153,7 @@ def main() -> None:
 
 
 def _write_result(output: str) -> None:
-    """写入成功结果"""
+    """Write success result / 写入成功结果"""
     sys.stdout.write(json.dumps({
         "success": True,
         "output": output,
@@ -159,7 +162,7 @@ def _write_result(output: str) -> None:
 
 
 def _write_error(error: str) -> None:
-    """写入错误结果"""
+    """Write error result / 写入错误结果"""
     sys.stdout.write(json.dumps({
         "success": False,
         "error": error,

@@ -1,7 +1,8 @@
 """
-Health Check 端点
+Health Check 端点 / Health Check Endpoint
 
 供负载均衡器/容器编排探活使用，不走统一响应包装。
+Used by load balancer/container orchestration for health probing, bypasses unified response wrapper.
 """
 
 from datetime import datetime, timezone
@@ -21,14 +22,14 @@ router = APIRouter(tags=["Health Check"])
 async def health_check(db: DbSession):
     checks: dict = {}
 
-    # DB 连通性
+    # DB 连通性 / DB connectivity
     try:
         await db.execute(text("SELECT 1"))
         checks["db"] = "ok"
     except Exception:
         checks["db"] = "error"
 
-    # Redis 连通性
+    # Redis 连通性 / Redis connectivity
     try:
         from app.core.redis import RedisManager
 

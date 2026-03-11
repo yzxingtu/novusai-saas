@@ -1,6 +1,6 @@
 /**
- * 平台管理端认证 API
- * 对接后端 /admin/auth/* 接口
+ * Platform admin authentication API / 平台管理端认证 API
+ * Backend: /admin/auth/*
  */
 import type {
   AdminUserInfo,
@@ -18,25 +18,25 @@ import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from '#/utils/request';
 
-// Logout 使用 baseRequestClient 避免 401 时循环调用
+// Logout uses baseRequestClient to avoid circular calls on 401 / Logout 使用 baseRequestClient 避免 401 时循环调用
 
 const API_PREFIX = '/admin/auth';
 
 /**
- * 管理员登录
- * 后端返回 snake_case，转换为 camelCase
+ * Admin login / 管理员登录
+ * Backend returns snake_case, converted to camelCase
  */
 export async function adminLoginApi(
   data: LoginParams,
   options?: ApiRequestOptions,
 ): Promise<LoginResult> {
-  // 构建请求体，转换为 snake_case
+  // Build request body, convert to snake_case / 构建请求体，转换为 snake_case
   const requestBody: Record<string, unknown> = {
     password: data.password,
     username: data.username,
   };
 
-  // 添加验证码参数（如果有）
+  // Add captcha params if present / 添加验证码参数（如果有）
   if (data.captchaChallengeId) {
     requestBody.captcha_challenge_id = data.captchaChallengeId;
   }
@@ -62,8 +62,8 @@ export async function adminLoginApi(
 }
 
 /**
- * 刷新 Token
- * 后端返回 snake_case，转换为 camelCase
+ * Refresh token / 刷新 Token
+ * Backend returns snake_case, converted to camelCase
  */
 export async function adminRefreshTokenApi(
   refreshToken: string,
@@ -81,8 +81,8 @@ export async function adminRefreshTokenApi(
 }
 
 /**
- * 管理员登出
- * 使用 baseRequestClient 避免 401 时触发循环调用
+ * Admin logout / 管理员登出
+ * Uses baseRequestClient to avoid circular calls on 401
  */
 export async function adminLogoutApi() {
   try {
@@ -94,12 +94,12 @@ export async function adminLogoutApi() {
       headers,
     });
   } catch {
-    // 登出失败不影响主流程
+    // Logout failure doesn't affect main flow / 登出失败不影响主流程
   }
 }
 
 /**
- * 后端返回的管理员信息原始格式
+ * Raw admin user info format from backend / 后端返回的管理员信息原始格式
  */
 interface AdminUserInfoRaw {
   id: number;
@@ -113,13 +113,13 @@ interface AdminUserInfoRaw {
   role_id?: number;
   last_login_at?: string;
   created_at?: string;
-  /** 权限码列表 */
+  /** Permission code list / 权限码列表 */
   permissions?: string[];
 }
 
 /**
- * 获取当前管理员信息
- * 将后端 snake_case 转换为前端 camelCase
+ * Get current admin info / 获取当前管理员信息
+ * Converts backend snake_case to frontend camelCase
  */
 export async function getAdminInfoApi(
   options?: ApiRequestOptions,
@@ -136,13 +136,13 @@ export async function getAdminInfoApi(
     avatar: raw.avatar,
     isSuperAdmin: raw.is_super,
     roles: raw.is_super ? ['super_admin'] : [],
-    // 超级管理员拥有所有权限，普通管理员使用后端返回的权限码
+    // Super admin has all permissions; regular admin uses backend permission codes / 超级管理员拥有所有权限，普通管理员使用后端返回的权限码
     permissions: raw.is_super ? ['*'] : raw.permissions || [],
   };
 }
 
 /**
- * 修改密码
+ * Change password / 修改密码
  */
 export async function adminChangePasswordApi(
   data: ChangePasswordParams,
@@ -159,7 +159,7 @@ export async function adminChangePasswordApi(
   );
 }
 
-/** 修改个人信息参数 */
+/** Update profile params / 修改个人信息参数 */
 export interface UpdateAdminProfileParams {
   nickname?: null | string;
   avatar?: null | string;
@@ -168,7 +168,7 @@ export interface UpdateAdminProfileParams {
 }
 
 /**
- * 修改当前管理员个人信息
+ * Update current admin profile / 修改当前管理员个人信息
  * PUT /admin/auth/profile
  */
 export async function updateAdminProfileApi(

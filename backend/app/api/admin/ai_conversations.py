@@ -1,7 +1,8 @@
 """
-平台端对话管理 API
+平台端对话管理 API / Platform Conversation API
 
 提供全租户对话列表和只读详情，用于审计和监控
+Provides cross-tenant conversation list and read-only details for auditing and monitoring.
 """
 
 from fastapi import Query, Request
@@ -32,7 +33,7 @@ def _build_admin_conversation_item(
     tenant_map: dict[int, dict] | None = None,
     user_map: dict[str, dict] | None = None,
 ) -> dict:
-    """从 ORM 对象构建管理端列表项字典"""
+    """从 ORM 对象构建管理端列表项字典 / Build admin list item dict from ORM object"""
     agent_name = None
     agent_avatar = None
     try:
@@ -43,12 +44,12 @@ def _build_admin_conversation_item(
     except AttributeError:
         pass
 
-    # tenant info
+    # 租户信息 / tenant info
     tenant_info = None
     if tenant_map and conv.tenant_id:
         tenant_info = tenant_map.get(conv.tenant_id)
 
-    # user info
+    # 用户信息 / user info
     user_info = None
     if user_map and conv.user_id is not None:
         key = f"{conv.tenant_id}:{conv.user_id}"
@@ -75,7 +76,7 @@ def _build_admin_conversation_item(
 async def _batch_load_tenants(
     db: AsyncSession, tenant_ids: set[int],
 ) -> dict[int, dict]:
-    """批量加载租户名称"""
+    """批量加载租户名称 / Batch load tenant names"""
     if not tenant_ids:
         return {}
     stmt = select(Tenant.id, Tenant.name, Tenant.code).where(
@@ -94,9 +95,9 @@ async def _batch_load_users(
     items: list,
 ) -> dict[str, dict]:
     """
-    批量加载用户信息。
-    tenant_id=0 → Admin 表，tenant_id>0 → TenantAdmin 表。
-    返回 {'{tenant_id}:{user_id}': {username, nickname, avatar}} 映射。
+    批量加载用户信息 / Batch load user info.
+    tenant_id=0 → Admin 表 / Admin table，tenant_id>0 → TenantAdmin 表 / TenantAdmin table。
+    返回 / Returns {'{tenant_id}:{user_id}': {username, nickname, avatar}} 映射 / mapping。
     """
     admin_ids: set[int] = set()
     tenant_admin_ids: set[int] = set()
@@ -144,7 +145,7 @@ async def _batch_load_users(
 async def _load_single_user_info(
     db: AsyncSession, tenant_id: int, user_id: int | None,
 ) -> dict | None:
-    """加载单个用户信息（用于详情页）"""
+    """加载单个用户信息（用于详情页） / Load single user info (for detail page)"""
     if user_id is None:
         return None
     if tenant_id == 0:
@@ -183,16 +184,16 @@ async def _load_single_user_info(
 )
 class AdminAIConversationController(GlobalController):
     """
-    平台端对话管理控制器
+    平台端对话管理控制器 / Platform Conversation Management Controller
 
-    全租户只读审计
+    全租户只读审计 / Cross-tenant read-only audit
     """
 
     prefix = "/ai/conversations"
     tags = [_("menu.tags.admin_ai_conversation")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="全租户对话列表")
@@ -205,20 +206,20 @@ class AdminAIConversationController(GlobalController):
             tenant_id: int | None = Query(None, description="按租户筛选"),
         ):
             """
-            获取全租户对话列表
+            获取全租户对话列表 / Get cross-tenant conversation list
 
-            支持 tenant_id 筛选和 JSON:API 分页排序
-            权限: ai_conversation:list
+            支持 tenant_id 筛选和 JSON:API 分页排序 / Supports tenant_id filtering and JSON:API pagination/sorting
+            权限 / Permission: ai_conversation:list
             """
             if tenant_id:
                 service = ConversationService(db, tenant_id)
                 items, total = await service.query_list(spec=query)
             else:
-                # 全租户查询：使用 BaseRepository（无 tenant 过滤）
+                # 全租户查询：使用 BaseRepository（无 tenant 过滤） / Cross-tenant query: use BaseRepository (no tenant filter)
                 repo = AdminAgentConversationRepository(db)
                 items, total = await repo.query_list(query)
 
-            # 批量加载关联信息
+            # 批量加载关联信息 / Batch load associated info
             tenant_ids = {c.tenant_id for c in items if c.tenant_id}
             tenant_map = await _batch_load_tenants(db, tenant_ids)
             user_map = await _batch_load_users(db, items)
@@ -246,10 +247,11 @@ class AdminAIConversationController(GlobalController):
             message_limit: int = Query(50, ge=1, le=200),
         ):
             """
-            获取对话详情（只读审计）
+            获取对话详情（只读审计） / Get conversation details (read-only audit)
 
             先从全局 Repo 查找对话取 tenant_id，再通过 Service 获取完整详情
-            权限: ai_conversation:detail
+            First find conversation from global Repo to get tenant_id, then get full details via Service
+            权限 / Permission: ai_conversation:detail
             """
             service, conversation = await ConversationService.get_service_for_conversation(
                 db,
@@ -261,14 +263,14 @@ class AdminAIConversationController(GlobalController):
                 message_limit=message_limit,
             )
 
-            # 补充 agent avatar
+            # 补充 agent avatar / Supplement agent avatar
             agent_obj = getattr(conversation, "agent", None)
             if agent_obj is not None:
                 detail["agent_avatar"] = agent_obj.avatar
             else:
                 detail["agent_avatar"] = None
 
-            # 补充 tenant info
+            # 补充租户信息 / Supplement tenant info
             if conversation.tenant_id:
                 t_map = await _batch_load_tenants(
                     db, {conversation.tenant_id},
@@ -278,7 +280,7 @@ class AdminAIConversationController(GlobalController):
             else:
                 detail["tenant_name"] = None
 
-            # 补充 user info
+            # 补充用户信息 / Supplement user info
             detail["user_info"] = await _load_single_user_info(
                 db, conversation.tenant_id, conversation.user_id,
             )
@@ -286,7 +288,7 @@ class AdminAIConversationController(GlobalController):
             return success(data=detail)
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIConversationController.get_router()
 
 __all__ = ["router", "AdminAIConversationController"]

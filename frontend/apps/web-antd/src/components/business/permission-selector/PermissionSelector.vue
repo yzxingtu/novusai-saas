@@ -1,8 +1,12 @@
 <script lang="ts" setup>
 /**
- * PermissionSelector 权限选择器组件
- * 支持显示继承权限和自有权限区分
- * 可复用于 admin 和 tenant 两端
+ * PermissionSelector Component
+ * 权限选择器组件
+ *
+ * Supports displaying inherited vs own permissions.
+ * 支持显示继承权限和自有权限区分。
+ * Reusable for both admin and tenant sides.
+ * 可复用于 admin 和 tenant 两端。
  */
 import type { TreeProps as AntTreeProps } from 'ant-design-vue';
 import type { Key } from 'ant-design-vue/es/_util/type';
@@ -26,21 +30,21 @@ import {
 // Props
 const props = withDefaults(
   defineProps<{
-    /** 默认展开层级 */
+    /** Default expanded level / 默认展开层级 */
     defaultExpandedLevel?: number;
-    /** 继承权限的来源映射 Map<permissionId, roleName> */
+    /** Inherited permission source mapping Map<permissionId, roleName> / 继承权限的来源映射 */
     inheritedFromMap?: Map<number, string>;
-    /** 继承的权限 ID 列表（灰色锁定显示） */
+    /** Inherited permission ID list (shown as grey locked) / 继承的权限 ID 列表 */
     inheritedPermissionIds?: number[];
-    /** 加载状态 */
+    /** Loading state / 加载状态 */
     loading?: boolean;
-    /** 选中的权限 ID 列表（v-model） */
+    /** Selected permission ID list (v-model) / 选中的权限 ID 列表 */
     modelValue?: number[];
-    /** 权限树数据 */
+    /** Permission tree data / 权限树数据 */
     permissions: PermissionNode[];
-    /** 是否显示继承标识 */
+    /** Whether to show inherited badge / 是否显示继承标识 */
     showInheritedBadge?: boolean;
-    /** 是否显示全选/取消按钮 */
+    /** Whether to show select all/deselect buttons / 是否显示全选/取消按钮 */
     showSelectAll?: boolean;
   }>(),
   {
@@ -60,14 +64,14 @@ const emit = defineEmits<{
   'update:modelValue': [value: number[]];
 }>();
 
-// 内部状态
+// Internal state / 内部状态
 const expandedKeys = ref<Key[]>([]);
 const checkedKeys = ref<number[]>([]);
 
-// 计算属性：继承权限 ID 集合
+// Computed: inherited permission ID set / 继承权限 ID 集合
 const inheritedIdSet = computed(() => new Set(props.inheritedPermissionIds));
 
-// 计算属性：树形数据
+// Computed: tree data / 树形数据
 const treeData = computed(() =>
   transformToAntTreeData(
     props.permissions,
@@ -76,29 +80,29 @@ const treeData = computed(() =>
   ),
 );
 
-// 计算属性：所有权限 ID
+// Computed: all permission IDs / 所有权限 ID
 const allPermissionIds = computed(() => getAllPermissionIds(props.permissions));
 
-// 计算属性：可选权限 ID（排除继承权限）
+// Computed: selectable permission IDs (excluding inherited) / 可选权限 ID
 const selectableIds = computed(() =>
   allPermissionIds.value.filter((id) => !inheritedIdSet.value.has(id)),
 );
 
-// 计算属性：是否全选
+// Computed: whether all selected / 是否全选
 const isAllSelected = computed(() => {
   if (selectableIds.value.length === 0) return false;
   return selectableIds.value.every((id) => checkedKeys.value.includes(id));
 });
 
-// 统计：总数与已选数量（不含继承）
+// Stats: total and selected count (excluding inherited) / 统计：总数与已选数量
 const totalCount = computed(() => allPermissionIds.value.length);
 const selectedCount = computed(() => checkedKeys.value.length);
 
-// 监听 props.modelValue 变化（深度监听以确保数组变化时更新）
+// Watch props.modelValue changes (deep watch to ensure array updates) / 监听 props.modelValue 变化
 watch(
   () => props.modelValue,
   (newVal) => {
-    // 只有当值真正变化时才更新，避免无限循环
+    // Only update when value truly changes, avoid infinite loop / 只有当值真正变化时才更新
     const newKeys = [...newVal];
     if (JSON.stringify(checkedKeys.value) !== JSON.stringify(newKeys)) {
       checkedKeys.value = newKeys;
@@ -107,7 +111,7 @@ watch(
   { immediate: true, deep: true },
 );
 
-// 监听权限数据变化，初始化展开状态
+// Watch permission data changes, initialize expanded state / 监听权限数据变化，初始化展开状态
 watch(
   () => props.permissions,
   () => {
@@ -122,15 +126,15 @@ watch(
 );
 
 /**
- * 处理选中变化
+ * Handle check change / 处理选中变化
  */
 function handleCheck(
   checked: Key[] | { checked: Key[]; halfChecked: Key[] },
   _info: unknown,
 ) {
-  // 处理严格模式和非严格模式
+  // Handle strict and non-strict mode / 处理严格模式和非严格模式
   const keys = Array.isArray(checked) ? checked : checked.checked;
-  // 过滤出数字类型的 key，并排除继承权限
+  // Filter numeric keys and exclude inherited permissions / 过滤出数字类型的 key，并排除继承权限
   const numericKeys = keys
     .filter((key): key is number => typeof key === 'number')
     .filter((id) => !inheritedIdSet.value.has(id));
@@ -141,7 +145,7 @@ function handleCheck(
 }
 
 /**
- * 全选
+ * Select all / 全选
  */
 function selectAll() {
   const newKeys = [...new Set([...checkedKeys.value, ...selectableIds.value])];
@@ -151,10 +155,10 @@ function selectAll() {
 }
 
 /**
- * 取消全选
+ * Deselect all / 取消全选
  */
 function deselectAll() {
-  // 只保留继承的权限
+  // Keep only inherited permissions / 只保留继承的权限
   const newKeys = checkedKeys.value.filter((id) =>
     inheritedIdSet.value.has(id),
   );
@@ -164,7 +168,7 @@ function deselectAll() {
 }
 
 /**
- * 切换全选状态
+ * Toggle select all state / 切换全选状态
  */
 function toggleSelectAll() {
   if (isAllSelected.value) {
@@ -175,7 +179,7 @@ function toggleSelectAll() {
 }
 
 /**
- * 获取按层级分组的节点 key
+ * Get node keys grouped by level / 获取按层级分组的节点 key
  */
 function getKeysByLevel(nodes: AntTreeNode[], level = 0): Map<number, Key[]> {
   const levelMap = new Map<number, Key[]>();
@@ -197,13 +201,13 @@ function getKeysByLevel(nodes: AntTreeNode[], level = 0): Map<number, Key[]> {
 }
 
 /**
- * 展开所有节点（平滑过渡）
+ * Expand all nodes (smooth transition) / 展开所有节点
  */
 function expandAll() {
   const levelMap = getKeysByLevel(treeData.value);
   const levels = [...levelMap.keys()].toSorted((a, b) => a - b);
 
-  // 逐层展开，每层间隔 80ms
+  // Expand layer by layer, 80ms interval / 逐层展开
   let currentKeys: Key[] = [];
   levels.forEach((level, index) => {
     setTimeout(() => {
@@ -214,13 +218,13 @@ function expandAll() {
 }
 
 /**
- * 折叠所有节点（平滑过渡）
+ * Collapse all nodes (smooth transition) / 折叠所有节点
  */
 function collapseAll() {
   const levelMap = getKeysByLevel(treeData.value);
-  const levels = [...levelMap.keys()].toSorted((a, b) => b - a); // 从最深层开始折叠
+  const levels = [...levelMap.keys()].toSorted((a, b) => b - a); // Start collapsing from deepest level / 从最深层开始折叠
 
-  // 逐层折叠，每层间隔 60ms
+  // Collapse layer by layer, 60ms interval / 逐层折叠
   let currentKeys = [...expandedKeys.value];
   levels.forEach((level, index) => {
     setTimeout(() => {
@@ -231,7 +235,7 @@ function collapseAll() {
   });
 }
 
-// 暴露方法
+// Expose methods / 暴露方法
 defineExpose({
   expandAll,
   collapseAll,
@@ -243,7 +247,7 @@ defineExpose({
 <template>
   <div class="permission-selector">
     <Spin :spinning="loading">
-      <!-- 工具栏 -->
+      <!-- Toolbar / 工具栏 -->
       <div
         v-if="showSelectAll && permissions.length > 0"
         class="mb-2 flex items-center justify-between"
@@ -299,7 +303,7 @@ defineExpose({
       >
         <template #title="nodeData">
           <div class="permission-node flex items-center gap-2 py-0.5">
-            <!-- 权限图标：优先使用自定义图标，否则根据类型显示默认图标 -->
+            <!-- Permission icon: prefer custom icon, fallback to type-based default / 权限图标 -->
             <IconifyIcon
               :icon="
                 nodeData.icon
@@ -319,7 +323,7 @@ defineExpose({
               }"
             />
 
-            <!-- 权限名称 -->
+            <!-- Permission name / 权限名称 -->
             <span
               :class="{
                 'text-muted-foreground': nodeData.isInherited,
@@ -328,7 +332,7 @@ defineExpose({
               {{ nodeData.title }}
             </span>
 
-            <!-- 权限代码 -->
+            <!-- Permission code / 权限代码 -->
             <span
               class="font-mono text-xs"
               :class="{
@@ -339,7 +343,7 @@ defineExpose({
               {{ nodeData.code }}
             </span>
 
-            <!-- 继承标识 -->
+            <!-- Inherited badge / 继承标识 -->
             <Tooltip
               v-if="showInheritedBadge && nodeData.isInherited"
               :title="

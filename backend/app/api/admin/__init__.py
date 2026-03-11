@@ -1,10 +1,11 @@
 """
-平台管理后台 API 路由模块
+平台管理后台 API 路由模块 / Platform Admin API Router Module
 
 聚合所有平台管理后台的 API 路由
+Aggregates all platform admin API routes.
 
-控制器类使用 @permission_resource 装饰器定义资源权限，
-导入控制器类时会自动注册权限到 PermissionRegistry。
+控制器类使用 @permission_resource 装饰器定义资源权限，导入控制器类时会自动注册权限到 PermissionRegistry。
+Controller classes use @permission_resource decorator to define resource permissions, auto-registering to PermissionRegistry on import.
 """
 
 from fastapi import APIRouter
@@ -86,10 +87,10 @@ from app.api.admin.tenants import AdminTenantController
 from app.api.admin.tenants import router as tenants_router
 from app.api.admin.ws import router as ws_router
 
-# 创建平台管理后台路由器
+# 创建平台管理后台路由器 / Create platform admin router
 admin_router = APIRouter()
 
-# 注册子路由
+# 注册子路由 / Register sub-routers
 admin_router.include_router(auth_router)
 admin_router.include_router(dashboard_router)
 admin_router.include_router(analytics_router)
@@ -104,7 +105,7 @@ admin_router.include_router(system_logs_router)
 admin_router.include_router(attachments_router)
 admin_router.include_router(tasks_router)
 admin_router.include_router(periodic_tasks_router)
-# AI 网关相关
+# AI 网关相关 / AI Gateway related
 admin_router.include_router(ai_providers_router)
 admin_router.include_router(ai_models_router)
 admin_router.include_router(ai_api_keys_router)
@@ -113,45 +114,45 @@ admin_router.include_router(ai_gateway_router)
 admin_router.include_router(ai_usage_router)
 admin_router.include_router(ai_health_router)
 admin_router.include_router(ai_quotas_router)
-# 对话管理
+# 对话管理 / Conversation management
 admin_router.include_router(ai_conversations_router)
-# 智能体引擎
+# 智能体引擎 / Agent engine
 admin_router.include_router(ai_agents_router)
-# AI 操作审计
+# AI 操作审计 / AI action audit
 admin_router.include_router(ai_action_logs_router)
-# AI 对话
+# AI 对话 / AI chat
 admin_router.include_router(ai_agent_chat_router)
-# 知识库监控
+# 知识库监控 / Knowledge base monitoring
 admin_router.include_router(ai_knowledge_bases_router)
-# AI 表策略
+# AI 表策略 / AI table policies
 admin_router.include_router(ai_table_policies_router)
-# 技能包 & 技能管理
+# 技能包 & 技能管理 / Skill package & skill management
 admin_router.include_router(ai_skill_packages_router)
 admin_router.include_router(ai_skills_router)
-# 系统智能体绑定
+# 系统智能体绑定 / System agent assignments
 admin_router.include_router(agent_assignments_router)
 admin_router.include_router(email_logs_router)
-# 总回收站
+# 总回收站 / Global recycle bin
 admin_router.include_router(recycle_bin_router)
-# WebSocket 在线状态
+# WebSocket 在线状态 / WebSocket online status
 admin_router.include_router(ws_router)
-# 租户管理员管理
+# 租户管理员管理 / Tenant admin management
 admin_router.include_router(tenant_admins_router)
-# 通知
+# 通知 / Notifications
 admin_router.include_router(notifications_router)
-# 通知偏好
+# 通知偏好 / Notification preferences
 admin_router.include_router(notification_preferences_router)
-# 通知模板管理
+# 通知模板管理 / Notification template management
 admin_router.include_router(notification_templates_router)
-# 插件管理
+# 插件管理 / Plugin management
 admin_router.include_router(plugins_router)
-# 缓存管理
+# 缓存管理 / Cache management
 admin_router.include_router(cache_router)
 
 
 __all__ = [
     "admin_router",
-    # 导出控制器类，确保权限装饰器被执行
+    # 导出控制器类，确保权限装饰器被执行 / Export controller classes to ensure permission decorators are executed
     "AdminPermissionController",
     "AdminRoleController",
     "AdminTenantController",
@@ -163,7 +164,7 @@ __all__ = [
     "AdminAttachmentController",
     "AdminTaskController",
     "AdminPeriodicTaskController",
-    # AI 网关
+    # AI 网关 / AI Gateway
     "AdminAIProviderController",
     "AdminAIModelController",
     "AdminAIApiKeyController",
@@ -172,31 +173,31 @@ __all__ = [
     "AdminAIUsageController",
     "AdminAIHealthController",
     "AdminAIQuotaController",
-    # 对话管理
+    # 对话管理 / Conversation management
     "AdminAIConversationController",
-    # 智能体引擎
+    # 智能体引擎 / Agent engine
     "AdminAgentController",
-    # AI 操作审计
+    # AI 操作审计 / AI action audit
     "AdminAIActionLogController",
-    # AI 对话
+    # AI 对话 / AI chat
     "AdminAgentChatController",
-    # 知识库监控
+    # 知识库监控 / Knowledge base monitoring
     "AdminKnowledgeBaseController",
-    # AI 表策略
+    # AI 表策略 / AI table policies
     "AdminAITablePolicyController",
-    # 技能包 & 技能管理
+    # 技能包 & 技能管理 / Skill package & skill management
     "AdminSkillPackageController",
     "AdminSkillController",
-    # 系统智能体绑定
+    # 系统智能体绑定 / System agent assignments
     "AdminAgentAssignmentController",
     "AdminEmailLogController",
     "AdminTenantAdminController",
-    # 总回收站
+    # 总回收站 / Global recycle bin
     "AdminRecycleBinController",
-    # 通知模板
+    # 通知模板 / Notification templates
     "AdminNotificationTemplateController",
-    # 插件
+    # 插件 / Plugins
     "AdminPluginController",
-    # 缓存管理
+    # 缓存管理 / Cache management
     "AdminCacheController",
 ]

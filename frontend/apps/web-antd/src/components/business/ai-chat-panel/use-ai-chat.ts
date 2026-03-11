@@ -122,7 +122,7 @@ export function useAIChat(options: UseAIChatOptions) {
   const memoryLoading = ref(false);
   const lastMemoryUpdated = ref(false);
 
-  /** 请求序号防护：避免旧异步响应覆盖最新状态 */
+  /** Request sequence guard: prevents stale async responses from overriding latest state / 请求序号防护：避免旧异步响应覆盖最新状态 */
   let conversationsRequestSeq = 0;
   let messagesRequestSeq = 0;
 
@@ -438,6 +438,8 @@ export function useAIChat(options: UseAIChatOptions) {
   const chatMessages = ref<ChatMessage[]>([]);
   const inputMessage = ref('');
   /**
+   * Auxiliary feature: user-manually selected additional knowledge base IDs (@ mentions).
+   * Primary KB bindings have been migrated to Agent-level junction tables; this field serves as a supplement.
    * 辅助功能：用户手动选择的额外知识库 ID（@ 提及）。
    * 主要 KB 绑定已迁移至 Agent 级别中间表，此字段仅作为补充。
    */
@@ -527,6 +529,9 @@ export function useAIChat(options: UseAIChatOptions) {
   const messagesContainer = ref<HTMLElement | null>(null);
 
   let streamAbortController: AbortController | null = null;
+
+  /** Deferred auto-confirm flag: set when trustSession auto-approves during active stream */
+  let _deferredAutoConfirm = false;
 
   /** Whether user has manually scrolled up */
   const userScrolledUp = ref(false);
@@ -1036,8 +1041,10 @@ export function useAIChat(options: UseAIChatOptions) {
                           resolved: true,
                           autoApproved: true,
                         };
+                        // Defer auto-confirm: sendMessage is blocked during active stream (sending=true).
+                        // Set the message and flag; it will be sent after the stream completes.
+                        _deferredAutoConfirm = true;
                         inputMessage.value = $t('common.globalAiChat.confirmExecute');
-                        sendMessage({ silent: true });
                       } else {
                         msg.pendingConsent = {
                           toolName: event.name || '',
@@ -1112,6 +1119,13 @@ export function useAIChat(options: UseAIChatOptions) {
       streamAbortController = null;
       userScrolledUp.value = false;
       finalizeMessage();
+
+      // Send deferred auto-confirm (trustSession approved during active stream)
+      if (_deferredAutoConfirm && inputMessage.value.trim()) {
+        _deferredAutoConfirm = false;
+        await nextTick();
+        sendMessage({ silent: true });
+      }
     }
   }
 
@@ -1238,6 +1252,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
     // Re-send the user message
     inputMessage.value = userContent;
+    clearPendingAttachments();
     if (userAttachments?.length) {
       pendingAttachments.value = [...userAttachments];
     }

@@ -1,16 +1,17 @@
 """
-日志管理模块
+日志管理模块 / Logging Management Module
 
 提供按模块独立的日志文件和统一的日志格式
+Provides per-module independent log files and unified log format.
 
-日志分类：
-- app: 应用日志（默认）
-- error: 错误日志
-- db: 数据库日志
-- task: 计划任务日志
-- queue: 队列日志
+日志分类 / Log categories:
+- app: 应用日志（默认） / Application logs (default)
+- error: 错误日志 / Error logs
+- db: 数据库日志 / Database logs
+- task: 计划任务日志 / Scheduled task logs
+- queue: 队列日志 / Queue logs
 
-文件命名：{category}.log，轮转后生成 {category}.log.2026-01-20 等
+文件命名 / File naming: {category}.log, rotated to {category}.log.2026-01-20 etc.
 """
 
 import contextlib

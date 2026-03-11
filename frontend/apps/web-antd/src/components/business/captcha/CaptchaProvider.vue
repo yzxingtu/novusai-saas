@@ -1,5 +1,8 @@
 <script lang="ts" setup>
 /**
+ * Unified captcha container component
+ * Dynamically renders the corresponding captcha component based on provider type
+ * Defaults to built-in image type, supports plugin-registered new types
  * 统一验证码容器组件
  * 根据 provider 类型动态渲染对应验证码组件
  * 默认使用内置 image 类型，支持插件注册新类型
@@ -23,15 +26,15 @@ defineOptions({ name: 'CaptchaProvider' });
 
 const props = withDefaults(
   defineProps<{
-    /** 端点标识 */
+    /** Endpoint identifier / 端点标识 */
     endpoint: CaptchaEndpoint;
-    /** 验证码提供商类型（从配置读取，默认 'image'） */
+    /** Captcha provider type (read from config, defaults to 'image') / 验证码提供商类型（从配置读取，默认 'image'） */
     provider?: CaptchaProviderType;
-    /** 难度等级 */
+    /** Difficulty level / 难度等级 */
     difficulty?: CaptchaDifficulty;
-    /** 操作类型 */
+    /** Action type / 操作类型 */
     action?: CaptchaAction;
-    /** 是否禁用 */
+    /** Whether disabled / 是否禁用 */
     disabled?: boolean;
   }>(),
   {
@@ -49,7 +52,7 @@ const emit = defineEmits<{
 
 const adapterRef = ref<CaptchaAdapterExpose>();
 
-/** 解析实际渲染的组件 */
+/** Resolve the actual component to render / 解析实际渲染的组件 */
 const resolvedComponent = computed(() => {
   if (props.provider === 'image') {
     return CaptchaImageForm;
@@ -66,7 +69,7 @@ const resolvedComponent = computed(() => {
   return CaptchaImageForm;
 });
 
-/** 是否使用内置 image 适配器（用于传递特定 props） */
+/** Whether using built-in image adapter (for passing specific props) / 是否使用内置 image 适配器（用于传递特定 props） */
 const isImageProvider = computed(() => {
   return resolvedComponent.value === CaptchaImageForm;
 });

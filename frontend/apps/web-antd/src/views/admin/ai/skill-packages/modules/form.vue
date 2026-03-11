@@ -15,10 +15,6 @@ import {
   useVbenForm,
 } from '#/adapter/form';
 import { getSkillPackageDetailApi } from '#/api/admin/skill-packages';
-import {
-  extractScopePayload,
-  useScopeFields,
-} from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -50,11 +46,6 @@ function useFormSchema() {
       required: true,
       placeholder: $t('admin.ai.skillPackage.placeholder.inputName'),
     }),
-    ...useScopeFields({
-      scopeHelp: $t('admin.ai.skillPackage.help.scope'),
-      scopeDisabled: (values: Record<string, unknown>) =>
-        values._mode === 'edit',
-    }),
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),
     }),
@@ -83,7 +74,6 @@ function useFormSchema() {
 
 function getFormDefaults(): Record<string, unknown> {
   return {
-    scope: 'admin_only',
     is_active: true,
     sort_order: 0,
   };
@@ -106,7 +96,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
     is_recommended: values.is_recommended ?? false,
     is_active: values.is_active ?? true,
     sort_order: values.sort_order ?? 0,
-    ...extractScopePayload(values),
   }),
   toFormValues: (data: AdminSkillPackageInfo) => ({
     name: data.name,
@@ -116,9 +105,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
     is_active: data.is_active,
     sort_order: data.sort_order,
     is_system: data.is_system,
-    scope: data.scope,
-    tenant_id: data.tenant_id ?? null,
-    tenant_ids: data.assigned_tenant_ids ?? [],
   }),
   onSuccess: () => {
     emits('success');

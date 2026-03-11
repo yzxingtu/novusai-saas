@@ -2,8 +2,11 @@
 import type { RoleTreeApi } from '../data';
 
 /**
+ * Admin Create/Edit Form Drawer
  * 管理员新建/编辑表单抽屉
- * 使用自定义提交逻辑处理成员 CRUD（需要 roleId 参数）
+ *
+ * Uses custom submit logic for member CRUD (requires roleId parameter).
+ * 使用自定义提交逻辑处理成员 CRUD（需要 roleId 参数）。
  */
 import type { adminApi, tenantApi } from '#/api';
 
@@ -25,13 +28,13 @@ type OrgMember = adminApi.OrgMember | tenantApi.TenantOrgMember;
 
 const props = withDefaults(
   defineProps<{
-    /** API 前缀 */
+    /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** 当前节点 ID（作为角色 ID，新建时使用） */
+    /** Current node ID (used as role ID when creating) / 当前节点 ID */
     nodeId?: null | number;
-    /** 节点名称（用于显示） */
+    /** Node name (for display) / 节点名称 */
     nodeName?: string;
-    /** 角色树 API（编辑模式下可选择角色） */
+    /** Role tree API (select roles in edit mode) / 角色树 API */
     roleTreeApi?: RoleTreeApi;
   }>(),
   {
@@ -109,12 +112,12 @@ function beforeAvatarUpload(file: File) {
 const isEdit = ref(false);
 const recordId = ref<number>();
 
-// 表单
+// Form / 表单
 const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-// 抽屉
+// Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
   async onConfirm() {
     const { valid } = await formApi.validate();
@@ -122,7 +125,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
 
     const values = await formApi.getValues();
 
-    // 构造请求体
+    // Build request body / 构造请求体
     const baseData = {
       email: values.email,
       phone: values.phone || null,
@@ -133,7 +136,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         : {}),
     };
 
-    // 目标角色ID：优先取表单选择的 role_id，其次回退到当前节点 id
+    // Target role ID: prefer form-selected role_id, fallback to current node id / 目标角色ID
     const targetRoleId =
       ('role_id' in values ? (values.role_id as number) : null) ??
       props.nodeId!;
@@ -141,10 +144,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
     drawerApi.lock();
     try {
       if (isEdit.value && recordId.value) {
-        // 更新成员（支持调整角色组）
+        // Update member (supports role group change) / 更新成员（支持调整角色组）
         const data = {
           ...baseData,
-          // 若用户修改了角色，传递 role_id 参数让后端处理角色切换
+          // If user changed role, pass role_id for backend to handle role switch / 若用户修改了角色，传递 role_id 参数
           role_id:
             ('role_id' in values ? (values.role_id as null | number) : null) ??
             null,
@@ -169,7 +172,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
               },
             ));
       } else {
-        // 创建成员
+        // Create member / 创建成员
         const data = {
           ...baseData,
           username: values.username,
@@ -211,7 +214,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
 
     await formApi.resetForm();
 
-    // 更新 schema
+    // Update schema / 更新 schema
     formApi.setState({
       schema: useAdminFormSchema({
         isEdit: isEdit.value,
@@ -221,7 +224,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       }),
     });
 
-    // 填充表单数据
+    // Fill form data / 填充表单数据
     if (isEdit.value && data) {
       avatarValue.value = data.avatar || '';
       currentNickname.value = data.nickname || '';
@@ -231,7 +234,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         email: data.email,
         nickname: data.nickname,
         is_active: data.isActive,
-        // 若表单存在 role_id 字段，则设置为数据中的角色ID，否则回退到展示字段
+        // If form has role_id field, set to data's role ID, otherwise fallback to display field / 若表单存在 role_id 字段，则设置
         role_id:
           ('roleId' in data ? (data.roleId as null | number) : null) ??
           props.nodeId,
@@ -242,25 +245,25 @@ const [Drawer, drawerApi] = useVbenDrawer({
       avatarValue.value = '';
       currentNickname.value = '';
       currentUsername.value = '';
-      // 新建模式默认值（默认选中当前节点作为角色，可下拉更改）
+      // Create mode defaults (current node selected as role, changeable via dropdown) / 新建模式默认值
       formApi.setValues(getAdminFormDefaults(props.nodeName, props.nodeId));
     }
   },
 });
 
-// 标题
+// Title / 标题
 const title = computed(() =>
   isEdit.value
     ? $t('admin.system.admin.edit')
     : $t('admin.system.admin.create'),
 );
 
-// 打开创建表单
+// Open create form / 打开创建表单
 function openCreate() {
   drawerApi.setData({ mode: 'add' }).open();
 }
 
-// 打开编辑表单
+// Open edit form / 打开编辑表单
 function openEdit(record: OrgMember) {
   drawerApi.setData({ ...record, mode: 'edit' }).open();
 }

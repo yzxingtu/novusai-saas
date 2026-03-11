@@ -1,7 +1,8 @@
 """
-技能相关 Schema
+技能相关 Schema / Skill Schema
 
 定义技能的请求和响应数据结构
+Defines skill request and response data structures.
 """
 
 from typing import Any

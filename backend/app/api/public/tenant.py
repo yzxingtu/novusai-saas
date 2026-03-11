@@ -1,7 +1,8 @@
 """
-租户公开 API
+租户公开 API / Tenant Public API
 
 提供登录前可访问的租户公开信息接口
+Provides pre-login accessible tenant public information endpoints
 """
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -16,27 +17,30 @@ from app.rbac.decorators import public
 from app.schemas.public import DomainVerificationInfo, TenantPublicConfig
 from app.schemas.public.platform import StoragePublicConfig
 
-router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
+router = APIRouter(prefix="/tenant", tags=["租户公开接口 / Tenant Public API"])
 
 
-@router.get("/config", summary="获取当前租户公开配置")
+@router.get("/config", summary="获取当前租户公开配置 / Get current tenant public config")
 @public
 async def get_tenant_public_config(request: Request, db: DbSession):
     """
     获取当前租户的公开配置
+    Get current tenant's public configuration
 
     根据请求的域名自动识别租户，返回该租户的公开配置信息。
+    Automatically identifies tenant by request domain and returns public config.
 
-    **域名识别规则:**
-    - 子域名模式: `{tenant_code}.app.novusai.com`
-    - 自定义域名模式: 用户绑定的独立域名
+    **域名识别规则 / Domain identification rules:**
+    - 子域名模式 / Subdomain mode: `{tenant_code}.app.novusai.com`
+    - 自定义域名模式 / Custom domain mode: 用户绑定的独立域名 / User-bound independent domain
 
-    **返回内容:**
-    - 租户基本信息（名称、logo 等）
-    - 登录配置（验证码、登录方式等）
-    - 品牌设置（Logo、登录页定制等）
+    **返回内容 / Response content:**
+    - 租户基本信息（名称、logo 等） / Tenant basic info (name, logo, etc.)
+    - 登录配置（验证码、登录方式等） / Login config (captcha, login methods, etc.)
+    - 品牌设置（Logo、登录页定制等） / Brand settings (logo, login page customization, etc.)
 
     此接口无需认证，用于前端登录页面获取租户信息。
+    This endpoint requires no authentication, used by frontend login page to get tenant info.
     """
     tenant_ctx = get_tenant_context(request)
 
@@ -69,27 +73,27 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     )
     configs = {**general_config, **appearance_config, **feature_config, **storage_config}
 
-    # 加载平台品牌配置（用于租户未设置时的 fallback）
+    # 加载平台品牌配置（用于租户未设置时的 fallback） / Load platform brand config (fallback when tenant not configured)
     platform_general_config = await config_service.get_platform_configs_by_group(
         group_code="platform_general",
     )
 
-    # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置
+    # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置 / Determine storage config: use platform config if tenant uses platform-managed storage
     platform_storage_config = await config_service.get_platform_configs_by_group(
         group_code="platform_storage",
     )
 
     if configs.get("tenant_storage_mode") == "custom":
         storage_base_url = configs.get("tenant_storage_base_url")
-        # 租户自定义 allowed_extensions，如果未设置则使用平台配置
+        # 租户自定义 allowed_extensions，如果未设置则使用平台配置 / Tenant custom allowed_extensions, falls back to platform config
         allowed_extensions = configs.get("tenant_storage_allowed_extensions") or platform_storage_config.get("platform_storage_allowed_extensions")
     else:
-        # 平台托管模式，全部使用平台配置
+        # 平台托管模式，全部使用平台配置 / Platform managed mode, use all platform configs
         storage_base_url = platform_storage_config.get("platform_storage_base_url")
         allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
 
-    # chunk_size 和 max_file_size 始终使用平台配置
-    # driver: 自定义模式使用租户配置，平台托管模式使用平台配置
+    # chunk_size 和 max_file_size 始终使用平台配置 / chunk_size and max_file_size always use platform config
+    # driver: 自定义模式使用租户配置，平台托管模式使用平台配置 / driver: custom mode uses tenant config, platform managed mode uses platform config
     if configs.get("tenant_storage_mode") == "custom":
         storage_driver = configs.get("tenant_storage_driver")
     else:
@@ -106,7 +110,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     scheme = request.url.scheme
     subdomain_url = f"{scheme}://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
-    # 品牌 fallback：租户未设置 → 平台默认
+    # 品牌 fallback：租户未设置 → 平台默认 / Brand fallback: tenant not set → platform default
     logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
     favicon_url = configs.get("tenant_favicon") or platform_general_config.get("site_favicon") or ""
     login_title = configs.get("tenant_login_title") or platform_general_config.get("site_name") or ""
@@ -152,7 +156,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     )
 
 
-@router.get("/domain-verification", summary="获取域名验证信息")
+@router.get("/domain-verification", summary="获取域名验证信息 / Get domain verification info")
 @public
 async def get_domain_verification_info(
     request: Request,
@@ -160,18 +164,20 @@ async def get_domain_verification_info(
 ):
     """
     获取域名验证信息
+    Get domain verification info
 
     用于指导用户配置 DNS 记录，将自定义域名解析到租户子域名。
+    Used to guide users in configuring DNS records to resolve custom domains to tenant subdomains.
 
-    **参数:**
-    - `domain`: 待绑定的域名（如 `app.example.com`）
+    **参数 / Parameters:**
+    - `domain`: 待绑定的域名 / Domain to bind (e.g. `app.example.com`)
 
-    **返回:**
-    - CNAME 解析目标
-    - TXT 验证记录（可选）
-    - 配置说明
+    **返回 / Returns:**
+    - CNAME 解析目标 / CNAME resolution target
+    - TXT 验证记录（可选） / TXT verification record (optional)
+    - 配置说明 / Configuration instructions
 
-    此接口无需认证。
+    此接口无需认证。 / This endpoint requires no authentication.
     """
     tenant_ctx = get_tenant_context(request)
 
@@ -183,14 +189,14 @@ async def get_domain_verification_info(
 
     tenant = tenant_ctx.tenant
 
-    # CNAME 目标
+    # CNAME 目标 / CNAME target
     cname_target = f"{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
-    # TXT 验证记录
+    # TXT 验证记录 / TXT verification record
     txt_name = f"{settings.DOMAIN_VERIFICATION_PREFIX}.{domain}"
     txt_value = f"novusai-verification={tenant.code}"
 
-    # 配置说明
+    # 配置说明 / Configuration instructions
     instructions = (
         f"{_('domain.instructions_header')}\n\n"
         f"1. {_('domain.cname_record_required')}:\n"

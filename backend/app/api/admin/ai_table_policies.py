@@ -1,8 +1,10 @@
 """
-平台端 AI 表策略管理 API
+平台端 AI 表策略管理 API / Platform AI Table Policy API
 
 提供 AI 表策略的查询和编辑接口（平台管理员专用）
+Provides AI table policy query and edit endpoints (platform admin only).
 策略由 sync 服务自动创建，管理员只做编辑和同步触发。
+Policies are auto-created by sync service; admins only edit and trigger sync.
 """
 
 from fastapi import Request
@@ -41,9 +43,9 @@ from app.services.ai.table_policy_service import AITablePolicyService
 )
 class AdminAITablePolicyController(GlobalController):
     """
-    AI 表策略管理控制器
+    AI 表策略管理控制器 / AI Table Policy Management Controller
 
-    提供策略查询、编辑、表同步接口
+    提供策略查询、编辑、表同步接口 / Provides policy query, edit, and table sync endpoints
     """
 
     prefix = "/ai/table-policies"
@@ -51,7 +53,7 @@ class AdminAITablePolicyController(GlobalController):
     service_class = AITablePolicyService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取 AI 表策略列表")
@@ -63,13 +65,13 @@ class AdminAITablePolicyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 表策略列表
+            获取 AI 表策略列表 / Get AI table policy list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,table_name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / General filtering: filter[field][op]=value
+            - 支持排序 / Sorting: sort=-created_at,table_name
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
 
-            权限: ai_table_policy:list
+            权限 / Permission: ai_table_policy:list
             """
             service = AITablePolicyService(db)
             items, total = await service.query_list(spec)
@@ -96,9 +98,9 @@ class AdminAITablePolicyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 表策略详情
+            获取 AI 表策略详情 / Get AI table policy details
 
-            权限: ai_table_policy:detail
+            权限 / Permission: ai_table_policy:detail
             """
             service = AITablePolicyService(db)
             policy = await service.get_or_raise(policy_id)
@@ -118,9 +120,9 @@ class AdminAITablePolicyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新 AI 表策略配置
+            更新 AI 表策略配置 / Update AI table policy config
 
-            权限: ai_table_policy:update
+            权限 / Permission: ai_table_policy:update
             """
             service = AITablePolicyService(db)
             policy = await service.get_or_raise(policy_id)
@@ -132,7 +134,7 @@ class AdminAITablePolicyController(GlobalController):
             await db.commit()
             await db.refresh(policy)
 
-            # 清除 Redis schema 缓存（所有租户）
+            # 清除 Redis schema 缓存（所有租户） / Clear Redis schema cache (all tenants)
             from app.ai.data_intelligence.schema_provider import SchemaProvider
             await SchemaProvider.invalidate_cache(0)
 
@@ -150,11 +152,11 @@ class AdminAITablePolicyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取策略对应表的列信息
+            获取策略对应表的列信息 / Get column info for the policy's table
 
-            用于 blocked_columns / readonly_columns 选择器
+            用于 blocked_columns / readonly_columns 选择器 / Used for blocked_columns / readonly_columns selectors
 
-            权限: ai_table_policy:columns
+            权限 / Permission: ai_table_policy:columns
             """
             service = AITablePolicyService(db)
             columns = await service.get_table_columns(policy_id)
@@ -172,14 +174,14 @@ class AdminAITablePolicyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            触发表策略同步（扫描新表并创建默认策略）
+            触发表策略同步（扫描新表并创建默认策略） / Trigger table policy sync (scan new tables and create default policies)
 
-            权限: ai_table_policy:sync
+            权限 / Permission: ai_table_policy:sync
             """
             from app.services.ai.table_policy_sync_service import sync_table_policies
             result = await sync_table_policies(db)
 
-            # 清除 Redis schema 缓存
+            # 清除 Redis schema 缓存 / Clear Redis schema cache
             from app.ai.data_intelligence.schema_provider import SchemaProvider
             await SchemaProvider.invalidate_cache(0)
 
@@ -189,7 +191,7 @@ class AdminAITablePolicyController(GlobalController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAITablePolicyController.get_router()
 
 __all__ = ["router", "AdminAITablePolicyController"]

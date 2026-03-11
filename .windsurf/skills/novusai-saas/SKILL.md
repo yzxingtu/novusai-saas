@@ -36,6 +36,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - **禁止硬编码字符串**：前端 `$t()` / `t()`，后端 `_()`
 - **禁止 `console.log`**：使用 `console.warn` / `console.error`
 - **禁止 `any` 类型**：使用 `unknown` 或具体类型
+- **新增代码注释或备注必须中英双语同时存在**：禁止只写中文注释/备注，禁止只写英文注释/备注；若无必要，优先不加注释
 - **禁止魔法字符串**：后端用 `LabeledEnum`，前端用常量/枚举
 - **禁止跨端导入**：admin 页面不导入 tenant/user 的 API/Store。后端跨端共享逻辑放 `app/api/shared/`（如 `_skill_helpers.py`）
 - **禁止层级越权**：Controller 不写业务逻辑或直接 DB 查询，Service 不直接操作 DB，Repository 不写业务判断。统计/Dashboard 查询必须在 Service 层
@@ -358,6 +359,7 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 
 - [ ] 无 `any` 类型
 - [ ] 无 `console.log()`
+- [ ] 新增代码注释/备注为中英双语，禁止单语注释
 - [ ] 无中文硬编码（全部 `$t()`，包括 Tooltip/Popconfirm/Alert/Empty 等组件 props）
 - [ ] 搜索/表单用辅助函数生成
 - [ ] 业务预设在 `data.ts` 定义，不在 adapter

@@ -1,22 +1,29 @@
 """
+ModelRouter — AI Multi-Model Routing Engine
 ModelRouter — AI 多模型路由引擎
 
-路由优先级（从高到低）：
-1. routing_config.enable_routing=False → 直接返回 agent 原始 provider+model（向后兼容）
-2. 有图片附件 → 优先 vision_model_id，否则按 tier 查找 vision 模型（受 max_tier 限制）
-3. 有工具且目标模型不支持 FC → 升级到同 tier 内支持 FC 的模型
-4. estimated_tokens > long_context_threshold → 优先 long_context_model_id，否则按 tier 降级找大 context_window 模型（受 max_tier 限制）
-5. ComplexityClassifier 分类 → 映射到 tier
-6. 按 tier 从 DB 查询模型（同 provider 优先 + 价格 ASC）
-7. Provider 健康检查 → 不健康则降 tier
-8. 兜底 agent.model_id（永远不失败）
+Routing priority (high to low) / 路由优先级（从高到低）：
+1. routing_config.enable_routing=False → Directly return agent's original provider+model (backward compatible)
+   routing_config.enable_routing=False → 直接返回 agent 原始 provider+model（向后兼容）
+2. Has image attachments → Prioritize vision_model_id, otherwise find vision model by tier (limited by max_tier)
+   有图片附件 → 优先 vision_model_id，否则按 tier 查找 vision 模型（受 max_tier 限制）
+3. Has tools and target model doesn't support FC → Upgrade to FC-capable model in same tier
+   有工具且目标模型不支持 FC → 升级到同 tier 内支持 FC 的模型
+4. estimated_tokens > long_context_threshold → Prioritize long_context_model_id, otherwise downgrade by tier for larger context_window (limited by max_tier)
+   estimated_tokens > long_context_threshold → 优先 long_context_model_id，否则按 tier 降级找大 context_window 模型（受 max_tier 限制）
+5. ComplexityClassifier classification → Map to tier / ComplexityClassifier 分类 → 映射到 tier
+6. Query model from DB by tier (same provider first + price ASC)
+   按 tier 从 DB 查询模型（同 provider 优先 + 价格 ASC）
+7. Provider health check → Downgrade tier if unhealthy / Provider 健康检查 → 不健康则降 tier
+8. Fallback to agent.model_id (never fails) / 兜底 agent.model_id（永远不失败）
 
+routing_config fields (effective after T4 migration, accessed safely via getattr here)
 routing_config 字段（T4 迁移后生效，此处通过 getattr 安全访问）：
-- enable_routing: bool  — 是否启用多模型路由
-- max_tier: str | None  — 最大允许 tier（防止意外使用 premium）
+- enable_routing: bool — Whether to enable multi-model routing / 是否启用多模型路由
+- max_tier: str | None — Max allowed tier (prevent accidental premium use) / 最大允许 tier（防止意外使用 premium）
 - vision_model_id: int | None
 - long_context_model_id: int | None
-- long_context_threshold: int — token 数量触发阈值
+- long_context_threshold: int — Token count trigger threshold / token 数量触发阈值
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.routing")
 
-# Tier 降级顺序
+# Tier downgrade order / Tier 降级顺序
 _TIER_CANDIDATES: dict[str, list[str]] = {
     ComplexityLevel.COMPLEX.value: [
         ModelTierEnum.PREMIUM.value,
@@ -57,13 +64,13 @@ _TIER_CANDIDATES: dict[str, list[str]] = {
     ],
 }
 
-# 默认长上下文阈值（tokens）
+# Default long context threshold (tokens) / 默认长上下文阈值（tokens）
 _DEFAULT_LONG_CONTEXT_THRESHOLD = 32_000
 
 
 @dataclass
 class RouteResult:
-    """路由结果"""
+    """Routing result / 路由结果"""
 
     provider_code: str
     model_code: str
@@ -75,8 +82,11 @@ class RouteResult:
 
 class ModelRouter:
     """
+    AI Multi-Model Routing Engine
     AI 多模型路由引擎
 
+    Selects the most suitable AI model based on request characteristics (complexity, attachments, tools, token count).
+    Automatically falls back to agent.model_id on any exception or if no model is found, without raising errors.
     根据请求特征（复杂度、附件、工具、Token 数量）选择最合适的 AI 模型。
     任何异常或找不到模型时自动兜底到 agent.model_id，不抛出异常。
     """
@@ -90,20 +100,28 @@ class ModelRouter:
         agent: Agent,
         request: Any,
         estimated_tokens: int = 0,
+        tools: list | None = None,
     ) -> RouteResult:
         """
+        Execute routing and return selected model information
         执行路由，返回选择的模型信息
 
         Args:
-            agent: 智能体对象（含 model_id / model 关系）
-            request: 执行请求（支持 messages/tools/has_attachments 属性）
-            estimated_tokens: 估算 Token 数（用于长上下文判断）
+            agent: Agent object (contains model_id / model relationship)
+                   智能体对象（含 model_id / model 关系）
+            request: Execution request (supports messages/attachments properties)
+                     执行请求（支持 messages/attachments 属性）
+            estimated_tokens: Estimated token count (for long context determination)
+                              估算 Token 数（用于长上下文判断）
+            tools: List of parsed tools (for FC capability routing and complexity scoring)
+                   已解析的工具列表（用于 FC 能力路由和复杂度评分）
 
         Returns:
+            RouteResult (never None, returns agent's original model on failure)
             RouteResult（永远不 None，失败时返回 agent 原始模型）
         """
         try:
-            return await self._do_route(agent, request, estimated_tokens)
+            return await self._do_route(agent, request, estimated_tokens, tools)
         except Exception as exc:
             logger.warning(
                 "ModelRouter.route failed (agent_id=%s): %s — falling back to agent model",
@@ -112,31 +130,39 @@ class ModelRouter:
             )
             return self._fallback(agent, reason=f"exception: {exc}")
 
-    # ==================== 核心路由逻辑 ====================
+    # ==================== Core Routing Logic / 核心路由逻辑 ====================
 
     async def _do_route(
         self,
         agent: Agent,
         request: Any,
         estimated_tokens: int,
+        tools: list | None = None,
     ) -> RouteResult:
         routing_config: dict = getattr(agent, "routing_config", None) or {}
 
+        # ── 1. enable_routing=False → Directly return original model ──
         # ── 1. enable_routing=False → 直接返回原始模型 ──
         if not routing_config.get("enable_routing", False):
             return self._fallback(agent, reason="routing_disabled")
 
-        # 从 request 提取请求特征
+        # Extract request features from request / 从 request 提取请求特征
         messages: list[ChatMessage] = getattr(request, "messages", []) or []
-        tools: list | None = getattr(request, "tools", None)
+        # Prioritize parsed tools from caller (_prepare_execution layer),
+        # fall back to request.tools (compatible with old call paths)
+        # 优先使用调用方传入的已解析 tools（_prepare_execution 层），
+        # 回退到 request.tools（兼容旧调用路径）
+        if tools is None:
+            tools = getattr(request, "tools", None)
         has_attachments: bool = bool(getattr(request, "attachments", None))
 
+        # Detect if request contains image attachments (request-level + message-level)
         # 检测是否包含图片附件（request 级 + message 级）
         has_image_attachments = self._detect_image_attachments(
             getattr(request, "attachments", None), messages,
         )
 
-        # 确保 agent 的 model 已加载
+        # Ensure agent's model is loaded / 确保 agent 的 model 已加载
         agent_model: AIModel | None = getattr(agent, "model", None)
         agent_provider_id: int | None = (
             agent_model.provider_id if agent_model else None
@@ -146,6 +172,7 @@ class ModelRouter:
 
         model_repo = AIModelRepository(self.db)
 
+        # ── 2. Image attachments → Requires Vision capability ──
         # ── 2. 图片附件 → 需要 Vision 能力 ──
         if has_image_attachments:
             vision_result = await self._route_for_vision(
@@ -154,6 +181,7 @@ class ModelRouter:
             if vision_result:
                 return vision_result
 
+        # ── 3. Long context → Requires large context_window ──
         # ── 3. 长上下文 → 需要大 context_window ──
         long_ctx_threshold: int = routing_config.get(
             "long_context_threshold", _DEFAULT_LONG_CONTEXT_THRESHOLD
@@ -171,7 +199,7 @@ class ModelRouter:
         )
         target_tiers = _TIER_CANDIDATES.get(complexity.value, [])
 
-        # 应用 max_tier 限制
+        # Apply max_tier limit / 应用 max_tier 限制
         max_tier = routing_config.get("max_tier")
         if max_tier:
             target_tiers = self._filter_tiers_by_max(target_tiers, max_tier)
@@ -187,6 +215,7 @@ class ModelRouter:
             if not model:
                 continue
 
+            # ── 5. Provider health check ──
             # ── 5. Provider 健康检查 ──
             if not await self._is_provider_healthy(model.provider_id):
                 logger.warning(
@@ -205,10 +234,11 @@ class ModelRouter:
                 is_overridden=True,
             )
 
+        # ── 6. Fallback ──
         # ── 6. 兜底 ──
         return self._fallback(agent, reason="no_tier_model_found")
 
-    # ==================== 子路由方法 ====================
+    # ==================== Sub-Routing Methods / 子路由方法 ====================
 
     async def _route_for_vision(
         self,
@@ -217,7 +247,8 @@ class ModelRouter:
         agent_provider_id: int | None,
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
-        """图片路由：优先显式配置的 vision_model_id"""
+        """Image routing: prioritize explicitly configured vision_model_id
+        图片路由：优先显式配置的 vision_model_id"""
         _ = agent
 
         vision_model_id: int | None = routing_config.get("vision_model_id")
@@ -237,6 +268,7 @@ class ModelRouter:
                     is_overridden=True,
                 )
 
+        # Fallback: find vision model by tier (limited by max_tier)
         # 退而求其次：按 tier 找 vision 模型（受 max_tier 限制）
         fallback_tiers = [
             ModelTierEnum.STANDARD.value,
@@ -273,7 +305,8 @@ class ModelRouter:
         estimated_tokens: int,
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
-        """长上下文路由：优先显式配置的 long_context_model_id"""
+        """Long context routing: prioritize explicitly configured long_context_model_id
+        长上下文路由：优先显式配置的 long_context_model_id"""
         _ = agent
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")
@@ -289,6 +322,7 @@ class ModelRouter:
                     is_overridden=True,
                 )
 
+        # Fallback: downgrade by tier to find models with larger context_window (limited by max_tier)
         # 退而求其次：按 tier 降级找大 context_window 模型（受 max_tier 限制）
         fallback_tiers = [
             ModelTierEnum.PREMIUM.value,
@@ -317,11 +351,11 @@ class ModelRouter:
 
         return None
 
-    # ==================== 辅助方法 ====================
+    # ==================== Helper Methods / 辅助方法 ====================
 
     @staticmethod
     def _fallback(agent: Agent, reason: str) -> RouteResult:
-        """兜底：使用 agent 原始配置的模型"""
+        """Fallback: use agent's original configured model / 兜底：使用 agent 原始配置的模型"""
         model: AIModel | None = getattr(agent, "model", None)
         provider = getattr(model, "provider", None) if model else None
 
@@ -347,7 +381,8 @@ class ModelRouter:
         )
 
     async def _is_provider_healthy(self, provider_id: int | None) -> bool:
-        """检查供应商健康状态（失败时默认健康，避免误屏蔽）"""
+        """Check provider health status (defaults to healthy on failure to avoid false blocking)
+        检查供应商健康状态（失败时默认健康，避免误屏蔽）"""
         if not provider_id:
             return True
         try:
@@ -365,21 +400,24 @@ class ModelRouter:
         messages: list[ChatMessage],
     ) -> bool:
         """
+        Detect if request contains image attachments (request-level + message-level)
         检测请求中是否包含图片附件（request 级 + message 级）
 
         Args:
             request_attachments: ExecutionRequest.attachments
-            messages: 消息列表（可能含 message.attachments）
+            messages: List of messages (may contain message.attachments)
+                      消息列表（可能含 message.attachments）
 
         Returns:
             True if any image attachment found
         """
-        # 检查 request 级附件
+        # Check request-level attachments / 检查 request 级附件
         if request_attachments:
             for att in request_attachments:
                 if isinstance(att, dict) and att.get("type") == "image":
                     return True
 
+        # Check message-level attachments (frontend directly injects into ChatMessage.attachments)
         # 检查 message 级附件（前端直接注入到 ChatMessage.attachments）
         for msg in messages:
             if msg.attachments:
@@ -392,8 +430,10 @@ class ModelRouter:
     @staticmethod
     def _filter_tiers_by_max(tiers: list[str], max_tier: str) -> list[str]:
         """
+        Filter by max_tier, keeping only tiers not exceeding max_tier level
         按 max_tier 过滤，只保留不超过 max_tier 级别的 tier
 
+        Level order: fast < standard < premium
         级别顺序：fast < standard < premium
         """
         order = [

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 /**
+ * Agent test chat drawer
  * 智能体测试对话抽屉
  *
+ * Features: SSE streaming chat, message list, tool call display, stop generation
  * 功能：SSE 流式对话、消息列表、工具调用展示、停止生成
  */
 import { computed, nextTick, ref } from 'vue';
@@ -26,7 +28,7 @@ import { requestClient } from '#/utils/request';
 
 defineOptions({ name: 'AgentTestDrawer' });
 
-/** 聊天消息 */
+/** Chat message / 聊天消息 */
 interface ChatMessage {
   id: string;
   role: 'assistant' | 'user';
@@ -60,7 +62,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         status: string;
       }>();
       if (data) {
-        // 切换智能体时重置对话
+        // Reset conversation when switching agents / 切换智能体时重置对话
         if (data.id !== agentId.value) {
           messages.value = [];
           conversationId.value = null;
@@ -90,10 +92,10 @@ async function scrollToBottom() {
   }
 }
 
-/** SSE 文本缓冲区 */
+/** SSE text buffer / SSE 文本缓冲区 */
 let sseBuffer = '';
 
-/** 解析 SSE 缓冲区，返回完整事件列表 */
+/** Parse SSE buffer, return complete event list / 解析 SSE 缓冲区，返回完整事件列表 */
 function flushSseBuffer(raw: string): Record<string, unknown>[] {
   sseBuffer += raw;
   const parts = sseBuffer.split('\n\n');
@@ -114,7 +116,7 @@ function flushSseBuffer(raw: string): Record<string, unknown>[] {
   return events;
 }
 
-/** 发送消息 */
+/** Send message / 发送消息 */
 async function onSend() {
   const text = inputText.value.trim();
   if (!text || streaming.value) return;
@@ -124,12 +126,12 @@ async function onSend() {
     return;
   }
 
-  // 用户消息
+  // User message / 用户消息
   messages.value.push({ id: genMsgId(), role: 'user', content: text });
   inputText.value = '';
   await scrollToBottom();
 
-  // 助手占位
+  // Assistant placeholder / 助手占位
   messages.value.push({
     id: genMsgId(),
     role: 'assistant',
@@ -139,7 +141,7 @@ async function onSend() {
   });
   const assistantIdx = messages.value.length - 1;
 
-  // SSE 流式请求
+  // SSE streaming request / SSE 流式请求
   streaming.value = true;
   sseBuffer = '';
   const ctrl = new AbortController();
@@ -217,7 +219,7 @@ async function onSend() {
   }
 }
 
-/** 停止生成 */
+/** Stop generation / 停止生成 */
 function onStop() {
   if (abortController.value) {
     abortController.value.abort();
@@ -228,14 +230,14 @@ function onStop() {
   if (last?.streaming) last.streaming = false;
 }
 
-/** 清空对话 */
+/** Clear conversation / 清空对话 */
 function onClear() {
   onStop();
   messages.value = [];
   conversationId.value = null;
 }
 
-/** 回车发送（Shift+Enter 换行） */
+/** Enter to send (Shift+Enter for newline) / 回车发送（Shift+Enter 换行） */
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();

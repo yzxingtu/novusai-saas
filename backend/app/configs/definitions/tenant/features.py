@@ -1,6 +1,6 @@
-"""
-租户功能开关配置项
+"""Tenant feature toggle config items / 租户功能开关配置项
 
+Includes tenant-level feature module enable/disable configs.
 包含租户级的功能模块启用/禁用配置
 """
 
@@ -9,10 +9,10 @@ from app.configs.meta import ConfigMeta
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
-# 用户管理功能
+# User management features / 用户管理功能
 # ==========================================
 
-# 允许用户自助注册
+# Allow user self-registration / 允许用户自助注册
 TENANT_ALLOW_REGISTRATION = ConfigMeta(
     key="tenant_allow_registration",
     name_key="config.tenant.allow_registration.name",
@@ -23,7 +23,7 @@ TENANT_ALLOW_REGISTRATION = ConfigMeta(
     sort_order=10,
 )
 
-# 新用户需要审批
+# New user requires approval / 新用户需要审批
 TENANT_REGISTRATION_APPROVAL = ConfigMeta(
     key="tenant_registration_approval",
     name_key="config.tenant.registration_approval.name",
@@ -34,7 +34,7 @@ TENANT_REGISTRATION_APPROVAL = ConfigMeta(
     sort_order=20,
 )
 
-# 允许用户修改个人资料
+# Allow user profile editing / 允许用户修改个人资料
 TENANT_ALLOW_PROFILE_EDIT = ConfigMeta(
     key="tenant_allow_profile_edit",
     name_key="config.tenant.allow_profile_edit.name",
@@ -47,10 +47,10 @@ TENANT_ALLOW_PROFILE_EDIT = ConfigMeta(
 
 
 # ==========================================
-# 通知功能
+# Notification features / 通知功能
 # ==========================================
 
-# 启用邮件通知
+# Enable email notifications / 启用邮件通知
 TENANT_EMAIL_NOTIFICATION = ConfigMeta(
     key="tenant_email_notification",
     name_key="config.tenant.email_notification.name",
@@ -61,7 +61,7 @@ TENANT_EMAIL_NOTIFICATION = ConfigMeta(
     sort_order=40,
 )
 
-# 启用短信通知
+# Enable SMS notifications / 启用短信通知
 TENANT_SMS_NOTIFICATION = ConfigMeta(
     key="tenant_sms_notification",
     name_key="config.tenant.sms_notification.name",
@@ -75,10 +75,10 @@ TENANT_SMS_NOTIFICATION = ConfigMeta(
 
 
 # ==========================================
-# 其他功能
+# Other features / 其他功能
 # ==========================================
 
-# 启用 API 访问
+# Enable API access / 启用 API 访问
 TENANT_API_ACCESS = ConfigMeta(
     key="tenant_api_access",
     name_key="config.tenant.api_access.name",
@@ -90,7 +90,7 @@ TENANT_API_ACCESS = ConfigMeta(
     sort_order=60,
 )
 
-# 启用文件上传
+# Enable file upload / 启用文件上传
 TENANT_FILE_UPLOAD = ConfigMeta(
     key="tenant_file_upload",
     name_key="config.tenant.file_upload.name",
@@ -103,7 +103,7 @@ TENANT_FILE_UPLOAD = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
+# Register configs to group / 注册配置到分组
 # ==========================================
 
 TENANT_FEATURES_GROUP.configs = [

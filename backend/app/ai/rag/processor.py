@@ -1,6 +1,9 @@
 """
+Celery Async Document Processing Task
 Celery 异步文档处理任务
 
+Processing flow: Parse → Chunk → Embedding → Store → Update statistics
+Supports checkpoint resume (recover from error_stage) and Redis progress reporting.
 处理流程：解析 → 分块 → Embedding → 存储 → 更新统计
 支持断点续传（从 error_stage 恢复）和 Redis 进度上报
 """
@@ -15,10 +18,11 @@ from app.tasks.base import TenantTask, register_task
 
 logger = LogManager.get_logger("ai.rag.processor")
 
-# Redis 进度 Key 模板，TTL 1 小时
+# Redis progress key template, TTL 1 hour / Redis 进度 Key 模板，TTL 1 小时
 PROGRESS_KEY_TEMPLATE = "kb:doc:progress:{document_id}"
 PROGRESS_TTL = 3600
 
+# Image file types requiring Vision description (must be described when explicitly uploaded, not controlled by extract_images)
 # 需要 Vision 描述的图片文件类型（用户显式上传时必须描述，不受 extract_images 控制）
 _IMAGE_DOC_TYPES: frozenset[str] = frozenset({"image", "jpg", "jpeg", "png", "webp", "gif"})
 
@@ -33,7 +37,7 @@ async def _report_progress(
     tenant_id: int | None = None,
     kb_id: int | None = None,
 ) -> None:
-    """上报处理进度到 Redis + WS 推送"""
+    """Report processing progress to Redis + WS push / 上报处理进度到 Redis + WS 推送"""
     progress_data = {
         "stage": stage,
         "progress": min(progress, 100),
@@ -47,6 +51,7 @@ async def _report_progress(
     except Exception:
         pass
 
+    # WS real-time push (forwarded via Redis Pub/Sub in Celery sync environment)
     # WS 实时推送（Celery 同步环境通过 Redis Pub/Sub 转发）
     try:
         from app.core.sio_bridge import notify_admins_sync, notify_tenant_sync
@@ -67,7 +72,7 @@ async def _report_progress(
 
 
 async def _clear_progress(document_id: int) -> None:
-    """清除 Redis 进度数据"""
+    """Clear Redis progress data / 清除 Redis 进度数据"""
     try:
         from app.core.redis import cache_delete
         key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
@@ -78,11 +83,16 @@ async def _clear_progress(document_id: int) -> None:
 
 async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     """
+    Load and parse document content, return non-empty ParsedPage list
     加载并解析文档内容，返回非空 ParsedPage 列表
 
+    Unified handling of QA-type and file-type document loading logic,
+    avoiding duplicate code in parse/chunk/embed stages.
     统一处理 QA 类型和文件类型的文档加载逻辑，
     避免在解析/分块/嵌入阶段重复相同代码。
 
+    Automatically instantiates VisionDescriber and injects into parser when kb.extract_images=True.
+    Empty ParsedPage (content='') are filtered out and won't enter the chunking stage.
     当 kb.extract_images=True 时自动实例化 VisionDescriber 并注入解析器。
     空内容的 ParsedPage（content=''）会被过滤，不进入分块阶段。
     """
@@ -104,6 +114,9 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
             file_name=doc.file_name,
         )
 
+    # Instantiate VisionDescriber on demand:
+    # 1. kb.extract_images=True → Embedded images in PDF/docs also need description extraction
+    # 2. File type itself is an image (explicitly uploaded by user) → Must be described regardless of extract_images setting
     # 按需实例化 VisionDescriber：
     # 1. kb.extract_images=True → PDF/文档中的嵌入图片也需要提取描述
     # 2. 文件类型本身是图片（用户显式上传）→ 无论 extract_images 设置，都必须描述
@@ -115,6 +128,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
         from app.ai.rag.vision_describer import VisionDescriber
         vision_describer = VisionDescriber(db, tenant_id)
 
+    # Direct text input: content stored in metadata_extra, no attachment
     # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
     if not doc.attachment_id and doc.metadata_extra:
         import io
@@ -172,8 +186,10 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
 
 async def get_document_progress(document_id: int) -> dict | None:
     """
+    Get document processing progress (for API calls)
     获取文档处理进度（供 API 调用）
 
+    Reads from Redis first, returns None if no data available.
     优先读 Redis，如果无数据返回 None
     """
     from app.core.redis import cache_get
@@ -183,7 +199,7 @@ async def get_document_progress(document_id: int) -> dict | None:
 
 @register_task(
     queue="ai_gateway",
-    description="异步处理知识库文档（解析→分块→Embedding→存储）",
+    description="Async knowledge base document processing (Parse→Chunk→Embedding→Store) / 异步处理知识库文档（解析→分块→Embedding→存储）",
     max_retries=3,
     base=TenantTask,
     soft_time_limit=600,
@@ -192,30 +208,34 @@ async def get_document_progress(document_id: int) -> dict | None:
 )
 def process_document(self: TenantTask, tenant_id: int | None, document_id: int) -> dict:
     """
+    Document processing main task (supports checkpoint resume)
     文档处理主任务（支持断点续传）
 
-    断点续传机制：
-    - error_stage='parsing' → 从解析阶段重新开始
-    - error_stage='chunking' → 从分块阶段开始
-    - error_stage='embedding' → 从上次成功的 chunk_index 继续
+    Checkpoint resume mechanism / 断点续传机制：
+    - error_stage='parsing' → Restart from parsing stage / 从解析阶段重新开始
+    - error_stage='chunking' → Start from chunking stage / 从分块阶段开始
+    - error_stage='embedding' → Continue from last successful chunk_index / 从上次成功的 chunk_index 继续
 
+    Reports Redis progress in real-time for each stage, cleared upon completion.
     每个阶段实时上报 Redis 进度，完成后清除。
 
     Args:
-        tenant_id: 租户 ID
-        document_id: 文档 ID
+        tenant_id: Tenant ID / 租户 ID
+        document_id: Document ID / 文档 ID
 
     Returns:
-        处理结果摘要
+        Processing result summary / 处理结果摘要
     """
 
     async def _execute() -> dict:
         from sqlalchemy import func, select
 
+        # Clean up DB connections left from previous event loop (required for Windows --pool=solo)
         # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
         from app.core.database import async_engine
         await async_engine.dispose()
 
+        # Ensure AI adapters are registered (Celery worker may not have loaded registrations from celery_app.py)
         # 确保 AI 适配器已注册（Celery worker 可能未加载 celery_app.py 中的注册）
         from app.ai.adapters import AdapterRegistry
         if not AdapterRegistry.list_adapters():
@@ -236,7 +256,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
         async with async_session_factory() as db:
             try:
-                # ===== 1. 加载文档和知识库 =====
+                # ===== 1. Load document and knowledge base / 加载文档和知识库 =====
                 doc_repo = KnowledgeDocumentRepository(db, tenant_id)
                 doc = await doc_repo.get_by_id(document_id)
                 if not doc:
@@ -249,8 +269,9 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     logger.error("KnowledgeBase %d not found", doc.knowledge_base_id)
                     return {"error": "KnowledgeBase not found"}
 
+                # Checkpoint resume: check error_stage to determine starting stage
                 # 断点续传：检查 error_stage 决定起始阶段
-                resume_stage = doc.error_stage  # None = 从头开始
+                resume_stage = doc.error_stage  # None = start from beginning / 从头开始
                 skip_parsing = resume_stage in ("chunking", "embedding")
                 skip_chunking = resume_stage == "embedding"
 
@@ -259,7 +280,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     document_id, doc.file_type, kb.id, resume_stage or "full",
                 )
 
-                # 重置错误信息
+                # Reset error information / 重置错误信息
                 doc.error_message = None
                 doc.error_stage = None
                 if not doc.processing_started_at:
@@ -269,7 +290,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 pages = None
                 chunk_data_list = None
 
-                # ===== 2. 解析阶段 =====
+                # ===== 2. Parsing stage / 解析阶段 =====
                 if not skip_parsing:
                     doc.status = DocumentStatusEnum.PARSING.value
                     await db.commit()
@@ -282,12 +303,13 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     if not pages:
                         logger.warning("Document %d parsed with 0 pages", document_id)
 
-                # ===== 3. 分块阶段 =====
+                # ===== 3. Chunking stage / 分块阶段 =====
                 if not skip_chunking:
                     doc.status = DocumentStatusEnum.CHUNKING.value
                     await db.commit()
                     await _report_progress(document_id, "chunking", 0, tenant_id=tenant_id, kb_id=kb.id)
 
+                    # If parsing was skipped (resuming from chunking), re-parse is needed
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
                         pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
@@ -300,7 +322,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     chunk_data_list = chunker.chunk(pages or [])
                     await _report_progress(document_id, "chunking", 100, tenant_id=tenant_id, kb_id=kb.id)
 
-                # ===== 4. Embedding 阶段（支持断点续传） =====
+                # ===== 4. Embedding stage (supports checkpoint resume) / Embedding 阶段（支持断点续传） =====
                 doc.status = DocumentStatusEnum.EMBEDDING.value
                 await db.commit()
 
@@ -312,11 +334,14 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 if not provider:
                     raise ValueError("Embedding model provider not found")
 
+                # Checkpoint resume: if resuming from embedding stage, query existing chunk count
                 # 断点续传：如果从 embedding 阶段恢复，查询已有分块数
                 existing_chunk_count = 0
                 if skip_chunking:
+                    # Need to regenerate chunk_data_list (resuming from embedding)
                     # 需要重新生成 chunk_data_list（从 embedding 恢复）
                     if chunk_data_list is None:
+                        # Re-parse + chunk (skip already completed embedding parts)
                         # 重新解析+分块（跳过 embedding 阶段已完成的部分）
                         pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
 
@@ -327,6 +352,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         )
                         chunk_data_list = chunker.chunk(pages or [])
 
+                    # Query successfully written chunk count (for checkpoint resume)
                     # 查询已成功写入的分块数（用于断点续传）
                     count_stmt = (
                         select(func.count(DocumentChunk.id))
@@ -350,8 +376,9 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 total_chunks = len(chunk_data_list)
                 total_char_count = sum(c.char_count for c in chunk_data_list)
 
-                # 从断点位置开始 Embedding
+                # Start Embedding from checkpoint position / 从断点位置开始 Embedding
                 chunks_to_embed = chunk_data_list[existing_chunk_count:]
+                # Read embedding_batch_size from provider config, default 10 (DashScope limit)
                 # 从供应商配置读取 embedding_batch_size，默认 10（DashScope 限制）
                 embedding_batch_size = 10
                 if provider.config and isinstance(provider.config, dict):
@@ -385,7 +412,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     total_token_count += response.total_tokens or 0
                     processed_so_far += len(batch)
 
-                    # 上报进度
+                    # Report progress / 上报进度
                     await _report_progress(
                         document_id, "embedding",
                         int(processed_so_far / max(total_chunks, 1) * 100),
@@ -398,21 +425,21 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         processed_so_far, total_chunks, document_id,
                     )
 
-                # ===== 5. 批量写入 document_chunks =====
+                # ===== 5. Batch write document_chunks / 批量写入 document_chunks =====
                 chunk_repo = DocumentChunkRepository(db, tenant_id)
 
                 if existing_chunk_count == 0:
-                    # 全新处理：先删除旧分块
+                    # Fresh processing: delete old chunks first / 全新处理：先删除旧分块
                     await chunk_repo.delete_by_document(document_id, soft=False)
 
-                # 只写入新生成的分块
+                # Only write newly generated chunks / 只写入新生成的分块
                 write_batch_size = 500
                 for i in range(0, len(chunks_to_embed), write_batch_size):
                     batch = chunks_to_embed[i:i + write_batch_size]
                     batch_data = []
                     for idx, cd in enumerate(batch):
                         embedding_vec = (
-                            all_embeddings[idx + i]  # all_embeddings 从0开始对应 chunks_to_embed
+                            all_embeddings[idx + i]  # all_embeddings indexed from 0 corresponding to chunks_to_embed
                             if (idx + i) < len(all_embeddings)
                             else None
                         )
@@ -430,7 +457,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         })
                     await chunk_repo.create_many(batch_data)
 
-                # ===== 6. 更新文档统计 =====
+                # ===== 6. Update document statistics / 更新文档统计 =====
                 doc.status = DocumentStatusEnum.COMPLETED.value
                 doc.chunk_count = total_chunks
                 doc.token_count = total_token_count
@@ -440,13 +467,14 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 doc.error_stage = None
                 await db.commit()
 
-                # ===== 7. 更新知识库统计 =====
+                # ===== 7. Update knowledge base statistics / 更新知识库统计 =====
                 await kb_repo.update_statistics(kb.id)
                 await db.commit()
 
-                # 清除 Redis 进度
+                # Clear Redis progress / 清除 Redis 进度
                 await _clear_progress(document_id)
 
+                # Clear retrieval cache for this knowledge base (avoid returning stale results)
                 # 清除该知识库的检索缓存（避免返回过时结果）
                 try:
                     from app.ai.rag.retriever import HybridRetriever
@@ -454,7 +482,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 except Exception:
                     pass
 
-                # Socket.IO 索引完成通知
+                # Socket.IO indexing complete notification / Socket.IO 索引完成通知
                 try:
                     notification = {
                         "type": "ai.kb_index_complete",
@@ -510,13 +538,13 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     doc.retry_count = (doc.retry_count or 0) + 1
                     await db.commit()
 
-                    # 上报错误进度
+                    # Report error progress / 上报错误进度
                     await _report_progress(
                         document_id, "error", 0,
                         tenant_id=tenant_id, kb_id=kb.id if kb else None,
                     )
 
-                    # Socket.IO 索引失败通知
+                    # Socket.IO indexing failed notification / Socket.IO 索引失败通知
                     try:
                         fail_notification = {
                             "type": "ai.kb_index_failed",
@@ -546,6 +574,8 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     "error": str(exc)[:500],
                 }
 
+    # Windows --pool=solo: asyncio.run() closes the event loop, causing DB connection pool to become invalid for subsequent tasks.
+    # Use new_event_loop and run manually to ensure each task has a clean loop.
     # Windows --pool=solo: asyncio.run() 会关闭 event loop，导致后续任务的 DB 连接池失效。
     # 使用 new_event_loop 并手动运行，确保每次任务都有干净的 loop。
     loop = asyncio.new_event_loop()

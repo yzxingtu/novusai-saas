@@ -49,7 +49,7 @@ interface SslDrawerData {
 /** 是否为默认域名（平台通配符 SSL 覆盖） */
 const isDefaultDomain = computed(() => drawerData.value?.isDefault ?? false);
 
-// 状态
+// State / 状态
 const drawerData = ref<null | SslDrawerData>(null);
 const loading = ref(false);
 const actionLoading = ref(false);
@@ -57,7 +57,7 @@ const sslDetail = ref<null | SslCertificateInfo>(null);
 const showUploadForm = ref(false);
 const uploadForm = ref({ certificate: '', privateKey: '', chain: '' });
 
-// 计算属性
+// Computed properties / 计算属性
 const title = computed(() =>
   drawerData.value
     ? `${$t('admin.tenant.domain.ssl.title')} - ${drawerData.value.domain}`

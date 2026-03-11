@@ -1,7 +1,8 @@
 """
-平台管理员模型
+平台管理员模型 / Platform Admin Model
 
 平台级别的超级管理员，独立于租户体系
+Platform-level super administrators, independent of the tenant system.
 """
 
 from datetime import datetime

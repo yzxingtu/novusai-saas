@@ -1,6 +1,7 @@
 """
-Cache management API (Admin)
+缓存管理 API (Admin) / Cache Management API (Admin)
 
+提供平台管理员缓存摘要和清理接口
 Provides cache summary and clearing endpoints for platform administrators.
 """
 
@@ -29,16 +30,16 @@ from app.services.system.cache_management_service import CacheManagementService
 )
 class AdminCacheController(GlobalController):
     """
-    Cache management controller
+    缓存管理控制器 / Cache Management Controller
 
-    Provides cache statistics and clearing capabilities.
+    提供缓存统计和清理功能 / Provides cache statistics and clearing capabilities.
     """
 
     prefix = "/cache"
     tags = [_("menu.tags.admin_cache")]
 
     def _register_routes(self) -> None:
-        """Register routes"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/summary", summary="Get cache summary")
@@ -49,12 +50,13 @@ class AdminCacheController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Get cache statistics for all categories.
+            获取所有分类的缓存统计 / Get cache statistics for all categories.
 
+            返回每个缓存分类的键数量和大小，包括 Redis 缓存、本地文件缓存和内存缓存。
             Returns key counts and size for each cache category
             including Redis caches, local file caches, and in-memory caches.
 
-            Permission: cache_management:read
+            权限 / Permission: cache_management:read
             """
             summary = await CacheManagementService.get_cache_summary()
             return success(data=summary.model_dump(), message=_("common.success"))
@@ -68,11 +70,11 @@ class AdminCacheController(GlobalController):
             body: CacheClearRequest,
         ):
             """
-            Clear specified cache categories.
+            清除指定缓存分类 / Clear specified cache categories.
 
-            Accepts a list of cache category codes and clears them.
+            接受缓存分类代码列表并清除它们 / Accepts a list of cache category codes and clears them.
 
-            Permission: cache_management:delete
+            权限 / Permission: cache_management:delete
             """
             categories = [
                 CacheCategoryEnum.from_value(c) for c in body.categories
@@ -86,7 +88,7 @@ class AdminCacheController(GlobalController):
             )
 
 
-# Export router
+# 导出路由器 / Export router
 router = AdminCacheController.get_router()
 
 __all__ = ["router", "AdminCacheController"]

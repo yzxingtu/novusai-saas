@@ -1,7 +1,8 @@
 """
-平台端 AI API Key 管理 API
+平台端 AI API Key 管理 API / Platform AI API Key API
 
 提供 AI API Key 的 CRUD 接口（平台管理员专用）
+Provides AI API key CRUD endpoints (platform admin only).
 """
 
 from fastapi import Query, Request
@@ -30,7 +31,7 @@ from app.services.ai import ProviderApiKeyService
 
 def _make_key_preview(key) -> str | None:
     """
-    生成 API Key 明文掩码预览（如 sk-ab****wxyz）
+    生成 API Key 明文掩码预览（如 sk-ab****wxyz） / Generate API Key plaintext masked preview (e.g. sk-ab****wxyz)
     """
     try:
         plain_key = key.decrypt_key()
@@ -45,15 +46,15 @@ def _make_key_preview(key) -> str | None:
 
 def _build_api_key_response(key) -> dict:
     """
-    构建 API Key 响应数据
+    构建 API Key 响应数据 / Build API Key response data
 
-    手动处理 is_available 方法和其他字段
+    手动处理 is_available 方法和其他字段 / Manually handle is_available method and other fields
     """
-    # 安全地访问关系，避免 AttributeError
+    # 安全地访问关系，避免 AttributeError / Safely access relationships to avoid AttributeError
     provider_name = None
     tenant_name = None
 
-    # 只有在 tenant_id 不为 None 时才尝试访问 tenant 关系
+    # 只有在 tenant_id 不为 None 时才尝试访问 tenant 关系 / Only try to access tenant relationship when tenant_id is not None
     if key.tenant_id is not None:
         try:
             tenant = getattr(key, 'tenant', None)
@@ -62,7 +63,7 @@ def _build_api_key_response(key) -> dict:
         except AttributeError:
             pass
 
-    # 尝试访问 provider 关系
+    # 尝试访问 provider 关系 / Try to access provider relationship
     try:
         provider = getattr(key, 'provider', None)
         if provider is not None:
@@ -105,9 +106,9 @@ def _build_api_key_response(key) -> dict:
 )
 class AdminAIApiKeyController(GlobalController):
     """
-    AI API Key 管理控制器
+    AI API Key 管理控制器 / AI API Key Management Controller
 
-    提供 AI API Key CRUD、状态切换等接口
+    提供 AI API Key CRUD、状态切换等接口 / Provides AI API Key CRUD, status toggle endpoints
     """
 
     prefix = "/ai/api-keys"
@@ -115,7 +116,7 @@ class AdminAIApiKeyController(GlobalController):
     service_class = ProviderApiKeyService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取 AI API Key 列表")
@@ -127,13 +128,13 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI API Key 列表
+            获取 AI API Key 列表 / Get AI API Key list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / General filtering: filter[field][op]=value
+            - 支持排序 / Sorting: sort=-created_at,name
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
 
-            权限: ai_api_key:list
+            权限 / Permission: ai_api_key:list
             """
             service = ProviderApiKeyService(db)
             items, total = await service.query_list(spec)
@@ -158,9 +159,9 @@ class AdminAIApiKeyController(GlobalController):
             tenant_id: int | None = Query(None, description="租户 ID"),
         ):
             """
-            根据供应商 ID 获取其所有 API Key
+            根据供应商 ID 获取其所有 API Key / Get all API Keys by provider ID
 
-            权限: ai_api_key:list_by_provider
+            权限 / Permission: ai_api_key:list_by_provider
             """
             service = ProviderApiKeyService(db)
             keys = await service.get_keys_by_provider(
@@ -182,9 +183,9 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI API Key 详情
+            获取 AI API Key 详情 / Get AI API Key details
 
-            权限: ai_api_key:detail
+            权限 / Permission: ai_api_key:detail
             """
             service = ProviderApiKeyService(db)
             key = await service.get_by_id(key_id)
@@ -207,9 +208,9 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建 AI API Key
+            创建 AI API Key / Create AI API Key
 
-            权限: ai_api_key:create
+            权限 / Permission: ai_api_key:create
             """
             service = ProviderApiKeyService(db)
             key = await service.create_key(data)
@@ -231,9 +232,9 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新 AI API Key 信息
+            更新 AI API Key 信息 / Update AI API Key info
 
-            权限: ai_api_key:update
+            权限 / Permission: ai_api_key:update
             """
             service = ProviderApiKeyService(db)
             key = await service.update_key(key_id, data)
@@ -254,9 +255,9 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除 AI API Key（软删除）
+            删除 AI API Key（软删除） / Delete AI API Key (soft delete)
 
-            权限: ai_api_key:delete
+            权限 / Permission: ai_api_key:delete
             """
             service = ProviderApiKeyService(db)
             await service.delete_key(key_id)
@@ -273,9 +274,9 @@ class AdminAIApiKeyController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            启用或禁用 AI API Key
+            启用或禁用 AI API Key / Enable or disable AI API Key
 
-            权限: ai_api_key:toggle_status
+            权限 / Permission: ai_api_key:toggle_status
             """
             service = ProviderApiKeyService(db)
             key = await service.toggle_status(key_id)
@@ -287,7 +288,7 @@ class AdminAIApiKeyController(GlobalController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIApiKeyController.get_router()
 
 __all__ = ["router", "AdminAIApiKeyController"]

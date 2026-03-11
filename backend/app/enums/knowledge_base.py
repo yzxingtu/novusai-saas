@@ -1,21 +1,22 @@
 """
-知识库相关枚举模块
+知识库相关枚举模块 / Knowledge Base Enum Module
 
 定义知识库状态、文档状态、文档类型、分块策略、检索模式、查询改写策略等枚举
+Defines KB status, document status/type, chunk strategy, search mode, rewrite strategy enums.
 """
 
 from app.enums.base import LabeledStrEnum
 
 
 class KBStatusEnum(LabeledStrEnum):
-    """知识库状态枚举"""
+    """Knowledge Base Status Enum / 知识库状态枚举"""
 
     ACTIVE = ("active", "enum.knowledge_base.status.active")
     DISABLED = ("disabled", "enum.knowledge_base.status.disabled")
 
 
 class DocumentStatusEnum(LabeledStrEnum):
-    """文档处理状态枚举（状态机）"""
+    """Document Processing Status Enum (state machine) / 文档处理状态枚举（状态机）"""
 
     PENDING = ("pending", "enum.knowledge_base.document_status.pending")
     PARSING = ("parsing", "enum.knowledge_base.document_status.parsing")
@@ -26,7 +27,7 @@ class DocumentStatusEnum(LabeledStrEnum):
 
 
 class DocumentTypeEnum(LabeledStrEnum):
-    """文档类型枚举"""
+    """Document Type Enum / 文档类型枚举"""
 
     PDF = ("pdf", "enum.knowledge_base.document_type.pdf")
     DOCX = ("docx", "enum.knowledge_base.document_type.docx")
@@ -43,7 +44,7 @@ class DocumentTypeEnum(LabeledStrEnum):
 
 
 class KBVisibilityEnum(LabeledStrEnum):
-    """知识库可见性枚举"""
+    """Knowledge Base Visibility Enum / 知识库可见性枚举"""
 
     PRIVATE = ("private", "enum.knowledge_base.visibility.private")
     ALL_TENANTS = ("all_tenants", "enum.knowledge_base.visibility.all_tenants")
@@ -51,7 +52,7 @@ class KBVisibilityEnum(LabeledStrEnum):
 
 
 class ChunkStrategyEnum(LabeledStrEnum):
-    """文本分块策略枚举"""
+    """Text Chunk Strategy Enum / 文本分块策略枚举"""
 
     RECURSIVE = ("recursive", "enum.knowledge_base.chunk_strategy.recursive")
     SEMANTIC = ("semantic", "enum.knowledge_base.chunk_strategy.semantic")
@@ -59,7 +60,7 @@ class ChunkStrategyEnum(LabeledStrEnum):
 
 
 class SearchModeEnum(LabeledStrEnum):
-    """检索模式枚举"""
+    """Search Mode Enum / 检索模式枚举"""
 
     HYBRID = ("hybrid", "enum.knowledge_base.search_mode.hybrid")
     VECTOR = ("vector", "enum.knowledge_base.search_mode.vector")
@@ -67,7 +68,7 @@ class SearchModeEnum(LabeledStrEnum):
 
 
 class RewriteStrategyEnum(LabeledStrEnum):
-    """查询改写策略枚举"""
+    """Query Rewrite Strategy Enum / 查询改写策略枚举"""
 
     NONE = ("none", "enum.knowledge_base.rewrite_strategy.none")
     MULTI = ("multi", "enum.knowledge_base.rewrite_strategy.multi")

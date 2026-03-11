@@ -1,7 +1,8 @@
 """
-平台管理员仓储
+平台管理员仓储 / Admin Repository
 
 提供平台管理员的数据访问操作
+Provides platform admin data access operations.
 """
 
 from sqlalchemy import or_, select

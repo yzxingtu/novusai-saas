@@ -1,7 +1,8 @@
 """
-AI 调用日志相关 Schema
+AI 调用日志相关 Schema / AI Call Log Schema
 
 定义调用日志的请求和响应数据结构
+Defines call log request and response data structures.
 """
 
 from decimal import Decimal

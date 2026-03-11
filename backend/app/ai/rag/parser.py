@@ -1,8 +1,11 @@
 """
+Document Parser Module
 文档解析器模块
 
-支持 PDF、DOCX、TXT、Markdown、CSV、XLSX、HTML、Q&A、URL、PPTX、图片（JPG/PNG/WebP/GIF）十一种格式解析
-统一输出 ParsedPage 列表供分块器使用
+Supports 11 formats: PDF, DOCX, TXT, Markdown, CSV, XLSX, HTML, Q&A, URL, PPTX, Image (JPG/PNG/WebP/GIF).
+Unified output as ParsedPage list for chunker consumption.
+支持 PDF、DOCX、TXT、Markdown、CSV、XLSX、HTML、Q&A、URL、PPTX、图片（JPG/PNG/WebP/GIF）十一种格式解析，
+统一输出 ParsedPage 列表供分块器使用。
 """
 
 from __future__ import annotations
@@ -27,40 +30,45 @@ logger = LogManager.get_logger("ai.rag.parser")
 
 @dataclass
 class ParsedPage:
-    """解析结果单元（一页/一段/一行）"""
+    """Parsed result unit (one page/paragraph/row) / 解析结果单元（一页/一段/一行）"""
     content: str
     metadata: dict = field(default_factory=dict)
 
 
 class DocumentParser(ABC):
-    """文档解析器基类"""
+    """Document parser base class / 文档解析器基类"""
 
     @abstractmethod
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
         """
-        解析文档内容
+        Parse document content / 解析文档内容
 
         Args:
-            file_content: 文件二进制流
-            file_name: 原始文件名（用于元数据）
+            file_content: File binary stream / 文件二进制流
+            file_name: Original file name (for metadata) / 原始文件名（用于元数据）
 
         Returns:
-            ParsedPage 列表
+            ParsedPage list / ParsedPage 列表
         """
 
 
 class PdfParser(DocumentParser):
     """
+    PDF Parser
     PDF 解析器
 
+    Uses PyMuPDF (fitz) to extract text, preserving page number metadata.
+    When knowledge_base.extract_images=True and VisionDescriber is injected,
+    also extracts embedded images and calls Vision model to generate descriptions.
     使用 PyMuPDF (fitz) 提取文本，保留页码元数据。
     当 knowledge_base.extract_images=True 且注入了 VisionDescriber 时，
     同时提取内嵌图片并调用 Vision 模型生成图片描述追加到页面列表。
 
+    Image filter: images smaller than 4KB (noise/decoration) are skipped.
     图片过滤规则：小于 4KB（噪点/装饰图）的图片跳过。
     """
 
-    # 跳过小于此大小的图片（避免处理 logo、分隔线等装饰图片）
+    # Skip images below this size (avoid processing logos, separators, etc.) / 跳过小于此大小的图片（避免处理 logo、分隔线等装饰图片）
     _MIN_IMAGE_BYTES = 4 * 1024
 
     def __init__(
@@ -143,9 +151,11 @@ class PdfParser(DocumentParser):
 
 class DocxParser(DocumentParser):
     """
+    DOCX Parser
     DOCX 解析器
 
-    使用 python-docx 提取段落和表格，保留标题层级元数据
+    Uses python-docx to extract paragraphs and tables, preserving heading hierarchy metadata.
+    使用 python-docx 提取段落和表格，保留标题层级元数据。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -161,7 +171,7 @@ class DocxParser(DocumentParser):
             if not text:
                 continue
 
-            # 检测标题
+            # Detect heading / 检测标题
             if para.style and para.style.name and para.style.name.startswith("Heading"):
                 current_heading = text
 
@@ -175,14 +185,14 @@ class DocxParser(DocumentParser):
             ))
             paragraph_index += 1
 
-        # 处理表格：转为 Markdown 格式
+        # Process tables: convert to Markdown format / 处理表格：转为 Markdown 格式
         for table_idx, table in enumerate(doc.tables):
             rows_text = []
             for row in table.rows:
                 cells = [cell.text.strip() for cell in row.cells]
                 rows_text.append("| " + " | ".join(cells) + " |")
             if rows_text:
-                # 插入分隔符行
+                # Insert separator row / 插入分隔符行
                 header_sep = "| " + " | ".join(["---"] * len(table.rows[0].cells)) + " |"
                 table_md = rows_text[0] + "\n" + header_sep + "\n" + "\n".join(rows_text[1:])
                 pages.append(ParsedPage(
@@ -202,9 +212,11 @@ class DocxParser(DocumentParser):
 
 class TxtParser(DocumentParser):
     """
+    TXT Parser
     TXT 解析器
 
-    按空行分段
+    Splits by blank lines into paragraphs.
+    按空行分段。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -232,10 +244,13 @@ class TxtParser(DocumentParser):
 
 class MarkdownParser(DocumentParser):
     """
+    Markdown Parser
     Markdown 解析器
 
-    按标题层级分段，保留标题作为元数据
-    代码块和表格完整保留
+    Splits by heading hierarchy, preserving headings as metadata.
+    Code blocks and tables are kept intact.
+    按标题层级分段，保留标题作为元数据。
+    代码块和表格完整保留。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -245,7 +260,7 @@ class MarkdownParser(DocumentParser):
         current_content: list[str] = []
 
         def flush():
-            """将当前累积内容输出为一个 ParsedPage"""
+            """Flush accumulated content as a ParsedPage / 将当前累积内容输出为一个 ParsedPage"""
             nonlocal current_content
             content = "\n".join(current_content).strip()
             if content:
@@ -259,7 +274,7 @@ class MarkdownParser(DocumentParser):
             current_content = []
 
         for line in text.split("\n"):
-            # 检测标题行
+            # Detect heading line / 检测标题行
             heading_match = re.match(r"^(#{1,6})\s+(.+)$", line)
             if heading_match:
                 flush()
@@ -279,9 +294,11 @@ class MarkdownParser(DocumentParser):
 
 class CsvParser(DocumentParser):
     """
+    CSV Parser
     CSV 解析器
 
-    使用 pandas 读取，每行转为 "列名: 值" 格式文本
+    Uses pandas to read, each row converted to "column_name: value" format text.
+    使用 pandas 读取，每行转为 "列名: 值" 格式文本。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -316,9 +333,11 @@ class CsvParser(DocumentParser):
 
 class XlsxParser(DocumentParser):
     """
+    Excel (.xlsx) Parser
     Excel (.xlsx) 解析器
 
-    使用 openpyxl 读取，支持多 Sheet，每行转为 "列名: 值" 格式文本
+    Uses openpyxl to read, supports multiple sheets, each row converted to "column_name: value" format text.
+    使用 openpyxl 读取，支持多 Sheet，每行转为 "列名: 值" 格式文本。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -334,7 +353,7 @@ class XlsxParser(DocumentParser):
                 if not rows:
                     continue
 
-                # 第一行作为列名
+                # First row as column names / 第一行作为列名
                 headers = [
                     str(h).strip() if h is not None else f"col_{i}"
                     for i, h in enumerate(rows[0])
@@ -368,9 +387,11 @@ class XlsxParser(DocumentParser):
 
 class QaPairParser:
     """
+    Q&A Pair Parser
     Q&A 对解析器
 
-    手动输入的问答对，每对 Q+A 作为一个 ParsedPage
+    Manually input Q&A pairs, each Q+A pair as one ParsedPage.
+    手动输入的问答对，每对 Q+A 作为一个 ParsedPage。
     """
 
     async def parse_qa(
@@ -380,15 +401,15 @@ class QaPairParser:
         file_name: str = "Q&A",
     ) -> list[ParsedPage]:
         """
-        解析单个 Q&A 对
+        Parse a single Q&A pair / 解析单个 Q&A 对
 
         Args:
-            question: 问题
-            answer: 回答
-            file_name: 来源名称
+            question: Question / 问题
+            answer: Answer / 回答
+            file_name: Source name / 来源名称
 
         Returns:
-            包含单个 ParsedPage 的列表
+            List containing a single ParsedPage / 包含单个 ParsedPage 的列表
         """
         content = f"Q: {question}\nA: {answer}"
         return [ParsedPage(
@@ -404,9 +425,11 @@ class QaPairParser:
 
 class HtmlParser(DocumentParser):
     """
+    HTML File Parser
     HTML 文件解析器
 
-    使用 BeautifulSoup 提取正文，过滤 script/style 等非内容标签
+    Uses BeautifulSoup to extract body content, filtering out script/style and other non-content tags.
+    使用 BeautifulSoup 提取正文，过滤 script/style 等非内容标签。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -460,16 +483,19 @@ class HtmlParser(DocumentParser):
 
 class UrlParser(DocumentParser):
     """
+    URL Parser
     URL 解析器
 
-    使用 httpx + beautifulsoup4 爬取网页，提取正文
+    Uses httpx + beautifulsoup4 to fetch web pages and extract body content.
+    使用 httpx + beautifulsoup4 爬取网页，提取正文。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
         """
-        解析网页内容
+        Parse web page content / 解析网页内容
 
-        file_content 中存储的是 URL 字符串（UTF-8 编码）
+        file_content stores URL string (UTF-8 encoded).
+        file_content 中存储的是 URL 字符串（UTF-8 编码）。
         """
         import httpx
         from bs4 import BeautifulSoup
@@ -484,15 +510,15 @@ class UrlParser(DocumentParser):
 
         soup = BeautifulSoup(response.text, "lxml")
 
-        # 移除脚本、样式等非内容标签
+        # Remove script, style and other non-content tags / 移除脚本、样式等非内容标签
         for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
             tag.decompose()
 
-        # 提取正文
+        # Extract body content / 提取正文
         pages: list[ParsedPage] = []
         body = soup.find("body")
         if body:
-            # 按标题分段
+            # Split by heading / 按标题分段
             current_heading: str | None = soup.title.string if soup.title else None
             current_content: list[str] = []
 
@@ -502,7 +528,7 @@ class UrlParser(DocumentParser):
                     continue
 
                 if element.name and element.name.startswith("h"):
-                    # 标题元素：输出之前的内容并开始新段
+                    # Heading element: output previous content and start new section / 标题元素：输出之前的内容并开始新段
                     if current_content:
                         pages.append(ParsedPage(
                             content="\n".join(current_content),
@@ -517,7 +543,7 @@ class UrlParser(DocumentParser):
                 else:
                     current_content.append(text)
 
-            # 输出最后一段
+            # Output last section / 输出最后一段
             if current_content:
                 pages.append(ParsedPage(
                     content="\n".join(current_content),
@@ -537,8 +563,12 @@ class UrlParser(DocumentParser):
 
 class ImageParser(DocumentParser):
     """
+    Image File Parser (jpg/jpeg/png/webp/gif)
     图片文件解析器（jpg/jpeg/png/webp/gif）
 
+    Calls VisionDescriber to generate text descriptions for images, returns a single ParsedPage.
+    If vision_describer is None or description is empty, returns ParsedPage with content=""
+    (processor layer is responsible for filtering empty ParsedPage).
     调用 VisionDescriber 生成图片的文字描述，返回单个 ParsedPage。
     若 vision_describer 为 None 或描述为空，返回 content="" 的 ParsedPage
     （processor 层负责过滤空 ParsedPage）。
@@ -558,7 +588,7 @@ class ImageParser(DocumentParser):
         if not self._vision_describer or not self._knowledge_base or not image_bytes:
             return [ParsedPage(content="", metadata={"source": file_name})]
 
-        # MIME 类型从文件名推断，fallback 到 image/jpeg
+        # Infer MIME type from filename, fallback to image/jpeg / MIME 类型从文件名推断，fallback 到 image/jpeg
         mime_type, _ = mimetypes.guess_type(file_name or "image.jpg")
         if not mime_type or not mime_type.startswith("image/"):
             mime_type = "image/jpeg"
@@ -585,15 +615,22 @@ class ImageParser(DocumentParser):
 
 class PptxParser(DocumentParser):
     """
+    PPTX Parser
     PPTX 解析器
 
+    Uses python-pptx to extract per-slide:
+    - Text box/placeholder content
+    - Tables (Markdown format)
+    - Slide title (metadata.heading)
+    - Slide notes (if any)
     使用 python-pptx 按幻灯片提取：
     - 文字框/占位符内容
     - 表格（Markdown 格式）
     - 幻灯片标题（metadata.heading）
     - 幻灯片备注（若有）
 
-    每张幻灯片 → 1个 ParsedPage（空白幻灯片跳过）
+    Each slide → 1 ParsedPage (blank slides are skipped).
+    每张幻灯片 → 1个 ParsedPage（空白幻灯片跳过）。
     """
 
     async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
@@ -608,12 +645,12 @@ class PptxParser(DocumentParser):
             title_text: str | None = None
 
             for shape in slide.shapes:
-                # 提取文字框/占位符内容
+                # Extract text box/placeholder content / 提取文字框/占位符内容
                 if shape.has_text_frame:
                     text = shape.text_frame.text.strip()
                     if not text:
                         continue
-                    # 识别标题占位符
+                    # Detect title placeholder / 识别标题占位符
                     if shape.shape_id == 1 or (
                         hasattr(shape, "placeholder_format")
                         and shape.placeholder_format is not None
@@ -622,7 +659,7 @@ class PptxParser(DocumentParser):
                         title_text = text
                     parts.append(text)
 
-                # 提取表格
+                # Extract tables / 提取表格
                 if shape.has_table:
                     rows_text = []
                     for row in shape.table.rows:
@@ -633,7 +670,7 @@ class PptxParser(DocumentParser):
                         table_md = rows_text[0] + "\n" + header_sep + "\n" + "\n".join(rows_text[1:])
                         parts.append(table_md)
 
-            # 提取幻灯片备注
+            # Extract slide notes / 提取幻灯片备注
             if slide.has_notes_slide:
                 notes_text = slide.notes_slide.notes_text_frame.text.strip()
                 if notes_text:
@@ -668,18 +705,20 @@ def get_parser(
     knowledge_base: KnowledgeBase | None = None,
 ) -> DocumentParser:
     """
+    Factory method: get parser by file type
     工厂方法：根据文件类型获取解析器
 
     Args:
-        file_type: 文件类型（pdf/docx/txt/md/csv/url/pptx/image...）
-        vision_describer: 图片描述服务，供 ImageParser 和增强版 PdfParser 使用
-        knowledge_base: 知识库对象，供图片解析器使用
+        file_type: File type (pdf/docx/txt/md/csv/url/pptx/image...) / 文件类型
+        vision_describer: Vision description service for ImageParser and enhanced PdfParser
+                          图片描述服务，供 ImageParser 和增强版 PdfParser 使用
+        knowledge_base: KB object for image parsers / 知识库对象，供图片解析器使用
 
     Returns:
-        对应的解析器实例
+        Corresponding parser instance / 对应的解析器实例
 
     Raises:
-        BusinessException: 不支持的文件类型
+        BusinessException: Unsupported file type / 不支持的文件类型
     """
     if file_type == "pdf":
         return PdfParser(

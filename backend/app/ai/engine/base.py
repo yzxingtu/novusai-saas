@@ -1,7 +1,10 @@
 """
+Execution Engine Abstract Base Class
 执行引擎抽象基类
 
-提供所有执行模式共享的基础设施：消息构建、工具解析、工具调用循环、事件发布
+Provides shared infrastructure for all execution modes:
+message building, tool parsing, tool call loop, event publishing.
+提供所有执行模式共享的基础设施：消息构建、工具解析、工具调用循环、事件发布。
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ import dataclasses
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from jinja2 import BaseLoader, Environment, TemplateSyntaxError, UndefinedError
+from jinja2 import BaseLoader, ChainableUndefined, Environment, TemplateSyntaxError, UndefinedError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.events.bus import get_event_bus
@@ -35,22 +38,23 @@ from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 
 logger = LogManager.get_logger("ai.engine")
 
-# 工具调用最大循环次数（防止无限循环）
+# Max tool call rounds (prevents infinite loop) / 工具调用最大循环次数（防止无限循环）
 MAX_TOOL_CALL_ROUNDS = 10
 
-# Jinja2 环境（共享实例，undefined 渲染为空字符串而非报错）
-_jinja_env = Environment(loader=BaseLoader(), keep_trailing_newline=True)
+# Jinja2 environment (shared instance, undefined renders as empty string instead of error) / Jinja2 环境（共享实例，undefined 渲染为空字符串而非报错）
+_jinja_env = Environment(loader=BaseLoader(), keep_trailing_newline=True, undefined=ChainableUndefined)
 
 
 class BaseEngine(ABC):
     """
-    执行引擎抽象基类
+    Execution Engine Abstract Base Class / 执行引擎抽象基类
 
+    Subclasses only need to implement execute(); base class provides:
     子类只需实现 execute() 方法，基类提供：
-    - _build_messages: 构建 system + user 消息
-    - _prepare_execution: 共享前置逻辑（Skill 解析 + RAG + 工具优化）
-    - _handle_tool_calls: tool calling 循环
-    - _call_llm: 调用 AIGateway
+    - _build_messages: Build system + user messages / 构建 system + user 消息
+    - _prepare_execution: Shared pre-logic (Skill resolve + RAG + tool optimization) / 共享前置逻辑
+    - _handle_tool_calls: Tool calling loop / tool calling 循环
+    - _call_llm: Call AIGateway / 调用 AIGateway
     """
 
     def __init__(
@@ -61,9 +65,9 @@ class BaseEngine(ABC):
     ):
         """
         Args:
-            db: 数据库会话
-            gateway: AI 网关
-            sandbox: 工具沙箱
+            db: Database session / 数据库会话
+            gateway: AI Gateway / AI 网关
+            sandbox: Tool sandbox / 工具沙箱
         """
         self.db = db
         self.gateway = gateway
@@ -72,18 +76,19 @@ class BaseEngine(ABC):
     @abstractmethod
     async def execute(self, agent: Agent, request: ExecutionRequest) -> ExecutionResult:
         """
-        执行请求
+        Execute request.
+        执行请求。
 
         Args:
-            agent: 智能体模型实例
-            request: 执行请求
+            agent: Agent model instance / 智能体模型实例
+            request: Execution request / 执行请求
 
         Returns:
             ExecutionResult
         """
 
     # ========================================
-    # 消息构建
+    # Message Building / 消息构建
     # ========================================
 
     def _build_system_message(
@@ -92,15 +97,17 @@ class BaseEngine(ABC):
         input_variables: dict[str, Any] | None = None,
     ) -> ChatMessage:
         """
-        构建 system 消息
+        Build system message.
+        构建 system 消息。
 
+        Renders system_prompt with Jinja2, supporting built-in and custom variables.
+        Built-in: current_date, current_time, agent_name
+        Custom: from input_variables parameter
         使用 Jinja2 渲染 system_prompt，支持内置变量和自定义变量。
-        内置变量：current_date, current_time, agent_name
-        自定义变量：来自 input_variables 参数
 
         Args:
-            agent: 智能体
-            input_variables: 输入变量
+            agent: Agent / 智能体
+            input_variables: Input variables / 输入变量
         """
         prompt = agent.system_prompt or ""
 
@@ -109,12 +116,13 @@ class BaseEngine(ABC):
         if not prompt:
             return ChatMessage(role="system", content=prompt)
 
+        # Auto-inject identity declaration to prevent model from self-identifying as GPT/DeepSeek etc.
         # 自动注入身份声明，防止模型自称 GPT / DeepSeek 等
         if agent_name:
             identity = _("data_intelligence.identity_declaration").format(agent_name=agent_name)
             prompt = f"{identity}\n\n{prompt}"
 
-        # 构建模板变量（内置 + 自定义）
+        # Build template variables (built-in + custom) / 构建模板变量（内置 + 自定义）
         now = utc_now()
         variables: dict[str, Any] = {
             "current_date": now.strftime("%Y-%m-%d"),
@@ -151,11 +159,14 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
     ) -> None:
         """
-        将可用工具摘要注入 system 消息末尾
+        Inject available tool summary into system message tail.
+        将可用工具摘要注入 system 消息末尾。
 
+        Some LLMs (e.g. DeepSeek) tend to generate text rather than call function calling
+        when tools are not mentioned in system_prompt.
+        Appends a short hint to ensure the model knows it has callable tools.
         部分 LLM（如 DeepSeek）在 system_prompt 中未提及工具时
         倾向于生成文本而非调用 function calling。
-        在此追加简短提示，确保模型知道自己拥有可调用的工具。
         """
         if not tools or not messages or messages[0].role != "system":
             return
@@ -176,11 +187,11 @@ class BaseEngine(ABC):
 
     @staticmethod
     def _user_message(content: str) -> ChatMessage:
-        """构建 user 消息"""
+        """Build user message / 构建 user 消息"""
         return ChatMessage(role="user", content=content)
 
     # ========================================
-    # 共享前置逻辑
+    # Shared Pre-logic / 共享前置逻辑
     # ========================================
 
     async def _prepare_execution(
@@ -190,24 +201,25 @@ class BaseEngine(ABC):
         skill_result: SkillResolveResult | None = None,
     ) -> PreparedExecution:
         """
-        构建执行上下文（execute / stream_execute 共享前置逻辑）
+        Build execution context (shared pre-logic for execute / stream_execute).
+        构建执行上下文（execute / stream_execute 共享前置逻辑）。
 
-        包含：
-        1. 使用预解析的 Skill 结果（或回退到内部解析）
-        2. 构建消息列表（system + 历史）
-        3. RAG 知识库注入
-        4. 工具优化
-        5. 工具感知提示注入
+        Includes / 包含：
+        1. Use pre-resolved Skill result (or fallback to internal resolve) / 使用预解析的 Skill 结果
+        2. Build message list (system + history) / 构建消息列表
+        3. RAG knowledge base injection / RAG 知识库注入
+        4. Tool optimization / 工具优化
+        5. Tool awareness hint injection / 工具感知提示注入
 
         Args:
-            agent: 智能体模型实例
-            request: 执行请求
-            skill_result: 预解析的 Skill 结果（Dispatcher 层传入）
+            agent: Agent model instance / 智能体模型实例
+            request: Execution request / 执行请求
+            skill_result: Pre-resolved Skill result (from Dispatcher layer) / 预解析的 Skill 结果
 
         Returns:
-            PreparedExecution 上下文
+            PreparedExecution context / PreparedExecution 上下文
         """
-        # 1. 使用预解析的 Skill 结果，或回退到内部解析（兼容旧调用路径）
+        # 1. Use pre-resolved Skill result, or fallback to internal resolve (backward compatible) / 使用预解析的 Skill 结果，或回退到内部解析（兼容旧调用路径）
         if skill_result is None:
             from app.ai.skills.resolver import resolve_for_agent
             skill_result = await resolve_for_agent(
@@ -216,7 +228,7 @@ class BaseEngine(ABC):
                 user_role=getattr(request, "user_role", None),
             )
 
-        # 2. 构建消息列表
+        # 2. Build message list / 构建消息列表
         messages: list[ChatMessage] = []
         system_msg = self._build_system_message(agent, request.input_variables)
         messages.append(system_msg)
@@ -224,7 +236,8 @@ class BaseEngine(ABC):
         if request.messages:
             messages.extend(request.messages)
 
-        # 3. RAG 知识库注入
+        # 3. RAG knowledge base injection / RAG 知识库注入
+        # Dual-path merge: Agent binding table (primary) + user @ selection (auxiliary)
         # 双路合并：Agent 绑定表（主要）+ 用户 @ 选择（辅助）
         from app.ai.rag_injector import (
             inject_rag_context,
@@ -245,7 +258,7 @@ class BaseEngine(ABC):
                 kb_weights=agent_kb_weights,
             )
 
-        # 4. 获取工具列表 + 优化
+        # 4. Get tool list + optimize / 获取工具列表 + 优化
         tools = skill_result.tools if skill_result else []
         optimize_event: dict[str, Any] | None = None
         if tools:
@@ -260,16 +273,16 @@ class BaseEngine(ABC):
             if not opt.skipped:
                 optimize_event = {"total": opt.total, "selected": opt.selected}
 
-        # 5. 注入工具感知提示
+        # 5. Inject tool awareness hint / 注入工具感知提示
         if tools:
             self._inject_tool_awareness(messages, tools)
 
-        # 6. 提取 consent_modes
+        # 6. Extract consent_modes / 提取 consent_modes
         tool_consent_modes = (
             skill_result.tool_consent_modes if skill_result else {}
         )
 
-        # 7. ModelRouter 多模型路由（赾容失败时自动向后兼容）
+        # 7. ModelRouter multi-model routing (graceful fallback on failure) / ModelRouter 多模型路由（容错失败时自动向后兼容）
         route_result = None
         try:
             from app.ai.routing.router import ModelRouter
@@ -279,7 +292,7 @@ class BaseEngine(ABC):
                 [{"content": m.content or "", "name": m.name or ""} for m in messages]
             )
             router = ModelRouter(self.db)
-            route_result = await router.route(agent, request, estimated_tokens)
+            route_result = await router.route(agent, request, estimated_tokens, tools=tools)
         except Exception as _routing_exc:
             logger.warning("ModelRouter integration failed: %s", str(_routing_exc))
 
@@ -293,7 +306,7 @@ class BaseEngine(ABC):
         )
 
     # ========================================
-    # LLM 调用
+    # LLM Call / LLM 调用
     # ========================================
 
     async def _call_llm(
@@ -306,27 +319,29 @@ class BaseEngine(ABC):
         route_result: Any | None = None,
     ) -> ChatResponse:
         """
-        调用 LLM
+        Call LLM.
+        调用 LLM。
 
         Args:
-            agent: 智能体（含模型配置）
-            messages: 消息列表
-            tools: 工具定义列表
-            tenant_id: 租户 ID
-            user_id: 用户 ID
-            route_result: ModelRouter 路由结果（为 None 时使用 agent 原始模型）
+            agent: Agent (with model config) / 智能体（含模型配置）
+            messages: Message list / 消息列表
+            tools: Tool definition list / 工具定义列表
+            tenant_id: Tenant ID / 租户 ID
+            user_id: User ID / 用户 ID
+            route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
         """
-        # 构建 OpenAI tools 参数
+        # Build OpenAI tools parameter / 构建 OpenAI tools 参数
         openai_tools = None
         if tools:
             openai_tools = to_openai_tools(tools)
 
-        # 获取模型信息：路由覆写优先
+        # Get model info: route override takes priority / 获取模型信息：路由覆写优先
         if route_result is not None and getattr(route_result, "is_overridden", False):
             provider_code: str = route_result.provider_code or ""
             model_code: str = route_result.model_code or ""
+            # Keep image attachments when route reason contains "vision", otherwise conservatively filter
+            # Use False instead of None to ensure non-vision routes don't miss filtering logic
             # Vision 路由原因包含 "vision" 时保留图片附件，否则保守过滤
-            # 用 False 而非 None，确保非 vision 路由不遗漏过滤逻辑
             is_vision: bool = "vision" in (route_result.reason or "")
         else:
             model_obj = agent.model
@@ -334,8 +349,9 @@ class BaseEngine(ABC):
             model_code = model_obj.code if model_obj else ""
             is_vision = model_obj.supports_vision if model_obj else False
 
+        # Non-vision model: remove image attachments to avoid API errors
+        # Don't filter when routed to vision model (is_vision=True)
         # 非视觉模型：移除图片附件，避免 API 报错
-        # 路由到 vision 模型时（is_vision=True）不过滤
         if is_vision is False:
             for msg in messages:
                 if msg.attachments:
@@ -360,7 +376,7 @@ class BaseEngine(ABC):
         return response
 
     # ========================================
-    # 工具调用循环
+    # Tool Call Loop / 工具调用循环
     # ========================================
 
     async def _handle_tool_calls(
@@ -374,22 +390,26 @@ class BaseEngine(ABC):
         route_result: Any | None = None,
     ) -> tuple[ChatResponse | None, list[ToolResult], int]:
         """
-        处理工具调用循环
+        Handle tool call loop.
+        处理工具调用循环。
 
+        When LLM returns tool_calls, executes tools and appends results to messages,
+        then calls LLM again until no more tool_calls or max rounds reached.
         当 LLM 返回 tool_calls 时，执行工具并将结果追加到消息中，
-        然后再次调用 LLM，直到 LLM 不再返回 tool_calls 或达到最大轮次。
+        然后再次调用 LLM，直到不再返回 tool_calls 或达到最大轮次。
 
         Args:
-            agent: 智能体
-            messages: 当前消息列表（会被修改）
-            response: LLM 响应
-            tools: 工具定义列表
-            request: 原始请求
-            skip_final_call: 跳过最终 LLM 调用（供流式路径使用，由调用方流式处理）
-            route_result: ModelRouter 路由结果（工具调用循环内保持模型一致性）
+            agent: Agent / 智能体
+            messages: Current message list (will be modified) / 当前消息列表（会被修改）
+            response: LLM response / LLM 响应
+            tools: Tool definition list / 工具定义列表
+            request: Original request / 原始请求
+            skip_final_call: Skip final LLM call (for streaming path, caller handles streaming) / 跳过最终 LLM 调用
+            route_result: ModelRouter route result (maintains model consistency within tool call loop) / ModelRouter 路由结果
 
         Returns:
             (final_response, all_tool_results, total_tokens)
+            final_response is None when skip_final_call=True
             当 skip_final_call=True 时 final_response 为 None
         """
         from .tool_processor import ToolCallProcessor
@@ -408,13 +428,13 @@ class BaseEngine(ABC):
             if not tool_calls:
                 break
 
-            # 追加 assistant 消息（含 tool_calls）
+            # Append assistant message (with tool_calls) / 追加 assistant 消息（含 tool_calls）
             messages.append(processor.build_assistant_tool_call_message(
                 content=current_response.message.content or "",
                 tool_calls=tool_calls,
             ))
 
-            # 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
+            # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
             for tc in tool_calls:
                 single = await processor.process_single(
                     tc, conversation_id=request.conversation_id or 0,
@@ -440,7 +460,7 @@ class BaseEngine(ABC):
                         continue
                 return None, all_tool_results, total_tokens
 
-            # 再次调用 LLM（保持与第一次调用相同的路由模型）
+            # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）
             current_response = await self._call_llm(
                 agent=agent,
                 messages=messages,
@@ -454,12 +474,12 @@ class BaseEngine(ABC):
         return current_response, all_tool_results, total_tokens
 
     # ========================================
-    # 事件发布
+    # Event Publishing / 事件发布
     # ========================================
 
     @staticmethod
     async def _publish_execution_started(request: ExecutionRequest, agent: Agent) -> None:
-        """发布执行开始事件"""
+        """Publish execution started event / 发布执行开始事件"""
         await get_event_bus().publish(ExecutionStarted(
             tenant_id=request.tenant_id,
             agent_id=agent.id,
@@ -472,7 +492,7 @@ class BaseEngine(ABC):
         agent: Agent,
         result: ExecutionResult,
     ) -> None:
-        """发布执行完成事件"""
+        """Publish execution completed event / 发布执行完成事件"""
         await get_event_bus().publish(ExecutionCompleted(
             tenant_id=request.tenant_id,
             agent_id=agent.id,
@@ -487,7 +507,7 @@ class BaseEngine(ABC):
         error: str,
         error_type: str = "",
     ) -> None:
-        """发布执行失败事件"""
+        """Publish execution failed event / 发布执行失败事件"""
         await get_event_bus().publish(ExecutionFailed(
             tenant_id=request.tenant_id,
             agent_id=agent.id,
@@ -496,12 +516,12 @@ class BaseEngine(ABC):
         ))
 
     # ========================================
-    # 工具方法
+    # Utility Methods / 工具方法
     # ========================================
 
     @staticmethod
     def _messages_to_dicts(messages: list[ChatMessage]) -> list[dict[str, Any]]:
-        """将 ChatMessage 列表转为 dict 列表"""
+        """Convert ChatMessage list to dict list / 将 ChatMessage 列表转为 dict 列表"""
         return [dataclasses.asdict(msg) for msg in messages]
 
 

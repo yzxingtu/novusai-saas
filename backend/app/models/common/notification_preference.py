@@ -1,7 +1,8 @@
 """
-通知偏好设置模型
+通知偏好设置模型 / Notification Preference Model
 
 用户可自定义各类通知的接收渠道（WS 推送 / 邮件 / 收件箱）。
+Users can customize notification channels (WS push / email / inbox) per notification type.
 """
 
 from sqlalchemy import Boolean, Integer, String, UniqueConstraint

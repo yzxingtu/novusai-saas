@@ -1,7 +1,9 @@
 """
-插件安装预览
+Plugin installation preview.
+/ 插件安装预览
 
-解析 manifest → 收集扩展点声明 → 检查依赖 → 检测冲突 → 返回预览信息。
+Parse manifest → collect extension declarations → check dependencies → detect conflicts → return preview info.
+/ 解析 manifest → 收集扩展点声明 → 检查依赖 → 检测冲突 → 返回预览信息。
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class InstallPreview(BaseModel):
-    """安装预览信息"""
+    """Installation preview information / 安装预览信息"""
 
     plugin_info: dict = Field(default_factory=dict)
     install_manifest: dict = Field(default_factory=dict)
@@ -29,7 +31,7 @@ class InstallPreview(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-# 能力说明映射
+# Capability description mapping / 能力说明映射
 _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "db:read": {"zh-CN": "读取数据库", "en": "Read database"},
     "db:write": {"zh-CN": "写入数据库", "en": "Write to database"},
@@ -44,7 +46,7 @@ _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
 
 def resolve_i18n(text: dict[str, str] | str, locale: str = "zh-CN") -> str:
-    """将多语言文本解析为单语言字符串"""
+    """Resolve multilingual text to a single-language string / 将多语言文本解析为单语言字符串"""
     if isinstance(text, str):
         return text
     return text.get(locale, text.get("zh-CN", text.get("en", next(iter(text.values()), ""))))
@@ -55,24 +57,28 @@ async def generate_preview(
     loader: PluginLoader | None = None,
 ) -> InstallPreview:
     """
-    生成安装预览。
+    Generate installation preview.
+    / 生成安装预览。
 
     Args:
-        plugin_path: 插件目录路径（已解压）
-        loader: PluginLoader 实例（可选）
+        plugin_path: Plugin directory path (already extracted) / 插件目录路径（已解压）
+        loader: PluginLoader instance (optional) / PluginLoader 实例（可选）
     """
     loader = loader or PluginLoader()
 
-    # 解析 manifest
-    # 直接按路径读取，支持 staging/temp 目录预览，避免要求插件先落盘到 PLUGINS_DIR
+    # Parse manifest
+    # Read directly by path, supporting staging/temp directory preview without requiring plugin to be in PLUGINS_DIR
+    # / 解析 manifest。直接按路径读取，支持 staging/temp 目录预览
     manifest = loader.load_manifest_from_path(plugin_path)
 
-    # 基本信息
+    # Basic info / 基本信息
     icon_value = manifest.icon
-    # 如果是图片文件，转为 base64 data URL（预览时插件还未安装，无法通过 /plugin-assets/ 访问）
+    # If it's an image file, convert to base64 data URL (plugin not yet installed during preview, cannot access via /plugin-assets/)
+    # / 如果是图片文件，转为 base64 data URL
     if icon_value and not icon_value.startswith("http") and ":" not in icon_value:
         icon_file = (plugin_path / icon_value).resolve()
-        # 防止路径遍历：确保 icon 文件在插件目录内
+        # Prevent path traversal: ensure icon file is within plugin directory
+        # / 防止路径遍历
         if icon_file.is_file() and plugin_path.resolve() in icon_file.parents:
             import base64
             import mimetypes
@@ -92,7 +98,7 @@ async def generate_preview(
         "pricing_type": manifest.pricing.type,
     }
 
-    # 扩展点汇总（含数量 + 详情列表）
+    # Extension points summary (count + details list) / 扩展点汇总（含数量 + 详情列表）
     ext = manifest.extensions
     install_manifest = {
         "skills": len(ext.skills),
@@ -122,19 +128,19 @@ async def generate_preview(
         "frontend_menus_details": [m.title for m in ext.frontend.menus] if ext.frontend.menus else [],
     }
 
-    # 依赖
+    # Dependencies / 依赖
     dependencies = {
         "python": manifest.dependencies.python,
         "plugins": manifest.dependencies.plugins,
         "system": manifest.dependencies.system,
     }
 
-    # 冲突检测
+    # Conflict detection / 冲突检测
     from app.plugins.registry import ExtensionRegistry
 
     conflicts = ExtensionRegistry.get_instance().get_conflicts(manifest)
 
-    # 能力声明
+    # Capability declarations / 能力声明
     capabilities = []
     for cap in manifest.capabilities:
         desc = _CAPABILITY_DESCRIPTIONS.get(cap, {})
@@ -143,7 +149,7 @@ async def generate_preview(
             "description": resolve_i18n(desc) if desc else cap,
         })
 
-    # 兼容性
+    # Compatibility / 兼容性
     compatibility: dict[str, Any] = {}
     if manifest.compatibility:
         compatibility = {
@@ -152,17 +158,18 @@ async def generate_preview(
             "requires_count": len(manifest.compatibility.requires),
         }
 
-    # 安全扫描
+    # Security scan / 安全扫描
     from app.plugins.security_scan import scan_plugin_directory
 
     scan_result = scan_plugin_directory(plugin_path)
 
-    # 警告
+    # Warnings / 警告
     warnings: list[str] = []
     if conflicts:
         warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
     if manifest.dependencies.python:
-        # 实际检查哪些包已安装、哪些需要 pip install，避免误报
+        # Actually check which packages are installed and which need pip install, avoiding false positives
+        # / 实际检查哪些包已安装、哪些需要 pip install
         try:
             import importlib.metadata as _imeta
 
@@ -176,7 +183,7 @@ async def generate_preview(
                     dist = _imeta.distribution(req_obj.name)
                     if req_obj.specifier and Version(dist.version) not in req_obj.specifier:
                         to_install.append(req_str)
-                    # 已满足 → 不计入 to_install
+                    # Already satisfied → not counted in to_install / 已满足
                 except _imeta.PackageNotFoundError:
                     to_install.append(req_str)
                 except Exception:
@@ -189,7 +196,7 @@ async def generate_preview(
                     f"Python dependencies already satisfied ({len(manifest.dependencies.python)} package(s))"
                 )
         except ImportError:
-            # packaging 未安装时降级为原静态提示
+            # Degrade to static hint when packaging is not installed / packaging 未安装时降级为原静态提示
             warnings.append(f"Will install {len(manifest.dependencies.python)} Python package(s)")
     if manifest.pricing.type == "paid" and not manifest.pricing.price:
         warnings.append("Paid plugin but no price specified")

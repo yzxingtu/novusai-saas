@@ -1,8 +1,10 @@
 """
-通知渠道基类
+通知渠道基类 / Notification Channel Base
 
 定义所有通知渠道必须实现的接口。
+Defines the interface all notification channels must implement.
 新增渠道只需继承此基类并注册到 CHANNEL_REGISTRY。
+New channels just inherit this base and register to CHANNEL_REGISTRY.
 """
 
 from __future__ import annotations

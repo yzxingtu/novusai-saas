@@ -1,7 +1,8 @@
 """
-异常基类模块
+异常基类模块 / Exception Base Module
 
 定义应用异常的基类和通用异常类
+Defines application exception base class and common exception classes.
 """
 
 from typing import Any
@@ -9,15 +10,16 @@ from typing import Any
 
 class AppException(Exception):
     """
-    应用异常基类
+    Application Exception Base Class / 应用异常基类
 
-    所有业务异常都应继承此类
+    All business exceptions should inherit from this class.
+    所有业务异常都应继承此类。
 
     Attributes:
-        code: 业务错误码
-        message: 错误消息
-        status_code: HTTP 状态码
-        data: 附加数据
+        code: Business error code / 业务错误码
+        message: Error message / 错误消息
+        status_code: HTTP status code / HTTP 状态码
+        data: Additional data / 附加数据
     """
 
     code: int = 5000
@@ -32,13 +34,14 @@ class AppException(Exception):
         data: Any = None,
     ):
         """
-        初始化异常
+        Initialize exception.
+        初始化异常。
 
         Args:
-            message: 错误消息，支持 i18n key 或直接文本
-            code: 业务错误码
-            status_code: HTTP 状态码
-            data: 附加数据
+            message: Error message, supports i18n key or plain text / 错误消息，支持 i18n key 或直接文本
+            code: Business error code / 业务错误码
+            status_code: HTTP status code / HTTP 状态码
+            data: Additional data / 附加数据
         """
         from app.core.i18n import _ as translate
 
@@ -49,7 +52,7 @@ class AppException(Exception):
         super().__init__(self.message)
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为响应字典"""
+        """Convert to response dict / 转换为响应字典"""
         return {
             "code": self.code,
             "message": self.message,
@@ -59,9 +62,10 @@ class AppException(Exception):
 
 class ValidationException(AppException):
     """
-    数据验证异常
+    Validation Exception / 数据验证异常
 
-    用于请求参数验证失败
+    Used for request parameter validation failure.
+    用于请求参数验证失败。
     """
 
     code = 4001
@@ -74,11 +78,12 @@ class ValidationException(AppException):
         errors: list[dict[str, Any]] | None = None,
     ):
         """
-        初始化验证异常
+        Initialize validation exception.
+        初始化验证异常。
 
         Args:
-            message: 错误消息
-            errors: 验证错误详情列表
+            message: Error message / 错误消息
+            errors: Validation error details list / 验证错误详情列表
         """
         super().__init__(message=message, data={"errors": errors} if errors else None)
         self.errors = errors
@@ -86,9 +91,10 @@ class ValidationException(AppException):
 
 class AuthenticationException(AppException):
     """
-    认证异常
+    Authentication Exception / 认证异常
 
-    用于用户身份验证失败
+    Used for user identity verification failure.
+    用于用户身份验证失败。
     """
 
     code = 4010
@@ -98,9 +104,10 @@ class AuthenticationException(AppException):
 
 class AuthorizationException(AppException):
     """
-    授权异常
+    Authorization Exception / 授权异常
 
-    用于用户权限不足
+    Used for insufficient user permissions.
+    用于用户权限不足。
     """
 
     code = 4030
@@ -110,7 +117,7 @@ class AuthorizationException(AppException):
 
 class NotFoundException(AppException):
     """
-    资源不存在异常
+    Not Found Exception / 资源不存在异常
     """
 
     code = 4040
@@ -120,9 +127,10 @@ class NotFoundException(AppException):
 
 class ConflictException(AppException):
     """
-    资源冲突异常
+    Conflict Exception / 资源冲突异常
 
-    用于资源已存在或状态冲突
+    Used for resource already exists or state conflict.
+    用于资源已存在或状态冲突。
     """
 
     code = 4090
@@ -132,9 +140,10 @@ class ConflictException(AppException):
 
 class BusinessException(AppException):
     """
-    业务逻辑异常
+    Business Exception / 业务逻辑异常
 
-    用于业务规则校验失败
+    Used for business rule validation failure.
+    用于业务规则校验失败。
     """
 
     code = 4220
@@ -144,8 +153,10 @@ class BusinessException(AppException):
 
 class DependencyBlockedException(BusinessException):
     """
-    删除被依赖阻止异常
+    Dependency Blocked Exception / 删除被依赖阻止异常
 
+    When deleting a record with active dependency references, blocks deletion and returns dependency details.
+    Frontend identifies by error_code=4221 and shows dependency detail dialog.
     当删除记录时发现有活跃依赖引用，阻止删除并返回依赖详情。
     前端通过 error_code=4221 识别并弹出依赖详情弹窗。
     """
@@ -163,7 +174,7 @@ class DependencyBlockedException(BusinessException):
         self.dependencies = dependencies or []
 
     def to_dict(self) -> dict[str, Any]:
-        """重写序列化，携带 dependencies 字段"""
+        """Override serialization with dependencies field / 重写序列化，携带 dependencies 字段"""
         base = super().to_dict()
         base["dependencies"] = self.dependencies
         return base
@@ -171,7 +182,7 @@ class DependencyBlockedException(BusinessException):
 
 class RateLimitException(AppException):
     """
-    请求频率限制异常
+    Rate Limit Exception / 请求频率限制异常
     """
 
     code = 4290
@@ -181,9 +192,10 @@ class RateLimitException(AppException):
 
 class ExternalServiceException(AppException):
     """
-    外部服务异常
+    External Service Exception / 外部服务异常
 
-    用于调用外部 API 失败
+    Used for external API call failure.
+    用于调用外部 API 失败。
     """
 
     code = 5020
@@ -193,7 +205,7 @@ class ExternalServiceException(AppException):
 
 class ServiceUnavailableException(AppException):
     """
-    服务不可用异常
+    Service Unavailable Exception / 服务不可用异常
     """
 
     code = 5030
@@ -201,7 +213,7 @@ class ServiceUnavailableException(AppException):
     default_message = "common.server_error"
 
 
-# 导出
+# Exports / 导出
 __all__ = [
     "AppException",
     "ValidationException",

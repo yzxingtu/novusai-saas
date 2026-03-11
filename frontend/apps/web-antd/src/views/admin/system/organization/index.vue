@@ -1,7 +1,9 @@
 <!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
 /**
+ * Platform organization management page
  * 平台端组织架构管理页面
+ * Left org tree + right detail/member panel
  * 左侧组织树 + 右侧详情/成员面板
  */
 import type { OrgNodeType } from '#/api/admin/organization';
@@ -38,7 +40,7 @@ import { $t } from '#/locales';
 defineOptions({ name: 'SystemOrganization' });
 
 // ============================================================
-// 组织树管理
+// Organization tree management / 组织树管理
 // ============================================================
 
 const {
@@ -55,36 +57,36 @@ const {
 } = useOrgTree({ apiPrefix: 'admin', immediate: false });
 
 // ============================================================
-// 选中节点状态
+// Selected node state / 选中节点状态
 // ============================================================
 
 const selectedNode = ref<null | OrgTreeNodeData>(null);
 
-/** 左侧树面板折叠状态 */
+/** Left tree panel collapsed state / 左侧树面板折叠状态 */
 const treeCollapsed = ref(false);
 
-/** 选中节点的类型配置 */
+/** Selected node type config / 选中节点的类型配置 */
 const selectedNodeTypeConfig = computed(() => {
   if (!selectedNode.value) return null;
   return NODE_TYPE_CONFIG[selectedNode.value.type];
 });
 
-/** 处理节点选中 */
+/** Handle node selection / 处理节点选中 */
 function handleNodeSelect(node: OrgTreeNodeData) {
   selectedNode.value = node;
 }
 
 // ============================================================
-// 右侧面板显示模式
+// Right panel display mode / 右侧面板显示模式
 // ============================================================
 
-/** 获取节点类型的翻译标签 */
+/** Get translated label for node type / 获取节点类型的翻译标签 */
 function getNodeTypeLabel(type: string) {
   return $t(`admin.system.${type}`);
 }
 
 // ============================================================
-// 节点弹窗管理
+// Node dialog management / 节点弹窗管理
 // ============================================================
 
 const nodeDialogOpen = ref(false);
@@ -94,7 +96,7 @@ const nodeDialogParentType = ref<null | OrgNodeType>(null);
 const nodeDialogParentName = ref('');
 const nodeDialogNodeId = ref<null | number>(null);
 
-/** 创建根节点 */
+/** Create root node / 创建根节点 */
 function handleCreateRoot() {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = null;
@@ -104,7 +106,7 @@ function handleCreateRoot() {
   nodeDialogOpen.value = true;
 }
 
-/** 在选中节点下创建子节点 */
+/** Create child node under selected node / 在选中节点下创建子节点 */
 function handleAddChild(node: OrgTreeNodeData, _type: OrgNodeType) {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = node.id;
@@ -114,7 +116,7 @@ function handleAddChild(node: OrgTreeNodeData, _type: OrgNodeType) {
   nodeDialogOpen.value = true;
 }
 
-/** 编辑节点 */
+/** Edit node / 编辑节点 */
 function handleEditNode(node: OrgTreeNodeData) {
   nodeDialogMode.value = 'edit';
   nodeDialogParentId.value = node.parentId ?? null;
@@ -124,13 +126,13 @@ function handleEditNode(node: OrgTreeNodeData) {
   nodeDialogOpen.value = true;
 }
 
-/** 节点保存成功 */
+/** Node saved successfully / 节点保存成功 */
 function handleNodeSaved() {
   refreshTree();
 }
 
 // ============================================================
-// 删除节点
+// Delete node / 删除节点
 // ============================================================
 
 const deleting = ref(false);
@@ -157,21 +159,21 @@ async function handleDeleteNode(node: OrgTreeNodeData) {
 }
 
 // ============================================================
-// 成员面板事件
+// Member panel events / 成员面板事件
 // ============================================================
 
 function handleMemberPanelRefresh() {
-  // 刷新树以更新成员计数
+  // Refresh tree to update member count / 刷新树以更新成员计数
   refreshTree();
 }
 
 // ============================================================
-// 生命周期
+// Lifecycle / 生命周期
 // ============================================================
 
 onMounted(async () => {
   const firstNode = await loadRootNodes();
-  // 自动选择第一个根节点
+  // Auto-select first root node / 自动选择第一个根节点
   if (firstNode) {
     selectedNode.value = firstNode;
   }

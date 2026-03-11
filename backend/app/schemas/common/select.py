@@ -1,7 +1,8 @@
 """
-通用下拉选项 Schema
+通用下拉选项 Schema / Common Select Option Schema
 
 提供前端远程下拉组件的统一响应格式，支持列表和树型两种结构
+Provides unified response format for frontend remote select components, supports list and tree structures.
 
 使用示例:
     # 列表模式（默认）

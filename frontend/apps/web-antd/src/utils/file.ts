@@ -1,10 +1,13 @@
 /**
+ * File processing utility functions
  * 文件处理工具函数
  */
 
 /**
+ * Format file size to human-readable string
  * 格式化文件大小
- * @param bytes 文件大小（字节）
+ *
+ * @param bytes - File size in bytes / 文件大小（字节）
  */
 export function formatFileSize(bytes: number): string {
   if (!bytes || Number.isNaN(bytes) || bytes === 0) return '0 B';
@@ -15,9 +18,11 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Get file icon based on filename or MIME type
  * 根据文件名或 MIME 类型获取文件图标
- * @param filename 文件名
- * @param mimeType MIME 类型
+ *
+ * @param filename - File name / 文件名
+ * @param mimeType - MIME type / MIME 类型
  */
 export function getFileIcon(
   filename: string,

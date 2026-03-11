@@ -1,5 +1,5 @@
 """
-智能体知识库绑定 Service
+智能体知识库绑定 Service / Agent KB Binding Service
 """
 
 from typing import Any

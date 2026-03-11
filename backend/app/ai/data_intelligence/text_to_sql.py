@@ -1,16 +1,18 @@
 """
+Natural Language to SQL Generator (TextToSQLGenerator)
 自然语言转 SQL 生成器（TextToSQLGenerator）
 
+Core component: Uses LLM to convert user natural language questions into safe PostgreSQL SELECT statements.
 核心组件：使用 LLM 将用户自然语言问题转换为安全的 PostgreSQL SELECT 语句。
 
-安全约束：
-- System Prompt 严格限制 LLM 只生成 SELECT 语句
-- 输出经过 SQLSafetyValidator 六重校验
-- 生成失败时最多重试 2 次（含 violation 反馈）
-- 3 次全部失败返回友好提示而非堆栈信息
+Security constraints / 安全约束：
+- System Prompt strictly limits LLM to generate SELECT only / 严格限制只生成 SELECT
+- Output goes through SQLSafetyValidator six-layer validation / 六重校验
+- Max 2 retries on failure (with violation feedback) / 最多重试 2 次
+- Returns friendly message instead of stack trace after 3 failures / 友好提示
 
-多轮对话：
-- 支持 conversation_history（最近 3 轮），用户可追问 "那上个月呢?"
+Multi-turn conversation / 多轮对话：
+- Supports conversation_history (last 3 rounds) / 支持对话历史
 """
 
 from __future__ import annotations
@@ -35,20 +37,20 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.data_intelligence")
 
-# 最大重试次数（含首次生成）
+# Max retry attempts (including first generation) / 最大重试次数（含首次生成）
 MAX_GENERATE_ATTEMPTS = 3
 
-# 多轮对话保留的最近轮数
+# Recent rounds retained in multi-turn conversation / 多轮对话保留的最近轮数
 MAX_CONVERSATION_ROUNDS = 3
 
 
 # ============================================
-# 数据结构
+# Data Structures / 数据结构
 # ============================================
 
 @dataclass
 class GeneratedSQL:
-    """LLM 生成的 SQL 结果"""
+    """LLM-generated SQL result / LLM 生成的 SQL 结果"""
 
     sql: str = ""
     explanation: str = ""
@@ -70,7 +72,7 @@ class GeneratedSQL:
 
 @dataclass
 class ConversationRound:
-    """一轮对话记录（用于多轮上下文）"""
+    """One conversation round (for multi-turn context) / 一轮对话记录"""
 
     question: str
     sql: str
@@ -78,7 +80,7 @@ class ConversationRound:
 
 
 # ============================================
-# System Prompt 构建
+# System Prompt Construction / System Prompt 构建
 # ============================================
 
 _SYSTEM_PROMPT_TEMPLATE = """You are a PostgreSQL query generator for a multi-tenant SaaS platform.
@@ -126,8 +128,10 @@ Please fix the SQL to comply with all rules. Return the corrected JSON output.""
 
 class TextToSQLGenerator:
     """
-    自然语言转 SQL 生成器
+    Natural Language to SQL Generator / 自然语言转 SQL 生成器
 
+    Uses LLM to convert user questions into PostgreSQL SELECT statements,
+    with multi-layer safety validation, multi-turn conversation and failure retry support.
     使用 LLM 将用户问题转换为 PostgreSQL SELECT 语句，
     经过多重安全校验，支持多轮对话和失败重试。
     """
@@ -135,8 +139,8 @@ class TextToSQLGenerator:
     def __init__(self, gateway: AIGateway, db: AsyncSession):
         """
         Args:
-            gateway: AI 网关（用于调用 LLM）
-            db: 数据库会话（用于获取 schema）
+            gateway: AI gateway (for calling LLM) / AI 网关
+            db: Database session (for getting schema) / 数据库会话
         """
         self.gateway = gateway
         self.db = db
@@ -152,20 +156,21 @@ class TextToSQLGenerator:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
     ) -> GeneratedSQL:
         """
-        将自然语言问题转为 SQL
+        Convert natural language question to SQL.
+        将自然语言问题转为 SQL。
 
         Args:
-            question: 用户的自然语言问题
-            tenant_id: 租户 ID
-            agent: 智能体（包含模型配置）
-            conversation_history: 多轮对话历史（最近 N 轮）
-            permissions: 用户 RBAC 权限码集合（用于表级过滤）
-            user_role: 用户角色
+            question: User's natural language question / 用户的自然语言问题
+            tenant_id: Tenant ID / 租户 ID
+            agent: Agent (contains model config) / 智能体
+            conversation_history: Multi-turn conversation history (last N rounds) / 多轮对话历史
+            permissions: User RBAC permission code set (for table-level filtering) / RBAC 权限码集合
+            user_role: User role / 用户角色
 
         Returns:
-            GeneratedSQL 生成结果
+            GeneratedSQL generation result / 生成结果
         """
-        # 1. 获取 schema（按 RBAC 权限 + 问题关键词过滤相关表）
+        # 1. Get schema (filter by RBAC permissions + question keywords) / 获取 schema
         schema = await self._schema_provider.get_schema(
             self.db, tenant_id, question,
             permissions=permissions,
@@ -180,7 +185,7 @@ class TextToSQLGenerator:
                 ),
             )
 
-        # 2. 获取允许的表名集合（RBAC 过滤后，用于后续安全校验）
+        # 2. Get allowed table name set (after RBAC filtering, for subsequent safety validation) / 获取允许的表名集合
         allowed_tables = await self._schema_provider.get_allowed_table_names(
             db=self.db,
             permissions=permissions,
@@ -188,25 +193,25 @@ class TextToSQLGenerator:
             tenant_id=tenant_id,
         )
 
-        # 3. 构建消息列表
+        # 3. Build message list / 构建消息列表
         messages = self._build_messages(
             question=question,
             schema=schema,
             conversation_history=conversation_history,
         )
 
-        # 4. 生成 + 校验 + 重试循环
+        # 4. Generate + validate + retry loop / 生成 + 校验 + 重试循环
         for attempt in range(MAX_GENERATE_ATTEMPTS):
             try:
                 response = await self._call_llm(agent, messages, tenant_id)
                 content = response.message.content or ""
                 generated = self._parse_llm_response(content)
 
-                # LLM 明确表示无法生成
+                # LLM explicitly indicates cannot generate / LLM 明确表示无法生成
                 if not generated.sql:
                     return generated
 
-                # 安全校验
+                # Safety validation / 安全校验
                 validation = SQLSafetyValidator.validate(
                     generated.sql, allowed_tables,
                 )
@@ -214,7 +219,7 @@ class TextToSQLGenerator:
                 if validation.passed:
                     return generated
 
-                # 校验失败：构建重试反馈
+                # Validation failed: build retry feedback / 校验失败：构建重试反馈
                 if attempt < MAX_GENERATE_ATTEMPTS - 1:
                     retry_msg = _RETRY_USER_TEMPLATE.format(
                         violations="\n".join(
@@ -234,7 +239,7 @@ class TextToSQLGenerator:
                         validation.violations,
                     )
                 else:
-                    # 最后一次尝试仍失败
+                    # Last attempt still failed / 最后一次尝试仍失败
                     logger.error(
                         "SQL generation failed after %d attempts: %s",
                         MAX_GENERATE_ATTEMPTS,
@@ -264,7 +269,7 @@ class TextToSQLGenerator:
                         ),
                     )
 
-        # 不应到达这里
+        # Should not reach here / 不应到达这里
         return GeneratedSQL(
             success=False,
             error=_("data_intelligence.generator.generation_error"),
@@ -276,24 +281,24 @@ class TextToSQLGenerator:
         schema: list[TableSchema],
         conversation_history: list[ConversationRound] | None = None,
     ) -> list[ChatMessage]:
-        """构建 LLM 消息列表"""
+        """Build LLM message list / 构建 LLM 消息列表"""
         messages: list[ChatMessage] = []
 
-        # System prompt（含 schema DDL）
+        # System prompt (with schema DDL) / System prompt（含 schema DDL）
         schema_ddl = "\n\n".join(t.to_ddl() for t in schema)
         system_content = _SYSTEM_PROMPT_TEMPLATE.format(
             schema_ddl=schema_ddl,
         )
         messages.append(ChatMessage(role="system", content=system_content))
 
-        # 多轮对话历史（最近 N 轮）
+        # Multi-turn conversation history (last N rounds) / 多轮对话历史
         if conversation_history:
             recent = conversation_history[-MAX_CONVERSATION_ROUNDS:]
             for round_item in recent:
                 messages.append(
                     ChatMessage(role="user", content=round_item.question),
                 )
-                # 将之前的生成结果作为 assistant 回复
+                # Use previous generation result as assistant reply / 之前的生成结果作为 assistant 回复
                 prev_response = json.dumps(
                     {
                         "sql": round_item.sql,
@@ -305,7 +310,7 @@ class TextToSQLGenerator:
                     ChatMessage(role="assistant", content=prev_response),
                 )
 
-        # 当前用户问题
+        # Current user question / 当前用户问题
         messages.append(ChatMessage(role="user", content=question))
 
         return messages
@@ -316,7 +321,7 @@ class TextToSQLGenerator:
         messages: list[ChatMessage],
         tenant_id: int,
     ) -> Any:
-        """调用 LLM"""
+        """Call LLM / 调用 LLM"""
         model_obj = agent.model
         provider_code = (
             model_obj.provider.code
@@ -329,7 +334,7 @@ class TextToSQLGenerator:
             provider_code=provider_code,
             messages=messages,
             model=model_code,
-            temperature=0.1,  # 低温度保证 SQL 准确性
+            temperature=0.1,  # Low temperature for SQL accuracy / 低温度保证 SQL 准确性
             max_tokens=agent.max_tokens or 2048,
             tenant_id=tenant_id,
         )
@@ -337,13 +342,14 @@ class TextToSQLGenerator:
     @staticmethod
     def _parse_llm_response(content: str) -> GeneratedSQL:
         """
-        解析 LLM 返回的 JSON
+        Parse LLM-returned JSON.
+        解析 LLM 返回的 JSON。
 
-        容错处理：
-        - 去除 markdown code fence
-        - 宽松 JSON 解析
+        Error tolerance / 容错处理：
+        - Strip markdown code fence / 去除 markdown code fence
+        - Lenient JSON parsing / 宽松 JSON 解析
         """
-        # 去除 markdown code fence
+        # Strip markdown code fence / 去除 markdown code fence
         cleaned = content.strip()
         cleaned = re.sub(
             r"^```(?:json)?\s*\n?", "", cleaned, flags=re.MULTILINE,
@@ -362,7 +368,7 @@ class TextToSQLGenerator:
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError:
-            # 尝试从内容中提取 JSON 对象
+            # Try to extract JSON object from content / 尝试从内容中提取 JSON 对象
             json_match = re.search(r"\{[\s\S]*\}", cleaned)
             if json_match:
                 try:
@@ -387,7 +393,7 @@ class TextToSQLGenerator:
         visualization = data.get("visualization", "table")
         confidence = float(data.get("confidence", 0.5))
 
-        # LLM 表示无法生成
+        # LLM indicates cannot generate / LLM 表示无法生成
         if not sql:
             return GeneratedSQL(
                 sql="",

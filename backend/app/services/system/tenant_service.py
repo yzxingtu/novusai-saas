@@ -1,7 +1,8 @@
 """
-租户服务
+租户服务 / Tenant Service
 
 提供租户的业务逻辑
+Provides tenant business logic.
 """
 
 import secrets

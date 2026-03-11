@@ -237,7 +237,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // 编辑模式时显示租户编码（只读）
+    // Show tenant code in edit mode (readonly) / 编辑模式时显示租户编码（只读）
     ...(isEdit
       ? [inputField('code', $t('admin.tenant.code'), { disabled: true })]
       : []),
@@ -262,7 +262,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
     textareaField('remark', $t('admin.tenant.remark'), {
       placeholder: $t('admin.tenant.placeholder.inputRemark'),
     }),
-    // 新建时显示管理员信息
+    // Show admin info in create mode / 新建时显示管理员信息
     ...(isEdit
       ? []
       : [

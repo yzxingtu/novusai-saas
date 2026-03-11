@@ -1,13 +1,14 @@
 /**
+ * Attachment storage system type definitions
  * 附件存储系统类型定义
  *
  * @module types/attachment
  */
 
-/** 文件可见性 */
+/** File visibility / 文件可见性 */
 export type StorageVisibility = 'private' | 'public';
 
-/** 附件分类 */
+/** Attachment category / 附件分类 */
 export type AttachmentCategory =
   | 'archive'
   | 'audio'
@@ -17,6 +18,8 @@ export type AttachmentCategory =
   | 'video';
 
 /**
+ * Infer attachment category from MIME type
+ * Backend model has no category field; frontend computes virtual category from mime_type
  * 根据 MIME 类型推断附件分类
  * 后端模型无 category 字段，前端通过 mime_type 推算虚拟分类
  */
@@ -36,6 +39,8 @@ export function inferCategory(mimeType?: null | string): AttachmentCategory {
 }
 
 /**
+ * Attachment info (backend raw format snake_case)
+ * Corresponds to backend AttachmentResponse / AttachmentListItem
  * 附件信息（后端原始格式 snake_case）
  * 对应后端 AttachmentResponse / AttachmentListItem
  */
@@ -63,6 +68,7 @@ export interface AttachmentInfoRaw {
 }
 
 /**
+ * Attachment info (frontend format camelCase)
  * 附件信息（前端格式 camelCase）
  */
 export interface AttachmentInfo {
@@ -84,39 +90,43 @@ export interface AttachmentInfo {
   businessType?: null | string;
   businessId?: null | number;
   meta?: null | Record<string, unknown>;
-  /** 推算分类（后端不返回，前端通过 mimeType 推算） */
+  /** Inferred category (not returned by backend, computed from mimeType by frontend) / 推算分类（后端不返回，前端通过 mimeType 推算） */
   category?: AttachmentCategory | null;
   createdAt: string;
   updatedAt?: string;
 }
 
 /**
+ * Attachment list query params
  * 附件列表查询参数
  */
 export interface AttachmentListParams {
-  /** 页码 */
+  /** Page number / 页码 */
   page?: number;
-  /** 每页数量 */
+  /** Items per page / 每页数量 */
   page_size?: number;
-  /** 排序字段，如 -created_at,name */
+  /** Sort field, e.g. -created_at,name / 排序字段，如 -created_at,name */
   sort?: string;
-  /** 筛选条件 */
+  /** Filter conditions / 筛选条件 */
   filter?: Record<string, unknown>;
-  /** 其他参数 */
+  /** Other params / 其他参数 */
   [key: string]: unknown;
 }
 
 /**
+ * URL result
  * URL 结果
  */
 export interface AttachmentUrlResult {
-  /** 访问 URL */
+  /** Access URL / 访问 URL */
   url: string;
-  /** 过期时间（秒） */
+  /** Expiry time (seconds) / 过期时间（秒） */
   expires_in?: number;
 }
 
 /**
+ * Storage quota info (backend raw format)
+ * Corresponds to backend TenantStorageQuotaResponse
  * 存储配额信息（后端原始格式）
  * 对应后端 TenantStorageQuotaResponse
  */
@@ -132,44 +142,47 @@ export interface StorageQuotaInfoRaw {
 }
 
 /**
+ * Storage quota info (frontend format)
  * 存储配额信息（前端格式）
  */
 export interface StorageQuotaInfo {
-  /** 已使用存储空间 (bytes) */
+  /** Used storage space (bytes) / 已使用存储空间 (bytes) */
   usedBytes: number;
-  /** 存储限制 (bytes)，0 表示无限制 */
+  /** Storage limit (bytes), 0 means unlimited / 存储限制 (bytes)，0 表示无限制 */
   limitBytes: number;
-  /** 存储限制 (GB)，0 表示无限制 */
+  /** Storage limit (GB), 0 means unlimited / 存储限制 (GB)，0 表示无限制 */
   limitGb: number;
-  /** 剩余存储空间 (bytes) */
+  /** Remaining storage space (bytes) / 剩余存储空间 (bytes) */
   remainingBytes: number;
-  /** 使用率百分比 */
+  /** Usage percentage / 使用率百分比 */
   usagePercent: number;
-  /** 附件总数 */
+  /** Total attachment count / 附件总数 */
   totalCount: number;
-  /** 单文件大小限制 (MB)，0 表示无限制 */
+  /** Max single file size (MB), 0 means unlimited / 单文件大小限制 (MB)，0 表示无限制 */
   maxFileSizeMb: number;
-  /** 是否无限制 */
+  /** Whether unlimited / 是否无限制 */
   unlimited: boolean;
 }
 
 /**
+ * Attachment statistics
  * 附件统计信息
  */
 export interface AttachmentStats {
-  /** 总文件数 */
+  /** Total file count / 总文件数 */
   total_count?: number;
-  /** 总大小 (bytes) */
+  /** Total size (bytes) / 总大小 (bytes) */
   total_size?: number;
-  /** 按分类统计 */
+  /** Stats by category / 按分类统计 */
   by_category?: Record<string, { count: number; size: number }>;
-  /** 按驱动统计 */
+  /** Stats by driver / 按驱动统计 */
   by_driver?: Record<string, { count: number; size: number }>;
-  /** 其他统计字段 */
+  /** Other stat fields / 其他统计字段 */
   [key: string]: unknown;
 }
 
 /**
+ * Stats by tenant
  * 按租户统计
  */
 export interface AttachmentStatsByTenant {

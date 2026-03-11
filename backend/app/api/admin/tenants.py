@@ -1,7 +1,8 @@
 """
-租户管理 API
+租户管理 API / Tenant Management API
 
 提供租户 CRUD 接口（平台管理员专用）
+Provides tenant CRUD endpoints (platform admin only).
 """
 
 from fastapi import Body, HTTPException, Query, Request, status
@@ -46,9 +47,9 @@ from app.services.common import StorageQuotaService
 from app.services.system import TenantService
 
 
-# 审计日志辅助类
+# 审计日志辅助类 / Audit log helper class
 class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
-    """Impersonate 审计日志器"""
+    """Impersonate 审计日志器 / Impersonate audit logger"""
     pass
 
 _audit_helper = _ImpersonateAuditLogger()
@@ -63,15 +64,16 @@ _audit_helper = _ImpersonateAuditLogger()
         icon="lucide:store",
         path="/tenant/list",
         component="tenant/List",
-        parent="tenant_mgmt",  # 父菜单: 租户管理
+        parent="tenant_mgmt",  # 父菜单: 租户管理 / Parent menu: tenant management
         sort_order=10,
     ),
 )
 class AdminTenantController(GlobalController):
     """
-    租户管理控制器
+    租户管理控制器 / Tenant Management Controller
 
     提供租户 CRUD、状态切换等接口
+    Provides tenant CRUD, status toggle and other endpoints
     """
 
     prefix = "/tenants"
@@ -79,10 +81,10 @@ class AdminTenantController(GlobalController):
     service_class = TenantService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=TenantService,
@@ -95,24 +97,25 @@ class AdminTenantController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词"),
-            is_active: str = Query("", description="筛选状态，默认仅启用"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+            search: str = Query("", description="搜索关键词 / Search keyword"),
+            is_active: str = Query("", description="筛选状态，默认仅启用 / Filter status, default active only"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页） / Page number (0=no pagination, >=1=paginated)"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量 / Items per page"),
         ):
             """
-            获取租户下拉选项
+            获取租户下拉选项 / Get tenant dropdown options
 
             用于筛选器或表单中的租户选择组件
+            Used for tenant selection component in filters or forms
 
-            分页模式：
-            - page=0: 不分页，返回全部数据（受 limit 限制）
-            - page>=1: 分页模式，返回分页信息（total, has_more）
+            分页模式： / Pagination modes:
+            - page=0: 不分页，返回全部数据（受 limit 限制） / No pagination, returns all data (subject to limit)
+            - page>=1: 分页模式，返回分页信息（total, has_more） / Paginated mode, returns pagination info
 
-            权限: tenant:select
+            权限 / Permission: tenant:select
             """
-            # 解析 is_active 参数
-            active_filter = True  # 默认仅启用
+            # 解析 is_active 参数 / Parse is_active parameter
+            active_filter = True  # 默认仅启用 / Default active only
             if is_active.lower() == "false":
                 active_filter = False
             elif is_active.lower() == "true":
@@ -140,23 +143,23 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取所有租户列表
+            获取所有租户列表 / Get all tenant list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / Supports filtering: filter[field][op]=value
+            - 支持排序 / Supports sorting: sort=-created_at,name
+            - 支持分页 / Supports pagination: page[number]=1&page[size]=20
 
-            权限: tenant:list
+            权限 / Permission: tenant:list
             """
             service = TenantService(db)
             items, total = await service.query_list(spec, scope="admin")
 
-            # 批量获取存储统计
+            # 批量获取存储统计 / Batch fetch storage stats
             tenant_ids = [item.id for item in items]
             quota_service = StorageQuotaService(db)
             storage_stats_map = await quota_service.get_tenant_storage_stats_batch(tenant_ids)
 
-            # 构建响应数据
+            # 构建响应数据 / Build response data
             response_items = []
             for item in items:
                 data = TenantResponse.model_validate(item, from_attributes=True)
@@ -184,9 +187,9 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取租户详情
+            获取租户详情 / Get tenant details
 
-            权限: tenant:detail
+            权限 / Permission: tenant:detail
             """
             service = TenantService(db)
             tenant = await service.get_by_id(tenant_id)
@@ -198,7 +201,7 @@ class AdminTenantController(GlobalController):
                     detail=_("tenant.not_found"),
                 )
 
-            # 获取存储统计
+            # 获取存储统计 / Get storage stats
             quota_service = StorageQuotaService(db)
             storage_stats = await quota_service.get_tenant_storage_stats(tenant_id)
 
@@ -219,11 +222,11 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            创建租户
+            创建租户 / Create tenant
 
-            - 租户编码由系统自动生成
+            - 租户编码由系统自动生成 / Tenant code is auto-generated by system
 
-            权限: tenant:create
+            权限 / Permission: tenant:create
             """
             service = TenantService(db)
             tenant = await service.create_tenant(
@@ -256,13 +259,13 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            更新租户信息
+            更新租户信息 / Update tenant info
 
-            权限: tenant:update
+            权限 / Permission: tenant:update
             """
             service = TenantService(db)
 
-            # 移除 None 值
+            # 移除 None 值 / Remove None values
             update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
             tenant = await service.update_tenant(tenant_id, update_data)
@@ -282,15 +285,16 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            删除租户（软删除）
+            删除租户（软删除） / Delete tenant (soft delete)
 
             **注意**: 删除租户会导致该租户下所有数据不可访问
+            **Note**: Deleting a tenant makes all data under it inaccessible
 
-            权限: tenant:delete
+            权限 / Permission: tenant:delete
             """
             service = TenantService(db)
 
-            # 检查租户是否存在
+            # 检查租户是否存在 / Check if tenant exists
             tenant = await service.get_by_id(tenant_id)
             if tenant is None:
                 from fastapi import HTTPException, status
@@ -314,11 +318,11 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            启用或禁用租户
+            启用或禁用租户 / Enable or disable tenant
 
-            - 禁用后租户下所有用户无法登录
+            - 禁用后租户下所有用户无法登录 / All users under the tenant cannot log in after disabling
 
-            权限: tenant:update
+            权限 / Permission: tenant:update
             """
             service = TenantService(db)
             tenant = await service.toggle_status(tenant_id, data.is_active)
@@ -339,14 +343,14 @@ class AdminTenantController(GlobalController):
             data: TenantImpersonateRequest | None = None,
         ):
             """
-            生成一键登录租户后台的 Token
+            生成一键登录租户后台的 Token / Generate one-click login token for tenant backend
 
-            - Token 60 秒过期，一次性使用
-            - 可选指定目标角色 role_id
+            - Token 60 秒过期，一次性使用 / Token expires in 60 seconds, single-use
+            - 可选指定目标角色 role_id / Optionally specify target role_id
 
-            权限: tenant:impersonate
+            权限 / Permission: tenant:impersonate
             """
-            # 获取租户信息
+            # 获取租户信息 / Get tenant info
             service = TenantService(db)
             tenant = await service.get_by_id(tenant_id)
 
@@ -362,7 +366,7 @@ class AdminTenantController(GlobalController):
                     detail=_("tenant.disabled"),
                 )
 
-            # 验证目标角色（如果指定）
+            # 验证目标角色（如果指定） / Validate target role (if specified)
             role_id = data.role_id if data else None
             if role_id:
                 role_result = await db.execute(
@@ -379,7 +383,7 @@ class AdminTenantController(GlobalController):
                         detail=_("tenant_admin.role_not_found"),
                     )
 
-            # 生成 impersonate token
+            # 生成 impersonate token / Generate impersonate token
             token = create_impersonate_token(
                 admin_id=current_admin.id,
                 target_scope=TOKEN_SCOPE_TENANT_ADMIN,
@@ -387,7 +391,7 @@ class AdminTenantController(GlobalController):
                 target_role_id=role_id,
             )
 
-            # 记录审计日志
+            # 记录审计日志 / Record audit log
             _audit_helper.logger.info(
                 "Admin impersonate initiated | admin_id=%s | admin_username=%s | "
                 "target_tenant_id=%s | target_tenant_code=%s | target_role_id=%s",
@@ -418,8 +422,9 @@ class AdminTenantController(GlobalController):
         ):
             """
             获取租户存储配置（Mode 2: 管理端逐租户指定）
+            Get tenant storage config (Mode 2: admin per-tenant override)
 
-            权限: tenant:detail
+            权限 / Permission: tenant:detail
             """
             from app.services.common.storage_config_resolver import (
                 StorageConfigResolver,
@@ -471,14 +476,15 @@ class AdminTenantController(GlobalController):
         ):
             """
             设置租户存储配置（Mode 2: 管理端逐租户指定）
+            Set tenant storage config (Mode 2: admin per-tenant override)
 
-            权限: tenant:update
+            权限 / Permission: tenant:update
             """
             from app.configs.service import ConfigService
 
             config_service = ConfigService(db)
 
-            # admin_override 模式必填校验
+            # admin_override 模式必填校验 / admin_override mode required field validation
             mode = data.get("tenant_storage_mode")
             if mode == "admin_override":
                 driver = data.get("tenant_storage_driver")
@@ -532,9 +538,9 @@ class AdminTenantController(GlobalController):
             config: dict = Body({}, embed=True),
         ):
             """
-            测试租户存储连接
+            测试租户存储连接 / Test tenant storage connection
 
-            权限: tenant:update
+            权限 / Permission: tenant:update
             """
             import io
             import uuid
@@ -580,11 +586,11 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            重置租户超级管理员（owner）密码
+            重置租户超级管理员（owner）密码 / Reset tenant owner password
 
-            - 用于租户管理员忘记密码或安全事件处理
+            - 用于租户管理员忘记密码或安全事件处理 / For forgotten password or security incident handling
 
-            权限: tenant:reset_owner_password
+            权限 / Permission: tenant:reset_owner_password
             """
             service = TenantService(db)
             await service.reset_owner_password(tenant_id, data.new_password)
@@ -593,7 +599,7 @@ class AdminTenantController(GlobalController):
             return success(message=_("tenant.owner_password_reset"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminTenantController.get_router()
 
 __all__ = ["router", "AdminTenantController"]

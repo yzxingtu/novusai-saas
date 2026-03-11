@@ -1,5 +1,5 @@
 """
-智能体记忆开关 Schema
+智能体记忆开关 Schema / Agent Memory Schema
 """
 
 from pydantic import BaseModel, Field

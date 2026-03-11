@@ -1,6 +1,9 @@
 """
-插件健康监控
+Plugin health monitoring / 插件健康监控
 
+Records errors and auto-degrades (auto-disable when consecutive errors >= threshold).
+Threshold adjustable via platform config plugin_auto_disable_threshold, default 10.
+/
 记录错误、自动降级（连续错误>=阈值自动禁用）。
 阈值通过平台配置 plugin_auto_disable_threshold 可调整，默认 10。
 """
@@ -21,7 +24,7 @@ DEFAULT_AUTO_DISABLE_THRESHOLD = 10
 
 
 async def _get_auto_disable_threshold(db: AsyncSession) -> int:
-    """从平台配置读取自动禁用阈值，回退到默认值"""
+    """Read auto-disable threshold from platform config, fallback to default / 从平台配置读取自动禁用阈值，回退到默认值"""
     try:
         from app.services.common.config_service import ConfigService
         config_service = ConfigService(db)
@@ -34,17 +37,18 @@ async def _get_auto_disable_threshold(db: AsyncSession) -> int:
 
 
 class PluginHealthMonitor:
-    """插件健康监控器"""
+    """Plugin health monitor / 插件健康监控器"""
 
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
     async def record_error(self, plugin_name: str, error_msg: str) -> int:
         """
-        记录插件错误，增加 error_count。
+        Record plugin error, increment error_count.
+        / 记录插件错误，增加 error_count。
 
         Returns:
-            更新后的 error_count
+            Updated error_count / 更新后的 error_count
         """
         from sqlalchemy import select
 
@@ -72,7 +76,7 @@ class PluginHealthMonitor:
         return plugin.error_count
 
     async def reset_error(self, plugin_name: str) -> None:
-        """重置错误计数"""
+        """Reset error count / 重置错误计数"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
@@ -92,10 +96,11 @@ class PluginHealthMonitor:
 
     async def check_auto_disable(self, plugin_name: str) -> bool:
         """
-        检查是否需要自动禁用（连续错误>=阈值）。
+        Check if auto-disable is needed (consecutive errors >= threshold).
+        / 检查是否需要自动禁用（连续错误>=阈值）。
 
         Returns:
-            是否执行了自动禁用
+            Whether auto-disable was executed / 是否执行了自动禁用
         """
         from sqlalchemy import select
 
@@ -119,7 +124,8 @@ class PluginHealthMonitor:
         if plugin.status != PluginStatusEnum.ENABLED.value:
             return False
 
-        # 自动禁用：先尝试正常 disable，失败则直接标记 error
+        # Auto-disable: try normal disable first, fallback to marking error status
+        # / 自动禁用：先尝试正常 disable，失败则直接标记 error
         try:
             from app.plugins.lifecycle import PluginLifecycle
 
@@ -143,7 +149,7 @@ class PluginHealthMonitor:
         return True
 
     async def get_health_status(self, plugin_name: str) -> dict:
-        """获取插件健康信息"""
+        """Get plugin health info / 获取插件健康信息"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin

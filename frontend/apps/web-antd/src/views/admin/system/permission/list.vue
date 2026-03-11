@@ -19,7 +19,7 @@ defineOptions({ name: 'SystemPermissionList' });
 
 type PermissionNode = adminApi.PermissionNode;
 
-// 权限树数据
+// Permission tree data / 权限树数据
 const permissions = ref<PermissionNode[]>([]);
 const loading = ref(false);
 const expandedKeys = ref<number[]>([]);
@@ -31,7 +31,7 @@ async function loadPermissions() {
   loading.value = true;
   try {
     permissions.value = await admin.getPermissionTreeApi();
-    // 默认展开前两层
+    // Default expand first two levels / 默认展开前两层
     expandedKeys.value = getExpandedKeys(permissions.value, 2);
   } catch {
     permissions.value = [];

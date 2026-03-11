@@ -1,7 +1,8 @@
 """
-审计日志中间件
+Audit Log Middleware / 审计日志中间件
 
-拦截所有 API 请求，记录操作日志到数据库
+Intercepts all API requests and records operation logs to database.
+拦截所有 API 请求，记录操作日志到数据库。
 """
 
 import json
@@ -21,7 +22,7 @@ from app.core.security import (
 )
 from app.enums.log import UserTypeEnum
 
-# 不记录日志的路径前缀
+# Path prefixes excluded from logging / 不记录日志的路径前缀
 EXCLUDED_PATHS = [
     "/health",
     "/docs",
@@ -30,13 +31,13 @@ EXCLUDED_PATHS = [
     "/favicon.ico",
 ]
 
-# 不记录日志的路径正则
+# Path patterns excluded from logging / 不记录日志的路径正则
 EXCLUDED_PATTERNS = [
     re.compile(r"^/static/"),
     re.compile(r"^/assets/"),
 ]
 
-# 敏感字段（需要脱敏）
+# Sensitive fields (need masking) / 敏感字段（需要脱敏）
 SENSITIVE_FIELDS = {
     "password",
     "password_hash",
@@ -51,7 +52,7 @@ SENSITIVE_FIELDS = {
     "secret_key",
 }
 
-# HTTP 方法到操作类型的映射（仅作为回退）
+# HTTP method to action type mapping (fallback only) / HTTP 方法到操作类型的映射
 METHOD_ACTION_MAP = {
     "GET": "query",
     "POST": "create",
@@ -60,7 +61,7 @@ METHOD_ACTION_MAP = {
     "DELETE": "delete",
 }
 
-# 特殊路径的操作类型映射
+# Special path action type mapping / 特殊路径的操作类型映射
 SPECIAL_PATH_ACTIONS = {
     "/auth/login": "login",
     "/auth/logout": "logout",
@@ -71,37 +72,37 @@ SPECIAL_PATH_ACTIONS = {
 
 def should_log_request(path: str, method: str) -> bool:
     """
-    判断是否应该记录该请求
+    Check if this request should be logged / 判断是否应该记录该请求
 
     Args:
-        path: 请求路径
-        method: HTTP 方法
+        path: Request path / 请求路径
+        method: HTTP method / HTTP 方法
 
     Returns:
-        是否记录
+        Whether to log / 是否记录
     """
-    # OPTIONS 请求不记录
+    # OPTIONS requests not logged / OPTIONS 请求不记录
     if method == "OPTIONS":
         return False
 
-    # 排除的路径前缀
+    # Excluded path prefixes / 排除的路径前缀
     for excluded in EXCLUDED_PATHS:
         if path.startswith(excluded):
             return False
 
-    # 排除的路径正则
+    # Excluded path patterns / 排除的路径正则
     return all(not pattern.match(path) for pattern in EXCLUDED_PATTERNS)
 
 
 def sanitize_body(body: dict | list | Any) -> dict | list | Any:
     """
-    脱敏请求体中的敏感字段
+    Sanitize sensitive fields in request body / 脱敏请求体中的敏感字段
 
     Args:
-        body: 原始请求体
+        body: Original request body / 原始请求体
 
     Returns:
-        脱敏后的请求体
+        Sanitized request body / 脱敏后的请求体
     """
     if isinstance(body, dict):
         result = {}
@@ -120,18 +121,19 @@ def sanitize_body(body: dict | list | Any) -> dict | list | Any:
 
 def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None, str | None]:
     """
-    从 FastAPI 路由提取权限信息
+    Extract permission info from FastAPI route / 从 FastAPI 路由提取权限信息
 
-    通过匹配当前请求的路由，获取权限装饰器定义的 resource 和 action
+    Matches current request route to get resource and action from permission decorators.
+    通过匹配当前请求的路由，获取权限装饰器定义的 resource 和 action。
 
     Args:
         scope: ASGI scope
 
     Returns:
-        (module, action, resource) 元组
-        - module: 业务模块（如 organization, tenant）
-        - action: 操作类型（如 create, update）
-        - resource: 完整权限码（如 organization:create）
+        (module, action, resource) tuple / 元组
+        - module: Business module / 业务模块 (e.g. organization, tenant)
+        - action: Action type / 操作类型 (e.g. create, update)
+        - resource: Full permission code / 完整权限码 (e.g. organization:create)
     """
     from starlette.routing import Match
 
@@ -139,13 +141,13 @@ def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None,
     if not app:
         return None, None, None
 
-    # 遍历路由匹配
+    # Iterate route matching / 遍历路由匹配
     for route in getattr(app, "routes", []):
         match, child_scope = route.matches(scope)
         if match == Match.FULL:
             endpoint = getattr(route, "endpoint", None)
             if endpoint:
-                # 获取权限装饰器定义的信息
+                # Get info defined by permission decorators / 获取权限装饰器定义的信息
                 permission_resource = getattr(endpoint, "_permission_resource", None)
                 permission_action = getattr(endpoint, "_permission_action", None)
 
@@ -159,13 +161,13 @@ def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None,
 
 def get_special_action(path: str) -> str | None:
     """
-    检查路径是否匹配特殊操作类型
+    Check if path matches special action type / 检查路径是否匹配特殊操作类型
 
     Args:
-        path: 请求路径
+        path: Request path / 请求路径
 
     Returns:
-        特殊操作类型或 None
+        Special action type or None / 特殊操作类型或 None
     """
     for pattern, action in SPECIAL_PATH_ACTIONS.items():
         if pattern in path:
@@ -175,24 +177,24 @@ def get_special_action(path: str) -> str | None:
 
 def get_client_ip(scope: Scope) -> str | None:
     """
-    获取客户端真实 IP
+    Get client real IP / 获取客户端真实 IP
 
-    支持代理服务器的 X-Forwarded-For 头
+    Supports proxy X-Forwarded-For header / 支持代理服务器的 X-Forwarded-For 头
     """
     headers = Headers(scope=scope)
 
-    # 优先从 X-Forwarded-For 获取
+    # Prefer X-Forwarded-For / 优先从 X-Forwarded-For 获取
     x_forwarded_for = headers.get("x-forwarded-for")
     if x_forwarded_for:
-        # 取第一个 IP（客户端真实 IP）
+        # First IP is client real IP / 取第一个 IP（客户端真实 IP）
         return x_forwarded_for.split(",")[0].strip()
 
-    # 从 X-Real-IP 获取
+    # From X-Real-IP / 从 X-Real-IP 获取
     x_real_ip = headers.get("x-real-ip")
     if x_real_ip:
         return x_real_ip
 
-    # 从 ASGI scope 获取
+    # From ASGI scope / 从 ASGI scope 获取
     client = scope.get("client")
     if client:
         return client[0]
@@ -202,14 +204,15 @@ def get_client_ip(scope: Scope) -> str | None:
 
 class AuditLogMiddleware:
     """
-    审计日志中间件（ASGI 实现）
+    Audit Log Middleware (ASGI implementation).
+    审计日志中间件（ASGI 实现）。
 
-    功能：
-    1. 拦截所有 API 请求
-    2. 记录请求/响应信息
-    3. 从 Token 解析用户信息
-    4. 请求体脱敏处理
-    5. 异步写入数据库（不阻塞请求）
+    功能 / Features：
+    1. 拦截所有 API 请求 / Intercept all API requests
+    2. 记录请求/响应信息 / Record request/response info
+    3. 从 Token 解析用户信息 / Parse user info from Token
+    4. 请求体脱敏处理 / Sanitize request body
+    5. 异步写入数据库（不阻塞请求） / Async write to DB (non-blocking)
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -220,49 +223,49 @@ class AuditLogMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # 确保 scope 中有 state（供后续中间件使用）
+        # Ensure scope has state (for subsequent middleware) / 确保 scope 中有 state
         if "state" not in scope:
             from starlette.datastructures import State
             scope["state"] = State()
 
-        # 获取请求信息
+        # Get request info / 获取请求信息
         path = scope.get("path", "")
         method = scope.get("method", "")
 
-        # 判断是否需要记录
+        # Check if logging needed / 判断是否需要记录
         if not should_log_request(path, method):
             await self.app(scope, receive, send)
             return
 
-        # 记录开始时间
+        # Record start time / 记录开始时间
         start_time = time.time()
 
-        # 收集请求信息
+        # Collect request info / 收集请求信息
         request_info = await self._collect_request_info(scope, receive)
 
-        # 用于收集响应信息
+        # For collecting response info / 用于收集响应信息
         response_info: dict[str, Any] = {
             "status_code": None,
             "response_code": None,
             "response_message": None,
         }
 
-        # 包装 receive 以允许多次读取请求体
+        # Wrap receive to allow multiple body reads / 包装 receive 以允许多次读取请求体
         body_parts: list[bytes] = request_info.get("_body_parts", [])
         body_index = 0
         _http_request_done = [False]
 
-        # 关键区分：_collect_request_info 只对 POST/PUT/PATCH 方法调用原始 receive()。
-        # 对 GET/DELETE/HEAD 等非 body 方法，原始 receive() 从未被消费，
-        # 仍然持有真实的 http.request 消息。
+        # Key distinction: _collect_request_info only calls original receive() for POST/PUT/PATCH.
+        # For GET/DELETE/HEAD etc., original receive() was never consumed,
+        # still holds the real http.request message.
         #
-        # 错误场景（修复前）：
-        #   1. wrapped_receive 第一次调用 → body_parts=[] → 合成 http.request(body=b"")
-        #   2. SSE 断连检测再次调用 → pass-through 到原始 receive() → 返回真实 http.request
-        #   3. Starlette 收到第二条 http.request → RuntimeError: Unexpected message received
+        # Bug scenario (before fix):
+        #   1. wrapped_receive 1st call → body_parts=[] → synthesize http.request(body=b"")
+        #   2. SSE disconnect detection calls again → pass-through to original receive() → returns real http.request
+        #   3. Starlette receives 2nd http.request → RuntimeError: Unexpected message received
         #
-        # 修复：对"原始 receive 未消费"的方法，第一次 pass-through 直接透传原始消息，
-        # 而不是合成空 body。这样 Starlette 只收到一条 http.request。
+        # Fix: for methods where original receive was not consumed, pass-through the real message
+        # instead of synthesizing empty body. This way Starlette only gets one http.request.
         _body_consumed_from_source = method in ("POST", "PUT", "PATCH")
 
         async def wrapped_receive() -> Message:
@@ -281,22 +284,23 @@ class AuditLogMiddleware:
             if not _http_request_done[0]:
                 _http_request_done[0] = True
                 if _body_consumed_from_source:
-                    # POST/PUT/PATCH：body 已被 _collect_request_info 消费完毕，
-                    # 合成空 body 结束消息，防止路由处理器等待 body 时永久挂起。
+                    # POST/PUT/PATCH: body already consumed by _collect_request_info,
+                    # synthesize empty body end message to prevent route handler from hanging.
                     return {"type": "http.request", "body": b"", "more_body": False}
                 else:
-                    # GET/DELETE 等非 body 方法：原始 receive() 从未被调用，
-                    # 直接透传返回真实的 http.request，避免重复发送同类消息。
+                    # GET/DELETE etc.: original receive() was never called,
+                    # pass-through returns real http.request to avoid duplicate messages.
                     return await receive()
             # http.request 已交付完毕，pass-through 供断连检测（返回 http.disconnect 等）
+            # http.request delivered, pass-through for disconnect detection (http.disconnect etc.)
             return await receive()
 
-        # 包装 send 以捕获响应信息
+        # Wrap send to capture response info / 包装 send 以捕获响应信息
         async def wrapped_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 response_info["status_code"] = message.get("status")
             elif message["type"] == "http.response.body":
-                # 尝试从响应体提取业务响应码
+                # Try extracting business response code from body / 尝试从响应体提取业务响应码
                 body = message.get("body", b"")
                 if body and response_info.get("status_code") == 200:
                     try:
@@ -307,14 +311,14 @@ class AuditLogMiddleware:
                         pass
             await send(message)
 
-        # 执行请求
+        # Execute request / 执行请求
         try:
             await self.app(scope, wrapped_receive, wrapped_send)
         finally:
-            # 计算耗时
+            # Calculate duration / 计算耗时
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # 异步记录日志
+            # Record log asynchronously / 异步记录日志
             await self._write_log(
                 scope=scope,
                 request_info=request_info,
@@ -326,18 +330,18 @@ class AuditLogMiddleware:
         self, scope: Scope, receive: Receive
     ) -> dict[str, Any]:
         """
-        收集请求信息
+        收集请求信息 / Collect request info
 
         Args:
             scope: ASGI scope
             receive: ASGI receive
 
         Returns:
-            请求信息字典
+            请求信息字典 / Request info dict
         """
         headers = Headers(scope=scope)
 
-        # 基础信息
+        # 基础信息 / Basic info
         info: dict[str, Any] = {
             "method": scope.get("method", ""),
             "path": scope.get("path", ""),
@@ -346,14 +350,14 @@ class AuditLogMiddleware:
             "user_agent": headers.get("user-agent"),
         }
 
-        # 解析查询参数
+        # 解析查询参数 / Parse query params
         if info["query_string"]:
             from urllib.parse import parse_qs
             info["query_params"] = parse_qs(info["query_string"])
         else:
             info["query_params"] = None
 
-        # 收集请求体（仅对 POST/PUT/PATCH）
+        # 收集请求体（仅对 POST/PUT/PATCH） / Collect request body (POST/PUT/PATCH only)
         body_parts: list[bytes] = []
         if info["method"] in ("POST", "PUT", "PATCH"):
             body = b""
@@ -366,7 +370,7 @@ class AuditLogMiddleware:
                 if not message.get("more_body"):
                     break
 
-            # 解析并脱敏请求体
+            # 解析并脱敏请求体 / Parse and sanitize request body
             if body:
                 try:
                     content_type = headers.get("content-type", "")
@@ -374,7 +378,7 @@ class AuditLogMiddleware:
                         body_data = json.loads(body)
                         info["request_body"] = sanitize_body(body_data)
                     else:
-                        # 非 JSON 请求体，仅记录大小
+                        # 非 JSON 请求体，仅记录大小 / Non-JSON body, record size only
                         info["request_body"] = {"_size": len(body), "_type": content_type}
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     info["request_body"] = {"_size": len(body), "_error": "parse_failed"}
@@ -384,10 +388,12 @@ class AuditLogMiddleware:
 
     def _get_user_info(self, scope: Scope) -> dict[str, Any]:
         """
-        从 scope 获取用户信息
+        从 scope 获取用户信息 / Get user info from scope
 
         优先从 PermissionMiddleware 注入的 state 获取，
-        否则尝试从 Token 解析
+        否则尝试从 Token 解析。
+        Prefers state injected by PermissionMiddleware,
+        otherwise parses from Token.
         """
         headers = Headers(scope=scope)
         auth_header = headers.get("authorization", "")
@@ -405,7 +411,7 @@ class AuditLogMiddleware:
 
         token = auth_header[7:]
 
-        # 获取完整的 token payload
+        # Get full token payload / 获取完整的 token payload
         payload = get_token_payload(token, TOKEN_TYPE_ACCESS)
         if payload is None:
             return user_info
@@ -413,21 +419,21 @@ class AuditLogMiddleware:
         token_scope = payload.get("scope")
         user_id = payload.get("sub")
         tenant_id = payload.get("tenant_id")
-        impersonated_by = payload.get("impersonated_by")  # 一键登录标记
+        impersonated_by = payload.get("impersonated_by")  # Impersonation flag / 一键登录标记
 
         if not user_id:
             return user_info
 
-        # 平台管理员一键登录租户的情况：
-        # token scope 是 tenant_admin，但有 impersonated_by 标记
-        # 这种情况应该记录为平台管理员的操作
+        # Admin impersonating tenant case / 平台管理员一键登录租户的情况：
+        # token scope is tenant_admin, but has impersonated_by flag
+        # Should be recorded as platform admin's operation / 记录为平台管理员的操作
         if impersonated_by is not None:
             user_info["user_type"] = UserTypeEnum.ADMIN.value
-            user_info["user_id"] = int(impersonated_by)  # 使用真实的平台管理员 ID
-            user_info["tenant_id"] = None  # 平台端日志不关联租户
+            user_info["user_id"] = int(impersonated_by)  # Use real platform admin ID / 使用真实的平台管理员 ID
+            user_info["tenant_id"] = None  # Platform logs not associated with tenant / 平台端日志不关联租户
             return user_info
 
-        # 根据 scope 判断用户类型
+        # Determine user type by scope / 根据 scope 判断用户类型
         if token_scope == TOKEN_SCOPE_ADMIN:
             user_info["user_type"] = UserTypeEnum.ADMIN.value
             user_info["user_id"] = int(user_id)
@@ -450,24 +456,24 @@ class AuditLogMiddleware:
         duration_ms: int,
     ) -> None:
         """
-        异步写入日志
+        Write log asynchronously / 异步写入日志
 
         Args:
             scope: ASGI scope
-            request_info: 请求信息
-            response_info: 响应信息
-            duration_ms: 请求耗时
+            request_info: Request info / 请求信息
+            response_info: Response info / 响应信息
+            duration_ms: Request duration / 请求耗时
         """
         from app.services.system.operation_log_service import create_log_async
 
-        # 获取用户信息
+        # Get user info / 获取用户信息
         user_info = self._get_user_info(scope)
 
-        # 获取用户名和昵称
+        # Get username and nickname / 获取用户名和昵称
         username = user_info.get("username")
         nickname = user_info.get("nickname")
 
-        # 如果有 user_id，优先从 scope state 获取（由 PermissionMiddleware 注入）
+        # If user_id exists, prefer from scope state (injected by PermissionMiddleware) / 优先从 scope state 获取
         if user_info.get("user_id") and "state" in scope:
             state = scope["state"]
             user = getattr(state, "user", None)
@@ -477,24 +483,24 @@ class AuditLogMiddleware:
                 if not nickname and hasattr(user, "nickname"):
                     nickname = user.nickname
 
-        # 从路由提取权限信息（module, action, resource）
+        # Extract permission info from route (module, action, resource) / 从路由提取权限信息
         path = request_info.get("path", "")
         method = request_info.get("method", "")
         module, action, resource = extract_permission_from_route(scope)
 
-        # 检查特殊操作类型（如 login, logout）
+        # Check special action types (e.g. login, logout) / 检查特殊操作类型
         special_action = get_special_action(path)
         if special_action:
             action = special_action
-            # 特殊操作重新构建 resource
+            # Rebuild resource for special actions / 特殊操作重新构建 resource
             if module:
                 resource = f"{module}:{action}"
 
-        # 如果未获取到 action，使用 HTTP 方法映射作为回退
+        # If action not found, use HTTP method mapping as fallback / 未获取到 action 时使用 HTTP 方法映射
         if not action:
             action = METHOD_ACTION_MAP.get(method, "other")
 
-        # 异步写入
+        # Async write / 异步写入
         create_log_async(
             tenant_id=user_info.get("tenant_id"),
             user_type=user_info.get("user_type", UserTypeEnum.ANONYMOUS.value),

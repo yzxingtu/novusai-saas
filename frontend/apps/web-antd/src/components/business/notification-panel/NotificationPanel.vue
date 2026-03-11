@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 /**
+ * Notification Panel Component
  * 通知面板组件
  *
+ * Displayed in top bar bell Popover, supports category Tab filtering, read/unread, mark all read.
  * 在顶栏铃铛 Popover 中展示，支持分类 Tab 筛选、已读/未读、全部已读。
  */
 import type { NotificationItem } from '#/store/shared/notification';
@@ -36,7 +38,7 @@ const CATEGORY_TABS = [
   { key: 'audit', icon: 'lucide:shield' },
 ];
 
-/** 按分类筛选的通知列表 */
+/** Notifications filtered by category / 按分类筛选的通知列表 */
 const filteredNotifications = computed(() => {
   if (activeTab.value === 'all') {
     return notifStore.notifications;
@@ -44,7 +46,7 @@ const filteredNotifications = computed(() => {
   return notifStore.notifications.filter((n) => n.category === activeTab.value);
 });
 
-/** 分类图标映射 */
+/** Category icon mapping / 分类图标映射 */
 function getCategoryIcon(category: string): string {
   const map: Record<string, string> = {
     system: 'lucide:monitor',
@@ -56,7 +58,7 @@ function getCategoryIcon(category: string): string {
   return map[category] || 'lucide:bell';
 }
 
-/** 分类颜色映射 */
+/** Category color mapping / 分类颜色映射 */
 function getCategoryColor(category: string): string {
   const map: Record<string, string> = {
     system: 'text-blue-500',
@@ -83,7 +85,7 @@ function handleDelete(item: NotificationItem) {
   notifStore.deleteNotification(item.id);
 }
 
-// Tab 切换时加载
+// Load on Tab switch / Tab 切换时加载
 watch(activeTab, () => {
   const category = activeTab.value === 'all' ? undefined : activeTab.value;
   notifStore.loadNotifications(category);
@@ -97,7 +99,7 @@ onMounted(() => {
 
 <template>
   <div class="w-[360px]">
-    <!-- Tab 导航 -->
+    <!-- Tab navigation / Tab 导航 -->
     <Tabs v-model:active-key="activeTab" size="small" class="notification-tabs">
       <Tabs.TabPane
         v-for="tab in CATEGORY_TABS"
@@ -106,7 +108,7 @@ onMounted(() => {
       />
     </Tabs>
 
-    <!-- 通知列表 -->
+    <!-- Notification list / 通知列表 -->
     <Spin :spinning="notifStore.loading">
       <div class="max-h-[400px] overflow-y-auto">
         <Empty
@@ -122,7 +124,7 @@ onMounted(() => {
             :class="{ 'bg-primary/5': !item.is_read }"
             @click="handleMarkRead(item)"
           >
-            <!-- 分类图标 -->
+            <!-- Category icon / 分类图标 -->
             <div class="flex-shrink-0 pt-0.5">
               <IconifyIcon
                 :icon="getCategoryIcon(item.category)"
@@ -130,7 +132,7 @@ onMounted(() => {
                 :class="getCategoryColor(item.category)"
               />
             </div>
-            <!-- 内容 -->
+            <!-- Content / 内容 -->
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
                 <span
@@ -143,7 +145,7 @@ onMounted(() => {
                 >
                   {{ item.title }}
                 </span>
-                <!-- 未读圆点 -->
+                <!-- Unread dot / 未读圆点 -->
                 <Badge v-if="!item.is_read" status="processing" />
               </div>
               <p
@@ -164,7 +166,7 @@ onMounted(() => {
                 {{ item.created_at ? formatRelativeTime(item.created_at) : '' }}
               </span>
             </div>
-            <!-- 删除 -->
+            <!-- Delete / 删除 -->
             <button
               class="flex-shrink-0 self-start opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
               @click.stop="handleDelete(item)"
@@ -176,7 +178,7 @@ onMounted(() => {
       </div>
     </Spin>
 
-    <!-- 底部操作 -->
+    <!-- Bottom actions / 底部操作 -->
     <div
       class="flex items-center justify-between border-t border-border/50 px-4 py-2"
     >
@@ -190,7 +192,7 @@ onMounted(() => {
       </Button>
     </div>
 
-    <!-- 通知偏好设置抽屉 -->
+    <!-- Notification preferences drawer / 通知偏好设置抽屉 -->
     <NotificationSettings ref="settingsRef" />
   </div>
 </template>

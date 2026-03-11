@@ -1,13 +1,15 @@
 """
-hosts 文件管理工具（仅开发环境）
+hosts 文件管理工具（仅开发环境） / Hosts File Manager (dev environment only)
 
 在 DEBUG 模式下，自动管理 hosts 文件中的租户域名映射。
+Automatically manages tenant domain mappings in hosts file under DEBUG mode.
 支持 Windows / macOS / Linux，生产环境（DEBUG=false）完全不触发。
+Supports Windows / macOS / Linux. Never triggered in production (DEBUG=false).
 
-标记格式：
+标记格式 / Entry format:
     127.0.0.1  demo.app.local  # NovusAI-Dev
 
-CLI 用法（在 backend/ 目录下，需管理员/sudo 权限）：
+CLI 用法 / CLI usage (in backend/ dir, requires admin/sudo):
     python -m app.core.hosts_helper add demo.app.local
     python -m app.core.hosts_helper remove demo.app.local
     python -m app.core.hosts_helper list
@@ -17,10 +19,12 @@ CLI 用法（在 backend/ 目录下，需管理员/sudo 权限）：
 from __future__ import annotations
 
 import asyncio
+import os
 import platform
 import re
 import sys
 from pathlib import Path
+from typing import Literal, TypedDict
 
 from app.core.logging import LogManager
 
@@ -38,6 +42,25 @@ _HOSTS_PATHS: dict[str, Path] = {
     "Darwin": Path("/etc/hosts"),
     "Linux": Path("/etc/hosts"),
 }
+
+HostEntryState = Literal["managed_present", "manual_present", "missing", "unsupported"]
+
+
+class HostsRuntimeInfo(TypedDict):
+    enabled: bool
+    debug: bool
+    supported: bool
+    os_name: str
+    hosts_path: str | None
+    requires_elevation: bool
+    can_write_hint: bool
+
+
+class HostEntryStatus(TypedDict):
+    domain: str
+    status: HostEntryState
+    matched_ip: str | None
+    managed: bool
 
 
 # ──────────────────────────────────────────────
@@ -98,27 +121,135 @@ def _is_managed(line: str) -> bool:
     return MARKER in line
 
 
+def _normalize_domain(domain: str) -> str:
+    """标准化域名，统一去空格并转小写 / Normalize domain by trimming spaces and lowercasing"""
+    return domain.strip().lower()
+
+
+def _parse_hosts_line(line: str) -> tuple[str, list[str]] | None:
+    """解析 hosts 行并返回 IP 与域名列表，忽略注释与空行 / Parse a hosts line into IP and domains while ignoring comments and blank lines"""
+    line_body = line.split("#", 1)[0].strip()
+    if not line_body:
+        return None
+
+    parts = re.split(r"\s+", line_body)
+    if len(parts) < 2:
+        return None
+
+    ip = parts[0]
+    domains = [part for part in parts[1:] if part]
+    if not domains:
+        return None
+
+    return ip, domains
+
+
 def _extract_domain(line: str) -> str | None:
     """从 hosts 行提取域名，不是托管行则返回 None"""
     if not _is_managed(line):
         return None
-    m = re.match(r"^\s*[\d.:a-fA-F]+\s+(\S+)", line)
-    return m.group(1) if m else None
+    parsed = _parse_hosts_line(line)
+    if not parsed:
+        return None
+    _, domains = parsed
+    return domains[0] if domains else None
+
+
+def _extract_managed_domains(line: str) -> list[str]:
+    """提取单行中的所有托管域名，非托管行返回空列表 / Extract all managed domains from one line, or return an empty list for unmanaged lines"""
+    if not _is_managed(line):
+        return []
+    parsed = _parse_hosts_line(line)
+    if not parsed:
+        return []
+    _, domains = parsed
+    return domains
 
 
 def _has_entry(lines: list[str], domain: str) -> bool:
-    """检查域名是否已存在于托管条目中（大小写不敏感）"""
-    dl = domain.lower()
+    """检查域名是否已存在于任意 hosts 条目中（大小写不敏感） / Check whether the domain exists in any hosts entry, case-insensitively"""
+    return _inspect_entry(lines, domain)["status"] in {"managed_present", "manual_present"}
+
+
+def _inspect_entry(lines: list[str], domain: str) -> HostEntryStatus:
+    """在已读取的 hosts 行中检查域名状态 / Inspect the domain state from already loaded hosts lines"""
+    normalized_domain = _normalize_domain(domain)
+
     for line in lines:
-        d = _extract_domain(line)
-        if d and d.lower() == dl:
-            return True
-    return False
+        parsed = _parse_hosts_line(line)
+        if not parsed:
+            continue
+
+        ip, domains = parsed
+        if any(_normalize_domain(item) == normalized_domain for item in domains):
+            managed = _is_managed(line)
+            return {
+                "domain": domain.strip(),
+                "status": "managed_present" if managed else "manual_present",
+                "matched_ip": ip,
+                "managed": managed,
+            }
+
+    return {
+        "domain": domain.strip(),
+        "status": "missing",
+        "matched_ip": None,
+        "managed": False,
+    }
 
 
 def _make_entry(domain: str) -> str:
     """生成标准格式的 hosts 条目行（含换行符）"""
     return f"{LOOPBACK_IP}  {domain}  {MARKER}\n"
+
+
+def get_runtime_info() -> HostsRuntimeInfo:
+    """返回当前 hosts 管理的运行时信息 / Return runtime information for current hosts management"""
+    from app.core.config import settings
+
+    hosts_path = _get_hosts_path()
+    supported = hosts_path is not None
+
+    can_write_hint = False
+    if hosts_path is not None:
+        probe_path = hosts_path if hosts_path.exists() else hosts_path.parent
+        can_write_hint = probe_path.exists() and os.access(probe_path, os.W_OK)
+
+    return {
+        "enabled": bool(settings.DEBUG) and supported,
+        "debug": bool(settings.DEBUG),
+        "supported": supported,
+        "os_name": platform.system(),
+        "hosts_path": str(hosts_path) if hosts_path else None,
+        "requires_elevation": supported and not can_write_hint,
+        "can_write_hint": can_write_hint,
+    }
+
+
+def get_domain_entry_status(domain: str) -> HostEntryStatus:
+    """检查单个域名在 hosts 文件中的状态 / Check the status of a single domain inside the hosts file"""
+    hosts_path = _get_hosts_path()
+    if hosts_path is None:
+        return {
+            "domain": domain.strip(),
+            "status": "unsupported",
+            "matched_ip": None,
+            "managed": False,
+        }
+
+    try:
+        return _inspect_entry(_read_lines(), domain)
+    except Exception:
+        logger.exception(
+            "[NovusAI-Dev] Failed to inspect hosts entry status: %s",
+            domain,
+        )
+        return {
+            "domain": domain.strip(),
+            "status": "missing",
+            "matched_ip": None,
+            "managed": False,
+        }
 
 
 # ──────────────────────────────────────────────
@@ -147,11 +278,18 @@ def add_host_entry(domain: str) -> bool:
 
     try:
         lines = _read_lines()
-
-        if _has_entry(lines, domain):
+        entry_status = _inspect_entry(lines, domain)
+        if entry_status["status"] == "managed_present":
             logger.info(
-                "[NovusAI-Dev] hosts entry already exists, skipping: %s  %s",
+                "[NovusAI-Dev] managed hosts entry already exists, skipping: %s  %s",
                 LOOPBACK_IP,
+                domain,
+            )
+            return True
+        if entry_status["status"] == "manual_present":
+            logger.info(
+                "[NovusAI-Dev] manual hosts entry already exists, skipping managed write: %s  %s",
+                entry_status["matched_ip"] or LOOPBACK_IP,
                 domain,
             )
             return True
@@ -262,7 +400,7 @@ def list_managed_entries() -> list[str]:
     """
     try:
         lines = _read_lines()
-        return [d for line in lines if (d := _extract_domain(line))]
+        return [domain for line in lines for domain in _extract_managed_domains(line)]
     except Exception:
         logger.exception("[NovusAI-Dev] Failed to read hosts file")
         return []
@@ -271,10 +409,14 @@ def list_managed_entries() -> list[str]:
 def cleanup_all_entries() -> int:
     """
     清除 hosts 文件中所有 NovusAI-Dev 托管条目
+    Remove all NovusAI-Dev managed entries from the hosts file
 
     Returns:
-        清除的条目数量（0 = 无或失败）
+        清除的条目数量（0 = 无或失败）/ Number of entries removed (0 = none or failed)
     """
+    if not is_dev_local():
+        return 0
+
     hosts_path = _get_hosts_path()
 
     try:
@@ -314,18 +456,28 @@ def cleanup_all_entries() -> int:
 
 
 async def async_add_host_entry(domain: str) -> bool:
-    """异步添加 hosts 条目（通过 to_thread 不阻塞事件循环）"""
+    """异步添加 hosts 条目（通过 to_thread 不阻塞事件循环）/ Add a hosts entry asynchronously via to_thread"""
     return await asyncio.to_thread(add_host_entry, domain)
 
 
 async def async_remove_host_entry(domain: str) -> bool:
-    """异步移除 hosts 条目"""
+    """异步移除 hosts 条目 / Remove a hosts entry asynchronously"""
     return await asyncio.to_thread(remove_host_entry, domain)
 
 
 async def async_cleanup_all_entries() -> int:
-    """异步清除所有托管条目"""
+    """异步清除所有托管条目 / Remove all managed hosts entries asynchronously"""
     return await asyncio.to_thread(cleanup_all_entries)
+
+
+async def async_get_runtime_info() -> HostsRuntimeInfo:
+    """异步获取 hosts 管理运行时信息 / Get hosts management runtime information asynchronously"""
+    return await asyncio.to_thread(get_runtime_info)
+
+
+async def async_get_domain_entry_status(domain: str) -> HostEntryStatus:
+    """异步获取单个域名的 hosts 状态 / Get the hosts status for a single domain asynchronously"""
+    return await asyncio.to_thread(get_domain_entry_status, domain)
 
 
 # ──────────────────────────────────────────────

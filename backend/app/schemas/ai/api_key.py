@@ -1,7 +1,8 @@
 """
-AI 供应商 API Key 相关 Schema
+AI 供应商 API Key 相关 Schema / AI Provider API Key Schema
 
 定义 API Key 的请求和响应数据结构
+Defines API key request and response data structures.
 """
 
 from datetime import datetime

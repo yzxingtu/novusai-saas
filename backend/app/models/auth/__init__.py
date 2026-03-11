@@ -1,7 +1,8 @@
 """
-认证授权模块模型
+认证授权模块模型 / Auth Module Models
 
 RBAC 相关模型：权限、角色、角色-权限关联
+RBAC related models: permissions, roles, role-permission associations.
 """
 
 from app.models.auth.admin_role import AdminRole, admin_role_permissions

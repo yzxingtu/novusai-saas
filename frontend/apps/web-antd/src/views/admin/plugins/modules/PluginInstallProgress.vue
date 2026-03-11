@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 /**
+ * Plugin install/uninstall progress drawer
  * 插件安装/卸载进度抽屉
  *
+ * Displays install steps, log output, and progress bar via Socket.IO in real-time.
  * 通过 Socket.IO 实时展示安装步骤、日志输出、进度条。
  */
 import { nextTick, onUnmounted, ref, watch } from 'vue';
@@ -17,7 +19,7 @@ const progressStore = usePluginInstallProgressStore();
 
 const logContainer = ref<HTMLElement | null>(null);
 
-/** 步骤名 → 显示标签 */
+/** Step name → display label / 步骤名 → 显示标签 */
 function stepLabel(step: string): string {
   const map: Record<string, string> = {
     copy: $t('admin.plugin.progress.step.copy'),
@@ -45,7 +47,7 @@ function stepLabel(step: string): string {
   return map[step] || step;
 }
 
-/** 步骤状态图标 */
+/** Step status icon / 步骤状态图标 */
 function stepIcon(status: string): string {
   switch (status) {
     case 'error': {
@@ -95,7 +97,7 @@ function handleReload() {
   window.location.reload();
 }
 
-// 完成后 3 秒自动关闭（不需要页面刷新时）
+// Auto-close after 3 seconds on completion (when no page reload needed) / 完成后 3 秒自动关闭（不需要页面刷新时）
 let autoCloseTimer: null | ReturnType<typeof setTimeout> = null;
 watch(
   () => progressStore.isComplete,
@@ -114,7 +116,7 @@ onUnmounted(() => {
   }
 });
 
-// 日志自动滚到底部
+// Auto-scroll logs to bottom / 日志自动滚到底部
 watch(
   () => progressStore.logs.length,
   () => {

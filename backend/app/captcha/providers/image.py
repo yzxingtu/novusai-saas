@@ -1,3 +1,16 @@
+"""
+Image Captcha Provider
+图形验证码提供者
+
+Generates image-based captcha challenges with configurable difficulty levels.
+生成基于图片的验证码挑战，支持可配置的难度级别。
+
+Difficulty levels / 难度级别:
+- easy: 4 chars, uppercase + digits / 4位，大写字母+数字
+- medium: 5 chars, mixed case + digits / 5位，大小写字母+数字
+- hard: 6 chars, full alphanumeric / 6位，全字母数字
+"""
+
 from __future__ import annotations
 
 import base64
@@ -22,7 +35,13 @@ from app.core.logging import CaptchaLoggerMixin
 
 
 class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
-    """图形验证码提供者"""
+    """
+    Image Captcha Provider.
+    图形验证码提供者。
+
+    Uses in-memory store for challenge data (hash + expiry + used flag).
+    使用内存存储挑战数据（哈希 + 过期时间 + 已使用标记）。
+    """
 
     def __init__(self) -> None:
         self._store: dict[str, dict[str, Any]] = {}
@@ -34,17 +53,21 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         self._lengths = {"easy": 4, "medium": 5, "hard": 6}
 
     def _now(self) -> datetime:
+        """Get current UTC time / 获取当前 UTC 时间"""
         return utc_now()
 
     def _gen_text(self, difficulty: str) -> str:
+        """Generate random captcha text by difficulty / 根据难度生成随机验证码文本"""
         charset = self._charsets.get(difficulty, self._charsets["medium"])
         length = self._lengths.get(difficulty, self._lengths["medium"])
         return "".join(random.choice(charset) for _ in range(length))
 
     def _hash(self, text: str) -> str:
+        """Hash text for comparison (case-insensitive) / 哈希文本用于比对（不区分大小写）"""
         return hashlib.sha256(text.strip().lower().encode("utf-8")).hexdigest()
 
     async def generate_challenge(self, ctx: dict[str, Any]) -> CaptchaChallenge:
+        """Generate an image captcha challenge / 生成图形验证码挑战"""
         if ImageCaptcha is None:
             raise RuntimeError("captcha_library_missing")
         difficulty = str(ctx.get("difficulty") or "medium")
@@ -75,6 +98,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         )
 
     async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+        """Verify captcha solution against stored hash / 验证验证码答案与存储的哈希比对"""
         _ = ctx
         self.logger.debug(
             f"[VERIFY] challenge_id={challenge_id} solution={solution} "

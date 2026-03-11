@@ -1,19 +1,19 @@
 /**
- * AI 供应商管理 API
- * 对接后端 /admin/ai/providers, /admin/ai/api-keys, /admin/ai/health, /admin/ai/gateway 接口
+ * AI provider management API / AI 供应商管理 API
+ * Backend: /admin/ai/providers, /admin/ai/api-keys, /admin/ai/health, /admin/ai/gateway
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - AI 供应商
+// Type definitions - AI providers / 类型定义 - AI 供应商
 // ============================================================
 
-/** 供应商类型 */
+/** Provider type / 供应商类型 */
 export type ProviderType = string;
 
-/** 适配器类型信息 */
+/** Adapter type info / 适配器类型信息 */
 export interface AdapterTypeInfo {
   type: string;
   source: 'builtin' | 'plugin';
@@ -24,7 +24,7 @@ export interface AdapterTypeInfo {
   models?: Array<{ code: string; name: string }>;
 }
 
-/** AI 供应商信息 */
+/** AI provider info / AI 供应商信息 */
 export interface AIProviderInfo {
   id: number;
   name: string;
@@ -41,7 +41,7 @@ export interface AIProviderInfo {
   updated_at: string;
 }
 
-/** 创建供应商请求 */
+/** Create provider request / 创建供应商请求 */
 export interface AIProviderCreateRequest {
   name: string;
   code: string;
@@ -54,7 +54,7 @@ export interface AIProviderCreateRequest {
   config?: null | Record<string, unknown>;
 }
 
-/** 更新供应商请求 */
+/** Update provider request / 更新供应商请求 */
 export interface AIProviderUpdateRequest {
   name?: null | string;
   code?: null | string;
@@ -68,10 +68,10 @@ export interface AIProviderUpdateRequest {
 }
 
 // ============================================================
-// 类型定义 - API Key
+// Type definitions - API Key / 类型定义 - API Key
 // ============================================================
 
-/** API Key 信息 */
+/** API Key info / API Key 信息 */
 export interface AIApiKeyInfo {
   id: number;
   provider_id: number;
@@ -90,7 +90,7 @@ export interface AIApiKeyInfo {
   updated_at: string;
 }
 
-/** 创建 API Key 请求 */
+/** Create API Key request / 创建 API Key 请求 */
 export interface AIApiKeyCreateRequest {
   provider_id: number;
   tenant_id?: null | number;
@@ -101,7 +101,7 @@ export interface AIApiKeyCreateRequest {
   expires_at?: null | string;
 }
 
-/** 更新 API Key 请求 */
+/** Update API Key request / 更新 API Key 请求 */
 export interface AIApiKeyUpdateRequest {
   name?: null | string;
   is_active?: boolean | null;
@@ -110,10 +110,10 @@ export interface AIApiKeyUpdateRequest {
 }
 
 // ============================================================
-// 类型定义 - AI 健康状态
+// Type definitions - AI health status / 类型定义 - AI 健康状态
 // ============================================================
 
-/** 供应商健康状态 */
+/** Provider health status / 供应商健康状态 */
 export interface AIHealthStatus {
   provider_id: number;
   provider_code: string;
@@ -127,10 +127,10 @@ export interface AIHealthStatus {
 }
 
 // ============================================================
-// 类型定义 - AI 网关测试
+// Type definitions - AI gateway test / 类型定义 - AI 网关测试
 // ============================================================
 
-/** 模型测试请求 */
+/** Model test request / 模型测试请求 */
 export interface TestAIGatewayRequest {
   provider_id: number;
   model_code: string;
@@ -140,7 +140,7 @@ export interface TestAIGatewayRequest {
   max_tokens?: number;
 }
 
-/** 模型测试结果 */
+/** Model test result / 模型测试结果 */
 export interface TestAIGatewayResult {
   connected: boolean;
   latency_ms: number;
@@ -154,7 +154,7 @@ export interface TestAIGatewayResult {
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -165,12 +165,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - AI 供应商
+// API - AI providers / API 接口 - AI 供应商
 // ============================================================
 
 const PROVIDER_PREFIX = '/admin/ai/providers';
 
-/** 获取供应商列表 */
+/** Get provider list / 获取供应商列表 */
 export async function getAIProviderListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -181,7 +181,7 @@ export async function getAIProviderListApi(
   });
 }
 
-/** 获取可用适配器类型列表（内置 + 插件） */
+/** Get available adapter types (builtin + plugin) / 获取可用适配器类型列表 */
 export async function getAdapterTypesApi(
   options?: ApiRequestOptions,
 ): Promise<AdapterTypeInfo[]> {
@@ -191,7 +191,7 @@ export async function getAdapterTypesApi(
   );
 }
 
-/** 获取供应商详情 */
+/** Get provider detail / 获取供应商详情 */
 export async function getAIProviderDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -199,7 +199,7 @@ export async function getAIProviderDetailApi(
   return requestClient.get<AIProviderInfo>(`${PROVIDER_PREFIX}/${id}`, options);
 }
 
-/** 创建供应商 */
+/** Create provider / 创建供应商 */
 export async function createAIProviderApi(
   data: AIProviderCreateRequest,
   options?: ApiRequestOptions,
@@ -207,7 +207,7 @@ export async function createAIProviderApi(
   return requestClient.post<AIProviderInfo>(PROVIDER_PREFIX, data, options);
 }
 
-/** 更新供应商 */
+/** Update provider / 更新供应商 */
 export async function updateAIProviderApi(
   id: number,
   data: AIProviderUpdateRequest,
@@ -220,7 +220,7 @@ export async function updateAIProviderApi(
   );
 }
 
-/** 删除供应商 */
+/** Delete provider / 删除供应商 */
 export async function deleteAIProviderApi(
   id: number,
   options?: ApiRequestOptions,
@@ -228,7 +228,7 @@ export async function deleteAIProviderApi(
   await requestClient.delete(`${PROVIDER_PREFIX}/${id}`, options);
 }
 
-/** 切换供应商状态 */
+/** Toggle provider status / 切换供应商状态 */
 export async function toggleAIProviderStatusApi(
   id: number,
   options?: ApiRequestOptions,
@@ -240,7 +240,7 @@ export async function toggleAIProviderStatusApi(
   );
 }
 
-/** 批量重排序供应商 */
+/** Batch reorder providers / 批量重排序供应商 */
 export async function reorderAIProvidersApi(
   ids: number[],
   options?: ApiRequestOptions,
@@ -249,12 +249,12 @@ export async function reorderAIProvidersApi(
 }
 
 // ============================================================
-// API 接口 - API Key
+// API - API Key / API 接口 - API Key
 // ============================================================
 
 const API_KEY_PREFIX = '/admin/ai/api-keys';
 
-/** 获取 API Key 列表 */
+/** Get API Key list / 获取 API Key 列表 */
 export async function getAIApiKeyListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -265,7 +265,7 @@ export async function getAIApiKeyListApi(
   });
 }
 
-/** 获取供应商的 API Key 列表 */
+/** Get API Keys by provider / 获取供应商的 API Key 列表 */
 export async function getAIApiKeysByProviderApi(
   providerId: number,
   tenantId?: number,
@@ -279,7 +279,7 @@ export async function getAIApiKeysByProviderApi(
   );
 }
 
-/** 获取 API Key 详情 */
+/** Get API Key detail / 获取 API Key 详情 */
 export async function getAIApiKeyDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -287,7 +287,7 @@ export async function getAIApiKeyDetailApi(
   return requestClient.get<AIApiKeyInfo>(`${API_KEY_PREFIX}/${id}`, options);
 }
 
-/** 创建 API Key */
+/** Create API Key / 创建 API Key */
 export async function createAIApiKeyApi(
   data: AIApiKeyCreateRequest,
   options?: ApiRequestOptions,
@@ -295,7 +295,7 @@ export async function createAIApiKeyApi(
   return requestClient.post<AIApiKeyInfo>(API_KEY_PREFIX, data, options);
 }
 
-/** 更新 API Key */
+/** Update API Key / 更新 API Key */
 export async function updateAIApiKeyApi(
   id: number,
   data: AIApiKeyUpdateRequest,
@@ -308,7 +308,7 @@ export async function updateAIApiKeyApi(
   );
 }
 
-/** 删除 API Key */
+/** Delete API Key / 删除 API Key */
 export async function deleteAIApiKeyApi(
   id: number,
   options?: ApiRequestOptions,
@@ -316,7 +316,7 @@ export async function deleteAIApiKeyApi(
   await requestClient.delete(`${API_KEY_PREFIX}/${id}`, options);
 }
 
-/** 切换 API Key 状态 */
+/** Toggle API Key status / 切换 API Key 状态 */
 export async function toggleAIApiKeyStatusApi(
   id: number,
   options?: ApiRequestOptions,
@@ -329,10 +329,10 @@ export async function toggleAIApiKeyStatusApi(
 }
 
 // ============================================================
-// API 接口 - AI 健康状态
+// API - AI health status / API 接口 - AI 健康状态
 // ============================================================
 
-/** 获取 AI 供应商健康状态 */
+/** Get AI provider health status / 获取 AI 供应商健康状态 */
 export async function getAIHealthStatusApi(
   options?: ApiRequestOptions,
 ): Promise<AIHealthStatus[]> {
@@ -340,10 +340,10 @@ export async function getAIHealthStatusApi(
 }
 
 // ============================================================
-// API 接口 - AI 网关测试
+// API - AI gateway test / API 接口 - AI 网关测试
 // ============================================================
 
-/** 测试 AI 模型连通性 */
+/** Test AI model connectivity / 测试 AI 模型连通性 */
 export async function testAIGatewayApi(
   data: TestAIGatewayRequest,
   options?: ApiRequestOptions,

@@ -1,7 +1,8 @@
 """
-配额服务
+配额服务 / Quota Service
 
 提供租户配额检查功能
+Provides tenant quota checking functionality.
 """
 
 from dataclasses import dataclass

@@ -1,9 +1,13 @@
 <script lang="ts" setup>
 /**
+ * Valves Config Form Component
  * Valves 配置表单组件
  *
+ * Dynamically renders form fields based on valves_schema (JSON Schema).
  * 根据 valves_schema (JSON Schema) 动态渲染表单字段。
+ * Supports string / number / integer / boolean types.
  * 支持 string / number / integer / boolean 类型。
+ * Auto-uses password input when field name contains secret/password/key/token.
  * 字段名包含 secret/password/key/token 时自动使用密码输入框。
  */
 import { computed, watch } from 'vue';

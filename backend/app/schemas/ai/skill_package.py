@@ -1,7 +1,8 @@
 """
-技能包相关 Schema
+技能包相关 Schema / Skill Package Schema
 
 定义技能包的请求和响应数据结构
+Defines skill package request and response data structures.
 """
 
 from typing import Any
@@ -23,14 +24,11 @@ class SkillPackageCreate(BaseCreateSchema):
     name: str = Field(..., max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
-    scope: str = Field("all_tenants", description=_("skill_package.field.scope"))
     target_audience: str = Field(AudienceEnum.ALL.value, max_length=20, description=_("skill_package.field.target_audience"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
-    tenant_id: int | None = Field(None, description="租户ID（scope=tenant 时必填）")
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill_package.field.sort_order"))
-    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageUpdate(BaseUpdateSchema):
@@ -39,13 +37,11 @@ class SkillPackageUpdate(BaseUpdateSchema):
     name: str | None = Field(None, max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
-    scope: str | None = Field(None, description=_("skill_package.field.scope"))
     target_audience: str | None = Field(None, max_length=20, description=_("skill_package.field.target_audience"))
     is_recommended: bool | None = Field(None, description=_("skill_package.field.is_recommended"))
     bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill_package.field.sort_order"))
-    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageResponse(BaseResponseSchema):
@@ -55,7 +51,6 @@ class SkillPackageResponse(BaseResponseSchema):
     name: str = Field(..., description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
-    scope: str = Field(..., description=_("skill_package.field.scope"))
     target_audience: str = Field(AudienceEnum.ALL.value, description=_("skill_package.field.target_audience"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     is_system: bool = Field(False, description=_("skill_package.field.is_system"))

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Plan create/edit form drawer
  * 套餐新建/编辑表单抽屉
  */
 import type { adminApi } from '#/api';
@@ -19,23 +20,23 @@ const emits = defineEmits<{ success: [] }>();
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
-// 表单
+// Form / 表单
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),
   showDefaultActions: false,
 });
 
-// CRUD 抽屉
+// CRUD drawer / CRUD 抽屉
 const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
   formApi,
   schema: useFormSchema,
   defaults: getFormDefaults,
   transform: (values) => {
-    // 解构嵌套对象
+    // Destructure nested objects / 解构嵌套对象
     const quota = values.quota || {};
     const features = values.features || {};
 
-    // 修正配额对象（确保数值类型正确）
+    // Fix quota object (ensure correct numeric types) / 修正配额对象（确保数值类型正确）
     const finalQuota: Record<string, any> = {};
     if (quota.storage_limit_gb !== undefined)
       finalQuota.storage_limit_gb = quota.storage_limit_gb;
@@ -51,7 +52,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
     if (quota.max_file_size_mb !== undefined)
       finalQuota.max_file_size_mb = quota.max_file_size_mb;
 
-    // 修正特性对象
+    // Fix features object / 修正特性对象
     const finalFeatures: Record<string, any> = {};
     if (features.ai_enabled !== undefined)
       finalFeatures.ai_enabled = features.ai_enabled;
@@ -83,7 +84,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
       billing_cycle: data.billingCycle,
       sort_order: data.sortOrder,
       is_active: data.isActive,
-      // 配额字段（嵌套结构）
+      // Quota fields (nested structure) / 配额字段（嵌套结构）
       quota: {
         storage_limit_gb: data.quota?.storageLimitGb,
         max_users: data.quota?.maxUsers,
@@ -93,7 +94,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
         api_calls_per_month: data.quota?.apiCallsPerMonth,
         max_file_size_mb: data.quota?.maxFileSizeMb,
       },
-      // 特性字段（嵌套结构）
+      // Feature fields (nested structure) / 特性字段（嵌套结构）
       features: {
         ai_enabled: data.features?.aiEnabled ?? false,
         advanced_analytics: data.features?.advancedAnalytics ?? false,

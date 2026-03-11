@@ -1,6 +1,8 @@
 """
+Code Execution Tool Executor
 代码执行工具执行器
 
+Executes user-provided code in a secure sandbox (subprocess isolation + module whitelist + timeout control).
 在安全沙箱中执行用户提供的代码（子进程隔离 + 模块白名单 + 超时控制）。
 """
 
@@ -22,11 +24,12 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.code_execution")
 
-# 安全限制
+# Security limits / 安全限制
 _MAX_OUTPUT_SIZE = 50_000  # 50KB
 _DEFAULT_TIMEOUT = 30
 _DEFAULT_MEMORY_LIMIT_MB = 256
 
+# Absolutely blocked imports (regardless of whitelist settings)
 # 绝对禁止的 import（无论白名单如何设置）
 _BLOCKED_MODULES = frozenset({
     "os", "subprocess", "shutil", "sys", "importlib",
@@ -43,12 +46,14 @@ def _build_sandbox_script(
     allowed_modules: list[str],
 ) -> str:
     """
-    构建沙箱执行脚本
+    Build sandbox execution script.
+    构建沙箱执行脚本。
 
-    1. 清除危险 builtins（exec, eval, __import__, compile, open）
-    2. 仅允许白名单模块 import
-    3. 捕获 stdout 输出
-    4. 捕获异常并以 JSON 返回
+    1. Clear dangerous builtins (exec, eval, __import__, compile, open)
+       清除危险 builtins（exec, eval, __import__, compile, open）
+    2. Only allow whitelisted module imports / 仅允许白名单模块 import
+    3. Capture stdout output / 捕获 stdout 输出
+    4. Catch exceptions and return as JSON / 捕获异常并以 JSON 返回
     """
     allowed_set = json.dumps(allowed_modules)
     escaped_code = user_code.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
@@ -58,7 +63,7 @@ import sys
 import io
 import json
 
-# 1. 限制 import 到白名单
+# 1. Restrict import to whitelist / 限制 import 到白名单
 _ALLOWED = set({allowed_set})
 _BLOCKED = {{{", ".join(repr(m) for m in _BLOCKED_MODULES)}}}
 _original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
@@ -81,11 +86,11 @@ if isinstance(__builtins__, dict):
 else:
     __builtins__.__import__ = _safe_import
 
-# 2. 捕获 stdout
+# 2. Capture stdout / 捕获 stdout
 _stdout_capture = io.StringIO()
 sys.stdout = _stdout_capture
 
-# 3. 执行用户代码
+# 3. Execute user code / 执行用户代码
 try:
     _user_code = '{escaped_code}'
     _code_obj = _original_import("builtins").compile(_user_code, "<sandbox>", "exec")
@@ -103,13 +108,16 @@ except Exception as _e:
 
 class CodeExecutionExecutor(BaseToolExecutor):
     """
-    代码执行工具执行器
+    Code execution tool executor.
+    代码执行工具执行器。
 
+    Reads from ToolDefinition.config:
     从 ToolDefinition.config 中读取：
-    - _code_language: 编程语言（当前仅支持 python）
-    - _code_timeout: 执行超时秒数
-    - _code_memory_limit_mb: 内存限制
-    - _code_allowed_modules: 允许导入的模块列表
+    - _code_language: Programming language (currently only python supported)
+      编程语言（当前仅支持 python）
+    - _code_timeout: Execution timeout in seconds / 执行超时秒数
+    - _code_memory_limit_mb: Memory limit / 内存限制
+    - _code_allowed_modules: List of allowed import modules / 允许导入的模块列表
     """
 
     async def execute(
@@ -119,7 +127,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        """在子进程沙箱中执行代码"""
+        """Execute code in a subprocess sandbox / 在子进程沙箱中执行代码"""
         _ = context
         start = time.perf_counter()
         cfg = definition.config or {}
@@ -145,7 +153,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
         timeout = cfg.get("_code_timeout", _DEFAULT_TIMEOUT)
         allowed_modules = cfg.get("_code_allowed_modules", [])
 
-        # 静态安全扫描
+        # Static security scan / 静态安全扫描
         violations = self._static_scan(code)
         if violations:
             return ToolResult(
@@ -155,7 +163,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 error=f"Code blocked: {'; '.join(violations[:3])}",
             )
 
-        # 构建沙箱脚本
+        # Build sandbox script / 构建沙箱脚本
         sandbox_script = _build_sandbox_script(code, allowed_modules)
 
         try:
@@ -185,7 +193,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
             duration_ms = int((time.perf_counter() - start) * 1000)
             stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
 
-            # 解析 JSON 结果
+            # Parse JSON result / 解析 JSON 结果
             try:
                 result_data = json.loads(stdout_text)
                 output = result_data.get("output", "")
@@ -211,6 +219,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
                         duration_ms=duration_ms,
                     )
             except json.JSONDecodeError:
+                # Subprocess output is not valid JSON (possibly a crash or syntax error)
                 # 子进程输出不是有效 JSON（可能是崩溃或语法错误）
                 stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
                 error = stderr_text or stdout_text or "Unknown execution error"
@@ -238,32 +247,34 @@ class CodeExecutionExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """校验代码执行参数"""
+        """Validate code execution arguments / 校验代码执行参数"""
         _ = definition
         return bool(arguments.get("code"))
 
     @staticmethod
     def _static_scan(code: str) -> list[str]:
         """
-        静态安全扫描：检测危险模式
+        Static security scan: detect dangerous patterns.
+        静态安全扫描：检测危险模式。
 
         Returns:
+            List of violations (empty list means safe)
             违规列表（空列表表示安全）
         """
         violations: list[str] = []
         import re
 
-        # 检测直接 import 危险模块
+        # Detect direct import of dangerous modules / 检测直接 import 危险模块
         for mod in _BLOCKED_MODULES:
             pattern = rf'\b(?:import\s+{re.escape(mod)}|from\s+{re.escape(mod)}\s+import)\b'
             if re.search(pattern, code):
                 violations.append(f"Blocked import: {mod}")
 
-        # 检测 eval/exec 调用
+        # Detect eval/exec calls / 检测 eval/exec 调用
         if re.search(r'\b(?:eval|exec|compile)\s*\(', code):
             violations.append("Direct eval/exec/compile calls are not allowed")
 
-        # 检测文件操作
+        # Detect file operations / 检测文件操作
         if re.search(r'\bopen\s*\(', code):
             violations.append("File operations (open) are not allowed")
 

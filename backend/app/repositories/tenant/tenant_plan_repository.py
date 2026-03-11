@@ -1,7 +1,8 @@
 """
-租户套餐仓储
+租户套餐仓储 / Tenant Plan Repository
 
 提供套餐的数据访问操作（平台级，非租户隔离）
+Provides plan data access operations (platform-level, no tenant isolation).
 """
 
 from sqlalchemy import asc, func, select

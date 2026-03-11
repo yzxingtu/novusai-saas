@@ -19,7 +19,7 @@ import { ConfigForm } from '#/components';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t as t } from '#/locales';
 
-// 存储配置专用页面（懒加载）
+// Storage config dedicated page (lazy-loaded) / 存储配置专用页面
 import TenantStoragePanel from '../storage/index.vue';
 
 defineOptions({ name: 'TenantConfigList' });
@@ -32,12 +32,12 @@ const groupLoading = ref(false);
 const saving = ref(false);
 const formRef = ref<any>();
 
-// 当前选中的分组数据
+// Currently selected group data / 当前选中的分组数据
 const activeGroupData = computed(() =>
   groups.value.find((g) => g.code === activeGroup.value),
 );
 
-// 获取分组名称（优先使用 name，其次 name_key 翻译，最后 fallback 到 code）
+// Get group name (prefer name, then name_key translation, fallback to code) / 获取分组名称
 function getGroupName(g: ConfigGroupListItemMeta): string {
   if (g.name) return g.name;
   if (g.name_key) {
@@ -50,7 +50,7 @@ function getGroupName(g: ConfigGroupListItemMeta): string {
   return g.code;
 }
 
-// 获取分组描述
+// Get group description / 获取分组描述
 function getGroupDesc(g: ConfigGroupListItemMeta): string {
   if (g.description) return g.description;
   if (g.description_key) {
@@ -63,7 +63,7 @@ function getGroupDesc(g: ConfigGroupListItemMeta): string {
   return '';
 }
 
-// 按 sort_order 排序的分组列表
+// Groups sorted by sort_order / 按 sort_order 排序的分组列表
 const sortedGroups = computed(() =>
   groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
 );
@@ -73,14 +73,14 @@ async function loadGroups() {
   try {
     groups.value = await getTenantConfigGroupsApi();
     if (groups.value.length > 0) {
-      // 按 sort_order 取第一个组
+      // Pick first group by sort_order / 按 sort_order 取第一个组
       const sorted = groups.value.toSorted(
         (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
       );
       const firstGroup = sorted[0];
       if (!firstGroup) return;
       activeGroup.value = firstGroup.code;
-      // tenant_storage 组用专用面板，不需要加载配置详情
+      // tenant_storage uses dedicated panel, no need to load config detail / 专用面板无需加载配置详情
       if (activeGroup.value !== 'tenant_storage') {
         await loadGroupDetail(activeGroup.value);
       }
@@ -104,7 +104,7 @@ async function loadGroupDetail(code: string) {
 
 async function onSelectGroup(code: string) {
   if (code === activeGroup.value) return;
-  // 检查表单是否有修改
+  // Check if form has modifications / 检查表单是否有修改
   if (formRef.value?.isDirty?.()) {
     Modal.confirm({
       title: t('shared.config.page.unsaved_title'),
@@ -113,7 +113,7 @@ async function onSelectGroup(code: string) {
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
         activeGroup.value = code;
-        // tenant_storage 组用专用面板，不需要加载配置详情
+        // tenant_storage uses dedicated panel / 专用面板
         if (code !== 'tenant_storage') {
           await loadGroupDetail(code);
         }
@@ -121,7 +121,7 @@ async function onSelectGroup(code: string) {
     });
   } else {
     activeGroup.value = code;
-    // tenant_storage 组用专用面板，不需要加载配置详情
+    // tenant_storage uses dedicated panel / 专用面板
     if (code !== 'tenant_storage') {
       await loadGroupDetail(code);
     }
@@ -133,7 +133,7 @@ async function onSave() {
   try {
     await formRef.value?.validate();
   } catch {
-    // 表单验证失败，不继续提交
+    // Form validation failed, do not submit / 表单验证失败
     return;
   }
   const payload = formRef.value?.prepareSubmitData();
@@ -144,7 +144,7 @@ async function onSave() {
     });
     await loadGroupDetail(activeGroup.value);
   } catch {
-    // 错误已经由 request 拦截器处理并显示
+    // Error already handled by request interceptor / 错误已由拦截器处理
   } finally {
     saving.value = false;
   }
@@ -179,7 +179,7 @@ onUnmounted(cleanupPageContext);
 <template>
   <Page auto-content-height>
     <div class="flex h-full flex-col gap-4 overflow-hidden md:flex-row">
-      <!-- 左侧：配置分组列表 -->
+      <!-- Left: Config group list / 左侧配置分组列表 -->
       <Card
         class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"
         :body-style="{
@@ -232,7 +232,7 @@ onUnmounted(cleanupPageContext);
         </Spin>
       </Card>
 
-      <!-- 右侧：配置表单 -->
+      <!-- Right: Config form / 右侧配置表单 -->
       <Card
         class="min-w-0 flex-1 overflow-hidden"
         :body-style="{
@@ -247,7 +247,7 @@ onUnmounted(cleanupPageContext);
           }}</span>
         </template>
         <template #extra>
-          <!-- 存储配置组的保存按钮在存储组件内部管理，此处隐藏 -->
+          <!-- Storage group save button managed inside storage component, hidden here / 存储配置组保存按钮在存储组件内部管理 -->
           <Button
             v-if="activeGroup !== 'tenant_storage'"
             type="primary"
@@ -264,7 +264,7 @@ onUnmounted(cleanupPageContext);
         </template>
 
         <Spin :spinning="loading">
-          <!-- tenant_storage 分组使用专用存储配置组件 -->
+          <!-- tenant_storage group uses dedicated storage config component / 专用存储配置组件 -->
           <TenantStoragePanel v-if="activeGroup === 'tenant_storage'" />
           <div v-else-if="activeGroup" class="max-w-[800px]">
             <ConfigForm ref="formRef" :configs="configs" />

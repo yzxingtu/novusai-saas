@@ -21,7 +21,7 @@ import { ConfigForm } from '#/components';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t, $t as t } from '#/locales';
 
-// 平台存储配置专用面板
+// Platform storage config dedicated panel / 平台存储配置专用面板
 import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
 
 defineOptions({ name: 'SystemConfigList' });
@@ -50,45 +50,45 @@ const storagePanelRef = ref<{
   saving: { value: boolean };
 }>();
 
-// 当前选中的分组数据
+// Currently selected group data / 当前选中的分组数据
 const activeGroupData = computed(() =>
   groups.value.find((g) => g.code === activeGroup.value),
 );
 
-// 获取分组名称（优先使用 name，其次 name_key 翻译，最后 fallback 到 code）
+// Get group name (prefer name, then name_key translation, fallback to code) / 获取分组名称
 function getGroupName(g: ConfigGroupListItemMeta): string {
-  // 1. 直接使用 name 字段
+  // 1. Use name field directly / 直接使用 name 字段
   if (g.name) return g.name;
-  // 2. 使用 name_key 翻译
+  // 2. Use name_key translation / 使用 name_key 翻译
   if (g.name_key) {
     const translated = t(g.name_key);
     if (translated !== g.name_key) return translated;
   }
-  // 3. fallback: 尝试使用 shared.config.group.{code} 格式
+  // 3. Fallback: try shared.config.group.{code} format / 尝试使用此格式
   const fallbackKey = `shared.config.group.${g.code}`;
   const fallbackTranslated = t(fallbackKey);
   if (fallbackTranslated !== fallbackKey) return fallbackTranslated;
-  // 4. 最后 fallback 到 code
+  // 4. Final fallback to code / 最后 fallback 到 code
   return g.code;
 }
 
-// 获取分组描述
+// Get group description / 获取分组描述
 function getGroupDesc(g: ConfigGroupListItemMeta): string {
-  // 1. 直接使用 description 字段
+  // 1. Use description field directly / 直接使用 description 字段
   if (g.description) return g.description;
-  // 2. 使用 description_key 翻译
+  // 2. Use description_key translation / 使用 description_key 翻译
   if (g.description_key) {
     const translated = t(g.description_key);
     if (translated !== g.description_key) return translated;
   }
-  // 3. fallback: 尝试使用 shared.config.group_desc.{code} 格式
+  // 3. Fallback: try shared.config.group_desc.{code} format / 尝试使用此格式
   const fallbackKey = `shared.config.group_desc.${g.code}`;
   const fallbackTranslated = t(fallbackKey);
   if (fallbackTranslated !== fallbackKey) return fallbackTranslated;
   return '';
 }
 
-// 按 sort_order 排序的分组列表
+// Groups sorted by sort_order / 按 sort_order 排序的分组列表
 const sortedGroups = computed(() =>
   groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
 );
@@ -98,14 +98,14 @@ async function loadGroups() {
   try {
     groups.value = await getAdminConfigGroupsApi();
     if (groups.value.length > 0) {
-      // 按 sort_order 取第一个组
+      // Pick first group by sort_order / 按 sort_order 取第一个组
       const sorted = groups.value.toSorted(
         (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
       );
       const firstGroup = sorted[0];
       if (!firstGroup) return;
       activeGroup.value = firstGroup.code;
-      // platform_storage 组用专用面板，不需要加载配置详情
+      // platform_storage uses dedicated panel, no need to load config detail / 专用面板无需加载配置详情
       if (activeGroup.value !== 'platform_storage') {
         await loadGroupDetail(activeGroup.value);
       }
@@ -129,7 +129,7 @@ async function loadGroupDetail(code: string) {
 
 async function onSelectGroup(code: string) {
   if (code === activeGroup.value) return;
-  // 检查表单是否有修改
+  // Check if form has modifications / 检查表单是否有修改
   if (formRef.value?.isDirty?.()) {
     Modal.confirm({
       title: t('shared.config.page.unsaved_title'),
@@ -138,7 +138,7 @@ async function onSelectGroup(code: string) {
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
         activeGroup.value = code;
-        // platform_storage 组用专用面板，不需要加载配置详情
+        // platform_storage uses dedicated panel / 专用面板
         if (code !== 'platform_storage') {
           await loadGroupDetail(code);
         }
@@ -146,7 +146,7 @@ async function onSelectGroup(code: string) {
     });
   } else {
     activeGroup.value = code;
-    // platform_storage 组用专用面板，不需要加载配置详情
+    // platform_storage uses dedicated panel / 专用面板
     if (code !== 'platform_storage') {
       await loadGroupDetail(code);
     }
@@ -162,7 +162,7 @@ async function onSave() {
   try {
     await formRef.value?.validate();
   } catch {
-    // 表单验证失败，不继续提交
+    // Form validation failed, do not submit / 表单验证失败
     return;
   }
   const payload = formRef.value?.prepareSubmitData();
@@ -171,16 +171,16 @@ async function onSave() {
     await updateAdminConfigGroupApi(activeGroup.value, payload, {
       showSuccessMessage: true,
     });
-    // 重新加载以反显最新值
+    // Reload to reflect latest values / 重新加载以反显最新值
     await loadGroupDetail(activeGroup.value);
   } catch {
-    // 错误已经由 request 拦截器处理并显示
+    // Error already handled and displayed by request interceptor / 错误已由拦截器处理
   } finally {
     saving.value = false;
   }
 }
 
-// 浏览器关闭/刷新提醒
+// Browser close/refresh reminder / 浏览器关闭刷新提醒
 function beforeUnloadHandler(e: BeforeUnloadEvent) {
   if (formRef.value?.isDirty?.()) {
     e.preventDefault();
@@ -248,7 +248,7 @@ onUnmounted(() => {
     <div
       class="relative z-0 flex h-full flex-col gap-4 overflow-hidden md:flex-row"
     >
-      <!-- 左侧：配置分组列表 -->
+      <!-- Left: Config group list / 左侧配置分组列表 -->
       <Card
         class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"
         :body-style="{
@@ -301,7 +301,7 @@ onUnmounted(() => {
         </Spin>
       </Card>
 
-      <!-- 右侧：配置表单 -->
+      <!-- Right: Config form / 右侧配置表单 -->
       <Card
         class="min-w-0 flex-1 overflow-hidden"
         :body-style="{
@@ -335,7 +335,7 @@ onUnmounted(() => {
         </template>
 
         <Spin :spinning="loading">
-          <!-- platform_storage 分组使用专用存储配置面板 -->
+          <!-- platform_storage group uses dedicated storage config panel / 专用存储配置面板 -->
           <PlatformStoragePanel
             v-if="activeGroup === 'platform_storage'"
             ref="storagePanelRef"

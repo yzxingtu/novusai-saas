@@ -1,6 +1,8 @@
 """
+Event & Hook System
 事件与钩子系统
 
+Provides event bus (pub/sub notifications) and hook system (intercept/modify context) for the agent engine.
 提供智能体引擎的事件总线（pub/sub 通知）和钩子系统（拦截/修改上下文）
 """
 

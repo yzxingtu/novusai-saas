@@ -1,14 +1,16 @@
 """
+Data Dictionary Service (SchemaProvider)
 数据字典服务（SchemaProvider）
 
+Provides database schema awareness for AI Text-to-SQL.
 为 AI Text-to-SQL 提供数据库 schema 感知能力。
 
-安全策略：
-- 基于 ai_table_policies 表动态控制可见表和列
-- 列脱敏：blocked_columns 中的列不暴露给 AI
-- 按租户过滤：permission_code 实现 RBAC
-- Redis 缓存：减少数据库反射调用
-- 租户覆盖：ai_table_policy_overrides 可收紧策略
+Security strategy / 安全策略：
+- Dynamic table/column visibility via ai_table_policies table / 基于 ai_table_policies 表动态控制
+- Column masking: blocked_columns not exposed to AI / 列脱敏
+- Tenant filtering: permission_code implements RBAC / 按租户过滤
+- Redis cache: reduces DB reflection calls / Redis 缓存
+- Tenant overrides: ai_table_policy_overrides can tighten policies / 租户覆盖
 """
 
 from __future__ import annotations
@@ -29,20 +31,20 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 
 # ============================================
-# 数据结构定义
+# Data Structure Definitions / 数据结构定义
 # ============================================
 
 @dataclass
 class ColumnSchema:
-    """列结构描述"""
+    """Column schema description / 列结构描述"""
 
     name: str
-    type: str              # 简化类型：int/str/float/bool/datetime/json
-    description: str       # 列描述（从 Model.comment 提取）
+    type: str              # Simplified type: int/str/float/bool/datetime/json / 简化类型
+    description: str       # Column description (from Model.comment) / 列描述
     nullable: bool = True
     is_primary: bool = False
     is_foreign_key: bool = False
-    fk_table: str | None = None  # 外键目标表
+    fk_table: str | None = None  # Foreign key target table / 外键目标表
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -60,19 +62,19 @@ class ColumnSchema:
 
 @dataclass
 class TableSchema:
-    """表结构描述"""
+    """Table schema description / 表结构描述"""
 
     table_name: str
-    description: str           # 表的中文描述
+    description: str           # Table description / 表描述
     columns: list[ColumnSchema] = field(default_factory=list)
-    tenant_column: str = "tenant_id"  # 租户隔离列名
-    row_count_approx: int = 0  # 近似行数（pg_stat 获取，不执行 COUNT）
-    max_rows: int = 200        # 单次查询最大行数
+    tenant_column: str = "tenant_id"  # Tenant isolation column / 租户隔离列名
+    row_count_approx: int = 0  # Approx row count (from pg_stat, no COUNT) / 近似行数
+    max_rows: int = 200        # Max rows per query / 单次查询最大行数
     allow_read: bool = True
     allow_create: bool = False
     allow_update: bool = False
     allow_delete: bool = False
-    permission_code: str = "*"   # RBAC 权限码
+    permission_code: str = "*"   # RBAC permission code / RBAC 权限码
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,7 +92,7 @@ class TableSchema:
         }
 
     def to_ddl(self) -> str:
-        """转换为精简 DDL 字符串（供 LLM 使用）"""
+        """Convert to compact DDL string (for LLM use) / 转换为精简 DDL 字符串"""
         cols = []
         for c in self.columns:
             parts = [f"  {c.name} {c.type}"]
@@ -106,7 +108,7 @@ class TableSchema:
 
 
 # ============================================
-# 类型映射
+# Type Mapping / 类型映射
 # ============================================
 
 _PG_TYPE_MAP: dict[str, str] = {
@@ -139,7 +141,7 @@ _PG_TYPE_MAP: dict[str, str] = {
 
 
 def _simplify_type(pg_type: str) -> str:
-    """将 PostgreSQL 类型映射为简化类型"""
+    """Map PostgreSQL type to simplified type / 将 PostgreSQL 类型映射为简化类型"""
     lower = pg_type.lower()
     for prefix, simple in _PG_TYPE_MAP.items():
         if lower.startswith(prefix):
@@ -153,16 +155,17 @@ def _simplify_type(pg_type: str) -> str:
 
 class SchemaProvider:
     """
-    为 AI 提供数据库 schema 感知能力
+    Provides database schema awareness for AI.
+    为 AI 提供数据库 schema 感知能力。
 
-    安全策略：
-    - 基于 ai_table_policies 表动态加载可用表
-    - blocked_columns 中的列不暴露给 AI
-    - permission_code 实现 RBAC
-    - 租户覆盖可收紧但不能放开全局策略
+    Security strategy / 安全策略：
+    - Dynamically loads available tables from ai_table_policies / 动态加载可用表
+    - blocked_columns not exposed to AI / 列不暴露给 AI
+    - permission_code implements RBAC / RBAC 权限控制
+    - Tenant overrides can tighten but not loosen global policies / 租户覆盖可收紧不能放开
     """
 
-    # ===== 全局敏感列名（兜底，即使策略漏配也不暴露） =====
+    # ===== Global sensitive column names (fallback, not exposed even if policy misconfigured) / 全局敏感列名（兜底，即使策略配置错误也不暴露） =====
     _GLOBAL_BLOCKED_COLUMNS: set[str] = {
         "password", "password_hash", "hashed_password",
         "secret", "secret_key", "api_key", "access_token",
@@ -178,32 +181,33 @@ class SchemaProvider:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
     ) -> list[TableSchema]:
         """
-        获取租户可查询的表结构
+        Get table schemas queryable by tenant.
+        获取租户可查询的表结构。
 
         Args:
-            db: 数据库会话
-            tenant_id: 租户 ID
-            question: 用户问题（可选，用于智能过滤只返回相关表）
-            permissions: 用户 RBAC 权限码集合（用于表级过滤）
-            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
+            db: Database session / 数据库会话
+            tenant_id: Tenant ID / 租户 ID
+            question: User question (optional, for smart filtering) / 用户问题
+            permissions: User RBAC permission code set (for table-level filtering) / RBAC 权限码集合
+            user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
 
         Returns:
-            TableSchema 列表（仅含用户有权限访问的表）
+            List of TableSchema (only tables user has permission to access) / 可访问的表列表
         """
-        # 尝试从 Redis 缓存获取
+        # Try to get from Redis cache / 尝试从 Redis 缓存获取
         cached = await self._get_cached_schema(tenant_id)
         if cached is not None:
             tables = cached
         else:
-            # 从 DB 加载策略并反射 schema
+            # Load policies from DB and reflect schema / 从 DB 加载策略并反射 schema
             policies = await self._load_active_policies(db, tenant_id)
             tables = await self._load_schema_from_policies(db, policies)
             await self._cache_schema(tenant_id, tables)
 
-        # 按 RBAC 权限过滤可访问的表
+        # Filter accessible tables by RBAC permissions / 按 RBAC 权限过滤
         tables = self._filter_by_permissions(tables, permissions, user_role)
 
-        # 按问题关键词过滤相关表
+        # Filter relevant tables by question keywords / 按问题关键词过滤
         if question:
             tables = self._filter_by_question(tables, question)
 
@@ -216,14 +220,14 @@ class SchemaProvider:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         tenant_id: int = 0,
     ) -> set[str]:
-        """获取当前用户允许查询的表名集合（RBAC 过滤后）"""
+        """Get set of table names allowed for current user (after RBAC filtering) / 获取当前用户允许查询的表名集合"""
         policies = await self._load_active_policies(db, tenant_id)
         return self._filter_policy_names_by_permissions(
             policies, permissions, user_role
         )
 
     # ============================================
-    # 策略加载
+    # Policy Loading / 策略加载
     # ============================================
 
     @staticmethod
@@ -232,12 +236,14 @@ class SchemaProvider:
         tenant_id: int = 0,
     ) -> list[dict[str, Any]]:
         """
+        Load active policy list (merge global + tenant overrides).
         加载有效策略列表（合并全局 + 租户覆盖）。
 
         Returns:
-            策略字典列表，每项包含表名、CRUD 开关、blocked_columns 等
+            Policy dict list, each containing table name, CRUD switches, blocked_columns, etc.
+            策略字典列表，每项包含表名、CRUD 开关、blocked_columns 等。
         """
-        # 加载全局策略
+        # Load global policies / 加载全局策略
         stmt = select(AITablePolicy).where(
             AITablePolicy.is_active == True,  # noqa: E712
             AITablePolicy.is_deleted == False,  # noqa: E712
@@ -245,7 +251,7 @@ class SchemaProvider:
         result = await db.execute(stmt)
         global_policies = result.scalars().all()
 
-        # 加载租户覆盖（tenant_id > 0 时）
+        # Load tenant overrides (when tenant_id > 0) / 加载租户覆盖
         overrides_map: dict[int, AITablePolicyOverride] = {}
         if tenant_id and tenant_id > 0:
             override_stmt = select(AITablePolicyOverride).where(
@@ -260,7 +266,7 @@ class SchemaProvider:
         for gp in global_policies:
             ov = overrides_map.get(gp.id)
             policy = _merge_policy_with_override(gp, ov)
-            # 合并后如果被禁用则跳过
+            # Skip if disabled after merge / 合并后如果被禁用则跳过
             if not policy["is_active"]:
                 continue
             policies.append(policy)
@@ -272,7 +278,7 @@ class SchemaProvider:
         db: AsyncSession,
         policies: list[dict[str, Any]],
     ) -> list[TableSchema]:
-        """根据策略列表从数据库反射加载 schema"""
+        """Load schema from DB reflection based on policy list / 根据策略列表从数据库反射加载 schema"""
         tables: list[TableSchema] = []
 
         for policy in policies:
@@ -295,13 +301,13 @@ class SchemaProvider:
         db: AsyncSession,
         policy: dict[str, Any],
     ) -> TableSchema | None:
-        """加载单个表的 schema（基于策略配置）"""
+        """Load schema for a single table (based on policy config) / 加载单个表的 schema"""
         table_name = policy["table_name"]
         blocked_cols = set(policy.get("blocked_columns") or [])
         blocked_cols |= self._GLOBAL_BLOCKED_COLUMNS
         col_descriptions: dict[str, str] = policy.get("column_descriptions") or {}
 
-        # 查询列信息
+        # Query column information / 查询列信息
         col_query = text("""
             SELECT
                 c.column_name,
@@ -347,7 +353,7 @@ class SchemaProvider:
             constraint_type = row[5]
             fk_table = row[6]
 
-            # 跳过被屏蔽的列
+            # Skip blocked columns / 跳过被屏蔽的列
             if col_name in blocked_cols:
                 continue
 
@@ -357,7 +363,7 @@ class SchemaProvider:
             is_pk = constraint_type == "PRIMARY KEY"
             is_fk = constraint_type == "FOREIGN KEY"
 
-            # 优先使用策略中的列描述，其次 DB comment
+            # Prefer policy column description, fallback to DB comment / 优先使用策略中的列描述
             desc = col_descriptions.get(col_name, column_comment)
 
             columns.append(ColumnSchema(
@@ -370,7 +376,7 @@ class SchemaProvider:
                 fk_table=fk_table if is_fk else None,
             ))
 
-        # 获取近似行数
+        # Get approximate row count / 获取近似行数
         row_count = await self._get_approx_row_count(db, table_name)
 
         return TableSchema(
@@ -389,7 +395,7 @@ class SchemaProvider:
 
     @staticmethod
     async def _get_approx_row_count(db: AsyncSession, table_name: str) -> int:
-        """从 pg_stat 获取近似行数（不执行 COUNT）"""
+        """Get approx row count from pg_stat (no COUNT executed) / 从 pg_stat 获取近似行数"""
         query = text("""
             SELECT COALESCE(n_live_tup, 0)::int
             FROM pg_stat_user_tables
@@ -400,7 +406,7 @@ class SchemaProvider:
         return int(row) if row else 0
 
     # ============================================
-    # RBAC 过滤
+    # RBAC Filtering / RBAC 过滤
     # ============================================
 
     @staticmethod
@@ -409,10 +415,10 @@ class SchemaProvider:
         permissions: set[str] | None,
         user_role: str,
     ) -> set[str]:
-        """根据 RBAC 权限过滤策略，返回允许的表名集合"""
+        """Filter policies by RBAC permissions, return allowed table name set / 根据 RBAC 权限过滤策略"""
         is_platform = user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
-        # 平台管理员可访问所有活跃表（CRUD 开关已在上游检查）
+        # Platform admin can access all active tables (CRUD switches checked upstream) / 平台管理员可访问所有活跃表
         if is_platform:
             return {p["table_name"] for p in policies}
 
@@ -435,18 +441,19 @@ class SchemaProvider:
         permissions: set[str] | None,
         user_role: str,
     ) -> list[TableSchema]:
-        """按 RBAC 权限过滤表（从源头杜绝越权查询）
+        """Filter tables by RBAC permissions (prevent unauthorized queries at source).
+        按 RBAC 权限过滤表（从源头杜绝越权查询）。
 
-        规则（所有用户统一受 table-policies 限制）：
-        - platform_admin：可访问所有表
-        - tenant_admin / tenant_user：仅可访问权限匹配 **且有 tenant_column** 的表
-        - permission_code='*' 表示任何登录用户可访问
-        - permission_code='platform_only' 仅平台管理员
-        - 无 tenant_column 的表（平台级表）对非平台用户不可见
+        Rules (all users subject to table-policies) / 规则：
+        - platform_admin: Can access all tables / 可访问所有表
+        - tenant_admin / tenant_user: Only permission-matched tables with tenant_column / 仅匹配且有 tenant_column
+        - permission_code='*': Any logged-in user can access / 任何登录用户可访问
+        - permission_code='platform_only': Platform admins only / 仅平台管理员
+        - Tables without tenant_column (platform-level) invisible to non-platform users / 平台级表不可见
         """
         is_platform = user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
-        # 平台管理员可访问所有活跃表（allow_read 已在 _load_schema_from_policies 检查）
+        # Platform admin can access all active tables (allow_read checked in _load_schema_from_policies) / 平台管理员可访问所有表
         if is_platform:
             return tables
 
@@ -454,20 +461,20 @@ class SchemaProvider:
         for t in tables:
             perm_code = t.permission_code
 
-            # platform_only: 非平台管理员不可访问
+            # platform_only: Non-platform admins cannot access / 非平台管理员不可访问
             if perm_code == "platform_only":
                 continue
 
-            # 无 tenant_column 的平台级表：非平台用户不可访问（防止无隔离数据泄露）
+            # Platform-level tables without tenant_column: non-platform users cannot access (prevent data leak) / 无 tenant_column 的平台级表不可访问
             if not t.tenant_column:
                 continue
 
-            # '*' 权限码: 任何登录用户可访问
+            # '*' permission code: any logged-in user can access / '*' 权限码可访问
             if perm_code == "*":
                 filtered.append(t)
                 continue
 
-            # 检查用户是否拥有对应的读权限
+            # Check if user has corresponding read permission / 检查用户是否有读权限
             if permissions and perm_code in permissions:
                 filtered.append(t)
 
@@ -478,12 +485,14 @@ class SchemaProvider:
         tables: list[TableSchema],
         question: str,
     ) -> list[TableSchema]:
-        """按问题关键词过滤返回相关表（减少 LLM token 消耗）
+        """Filter tables by question keywords to return relevant ones (reduce LLM token consumption).
+        按问题关键词过滤返回相关表（减少 LLM token 消耗）。
 
-        对于小型表集合（≤30 张表），直接返回全部表让 LLM 自行判断。
-        仅在表数量较大时才进行关键词过滤以节省 token。
+        For small table sets (≤30), returns all tables for LLM to judge.
+        Only performs keyword filtering when table count is large to save tokens.
+        对于小型表集合直接返回全部表，仅在表数量较大时进行关键词过滤。
         """
-        # 表数量较少时，跳过过滤（LLM 上下文足以处理）
+        # Skip filtering for small table sets (LLM context can handle) / 表数量较少时跳过过滤
         if len(tables) <= 30:
             return tables
 
@@ -491,27 +500,27 @@ class SchemaProvider:
         relevant_tables: set[str] = set()
 
         for t in tables:
-            # 表名匹配（英文表名出现在问题中）
+            # Table name match (English table name appears in question) / 表名匹配
             if t.table_name in question_lower:
                 relevant_tables.add(t.table_name)
                 continue
 
-            # 表名片段匹配（"tenants" 匹配 "tenant"）
+            # Table name fragment match ("tenants" matches "tenant") / 表名片段匹配
             name_parts = t.table_name.replace("_", " ").split()
             if any(part in question_lower for part in name_parts if len(part) >= 3):
                 relevant_tables.add(t.table_name)
                 continue
 
-            # 描述匹配（支持中文：按空格分词 + 滑动窗口 2-4 字匹配）
+            # Description match (supports Chinese: space tokenization + sliding window 2-4 char match) / 描述匹配
             if t.description:
                 desc = t.description.lower()
-                # 空格分词匹配
+                # Space tokenization match / 空格分词匹配
                 for word in desc.split():
                     if len(word) >= 2 and word in question_lower:
                         relevant_tables.add(t.table_name)
                         break
                 else:
-                    # 中文滑动窗口：提取 2~4 字片段与问题匹配
+                    # Chinese sliding window: extract 2~4 char segments to match question / 中文滑动窗口
                     for win in range(2, 5):
                         for i in range(len(desc) - win + 1):
                             seg = desc[i:i + win]
@@ -523,24 +532,24 @@ class SchemaProvider:
                         if t.table_name in relevant_tables:
                             break
 
-            # label 匹配（中文标签）
+            # Label match (Chinese label) / label 匹配
             label = getattr(t, "label", None) or ""
             if label and label in question_lower:
                 relevant_tables.add(t.table_name)
 
-        # 如果没有匹配到关键词，返回全部表（让 LLM 自行判断）
+        # If no keyword matches, return all tables (let LLM judge) / 无匹配时返回全部表
         if not relevant_tables:
             return tables
 
         return [t for t in tables if t.table_name in relevant_tables]
 
     # ============================================
-    # Redis 缓存
+    # Redis Cache / Redis 缓存
     # ============================================
 
     @staticmethod
     async def _get_cached_schema(tenant_id: int) -> list[TableSchema] | None:
-        """从 Redis 获取缓存的 schema"""
+        """Get cached schema from Redis / 从 Redis 获取缓存的 schema"""
         try:
             from app.core.redis import get_redis
             redis = await get_redis()
@@ -556,7 +565,7 @@ class SchemaProvider:
 
     @staticmethod
     async def _cache_schema(tenant_id: int, tables: list[TableSchema]) -> None:
-        """将 schema 缓存到 Redis"""
+        """Cache schema to Redis / 将 schema 缓存到 Redis"""
         try:
             from app.core.redis import get_redis
             redis = await get_redis()
@@ -568,7 +577,7 @@ class SchemaProvider:
 
     @staticmethod
     async def invalidate_cache(tenant_id: int) -> None:
-        """清除租户 schema 缓存"""
+        """Clear tenant schema cache / 清除租户 schema 缓存"""
         try:
             from app.core.redis import get_redis
             redis = await get_redis()
@@ -582,12 +591,14 @@ class SchemaProvider:
         db: AsyncSession,
         table_policy_ids: list[int] | None = None,
     ) -> list[tuple[str, str]]:
-        """获取启用表的 (table_name, label) 列表，用于工具描述注册
+        """Get (table_name, label) list for enabled tables, for tool description registration.
+        获取启用表的 (table_name, label) 列表，用于工具描述注册。
 
         Args:
-            db: 数据库会话
-            table_policy_ids: 限定的表策略 ID 列表（来自 Skill.config）。
-                              为 None 时加载所有 active 策略（向后兼容）。
+            db: Database session / 数据库会话
+            table_policy_ids: Restricted table policy ID list (from Skill.config).
+                              When None, loads all active policies (backward compatible).
+                              限定的表策略 ID 列表，为 None 时加载所有 active 策略。
         """
         stmt = select(
             AITablePolicy.table_name,
@@ -608,12 +619,14 @@ class SchemaProvider:
         db: AsyncSession,
         table_policy_ids: list[int] | None = None,
     ) -> dict[str, list[tuple[str, str]]]:
-        """获取各 CRUD 操作允许的表列表
+        """Get tables allowed for each CRUD operation.
+        获取各 CRUD 操作允许的表列表。
 
         Args:
-            db: 数据库会话
-            table_policy_ids: 限定的表策略 ID 列表（来自 Skill.config）。
-                              为 None 时加载所有 active 策略（向后兼容）。
+            db: Database session / 数据库会话
+            table_policy_ids: Restricted table policy ID list (from Skill.config).
+                              When None, loads all active policies (backward compatible).
+                              限定的表策略 ID 列表，为 None 时加载所有 active 策略。
 
         Returns:
             {"create": [(name, label), ...], "update": [...], "delete": [...]}
@@ -648,14 +661,14 @@ class SchemaProvider:
 
 
 # ============================================
-# 策略合并辅助函数
+# Policy Merge Helper / 策略合并辅助函数
 # ============================================
 
 def _merge_policy_with_override(
     gp: AITablePolicy,
     ov: AITablePolicyOverride | None,
 ) -> dict[str, Any]:
-    """合并全局策略与租户覆盖。覆盖只能收紧，不能放开。"""
+    """Merge global policy with tenant override. Override can only tighten, not loosen. / 合并全局策略与租户覆盖"""
     policy: dict[str, Any] = {
         "table_name": gp.table_name,
         "label": gp.label,
@@ -675,7 +688,7 @@ def _merge_policy_with_override(
     if ov is None:
         return policy
 
-    # 覆盖只能收紧：True → False 可以，False → True 不行
+    # Override can only tighten: True → False OK, False → True NOT OK / 覆盖只能收紧
     if ov.allow_read is not None and not ov.allow_read:
         policy["allow_read"] = False
     if ov.allow_create is not None and not ov.allow_create:
@@ -687,11 +700,11 @@ def _merge_policy_with_override(
     if ov.is_active is not None and not ov.is_active:
         policy["is_active"] = False
 
-    # max_rows 只能更小
+    # max_rows can only be smaller / max_rows 只能更小
     if ov.max_rows is not None and ov.max_rows < policy["max_rows"]:
         policy["max_rows"] = ov.max_rows
 
-    # blocked_columns 只能追加
+    # blocked_columns can only be appended / blocked_columns 只能追加
     if ov.blocked_columns:
         existing = set(policy["blocked_columns"])
         existing.update(ov.blocked_columns)
@@ -701,11 +714,11 @@ def _merge_policy_with_override(
 
 
 # ============================================
-# 辅助函数
+# Helper Functions / 辅助函数
 # ============================================
 
 def _dict_to_table_schema(data: dict[str, Any]) -> TableSchema:
-    """从字典恢复 TableSchema"""
+    """Restore TableSchema from dict / 从字典恢复 TableSchema"""
     columns = [
         ColumnSchema(
             name=c["name"],

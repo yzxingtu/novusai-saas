@@ -1,15 +1,18 @@
 /**
- * AI 管理 API - 聚合入口
+ * AI management API - Aggregated entry / AI 管理 API - 聚合入口
  *
- * 各子模块已拆分到独立文件，此文件提供：
- * 1. 向后兼容的 re-export（现有 import 无需修改）
- * 2. 表策略、配额、技能等尚未独立的 API
+ * Sub-modules are split into separate files. This file provides:
+ * 1. Backward-compatible re-exports (no need to change existing imports).
+ * 2. Table policies, quotas, skills, and other APIs not yet split out.
+ *
+ * 各子模块已拆分到独立文件，此文件提供向后兼容 re-export 及尚未独立的 API。
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
+// Backward-compat re-export — Providers, API Key, Health, Gateway test
 // 向后兼容 re-export — 供应商、API Key、健康、网关测试
 // ============================================================
 
@@ -60,7 +63,7 @@ export {
 } from './ai-agents';
 
 // ============================================================
-// 向后兼容 re-export — 模型
+// Backward-compat re-export — Models / 向后兼容 re-export — 模型
 // ============================================================
 
 export {
@@ -76,7 +79,7 @@ export {
 } from './ai-call-logs';
 
 // ============================================================
-// 向后兼容 re-export — 智能体
+// Backward-compat re-export — Agents / 向后兼容 re-export — 智能体
 // ============================================================
 
 export {
@@ -86,7 +89,7 @@ export {
 } from './ai-conversations';
 
 // ============================================================
-// 向后兼容 re-export — 调用日志 & 使用量
+// Backward-compat re-export — Call logs & Usage / 向后兼容 re-export — 调用日志 & 使用量
 // ============================================================
 
 export {
@@ -106,7 +109,7 @@ export {
 } from './ai-models';
 
 // ============================================================
-// 向后兼容 re-export — 对话管理
+// Backward-compat re-export — Conversations / 向后兼容 re-export — 对话管理
 // ============================================================
 
 export {
@@ -141,10 +144,10 @@ export {
 } from './ai-providers';
 
 // ============================================================
-// 类型定义 - AI 表策略
+// Type definitions - AI table policies / 类型定义 - AI 表策略
 // ============================================================
 
-/** AI 表策略信息 */
+/** AI table policy info / AI 表策略信息 */
 export interface AITablePolicyInfo {
   id: number;
   table_name: string;
@@ -166,7 +169,7 @@ export interface AITablePolicyInfo {
   updated_at: string;
 }
 
-/** 更新表策略请求 */
+/** Update table policy request / 更新表策略请求 */
 export interface AITablePolicyUpdateRequest {
   label?: string;
   description?: null | string;
@@ -184,7 +187,7 @@ export interface AITablePolicyUpdateRequest {
   is_active?: boolean;
 }
 
-/** 表列信息 */
+/** Table column info / 表列信息 */
 export interface TableColumnInfo {
   name: string;
   type: string;
@@ -192,7 +195,7 @@ export interface TableColumnInfo {
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -203,12 +206,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - AI 表策略
+// API - AI table policies / API 接口 - AI 表策略
 // ============================================================
 
 const TABLE_POLICY_PREFIX = '/admin/ai/table-policies';
 
-/** 获取表策略列表 */
+/** Get table policy list / 获取表策略列表 */
 export async function getAITablePolicyListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -219,7 +222,7 @@ export async function getAITablePolicyListApi(
   );
 }
 
-/** 获取表策略详情 */
+/** Get table policy detail / 获取表策略详情 */
 export async function getAITablePolicyDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -230,7 +233,7 @@ export async function getAITablePolicyDetailApi(
   );
 }
 
-/** 更新表策略 */
+/** Update table policy / 更新表策略 */
 export async function updateAITablePolicyApi(
   id: number,
   data: AITablePolicyUpdateRequest,
@@ -243,7 +246,7 @@ export async function updateAITablePolicyApi(
   );
 }
 
-/** 获取表的列信息 */
+/** Get table column info / 获取表的列信息 */
 export async function getAITablePolicyColumnsApi(
   id: number,
   options?: ApiRequestOptions,
@@ -254,7 +257,7 @@ export async function getAITablePolicyColumnsApi(
   );
 }
 
-/** 触发表策略同步 */
+/** Trigger table policy sync / 触发表策略同步 */
 export async function syncAITablePoliciesApi(
   options?: ApiRequestOptions,
 ): Promise<Record<string, number>> {
@@ -266,10 +269,10 @@ export async function syncAITablePoliciesApi(
 }
 
 // ============================================================
-// 类型定义 - AI 配额
+// Type definitions - AI quotas / 类型定义 - AI 配额
 // ============================================================
 
-/** AI 配额信息 */
+/** AI quota info / AI 配额信息 */
 export interface AIQuotaInfo {
   id: number;
   tenant_id: number;
@@ -286,7 +289,7 @@ export interface AIQuotaInfo {
   updated_at: string;
 }
 
-/** 创建配额请求（管理员） */
+/** Create quota request (admin) / 创建配额请求（管理员） */
 export interface AIQuotaCreateRequest {
   tenant_id: number;
   model_id?: null | number;
@@ -297,7 +300,7 @@ export interface AIQuotaCreateRequest {
   description?: null | string;
 }
 
-/** 更新配额请求 */
+/** Update quota request / 更新配额请求 */
 export interface AIQuotaUpdateRequest {
   limit?: null | number;
   quota_type?: null | string;
@@ -307,12 +310,12 @@ export interface AIQuotaUpdateRequest {
 }
 
 // ============================================================
-// API 接口 - AI 配额
+// API - AI quotas / API 接口 - AI 配额
 // ============================================================
 
 const QUOTA_PREFIX = '/admin/ai/quotas';
 
-/** 获取配额列表 */
+/** Get quota list / 获取配额列表 */
 export async function getAIQuotaListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -323,7 +326,7 @@ export async function getAIQuotaListApi(
   });
 }
 
-/** 获取配额详情 */
+/** Get quota detail / 获取配额详情 */
 export async function getAIQuotaDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -331,7 +334,7 @@ export async function getAIQuotaDetailApi(
   return requestClient.get<AIQuotaInfo>(`${QUOTA_PREFIX}/${id}`, options);
 }
 
-/** 创建配额 */
+/** Create quota / 创建配额 */
 export async function createAIQuotaApi(
   data: AIQuotaCreateRequest,
   options?: ApiRequestOptions,
@@ -339,7 +342,7 @@ export async function createAIQuotaApi(
   return requestClient.post<AIQuotaInfo>(QUOTA_PREFIX, data, options);
 }
 
-/** 更新配额 */
+/** Update quota / 更新配额 */
 export async function updateAIQuotaApi(
   id: number,
   data: AIQuotaUpdateRequest,
@@ -348,7 +351,7 @@ export async function updateAIQuotaApi(
   return requestClient.put<AIQuotaInfo>(`${QUOTA_PREFIX}/${id}`, data, options);
 }
 
-/** 删除配额 */
+/** Delete quota / 删除配额 */
 export async function deleteAIQuotaApi(
   id: number,
   options?: ApiRequestOptions,
@@ -357,10 +360,10 @@ export async function deleteAIQuotaApi(
 }
 
 // ============================================================
-// 类型定义 - 速率限制
+// Type definitions - Rate limits / 类型定义 - 速率限制
 // ============================================================
 
-/** 速率限制信息 */
+/** Rate limit info / 速率限制信息 */
 export interface AIRateLimitInfo {
   id: number;
   tenant_id: number;
@@ -374,7 +377,7 @@ export interface AIRateLimitInfo {
   updated_at: string;
 }
 
-/** 创建速率限制请求（管理员） */
+/** Create rate limit request (admin) / 创建速率限制请求 */
 export interface AIRateLimitCreateRequest {
   tenant_id: number;
   model_id: number;
@@ -383,7 +386,7 @@ export interface AIRateLimitCreateRequest {
   description?: null | string;
 }
 
-/** 更新速率限制请求 */
+/** Update rate limit request / 更新速率限制请求 */
 export interface AIRateLimitUpdateRequest {
   rpm_limit?: null | number;
   tpm_limit?: null | number;
@@ -392,12 +395,12 @@ export interface AIRateLimitUpdateRequest {
 }
 
 // ============================================================
-// API 接口 - 速率限制
+// API - Rate limits / API 接口 - 速率限制
 // ============================================================
 
 const RATE_LIMIT_PREFIX = '/admin/ai/quotas/rate-limits';
 
-/** 获取速率限制列表 */
+/** Get rate limit list / 获取速率限制列表 */
 export async function getAIRateLimitListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -408,7 +411,7 @@ export async function getAIRateLimitListApi(
   });
 }
 
-/** 创建速率限制 */
+/** Create rate limit / 创建速率限制 */
 export async function createAIRateLimitApi(
   data: AIRateLimitCreateRequest,
   options?: ApiRequestOptions,
@@ -416,7 +419,7 @@ export async function createAIRateLimitApi(
   return requestClient.post<AIRateLimitInfo>(RATE_LIMIT_PREFIX, data, options);
 }
 
-/** 更新速率限制 */
+/** Update rate limit / 更新速率限制 */
 export async function updateAIRateLimitApi(
   id: number,
   data: AIRateLimitUpdateRequest,
@@ -429,7 +432,7 @@ export async function updateAIRateLimitApi(
   );
 }
 
-/** 删除速率限制 */
+/** Delete rate limit / 删除速率限制 */
 export async function deleteAIRateLimitApi(
   id: number,
   options?: ApiRequestOptions,
@@ -438,12 +441,12 @@ export async function deleteAIRateLimitApi(
 }
 
 // ============================================================
-// 技能管理 (Skill)
+// Skill management / 技能管理 (Skill)
 // ============================================================
 
 const SKILL_PREFIX = '/admin/ai/skills';
 
-/** 技能信息 */
+/** Skill info / 技能信息 */
 export interface SkillInfo {
   id: number;
   tenant_id: null | number;
@@ -459,7 +462,7 @@ export interface SkillInfo {
   updated_at: string;
 }
 
-/** 获取技能列表 */
+/** Get skill list / 获取技能列表 */
 export async function getSkillListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -467,7 +470,7 @@ export async function getSkillListApi(
   return requestClient.get(SKILL_PREFIX, { params, ...options });
 }
 
-/** 获取技能详情 */
+/** Get skill detail / 获取技能详情 */
 export async function getSkillDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -475,7 +478,7 @@ export async function getSkillDetailApi(
   return requestClient.get<SkillInfo>(`${SKILL_PREFIX}/${id}`, options);
 }
 
-/** 切换技能状态 */
+/** Toggle skill status / 切换技能状态 */
 export async function toggleSkillStatusApi(
   id: number,
   options?: ApiRequestOptions,
@@ -487,7 +490,7 @@ export async function toggleSkillStatusApi(
   );
 }
 
-/** 删除技能 */
+/** Delete skill / 删除技能 */
 export async function deleteSkillApi(id: number, options?: ApiRequestOptions) {
   return requestClient.delete(`${SKILL_PREFIX}/${id}`, options);
 }

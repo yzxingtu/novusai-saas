@@ -1,8 +1,8 @@
 """
-AI 数据查询审计日志模型
+AI 数据查询审计日志模型 / AI Data Query Audit Log Model
 
-记录每次 Text-to-SQL 数据查询的完整审计信息，
-用于安全追溯、异常检测和合规审计
+记录每次 Text-to-SQL 数据查询的完整审计信息，用于安全追溯、异常检测和合规审计
+Records complete audit info for each Text-to-SQL query for security tracing, anomaly detection and compliance.
 """
 
 from sqlalchemy import Index, Integer, String, Text

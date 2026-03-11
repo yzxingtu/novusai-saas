@@ -1,14 +1,17 @@
 """
-删除依赖保护模块
+删除依赖保护模块 / Deletion Dependency Protection Module
 
 提供声明式删除依赖注册机制：
-- DeletionStrategy: 删除策略枚举（BLOCK/CASCADE_SOFT/CASCADE_DELETE/NULLIFY/IGNORE）
-- DeletionDep: 单条依赖声明数据类
+Provides declarative deletion dependency registration mechanism:
+- DeletionStrategy: 删除策略枚举 / Deletion strategy enum (BLOCK/CASCADE_SOFT/CASCADE_DELETE/NULLIFY/IGNORE)
+- DeletionDep: 单条依赖声明数据类 / Single dependency declaration dataclass
 
-Model 通过声明 __delete_deps__ 属性，描述"哪些模型引用了我，删除时如何处理"。
+Model 通过声明 __delete_deps__ 属性，描述“哪些模型引用了我，删除时如何处理”。
+Models declare __delete_deps__ to describe "which models reference me and how to handle on deletion".
 BaseService._before_delete() 自动读取声明并执行依赖检查。
+BaseService._before_delete() automatically reads declarations and performs dependency checks.
 
-Usage:
+使用示例 / Usage:
     class AIProvider(BaseModel):
         __delete_deps__ = [
             DeletionDep("AIModel", "provider_id", DeletionStrategy.BLOCK,
@@ -24,7 +27,7 @@ from app.enums.base import LabeledStrEnum
 
 
 class DeletionStrategy(LabeledStrEnum):
-    """删除依赖处理策略"""
+    """删除依赖处理策略 / Deletion dependency handling strategy"""
 
     BLOCK = ("block", "enum.deletion_strategy.block")
     CASCADE_SOFT = ("cascade_soft", "enum.deletion_strategy.cascade_soft")
@@ -36,14 +39,14 @@ class DeletionStrategy(LabeledStrEnum):
 @dataclass(frozen=True)
 class DeletionDep:
     """
-    单条删除依赖声明
+    单条删除依赖声明 / Single deletion dependency declaration
 
     Attributes:
-        model: 引用本模型的目标模型类名（如 "AIModel"）
-        fk_field: 目标模型中的 FK 字段名（如 "provider_id"）
-        strategy: 删除策略
-        label_field: 目标模型中用于展示名称的字段（默认 "name"）
-        i18n_key: 目标模型的 i18n 翻译 key（如 "deletion.model.ai_model"）
+        model: 引用本模型的目标模型类名 / Target model class name referencing this model (e.g. "AIModel")
+        fk_field: 目标模型中的 FK 字段名 / FK field name in target model (e.g. "provider_id")
+        strategy: 删除策略 / Deletion strategy
+        label_field: 目标模型中用于展示名称的字段 / Field for display name in target model (default "name")
+        i18n_key: 目标模型的 i18n 翻译 key / i18n translation key for target model (e.g. "deletion.model.ai_model")
     """
 
     model: str

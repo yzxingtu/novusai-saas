@@ -1,7 +1,8 @@
 """
-租户用户角色模型
+租户用户角色模型 / Tenant User Role Model
 
 租户级别的用户角色，用于租户业务用户的权限控制（扁平结构，无层级）
+Tenant-level user roles for tenant business user permission control (flat structure, no hierarchy).
 """
 
 from __future__ import annotations

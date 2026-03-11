@@ -1,6 +1,8 @@
 ﻿"""
+FastAPI Application Entry Point
 FastAPI 应用入口
 
+Configures application instance, middleware, routes, exception handlers, etc.
 配置应用实例、中间件、路由、异常处理器等
 """
 
@@ -27,6 +29,7 @@ from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
 from app.middleware.tenant import TenantMiddleware
 
+# Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
 # 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
 warnings.filterwarnings("ignore", message=".*urllib3.*doesn't match a supported version.*")
 warnings.filterwarnings("ignore", message=".*chardet.*doesn't match a supported version.*")
@@ -36,17 +39,18 @@ warnings.filterwarnings("ignore", message=".*charset_normalizer.*doesn't match a
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
+    Application lifecycle management
     应用生命周期管理
 
-    - startup: 应用启动时执行
-    - shutdown: 应用关闭时执行
+    - startup: Executes on application startup / 应用启动时执行
+    - shutdown: Executes on application shutdown / 应用关闭时执行
     """
     # ========== Startup ==========
-    # 初始化日志系统
+    # Initialize logging system / 初始化日志系统
     init_logging()
     logger = get_logger(__name__)
 
-    # 清除翻译缓存，确保加载最新的翻译文件
+    # Clear translation cache to ensure latest translation files are loaded / 清除翻译缓存，确保加载最新的翻译文件
     reload_translations()
 
     try:
@@ -54,12 +58,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Environment: {settings.APP_ENV}")
         logger.info(f"Debug mode: {settings.DEBUG}")
 
-        # 初始化数据库（检查/创建数据库 + 运行迁移）
+        # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
         if not await init_database():
             raise RuntimeError("Database initialization failed")
         logger.info("Database initialized")
 
-        # 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）
+        # Early Redis initialization (subsequent startup steps depend on Redis for distributed locks) / 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）
         from app.core.redis import RedisManager as _RedisManager
         try:
             await _RedisManager.init()
@@ -67,7 +71,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as _redis_early_err:
             logger.warning(f"Redis early initialization failed: {_redis_early_err}")
 
+        # Sync permissions to database (sync decorator-defined permissions to DB)
         # 同步权限到数据库（将装饰器定义的权限同步到 DB）
+        # Use distributed lock to prevent multi-worker concurrent sync, avoiding Permission INSERT IntegrityError
         # 使用分布式锁防止多 worker 并发同步，避免 Permission INSERT IntegrityError
         from app.core.database import async_session_factory
         from app.rbac.sync import sync_permissions_on_startup
@@ -83,7 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 _perm_lock_key, _perm_owner, nx=True, ex=60,
             )
         except Exception:
-            _perm_locked = True  # Redis 不可用时降级为无锁
+            _perm_locked = True  # Degrade to lockless when Redis unavailable / Redis 不可用时降级为无锁
 
         if _perm_locked:
             try:
@@ -105,9 +111,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         else:
             logger.debug("Permission sync: skipped (another worker is syncing)")
 
+        # Sync configs to database (sync code-defined config items to DB)
         # 同步配置到数据库（将代码定义的配置项同步到 DB）
+        # Use distributed lock to prevent multi-worker concurrent INSERT of config items/groups
         # 使用分布式锁防止多 worker 并发 INSERT 配置项/分组
+        # Import config definition modules (triggers config registration to registry)
         # 导入配置定义模块（触发配置注册到 registry）
+        # NOTE: Use from...import instead of import app.xxx to avoid shadowing lifespan's app param
         # NOTE: 使用 from...import 而非 import app.xxx，避免遮蔽 lifespan 的 app 参数
         from app.configs import definitions as _configs_definitions  # noqa: F401
         from app.configs.sync import sync_configs_on_startup
@@ -139,7 +149,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     except Exception:
                         pass
 
+        # Sync AI table policies (auto-discover new tables and create default policies)
         # 同步 AI 表策略（自动发现新表并创建默认策略）
+        # Use distributed lock to prevent multi-worker concurrent INSERT of policy records
         # 使用分布式锁防止多 worker 并发 INSERT 策略记录
         from app.services.ai.table_policy_sync_service import sync_table_policies
 
@@ -171,7 +183,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     except Exception:
                         pass
 
-        # 初始化 Redis 连接
+        # Initialize Redis connection / 初始化 Redis 连接
         from app.core.redis import RedisManager
         try:
             await RedisManager.init()
@@ -179,26 +191,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as redis_err:
             logger.warning(f"Redis initialization failed: {redis_err}")
 
-        # 注册核心 AI 适配器（硬编码，不依赖插件系统）
+        # Register core AI adapters (hardcoded, not dependent on plugin system) / 注册核心 AI 适配器（硬编码，不依赖插件系统）
         from app.ai.adapters import AdapterRegistry
         from app.ai.adapters.openai_adapter import OpenAIAdapter
         AdapterRegistry.register("openai_compatible", OpenAIAdapter)
 
-        # 清理残留的在线状态数据（服务器重启后旧连接已断开）
+        # Clean up residual online presence data (old connections already disconnected after server restart) / 清理残留的在线状态数据（服务器重启后旧连接已断开）
         try:
             from app.sio.presence import PresenceManager
             await PresenceManager.clear_all()
         except Exception as presence_err:
             logger.warning(f"Presence cleanup failed: {presence_err}")
 
-        # 应用 WebSocket 平台配置（ping_interval / ping_timeout）
+        # Apply WebSocket platform config (ping_interval / ping_timeout) / 应用 WebSocket 平台配置（ping_interval / ping_timeout）
         try:
             from app.core.socketio_server import apply_ws_config
             await apply_ws_config()
         except Exception as ws_cfg_err:
             logger.warning(f"WS config apply failed: {ws_cfg_err}")
 
-        # 种子数据：通知模板
+        # Seed data: notification templates / 种子数据：通知模板
         try:
             from app.sio.notification_seeds import seed_notification_templates
             async with async_session_factory() as db:
@@ -212,7 +224,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as seed_err:
             logger.warning(f"Notification template seed failed: {seed_err}")
 
-        # 验证 Celery broker 连通性
+        # Verify Celery broker connectivity / 验证 Celery broker 连通性
         try:
             from app.celery_app import celery_app
             conn = celery_app.connection()
@@ -222,11 +234,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as celery_err:
             logger.warning(f"Celery broker connection failed: {celery_err}")
 
+        # Plugin auto-discovery + restore
         # 插件自动发现 + 恢复
+        # Note: When multiple workers start concurrently, discover_and_register runs concurrently.
         # 注意：多 worker 并发启动时，discover_and_register 会并发执行。
+        # Use Redis distributed lock to ensure only one worker runs discover (includes alembic migrations).
         # 使用 Redis 分布式锁确保只有一个 worker 执行 discover（含 alembic 迁移）。
+        # restore uses two phases:
         # restore 采用双阶段：
+        # 1) owner worker runs heavy restore (migration/dependency install/status writeback)
         # 1) owner worker 执行重恢复（迁移/依赖补装/状态写回）
+        # 2) other workers wait for owner to complete, then only do in-process extension registration (no DB writes)
         # 2) 其他 worker 等待 owner 完成后，仅做进程内扩展注册（不写库）
         try:
             from app.plugins.startup import (
@@ -234,6 +252,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 restore_enabled_plugins,
             )
 
+            # Phase 1: Auto-discovery (distributed lock protection, avoiding multi-worker concurrent migration race)
             # Phase 1: 自动发现（分布式锁保护，避免多 worker 并发迁移竞争）
             _discover_lock_key = "plugin:startup:discover_lock"
             _discover_lock_ttl = 120  # 秒
@@ -249,7 +268,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 )
             except Exception as _redis_err:
                 logger.warning(f"Plugin discover lock unavailable (Redis error): {_redis_err}")
-                _discover_locked = True  # Redis 不可用时降级为无锁（保持原有行为）
+                _discover_locked = True  # Degrade to lockless when Redis unavailable (preserve original behavior) / Redis 不可用时降级为无锁（保持原有行为）
 
             if _discover_locked:
                 try:
@@ -275,6 +294,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             else:
                 logger.info("Plugin discover: skipped (another worker is running discovery)")
 
+            # Phase 2: Restore (owner heavy restore + other workers in-process registration only)
             # Phase 2: 恢复（owner 重恢复 + 其他 worker 仅本进程注册）
             _restore_lock_key = "plugin:startup:restore_lock"
             _restore_lock_ttl = 900  # 覆盖迁移/依赖补装的最长路径
@@ -290,7 +310,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 )
             except Exception as _redis_err:
                 logger.warning(f"Plugin restore lock unavailable (Redis error): {_redis_err}")
-                _restore_locked = True  # Redis 不可用时降级为旧行为（每 worker 重恢复）
+                _restore_locked = True  # Degrade to old behavior when Redis unavailable (each worker does heavy restore) / Redis 不可用时降级为旧行为（每 worker 重恢复）
 
             if _restore_locked:
                 try:
@@ -317,6 +337,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         except Exception:
                             pass
             else:
+                # Non-owner worker waits for owner heavy restore to complete, then does in-process registration
                 # 非 owner worker 等待 owner 重恢复完成，再进行本 worker 进程内注册
                 wait_seconds = 0
                 wait_limit = 180
@@ -356,10 +377,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as plugin_err:
             logger.warning(f"Plugin startup failed: {plugin_err}")
 
-        # 插件恢复后重新加载翻译（插件可能有自己的 locales 文件）
+        # Reload translations after plugin restore (plugins may have their own locales files) / 插件恢复后重新加载翻译（插件可能有自己的 locales 文件）
         reload_translations()
 
+        # Re-sync permissions after plugin restore (plugins may register menus to permission_registry)
         # 插件恢复后再次同步权限（插件可能注册了菜单到 permission_registry）
+        # Also needs distributed lock to prevent multi-worker concurrent INSERT
         # 同样需要分布式锁防止多 worker 并发 INSERT
         _plugin_perm_owner = str(__import__("uuid").uuid4())
         _plugin_perm_redis = None
@@ -394,7 +417,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     except Exception:
                         pass
 
-        # Check if configured storage driver is available
+        # Check if configured storage driver is available / 检查配置的存储驱动是否可用
         try:
             from app.configs.service import ConfigService
             from app.storage.manager import storage_manager
@@ -415,12 +438,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.warning(f"Storage driver check failed: {driver_check_err}")
 
     except Exception as e:
-        # 确保启动阶段的错误能够被记录和显示
+        # Ensure startup phase errors are logged and displayed / 确保启动阶段的错误能够被记录和显示
         import traceback
         error_msg = f"Startup failed: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        # 同时输出到控制台，确保在日志系统异常时也能看到
+        # Also output to console to ensure visibility even when logging system is abnormal / 同时输出到控制台，确保在日志系统异常时也能看到
         print(error_msg, flush=True)
         traceback.print_exc()
         raise
@@ -431,11 +454,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = get_logger(__name__)
     logger.info(f"Shutting down {settings.APP_NAME}")
 
-    # 关闭数据库连接
+    # Close database connections / 关闭数据库连接
     await close_database()
     logger.info("Database connections closed")
 
-    # 关闭 Redis 连接
+    # Close Redis connections / 关闭 Redis 连接
     from app.core.redis import RedisManager
     await RedisManager.close()
     logger.info("Redis connections closed")
@@ -443,12 +466,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_application() -> FastAPI:
     """
+    Create FastAPI application instance
     创建 FastAPI 应用实例
     """
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        description="现代化 AI 集成 SaaS 开发框架",
+        description="Modern AI-integrated SaaS development framework / 现代化 AI 集成 SaaS 开发框架",
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
@@ -457,10 +481,13 @@ def create_application() -> FastAPI:
     )
 
     # ========================================
-    # 注册中间件
+    # Register middleware / 注册中间件
     # ========================================
 
+    # API response browser cache prevention middleware
     # API 响应禁止浏览器缓存中间件
+    # Only adds no-store to JSON responses without Cache-Control set,
+    # preventing browser from caching GET causing stale data after save
     # 仅对未设置 Cache-Control 的 JSON 响应添加 no-store，
     # 避免浏览器缓存 GET 导致保存后数据不更新
     from starlette.middleware.base import BaseHTTPMiddleware
@@ -477,28 +504,38 @@ def create_application() -> FastAPI:
 
     app.add_middleware(NoCacheAPIMiddleware)
 
+    # i18n internationalization middleware (pure ASGI implementation, registered via add_middleware)
     # i18n 国际化中间件（纯 ASGI 实现，使用 add_middleware 注册）
     app.add_middleware(I18nMiddleware)
 
+    # Maintenance mode middleware (intercepts non-admin requests with 503 when enabled)
     # 维护模式中间件（开启时拦截非管理端请求返回 503）
     from app.middleware.maintenance import MaintenanceMiddleware
     app.add_middleware(MaintenanceMiddleware)
 
+    # RBAC permission preload middleware (loads user permissions into request.state)
     # RBAC 权限预加载中间件（加载用户权限到 request.state）
     app.add_middleware(PermissionMiddleware)
 
+    # Audit log middleware (records all API calls)
     # 审计日志中间件（记录所有 API 调用）
+    # Note: Must be registered after PermissionMiddleware to access user info from state
     # 注意：必须在 PermissionMiddleware 之后注册，这样才能从 state 获取用户信息
     app.add_middleware(AuditLogMiddleware)
 
+    # Access control middleware (enforces "deny by default" security policy)
     # 访问控制中间件（实施“默认拒绝”安全策略）
     app.add_middleware(AccessControlMiddleware)
 
+    # Tenant identification middleware (resolves tenant from Host header)
     # 租户识别中间件（基于 Host 头解析租户）
     app.add_middleware(TenantMiddleware)
 
+    # CORS middleware — must be registered last (= outermost layer),
+    # ensuring all middleware responses (including AccessControlMiddleware 403) carry CORS headers
     # CORS 中间件 — 必须最后注册（= 最外层），
     # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
+    # ⚠️  In DEBUG mode, allows all Origins to support tenant domain (e.g. demo.app.local:5666) cross-origin access
     # ⚠️  DEBUG 模式下允许所有 Origin，支持租户域名（如 demo.app.local:5666）跨域访问
     cors_origins: list[str] = ["*"] if settings.DEBUG else settings.CORS_ORIGINS
     app.add_middleware(
@@ -510,12 +547,13 @@ def create_application() -> FastAPI:
     )
 
     # ========================================
-    # 注册异常处理器
+    # Register exception handlers / 注册异常处理器
     # ========================================
 
     def _get_cors_headers(request: Request) -> dict[str, str]:
-        """获取 CORS 响应头"""
+        """Get CORS response headers / 获取 CORS 响应头"""
         origin = request.headers.get("origin", "")
+        # Check if origin is in allowed list (allows all in DEBUG mode)
         # 检查 origin 是否在允许列表中（DEBUG 模式下允许所有）
         if "*" in cors_origins or origin in cors_origins:
             return {
@@ -528,7 +566,7 @@ def create_application() -> FastAPI:
 
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
-        """应用异常处理器"""
+        """Application exception handler / 应用异常处理器"""
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
@@ -539,7 +577,7 @@ def create_application() -> FastAPI:
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        """请求验证异常处理器"""
+        """Request validation exception handler / 请求验证异常处理器"""
         errors = [
             {
                 "field": ".".join(str(loc) for loc in err.get("loc", [])),
@@ -548,7 +586,7 @@ def create_application() -> FastAPI:
             }
             for err in exc.errors()
         ]
-        # validation_error() 返回 JSONResponse
+        # validation_error() returns JSONResponse / validation_error() 返回 JSONResponse
         response = validation_error(errors=errors)
         response.headers.update(_get_cors_headers(request))
         return response
@@ -557,8 +595,8 @@ def create_application() -> FastAPI:
     async def http_exception_handler(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        """HTTP 异常处理器"""
-        # 映射常见 HTTP 状态码到业务错误码
+        """HTTP exception handler / HTTP 异常处理器"""
+        # Map common HTTP status codes to business error codes / 映射常见 HTTP 状态码到业务错误码
         status_code_map = {
             400: 4000,
             401: 4010,
@@ -573,7 +611,7 @@ def create_application() -> FastAPI:
             503: 5030,
         }
         code = status_code_map.get(exc.status_code, exc.status_code * 10)
-        # error() 返回 JSONResponse，但需要指定正确的 status_code
+        # error() returns JSONResponse, but needs correct status_code / error() 返回 JSONResponse，但需要指定正确的 status_code
         response = error(
             message=str(exc.detail) if exc.detail else None,
             code=code,
@@ -584,14 +622,14 @@ def create_application() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        """全局异常处理器 - 捕获未处理的异常"""
+        """Global exception handler - catches unhandled exceptions / 全局异常处理器 - 捕获未处理的异常"""
         import traceback
 
-        # 记录异常日志
+        # Log exception / 记录异常日志
         logger = get_logger(__name__)
         logger.exception(f"Unhandled exception: {exc}")
 
-        # DEBUG 模式下返回堆栈跟踪信息
+        # Return stack trace in DEBUG mode / DEBUG 模式下返回堆栈跟踪信息
         error_data = None
         if settings.DEBUG:
             error_data = {
@@ -610,12 +648,12 @@ def create_application() -> FastAPI:
         return response
 
     # ========================================
-    # 注册路由
+    # Register routes / 注册路由
     # ========================================
 
     @app.get("/", tags=["Root"])
     async def root() -> dict:
-        """根路由 - 健康检查"""
+        """Root route - health check / 根路由 - 健康检查"""
         return {
             "code": 0,
             "message": _("common.success"),
@@ -628,7 +666,7 @@ def create_application() -> FastAPI:
 
     @app.get("/health", tags=["Health"])
     async def health_check() -> dict:
-        """健康检查端点"""
+        """Health check endpoint / 健康检查端点"""
         from app.core.redis import RedisManager
         redis_ok = await RedisManager.health_check()
         return {
@@ -641,15 +679,16 @@ def create_application() -> FastAPI:
             },
         }
 
+    # Register directory menus (must be before controller imports to ensure parent menus are registered first)
     # 注册目录型菜单（必须在控制器导入之前，确保父菜单先注册）
     from app.rbac.menus import register_directory_menus
     register_directory_menus()
 
-    # 注册平台管理后台路由 (/admin/*)
+    # Register platform admin routes (/admin/*) / 注册平台管理后台路由 (/admin/*)
     from app.api.admin import admin_router
     app.include_router(admin_router, prefix="/admin")
 
-    # 注册插件 API 分发器
+    # Register plugin API dispatcher / 注册插件 API 分发器
     from app.plugins.api_dispatcher import (
         plugin_api_router,
         plugin_public_api_router,
@@ -659,24 +698,26 @@ def create_application() -> FastAPI:
     app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/*
     app.include_router(plugin_public_api_router, prefix="/api/public")  # /api/public/plugins/{name}/api/*
 
+    # Register plugin Webhook dispatcher (/webhooks/plugins/{name}/{path}) — bypasses auth middleware
     # 注册插件 Webhook 分发器 (/webhooks/plugins/{name}/{path}) — 不走认证中间件
     from app.plugins.webhook_dispatcher import webhook_router
     app.include_router(webhook_router)
 
-    # 注册租户管理后台路由 (/tenant/*)
+    # Register tenant admin routes (/tenant/*) / 注册租户管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
     app.include_router(tenant_router, prefix="/tenant")
 
-    # 注册用户端 API 路由 (/api/user/*)
+    # Register user API routes (/api/user/*) / 注册用户端 API 路由 (/api/user/*)
     from app.api.user import user_router
     app.include_router(user_router, prefix="/api/user")
 
+    # Register public API routes (/api/public/*) - no auth required, for tenant login page config
     # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
 
     # ========================================
-    # 挂载插件前端静态资源目录
+    # Mount plugin frontend static assets directory / 挂载插件前端静态资源目录
     # ========================================
     from pathlib import Path as _Path
     from pathlib import PurePosixPath
@@ -696,9 +737,11 @@ def create_application() -> FastAPI:
         request: Request,
     ):
         """
+        Plugin frontend static asset service
         插件前端静态资源服务
 
         URL: /plugin-assets/{plugin_name}/{file_path}
+        Filesystem: plugins/{plugin_name}/frontend/dist/{file_path}
         文件系统: plugins/{plugin_name}/frontend/dist/{file_path}
         """
         import mimetypes as _mimetypes
@@ -710,6 +753,7 @@ def create_application() -> FastAPI:
         from app.models.system.plugin import Plugin as _Plugin
         from app.plugins.asset_resolver import resolve_plugin_asset_file
 
+        # Icon files (top-level icon.*) allow access in any status; other assets only for enabled plugins
         # 图标文件（顶层 icon.*）允许任何状态访问；其他资源仅允许已启用插件
         _icon_exts = frozenset({".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"})
         _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
@@ -741,6 +785,7 @@ def create_application() -> FastAPI:
         cache_header = "no-cache" if settings.DEBUG else "public, max-age=3600"
 
         if request.method == "HEAD":
+            # HEAD returns metadata only, avoiding unnecessary reading of large file contents
             # HEAD 仅返回元信息，避免无意义读取大文件内容
             file_size = asset_file.stat().st_size
             return FastAPIResponse(
@@ -760,15 +805,18 @@ def create_application() -> FastAPI:
         )
 
     # ========================================
-    # 挂载本地存储静态文件目录
+    # Mount local storage static files directory / 挂载本地存储静态文件目录
     # ========================================
     from app.storage import LOCAL_STORAGE_ROOT
 
-    # 确保存储目录存在
+    # Ensure storage directory exists / 确保存储目录存在
     LOCAL_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 
+    # Mount static files directory
     # 挂载静态文件目录
+    # URL path: /files/platform/2026/01/25/xxx.png
     # URL 路径: /files/platform/2026/01/25/xxx.png
+    # Filesystem path: backend/storage/uploads/platform/2026/01/25/xxx.png
     # 文件系统路径: backend/storage/uploads/platform/2026/01/25/xxx.png
     app.mount(
         "/files",
@@ -777,7 +825,7 @@ def create_application() -> FastAPI:
     )
 
     # ========================================
-    # Socket.IO 集成
+    # Socket.IO Integration / Socket.IO 集成
     # ========================================
     import socketio as _socketio
 
@@ -786,6 +834,7 @@ def create_application() -> FastAPI:
 
     register_namespaces(sio)
 
+    # Wrap FastAPI with ASGIApp, Socket.IO path is /sio
     # 用 ASGIApp 包装 FastAPI，Socket.IO 路径为 /sio
     sio_app = _socketio.ASGIApp(
         sio,
@@ -796,7 +845,7 @@ def create_application() -> FastAPI:
     return sio_app
 
 
-# 创建应用实例
+# Create application instance / 创建应用实例
 app = create_application()
 
 

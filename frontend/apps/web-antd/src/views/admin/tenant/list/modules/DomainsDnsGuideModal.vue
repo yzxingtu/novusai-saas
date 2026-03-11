@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 /**
+ * DNS config guide modal
  * DNS 配置引导弹窗
+ * Step-by-step guide for configuring DNS records, then initiate verification
  * 分步引导用户配置 DNS 记录，最后发起验证
  */
 import type { DnsGuideData } from './domains-types';
@@ -32,7 +34,7 @@ const emits = defineEmits<{
 // 开发环境检测 / Dev mode detection (Vite built-in)
 const isDev = import.meta.env.DEV;
 
-// 状态
+// State / 状态
 const guideData = ref<DnsGuideData | null>(null);
 const currentStep = ref(0);
 const verifying = ref(false);
@@ -55,7 +57,7 @@ const [Modal, modalApi] = useVbenModal({
   footer: false,
 });
 
-/** 复制文本 */
+/** Copy text / 复制文本 */
 function onCopy(text?: string) {
   if (text) {
     copyToClipboard(text);
@@ -63,21 +65,21 @@ function onCopy(text?: string) {
   }
 }
 
-/** 下一步 */
+/** Next step / 下一步 */
 function onNext() {
   if (currentStep.value < 2) {
     currentStep.value++;
   }
 }
 
-/** 上一步 */
+/** Previous step / 上一步 */
 function onPrev() {
   if (currentStep.value > 0) {
     currentStep.value--;
   }
 }
 
-/** 发起验证 */
+/** Initiate verification / 发起验证 */
 async function onVerify() {
   if (!guideData.value?.tenantId || !guideData.value?.domainId) {
     modalApi.close();
@@ -103,7 +105,7 @@ async function onVerify() {
   }
 }
 
-/** 打开弹窗 */
+/** Open modal / 打开弹窗 */
 function open(data: DnsGuideData) {
   modalApi.setData(data).open();
 }
@@ -111,18 +113,22 @@ function open(data: DnsGuideData) {
 defineExpose({ open });
 
 /**
+ * Get DNS host record
  * 获取 DNS 主机记录
+ * Rules:
  * 规范判断：
+ * - Second-level domain (e.g. example.com) returns @
  * - 二级域名（如 example.com）返回 @
+ * - Third-level+ domain (e.g. www.example.com) returns first part
  * - 三级及以上域名（如 www.example.com）返回第一部分
  */
 function getDnsHostRecord(domain: string): string {
   const parts = domain.split('.');
   if (parts.length >= 3) {
-    // 三级及以上域名，返回子域名部分
+    // Third-level+ domain, return subdomain part / 三级及以上域名，返回子域名部分
     return parts[0] || '';
   }
-  // 二级域名，返回 @
+  // Second-level domain, return @ / 二级域名，返回 @
   return '@';
 }
 </script>

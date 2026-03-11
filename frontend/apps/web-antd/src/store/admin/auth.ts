@@ -1,6 +1,9 @@
 /**
+ * Admin authentication store
  * 平台管理端认证 Store
- * 专用于平台管理员的登录、登出、用户信息管理
+ *
+ * Handles admin login, logout, and user info management.
+ * 专用于平台管理员的登录、登出、用户信息管理。
  */
 import type { Recordable, UserInfo } from '@vben/types';
 
@@ -31,9 +34,9 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
   const adminInfo = ref<AdminUserInfo | null>(null);
 
   /**
-   * 平台管理员登录
-   * @param params 登录参数
-   * @param onSuccess 登录成功回调
+   * Admin login / 平台管理员登录
+   * @param params Login parameters / 登录参数
+   * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
     params: Recordable<any>,
@@ -50,22 +53,22 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
       });
 
       if (accessToken) {
-        // 存储Token到admin端专用存储
+        // Store token in admin-specific storage / 存储Token到admin端专用存储
         TokenStorage.setToken(EndpointType.ADMIN, accessToken);
         if (refreshToken) {
           TokenStorage.setRefreshToken(EndpointType.ADMIN, refreshToken);
         }
 
-        // 同时设置到accessStore（兼容vben框架）
+        // Also set in accessStore (Vben framework compatibility) / 同时设置到accessStore
         accessStore.setAccessToken(accessToken);
         if (refreshToken) {
           accessStore.setRefreshToken(refreshToken);
         }
 
-        // 获取用户信息
+        // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo();
 
-        // 转换为vben UserInfo格式
+        // Convert to Vben UserInfo format / 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: userInfo?.isSuperAdmin
@@ -98,7 +101,7 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
         }
       }
     } catch {
-      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
+      // Error handled by axios interceptor; catch here to prevent bubbling / 错误已由拦截器处理
     } finally {
       loginLoading.value = false;
     }
@@ -107,20 +110,20 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
   }
 
   /**
-   * 平台管理员登出
-   * @param redirect 是否重定向到登录页
+   * Admin logout / 平台管理员登出
+   * @param redirect Whether to redirect to login page / 是否重定向到登录页
    */
   async function logout(redirect: boolean = true) {
     try {
       await adminApi.adminLogoutApi();
     } catch {
-      // 忽略错误
+      // Ignore errors / 忽略错误
     }
 
-    // 仅清除admin端Token
+    // Clear admin-side token only / 仅清除admin端Token
     TokenStorage.clearToken(EndpointType.ADMIN);
 
-    // 清除accessStore
+    // Clear accessStore / 清除accessStore
     accessStore.setAccessToken(null);
     accessStore.setRefreshToken(null);
     accessStore.setLoginExpired(false);
@@ -139,8 +142,9 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
   }
 
   /**
-   * 获取平台管理员信息
-   * 注意：权限码从菜单接口获取，不在此处设置
+   * Fetch admin user info / 获取平台管理员信息
+   * Note: permission codes are fetched from menu API, not set here.
+   * 注意：权限码从菜单接口获取，不在此处设置。
    */
   async function fetchUserInfo() {
     const info = await adminApi.getAdminInfoApi();
@@ -149,14 +153,14 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
   }
 
   /**
-   * 检查是否已认证
+   * Check if authenticated / 检查是否已认证
    */
   function isAuthenticated(): boolean {
     return TokenStorage.hasToken(EndpointType.ADMIN);
   }
 
   /**
-   * 获取当前Token
+   * Get current token / 获取当前Token
    */
   function getToken(): null | string {
     return TokenStorage.getToken(EndpointType.ADMIN);

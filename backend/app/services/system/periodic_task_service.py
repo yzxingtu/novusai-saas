@@ -1,7 +1,8 @@
 """
-定时任务服务
+定时任务服务 / Periodic Task Service
 
 提供定时任务的 CRUD 和管理业务逻辑
+Provides periodic task CRUD and management business logic.
 """
 
 from datetime import datetime, timedelta

@@ -1,17 +1,17 @@
 import type { PeriodicTaskInfo } from '#/api/shared/periodic-task-types';
 /**
- * 定时任务 API（租户端）
- * 对接后端 /tenant/periodic-tasks/* 接口
+ * Periodic task API (tenant side) / 定时任务 API（租户端）
+ * Backend: /tenant/periodic-tasks/* / 对接后端 /tenant/periodic-tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（从 shared 导入）
+// Type definitions (imported from shared) / 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -21,7 +21,7 @@ export type {
   PeriodicTaskListResponse,
 } from '#/api/shared/periodic-task-types';
 
-/** 后端原始格式（内部使用） */
+/** Backend raw format (internal use) / 后端原始格式（内部使用） */
 interface PeriodicTaskInfoRaw {
   id: number;
   name: string;
@@ -71,7 +71,7 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/tenant/periodic-tasks';

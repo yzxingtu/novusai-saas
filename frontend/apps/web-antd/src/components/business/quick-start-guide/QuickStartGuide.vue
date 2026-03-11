@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Quick Start Guide Component (shared)
  * 快速入门引导组件（共享）
  *
+ * Shown on first visit, can be dismissed and reopened via button.
  * 首次访问时显示，可关闭并通过按钮重新打开。
+ * Injects step data, localStorage key and i18n prefix via props, adapts to admin/tenant.
  * 通过 props 注入步骤数据、localStorage key 和 i18n 前缀，适配 admin/tenant 两端。
  */
 import { onMounted, ref } from 'vue';
@@ -20,11 +23,11 @@ export interface GuideStep {
 }
 
 const props = defineProps<{
-  /** i18n 前缀，如 'admin.ai' 或 'tenant.ai' */
+  /** i18n prefix, e.g. 'admin.ai' or 'tenant.ai' / i18n 前缀，如 'admin.ai' 或 'tenant.ai' */
   i18nPrefix: string;
-  /** 引导步骤列表 */
+  /** Guide step list / 引导步骤列表 */
   steps: GuideStep[];
-  /** localStorage 持久化 key */
+  /** localStorage persistence key / localStorage 持久化 key */
   storageKey: string;
 }>();
 
@@ -64,18 +67,18 @@ defineExpose({ showGuide });
 </script>
 
 <template>
-  <!-- 引导卡片 -->
+  <!-- Guide card / 引导卡片 -->
   <div
     v-if="visible"
     class="relative rounded-xl border border-border/40 bg-card shadow-sm"
   >
-    <!-- 顶部渐变条 -->
+    <!-- Top gradient bar / 顶部渐变条 -->
     <div
       class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-primary/60 to-transparent"
     ></div>
 
     <div class="flex items-center gap-4 px-4 py-3">
-      <!-- 左侧：标题区 -->
+      <!-- Left: title area / 左侧：标题区 -->
       <div class="flex shrink-0 items-center gap-2.5">
         <div
           class="flex size-8 items-center justify-center rounded-lg bg-primary/10"
@@ -92,13 +95,13 @@ defineExpose({ showGuide });
         </div>
       </div>
 
-      <!-- 分隔线 -->
+      <!-- Divider / 分隔线 -->
       <div class="hidden h-8 w-px bg-border/60 lg:block"></div>
 
-      <!-- 中间：步骤流程 -->
+      <!-- Center: step flow / 中间：步骤流程 -->
       <div class="flex min-w-0 flex-1 items-center gap-1">
         <template v-for="(step, idx) in steps" :key="step.key">
-          <!-- 连接线 -->
+          <!-- Connector line / 连接线 -->
           <div
             v-if="idx > 0"
             class="hidden h-px w-4 shrink-0 bg-border/60 lg:block xl:w-6"
@@ -151,7 +154,7 @@ defineExpose({ showGuide });
         </template>
       </div>
 
-      <!-- 右侧：时间 + 关闭 -->
+      <!-- Right: time + close / 右侧：时间 + 关闭 -->
       <div class="flex shrink-0 items-center gap-1.5">
         <span
           class="hidden items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-0.5 text-[10px] font-medium text-primary xl:inline-flex"
@@ -169,7 +172,7 @@ defineExpose({ showGuide });
     </div>
   </div>
 
-  <!-- 已关闭时显示重新打开按钮 -->
+  <!-- Show reopen button when dismissed / 已关闭时显示重新打开按钮 -->
   <div v-else-if="dismissed" class="flex justify-end">
     <button
       class="flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/15 hover:bg-primary/5 hover:text-primary"

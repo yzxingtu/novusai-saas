@@ -1,6 +1,11 @@
 /**
+ * Tabbar sessionStorage self-healing utility
  * Tabbar sessionStorage 自愈工具
  *
+ * Goals:
+ * 1) Clean up legacy error keys (e.g., core-tabbar)
+ * 2) Limit persisted tabs count to prevent state bloat from long-running tabs
+ * 3) Deduplicate tabs caused by query differences (default dedup by path)
  * 目标：
  * 1) 清理历史错误 key（如 core-tabbar）
  * 2) 限制持久化 tabs 数量，避免单标签页长期运行后状态膨胀
@@ -106,6 +111,7 @@ function sanitizeTabs(
 }
 
 /**
+ * Clear all tabbar persisted caches under the current tab
  * 清理当前标签页下所有 tabbar 持久化缓存
  */
 export function clearPersistedTabbarStorage(namespace?: string): void {
@@ -116,6 +122,7 @@ export function clearPersistedTabbarStorage(namespace?: string): void {
 }
 
 /**
+ * Execute at startup: fix abnormally bloated/duplicate tab persisted data
  * 启动阶段执行：修复异常膨胀/重复 tab 的持久化数据
  */
 export function sanitizePersistedTabbarStorage(namespace?: string): void {

@@ -1,7 +1,7 @@
 """
-技能包导入/导出工具
+技能包导入/导出工具 / Skill Package Import/Export Utilities
 
-导出格式 (v1):
+导出格式 / Export format (v1):
 {
     "export_version": 1,
     "package_info": { name, description, avatar, scope, ... },
@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
@@ -29,7 +28,7 @@ logger = LogManager.get_logger("ai")
 
 EXPORT_VERSION = 1
 
-# 导出时技能字段白名单（排除运行时/ID/时间戳等）
+# 导出时技能字段白名单（排除运行时/ID/时间戳等） / Skill export field whitelist (excludes runtime/ID/timestamp fields)
 _SKILL_EXPORT_FIELDS = [
     "name",
     "description",
@@ -46,12 +45,11 @@ _SKILL_EXPORT_FIELDS = [
     "timeout",
 ]
 
-# 导出时技能包字段白名单
+# 导出时技能包字段白名单 / Package export field whitelist
 _PACKAGE_EXPORT_FIELDS = [
     "name",
     "description",
     "avatar",
-    "scope",
     "target_audience",
     "is_recommended",
     "is_system",
@@ -66,16 +64,16 @@ async def export_skill_package(
     pkg: SkillPackage,
 ) -> dict[str, Any]:
     """
-    导出技能包为 JSON 格式
+    导出技能包为 JSON 格式 / Export skill package to JSON format
 
     Args:
-        db: 数据库会话
-        pkg: 技能包模型实例
+        db: 数据库会话 / Database session
+        pkg: 技能包模型实例 / SkillPackage model instance
 
     Returns:
-        导出数据字典
+        导出数据字典 / Export data dictionary
     """
-    # 查询包内所有技能
+    # 查询包内所有技能 / Query all skills in package
     result = await db.execute(
         select(Skill).where(
             Skill.package_id == pkg.id,
@@ -84,12 +82,12 @@ async def export_skill_package(
     )
     skills = result.scalars().all()
 
-    # 构建技能包信息
+    # 构建技能包信息 / Build package info
     package_info: dict[str, Any] = {}
     for field in _PACKAGE_EXPORT_FIELDS:
         package_info[field] = getattr(pkg, field, None)
 
-    # 构建技能列表
+    # 构建技能列表 / Build skills list
     skills_data: list[dict[str, Any]] = []
     for skill in skills:
         skill_data: dict[str, Any] = {}
@@ -111,22 +109,20 @@ async def import_skill_package(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    从导出 JSON 导入技能包
+    从导出 JSON 导入技能包 / Import skill package from exported JSON
 
     Args:
-        db: 数据库会话
-        data: 导入数据（包含 export_data + 导入选项）
+        db: 数据库会话 / Database session
+        data: 导入数据（包含 export_data + 导入选项） / Import data (contains export_data + import options)
 
     Returns:
-        导入结果摘要
+        导入结果摘要 / Import result summary
     """
-    # 提取导入选项
     export_data = data.get("export_data", data)
-    conflict_mode = data.get("conflict_mode", "rename")  # skip / rename
-    target_scope = data.get("target_scope", "admin_only")
+    conflict_mode = data.get("conflict_mode", "rename")
     target_tenant_id = data.get("target_tenant_id")
 
-    # 校验格式
+    # 校验格式 / Validate format
     version = export_data.get("export_version")
     if version != EXPORT_VERSION:
         raise BusinessException(
@@ -143,20 +139,13 @@ async def import_skill_package(
 
     pkg_name = package_info["name"]
 
-    # 检查同名技能包（按 scope + tenant_id 隔离，避免跨租户干扰）
     name_conditions = [
         SkillPackage.name == pkg_name,
-        SkillPackage.scope == target_scope,
         SkillPackage.is_deleted.is_(False),
     ]
-    if target_scope == ResourceScopeEnum.ALL_TENANTS.value and target_tenant_id is not None:
+    if target_tenant_id is not None:
         name_conditions.append(SkillPackage.tenant_id == target_tenant_id)
-    elif target_scope in (
-        ResourceScopeEnum.ADMIN_ONLY.value,
-        ResourceScopeEnum.ADMIN_AND_ALL.value,
-        ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-        ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ):
+    else:
         name_conditions.append(SkillPackage.tenant_id.is_(None))
 
     existing = await db.execute(
@@ -173,7 +162,7 @@ async def import_skill_package(
                 "skills_created": 0,
             }
         elif conflict_mode == "rename":
-            # 自动追加时间戳后缀
+            # 自动追加时间戳后缀 / Auto-append timestamp suffix
             suffix = utc_now().strftime("%Y%m%d%H%M%S")
             pkg_name = f"{pkg_name}_{suffix}"
         else:
@@ -181,12 +170,12 @@ async def import_skill_package(
                 message=_("skill_package.error.name_exists"),
             )
 
-    # 创建技能包
-    # 租户端导入时 target_audience 重置为 'all'（租户不能创建 admin_only 包）
+    # 创建技能包 / Create skill package
+    # 租户端导入时 target_audience 重置为 'all'（租户不能创建 admin_only 包） / Reset target_audience to 'all' for tenant import (tenants cannot create admin_only packages)
     from app.enums.common import AudienceEnum
     imported_target_audience = package_info.get("target_audience", AudienceEnum.ALL.value)
     if target_tenant_id is not None:
-        # 租户端操作：强制不能保留 admin_only
+        # 租户端操作：强制不能保留 admin_only / Tenant operation: force cannot retain admin_only
         if imported_target_audience == AudienceEnum.ADMIN_ONLY.value:
             imported_target_audience = AudienceEnum.ALL.value
 
@@ -194,11 +183,10 @@ async def import_skill_package(
         name=pkg_name,
         description=package_info.get("description"),
         avatar=package_info.get("avatar"),
-        scope=target_scope,
         target_audience=imported_target_audience,
         is_recommended=package_info.get("is_recommended", False),
         tenant_id=target_tenant_id,
-        is_system=False,  # 导入的不标记为系统
+        is_system=False,  # 导入的不标记为系统 / Imported packages are not marked as system
         is_active=package_info.get("is_active", True),
         sort_order=package_info.get("sort_order", 0),
         source_plugin=package_info.get("source_plugin"),
@@ -207,7 +195,7 @@ async def import_skill_package(
     db.add(new_pkg)
     await db.flush()  # 获取 new_pkg.id
 
-    # 创建技能
+    # 创建技能 / Create skills
     from app.enums.agent import SkillTypeEnum
     valid_skill_types = SkillTypeEnum.values()
 

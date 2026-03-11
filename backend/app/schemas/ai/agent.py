@@ -1,7 +1,8 @@
 """
-智能体相关 Schema
+智能体相关 Schema / Agent Schema
 
 定义智能体的请求和响应数据结构
+Defines agent request and response data structures.
 """
 
 from pydantic import BaseModel, Field, field_validator

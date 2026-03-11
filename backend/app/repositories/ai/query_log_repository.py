@@ -1,7 +1,8 @@
 """
-AI 数据查询审计日志 Repository
+AI 数据查询审计日志 Repository / AI Query Log Repository
 
 提供 AI 数据查询日志的存储和查询功能
+Provides AI data query log storage and query functions.
 """
 
 from sqlalchemy import case, func, select

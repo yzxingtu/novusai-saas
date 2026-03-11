@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 /**
+ * AI model create/edit form drawer
  * AI 模型新建/编辑表单抽屉
  *
+ * After selecting provider, auto-fetches remote model list; selection auto-fills name and code
  * 选择供应商后自动拉取远程模型列表，选择后自动填充 name 和 code
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -29,7 +31,7 @@ const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-/** 供应商变更回调 */
+/** Provider change callback / 供应商变更回调 */
 function onProviderChange(providerId: number) {
   currentProviderId.value = providerId;
 }
@@ -93,7 +95,7 @@ const title = computed(() =>
   isEdit.value ? $t('admin.common.edit') : $t('admin.ai.model.create'),
 );
 
-// ==================== 远程模型自动拉取 ====================
+// ==================== Remote model auto-fetch / 远程模型自动拉取 ====================
 
 const remoteModels = ref<RemoteModelInfo[]>([]);
 const remoteLoading = ref(false);
@@ -126,27 +128,27 @@ async function fetchRemoteByProvider(providerId: number) {
     const models = await fetchRemoteModelsApi(providerId);
     remoteModels.value = models;
 
-    // 自动选中第一个远程模型并填充表单
+    // Auto-select first remote model and fill form / 自动选中第一个远程模型并填充表单
     if (models.length > 0) {
       const first = models[0]!;
       selectedRemoteModel.value = first.id;
       onRemoteModelSelect(first.id);
     }
   } catch {
-    // 拉取失败静默处理，用户仍可手动填写
+    // Silently handle fetch failure, user can still fill manually / 拉取失败静默处理，用户仍可手动填写
   } finally {
     remoteLoading.value = false;
   }
 }
 
-// 监听 currentProviderId 变化
+// Watch currentProviderId changes / 监听 currentProviderId 变化
 watch(currentProviderId, (newId) => {
   if (newId && !isEdit.value) {
     fetchRemoteByProvider(newId);
   }
 });
 
-/** 选择远程模型后自动填充 */
+/** Auto-fill after selecting remote model / 选择远程模型后自动填充 */
 function onRemoteModelSelect(modelId: unknown) {
   if (!modelId || typeof modelId !== 'string') return;
   formApi.setValues({

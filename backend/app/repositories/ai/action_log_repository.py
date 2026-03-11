@@ -1,7 +1,8 @@
 """
-AI 操作审计日志 Repository
+AI 操作审计日志 Repository / AI Action Log Repository
 
 提供 AI 操作审计日志的查询和统计功能
+Provides AI action audit log query and statistics functions.
 """
 
 from sqlalchemy import case, func, select

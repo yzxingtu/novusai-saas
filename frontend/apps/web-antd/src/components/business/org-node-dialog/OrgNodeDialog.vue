@@ -52,21 +52,21 @@ import {
 
 const props = withDefaults(
   defineProps<{
-    /** API 前缀 */
+    /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** 编辑时的初始数据 */
+    /** Initial data for edit mode / 编辑时的初始数据 */
     initialData?: Partial<OrgNodeFormData>;
-    /** 弹窗模式：创建/编辑 */
+    /** Dialog mode: create/edit / 弹窗模式 */
     mode?: 'create' | 'edit';
-    /** 编辑的节点 ID */
+    /** Node ID being edited / 编辑的节点 ID */
     nodeId?: null | number;
-    /** 是否显示弹窗 */
+    /** Whether to show dialog / 是否显示弹窗 */
     open?: boolean;
-    /** 父节点 ID（创建时使用） */
+    /** Parent node ID (used when creating) / 父节点 ID */
     parentId?: null | number;
-    /** 父节点名称（显示用） */
+    /** Parent node name (for display) / 父节点名称 */
     parentName?: string;
-    /** 父节点类型（用于限制子节点类型） */
+    /** Parent node type (for restricting child node types) / 父节点类型 */
     parentType?: null | OrgNodeType;
   }>(),
   {
@@ -87,16 +87,16 @@ const emit = defineEmits<{
   (e: 'update:open', value: boolean): void;
 }>();
 
-// 表单引用
+// Form ref / 表单引用
 const formRef = ref<FormInstance>();
 
-// 状态
+// State / 状态
 const loading = ref(false);
 const submitting = ref(false);
 const permissionLoading = ref(false);
 const permissionTree = ref<PermissionNode[]>([]);
 
-// 表单数据
+// Form data / 表单数据
 const formData = ref<OrgNodeFormData>({
   name: '',
   description: '',
@@ -107,7 +107,7 @@ const formData = ref<OrgNodeFormData>({
   permissionIds: [],
 });
 
-// 根据 apiPrefix 选择 API
+// Select API based on apiPrefix / 根据 apiPrefix 选择 API
 const api = computed(() => {
   if (props.apiPrefix === 'tenant') {
     return {
@@ -125,7 +125,7 @@ const api = computed(() => {
   };
 });
 
-/** 弹窗标题 */
+/** Dialog title / 弹窗标题 */
 const dialogTitle = computed(() => {
   if (props.mode === 'edit') {
     return $t('shared.orgNode.editNode');
@@ -136,24 +136,24 @@ const dialogTitle = computed(() => {
   return $t('shared.orgNode.createRootNode');
 });
 
-/** 允许的子节点类型 */
+/** Allowed child node types / 允许的子节点类型 */
 const allowedTypes = computed(() => {
   return props.mode === 'edit'
-    ? [formData.value.type] // 编辑模式不允许更改类型
+    ? [formData.value.type] // Edit mode doesn't allow type change / 编辑模式不允许更改类型
     : getAllowedChildTypes(props.parentType);
 });
 
-/** 节点类型选项 */
+/** Node type options / 节点类型选项 */
 const typeOptions = computed(() => {
   return getNodeTypeOptions(allowedTypes.value);
 });
 
-/** 是否可以创建子节点 */
+/** Whether can create child node / 是否可以创建子节点 */
 const canCreateChild = computed(() => {
   return allowedTypes.value.length > 0;
 });
 
-/** 加载权限树 */
+/** Load permission tree / 加载权限树 */
 async function loadPermissionTree() {
   permissionLoading.value = true;
   try {
@@ -166,7 +166,7 @@ async function loadPermissionTree() {
   }
 }
 
-/** 加载节点详情（编辑模式） */
+/** Load node detail (edit mode) / 加载节点详情 */
 async function loadNodeDetail() {
   if (!props.nodeId) return;
 
@@ -189,7 +189,7 @@ async function loadNodeDetail() {
   }
 }
 
-/** 重置表单 */
+/** Reset form / 重置表单 */
 function resetForm() {
   formData.value = {
     name: '',
@@ -203,19 +203,19 @@ function resetForm() {
   formRef.value?.resetFields();
 }
 
-/** 处理类型变更 */
+/** Handle type change / 处理类型变更 */
 function handleTypeChange(type: OrgNodeType) {
-  // 自动更新 allowMembers 默认值
+  // Auto-update allowMembers default / 自动更新 allowMembers 默认值
   formData.value.allowMembers = getDefaultAllowMembers(type);
 }
 
-/** 关闭弹窗 */
+/** Close dialog / 关闭弹窗 */
 function handleClose() {
   emit('update:open', false);
   emit('cancel');
 }
 
-/** 提交表单 */
+/** Submit form / 提交表单 */
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
@@ -253,19 +253,19 @@ async function handleSubmit() {
   }
 }
 
-// 监听弹窗打开
+// Watch dialog open / 监听弹窗打开
 watch(
   () => props.open,
   (open) => {
     if (open) {
-      // 加载权限树
+      // Load permission tree / 加载权限树
       loadPermissionTree();
 
       if (props.mode === 'edit' && props.nodeId) {
-        // 编辑模式加载详情
+        // Edit mode: load detail / 编辑模式加载详情
         loadNodeDetail();
       } else if (props.initialData) {
-        // 使用初始数据
+        // Use initial data / 使用初始数据
         formData.value = {
           name: props.initialData.name || '',
           description: props.initialData.description || '',
@@ -278,7 +278,7 @@ watch(
           permissionIds: props.initialData.permissionIds || [],
         };
       } else {
-        // 重置表单
+        // Reset form / 重置表单
         resetForm();
       }
     }
@@ -298,7 +298,7 @@ watch(
     @cancel="handleClose"
     @ok="handleSubmit"
   >
-    <!-- 不允许创建子节点提示 -->
+    <!-- Cannot create child node hint / 不允许创建子节点提示 -->
     <Alert
       v-if="mode === 'create' && !canCreateChild"
       :message="$t('shared.orgNode.cannotCreateChild')"
@@ -316,7 +316,7 @@ watch(
         layout="vertical"
         :disabled="mode === 'create' && !canCreateChild"
       >
-        <!-- 节点类型选择 -->
+        <!-- Node type selection / 节点类型选择 -->
         <FormItem :label="$t('shared.orgNode.nodeType')" name="type" required>
           <RadioGroup
             v-model:value="formData.type"
@@ -365,7 +365,7 @@ watch(
           </RadioGroup>
         </FormItem>
 
-        <!-- 名称 -->
+        <!-- Name / 名称 -->
         <FormItem :label="$t('shared.orgNode.name')" name="name" required>
           <Input
             v-model:value="formData.name"
@@ -375,7 +375,7 @@ watch(
           />
         </FormItem>
 
-        <!-- 描述 -->
+        <!-- Description / 描述 -->
         <FormItem :label="$t('shared.orgNode.description')" name="description">
           <Textarea
             v-model:value="formData.description"
@@ -386,9 +386,9 @@ watch(
           />
         </FormItem>
 
-        <!-- 设置行 -->
+        <!-- Settings row / 设置行 -->
         <div class="grid grid-cols-3 gap-4">
-          <!-- 是否允许成员 -->
+          <!-- Allow members / 是否允许成员 -->
           <FormItem
             :label="$t('shared.orgNode.allowMembers')"
             name="allowMembers"
@@ -396,12 +396,12 @@ watch(
             <Switch v-model:checked="formData.allowMembers" />
           </FormItem>
 
-          <!-- 状态 -->
+          <!-- Status / 状态 -->
           <FormItem :label="$t('shared.orgNode.isActive')" name="isActive">
             <Switch v-model:checked="formData.isActive" />
           </FormItem>
 
-          <!-- 排序 -->
+          <!-- Sort order / 排序 -->
           <FormItem :label="$t('shared.orgNode.sortOrder')" name="sortOrder">
             <InputNumber
               v-model:value="formData.sortOrder"
@@ -412,7 +412,7 @@ watch(
           </FormItem>
         </div>
 
-        <!-- 权限分配 -->
+        <!-- Permission assignment / 权限分配 -->
         <Collapse class="mt-4" :bordered="false">
           <CollapsePanel
             key="permissions"

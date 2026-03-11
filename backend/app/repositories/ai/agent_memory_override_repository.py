@@ -1,5 +1,5 @@
 """
-智能体记忆开关租户覆盖 Repository
+智能体记忆开关覆盖 Repository / Agent Memory Override Repository
 """
 
 from sqlalchemy import and_, select

@@ -20,7 +20,7 @@ const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
 
-// 当前租户 ID
+// Current tenant ID / 当前租户 ID
 const tenantId = ref<number>();
 
 /** 表单 Schema */
@@ -80,7 +80,7 @@ async function onSubmit() {
     drawerApi.close();
     emits('success', result as TenantDomainInfo);
   } catch {
-    // 错误由请求拦截器处理
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     drawerApi.setState({ loading: false, confirmLoading: false });
   }

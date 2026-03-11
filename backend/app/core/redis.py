@@ -1,7 +1,8 @@
 """
-Redis 服务管理模块
+Redis 服务管理模块 / Redis Service Management Module
 
 提供 Redis 连接池管理、全局客户端实例、缓存工具函数和依赖注入支持
+Provides Redis connection pool management, global client instance, cache utility functions and DI support.
 """
 
 import json
@@ -17,9 +18,10 @@ logger = LogManager.get_logger("app")
 
 class RedisManager:
     """
-    Redis 连接管理器
+    Redis 连接管理器 / Redis Connection Manager
 
     管理连接池的生命周期，提供全局 Redis 客户端实例
+    Manages connection pool lifecycle and provides global Redis client instance.
     """
 
     _pool: ConnectionPool | None = None
@@ -80,7 +82,7 @@ def get_redis_client() -> Redis:
 
 
 # ========================================
-# 缓存工具函数
+# 缓存工具函数 / Cache Utility Functions
 # ========================================
 
 async def cache_get(key: str) -> Any | None:

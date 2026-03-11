@@ -1,8 +1,9 @@
 /**
- * 在线状态 Store
+ * Presence store / 在线状态 Store
  *
+ * Manages user online status, supports HTTP initial load and Socket.IO real-time updates.
+ * Isolates state data by user type and tenant.
  * 管理用户在线状态数据，支持 HTTP 初始加载和 Socket.IO 实时更新。
- * 按用户类型和租户隔离状态数据。
  */
 
 import { reactive, ref } from 'vue';
@@ -13,12 +14,12 @@ import { requestClient } from '#/utils/request';
 
 import { useSocketIOStore } from './socketio';
 
-/** 在线状态详情 */
+/** Presence detail / 在线状态详情 */
 interface PresenceDetail {
   connections: number;
 }
 
-/** HTTP API 响应格式 */
+/** HTTP API response format / HTTP API 响应格式 */
 interface PresenceResponse {
   online_ids: number[];
   total_online: number;
@@ -28,25 +29,25 @@ interface PresenceResponse {
 
 export const usePresenceStore = defineStore('presence', () => {
   // ============================================================
-  // 状态
+  // State / 状态
   // ============================================================
 
-  /** 平台管理员在线 ID 集合 */
+  /** Admin online ID set / 平台管理员在线 ID 集合 */
   const adminOnlineIds = reactive(new Set<number>());
 
-  /** 当前租户管理员在线 ID 集合 */
+  /** Current tenant admin online ID set / 当前租户管理员在线 ID 集合 */
   const tenantAdminOnlineIds = reactive(new Set<number>());
 
-  /** 当前租户业务用户在线 ID 集合 */
+  /** Current tenant user online ID set / 当前租户业务用户在线 ID 集合 */
   const tenantUserOnlineIds = reactive(new Set<number>());
 
-  /** 指定租户的管理员在线（管理端查看租户详情时） */
+  /** Tenant admin online map (when admin views tenant detail) / 指定租户的管理员在线 */
   const tenantPresenceMap = reactive(new Map<number, Set<number>>());
 
-  /** 是否已初始化 */
+  /** Whether initialized / 是否已初始化 */
   const initialized = ref(false);
 
-  /** 固定 handler 引用，确保可对称 unregister */
+  /** Fixed handler reference for symmetric unregister / 固定 handler 引用 */
   const handlePresenceOnline = (data: unknown) => {
     const { user_id, user_type, tenant_id } = data as {
       tenant_id?: number;
@@ -125,7 +126,7 @@ export const usePresenceStore = defineStore('presence', () => {
     const { online_ids } = data as { online_ids: number[] };
     if (!online_ids) return;
 
-    // 根据当前 namespace 判断更新哪个集合
+    // Determine which set to update based on current namespace / 根据当前 namespace 判断
     const endpoint = useSocketIOStore().currentEndpoint;
     if (endpoint === 'admin') {
       adminOnlineIds.clear();
@@ -146,11 +147,11 @@ export const usePresenceStore = defineStore('presence', () => {
   };
 
   // ============================================================
-  // 查询方法
+  // Query methods / 查询方法
   // ============================================================
 
   /**
-   * 判断用户是否在线
+   * Check if user is online / 判断用户是否在线
    */
   function isOnline(
     userType: string,
@@ -174,10 +175,10 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 获取在线人数
+   * Get online count / 获取在线人数
    *
-   * @param userType - 用户类型
-   * @param ids - 可选，只统计这些 ID 中在线的数量
+   * @param userType - User type / 用户类型
+   * @param ids - Optional, count only online users among these IDs / 可选，只统计这些 ID
    */
   function getOnlineCount(userType: string, ids?: number[]): number {
     let onlineSet: Set<number>;
@@ -193,7 +194,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 获取指定租户的在线管理员 ID 列表
+   * Get online admin IDs for specified tenant / 获取指定租户的在线管理员 ID 列表
    */
   function getTenantOnlineIds(tenantId: number): number[] {
     const ids = tenantPresenceMap.get(tenantId);
@@ -201,11 +202,11 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   // ============================================================
-  // HTTP 加载
+  // HTTP loading / HTTP 加载
   // ============================================================
 
   /**
-   * 加载平台管理员在线状态
+   * Load admin presence / 加载平台管理员在线状态
    */
   async function loadAdminPresence(): Promise<void> {
     try {
@@ -223,7 +224,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 加载指定租户的管理员在线状态
+   * Load tenant admin presence / 加载指定租户的管理员在线状态
    */
   async function loadTenantPresence(tenantId: number): Promise<void> {
     try {
@@ -243,7 +244,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 加载当前租户管理员在线状态（租户端使用）
+   * Load current tenant admin presence (tenant-side) / 加载当前租户管理员在线状态
    */
   async function loadCurrentTenantPresence(): Promise<void> {
     try {
@@ -262,7 +263,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 加载当前租户业务用户在线状态（租户端使用）
+   * Load tenant user presence (tenant-side) / 加载当前租户业务用户在线状态
    */
   async function loadTenantUserPresence(): Promise<void> {
     try {
@@ -281,13 +282,13 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   // ============================================================
-  // Socket.IO 实时更新
+  // Socket.IO real-time updates / Socket.IO 实时更新
   // ============================================================
 
   /**
-   * 初始化 Socket.IO 事件监听
+   * Initialize Socket.IO event listeners / 初始化 Socket.IO 事件监听
    *
-   * 注册 presence:online / presence:offline / presence:list handler
+   * Registers presence:online / presence:offline / presence:list handlers.
    */
   function initSocketHandlers(): void {
     if (initialized.value) return;
@@ -336,7 +337,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   // ============================================================
-  // 重置
+  // Reset / 重置
   // ============================================================
 
   function $reset() {
@@ -362,7 +363,7 @@ export const usePresenceStore = defineStore('presence', () => {
       );
       sioStore.unregisterHandler('presence:list', handlePresenceList);
     } catch {
-      // 静默
+      // Silent / 静默
     }
     adminOnlineIds.clear();
     tenantAdminOnlineIds.clear();

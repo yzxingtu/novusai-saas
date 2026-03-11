@@ -1,14 +1,17 @@
 """
-插件启动：自动发现 + 恢复
+Plugin startup: auto-discovery + restoration.
+/ 插件启动：自动发现 + 恢复
 
-服务启动时：
-1. discover_and_register: 扫描 plugins/ 目录，自动注册新插件到 DB（status=installed）
-2. restore_enabled_plugins: 恢复已启用插件的扩展点注册 + 依赖补装
+At service startup:
+1. discover_and_register: scan plugins/ directory, auto-register new plugins to DB (status=installed)
+2. restore_enabled_plugins: restore extension point registration + dependency installation for enabled plugins
+/ 服务启动时：1. 扫描注册新插件 2. 恢复已启用插件
 
-设计原则：
-- 插件放到 plugins/ 目录下即视为已安装，无需手动上传
-- 默认禁用，管理员在面板中启用时才安装依赖（有进度推送）
-- 单个插件失败不影响其他插件
+Design principles:
+- Placing plugin in plugins/ directory is considered installed, no manual upload needed
+- Disabled by default, admin enables in panel which triggers dependency installation (with progress push)
+- Single plugin failure does not affect other plugins
+/ 设计原则：目录即安装、默认禁用、单插件失败不影响全局
 """
 
 from __future__ import annotations
@@ -26,12 +29,14 @@ logger = get_logger(__name__)
 
 async def discover_and_register(db: AsyncSession) -> dict:
     """
-    自动发现并注册插件（服务启动时调用，在 restore_enabled_plugins 之前）。
+    Auto-discover and register plugins (called at service startup, before restore_enabled_plugins).
+    / 自动发现并注册插件。
 
-    扫描 plugins/ 目录中所有含 plugin.yaml 的子目录：
-    - 磁盘有 + DB 无 → 自动注册为 installed（disabled），执行 Alembic 迁移 + AI features
-    - 磁盘有 + DB 有 → 同步 manifest 到 DB（热更新 plugin.yaml 字段）
-    - DB 有 + 磁盘无 → 标记为 error（文件缺失）
+    Scans all subdirectories containing plugin.yaml in plugins/ directory:
+    - On disk + not in DB → auto-register as installed (disabled), run Alembic migration + AI features
+    - On disk + in DB → sync manifest to DB (hot-update plugin.yaml fields)
+    - In DB + not on disk → mark as error (files missing)
+    / 磁盘有+DB无→注册，磁盘有+DB有→同步，DB有+磁盘无→标错
 
     Returns:
         {"discovered": N, "synced": N, "missing": N, "failed": N}
@@ -52,7 +57,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
     loader = PluginLoader()
     disk_plugins = set(loader.discover_plugins())
 
-    # 查询 DB 中所有已安装插件（未软删除）
+    # Query all installed plugins in DB (not soft-deleted) / 查询 DB 中所有已安装插件
     result = await db.execute(
         select(PluginModel).where(PluginModel.is_deleted.is_(False))
     )
@@ -63,7 +68,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
     missing = 0
     failed = 0
 
-    # ── 磁盘有 → 检查是否需要注册或同步 ──
+    # ── On disk → check if registration or sync needed / 磁盘有 → 检查注册或同步 ──
     for plugin_name in sorted(disk_plugins):
         try:
             manifest = loader.load_manifest(plugin_name)
@@ -75,9 +80,10 @@ async def discover_and_register(db: AsyncSession) -> dict:
             continue
 
         if plugin_name not in db_plugins:
-            # ── 新插件：自动注册 ──
+            # ── New plugin: auto-register / 新插件：自动注册 ──
             try:
-                # 安全扫描（警告级别，不阻止注册，记录到 error_message 供管理员查看）
+                # Security scan (warning level, doesn't block registration, recorded to error_message for admin review)
+                # / 安全扫描（警告级别）
                 security_warnings: list[str] = []
                 try:
                     from app.plugins.security_scan import scan_plugin_directory
@@ -122,7 +128,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 db.add(plugin)
                 await db.flush()
 
-                # 版本记录
+                # Version record / 版本记录
                 db.add(PluginVersion(
                     plugin_id=plugin.id,
                     version=manifest.version,
@@ -131,10 +137,11 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     installed_at=utc_now(),
                 ))
 
-                # Alembic 迁移（如果有）
-                # NOTE: 必须先 commit，因为 run_alembic_upgrade 在子进程中运行，
-                # 子进程通过 psycopg2 新连接查询 plugins 表来确定 version_locations。
-                # 如果只 flush 未 commit，子进程看不到插件记录，迁移目录不会被加载。
+                # Alembic migration (if any)
+                # NOTE: Must commit first because run_alembic_upgrade runs in subprocess,
+                # subprocess queries plugins table via psycopg2 new connection to determine version_locations.
+                # If only flushed without commit, subprocess cannot see plugin record, migration directory won't be loaded.
+                # / Alembic 迁移（必须先 commit）
                 migrations_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
                 if migrations_dir.is_dir():
                     try:
@@ -146,7 +153,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     except Exception as exc:
                         logger.warning("Discover: alembic failed for %s: %s", plugin_name, exc)
 
-                # AI features 注册（如果有）
+                # AI features registration (if any) / AI features 注册
                 if manifest.ai_requirements and manifest.ai_requirements.features:
                     from app.models.system.agent_assignment import SystemAgentAssignment
                     for feature in manifest.ai_requirements.features:
@@ -172,7 +179,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                                 is_active=True,
                             ))
 
-                # on_install 钩子（non-fatal）
+                # on_install hook (non-fatal) / on_install 钩子
                 try:
                     from app.plugins.context_factory import create_plugin_context
                     plugin_cls = loader.load_plugin_class(plugin_name)
@@ -199,7 +206,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     "Discover: failed to register %s: %s", plugin_name, exc, exc_info=True,
                 )
         else:
-            # ── 已存在：同步 manifest ──
+            # ── Already exists: sync manifest / 已存在：同步 manifest ──
             existing_plugin = db_plugins[plugin_name]
             disk_manifest = manifest.model_dump()
             if existing_plugin.manifest != disk_manifest:
@@ -217,7 +224,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 synced += 1
                 logger.info("Discover: synced manifest for %s", plugin_name)
 
-    # ── DB 有但磁盘无 → 标记 error ──
+    # ── In DB but not on disk → mark error / DB 有但磁盘无 → 标记 error ──
     for plugin_name, plugin in db_plugins.items():
         if plugin_name not in disk_plugins and plugin.status not in (PluginStatusEnum.ERROR.value,):
             plugin.status = PluginStatusEnum.ERROR.value
@@ -248,15 +255,14 @@ async def restore_enabled_plugins(
     mutate_db_status: bool = True,
 ) -> dict:
     """
-    服务启动时恢复所有已启用插件的扩展点注册。
+    Restore extension point registration for all enabled plugins at service startup.
+    / 服务启动时恢复所有已启用插件的扩展点注册。
 
-    流程：
-    1. 查询 status=enabled 的插件
-    2. 对每个插件：
-       a. 加载 manifest
-       b. 通过 ExtensionRegistry 注册扩展点（hooks/events/webhooks）
-       c. 记录成功
-    3. 单个插件失败 → 记录失败，按 mutate_db_status 决定是否写回 ERROR 状态
+    Flow:
+    1. Query plugins with status=enabled
+    2. For each plugin: a. Load manifest b. Register extensions via ExtensionRegistry c. Record success
+    3. Single plugin failure → record failure, write back ERROR status based on mutate_db_status
+    / 流程：查询启用插件、注册扩展点、失败标记 ERROR
 
     Returns:
         {"restored": N, "failed": N, "total": N}
@@ -298,10 +304,12 @@ async def restore_enabled_plugins(
         try:
             manifest = loader.load_manifest(plugin.name)
 
-            # NOTE: manifest sync 已由 discover_and_register() 处理，此处不再重复
+            # NOTE: manifest sync already handled by discover_and_register(), not repeated here
+            # / manifest sync 已由 discover_and_register() 处理
 
             if run_heavy:
-                # 确保 Alembic 迁移已执行（防止 DB 重建后插件表丢失）
+                # Ensure Alembic migration has been executed (prevent plugin tables lost after DB rebuild)
+                # / 确保 Alembic 迁移已执行
                 migrations_dir = loader.plugins_dir / plugin.name / "backend" / "migrations" / "versions"
                 if migrations_dir.is_dir():
                     try:
@@ -314,21 +322,25 @@ async def restore_enabled_plugins(
                             exc,
                         )
 
-                # 确保 Python 依赖已安装（防止克隆/拉取后 venv 缺失）
+                # Ensure Python dependencies installed (prevent missing venv after clone/pull)
+                # / 确保 Python 依赖已安装
                 if manifest.dependencies.python:
                     await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
 
-                # 确保前端 npm 依赖已安装（dev 模式，防止克隆/拉取后依赖缺失）
+                # Ensure frontend npm dependencies installed (dev mode, prevent missing deps after clone/pull)
+                # / 确保前端 npm 依赖已安装
                 frontend_ext = manifest.extensions.frontend if manifest.extensions else None
                 npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
                 if npm_deps:
                     await lifecycle._install_npm_deps(plugin.name, npm_deps)
 
-            # 注册所有扩展点（公共函数，与 lifecycle.enable 共用）
+            # Register all extension points (shared function, used by lifecycle.enable)
+            # / 注册所有扩展点
             menu_overrides = (plugin.config or {}).get("menu_overrides")
             register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
 
-            # fail-close：恢复阶段若关键扩展加载失败，回滚注册并标记 ERROR
+            # fail-close: if critical extension load fails during restore, rollback registration and mark ERROR
+            # / fail-close：恢复阶段关键扩展加载失败时回滚
             failed_exts = get_failed_extensions(plugin.name)
             if failed_exts:
                 registry.unregister_all(plugin.name)
@@ -339,7 +351,8 @@ async def restore_enabled_plugins(
                     f"Extension load failed during startup restore: {failed_summary}"
                 )
 
-            # 仅重恢复 owner worker 允许写库状态，避免多 worker 并发抖动
+            # Only restore owner worker is allowed to write DB status, avoid multi-worker concurrent jitter
+            # / 仅 owner worker 写库
             if mutate_db_status and plugin.error_count > 0:
                 plugin.error_count = 0
                 plugin.error_message = None
@@ -377,7 +390,8 @@ async def restore_enabled_plugins(
         len(enabled_plugins),
     )
 
-    # 仅 owner worker 汇总 ERROR 状态，避免多 worker 重复告警
+    # Only owner worker summarizes ERROR status, avoid multi-worker duplicate alerts
+    # / 仅 owner worker 汇总 ERROR
     if mutate_db_status:
         error_result = await db.execute(
             select(Plugin.name, Plugin.error_message).where(
@@ -404,12 +418,14 @@ async def restore_enabled_plugins(
 
 
 def _load_plugin_executor(plugin_name: str, skill_type: str):
-    """加载插件的 executor 类 — 委托给统一加载器（保留供外部引用）"""
+    """Load plugin executor class — delegate to unified loader (preserved for external reference)
+    / 加载插件的 executor 类"""
     from app.plugins.module_loader import load_plugin_executor
     return load_plugin_executor(plugin_name, skill_type)
 
 
 def _load_handler_safe(loader, plugin_name: str, handler_path: str):
-    """安全加载插件处理函数 — 委托给统一加载器（保留供外部引用）"""
+    """Safely load plugin handler function — delegate to unified loader (preserved for external reference)
+    / 安全加载插件处理函数"""
     from app.plugins.module_loader import load_plugin_handler
     return load_plugin_handler(plugin_name, handler_path)

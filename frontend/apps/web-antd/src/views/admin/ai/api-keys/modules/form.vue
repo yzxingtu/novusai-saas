@@ -32,7 +32,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       is_active: values.is_active ?? true,
       usage_limit: values.usage_limit || null,
     };
-    // 仅创建时传 api_key 和 provider_id
+    // Only pass api_key and provider_id on create / 仅创建时传 api_key 和 provider_id
     if (!isEdit.value) {
       data.provider_id = values.provider_id;
       data.api_key = values.api_key;

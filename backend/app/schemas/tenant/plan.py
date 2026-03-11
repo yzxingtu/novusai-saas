@@ -1,7 +1,8 @@
 """
-租户套餐相关 Schema
+租户套餐相关 Schema / Tenant Plan Schema
 
 定义套餐管理 API 的请求和响应数据结构
+Defines plan management API request and response data structures.
 """
 
 from collections.abc import Callable

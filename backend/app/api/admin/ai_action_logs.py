@@ -1,7 +1,6 @@
 """
-平台端 AI 操作审计日志 API
-
-提供全局审计日志查询接口（只读）
+AI 操作审计日志管理 API (Admin) / AI Action Log API (Admin)
+提供全局审计日志查询接口（只读） / Provides global audit log query endpoints (read-only)
 """
 
 from fastapi import Request
@@ -35,16 +34,16 @@ from app.services.ai.action_log_service import AIActionLogService
 )
 class AdminAIActionLogController(GlobalController):
     """
-    平台端 AI 操作审计日志控制器
+    平台端 AI 操作审计日志控制器 / Platform AI Action Audit Log Controller
 
-    提供全局范围的审计日志查询
+    提供全局范围的审计日志查询 / Provides global scope audit log queries
     """
 
     prefix = "/ai/action-logs"
     tags = [_("menu.tags.admin_ai_action_audit")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取全局审计日志列表")
@@ -56,18 +55,18 @@ class AdminAIActionLogController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取全局 AI 操作审计日志
+            获取全局 AI 操作审计日志 / Get global AI action audit logs
 
-            支持 JSON:API 筛选:
+            支持 JSON:API 筛选 / Supports JSON:API filtering:
             - filter[tenant_id][eq]=1
             - filter[action_name][ilike]=xxx
             - filter[action_type][eq]=query/action/confirm
             - filter[status][eq]=success/failed/rejected
             - sort=-created_at
 
-            权限: ai_action_log:list
+            权限 / Permission: ai_action_log:list
             """
-            # 使用 tenant_id=0 表示全局查询
+            # 使用 tenant_id=0 表示全局查询 / Use tenant_id=0 for global query
             service = AIActionLogService(db, 0)
             items, total = await service.query_list(spec=spec)
 
@@ -87,9 +86,9 @@ class AdminAIActionLogController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取单条审计日志详情
+            获取单条审计日志详情 / Get single audit log details
 
-            权限: ai_action_log:detail
+            权限 / Permission: ai_action_log:detail
             """
             service = AIActionLogService(db, 0)
             log = await service.get_by_id(log_id)
@@ -102,7 +101,7 @@ class AdminAIActionLogController(GlobalController):
             return success(data=log.to_dict())
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIActionLogController.get_router()
 
 __all__ = ["router", "AdminAIActionLogController"]

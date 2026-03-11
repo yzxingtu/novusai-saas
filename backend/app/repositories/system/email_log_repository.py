@@ -1,7 +1,8 @@
 """
-邮件日志仓储
+邮件日志仓储 / Email Log Repository
 
 提供邮件日志的数据访问操作
+Provides email log data access operations.
 """
 
 from app.core.base_repository import BaseRepository

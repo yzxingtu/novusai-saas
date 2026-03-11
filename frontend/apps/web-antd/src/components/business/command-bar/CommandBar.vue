@@ -5,13 +5,15 @@ import type {
 } from '#/components/business/ai-chat-panel/types';
 
 /**
- * Command Bar 组件
+ * Command Bar Component
+ * 全局命令面板
  *
- * 全局命令面板，支持：
- * - 快速输入消息发送给 AI
- * - @mention 选择智能体
- * - 最近对话快速恢复
- * - Ctrl+J 快捷键唤起
+ * Global command panel, supports:
+ * 支持：
+ * - Quick message input to send to AI / 快速输入消息发送给 AI
+ * - @mention to select agents / @mention 选择智能体
+ * - Quick restore recent conversations / 最近对话快速恢复
+ * - Ctrl+J shortcut to invoke / Ctrl+J 快捷键唤起
  */
 import { computed, nextTick, ref, watch } from 'vue';
 
@@ -29,9 +31,9 @@ defineOptions({ name: 'CommandBar' });
 
 const props = withDefaults(
   defineProps<{
-    /** API 前缀 */
+    /** API prefix / API 前缀 */
     apiPrefix: string;
-    /** 是否有 AI 聊天权限 */
+    /** Whether has AI chat permission / 是否有 AI 聊天权限 */
     canChat: boolean;
   }>(),
   {
@@ -41,9 +43,9 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  /** 选择历史对话 */
+  /** Select historical conversation / 选择历史对话 */
   selectConversation: [conversationId: number];
-  /** 用户提交消息 */
+  /** User submits message / 用户提交消息 */
   submit: [message: string];
 }>();
 
@@ -76,7 +78,7 @@ const {
 const inputRef = ref<HTMLInputElement | null>(null);
 const selectedIndex = ref(0);
 
-// 打开时聚焦输入框
+// Focus input when opened / 打开时聚焦输入框
 watch(open, async (isOpen) => {
   if (isOpen) {
     selectedIndex.value = 0;
@@ -85,7 +87,7 @@ watch(open, async (isOpen) => {
   }
 });
 
-// mention 模式切换时重置选中索引
+// Reset selected index on mention mode switch / mention 模式切换时重置选中索引
 watch(mode, () => {
   selectedIndex.value = 0;
 });
@@ -163,7 +165,7 @@ function formatRelativeTime(dateStr: string): string {
   return $t('common.commandBar.daysAgo', { n: days });
 }
 
-/** 固定的智能体名称（UI 展示） */
+/** Pinned agent name (UI display) / 固定的智能体名称（UI 展示） */
 const pinnedName = computed(() => aiPanelStore.pinnedAgentName);
 
 defineExpose({

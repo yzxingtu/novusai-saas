@@ -1,5 +1,5 @@
 """
-AI 模块 Service 层
+AI 模块 Service 层 / AI Module Service Layer
 """
 
 from app.services.ai.agent_service import AgentService

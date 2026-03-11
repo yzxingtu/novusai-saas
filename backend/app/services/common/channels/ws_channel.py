@@ -1,7 +1,8 @@
 """
-WebSocket 实时推送通知渠道
+WebSocket 实时推送通知渠道 / WebSocket Notification Channel
 
 通过 Socket.IO 实时推送通知到已连接的客户端。
+Pushes notifications to connected clients in real-time via Socket.IO.
 """
 
 from __future__ import annotations

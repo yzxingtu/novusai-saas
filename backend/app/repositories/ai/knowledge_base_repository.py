@@ -1,7 +1,8 @@
 """
-知识库 Repository
+知识库 Repository / Knowledge Base Repository
 
 提供知识库、文档、分块的数据访问层
+Provides knowledge base, document, chunk data access layer.
 """
 
 from sqlalchemy import and_, func, or_, select, update

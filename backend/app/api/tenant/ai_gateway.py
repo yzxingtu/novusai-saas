@@ -1,7 +1,8 @@
 """
-AI 网关调用 API (Tenant)
+AI 网关调用 API (Tenant) / AI Gateway API (Tenant)
 
 提供租户端 AI 代理调用接口，支持配额和限流检查
+Provides tenant AI proxy call endpoints with quota and rate limit checks
 """
 
 from fastapi import Request
@@ -39,9 +40,10 @@ from app.schemas.ai.gateway import (
 )
 class TenantAIGatewayController(TenantController):
     """
-    AI 网关控制器 (Tenant)
+    AI 网关控制器 (Tenant) / AI Gateway Controller (Tenant)
 
     租户端 AI 网关调用接口，支持配额和限流检查
+    Tenant AI gateway call endpoints with quota and rate limit checks
     """
 
     prefix = "/ai/gateway"
@@ -59,9 +61,9 @@ class TenantAIGatewayController(TenantController):
             body: ChatRequest,
         ):
             """
-            AI 聊天对话（非流式）
+            AI 聊天对话（非流式） / AI chat conversation (non-streaming)
 
-            权限: ai_gateway:chat
+            权限 / Permission: ai_gateway:chat
             """
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
@@ -99,9 +101,9 @@ class TenantAIGatewayController(TenantController):
             body: ChatRequest,
         ):
             """
-            AI 聊天对话（流式 SSE）
+            AI 聊天对话（流式 SSE） / AI chat conversation (streaming SSE)
 
-            权限: ai_gateway:chat_stream
+            权限 / Permission: ai_gateway:chat_stream
             """
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
@@ -138,9 +140,9 @@ class TenantAIGatewayController(TenantController):
             body: EmbeddingRequest,
         ):
             """
-            文本向量化
+            文本向量化 / Text embedding
 
-            权限: ai_gateway:embedding
+            权限 / Permission: ai_gateway:embedding
             """
             provider_code, model = parse_provider_and_model(body.model_code)
 
@@ -159,7 +161,7 @@ class TenantAIGatewayController(TenantController):
                 raise ExternalServiceException(message=_("ai.error.embedding_failed") + f": {str(e)}")
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAIGatewayController.get_router()
 
 __all__ = ["router", "TenantAIGatewayController"]

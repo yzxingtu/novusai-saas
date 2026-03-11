@@ -1,7 +1,7 @@
 """
-会话记忆存储服务（Redis）
+会话记忆存储服务（Redis） / Session Memory Service (Redis)
 
-能力：
+能力 / Capabilities:
 1) 会话记忆读取/写入
 2) CAS 版本控制（version compare-and-set）
 3) event_id 幂等防重

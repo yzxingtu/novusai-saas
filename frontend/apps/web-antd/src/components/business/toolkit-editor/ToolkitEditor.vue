@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Toolkit Editor Component
  * Toolkit 编辑器组件
  *
+ * Left: Monaco Editor (Python), right: real-time parse preview (tools + valves).
  * 左侧 Monaco Editor (Python)，右侧实时解析预览（tools + valves）。
+ * Supports v-model two-way binding, code templates, .py file upload.
  * 支持 v-model 双向绑定、代码模板、.py 文件上传。
  */
 import type { ToolkitParseResult, ToolkitToolInfo } from './types';

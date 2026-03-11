@@ -1,7 +1,8 @@
 """
-异常模块
+异常模块 / Exception Module
 
 提供应用的异常类层次结构
+Provides the application's exception class hierarchy.
 """
 
 from app.exceptions.base import (

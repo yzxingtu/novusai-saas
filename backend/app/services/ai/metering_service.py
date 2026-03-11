@@ -1,7 +1,8 @@
 """
-AI 计量计费服务
+AI 计量计费服务 / AI Metering Service
 
 实现 Token 计数、费用计算、使用量统计等功能
+Implements token counting, cost calculation, usage statistics, etc.
 """
 
 from datetime import date

@@ -1,9 +1,11 @@
 """
-插件 Socket.IO 鉴权包装器
+Plugin Socket.IO auth wrapper.
+/ 插件 Socket.IO 鉴权包装器
 
-为插件注册的 Socket.IO namespace 提供统一的 JWT 认证、
-租户隔离、连接限流能力。通过代理模式包装插件自定义的
-AsyncNamespace，在 on_connect 前注入鉴权逻辑。
+Provides unified JWT authentication, tenant isolation, and connection rate limiting
+for plugin-registered Socket.IO namespaces. Wraps plugin-custom AsyncNamespace
+via proxy pattern, injecting auth logic before on_connect.
+/ 为插件注册的 Socket.IO namespace 提供统一的 JWT 认证、租户隔离、连接限流能力。
 """
 
 from __future__ import annotations
@@ -17,7 +19,8 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("plugin.sio")
 
-# scope 常量映射（与 app.core.security 保持一致）
+# Scope constant mapping (consistent with app.core.security)
+# / scope 常量映射
 _SCOPE_MAP = {
     "admin": "admin",
     "tenant_admin": "tenant_admin",
@@ -27,15 +30,19 @@ _SCOPE_MAP = {
 
 class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
     """
-    插件 Socket.IO namespace 鉴权代理
+    Plugin Socket.IO namespace auth proxy.
+    / 插件 Socket.IO namespace 鉴权代理
 
-    包装插件自定义的 AsyncNamespace 子类，在 on_connect 前
-    注入 JWT 验证 + scope 校验 + 租户隔离 + 连接限流。
+    Wraps plugin-custom AsyncNamespace subclass, injecting JWT validation +
+    scope check + tenant isolation + connection rate limiting before on_connect.
+    / 包装插件自定义的 AsyncNamespace 子类，注入鉴权逻辑。
 
-    鉴权通过后，将 session_data（user_id, user_type, tenant_id）
-    保存到 SIO session，插件 handler 可通过 get_session(sid) 获取。
+    After auth passes, session_data (user_id, user_type, tenant_id) is saved
+    to SIO session; plugin handler can access via get_session(sid).
+    / 鉴权通过后保存 session_data 到 SIO session。
 
-    所有非 connect/disconnect 事件直接委托给插件 handler。
+    All non connect/disconnect events are delegated directly to plugin handler.
+    / 所有非 connect/disconnect 事件直接委托给插件 handler。
     """
 
     def __init__(
@@ -44,18 +51,21 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         plugin_name: str,
         auth_scopes: list[str] | None = None,
     ) -> None:
-        # 使用 delegate 的 namespace 路径
+        # Use delegate's namespace path / 使用 delegate 的 namespace 路径
         super().__init__(delegate.namespace)
         self._delegate = delegate
         self._plugin_name = plugin_name
         self._auth_scopes = auth_scopes or ["tenant_admin"]
-        # 将 delegate 的 server 引用指向自身（注册后由 server 设置）
+        # Point delegate's server reference to self (set by server after registration)
+        # / 将 delegate 的 server 引用指向自身
         self._delegate_event_handlers: dict[str, Any] = {}
-        # sid → session 备份（实例级，避免跨插件 sid 键名冲突）
+        # sid → session backup (instance-level, avoid cross-plugin sid key conflicts)
+        # / sid → session 备份
         self._sid_sessions: dict[str, dict] = {}
 
     def _set_server(self, server: Any) -> None:
-        """server 注册回调 — 同步设置 delegate 的 server"""
+        """Server registration callback — sync set delegate's server
+        / server 注册回调"""
         super()._set_server(server)
         if hasattr(self._delegate, "_set_server"):
             self._delegate._set_server(server)
@@ -64,24 +74,25 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         self, sid: str, environ: dict, auth: dict | None = None
     ) -> None:
         """
-        连接鉴权
+        Connection authentication.
+        / 连接鉴权
 
-        1. 检查 WS 总开关
-        2. 提取并验证 JWT token + scope
-        3. 连接频率限制
-        4. 单用户最大连接数限制
-        5. 查询用户信息（确认存在且激活）
-        6. 保存 session，加入 rooms
-        7. 委托给插件 handler 的 on_connect（如有）
+        1. Check WS master switch / 检查 WS 总开关
+        2. Extract and verify JWT token + scope / 提取并验证 JWT
+        3. Connection rate limiting / 连接频率限制
+        4. Per-user max connection limit / 单用户最大连接数限制
+        5. Query user info (confirm exists and active) / 查询用户信息
+        6. Save session, join rooms / 保存 session，加入 rooms
+        7. Delegate to plugin handler's on_connect (if any) / 委托给插件 handler
         """
-        # 1. WS 总开关
+        # 1. WS master switch / WS 总开关
         from app.sio.ws_config import get_ws_configs
 
         ws_cfg = await get_ws_configs("ws_enabled", "ws_max_connections_per_user")
         if not ws_cfg.get("ws_enabled", True):
             raise ConnectionRefusedError("websocket_disabled")
 
-        # 2. JWT 认证
+        # 2. JWT authentication / JWT 认证
         if not auth or not auth.get("token"):
             raise ConnectionRefusedError("token_required")
 
@@ -130,14 +141,14 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
 
         user_id = int(user_id_str)
 
-        # 3. 连接频率限制
+        # 3. Connection rate limiting / 连接频率限制
         from app.sio.presence import check_connect_rate
 
         rate_key = f"plugin_{self._plugin_name}_{matched_scope}"
         if not await check_connect_rate(rate_key, user_id):
             raise ConnectionRefusedError("rate_limited")
 
-        # 4. 单用户最大连接数限制
+        # 4. Per-user max connection limit / 单用户最大连接数限制
         from app.sio.presence import PresenceManager
 
         max_conn = int(ws_cfg.get("ws_max_connections_per_user", 5))
@@ -147,7 +158,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         if current_conn >= max_conn:
             raise ConnectionRefusedError("max_connections_exceeded")
 
-        # 5. 查询用户 + tenant_id
+        # 5. Query user + tenant_id / 查询用户
         tenant_id = None
         username = ""
 
@@ -203,7 +214,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                 tenant_id = tu.tenant_id
                 username = tu.username
 
-        # 6. 保存 session
+        # 6. Save session / 保存 session
         session_data = {
             "user_id": user_id,
             "user_type": matched_scope,
@@ -214,12 +225,12 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         await self.save_session(sid, session_data)
         self._sid_sessions[sid] = session_data
 
-        # 加入标准 rooms
+        # Join standard rooms / 加入标准 rooms
         await self.enter_room(sid, f"user:{user_id}")
         if tenant_id:
             await self.enter_room(sid, f"tenant:{tenant_id}")
 
-        # 在线状态
+        # Online status / 在线状态
         await PresenceManager.set_online(rate_key, user_id, tenant_id)
 
         logger.info(
@@ -227,12 +238,14 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             self.namespace, sid, user_id, matched_scope, tenant_id,
         )
 
-        # 7. 委托给插件 handler 的 on_connect（如有）
+        # 7. Delegate to plugin handler's on_connect (if any)
+        # / 委托给插件 handler
         if hasattr(self._delegate, "on_connect"):
             await self._delegate.on_connect(sid, environ, auth)
 
     async def on_disconnect(self, sid: str, reason: str = "") -> None:
-        """断开连接，清理在线状态，委托给插件 handler"""
+        """Disconnect, clean up online status, delegate to plugin handler
+        / 断开连接，清理在线状态，委托给插件 handler"""
         session = self._sid_sessions.pop(sid, None)
         if not session:
             with contextlib.suppress(Exception):
@@ -262,22 +275,27 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
             self.namespace, sid, reason,
         )
 
-        # 委托给插件 handler 的 on_disconnect（如有）
+        # Delegate to plugin handler's on_disconnect (if any)
+        # / 委托给插件 handler
         if hasattr(self._delegate, "on_disconnect"):
             await self._delegate.on_disconnect(sid, reason)
 
     async def _trigger_event(self, event: str, *args: Any) -> Any:
         """
-        事件分发 — 非 connect/disconnect 事件委托给插件 handler。
+        Event dispatch — delegate non connect/disconnect events to plugin handler.
+        / 事件分发 — 非 connect/disconnect 事件委托给插件 handler。
 
-        python-socketio 的 AsyncNamespace 在收到事件时调用 _trigger_event。
-        覆盖此方法，将自定义事件路由到插件 delegate。
+        python-socketio's AsyncNamespace calls _trigger_event when receiving events.
+        Override this method to route custom events to plugin delegate.
+        / 覆盖此方法，将自定义事件路由到插件 delegate。
         """
-        # connect/disconnect 已由本类处理
+        # connect/disconnect already handled by this class
+        # / connect/disconnect 已由本类处理
         if event in ("connect", "disconnect"):
             return await super()._trigger_event(event, *args)
 
-        # 委托给插件 handler（兼容 async/sync）
+        # Delegate to plugin handler (compatible with async/sync)
+        # / 委托给插件 handler
         handler = getattr(self._delegate, f"on_{event}", None)
         if handler:
             import asyncio
@@ -285,7 +303,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                 return await handler(*args)
             return handler(*args)
 
-        # 无匹配 handler — 忽略
+        # No matching handler — ignore / 无匹配 handler
         return None
 
 

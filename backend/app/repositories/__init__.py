@@ -1,7 +1,8 @@
 """
-仓储模块
+仓储模块 / Repository Module
 
 导出所有仓储类
+Exports all repository classes.
 """
 
 from app.repositories.system import AdminRepository, TenantRepository

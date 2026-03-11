@@ -1,7 +1,8 @@
 """
-租户端 AI 调用日志 API
+租户端 AI 调用日志 API / Tenant AI Call Log API
 
 提供租户端 AI 调用日志查询接口（自动按 tenant_id 过滤）
+Provides tenant AI call log query endpoints (auto-filtered by tenant_id)
 """
 
 from fastapi import Request
@@ -36,16 +37,17 @@ from app.repositories.ai import AICallLogRepository
 )
 class TenantAICallLogController(TenantController):
     """
-    租户 AI 调用日志控制器
+    租户 AI 调用日志控制器 / Tenant AI Call Log Controller
 
     提供租户端调用日志查询（自动按 tenant_id 过滤）
+    Provides tenant call log query (auto-filtered by tenant_id)
     """
 
     prefix = "/ai/call-logs"
     tags = [_("menu.tags.tenant_ai_call_log")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="查询 AI 调用日志列表")
@@ -57,21 +59,21 @@ class TenantAICallLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            查询当前租户的 AI 调用日志列表
+            查询当前租户的 AI 调用日志列表 / Query current tenant AI call log list
 
-            自动按 tenant_id 过滤，支持 JSON:API 筛选:
-            - filter[model_id]: 模型 ID
-            - filter[status]: 调用状态
-            - filter[created_at][gte]: 创建时间 >=
-            - filter[created_at][lte]: 创建时间 <=
+            自动按 tenant_id 过滤，支持 JSON:API 筛选 / Auto-filtered by tenant_id, supports JSON:API filtering:
+            - filter[model_id]: 模型 ID / model ID
+            - filter[status]: 调用状态 / call status
+            - filter[created_at][gte]: 创建时间 >= / created_at >=
+            - filter[created_at][lte]: 创建时间 <= / created_at <=
 
-            权限: ai_tenant_call_log:list
+            权限 / Permission: ai_tenant_call_log:list
             """
             from app.schemas.common.query import FilterRule
 
             repo = AICallLogRepository(db)
 
-            # 强制注入 tenant_id 过滤
+            # 强制注入 tenant_id 过滤 / Force inject tenant_id filter
             forced = [
                 FilterRule(
                     field="tenant_id",
@@ -103,11 +105,12 @@ class TenantAICallLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取调用日志详情（含完整请求和响应体）
+            获取调用日志详情（含完整请求和响应体） / Get call log details (with full request and response body)
 
             仅允许查看自己租户的日志
+            Only allows viewing own tenant's logs
 
-            权限: ai_tenant_call_log:detail
+            权限 / Permission: ai_tenant_call_log:detail
             """
             repo = AICallLogRepository(db)
             log = await repo.get_by_id(log_id)
@@ -115,14 +118,14 @@ class TenantAICallLogController(TenantController):
             if not log:
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))
 
-            # 确保只能看自己租户的日志
+            # 确保只能看自己租户的日志 / Ensure can only view own tenant's logs
             if log.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
             return success(data=log, message=_("common.success"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAICallLogController.get_router()
 
 __all__ = ["router", "TenantAICallLogController"]

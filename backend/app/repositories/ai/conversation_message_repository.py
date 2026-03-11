@@ -1,5 +1,5 @@
 """
-对话消息 Repository
+对话消息 Repository / Conversation Message Repository
 """
 
 

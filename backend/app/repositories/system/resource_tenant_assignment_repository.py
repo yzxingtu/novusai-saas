@@ -1,5 +1,5 @@
 """
-资源-租户分配 Repository
+资源-租户分配 Repository / Resource Tenant Assignment Repository
 """
 
 from sqlalchemy import and_, delete, select

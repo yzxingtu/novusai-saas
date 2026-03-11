@@ -1,7 +1,9 @@
 """
-插件清单 (plugin.yaml) Pydantic Schema
+Plugin manifest (plugin.yaml) Pydantic Schema.
+/ 插件清单 (plugin.yaml) Pydantic Schema
 
-解析和校验 plugin.yaml 文件，将 YAML 内容转换为类型安全的 Python 对象。
+Parse and validate plugin.yaml files, converting YAML content into type-safe Python objects.
+/ 解析和校验 plugin.yaml 文件，将 YAML 内容转换为类型安全的 Python 对象。
 """
 
 import re
@@ -11,9 +13,10 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.enums.plugin import PluginScopeEnum
 
-# ── 类型别名 ──
+# ── Type aliases / 类型别名 ──
 I18nText = dict[str, str]
-"""多语言文本，如 {"zh-CN": "CRM 管理", "en": "CRM Management"}"""
+"""Multilingual text, e.g. {"zh-CN": "CRM 管理", "en": "CRM Management"}
+/ 多语言文本"""
 
 _FRONTEND_PLUGIN_ROUTE_PREFIXES = ("/admin/plugins/", "/tenant/plugins/")
 _API_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
@@ -28,13 +31,16 @@ _NPM_DEP_SPEC_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _DB_TABLE_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,62}_$")
-# Handler 路径：点分隔的 Python 模块路径，如 "api.handlers.handle_current"
+# Handler path: dot-separated Python module path, e.g. "api.handlers.handle_current"
+# Allows letters, digits, underscores and dots; forbids .. / \ and other path traversal chars
+# / Handler 路径：点分隔的 Python 模块路径
 # 允许字母、数字、下划线和点；禁止 .. / \ 等路径遍历字符
 _HANDLER_PATH_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
 def _validate_handler_path(v: str, field_name: str = "handler") -> str:
-    """Handler 模块路径校验：防止路径遍历和非法字符（如 ../../etc）"""
+    """Handler module path validation: prevent path traversal and illegal characters (e.g. ../../etc)
+    / Handler 模块路径校验：防止路径遍历和非法字符"""
     path = (v or "").strip()
     if not path:
         raise ValueError(f"{field_name} cannot be empty")
@@ -48,7 +54,7 @@ def _validate_handler_path(v: str, field_name: str = "handler") -> str:
 
 
 def _validate_plugin_dependency_name(v: str) -> str:
-    """插件依赖名称校验（小写 kebab-case）"""
+    """Plugin dependency name validation (lowercase kebab-case) / 插件依赖名称校验（小写 kebab-case）"""
     name = (v or "").strip()
     if not name:
         raise ValueError("dependencies.plugins item cannot be empty")
@@ -61,14 +67,16 @@ def _validate_plugin_dependency_name(v: str) -> str:
 
 
 def _validate_npm_dependency_spec(v: str) -> str:
-    """npm 依赖规格校验，拒绝 CLI 注入字符与非法格式"""
+    """npm dependency spec validation, reject CLI injection chars and invalid formats
+    / npm 依赖规格校验，拒绝 CLI 注入字符与非法格式"""
     spec = (v or "").strip()
     if not spec:
         raise ValueError("npm_dependencies item cannot be empty")
     if spec.startswith("-"):
         raise ValueError(f"Invalid npm dependency '{spec}': cannot start with '-'")
 
-    # 禁止 shell 元字符和空白（避免命令注入）
+    # Forbid shell metacharacters and whitespace (prevent command injection)
+    # / 禁止 shell 元字符和空白（避免命令注入）
     forbidden = {" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"}
     if any(ch in spec for ch in forbidden):
         raise ValueError(
@@ -84,7 +92,8 @@ def _validate_npm_dependency_spec(v: str) -> str:
 
 
 def _validate_frontend_plugin_route_path(path: str) -> str:
-    """前端插件路由必须位于 /admin/plugins/* 或 /tenant/plugins/* 下。"""
+    """Frontend plugin routes must be under /admin/plugins/* or /tenant/plugins/*.
+    / 前端插件路由必须位于 /admin/plugins/* 或 /tenant/plugins/* 下。"""
     if not any(path.startswith(prefix) for prefix in _FRONTEND_PLUGIN_ROUTE_PREFIXES):
         raise ValueError(
             "Frontend plugin route path must start with '/admin/plugins/' "
@@ -100,7 +109,8 @@ def _normalize_extension_path(
     keep_leading_slash: bool,
     allow_path_params: bool = True,
 ) -> str:
-    """扩展点路径规范化与安全校验。"""
+    """Extension point path normalization and security validation.
+    / 扩展点路径规范化与安全校验。"""
     normalized = (path or "").strip().replace("\\", "/")
     normalized = normalized.strip("/")
     if not normalized:
@@ -127,12 +137,12 @@ def _normalize_extension_path(
 
 
 # ============================================================
-# 扩展点子 Schema
+# Extension point sub-schemas / 扩展点子 Schema
 # ============================================================
 
 
 class SkillExtensionSchema(BaseModel):
-    """技能扩展声明"""
+    """Skill extension declaration / 技能扩展声明"""
 
     name: str
     type: str = "toolkit"
@@ -144,13 +154,13 @@ class SkillExtensionSchema(BaseModel):
     @field_validator("entry_point")
     @classmethod
     def validate_entry_point(cls, v: str) -> str:
-        if not v:  # entry_point 是可选的
+        if not v:  # entry_point is optional / entry_point 是可选的
             return v
         return _validate_handler_path(v, "skill.entry_point")
 
 
 class AdapterExtensionSchema(BaseModel):
-    """AI 适配器扩展声明"""
+    """AI adapter extension declaration / AI 适配器扩展声明"""
 
     provider_code: str
     display_name: I18nText = Field(default_factory=dict)
@@ -164,7 +174,7 @@ class AdapterExtensionSchema(BaseModel):
 
 
 class StorageDriverExtensionSchema(BaseModel):
-    """存储驱动扩展声明"""
+    """Storage driver extension declaration / 存储驱动扩展声明"""
 
     code: str
     display_name: I18nText = Field(default_factory=dict)
@@ -177,7 +187,7 @@ class StorageDriverExtensionSchema(BaseModel):
 
 
 class ApiRouteSchema(BaseModel):
-    """API 路由声明"""
+    """API route declaration / API 路由声明"""
 
     method: str = "GET"
     path: str
@@ -223,7 +233,7 @@ class ApiRouteSchema(BaseModel):
 
 
 class ApiExtensionSchema(BaseModel):
-    """API 扩展声明"""
+    """API extension declaration / API 扩展声明"""
 
     admin_routes: list[ApiRouteSchema] = Field(default_factory=list)
     tenant_routes: list[ApiRouteSchema] = Field(default_factory=list)
@@ -231,7 +241,7 @@ class ApiExtensionSchema(BaseModel):
 
 
 class HookExtensionSchema(BaseModel):
-    """Hook 扩展声明（同步拦截）"""
+    """Hook extension declaration (synchronous interception) / Hook 扩展声明（同步拦截）"""
 
     point: str
     handler: str
@@ -245,7 +255,7 @@ class HookExtensionSchema(BaseModel):
 
 
 class TaskExtensionSchema(BaseModel):
-    """定时任务扩展声明"""
+    """Periodic task extension declaration / 定时任务扩展声明"""
 
     name: str
     handler: str
@@ -262,12 +272,16 @@ class TaskExtensionSchema(BaseModel):
 
 
 class MiddlewareExtensionSchema(BaseModel):
-    """插件 ASGI 中间件扩展声明
+    """Plugin ASGI middleware extension declaration.
+    / 插件 ASGI 中间件扩展声明
 
-    插件可声明一个 ASGI 中间件，在应用启动时注入请求链。
+    Plugins can declare an ASGI middleware, injected into the request chain at app startup.
+    Middleware is registered on plugin enable, marked for optimization on disable (full removal requires service restart).
+    / 插件可声明一个 ASGI 中间件，在应用启动时注入请求链。
     中间件在插件启用时注册，禁用时标记为待优化（完全移除需重启服务）。
 
-    handler 必须是一个 ASGI 中间件工厂类，接收 app 参数并返回中间件实例：
+    handler must be an ASGI middleware factory class that accepts app and returns a middleware instance:
+    / handler 必须是一个 ASGI 中间件工厂类：
 
     ```python
     class MyMiddleware:
@@ -288,15 +302,22 @@ class MiddlewareExtensionSchema(BaseModel):
 
 
 class CustomExtensionSchema(BaseModel):
-    """通用自定义扩展点声明
+    """Generic custom extension point declaration.
+    / 通用自定义扩展点声明
 
-    为插件提供对未预见扩展类型的支持。
-    框架将 custom 扩展的元数据存入内存注册表，
-    插件可通过 PluginContext 或其他插件关联读取。
+    Provides support for unforeseen extension types.
+    The framework stores custom extension metadata in an in-memory registry,
+    accessible via PluginContext or cross-plugin associations.
+    / 为插件提供对未预见扩展类型的支持。
+    框架将 custom 扩展的元数据存入内存注册表。
 
-    用途示例：
+    Use cases:
+    - Platform-specific feature declarations
+    - Cross-plugin metadata registry (e.g. CRM plugin providing customer field extension points)
+    - Lazy-loaded config and feature flags
+    / 用途示例：
     - 平台专属功能特性声明
-    - 跨插件元数据注册（如 CRM 插件提供客户字段扩展点）
+    - 跨插件元数据注册
     - 延迟加载配置和功能开关
     """
 
@@ -307,10 +328,12 @@ class CustomExtensionSchema(BaseModel):
 
 
 class ConsumerExtensionSchema(BaseModel):
-    """消息队列消费者扩展声明
+    """Message queue consumer extension declaration.
+    / 消息队列消费者扩展声明
 
-    区别于 tasks（带调度的定时任务），consumers 是纯事件驱动的 Celery worker，
-    由队列消息触发，无 Celery Beat 调度。
+    Unlike tasks (scheduled periodic tasks), consumers are pure event-driven Celery workers,
+    triggered by queue messages, without Celery Beat scheduling.
+    / 区别于 tasks（带调度的定时任务），consumers 是纯事件驱动的 Celery worker。
     """
 
     name: str
@@ -327,7 +350,7 @@ class ConsumerExtensionSchema(BaseModel):
 
 
 class NotificationExtensionSchema(BaseModel):
-    """通知模板扩展声明"""
+    """Notification template extension declaration / 通知模板扩展声明"""
 
     code: str
     title: I18nText = Field(default_factory=dict)
@@ -336,7 +359,7 @@ class NotificationExtensionSchema(BaseModel):
 
 
 class PermissionExtensionSchema(BaseModel):
-    """权限扩展声明"""
+    """Permission extension declaration / 权限扩展声明"""
 
     code: str
     name: I18nText = Field(default_factory=dict)
@@ -344,14 +367,16 @@ class PermissionExtensionSchema(BaseModel):
     actions: list[str] = Field(default_factory=list)
 
 
-# ── 前端扩展 ──
+# ── Frontend extensions / 前端扩展 ──
 
 
 class MenuExtensionSchema(BaseModel):
-    """菜单扩展声明
+    """Menu extension declaration.
+    / 菜单扩展声明
 
-    菜单是导航链接，指向已有路由，不创建新路由，
-    因此不限制 path 必须在 /admin/plugins/ 下。
+    Menus are navigation links pointing to existing routes, not creating new routes,
+    so path is not restricted to /admin/plugins/.
+    / 菜单是导航链接，指向已有路由，不创建新路由。
     """
 
     name: str
@@ -366,7 +391,7 @@ class MenuExtensionSchema(BaseModel):
 
 
 class HeaderWidgetSchema(BaseModel):
-    """头部小部件扩展"""
+    """Header widget extension / 头部小部件扩展"""
 
     name: str
     component: str
@@ -375,7 +400,7 @@ class HeaderWidgetSchema(BaseModel):
 
 
 class FloatingPanelSchema(BaseModel):
-    """浮动面板扩展"""
+    """Floating panel extension / 浮动面板扩展"""
 
     name: str
     component: str
@@ -384,20 +409,20 @@ class FloatingPanelSchema(BaseModel):
 
 
 class StandalonePageAISchema(BaseModel):
-    """独立页面 AI 元信息（可选）"""
+    """Standalone page AI metadata (optional) / 独立页面 AI 元信息（可选）"""
 
     mode: Literal["disabled", "context_only", "operate"] = Field(
         "context_only",
-        description="AI 模式：disabled / context_only / operate",
+        description="AI mode: disabled / context_only / operate",
     )
     page_context_key: str | None = Field(
         None,
-        description="页面上下文注册表 key（用于 resolvePageContext 精确匹配）",
+        description="Page context registry key (for resolvePageContext exact matching)",
     )
 
 
 class StandalonePageSchema(BaseModel):
-    """独立页面扩展"""
+    """Standalone page extension / 独立页面扩展"""
 
     name: str
     path: str
@@ -405,7 +430,7 @@ class StandalonePageSchema(BaseModel):
     title: I18nText = Field(default_factory=dict)
     ai: StandalonePageAISchema | None = Field(
         None,
-        description="页面级 AI 策略（未声明时走宿主默认策略）",
+        description="Page-level AI strategy (falls back to host default if not declared)",
     )
 
     @field_validator("path")
@@ -415,14 +440,14 @@ class StandalonePageSchema(BaseModel):
 
 
 class NotificationUIExtensionSchema(BaseModel):
-    """通知 UI 扩展"""
+    """Notification UI extension / 通知 UI 扩展"""
 
     event: str
     component: str
 
 
 class DashboardWidgetSchema(BaseModel):
-    """仪表板组件扩展"""
+    """Dashboard widget extension / 仪表板组件扩展"""
 
     name: str
     component: str
@@ -432,7 +457,7 @@ class DashboardWidgetSchema(BaseModel):
 
 
 class SettingsTabSchema(BaseModel):
-    """设置页签扩展"""
+    """Settings tab extension / 设置页签扩展"""
 
     name: str
     component: str
@@ -441,14 +466,14 @@ class SettingsTabSchema(BaseModel):
 
 
 class FrontendSideSchema(BaseModel):
-    """前端端侧声明（admin/tenant 共用结构）"""
+    """Frontend side declaration (shared structure for admin/tenant) / 前端端侧声明"""
 
     entry: str = ""
     styles: list[str] = Field(default_factory=list)
 
 
 class FrontendExtensionSchema(BaseModel):
-    """前端扩展总声明"""
+    """Frontend extension aggregate declaration / 前端扩展总声明"""
 
     menus: list[MenuExtensionSchema] = Field(default_factory=list)
     header_widgets: list[HeaderWidgetSchema] = Field(default_factory=list)
@@ -470,34 +495,37 @@ class FrontendExtensionSchema(BaseModel):
         return list(dict.fromkeys(cleaned))
 
 
-# ── Socket.IO Namespace ──
+# ── Socket.IO Namespace / Socket.IO 命名空间 ──
 
 
 class SocketIONamespaceSchema(BaseModel):
-    """Socket.IO namespace 扩展声明
+    """Socket.IO namespace extension declaration.
+    / Socket.IO namespace 扩展声明
 
-    插件可声明一个或多个 Socket.IO namespace，
-    启用时动态注册到 AsyncServer，禁用/卸载时反注册。
+    Plugins can declare one or more Socket.IO namespaces,
+    dynamically registered to AsyncServer on enable, unregistered on disable/uninstall.
+    / 插件可声明一个或多个 Socket.IO namespace。
 
-    namespace 路径自动添加 /plugin/{plugin_name}/ 前缀，
-    避免与系统内置 namespace（/admin, /tenant, /user）冲突。
+    Namespace path automatically prefixed with /plugin/{plugin_name}/,
+    avoiding conflicts with built-in namespaces (/admin, /tenant, /user).
+    / namespace 路径自动添加 /plugin/{plugin_name}/ 前缀。
     """
 
     path: str = Field(
         ...,
-        description="Namespace 路径（不含 /plugin/{name}/ 前缀，如 'collab'）",
+        description="Namespace path (without /plugin/{name}/ prefix, e.g. 'collab')",
     )
     handler: str = Field(
         ...,
-        description="Handler 模块路径（相对于 backend/，如 'sio.collab_ns.CollabNamespace'）",
+        description="Handler module path (relative to backend/, e.g. 'sio.collab_ns.CollabNamespace')",
     )
     auth_required: bool = Field(
         default=True,
-        description="是否需要 JWT 认证",
+        description="Whether JWT authentication is required",
     )
     auth_scopes: list[str] = Field(
         default_factory=lambda: ["tenant_admin"],
-        description="允许的 token scope 列表（tenant_admin / tenant_user / admin）",
+        description="Allowed token scope list (tenant_admin / tenant_user / admin)",
     )
     description: str = ""
 
@@ -523,11 +551,11 @@ class SocketIONamespaceSchema(BaseModel):
         return normalized
 
 
-# ── Webhook + EventBus (v7) ──
+# ── Webhook + EventBus (v7) / Webhook + 事件总线 ──
 
 
 class WebhookAuthSchema(BaseModel):
-    """Webhook 认证配置"""
+    """Webhook authentication configuration / Webhook 认证配置"""
 
     type: str = "hmac"
     secret_config_key: str = ""
@@ -546,7 +574,7 @@ class WebhookAuthSchema(BaseModel):
 
 
 class WebhookExtensionSchema(BaseModel):
-    """Webhook 端点扩展声明"""
+    """Webhook endpoint extension declaration / Webhook 端点扩展声明"""
 
     path: str
     handler: str
@@ -582,7 +610,7 @@ class WebhookExtensionSchema(BaseModel):
 
 
 class EventExtensionSchema(BaseModel):
-    """EventBus 事件订阅声明"""
+    """EventBus event subscription declaration / EventBus 事件订阅声明"""
 
     event: str
     handler: str
@@ -593,11 +621,11 @@ class EventExtensionSchema(BaseModel):
         return _validate_handler_path(v, "event.handler")
 
 
-# ── Feature Flags (v7) ──
+# ── Feature Flags (v7) / 功能开关 ──
 
 
 class FeatureSchema(BaseModel):
-    """Feature Flag 声明"""
+    """Feature flag declaration / Feature Flag 声明"""
 
     code: str
     name: I18nText = Field(default_factory=dict)
@@ -605,25 +633,25 @@ class FeatureSchema(BaseModel):
     description: I18nText = Field(default_factory=dict)
 
 
-# ── 兼容性矩阵 (v7) ──
+# ── Compatibility matrix (v7) / 兼容性矩阵 ──
 
 
 class CompatibilityConflictSchema(BaseModel):
-    """插件冲突声明"""
+    """Plugin conflict declaration / 插件冲突声明"""
 
     plugin: str
     reason: I18nText = Field(default_factory=dict)
 
 
 class CompatibilityRequireSchema(BaseModel):
-    """插件依赖声明"""
+    """Plugin dependency declaration / 插件依赖声明"""
 
     plugin: str
     version: str = "*"
 
 
 class CompatibilitySchema(BaseModel):
-    """兼容性矩阵"""
+    """Compatibility matrix / 兼容性矩阵"""
 
     platform_version: str = "*"
     conflicts: list[CompatibilityConflictSchema] = Field(default_factory=list)
@@ -631,12 +659,12 @@ class CompatibilitySchema(BaseModel):
 
 
 # ============================================================
-# 汇总扩展点
+# Aggregate extension points / 汇总扩展点
 # ============================================================
 
 
 class ExtensionsSchema(BaseModel):
-    """所有扩展点汇总"""
+    """All extension points aggregate / 所有扩展点汇总"""
 
     skills: list[SkillExtensionSchema] = Field(default_factory=list)
     adapters: list[AdapterExtensionSchema] = Field(default_factory=list)
@@ -656,12 +684,13 @@ class ExtensionsSchema(BaseModel):
 
 
 # ============================================================
-# AI / 依赖 / 定价 / 资源 / 开发者
+# AI / Dependencies / Pricing / Resources / Developer
+# / AI / 依赖 / 定价 / 资源 / 开发者
 # ============================================================
 
 
 class AIFeatureSchema(BaseModel):
-    """AI 功能声明"""
+    """AI feature declaration / AI 功能声明"""
 
     feature_code: str
     display_name: I18nText = Field(default_factory=dict)
@@ -670,7 +699,7 @@ class AIFeatureSchema(BaseModel):
 
 
 class AIRequirementsSchema(BaseModel):
-    """AI 需求声明"""
+    """AI requirements declaration / AI 需求声明"""
 
     features: list[AIFeatureSchema] = Field(default_factory=list)
     required_model_types: list[str] = Field(default_factory=list)
@@ -678,7 +707,7 @@ class AIRequirementsSchema(BaseModel):
 
 
 class DependenciesSchema(BaseModel):
-    """依赖声明"""
+    """Dependencies declaration / 依赖声明"""
 
     python: list[str] = Field(default_factory=list)
     plugins: list[str] = Field(default_factory=list)
@@ -717,7 +746,7 @@ class DependenciesSchema(BaseModel):
 
 
 class DeveloperSchema(BaseModel):
-    """开发者信息"""
+    """Developer information / 开发者信息"""
 
     name: str = ""
     email: str = ""
@@ -725,14 +754,14 @@ class DeveloperSchema(BaseModel):
 
 
 class TrialSchema(BaseModel):
-    """试用期配置"""
+    """Trial period configuration / 试用期配置"""
 
     enabled: bool = False
     days: int = 14
 
 
 class PricingSchema(BaseModel):
-    """定价信息"""
+    """Pricing information / 定价信息"""
 
     type: str = "free"
     price: float | None = None
@@ -741,7 +770,7 @@ class PricingSchema(BaseModel):
 
 
 class ResourcesSchema(BaseModel):
-    """资源声明"""
+    """Resources declaration / 资源声明"""
 
     readme: I18nText = Field(default_factory=dict)
     changelog: str = ""
@@ -750,41 +779,45 @@ class ResourcesSchema(BaseModel):
 
 
 # ============================================================
-# 顶层 PluginManifest
+# Top-level PluginManifest / 顶层 PluginManifest
 # ============================================================
 
 _NAME_PATTERN = _PLUGIN_NAME_PATTERN
 _VALID_SCOPES = {e.value for e in PluginScopeEnum}
 
-# 已定义的插件能力白名单（与 PluginContext._require() 中使用的字符串对齐）
+# Defined plugin capabilities whitelist (aligned with strings used in PluginContext._require())
+# New capabilities must be added to this set
+# / 已定义的插件能力白名单（与 PluginContext._require() 中使用的字符串对齐）
 # 新增能力时需要同步更新此集合
 _VALID_CAPABILITIES: frozenset[str] = frozenset({
-    "db:read",           # 读取数据库（自有表）
-    "db:write",          # 写入数据库（自有表）
-    "db:own_tables",     # 操作自有 px_ 数据表（含 read+write）
-    "http:outbound",     # 发送外部 HTTP 请求（含 SSRF 防护）
-    "storage:read",      # 读取存储文件
-    "storage:write",     # 写入存储文件
-    "ai:call",           # 调用 AI 功能（via SystemAgentAssignment）
-    "config:write",      # 修改插件自身配置
-    "notifications:send",# 发送通知 / WebSocket 推送
+    "db:read",           # Read database (own tables) / 读取数据库（自有表）
+    "db:write",          # Write database (own tables) / 写入数据库（自有表）
+    "db:own_tables",     # Operate own px_ tables (includes read+write) / 操作自有 px_ 数据表
+    "http:outbound",     # Send outbound HTTP requests (with SSRF protection) / 发送外部 HTTP 请求
+    "storage:read",      # Read storage files / 读取存储文件
+    "storage:write",     # Write storage files / 写入存储文件
+    "ai:call",           # Call AI features (via SystemAgentAssignment) / 调用 AI 功能
+    "config:write",      # Modify plugin's own config / 修改插件自身配置
+    "notifications:send",# Send notifications / WebSocket push / 发送通知
 })
 
 
 class PluginManifest(BaseModel):
     """
-    插件清单顶层 Schema
+    Plugin manifest top-level schema.
+    / 插件清单顶层 Schema
 
-    对应 plugin.yaml 文件的完整结构。
+    Corresponds to the complete structure of plugin.yaml.
+    / 对应 plugin.yaml 文件的完整结构。
     """
 
-    # ── 必填 ──
+    # ── Required / 必填 ──
     name: str = Field(..., max_length=100)
     version: str
     display_name: I18nText
     scope: str
 
-    # ── 基本信息 ──
+    # ── Basic info / 基本信息 ──
     description: I18nText = Field(default_factory=dict)
     author: str = ""
     icon: str = ""
@@ -795,10 +828,10 @@ class PluginManifest(BaseModel):
     license: str = ""
     tags: list[str] = Field(default_factory=list)
 
-    # ── 开发者 ──
+    # ── Developer / 开发者 ──
     developer: DeveloperSchema | None = None
 
-    # ── 扩展点 ──
+    # ── Extensions / 扩展点 ──
     extensions: ExtensionsSchema = Field(default_factory=ExtensionsSchema)
 
     # ── AI ──
@@ -806,36 +839,36 @@ class PluginManifest(BaseModel):
         default_factory=AIRequirementsSchema,
     )
 
-    # ── 配置 ──
+    # ── Config / 配置 ──
     config_schema: dict | None = None
     tenant_config_schema: dict | None = None
 
-    # ── 依赖 ──
+    # ── Dependencies / 依赖 ──
     dependencies: DependenciesSchema = Field(
         default_factory=DependenciesSchema,
     )
 
-    # ── 定价 ──
+    # ── Pricing / 定价 ──
     pricing: PricingSchema = Field(default_factory=PricingSchema)
 
-    # ── 资源 ──
+    # ── Resources / 资源 ──
     resources: ResourcesSchema = Field(default_factory=ResourcesSchema)
 
-    # ── v8 新增 ──
+    # ── v8 additions / v8 新增 ──
     capabilities: list[str] = Field(default_factory=list)
     db_table_prefixes: list[str] = Field(default_factory=list)
     api_version: str = "1"
 
-    # ── v7 新增 ──
+    # ── v7 additions / v7 新增 ──
     features: list[FeatureSchema] = Field(default_factory=list)
     compatibility: CompatibilitySchema | None = None
 
-    # ── 校验 ──
+    # ── Validation / 校验 ──
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """插件名必须为小写 kebab-case"""
+        """Plugin name must be lowercase kebab-case / 插件名必须为小写 kebab-case"""
         if not _NAME_PATTERN.match(v):
             raise ValueError(
                 "Plugin name must be lowercase kebab-case "
@@ -846,7 +879,7 @@ class PluginManifest(BaseModel):
     @field_validator("scope")
     @classmethod
     def validate_scope(cls, v: str) -> str:
-        """scope 必须是合法的 PluginScopeEnum 值"""
+        """scope must be a valid PluginScopeEnum value / scope 必须是合法的 PluginScopeEnum 值"""
         if v not in _VALID_SCOPES:
             raise ValueError(
                 f"Invalid scope '{v}'. Must be one of: {sorted(_VALID_SCOPES)}"
@@ -856,19 +889,21 @@ class PluginManifest(BaseModel):
     @field_validator("capabilities")
     @classmethod
     def validate_capabilities(cls, v: list[str]) -> list[str]:
-        """capabilities 只允许已定义的白名单能力字符串"""
+        """capabilities only allows defined whitelist capability strings
+        / capabilities 只允许已定义的白名单能力字符串"""
         unknown = [cap for cap in v if cap not in _VALID_CAPABILITIES]
         if unknown:
             raise ValueError(
                 f"Unknown capabilities: {unknown}. "
                 f"Valid capabilities: {sorted(_VALID_CAPABILITIES)}"
             )
-        return list(dict.fromkeys(v))  # 去重保序
+        return list(dict.fromkeys(v))  # Deduplicate preserving order / 去重保序
 
     @field_validator("db_table_prefixes")
     @classmethod
     def validate_db_table_prefixes(cls, v: list[str]) -> list[str]:
-        """自定义 DB 表前缀白名单（可选），用于兼容历史前缀插件。"""
+        """Custom DB table prefix whitelist (optional), for backward-compatible legacy prefix plugins.
+        / 自定义 DB 表前缀白名单（可选），用于兼容历史前缀插件。"""
         normalized: list[str] = []
         for item in v:
             prefix = (item or "").strip()

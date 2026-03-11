@@ -1,17 +1,17 @@
 /**
- * 租户端技能管理 API
- * 对接后端 /tenant/ai/skills/* 接口
+ * Tenant skill management API / 租户端技能管理 API
+ * Backend: /tenant/ai/skills/* / 对接后端 /tenant/ai/skills/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 技能信息 */
-/** 插件技能工具定义 */
+/** Skill info / 技能信息 */
+/** Plugin skill tool definition / 插件技能工具定义 */
 export interface PluginToolDefinition {
   name: string;
   description: string;
@@ -23,7 +23,7 @@ export interface PluginToolDefinition {
   }>;
 }
 
-/** 技能信息 */
+/** Skill info / 技能信息 */
 export interface SkillInfo {
   id: number;
   tenant_id: null | number;
@@ -47,7 +47,7 @@ export interface SkillInfo {
   plugin_tools: null | PluginToolDefinition[];
 }
 
-/** 创建技能请求 */
+/** Create skill request / 创建技能请求 */
 export interface SkillCreateRequest {
   package_id: number;
   name: string;
@@ -63,7 +63,7 @@ export interface SkillCreateRequest {
   toolkit_content?: null | string;
 }
 
-/** 更新技能请求 */
+/** Update skill request / 更新技能请求 */
 export interface SkillUpdateRequest {
   name?: null | string;
   description?: null | string;
@@ -78,13 +78,13 @@ export interface SkillUpdateRequest {
   toolkit_content?: null | string;
 }
 
-/** 技能类型选项 */
+/** Skill type option / 技能类型选项 */
 export interface SkillTypeOption {
   value: string;
   label: string;
 }
 
-/** 技能列表分页响应 */
+/** Skill list paginated response / 技能列表分页响应 */
 interface SkillPageResponse {
   items: SkillInfo[];
   page: number;
@@ -92,7 +92,7 @@ interface SkillPageResponse {
   total: number;
 }
 
-/** 技能下拉选项 */
+/** Skill select option / 技能下拉选项 */
 export interface SkillSelectOption {
   id: number;
   name: string;
@@ -101,19 +101,19 @@ export interface SkillSelectOption {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const PREFIX = '/tenant/ai/skills';
 
-/** 获取可用技能类型列表 */
+/** Get available skill types / 获取可用技能类型列表 */
 export async function getSkillTypesApi(
   options?: ApiRequestOptions,
 ): Promise<SkillTypeOption[]> {
   return requestClient.get<SkillTypeOption[]>(`${PREFIX}/skill-types`, options);
 }
 
-/** 获取技能列表 */
+/** Get skill list / 获取技能列表 */
 export async function getSkillListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -121,7 +121,7 @@ export async function getSkillListApi(
   return requestClient.get<SkillPageResponse>(PREFIX, { params, ...options });
 }
 
-/** 获取技能下拉选项 */
+/** Get skill select options / 获取技能下拉选项 */
 export async function getSkillSelectApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -132,7 +132,7 @@ export async function getSkillSelectApi(
   });
 }
 
-/** 获取技能详情 */
+/** Get skill detail / 获取技能详情 */
 export async function getSkillDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -140,7 +140,7 @@ export async function getSkillDetailApi(
   return requestClient.get<SkillInfo>(`${PREFIX}/${id}`, options);
 }
 
-/** 创建技能 */
+/** Create skill / 创建技能 */
 export async function createSkillApi(
   data: SkillCreateRequest,
   options?: ApiRequestOptions,
@@ -148,7 +148,7 @@ export async function createSkillApi(
   return requestClient.post<SkillInfo>(PREFIX, data, options);
 }
 
-/** 更新技能 */
+/** Update skill / 更新技能 */
 export async function updateSkillApi(
   id: number,
   data: SkillUpdateRequest,
@@ -157,7 +157,7 @@ export async function updateSkillApi(
   return requestClient.put<SkillInfo>(`${PREFIX}/${id}`, data, options);
 }
 
-/** 删除技能 */
+/** Delete skill / 删除技能 */
 export async function deleteSkillApi(
   id: number,
   options?: ApiRequestOptions,
@@ -165,14 +165,14 @@ export async function deleteSkillApi(
   await requestClient.delete(`${PREFIX}/${id}`, options);
 }
 
-/** 技能测试结果 */
+/** Skill test result / 技能测试结果 */
 export interface SkillTestResult {
   success: boolean;
   message: string;
   details: null | Record<string, unknown>;
 }
 
-/** 测试技能配置 */
+/** Test skill configuration / 测试技能配置 */
 export async function testSkillApi(
   id: number,
   options?: ApiRequestOptions,
@@ -184,7 +184,7 @@ export async function testSkillApi(
   );
 }
 
-/** 技能调用统计 */
+/** Skill invocation statistics / 技能调用统计 */
 export interface SkillStats {
   skill_id: number;
   total_calls: number;
@@ -195,7 +195,7 @@ export interface SkillStats {
   last_called_at: null | string;
 }
 
-/** 获取技能调用统计 */
+/** Get skill invocation statistics / 获取技能调用统计 */
 export async function getSkillStatsApi(
   id: number,
   options?: ApiRequestOptions,
@@ -204,10 +204,10 @@ export async function getSkillStatsApi(
 }
 
 // ============================================================
-// Toolkit 解析 API
+// Toolkit parsing API / Toolkit 解析 API
 // ============================================================
 
-/** Toolkit 解析结果中的 Tool */
+/** Tool from Toolkit parse result / Toolkit 解析结果中的 Tool */
 export interface ToolkitToolInfo {
   name: string;
   description: string;
@@ -221,7 +221,7 @@ export interface ToolkitToolInfo {
   is_async: boolean;
 }
 
-/** Toolkit 解析响应 */
+/** Toolkit parse response / Toolkit 解析响应 */
 export interface ToolkitParseResult {
   title?: string;
   description?: string;
@@ -233,7 +233,7 @@ export interface ToolkitParseResult {
   errors: string[];
 }
 
-/** 解析 Toolkit 源码 */
+/** Parse Toolkit source code / 解析 Toolkit 源码 */
 export async function parseToolkitApi(
   source: string,
   options?: ApiRequestOptions,

@@ -1,7 +1,8 @@
 """
-平台管理员角色仓储
+平台管理员角色仓储 / Admin Role Repository
 
 提供平台角色的数据访问操作，支持层级查询
+Provides platform role data access with hierarchy queries.
 """
 
 from sqlalchemy import func, select

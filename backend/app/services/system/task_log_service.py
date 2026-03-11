@@ -1,7 +1,8 @@
 """
-任务日志服务
+任务日志服务 / Task Log Service
 
 提供任务日志的业务逻辑
+Provides task log business logic.
 """
 
 from datetime import datetime

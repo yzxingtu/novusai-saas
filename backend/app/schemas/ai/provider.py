@@ -1,7 +1,8 @@
 """
-AI 供应商相关 Schema
+AI 供应商相关 Schema / AI Provider Schema
 
 定义 AI 供应商的请求和响应数据结构
+Defines AI provider request and response data structures.
 """
 
 

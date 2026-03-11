@@ -1,8 +1,9 @@
 """
+Agent Usage Statistics
 智能体用量统计
 
-基于 Redis Hash 追踪每个智能体的对话次数和 Token 消耗，
-支持总量和当日两个维度。
+Tracks per-agent conversation counts and token consumption via Redis Hash,
+支持总量和当日两个维度的智能体对话次数和 Token 消耗统计。
 """
 
 from datetime import date
@@ -13,9 +14,10 @@ from app.core.redis import get_redis
 
 logger = LogManager.get_logger("ai.agent_stats")
 
-# Redis Key 前缀
+# Redis key prefix / Redis Key 前缀
 _PREFIX = "ai:agent_stats"
 
+# Lua script: atomic date-check + reset + increment
 # Lua 脚本：原子化日期检查 + 重置 + 增量
 # KEYS[1] = hash key, ARGV[1] = today (ISO), ARGV[2] = tokens
 _RECORD_CHAT_LUA = """
@@ -38,19 +40,23 @@ return 1
 
 class AgentStatsManager:
     """
-    智能体用量统计管理器
+    Agent Usage Statistics Manager / 智能体用量统计管理器
 
+    Each agent uses a Redis Hash to store statistics:
     每个智能体使用一个 Redis Hash 存储统计数据:
-    - total_conversations: 累计对话次数
-    - total_tokens: 累计 Token 消耗
-    - today_conversations: 当日对话次数
-    - today_tokens: 当日 Token 消耗
-    - today_date: 当日统计日期（用于自动重置）
+    - total_conversations: Cumulative conversation count / 累计对话次数
+    - total_tokens: Cumulative token consumption / 累计 Token 消耗
+    - today_conversations: Today's conversation count / 当日对话次数
+    - today_tokens: Today's token consumption / 当日 Token 消耗
+    - today_date: Date for auto-reset / 当日统计日期（用于自动重置）
 
+    record_chat uses a Lua script for atomic date-check + reset + increment,
+    preventing lost counts during date transitions under concurrency.
     record_chat 使用 Lua 脚本保证日期检查+重置+增量的原子性，
     避免并发请求在日期切换时丢失计数。
 
-    使用示例:
+    Usage::
+
         await AgentStatsManager.record_chat(tenant_id=1, agent_id=42, tokens=350)
         stats = await AgentStatsManager.get_stats(tenant_id=1, agent_id=42)
     """
@@ -66,15 +72,18 @@ class AgentStatsManager:
         tokens: int = 0,
     ) -> None:
         """
-        记录一次对话完成（原子操作）
+        Record a completed conversation (atomic operation).
+        记录一次对话完成（原子操作）。
 
+        Uses Lua script for atomic date-check, reset, and increment on Redis side,
+        preventing lost counts during date transitions.
         使用 Lua 脚本在 Redis 端原子化执行日期检查、重置和增量，
         避免并发请求在日期切换时丢失计数。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            tokens: 本次消耗的 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            tokens: Tokens consumed in this conversation / 本次消耗的 Token 数量
         """
         redis = await get_redis()
         key = AgentStatsManager._key(tenant_id, agent_id)
@@ -94,14 +103,15 @@ class AgentStatsManager:
         agent_id: int,
     ) -> dict[str, Any]:
         """
-        获取智能体用量统计
+        Get agent usage statistics.
+        获取智能体用量统计。
 
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
 
         Returns:
-            统计数据字典
+            Statistics dictionary / 统计数据字典
         """
         redis = await get_redis()
         key = AgentStatsManager._key(tenant_id, agent_id)
@@ -117,7 +127,7 @@ class AgentStatsManager:
                 "date": today,
             }
 
-        # 如果日期不一致，当日计数归零
+        # If date mismatch, reset today's counts / 如果日期不一致，当日计数归零
         stored_date = raw.get("today_date", "")
         if stored_date != today:
             today_conv = 0
@@ -137,10 +147,11 @@ class AgentStatsManager:
     @staticmethod
     async def reset_daily_stats() -> int:
         """
-        重置所有智能体的当日统计（供 Celery Beat 每日调用）
+        Reset daily stats for all agents (called by Celery Beat daily).
+        重置所有智能体的当日统计（供 Celery Beat 每日调用）。
 
         Returns:
-            重置的智能体数量
+            Number of agents reset / 重置的智能体数量
         """
         redis = await get_redis()
         cursor: int = 0

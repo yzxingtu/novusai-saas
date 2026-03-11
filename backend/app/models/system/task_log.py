@@ -1,7 +1,8 @@
 """
-任务日志模型
+任务日志模型 / Task Log Model
 
 记录 Celery 异步任务的执行历史
+Records Celery async task execution history.
 """
 
 from datetime import datetime

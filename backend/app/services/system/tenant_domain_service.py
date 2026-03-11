@@ -1,7 +1,8 @@
 """
-租户域名服务
+租户域名服务 / Tenant Domain Service
 
 提供租户域名的业务逻辑（平台级，非租户隔离）
+Provides tenant domain business logic (platform-level, no tenant isolation).
 """
 
 import secrets
@@ -13,7 +14,13 @@ from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.config import settings
-from app.core.hosts_helper import async_add_host_entry, async_remove_host_entry, is_dev_local
+from app.core.hosts_helper import (
+    async_add_host_entry,
+    async_get_domain_entry_status,
+    async_get_runtime_info,
+    async_remove_host_entry,
+    is_dev_local,
+)
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.enums.domain import DomainSslStatus
@@ -508,6 +515,112 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "name": f"{prefix}.{domain_obj.domain}",
             "value": domain_obj.verification_token,
         }
+
+    async def _get_owned_domain(self, tenant_id: int, domain_id: int) -> TenantDomain:
+        """获取指定租户拥有的域名，不存在则抛错 / Get a domain owned by the specified tenant, or raise when not found"""
+        domain = await self.get_by_id(domain_id)
+        if not domain or domain.tenant_id != tenant_id:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+        return domain
+
+    def _build_dev_host_domain_status(self, domain_obj: TenantDomain, runtime: dict, entry_status: dict) -> dict:
+        """构建单个域名的 Dev Hosts 状态响应 / Build the Dev Hosts status response for a single domain"""
+        eligible = bool(domain_obj.is_verified)
+        if not eligible:
+            return {
+                "domain_id": domain_obj.id,
+                "domain": domain_obj.domain,
+                "eligible": False,
+                "status": "not_required",
+                "managed": False,
+                "matched_ip": None,
+                "reason": "unverified",
+            }
+
+        reason = None
+        if entry_status["status"] == "unsupported":
+            reason = "unsupported_platform"
+        elif not runtime["enabled"]:
+            reason = "dev_hosts_disabled"
+
+        return {
+            "domain_id": domain_obj.id,
+            "domain": domain_obj.domain,
+            "eligible": True,
+            "status": entry_status["status"],
+            "managed": entry_status["managed"],
+            "matched_ip": entry_status["matched_ip"],
+            "reason": reason,
+        }
+
+    async def get_dev_hosts_status(self, tenant_id: int) -> dict:
+        """获取租户全部域名的 Dev Hosts 状态 / Get Dev Hosts status for all domains of the tenant"""
+        runtime = await async_get_runtime_info()
+        domains = await self.repo.get_tenant_domains(tenant_id)
+
+        domain_statuses = []
+        for domain_obj in domains:
+            entry_status = await async_get_domain_entry_status(domain_obj.domain)
+            domain_statuses.append(self._build_dev_host_domain_status(domain_obj, runtime, entry_status))
+
+        return {
+            "runtime": runtime,
+            "domains": domain_statuses,
+        }
+
+    async def sync_dev_host(self, tenant_id: int, domain_id: int) -> dict:
+        """同步单个域名到 Dev Hosts / Sync a single domain into Dev Hosts"""
+        domain = await self._get_owned_domain(tenant_id, domain_id)
+        if not domain.is_verified:
+            raise BusinessException(
+                message=_("tenant_domain.not_verified"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        if self._should_inject_hosts():
+            await async_add_host_entry(domain.domain)
+
+        runtime = await async_get_runtime_info()
+        entry_status = await async_get_domain_entry_status(domain.domain)
+        return {
+            "runtime": runtime,
+            "domain": self._build_dev_host_domain_status(domain, runtime, entry_status),
+        }
+
+    async def remove_dev_host(self, tenant_id: int, domain_id: int) -> dict:
+        """移除单个域名的托管 Dev Hosts 条目 / Remove the managed Dev Hosts entry for a single domain"""
+        domain = await self._get_owned_domain(tenant_id, domain_id)
+
+        if self._should_inject_hosts():
+            await async_remove_host_entry(domain.domain)
+
+        runtime = await async_get_runtime_info()
+        entry_status = await async_get_domain_entry_status(domain.domain)
+        return {
+            "runtime": runtime,
+            "domain": self._build_dev_host_domain_status(domain, runtime, entry_status),
+        }
+
+    async def sync_all_dev_hosts(self, tenant_id: int) -> dict:
+        """批量同步租户全部可写入的 Dev Hosts 条目 / Batch sync all eligible Dev Hosts entries for the tenant"""
+        domains = await self.repo.get_tenant_domains(tenant_id)
+        synced = 0
+        skipped = 0
+
+        if self._should_inject_hosts():
+            for domain_obj in domains:
+                if not domain_obj.is_verified:
+                    skipped += 1
+                    continue
+                await async_add_host_entry(domain_obj.domain)
+                synced += 1
+        else:
+            skipped = len(domains)
+
+        overview = await self.get_dev_hosts_status(tenant_id)
+        overview["synced"] = synced
+        overview["skipped"] = skipped
+        return overview
 
     def _should_inject_hosts(self) -> bool:
         """

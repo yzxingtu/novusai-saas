@@ -1,3 +1,7 @@
+"""
+租户端域名仓储 / Tenant Domain (Tenant-side) Repository
+"""
+
 from sqlalchemy import asc, select
 
 from app.core.base_repository import TenantRepository

@@ -1,7 +1,8 @@
 """
-租户域名模型
+租户域名模型 / Tenant Domain Model
 
 管理租户的自定义域名绑定
+Manages tenant custom domain bindings.
 """
 
 from datetime import datetime

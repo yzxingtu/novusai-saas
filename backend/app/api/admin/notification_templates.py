@@ -1,8 +1,10 @@
 """
-平台管理端通知模板管理 API
+平台管理端通知模板管理 API / Platform Admin Notification Template Management API
 
 管理员可查看、编辑通知模板的渠道配置、优先级、启用状态。
+Admins can view and edit notification template channel config, priority, and enable status.
 系统内置模板不可删除，仅可编辑渠道和优先级。
+System built-in templates cannot be deleted, only channels and priority can be edited.
 """
 
 from fastapi import Request
@@ -25,7 +27,7 @@ from app.repositories.common.notification_template_repository import (
 
 
 class UpdateTemplateRequest(BaseModel):
-    """更新通知模板请求"""
+    """更新通知模板请求 / Update notification template request"""
     channels: list[str] | None = Field(None, description="投递渠道列表")
     priority: str | None = Field(None, description="优先级: low/normal/high/urgent")
     title_template: str | None = Field(None, description="标题模板")
@@ -47,9 +49,9 @@ class UpdateTemplateRequest(BaseModel):
 )
 class AdminNotificationTemplateController(GlobalController):
     """
-    平台端通知模板管理控制器
+    平台端通知模板管理控制器 / Platform Notification Template Management Controller
 
-    管理通知模板的渠道配置、优先级等
+    管理通知模板的渠道配置、优先级等 / Manage notification template channel config, priority, etc.
     """
 
     prefix = "/notification-templates"
@@ -66,7 +68,7 @@ class AdminNotificationTemplateController(GlobalController):
             admin: ActiveAdmin,
             query: QueryParams,
         ):
-            """获取所有通知模板（分页 + 筛选）"""
+            """获取所有通知模板（分页 + 筛选） / Get all notification templates (paginated + filtered)"""
             repo = NotificationTemplateRepository(db)
             items, total = await repo.query_list(query)
 
@@ -103,9 +105,10 @@ class AdminNotificationTemplateController(GlobalController):
             data: UpdateTemplateRequest,
         ):
             """
-            更新通知模板的渠道配置、优先级等
+            更新通知模板的渠道配置、优先级等 / Update notification template channel config, priority, etc.
 
             系统内置模板仅允许修改 channels 和 priority。
+            System built-in templates only allow modifying channels and priority.
             """
             repo = NotificationTemplateRepository(db)
             template = await repo.get_by_id(template_id)
@@ -147,10 +150,12 @@ class AdminNotificationTemplateController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            发送测试通知给当前管理员
+            发送测试通知给当前管理员 / Send test notification to current admin
 
             使用模板定义的所有渠道发送一条测试通知，
             占位符使用示例数据自动填充。
+            Sends a test notification via all channels defined in the template,
+            placeholders are auto-filled with sample data.
             """
             repo = NotificationTemplateRepository(db)
             template = await repo.get_by_id(template_id)
@@ -160,7 +165,7 @@ class AdminNotificationTemplateController(GlobalController):
 
             from app.services.common.notification_service import NotificationService
 
-            # 构造示例数据（覆盖所有已知占位符）
+            # 构造示例数据（覆盖所有已知占位符） / Build sample data (cover all known placeholders)
             sample_data = {
                 "content": "这是一条测试通知内容",
                 "message": "这是一条测试安全警告消息",

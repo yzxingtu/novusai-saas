@@ -1,7 +1,8 @@
 """
-租户端任务日志仓储
+租户端任务日志仓储 / Tenant Task Log Repository
 
 提供任务日志数据访问能力（租户隔离）
+Provides task log data access (tenant-isolated).
 """
 
 from app.core.base_repository import TenantRepository

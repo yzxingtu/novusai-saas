@@ -1,7 +1,8 @@
 """
-系统日志服务模块
+系统日志服务模块 / System Log Service
 
 提供文件日志的查询、读取、下载等功能
+Provides file log query, read, download functions.
 """
 
 import os

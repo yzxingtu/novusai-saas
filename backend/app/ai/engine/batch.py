@@ -1,7 +1,10 @@
 """
+Batch Execution Engine
 批量执行引擎
 
-串行处理多个 BatchItem，每个 item 独立执行，单个失败不影响其他
+Serially processes multiple BatchItems, each item executes independently,
+single failure does not affect others.
+串行处理多个 BatchItem，每个 item 独立执行，单个失败不影响其他。
 """
 
 import time
@@ -20,17 +23,20 @@ logger = LogManager.get_logger("ai.engine.batch")
 
 class BatchEngine(BaseEngine):
     """
-    批量执行引擎
+    Batch Execution Engine / 批量执行引擎
 
+    Internally reuses TaskEngine to process items one by one, each independent:
     内部复用 TaskEngine 逐项处理，每项独立：
-    1. 遍历所有 BatchItem
-    2. 为每项构造独立的 ExecutionRequest
-    3. 通过 TaskEngine 执行
-    4. 记录每项状态，汇总结果
+    1. Iterate all BatchItems / 遍历所有 BatchItem
+    2. Construct independent ExecutionRequest for each / 为每项构造独立的 ExecutionRequest
+    3. Execute via TaskEngine / 通过 TaskEngine 执行
+    4. Record status per item, aggregate results / 记录每项状态，汇总结果
     """
 
     async def execute(self, agent: Agent, request: ExecutionRequest) -> ExecutionResult:
         """
+        execute is only for satisfying BaseEngine interface.
+        Batch execution should use execute_batch().
         execute 仅用于满足 BaseEngine 接口。
         批量执行应使用 execute_batch()。
         """
@@ -51,19 +57,20 @@ class BatchEngine(BaseEngine):
         items: list[BatchItem],
     ) -> BatchResult:
         """
-        批量执行
+        Batch execution.
+        批量执行。
 
         Args:
-            agent: 智能体
-            request: 基础执行请求（含 tenant_id, user_id 等公共参数）
-            items: 批量项目列表
+            agent: Agent / 智能体
+            request: Base execution request (with tenant_id, user_id etc.) / 基础执行请求
+            items: Batch item list / 批量项目列表
 
         Returns:
-            BatchResult 汇总结果
+            BatchResult aggregated result / BatchResult 汇总结果
         """
         start = time.perf_counter()
 
-        # 复用 TaskEngine
+        # Reuse TaskEngine / 复用 TaskEngine
         task_engine = TaskEngine(
             db=self.db,
             gateway=self.gateway,
@@ -75,7 +82,7 @@ class BatchEngine(BaseEngine):
 
         for item in items:
             try:
-                # 构造独立请求
+                # Construct independent request / 构造独立请求
                 item_request = ExecutionRequest(
                     agent_id=request.agent_id,
                     tenant_id=request.tenant_id,

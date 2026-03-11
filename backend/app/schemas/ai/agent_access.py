@@ -1,7 +1,8 @@
 """
-智能体访问权限 Schema
+智能体访问权限 Schema / Agent Access Schema
 
 定义访问权限配置的请求/响应数据结构
+Defines access control configuration request/response data structures.
 """
 
 from pydantic import BaseModel, Field

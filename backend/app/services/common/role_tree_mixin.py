@@ -1,7 +1,8 @@
 """
-角色树操作公共 Mixin
+角色树操作公共 Mixin / Role Tree Mixin
 
 提供角色层级结构的通用操作方法，供平台角色和租户角色服务复用
+Provides common role hierarchy operations, shared by platform and tenant role services.
 """
 
 from typing import TYPE_CHECKING, Any, Generic, TypeVar

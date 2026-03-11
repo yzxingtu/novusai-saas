@@ -1,7 +1,8 @@
 """
-AI 调用日志管理 API (Admin)
+AI 调用日志管理 API (Admin) / AI Call Log API (Admin)
 
 提供平台端 AI 调用日志查询和分析接口（平台管理员专用）
+Provides platform AI call log query and analysis endpoints (platform admin only).
 """
 
 from datetime import date
@@ -38,16 +39,16 @@ from app.services.ai import CallLogService
 )
 class AdminAICallLogController(GlobalController):
     """
-    AI 调用日志控制器
+    AI 调用日志控制器 / AI Call Log Controller
 
-    提供调用日志查询和统计分析接口
+    提供调用日志查询和统计分析接口 / Provides call log query and statistics analysis endpoints
     """
 
     prefix = "/ai/call-logs"
     tags = [_("menu.tags.admin_ai_call_log")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="查询 AI 调用日志列表")
@@ -59,16 +60,16 @@ class AdminAICallLogController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            查询 AI 调用日志列表
+            查询 AI 调用日志列表 / Query AI call log list
 
-            支持 JSON:API 风格筛选:
-            - filter[tenant_id]: 租户 ID
-            - filter[model_id]: 模型 ID
-            - filter[status]: 调用状态
-            - filter[created_at][gte]: 创建时间 >=
-            - filter[created_at][lte]: 创建时间 <=
+            支持 JSON:API 风格筛选 / Supports JSON:API style filtering:
+            - filter[tenant_id]: 租户 ID / Tenant ID
+            - filter[model_id]: 模型 ID / Model ID
+            - filter[status]: 调用状态 / Call status
+            - filter[created_at][gte]: 创建时间 >= / Created at >=
+            - filter[created_at][lte]: 创建时间 <= / Created at <=
 
-            权限: ai_call_log:list
+            权限 / Permission: ai_call_log:list
             """
             service = CallLogService(db)
             items, total = await service.repo.query_list_with_names(spec)
@@ -95,12 +96,12 @@ class AdminAICallLogController(GlobalController):
             group_by: str | None = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
         ):
             """
-            获取调用统计信息
+            获取调用统计信息 / Get call statistics
 
-            不传 group_by 时返回单个汇总 dict；
-            传 group_by=daily/model/user 时返回分组列表
+            不传 group_by 时返回单个汇总 dict / Without group_by returns single summary dict;
+            传 group_by=daily/model/user 时返回分组列表 / With group_by=daily/model/user returns grouped list
 
-            权限: ai_call_log:statistics
+            权限 / Permission: ai_call_log:statistics
             """
             service = CallLogService(db)
 
@@ -131,9 +132,9 @@ class AdminAICallLogController(GlobalController):
             limit: int = Query(100, ge=1, le=1000, description="返回数量"),
         ):
             """
-            获取失败的调用日志
+            获取失败的调用日志 / Get failed call logs
 
-            权限: ai_call_log:failed
+            权限 / Permission: ai_call_log:failed
             """
             service = CallLogService(db)
             logs = await service.get_failed_logs(
@@ -153,11 +154,11 @@ class AdminAICallLogController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            导出 AI 调用日志为 CSV（最多 10000 条）
+            导出 AI 调用日志为 CSV（最多 10000 条） / Export AI call logs as CSV (max 10000 records)
 
-            支持与列表相同的筛选参数
+            支持与列表相同的筛选参数 / Supports same filtering parameters as list
 
-            权限: ai_call_log:list
+            权限 / Permission: ai_call_log:list
             """
             from app.core.csv_export import MAX_EXPORT_ROWS, csv_streaming_response
 
@@ -205,9 +206,9 @@ class AdminAICallLogController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取调用日志详情（含完整请求和响应体）
+            获取调用日志详情（含完整请求和响应体） / Get call log details (with full request and response body)
 
-            权限: ai_call_log:detail
+            权限 / Permission: ai_call_log:detail
             """
             service = CallLogService(db)
             log = await service.get_by_id(log_id)
@@ -218,7 +219,7 @@ class AdminAICallLogController(GlobalController):
             return success(data=log, message=_("common.success"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAICallLogController.get_router()
 
 __all__ = ["router", "AdminAICallLogController"]

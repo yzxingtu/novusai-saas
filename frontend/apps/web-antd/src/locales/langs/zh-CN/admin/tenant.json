@@ -248,6 +248,39 @@
       "deleteHint": "删除证书后将回退到 HTTP 访问",
       "platformWildcard": "平台通配符 SSL 证书已覆盖",
       "platformWildcardDesc": "默认域名由平台通配符 SSL 证书自动保护，无需单独配置"
+    },
+    "devHosts": {
+      "title": "Dev Hosts 管理",
+      "runtimeInfo": "运行时信息",
+      "os": "操作系统",
+      "hostsPath": "Hosts 文件路径",
+      "writeAccess": "写入权限",
+      "writeYes": "可写入",
+      "writeNo": "需要提权",
+      "disabled": "Dev Hosts 未启用（非 DEBUG 模式或不支持当前系统）",
+      "syncAll": "全部同步",
+      "syncAllSuccess": "批量同步完成：同步 {synced} 个，跳过 {skipped} 个",
+      "sync": "同步 hosts",
+      "syncSuccess": "已同步到 hosts",
+      "remove": "移除托管条目",
+      "removeSuccess": "已从 hosts 移除",
+      "refresh": "刷新状态",
+      "status": {
+        "managed_present": "已托管",
+        "manual_present": "手动条目",
+        "missing": "未写入",
+        "not_required": "无需写入",
+        "unsupported": "不支持"
+      },
+      "elevationHint": "当前进程缺少写入权限，请以管理员身份运行后端或手动执行：",
+      "cliCommand": "python -m app.core.hosts_helper add {domain}",
+      "remoteWarning": "注意：Hosts 修改仅影响后端所在机器，远程开发时浏览器端可能无法访问",
+      "loadError": "Dev Hosts 状态加载失败，请刷新重试",
+      "reason": {
+        "unverified": "域名未验证，无需写入",
+        "unsupported_platform": "当前系统不支持 hosts 管理",
+        "dev_hosts_disabled": "Dev Hosts 未启用（非 DEBUG 模式）"
+      }
     }
   },
   "manageDomains": "域名管理",

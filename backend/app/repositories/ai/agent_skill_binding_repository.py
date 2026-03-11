@@ -1,5 +1,5 @@
 """
-智能体技能绑定 Repository
+智能体技能绑定 Repository / Agent Skill Binding Repository
 """
 
 from sqlalchemy import and_, delete, select

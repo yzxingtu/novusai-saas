@@ -1,7 +1,8 @@
 """
-平台管理端通知 API
+平台管理端通知 API / Platform Admin Notification API
 
 提供管理员通知列表、未读计数、已读、全部已读、删除接口。
+Provides admin notification list, unread count, mark read, mark all read, and delete endpoints.
 """
 
 from fastapi import APIRouter, Query
@@ -26,7 +27,7 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    """获取当前管理员的通知列表（分页）"""
+    """获取当前管理员的通知列表（分页） / Get current admin's notification list (paginated)"""
     service = NotificationService(db)
 
     read_filter = None
@@ -73,7 +74,7 @@ async def get_unread_count(
     db: DbSession,
     admin: ActiveAdmin,
 ):
-    """获取当前管理员的未读通知数量"""
+    """获取当前管理员的未读通知数量 / Get current admin's unread notification count"""
     service = NotificationService(db)
     count = await service.get_unread_count("admin", admin.id)
     return success(data={"count": count})
@@ -86,7 +87,7 @@ async def mark_read(
     admin: ActiveAdmin,
     notification_id: int,
 ):
-    """标记单条通知已读"""
+    """标记单条通知已读 / Mark single notification as read"""
     service = NotificationService(db)
     found = await service.mark_read(notification_id, "admin", admin.id)
     if not found:
@@ -101,7 +102,7 @@ async def mark_all_read(
     admin: ActiveAdmin,
     category: str = Query("", description="可选分类筛选"),
 ):
-    """标记全部通知已读"""
+    """标记全部通知已读 / Mark all notifications as read"""
     service = NotificationService(db)
     count = await service.mark_all_read("admin", admin.id, category or None)
     return success(data={"count": count})
@@ -114,7 +115,7 @@ async def delete_notification(
     admin: ActiveAdmin,
     notification_id: int,
 ):
-    """删除单条通知（软删除）"""
+    """删除单条通知（软删除） / Delete single notification (soft delete)"""
     service = NotificationService(db)
     found = await service.delete_notification(notification_id, "admin", admin.id)
     if not found:

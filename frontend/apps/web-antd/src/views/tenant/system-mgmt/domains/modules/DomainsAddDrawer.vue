@@ -70,7 +70,8 @@ async function onSubmit() {
     drawerApi.close();
     emits('success', result as TenantDomainInfo);
   } catch {
-    // 错误由请求拦截器处理
+    // Error handled by request interceptor / 错误由请求拦截器处理
+    drawerApi.setState({ loading: false, confirmLoading: false });
   } finally {
     drawerApi.setState({ loading: false, confirmLoading: false });
   }

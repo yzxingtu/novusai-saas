@@ -1,7 +1,8 @@
 """
-租户 AI 模型速率限制配置模型
+租户 AI 模型速率限制配置模型 / Tenant AI Model Rate Limit Model
 
 存储每个租户对每个模型的速率限制配置
+Stores per-tenant per-model rate limit configuration.
 """
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String

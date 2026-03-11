@@ -1,7 +1,8 @@
 """
-用户端权限 API
+用户端权限 API / User Permission API
 
 提供用户端菜单等接口
+Provides user menu and other permission endpoints
 """
 
 from fastapi import Request
@@ -26,19 +27,20 @@ from app.rbac.services import PermissionService
 )
 class UserPermissionController(BaseController):
     """
-    用户端权限控制器
+    用户端权限控制器 / User Permission Controller
 
     提供菜单树查询接口
+    Provides menu tree query endpoints
     """
 
     prefix = "/permissions"
     tags = ["Permission Management (User)"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/menus", summary="获取当前用户菜单")
+        @router.get("/menus", summary="获取当前用户菜单 / Get current user menus")
         @auth_only
         async def get_current_user_menus(
             request: Request,
@@ -47,15 +49,17 @@ class UserPermissionController(BaseController):
         ):
             """
             获取当前租户业务用户的菜单列表
+            Get menu list for current tenant business user
 
             根据角色权限过滤，用于前端动态渲染菜单
+            Filtered by role permissions, used for frontend dynamic menu rendering
             """
             perm_service = PermissionService(db)
             menus = await perm_service.get_tenant_user_menus(current_user)
             return success(data=menus, message=_("common.success"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = UserPermissionController.get_router()
 
 __all__ = ["router", "UserPermissionController"]

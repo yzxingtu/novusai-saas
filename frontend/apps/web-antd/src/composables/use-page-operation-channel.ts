@@ -1,14 +1,16 @@
 /**
+ * Page operation WebSocket channel
  * 页面操作 WebSocket 通道
  *
+ * Establishes a bidirectional Socket.IO channel for page_operation events:
  * 建立 page_operation 事件类型的 Socket.IO 双向通道：
- * - 连接后发送 page_session_join 加入 page_session_id 房间
- * - 监听 page_operation_invoke 事件，执行对应操作
- * - 通过 page_operation_result 回传执行结果
- * - 变更操作（readonly=false）弹出确认对话框，用户确认后才执行
- * - 路由变化时自动更新房间
+ * - Sends page_session_join to join page_session_id room after connection / 连接后加入房间
+ * - Listens for page_operation_invoke and executes operations / 监听并执行操作
+ * - Sends back results via page_operation_result / 回传执行结果
+ * - Mutation operations (readonly=false) show confirmation dialog / 变更操作弹出确认框
+ * - Auto-updates room on route change / 路由变化时自动更新房间
  *
- * 在 layout 组件中调用一次即可。
+ * Call once in layout component / 在 layout 组件中调用一次即可。
  */
 
 import { watch } from 'vue';
@@ -23,41 +25,42 @@ import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 
-/** 后端下发的操作调用事件 */
+/** Operation invoke event from backend / 后端下发的操作调用事件 */
 export interface PageOperationInvokeEvent {
-  /** 操作调用唯一 ID（用于回传结果匹配） */
+  /** Unique operation invoke ID (for result matching) / 操作调用唯一 ID */
   invoke_id: string;
-  /** 页面标识（pageContextKey） */
+  /** Page identifier (pageContextKey) / 页面标识 */
   page_key: string;
-  /** 操作名称 */
+  /** Operation name / 操作名称 */
   operation_name: string;
-  /** 操作参数 */
+  /** Operation parameters / 操作参数 */
   params: Record<string, unknown>;
-  /** 是否需要用户确认（readonly=false 的操作） */
+  /** Whether user confirmation is needed (for readonly=false operations) / 是否需要用户确认 */
   requires_confirmation: boolean;
 }
 
-/** 回传给后端的操作结果 */
+/** Operation result sent back to backend / 回传给后端的操作结果 */
 export interface PageOperationResultEvent {
-  /** 操作调用唯一 ID */
+  /** Unique operation invoke ID / 操作调用唯一 ID */
   invoke_id: string;
-  /** 是否成功 */
+  /** Whether successful / 是否成功 */
   success: boolean;
-  /** 结果消息 */
+  /** Result message / 结果消息 */
   message: string;
-  /** 附加数据 */
+  /** Additional data / 附加数据 */
   data?: Record<string, unknown>;
-  /** 失败原因类型 */
+  /** Failure reason type / 失败原因类型 */
   error_type?: string;
 }
 
-/** 当前已加入的 page_session room */
+/** Currently joined page_session room / 当前已加入的 page_session room */
 let currentJoinedRoom = '';
 
-/** 防止 layout 重新挂载时重复注册 handler */
+/** Prevent duplicate handler registration on layout remount / 防止 layout 重新挂载时重复注册 */
 let _initialized = false;
 
 /**
+ * Execute operation and send result back via WebSocket
  * 执行操作并通过 WebSocket 回传结果
  */
 function emitResult(
@@ -76,14 +79,15 @@ function emitResult(
 }
 
 /**
+ * Initialize page operation WebSocket channel (call once in layout setup)
  * 初始化页面操作 WebSocket 通道（在 layout setup 中调用一次）
  *
- * 功能：
- * 1. 连接后自动 join page_session_id 房间
- * 2. 路由变化时自动切换房间
- * 3. 监听 page_operation_invoke 并执行操作
- * 4. 变更操作弹出确认对话框
- * 5. 回传 page_operation_result
+ * Features / 功能:
+ * 1. Auto-join page_session_id room after connection / 连接后自动加入房间
+ * 2. Auto-switch room on route change / 路由变化时自动切换房间
+ * 3. Listen for page_operation_invoke and execute / 监听并执行操作
+ * 4. Show confirmation dialog for mutation operations / 变更操作弹出确认框
+ * 5. Send back page_operation_result / 回传结果
  */
 export function usePageOperationChannel(): void {
   if (_initialized) return;
@@ -92,6 +96,7 @@ export function usePageOperationChannel(): void {
   const socketIOStore = useSocketIOStore();
 
   /**
+   * Execute operation and send back result directly
    * 直接执行操作并回传结果
    */
   async function executeAndEmit(
@@ -111,6 +116,7 @@ export function usePageOperationChannel(): void {
   }
 
   /**
+   * Show confirmation dialog, execute operation after user confirms
    * 弹出确认对话框，用户确认后执行操作
    */
   function confirmAndExecute(
@@ -142,20 +148,20 @@ export function usePageOperationChannel(): void {
     });
   }
 
-  // 操作调用处理器
+  // Operation invoke handler / 操作调用处理器
   async function handleInvoke(data: unknown): Promise<void> {
     const event = data as PageOperationInvokeEvent;
     if (!event?.invoke_id || !event?.page_key || !event?.operation_name) {
       return;
     }
 
-    // 查找操作注册
+    // Find operation registration / 查找操作注册
     const operation = findPageOperation(
       event.page_key,
       event.operation_name,
     );
 
-    // 未注册操作 → 拒绝执行
+    // Unregistered operation → reject / 未注册操作 → 拒绝执行
     if (!operation) {
       emitResult(socketIOStore, event.invoke_id, {
         success: false,
@@ -164,13 +170,13 @@ export function usePageOperationChannel(): void {
       return;
     }
 
-    // readonly=true → 直接执行（无需确认）
+    // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
     if (operation.readonly) {
       await executeAndEmit(event);
       return;
     }
 
-    // readonly=false → 弹出确认对话框
+    // readonly=false → show confirmation dialog / 弹出确认对话框
     confirmAndExecute(
       event,
       operation.label,
@@ -178,33 +184,33 @@ export function usePageOperationChannel(): void {
     );
   }
 
-  // 注册 invoke 事件处理器
+  // Register invoke event handler / 注册 invoke 事件处理器
   socketIOStore.registerHandler(
     'page_operation_invoke',
     handleInvoke as (data: unknown) => void,
   );
 
-  // 加入 page_session 房间
+  // Join page_session room / 加入 page_session 房间
   function joinPageSessionRoom() {
     const pageSessionId = getActivePageSessionId();
     if (!pageSessionId || !socketIOStore.isConnected) return;
     if (currentJoinedRoom === pageSessionId) return;
 
-    // 离开旧 room
+    // Leave old room / 离开旧 room
     if (currentJoinedRoom) {
       socketIOStore.emit('page_session_leave', {
         page_session_id: currentJoinedRoom,
       });
     }
 
-    // 加入新 room
+    // Join new room / 加入新 room
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
     });
     currentJoinedRoom = pageSessionId;
   }
 
-  // 连接状态变化时加入房间
+  // Join room when connection status changes / 连接状态变化时加入房间
   watch(
     () => socketIOStore.isConnected,
     (connected) => {
@@ -218,7 +224,7 @@ export function usePageOperationChannel(): void {
     { immediate: true },
   );
 
-  // page_session_id 变化时切换房间（比 watch route.path + setTimeout 更可靠）
+  // Switch room when page_session_id changes (more reliable than watch route.path + setTimeout) / page_session_id 变化时切换房间
   watch(
     () => getActivePageSessionId(),
     (newId) => {

@@ -1,7 +1,8 @@
 """
-插件系统枚举
+插件系统枚举 / Plugin System Enums
 
 定义插件相关的状态、作用域、信任等级等枚举类
+Defines plugin status, scope, trust tier and other enum classes.
 """
 
 from app.enums.base import LabeledStrEnum
@@ -9,7 +10,7 @@ from app.enums.common import ResourceScopeEnum
 
 
 class PluginStatusEnum(LabeledStrEnum):
-    """插件状态"""
+    """Plugin Status Enum / 插件状态枚举"""
 
     INSTALLED = ("installed", "enum.plugin_status.installed")
     ENABLED = ("enabled", "enum.plugin_status.enabled")
@@ -17,12 +18,12 @@ class PluginStatusEnum(LabeledStrEnum):
     ERROR = ("error", "enum.plugin_status.error")
 
 
-# [DEPRECATED] PluginScopeEnum 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
+# [DEPRECATED] PluginScopeEnum unified to ResourceScopeEnum, alias kept for backward compat / PluginScopeEnum 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
 PluginScopeEnum = ResourceScopeEnum
 
 
 class PluginTierEnum(LabeledStrEnum):
-    """插件信任等级"""
+    """Plugin Trust Tier Enum / 插件信任等级枚举"""
 
     OFFICIAL = ("official", "enum.plugin_tier.official")
     VERIFIED = ("verified", "enum.plugin_tier.verified")
@@ -30,7 +31,7 @@ class PluginTierEnum(LabeledStrEnum):
 
 
 class PluginInstallSourceEnum(LabeledStrEnum):
-    """插件安装来源"""
+    """Plugin Install Source Enum / 插件安装来源枚举"""
 
     LOCAL = ("local", "enum.plugin_install_source.local")
     MARKETPLACE = ("marketplace", "enum.plugin_install_source.marketplace")
@@ -38,28 +39,28 @@ class PluginInstallSourceEnum(LabeledStrEnum):
 
 
 class PluginPricingTypeEnum(LabeledStrEnum):
-    """插件定价类型"""
+    """Plugin Pricing Type Enum / 插件定价类型枚举"""
 
     FREE = ("free", "enum.plugin_pricing.free")
     PAID = ("paid", "enum.plugin_pricing.paid")
 
 
 class PluginLicenseTypeEnum(LabeledStrEnum):
-    """License 类型"""
+    """License Type Enum / License 类型枚举"""
 
     TRIAL = ("trial", "enum.plugin_license.trial")
     PERPETUAL = ("perpetual", "enum.plugin_license.perpetual")
 
 
 class PluginVersionStatusEnum(LabeledStrEnum):
-    """插件版本状态"""
+    """Plugin Version Status Enum / 插件版本状态枚举"""
 
     ACTIVE = ("active", "enum.plugin_version_status.active")
     ARCHIVED = ("archived", "enum.plugin_version_status.archived")
 
 
 class FrontendSlotTypeEnum(LabeledStrEnum):
-    """插件前端插槽类型"""
+    """Plugin Frontend Slot Type Enum / 插件前端插槽类型枚举"""
 
     HEADER_WIDGET = ("header_widget", "enum.frontend_slot_type.header_widget")
     DASHBOARD_WIDGET = ("dashboard_widget", "enum.frontend_slot_type.dashboard_widget")

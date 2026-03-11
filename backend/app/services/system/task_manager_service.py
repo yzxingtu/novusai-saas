@@ -1,7 +1,8 @@
 """
-任务管理服务
+任务管理服务 / Task Manager Service
 
 提供任务重试、取消、活跃任务查询等管理功能
+Provides task retry, cancel, active task query and other management features.
 """
 
 from app.celery_app import celery_app

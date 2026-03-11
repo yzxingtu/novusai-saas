@@ -1,19 +1,19 @@
 /**
- * 租户用户角色管理 API
- * 对接后端 /tenant/user-roles/* 接口
+ * Tenant user role management API / 租户用户角色管理 API
+ * Backend: /tenant/user-roles/* / 对接后端 /tenant/user-roles/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 用户角色列表查询参数 */
+/** User role list query params / 用户角色列表查询参数 */
 export type TenantUserRoleListParams = Record<string, unknown>;
 
-/** 创建用户角色请求 */
+/** Create user role request / 创建用户角色请求 */
 export interface TenantUserRoleCreateRequest {
   name: string;
   code: string;
@@ -23,7 +23,7 @@ export interface TenantUserRoleCreateRequest {
   permission_ids?: number[];
 }
 
-/** 更新用户角色请求 */
+/** Update user role request / 更新用户角色请求 */
 export interface TenantUserRoleUpdateRequest {
   name?: null | string;
   code?: null | string;
@@ -33,12 +33,12 @@ export interface TenantUserRoleUpdateRequest {
   permission_ids?: null | number[];
 }
 
-/** 分配权限请求 */
+/** Assign permissions request / 分配权限请求 */
 export interface TenantUserRolePermissionsRequest {
   permission_ids: number[];
 }
 
-/** 用户角色信息（后端原始格式 snake_case） */
+/** User role info (backend raw format snake_case) / 用户角色信息（后端原始格式） */
 export interface TenantUserRoleInfoRaw {
   id: number;
   tenant_id: number;
@@ -56,7 +56,7 @@ export interface TenantUserRoleInfoRaw {
   updated_at?: null | string;
 }
 
-/** 用户角色信息（前端格式 camelCase） */
+/** User role info (frontend format camelCase) / 用户角色信息（前端格式） */
 export interface TenantUserRoleInfo {
   id: number;
   tenantId: number;
@@ -74,7 +74,7 @@ export interface TenantUserRoleInfo {
   updatedAt?: null | string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface TenantUserRoleListResponse {
   items: TenantUserRoleInfo[];
   total: number;
@@ -83,10 +83,10 @@ export interface TenantUserRoleListResponse {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
 function transformUserRoleInfo(raw: TenantUserRoleInfoRaw): TenantUserRoleInfo {
   return {
     id: raw.id,
@@ -107,13 +107,13 @@ function transformUserRoleInfo(raw: TenantUserRoleInfoRaw): TenantUserRoleInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/tenant/user-roles';
 
 /**
- * 获取用户角色列表
+ * Get user role list / 获取用户角色列表
  * GET /tenant/user-roles
  */
 export async function getTenantUserRoleListApi(
@@ -136,7 +136,7 @@ export async function getTenantUserRoleListApi(
 }
 
 /**
- * 获取用户角色详情
+ * Get user role detail / 获取用户角色详情
  * GET /tenant/user-roles/{role_id}
  */
 export async function getTenantUserRoleDetailApi(
@@ -151,7 +151,7 @@ export async function getTenantUserRoleDetailApi(
 }
 
 /**
- * 创建用户角色
+ * Create user role / 创建用户角色
  * POST /tenant/user-roles
  */
 export async function createTenantUserRoleApi(
@@ -167,7 +167,7 @@ export async function createTenantUserRoleApi(
 }
 
 /**
- * 更新用户角色
+ * Update user role / 更新用户角色
  * PUT /tenant/user-roles/{role_id}
  */
 export async function updateTenantUserRoleApi(
@@ -184,7 +184,7 @@ export async function updateTenantUserRoleApi(
 }
 
 /**
- * 删除用户角色
+ * Delete user role / 删除用户角色
  * DELETE /tenant/user-roles/{role_id}
  */
 export async function deleteTenantUserRoleApi(
@@ -195,7 +195,7 @@ export async function deleteTenantUserRoleApi(
 }
 
 /**
- * 切换用户角色状态
+ * Toggle user role status / 切换用户角色状态
  * PUT /tenant/user-roles/{role_id}/status?is_active=true/false
  */
 export async function toggleTenantUserRoleStatusApi(
@@ -212,7 +212,7 @@ export async function toggleTenantUserRoleStatusApi(
 }
 
 /**
- * 分配用户角色权限
+ * Assign user role permissions / 分配用户角色权限
  * PUT /tenant/user-roles/{role_id}/permissions
  */
 export async function assignTenantUserRolePermissionsApi(

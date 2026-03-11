@@ -1,8 +1,10 @@
 """
-Socket.IO 同步桥接工具
+Socket.IO 同步桥接工具 / Socket.IO Sync Bridge Utility
 
 在 Celery Worker（同步环境）中发送 Socket.IO 消息。
+Sends Socket.IO messages from Celery Worker (sync environment).
 使用 socketio.RedisManager(write_only=True) 通过 Redis Pub/Sub 转发。
+Uses socketio.RedisManager(write_only=True) to forward via Redis Pub/Sub.
 """
 
 from __future__ import annotations
@@ -16,12 +18,12 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
 
-# 延迟初始化（避免在模块导入时创建连接）
+# 延迟初始化（避免在模块导入时创建连接） / Lazy init (avoid creating connection on module import)
 _sync_mgr: socketio.RedisManager | None = None
 
 
 def _get_sync_manager() -> socketio.RedisManager:
-    """获取同步 Redis Manager（延迟初始化）"""
+    """获取同步 Redis Manager（延迟初始化） / Get sync Redis Manager (lazy init)"""
     global _sync_mgr
     if _sync_mgr is None:
         _sync_mgr = socketio.RedisManager(
@@ -39,15 +41,18 @@ def sio_emit_sync(
 ) -> None:
     """
     同步环境下发送 Socket.IO 消息
+    Send Socket.IO message from sync environment.
 
     用于 Celery Worker 中向前端推送通知。
     消息通过 Redis Pub/Sub 转发到 FastAPI 侧的 AsyncServer。
+    Used in Celery Worker to push notifications to frontend.
+    Messages are forwarded to FastAPI's AsyncServer via Redis Pub/Sub.
 
     Args:
-        event: 事件名（如 'notification'）
-        data: 事件数据
-        room: 目标 room（如 'user:5'、'tenant:1'、'admins'）
-        namespace: Socket.IO namespace（'/admin' | '/tenant' | '/user'）
+        event: 事件名（如 'notification'） / Event name (e.g. 'notification')
+        data: 事件数据 / Event data
+        room: 目标 room（如 'user:5'、'tenant:1'、'admins'） / Target room
+        namespace: Socket.IO namespace（'/admin' | '/tenant' | '/user'） / Socket.IO namespace
 
     Example:
         sio_emit_sync(
@@ -74,12 +79,12 @@ def notify_user_sync(
     notification_data: dict[str, Any],
 ) -> None:
     """
-    同步环境下发送通知给指定用户
+    同步环境下发送通知给指定用户 / Send notification to a specific user from sync environment
 
     Args:
-        user_type: 用户类型 (admin / tenant_admin / tenant_user)
-        user_id: 用户 ID
-        notification_data: 通知数据（type, category, title, body, data, priority）
+        user_type: 用户类型 / User type (admin / tenant_admin / tenant_user)
+        user_id: 用户 ID / User ID
+        notification_data: 通知数据（type, category, title, body, data, priority） / Notification data
     """
     ns_map = {
         "admin": "/admin",
@@ -97,10 +102,10 @@ def notify_user_sync(
 
 def notify_admins_sync(notification_data: dict[str, Any]) -> None:
     """
-    同步环境下广播通知给所有平台管理员
+    同步环境下广播通知给所有平台管理员 / Broadcast notification to all platform admins from sync environment
 
     Args:
-        notification_data: 通知数据
+        notification_data: 通知数据 / Notification data
     """
     sio_emit_sync(
         "notification",
@@ -116,11 +121,11 @@ def notify_tenant_sync(
     namespace: str = "/tenant",
 ) -> None:
     """
-    同步环境下广播通知给指定租户所有在线用户
+    同步环境下广播通知给指定租户所有在线用户 / Broadcast notification to all online users of a tenant from sync environment
 
     Args:
-        tenant_id: 租户 ID
-        notification_data: 通知数据
+        tenant_id: 租户 ID / Tenant ID
+        notification_data: 通知数据 / Notification data
         namespace: Socket.IO namespace
     """
     sio_emit_sync(

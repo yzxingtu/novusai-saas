@@ -1,22 +1,13 @@
 """
-技能 Repository
+技能 Repository / Skill Repository
 """
 
 from sqlalchemy import and_, or_, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import ResourceScopeEnum
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
-from app.repositories.system.resource_tenant_assignment_repository import (
-    assigned_resource_ids_subquery,
-)
 from app.schemas.common.query import FilterRule, QuerySpec
-
-_ASSIGNED_SCOPES = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
 
 
 class SkillRepository(TenantRepository[Skill]):
@@ -35,26 +26,12 @@ class SkillRepository(TenantRepository[Skill]):
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 同租户的技能
             if instance.tenant_id == self.tenant_id:
                 return instance
-            # 检查所属包的 scope（技能本身没有独立 scope，继承自包）
             if instance.tenant_id is None:
                 pkg = await self.db.get(SkillPackage, instance.package_id)
-                if not pkg:
-                    return None
-                if pkg.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+                if pkg and pkg.tenant_id is None:
                     return instance
-                # 平台创建的全局包（all_tenants, tenant_id=null）
-                if pkg.scope == ResourceScopeEnum.ALL_TENANTS.value and pkg.tenant_id is None:
-                    return instance
-                if pkg.scope in _ASSIGNED_SCOPES:
-                    from app.repositories.system.resource_tenant_assignment_repository import (
-                        ResourceTenantAssignmentRepository,
-                    )
-                    repo = ResourceTenantAssignmentRepository(self.db)
-                    if await repo.check_assignment("skill_package", pkg.id, self.tenant_id):
-                        return instance
                 return None
             if instance.tenant_id != self.tenant_id:
                 return None
@@ -69,49 +46,34 @@ class SkillRepository(TenantRepository[Skill]):
     ) -> tuple[list[Skill], int]:
         """
         租户级技能列表查询
+        Tenant-level skill list query
 
-        自动注入条件：(tenant_id = X) OR (所属技能包 scope = 'admin_and_all')
+        自动注入条件：(tenant_id = X) OR (所属技能包为平台级包 tenant_id=NULL)
+        Auto-inject: (tenant_id = X) OR (package is platform-level, tenant_id=NULL)
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
-        # 查找 global scope 的技能包 ID（admin_and_all + 平台创建的 all_tenants）
-        from sqlalchemy import and_ as sa_and_
-        global_pkg_stmt = select(SkillPackage.id).where(
-            SkillPackage.is_deleted.is_(False),
-            or_(
-                SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                sa_and_(
-                    SkillPackage.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                    SkillPackage.tenant_id.is_(None),
-                ),
-            ),
-        )
-        global_pkg_result = await self.db.execute(global_pkg_stmt)
-        global_pkg_ids = [row[0] for row in global_pkg_result.all()]
+        from app.enums.common import AudienceEnum
 
-        # 查找已分配给当前租户的技能包 ID
-        assigned_pkg_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
-        assigned_pkg_stmt = select(SkillPackage.id).where(
-            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
+        platform_pkg_stmt = select(SkillPackage.id).where(
             SkillPackage.is_deleted.is_(False),
-            SkillPackage.id.in_(assigned_pkg_subq),
+            SkillPackage.tenant_id.is_(None),
+            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
         )
-        assigned_pkg_result = await self.db.execute(assigned_pkg_stmt)
-        assigned_pkg_ids = [row[0] for row in assigned_pkg_result.all()]
-
-        visible_pkg_ids = set(global_pkg_ids + assigned_pkg_ids)
+        platform_pkg_result = await self.db.execute(platform_pkg_stmt)
+        platform_pkg_ids = [row[0] for row in platform_pkg_result.all()]
 
         query = select(self.model)
 
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        if visible_pkg_ids:
+        if platform_pkg_ids:
             query = query.where(
                 or_(
                     self.model.tenant_id == self.tenant_id,
-                    self.model.package_id.in_(visible_pkg_ids),
+                    self.model.package_id.in_(platform_pkg_ids),
                 )
             )
         else:

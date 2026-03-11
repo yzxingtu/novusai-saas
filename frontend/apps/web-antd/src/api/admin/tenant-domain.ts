@@ -1,6 +1,6 @@
 /**
- * 平台端租户域名管理 API
- * 对接后端 /admin/tenants/{tenant_id}/domains/* 接口
+ * Platform tenant domain management API / 平台端租户域名管理 API
+ * Backend: /admin/tenants/{tenant_id}/domains/*
  */
 import type {
   DomainType,
@@ -23,10 +23,10 @@ export type {
 } from '#/types/domain';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 域名信息（后端原始格式 snake_case） */
+/** Domain info (backend raw snake_case) / 域名信息（后端原始格式） */
 export interface TenantDomainInfoRaw {
   id: number;
   tenant_id: number;
@@ -46,7 +46,7 @@ export interface TenantDomainInfoRaw {
   updated_at: string;
 }
 
-/** 域名信息（前端格式 camelCase） */
+/** Domain info (frontend camelCase) / 域名信息（前端格式） */
 export interface TenantDomainInfo {
   id: number;
   tenantId: number;
@@ -66,35 +66,122 @@ export interface TenantDomainInfo {
   updatedAt: string;
 }
 
-/** 创建域名请求 */
+/** Create domain request / 创建域名请求 */
 export interface TenantDomainCreateRequest {
-  /** 域名（如 app.example.com） */
+  /** Domain (e.g. app.example.com) / 域名 */
   domain: string;
-  /** 是否设为主域名 */
+  /** Set as primary domain / 是否设为主域名 */
   is_primary?: boolean;
-  /** 备注 */
+  /** Remark / 备注 */
   remark?: null | string;
 }
 
-/** 更新域名请求 */
+/** Update domain request / 更新域名请求 */
 export interface TenantDomainUpdateRequest {
-  /** 是否设为主域名 */
+  /** Set as primary domain / 是否设为主域名 */
   is_primary?: boolean | null;
-  /** 备注 */
+  /** Remark / 备注 */
   remark?: null | string;
 }
 
-/** 域名列表响应 */
+/** Domain list response / 域名列表响应 */
 export interface TenantDomainListResponse {
   items: TenantDomainInfo[];
   total: number;
 }
 
+export type DevHostsStatus =
+  | 'managed_present'
+  | 'manual_present'
+  | 'missing'
+  | 'not_required'
+  | 'unsupported';
+
+/** Dev Hosts runtime info (backend raw snake_case) / Dev Hosts 运行时信息（后端原始格式） */
+export interface DevHostsRuntimeInfoRaw {
+  enabled: boolean;
+  debug: boolean;
+  supported: boolean;
+  os_name: string;
+  hosts_path?: null | string;
+  requires_elevation: boolean;
+  can_write_hint: boolean;
+}
+
+/** Dev Hosts runtime info (frontend camelCase) / Dev Hosts 运行时信息（前端格式） */
+export interface DevHostsRuntimeInfo {
+  enabled: boolean;
+  debug: boolean;
+  supported: boolean;
+  osName: string;
+  hostsPath?: null | string;
+  requiresElevation: boolean;
+  canWriteHint: boolean;
+}
+
+/** Dev Hosts domain status (backend raw snake_case) / Dev Hosts 域名状态（后端原始格式） */
+export interface DevHostDomainStatusRaw {
+  domain_id: number;
+  domain: string;
+  eligible: boolean;
+  status: DevHostsStatus;
+  managed: boolean;
+  matched_ip?: null | string;
+  reason?: null | string;
+}
+
+/** Dev Hosts domain status (frontend camelCase) / Dev Hosts 域名状态（前端格式） */
+export interface DevHostDomainStatus {
+  domainId: number;
+  domain: string;
+  eligible: boolean;
+  status: DevHostsStatus;
+  managed: boolean;
+  matchedIp?: null | string;
+  reason?: null | string;
+}
+
+/** Dev Hosts overview (backend raw snake_case) / Dev Hosts 总览（后端原始格式） */
+export interface DevHostsStatusResponseRaw {
+  runtime: DevHostsRuntimeInfoRaw;
+  domains: DevHostDomainStatusRaw[];
+}
+
+/** Dev Hosts overview (frontend camelCase) / Dev Hosts 总览（前端格式） */
+export interface DevHostsStatusResponse {
+  runtime: DevHostsRuntimeInfo;
+  domains: DevHostDomainStatus[];
+}
+
+/** Dev Hosts mutation response (backend raw snake_case) / Dev Hosts 单项操作响应（后端原始格式） */
+export interface DevHostMutationResponseRaw {
+  runtime: DevHostsRuntimeInfoRaw;
+  domain: DevHostDomainStatusRaw;
+}
+
+/** Dev Hosts mutation response (frontend camelCase) / Dev Hosts 单项操作响应（前端格式） */
+export interface DevHostMutationResponse {
+  runtime: DevHostsRuntimeInfo;
+  domain: DevHostDomainStatus;
+}
+
+/** Dev Hosts batch sync response (backend raw snake_case) / Dev Hosts 批量同步响应（后端原始格式） */
+export interface DevHostsSyncAllResponseRaw extends DevHostsStatusResponseRaw {
+  skipped: number;
+  synced: number;
+}
+
+/** Dev Hosts batch sync response (frontend camelCase) / Dev Hosts 批量同步响应（前端格式） */
+export interface DevHostsSyncAllResponse extends DevHostsStatusResponse {
+  skipped: number;
+  synced: number;
+}
+
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 将后端转换为前端格式 */
 function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
   return {
     id: raw.id,
@@ -116,19 +203,69 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
   };
 }
 
+/** Convert Dev Hosts runtime info / 转换 Dev Hosts 运行时信息 */
+function transformDevHostsRuntimeInfo(
+  raw: DevHostsRuntimeInfoRaw,
+): DevHostsRuntimeInfo {
+  return {
+    enabled: raw.enabled,
+    debug: raw.debug,
+    supported: raw.supported,
+    osName: raw.os_name,
+    hostsPath: raw.hosts_path,
+    requiresElevation: raw.requires_elevation,
+    canWriteHint: raw.can_write_hint,
+  };
+}
+
+/** Convert Dev Hosts domain status / 转换 Dev Hosts 域名状态 */
+function transformDevHostDomainStatus(
+  raw: DevHostDomainStatusRaw,
+): DevHostDomainStatus {
+  return {
+    domainId: raw.domain_id,
+    domain: raw.domain,
+    eligible: raw.eligible,
+    status: raw.status,
+    managed: raw.managed,
+    matchedIp: raw.matched_ip,
+    reason: raw.reason,
+  };
+}
+
+/** Convert Dev Hosts overview / 转换 Dev Hosts 总览 */
+function transformDevHostsStatusResponse(
+  raw: DevHostsStatusResponseRaw,
+): DevHostsStatusResponse {
+  return {
+    runtime: transformDevHostsRuntimeInfo(raw.runtime),
+    domains: raw.domains.map((item) => transformDevHostDomainStatus(item)),
+  };
+}
+
+/** Convert Dev Hosts mutation response / 转换 Dev Hosts 单项操作响应 */
+function transformDevHostMutationResponse(
+  raw: DevHostMutationResponseRaw,
+): DevHostMutationResponse {
+  return {
+    runtime: transformDevHostsRuntimeInfo(raw.runtime),
+    domain: transformDevHostDomainStatus(raw.domain),
+  };
+}
+
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 /**
- * 构建租户域名 API 前缀
+ * Build tenant domain API prefix / 构建租户域名 API 前缀
  */
 function getDomainApiPrefix(tenantId: number): string {
   return `/admin/tenants/${tenantId}/domains`;
 }
 
 /**
- * 获取租户域名列表
+ * Get tenant domain list / 获取租户域名列表
  * GET /admin/tenants/{tenant_id}/domains
  */
 export async function getTenantDomainsApi(
@@ -140,7 +277,7 @@ export async function getTenantDomainsApi(
     options,
   );
 
-  // 后端可能返回数组或分页对象，兼容处理
+  // Backend may return array or paginated object, handle both / 后端可能返回数组或分页对象
   if (Array.isArray(response)) {
     return {
       items: response.map((item) => transformDomainInfo(item)),
@@ -148,7 +285,7 @@ export async function getTenantDomainsApi(
     };
   }
 
-  // 如果后端返回分页格式
+  // If backend returns paginated format / 如果后端返回分页格式
   const pageResponse = response as unknown as {
     items: TenantDomainInfoRaw[];
     total: number;
@@ -160,7 +297,7 @@ export async function getTenantDomainsApi(
 }
 
 /**
- * 添加自定义域名
+ * Add custom domain / 添加自定义域名
  * POST /admin/tenants/{tenant_id}/domains
  */
 export async function createTenantDomainApi(
@@ -177,7 +314,7 @@ export async function createTenantDomainApi(
 }
 
 /**
- * 获取域名详情
+ * Get domain detail / 获取域名详情
  * GET /admin/tenants/{tenant_id}/domains/{domain_id}
  */
 export async function getTenantDomainApi(
@@ -193,7 +330,7 @@ export async function getTenantDomainApi(
 }
 
 /**
- * 更新域名
+ * Update domain / 更新域名
  * PUT /admin/tenants/{tenant_id}/domains/{domain_id}
  */
 export async function updateTenantDomainApi(
@@ -211,7 +348,7 @@ export async function updateTenantDomainApi(
 }
 
 /**
- * 删除域名
+ * Delete domain / 删除域名
  * DELETE /admin/tenants/{tenant_id}/domains/{domain_id}
  */
 export async function deleteTenantDomainApi(
@@ -226,7 +363,7 @@ export async function deleteTenantDomainApi(
 }
 
 /**
- * 验证域名
+ * Verify domain / 验证域名
  * POST /admin/tenants/{tenant_id}/domains/{domain_id}/verify
  */
 export async function verifyTenantDomainApi(
@@ -243,7 +380,7 @@ export async function verifyTenantDomainApi(
 }
 
 /**
- * 设置主域名
+ * Set primary domain / 设置主域名
  * PUT /admin/tenants/{tenant_id}/domains/{domain_id}/primary
  */
 export async function setPrimaryDomainApi(
@@ -259,12 +396,80 @@ export async function setPrimaryDomainApi(
   return transformDomainInfo(raw);
 }
 
+/**
+ * Get Dev Hosts status overview / 获取 Dev Hosts 状态总览
+ * GET /admin/tenants/{tenant_id}/domains/dev-hosts/status
+ */
+export async function getTenantDevHostsStatusApi(
+  tenantId: number,
+  options?: ApiRequestOptions,
+): Promise<DevHostsStatusResponse> {
+  const raw = await requestClient.get<DevHostsStatusResponseRaw>(
+    `${getDomainApiPrefix(tenantId)}/dev-hosts/status`,
+    options,
+  );
+  return transformDevHostsStatusResponse(raw);
+}
+
+/**
+ * Sync a single Dev Hosts entry / 同步单个 Dev Hosts 条目
+ * POST /admin/tenants/{tenant_id}/domains/{domain_id}/dev-hosts/sync
+ */
+export async function syncTenantDevHostApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<DevHostMutationResponse> {
+  const raw = await requestClient.post<DevHostMutationResponseRaw>(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/dev-hosts/sync`,
+    {},
+    options,
+  );
+  return transformDevHostMutationResponse(raw);
+}
+
+/**
+ * Remove a managed Dev Hosts entry / 移除托管 Dev Hosts 条目
+ * DELETE /admin/tenants/{tenant_id}/domains/{domain_id}/dev-hosts
+ */
+export async function removeTenantDevHostApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<DevHostMutationResponse> {
+  const raw = await requestClient.delete<DevHostMutationResponseRaw>(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/dev-hosts`,
+    options,
+  );
+  return transformDevHostMutationResponse(raw);
+}
+
+/**
+ * Batch sync Dev Hosts entries / 批量同步 Dev Hosts 条目
+ * POST /admin/tenants/{tenant_id}/domains/dev-hosts/sync-all
+ */
+export async function syncAllTenantDevHostsApi(
+  tenantId: number,
+  options?: ApiRequestOptions,
+): Promise<DevHostsSyncAllResponse> {
+  const raw = await requestClient.post<DevHostsSyncAllResponseRaw>(
+    `${getDomainApiPrefix(tenantId)}/dev-hosts/sync-all`,
+    {},
+    options,
+  );
+  return {
+    ...transformDevHostsStatusResponse(raw),
+    skipped: raw.skipped,
+    synced: raw.synced,
+  };
+}
+
 // ============================================================
 // SSL 证书管理 API (types imported from '#/types/domain')
 // ============================================================
 
 /**
- * 获取域名 SSL 证书详情
+ * Get domain SSL certificate detail / 获取域名 SSL 证书详情
  * GET /admin/tenants/{tenant_id}/domains/{domain_id}/ssl
  */
 export async function getSslDetailApi(
@@ -280,7 +485,7 @@ export async function getSslDetailApi(
 }
 
 /**
- * 手动触发 SSL 签发
+ * Manually trigger SSL provisioning / 手动触发 SSL 签发
  * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/provision
  */
 export async function provisionSslApi(
@@ -296,7 +501,7 @@ export async function provisionSslApi(
 }
 
 /**
- * 手动续期 SSL 证书
+ * Manually renew SSL certificate / 手动续期 SSL 证书
  * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/renew
  */
 export async function renewSslApi(
@@ -312,7 +517,7 @@ export async function renewSslApi(
 }
 
 /**
- * 上传自定义 SSL 证书
+ * Upload custom SSL certificate / 上传自定义 SSL 证书
  * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/upload
  */
 export async function uploadSslCertApi(
@@ -334,7 +539,7 @@ export async function uploadSslCertApi(
 }
 
 /**
- * 强制替换 SSL 证书（Admin 独有）
+ * Force replace SSL certificate (Admin only) / 强制替换 SSL 证书（Admin 独有）
  * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/replace
  */
 export async function replaceSslApi(
@@ -356,7 +561,7 @@ export async function replaceSslApi(
 }
 
 /**
- * 删除 SSL 证书
+ * Delete SSL certificate / 删除 SSL 证书
  * DELETE /admin/tenants/{tenant_id}/domains/{domain_id}/ssl
  */
 export async function deleteSslCertApi(
@@ -371,7 +576,7 @@ export async function deleteSslCertApi(
 }
 
 /**
- * 设置 SSL 自动续期开关
+ * Set SSL auto-renew toggle / 设置 SSL 自动续期开关
  * PUT /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/auto-renew
  */
 export async function updateSslAutoRenewApi(
@@ -389,7 +594,7 @@ export async function updateSslAutoRenewApi(
 }
 
 /**
- * 批量签发租户所有域名 SSL（Admin 独有）
+ * Batch provision SSL for all tenant domains (Admin only) / 批量签发租户所有域名 SSL
  * POST /admin/tenants/{tenant_id}/domains/ssl/batch-provision
  */
 export async function batchProvisionSslApi(

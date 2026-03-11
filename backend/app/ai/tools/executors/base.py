@@ -1,7 +1,9 @@
 """
+Abstract Base Class for Tool Executors
 工具执行器抽象基类
 
-所有工具执行器必须继承此类，实现 execute 和 validate 方法
+All tool executors must inherit from this class and implement the execute and validate methods.
+所有工具执行器必须继承此类，实现 execute 和 validate 方法。
 """
 
 from __future__ import annotations
@@ -17,9 +19,11 @@ if TYPE_CHECKING:
 
 class BaseToolExecutor(ABC):
     """
-    工具执行器抽象基类
+    Abstract base class for tool executors.
+    工具执行器抽象基类。
 
-    每种 ToolTypeEnum 对应一个具体的执行器实现
+    Each ToolTypeEnum corresponds to a concrete executor implementation.
+    每种 ToolTypeEnum 对应一个具体的执行器实现。
     """
 
     @abstractmethod
@@ -31,16 +35,18 @@ class BaseToolExecutor(ABC):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """
-        执行工具调用
+        Execute a tool call.
+        执行工具调用。
 
         Args:
-            definition: 工具定义
-            tool_call_id: LLM 返回的 tool_call_id
-            arguments: LLM 传入的参数
-            context: 执行上下文（可选，向后兼容旧执行器）
+            definition: Tool definition / 工具定义
+            tool_call_id: tool_call_id returned by LLM / LLM 返回的 tool_call_id
+            arguments: Arguments passed by LLM / LLM 传入的参数
+            context: Execution context (optional, backward compatible with legacy executors)
+                     执行上下文（可选，向后兼容旧执行器）
 
         Returns:
-            ToolResult 执行结果
+            ToolResult execution result / ToolResult 执行结果
         """
 
     @abstractmethod
@@ -50,14 +56,15 @@ class BaseToolExecutor(ABC):
         arguments: dict[str, Any],
     ) -> bool:
         """
-        校验参数合法性
+        Validate argument legality.
+        校验参数合法性。
 
         Args:
-            definition: 工具定义
-            arguments: LLM 传入的参数
+            definition: Tool definition / 工具定义
+            arguments: Arguments passed by LLM / LLM 传入的参数
 
         Returns:
-            True 表示参数合法
+            True if arguments are valid / True 表示参数合法
         """
 
 

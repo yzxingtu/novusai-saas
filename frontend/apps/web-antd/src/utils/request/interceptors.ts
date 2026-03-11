@@ -1,6 +1,10 @@
 /**
+ * Request/response interceptors
  * 请求/响应拦截器
  *
+ * Includes:
+ * - Request interceptors: auto Token attachment, duplicate request cancellation, Loading management
+ * - Response interceptors: data format parsing, business error handling, Token refresh, HTTP error messages
  * 包含：
  * - 请求拦截器：Token 自动携带、重复请求取消、Loading 管理
  * - 响应拦截器：数据格式解析、业务错误处理、Token 刷新、HTTP 错误提示
@@ -17,10 +21,10 @@ import axios from 'axios';
 import { isAuthError } from './error-codes';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 扩展的请求配置（包含选项） */
+/** Extended request config (with options) / 扩展的请求配置（包含选项） */
 interface ExtendedConfig extends InternalAxiosRequestConfig {
   __options?: RequestOptions;
   __isRetryRequest?: boolean;
@@ -28,28 +32,28 @@ interface ExtendedConfig extends InternalAxiosRequestConfig {
 }
 
 // ============================================================
-// Loading 管理
+// Loading management / Loading 管理
 // ============================================================
 
-/** Loading 实例管理 */
+/** Loading instance management / Loading 实例管理 */
 const loadingState = {
   count: 0,
   hideLoading: null as (() => void) | null,
 };
 
-/** Token 获取器 */
+/** Token getter / Token 获取器 */
 export interface TokenGetter {
   getToken: (endpoint: ApiEndpoint) => null | string;
   getRefreshToken: (endpoint: ApiEndpoint) => null | string;
 }
 
-/** 认证处理器 */
+/** Authentication handler / 认证处理器 */
 export interface AuthHandler {
   doRefreshToken: () => Promise<string>;
   doReAuthenticate: () => Promise<void>;
 }
 
-/** 消息处理器 */
+/** Message handler / 消息处理器 */
 export interface MessageHandler {
   showMessage: (type: 'error' | 'success', message: string) => void;
   showLoading: (message?: string) => () => void;
@@ -57,10 +61,11 @@ export interface MessageHandler {
 }
 
 // ============================================================
-// 工具函数
+// Utility functions / 工具函数
 // ============================================================
 
 /**
+ * Determine endpoint type from request URL
  * 根据请求 URL 判断端类型
  */
 export function getEndpointByUrl(url: string): ApiEndpoint {
@@ -75,6 +80,7 @@ export function getEndpointByUrl(url: string): ApiEndpoint {
 }
 
 /**
+ * Get endpoint type from path
  * 根据路径获取端类型
  */
 export function getEndpointByPath(path: string): ApiEndpoint {
@@ -84,6 +90,7 @@ export function getEndpointByPath(path: string): ApiEndpoint {
 }
 
 /**
+ * Format Token
  * 格式化 Token
  */
 function formatToken(token: null | string): null | string {
@@ -91,10 +98,11 @@ function formatToken(token: null | string): null | string {
 }
 
 // ============================================================
-// 请求拦截器
+// Request interceptor / 请求拦截器
 // ============================================================
 
 /**
+ * Create request interceptor
  * 创建请求拦截器
  */
 export function createRequestInterceptor(
@@ -141,6 +149,7 @@ export function createRequestInterceptor(
 }
 
 /**
+ * Close Loading
  * 关闭 Loading
  */
 function closeLoading() {
@@ -154,6 +163,8 @@ function closeLoading() {
 }
 
 /**
+ * Create Loading response interceptor
+ * Close Loading and clean up pending after request completion
  * 创建 Loading 响应拦截器
  * 请求完成后关闭 Loading 并清理 pending
  */
@@ -189,10 +200,12 @@ export function createLoadingInterceptor(client: RequestClient) {
 }
 
 // ============================================================
-// 响应拦截器 - 数据格式解析
+// Response interceptor - data format parsing / 响应拦截器 - 数据格式解析
 // ============================================================
 
 /**
+ * Create response data interceptor
+ * Handles raw/body/data return modes
  * 创建响应数据拦截器
  * 处理 raw/body/data 三种返回模式
  */
@@ -233,19 +246,25 @@ export function createResponseDataInterceptor(
 }
 
 // ============================================================
-// 响应拦截器 - Token 刷新
+// Response interceptor - Token refresh / 响应拦截器 - Token 刷新
 // ============================================================
 
 /**
+ * Create Token refresh interceptor
  * 创建 Token 刷新拦截器
  *
+ * Auth error detection logic (based on API error code spec):
+ * - HTTP 401 status code + business error code 4010/4011/4012
+ * - 4010: UNAUTHORIZED - not authenticated
+ * - 4011: TOKEN_EXPIRED - token expired
+ * - 4012: TOKEN_INVALID - invalid token
  * 认证错误判断逻辑（基于 API 错误码规范文档）：
  * - HTTP 401 状态码 + 业务错误码 4010/4011/4012
  * - 4010: UNAUTHORIZED - 未认证
  * - 4011: TOKEN_EXPIRED - 令牌已过期
  * - 4012: TOKEN_INVALID - 无效的令牌
  */
-/** 登录接口路径（这些接口的 401 不应触发重新认证） */
+/** Login endpoint paths (401 from these should not trigger re-authentication) / 登录接口路径（这些接口的 401 不应触发重新认证） */
 const LOGIN_URLS = [
   '/admin/auth/login',
   '/tenant/auth/login',
@@ -253,6 +272,7 @@ const LOGIN_URLS = [
 ];
 
 /**
+ * Check if URL is a login endpoint
  * 检查是否为登录接口
  */
 function isLoginUrl(url: string | undefined): boolean {
@@ -347,10 +367,12 @@ export function createAuthInterceptor(
 }
 
 // ============================================================
-// 响应拦截器 - 错误消息
+// Response interceptor - error messages / 响应拦截器 - 错误消息
 // ============================================================
 
 /**
+ * Create error message interceptor
+ * Note: If the response contains a business error message, HTTP error message is not shown
  * 创建错误消息拦截器
  * 注意：如果响应中有业务错误消息，则不显示 HTTP 错误消息
  */
@@ -421,10 +443,11 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
 }
 
 // ============================================================
-// 响应拦截器 - 业务错误消息
+// Response interceptor - business error messages / 响应拦截器 - 业务错误消息
 // ============================================================
 
 /**
+ * Create business error message interceptor
  * 创建业务错误消息拦截器
  */
 export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
@@ -454,10 +477,11 @@ export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
 }
 
 // ============================================================
-// 响应拦截器 - 成功消息
+// Response interceptor - success messages / 响应拦截器 - 成功消息
 // ============================================================
 
 /**
+ * Create success message interceptor
  * 创建成功消息拦截器
  */
 export function createSuccessMessageInterceptor(

@@ -29,19 +29,19 @@ import { useMemberPanel } from './use-member-panel';
 
 const props = withDefaults(
   defineProps<{
-    /** 是否允许添加成员 */
+    /** Whether to allow adding members / 是否允许添加成员 */
     allowMembers?: boolean;
-    /** API 前缀（admin 或 tenant） */
+    /** API prefix (admin or tenant) / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
-    /** 负责人 ID */
+    /** Leader ID / 负责人 ID */
     leaderId?: null | number;
-    /** 当前选中的节点 ID */
+    /** Currently selected node ID / 当前选中的节点 ID */
     nodeId?: null | number;
-    /** 节点名称（用于显示标题） */
+    /** Node name (for display title) / 节点名称（用于显示标题） */
     nodeName?: string;
-    /** 角色树 API（编辑模式下可选择角色） */
+    /** Role tree API (select roles in edit mode) / 角色树 API（编辑模式下可选择角色） */
     roleTreeApi?: RoleTreeApi;
-    /** 是否显示在线状态 */
+    /** Whether to show online status / 是否显示在线状态 */
     showOnlineStatus?: boolean;
   }>(),
   {
@@ -64,20 +64,20 @@ const emit = defineEmits<{
 
 const presenceStore = usePresenceStore();
 
-/** 判断成员是否在线 */
+/** Check if member is online / 判断成员是否在线 */
 function isMemberOnline(memberId: number): boolean {
   const userType = props.apiPrefix === 'admin' ? 'admin' : 'tenant_admin';
   return presenceStore.isOnline(userType, memberId);
 }
 
-// 搜索关键词（本地输入，用于双向绑定）
+// Search keyword (local input, for two-way binding) / 搜索关键词（本地输入，用于双向绑定）
 const searchText = ref('');
 
-// 组件引用
+// Component refs / 组件引用
 const adminFormDrawerRef = ref<InstanceType<typeof AdminFormDrawer>>();
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
-// 使用 composable
+// Use composable / 使用 composable
 const {
   members,
   loading,
@@ -96,17 +96,17 @@ const {
   apiPrefix: props.apiPrefix,
 });
 
-// 防抖搜索
+// Debounced search / 防抖搜索
 const debouncedSearch = useDebounceFn((keyword: string) => {
   search(keyword);
 }, 300);
 
-// 监听输入框变化，触发防抖搜索
+// Watch input changes, trigger debounced search / 监听输入框变化，触发防抖搜索
 watch(searchText, (newValue) => {
   debouncedSearch(newValue);
 });
 
-// 监听节点变化，重置搜索框
+// Watch node changes, reset search box / 监听节点变化，重置搜索框
 watch(
   () => props.nodeId,
   () => {
@@ -114,7 +114,7 @@ watch(
   },
 );
 
-/** 分页显示信息 */
+/** Pagination display info / 分页显示信息 */
 const paginationInfo = computed(() => {
   const { page, pageSize, total } = pagination.value;
   const start = (page - 1) * pageSize + 1;
@@ -122,7 +122,7 @@ const paginationInfo = computed(() => {
   return { start, end, total };
 });
 
-/** 处理分页变化 */
+/** Handle pagination change / 处理分页变化 */
 function handlePaginationChange(page: number, pageSize: number) {
   if (pageSize === pagination.value.pageSize) {
     changePage(page);
@@ -131,38 +131,38 @@ function handlePaginationChange(page: number, pageSize: number) {
   }
 }
 
-/** 负责人信息（当前选中节点的负责人，用于置顶显示） */
+/** Leader info (leader of current selected node, pinned to top) / 负责人信息（当前选中节点的负责人，用于置顶显示） */
 const leaderInfo = computed(() => {
-  // 当包含子节点时，可能有多个负责人，此时不置顶显示
+  // When including children, there may be multiple leaders, don't pin in this case / 当包含子节点时，可能有多个负责人，此时不置顶显示
   if (includeDescendants.value) return null;
-  // 不包含子节点时，找当前节点的负责人
+  // When not including children, find leader of current node / 不包含子节点时，找当前节点的负责人
   return members.value.find((m) => m.isLeader);
 });
 
-/** 打开创建成员抽屉 */
+/** Open create member drawer / 打开创建成员抽屉 */
 function handleOpenCreateDrawer() {
   adminFormDrawerRef.value?.openCreate();
 }
 
-/** 处理编辑成员 */
+/** Handle edit member / 处理编辑成员 */
 function handleEditMember(member: OrgMember) {
   adminFormDrawerRef.value?.openEdit(member);
 }
 
-/** 处理重置密码 */
+/** Handle reset password / 处理重置密码 */
 function handleResetPassword(member: OrgMember) {
   resetPasswordModalRef.value?.open(toResetPasswordInfo(member));
 }
 
-/** 处理成员操作成功 */
+/** Handle member operation success / 处理成员操作成功 */
 async function handleMemberSuccess() {
   await refresh();
   emit('refresh');
 }
 
-/** 处理移除成员 */
+/** Handle remove member / 处理移除成员 */
 async function handleRemoveMember(member: OrgMember) {
-  // 使用成员所属 roleId，支持递归模式下移除子节点成员
+  // Use member's roleId, supports removing child node members in recursive mode / 使用成员所属 roleId，支持递归模式下移除子节点成员
   const success = await removeMember(member.id, member.roleId);
   if (success) {
     emit('memberRemoved', member.id);
@@ -170,9 +170,9 @@ async function handleRemoveMember(member: OrgMember) {
   }
 }
 
-/** 处理设置负责人 */
+/** Handle set leader / 处理设置负责人 */
 async function handleSetLeader(member: OrgMember) {
-  // 使用成员所属的 roleId 作为目标节点，支持包含子节点时设置负责人
+  // Use member's roleId as target node, supports setting leader when including children / 使用成员所属的 roleId 作为目标节点，支持包含子节点时设置负责人
   const success = await setLeader(member.id, member.roleId);
   if (success) {
     emit('leaderChanged', member.id);
@@ -180,9 +180,9 @@ async function handleSetLeader(member: OrgMember) {
   }
 }
 
-/** 处理取消负责人 */
+/** Handle cancel leader / 处理取消负责人 */
 async function handleCancelLeader(member: OrgMember) {
-  // 使用成员所属的 roleId 作为目标节点
+  // Use member's roleId as target node / 使用成员所属的 roleId 作为目标节点
   const success = await setLeader(null, member.roleId);
   if (success) {
     emit('leaderChanged', null);
@@ -190,12 +190,12 @@ async function handleCancelLeader(member: OrgMember) {
   }
 }
 
-/** 刷新成员列表 */
+/** Refresh member list / 刷新成员列表 */
 async function handleRefresh() {
   await refresh();
 }
 
-/** 加载在线状态 */
+/** Load online status / 加载在线状态 */
 onMounted(() => {
   if (props.showOnlineStatus) {
     if (props.apiPrefix === 'admin') {
@@ -210,7 +210,7 @@ onMounted(() => {
 
 <template>
   <div class="member-panel flex h-full flex-col">
-    <!-- 头部：标题和操作 -->
+    <!-- Header: title and actions / 头部：标题和操作 -->
     <div
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700"
     >
@@ -260,7 +260,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 不允许成员提示 -->
+    <!-- Members not allowed hint / 不允许成员提示 -->
     <Alert
       v-if="!allowMembers && nodeId"
       :message="$t('shared.memberPanel.nodeTypeNotAllowMembers')"
@@ -269,7 +269,7 @@ onMounted(() => {
       class="mx-4 mt-3"
     />
 
-    <!-- 未选择节点提示 -->
+    <!-- No node selected hint / 未选择节点提示 -->
     <div
       v-if="!nodeId"
       class="flex flex-1 items-center justify-center text-gray-500"
@@ -284,7 +284,7 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <!-- 搜索框和递归查询开关 -->
+      <!-- Search box and recursive query toggle / 搜索框和递归查询开关 -->
       <div class="flex items-center gap-3 px-4 py-3">
         <Input
           v-model:value="searchText"
@@ -316,11 +316,11 @@ onMounted(() => {
         </Tooltip>
       </div>
 
-      <!-- 成员列表 -->
+      <!-- Member list / 成员列表 -->
       <div class="flex-1 overflow-y-auto px-4">
         <Spin :spinning="loading || operating">
           <template v-if="members.length > 0">
-            <!-- 负责人置顶显示 -->
+            <!-- Leader pinned to top / 负责人置顶显示 -->
             <template v-if="leaderInfo && !searchText">
               <div class="mb-2 text-xs font-medium uppercase text-gray-500">
                 {{ $t('shared.memberPanel.leader') }}
@@ -343,7 +343,7 @@ onMounted(() => {
                 {{ $t('shared.memberPanel.members') }}
               </div>
             </template>
-            <!-- 其他成员 -->
+            <!-- Other members / 其他成员 -->
             <MemberItem
               v-for="member in members.filter((m) =>
                 !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
@@ -372,7 +372,7 @@ onMounted(() => {
         </Spin>
       </div>
 
-      <!-- 分页器 -->
+      <!-- Paginator / 分页器 -->
       <div
         v-if="pagination.total > pagination.pageSize"
         class="flex flex-col gap-2 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
@@ -400,7 +400,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <!-- 管理员表单抽屉（新建/编辑） -->
+    <!-- Admin form drawer (create/edit) / 管理员表单抽屉（新建/编辑） -->
     <AdminFormDrawer
       ref="adminFormDrawerRef"
       :node-id="nodeId"
@@ -410,7 +410,7 @@ onMounted(() => {
       @success="handleMemberSuccess"
     />
 
-    <!-- 重置密码弹窗 -->
+    <!-- Reset password modal / 重置密码弹窗 -->
     <ResetPasswordModal
       ref="resetPasswordModalRef"
       :api-prefix="apiPrefix"

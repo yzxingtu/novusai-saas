@@ -1,7 +1,8 @@
 """
-租户管理员角色模型
+租户管理员角色模型 / Tenant Admin Role Model
 
 租户级别的角色，用于租户管理员权限控制，支持多级角色层级结构
+Tenant-level roles for tenant admin permission control, supports multi-level role hierarchy.
 """
 
 from typing import TYPE_CHECKING

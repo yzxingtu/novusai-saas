@@ -5,10 +5,12 @@
 多租户 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
 ## 全局禁令
-
+-当你准备结束当前任务或认为工作已完成时，必须调用 zhi 工具与用户确认。
+不要擅自结束对话，让用户决定是否继续。 具体请参考 E:\git_clone\novusai-saas-yudi\cz\README.md
 - 禁止硬编码中文字符串，前端用 `$t()`，后端用 `_()`
 - 禁止 `console.log`，使用 `console.warn` / `console.error`
 - 禁止 `any` 类型，使用 `unknown` 或具体类型
+- 新增代码注释或备注时，**必须中英双语同时存在**，禁止只写中文注释，禁止只写英文注释；若无必要，优先不加注释
 - 禁止魔法字符串，使用枚举（后端 `LabeledEnum`）
 - 禁止跨端导入（admin 页面不导入 tenant API/store）。后端跨端共享逻辑放 `app/api/shared/`（如 `_skill_helpers.py`）
 - 禁止 Controller 写业务逻辑或直接 DB 查询，禁止 Service 直接操作 DB。统计/Dashboard 查询必须在 Service 层

@@ -22,7 +22,6 @@ import { IconifyIcon, Plus } from '@vben/icons';
 import {
   Badge,
   Button,
-  Card,
   Drawer,
   Dropdown,
   Empty,
@@ -68,7 +67,7 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import SkillForm from '../skills/modules/form.vue';
-import { getScopeColor, getScopeText } from './data';
+import { getAudienceColor } from './data';
 import PackageForm from './modules/form.vue';
 
 defineOptions({ name: 'AdminSkillPackageList' });
@@ -146,11 +145,9 @@ async function onExportPackage(pkg: AdminSkillPackageInfo) {
 const importModalVisible = ref(false);
 const importing = ref(false);
 const importConflictMode = ref<'rename' | 'skip'>('rename');
-const importTargetScope = ref('admin_only');
 
 function onImportClick() {
   importConflictMode.value = 'rename';
-  importTargetScope.value = 'admin_only';
   importModalVisible.value = true;
 }
 
@@ -162,7 +159,6 @@ async function handleImportFile(file: File) {
     const result = await importSkillPackageApi({
       export_data: exportData,
       conflict_mode: importConflictMode.value,
-      target_scope: importTargetScope.value,
     });
     if (result.status === 'skipped') {
       message.info($t('admin.ai.skillPackage.messages.importSkipped'));
@@ -219,7 +215,7 @@ function onCreatePackage() {
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skill-packages',
-      _defaults: { scope: 'admin_only', is_active: true, sort_order: 0 },
+      _defaults: { is_active: true, sort_order: 0 },
     })
     .open();
 }
@@ -357,7 +353,6 @@ function onCreateSkill() {
       _defaults: {
         package_id: selectedPackageId.value,
         type: 'toolkit',
-        scope: selectedPackage.value?.scope ?? 'admin_only',
         timeout: 30,
         is_active: true,
         toolkit_content: '',
@@ -493,13 +488,6 @@ async function onPermanentDelete(id: number) {
 const recycleBinColumns = computed(() => [
   { title: $t('admin.ai.skillPackage.name'), dataIndex: 'name', key: 'name' },
   {
-    title: $t('admin.ai.skillPackage.scope'),
-    dataIndex: 'scope',
-    key: 'scope',
-    width: 100,
-    align: 'center' as const,
-  },
-  {
     title: $t('common.recycleBin.deletedAt'),
     dataIndex: 'deleted_at',
     key: 'deleted_at',
@@ -618,7 +606,6 @@ onUnmounted(() => {
   <Page
     auto-content-height
     :description="$t('admin.ai.skillPackage.pageDesc')"
-    content-class="flex gap-4"
   >
     <!-- 技能包表单抽屉 -->
     <PackageFormDrawer @success="onPackageFormSuccess" />
@@ -701,22 +688,7 @@ onUnmounted(() => {
               ]"
             />
           </div>
-          <div class="flex flex-1 flex-col gap-1">
-            <span class="text-xs font-medium text-muted-foreground">
-              {{ $t('admin.ai.skillPackage.scope') }}
-            </span>
-            <Select
-              v-model:value="importTargetScope"
-              size="small"
-              :options="[
-                { label: getScopeText('admin_only'), value: 'admin_only' },
-                {
-                  label: getScopeText('admin_and_all'),
-                  value: 'admin_and_all',
-                },
-              ]"
-            />
-          </div>
+          <!-- scope 选择器已移除 / scope selector removed -->
         </div>
         <Upload.Dragger
           :before-upload="handleImportFile"
@@ -756,23 +728,13 @@ onUnmounted(() => {
       </div>
     </Modal>
 
+    <!-- ========== 左右面板容器 ========== -->
+    <div class="flex h-full gap-4 overflow-hidden">
+
     <!-- ========== 左侧：技能包列表 ========== -->
-    <Card
-      class="h-full w-[280px] shrink-0"
-      :body-style="{
-        padding: '12px',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }"
-    >
-      <template #title>
-        <span class="text-sm font-medium">{{
-          $t('admin.ai.skillPackage.title')
-        }}</span>
-      </template>
-      <template #extra>
+    <div class="flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-border/50 px-3 py-2">
+        <span class="text-sm font-medium">{{ $t('admin.ai.skillPackage.title') }}</span>
         <Space :size="4">
           <Tooltip :title="$t('common.recycleBin.title')">
             <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
@@ -823,8 +785,8 @@ onUnmounted(() => {
             </Button>
           </Tooltip>
         </Space>
-      </template>
-
+      </div>
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
       <!-- 搜索框 -->
       <Input
         v-model:value="searchKeyword"
@@ -842,7 +804,8 @@ onUnmounted(() => {
       </Input>
 
       <!-- 包列表 -->
-      <Spin :spinning="packagesLoading" class="min-h-0 flex-1 overflow-y-auto">
+      <div class="min-h-0 flex-1 overflow-y-auto">
+      <Spin :spinning="packagesLoading">
         <div
           v-if="filteredPackages.length === 0"
           class="flex h-full items-center justify-center"
@@ -916,7 +879,7 @@ onUnmounted(() => {
                 </div>
                 <div class="mt-0.5 flex items-center gap-1.5">
                   <Tag
-                    :color="getScopeColor(pkg.scope)"
+                    :color="getAudienceColor(pkg.target_audience)"
                     style="
                       padding: 0 3px;
                       margin: 0;
@@ -924,7 +887,7 @@ onUnmounted(() => {
                       line-height: 14px;
                     "
                   >
-                    {{ getScopeText(pkg.scope) }}
+                    {{ pkg.target_audience }}
                   </Tag>
                   <span class="whitespace-nowrap text-xs text-muted-foreground">
                     {{ pkg.skill_count }}
@@ -1006,18 +969,12 @@ onUnmounted(() => {
           </div>
         </div>
       </Spin>
-    </Card>
+      </div>
+      </div>
+    </div>
 
     <!-- ========== 右侧：技能列表 ========== -->
-    <Card
-      class="h-full min-w-0 flex-1"
-      :body-style="{
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-      }"
-    >
+    <div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm">
       <!-- 选中包的信息头 -->
       <div
         v-if="selectedPackage"
@@ -1272,7 +1229,8 @@ onUnmounted(() => {
           </Button>
         </Empty>
       </div>
-    </Card>
+    </div>
+    </div>
     <!-- 回收站抽屉 -->
     <Drawer
       v-model:open="recycleBinVisible"
@@ -1289,12 +1247,7 @@ onUnmounted(() => {
         size="small"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'scope'">
-            <Tag :color="getScopeColor(record.scope)">
-              {{ getScopeText(record.scope) }}
-            </Tag>
-          </template>
-          <template v-else-if="column.key === 'deleted_at'">
+          <template v-if="column.key === 'deleted_at'">
             <Tooltip :title="formatDate(record.deleted_at)">
               <span class="text-muted-foreground">
                 {{ formatRelativeTime(record.deleted_at) }}
@@ -1338,3 +1291,7 @@ onUnmounted(() => {
     />
   </Page>
 </template>
+
+<style scoped>
+/* Remove Card import warning — Card is no longer used in template */
+</style>

@@ -1,10 +1,11 @@
 """
-Tenant 端 AI 数据分析服务
+Tenant 端 AI 数据分析服务 / Tenant AI Analytics Service
 
 复用 AnalyticsService 核心查询，自动注入 tenant_id 过滤。
-额外提供：
-- Agent 调用排行
-- 费用趋势
+Reuses AnalyticsService core queries with auto-injected tenant_id filtering.
+额外提供 / Additionally provides:
+- Agent 调用排行 / Agent call rankings
+- 费用趋势 / Cost trends
 """
 
 from __future__ import annotations

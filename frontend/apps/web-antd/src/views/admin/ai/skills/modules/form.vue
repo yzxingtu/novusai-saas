@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Admin skill create/edit form drawer
  * 管理端技能新建/编辑表单抽屉
  */
 import type { AdminSkillInfo, PluginToolDefinition } from '#/api/admin/skills';
@@ -264,7 +265,7 @@ function useFormSchema() {
     switchField('is_active', $t('admin.ai.skill.isActive'), {
       defaultValue: true,
     }),
-    // ============ toolkit 专属字段 ============
+    // ============ toolkit-specific fields / toolkit 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_toolkit_divider',
@@ -302,7 +303,7 @@ function useFormSchema() {
         if: isToolkit,
       },
     },
-    // ============ builtin 专属字段 ============
+    // ============ builtin-specific fields / builtin 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_builtin_divider',
@@ -332,7 +333,7 @@ function useFormSchema() {
         if: (v: Record<string, unknown>) => v.type === 'builtin',
       },
     },
-    // ============ http 专属字段 ============
+    // ============ http-specific fields / http 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_http_divider',
@@ -465,7 +466,7 @@ function useFormSchema() {
       help: $t('admin.ai.skill.httpConfig.responsePathHelp'),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
-    // ============ email 专属字段 ============
+    // ============ email-specific fields / email 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_email_divider',
@@ -542,7 +543,7 @@ function useFormSchema() {
       ),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
-    // ============ code_execution 专属字段 ============
+    // ============ code_execution-specific fields / code_execution 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_code_divider',
@@ -608,7 +609,7 @@ function useFormSchema() {
       help: $t('admin.ai.skill.codeExecutionConfig.allowedModulesHelp'),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
-    // ============ data_intelligence 专属字段 ============
+    // ============ data_intelligence-specific fields / data_intelligence 专属字段 ============
     {
       component: 'Divider',
       fieldName: '_di_config_divider',
@@ -667,7 +668,7 @@ function useFormSchema() {
 }
 
 function getFormDefaults(): Record<string, unknown> {
-  // 重置插件技能状态
+  // Reset plugin skill state / 重置插件技能状态
   isPluginSkill.value = false;
   pluginSourceName.value = '';
   pluginTools.value = [];
@@ -847,7 +848,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
 
     isSystemSkill.value = !!data.is_system;
 
-    // 插件技能检测：使用 API 返回的 source_plugin 字段
+    // Plugin skill detection: use API-returned source_plugin field / 插件技能检测：使用 API 返回的 source_plugin 字段
     isPluginSkill.value = !!data.source_plugin;
     pluginSourceName.value = data.source_plugin || '';
 
@@ -856,14 +857,14 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
         ? (cfg.tools as BuiltinToolInfo[])
         : [];
 
-    // 加载数据智能技能的可用工具信息
+    // Load available tool info for data intelligence skills / 加载数据智能技能的可用工具信息
     if (data.type === 'data_intelligence') {
       loadDiTools(data.is_system, cfg.table_policy_ids as number[] | undefined);
     } else {
       diTools.value = [];
     }
 
-    // 插件技能工具列表：优先使用 API 返回的 plugin_tools，fallback 到单独 API
+    // Plugin skill tool list: prefer API-returned plugin_tools, fallback to separate API / 插件技能工具列表：优先使用 API 返回的 plugin_tools，fallback 到单独 API
     if (data.source_plugin && Array.isArray(data.plugin_tools)) {
       pluginTools.value = data.plugin_tools;
     } else {

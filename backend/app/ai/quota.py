@@ -1,7 +1,9 @@
 """
+AI Call Quota Management Service
 AI 调用配额管理服务
 
-管理租户的 Token 配额、月度预算和使用量追踪
+Manages tenant Token quota, monthly budget, and usage tracking.
+管理租户的 Token 配额、月度预算和使用量追踪。
 """
 
 from datetime import date
@@ -20,7 +22,7 @@ logger = LogManager.get_logger("ai.quota")
 
 
 class QuotaExceeded(BusinessException):
-    """配额超出异常"""
+    """Quota exceeded exception / 配额超出异常"""
 
     code = 4291
     status_code = 429
@@ -29,17 +31,19 @@ class QuotaExceeded(BusinessException):
 
 class UsageTracker:
     """
-    使用量追踪器
+    Usage Tracker / 使用量追踪器
 
-    使用 Redis 实时追踪 Token 使用量,防止超额
+    Real-time Token usage tracking via Redis to prevent overuse.
+    使用 Redis 实时追踪 Token 使用量，防止超额。
     """
 
     PREFIX_DAILY = "ai:usage:daily:"
     PREFIX_MONTHLY = "ai:usage:monthly:"
 
+    # Lua script: atomically adjust usage (INCRBY + floor-at-zero guard)
     # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
     # KEYS[1] = usage_key, ARGV[1] = diff
-    # 返回调整后的值
+    # Returns adjusted value / 返回调整后的值
     _USAGE_ADJUST_LUA = """
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
     if new_val < 0 then
@@ -49,7 +53,9 @@ class UsageTracker:
     return new_val
     """
 
+    # Lua script: atomic pre-deduct + check
     # Lua 脚本：原子预扣减+检查
+    # Returns -1 on success (pre-deducted), >= 0 = current usage (exceeded, rolled back)
     # 返回 -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
     _QUOTA_CHECK_AND_RECORD_LUA = """
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
@@ -63,7 +69,7 @@ class UsageTracker:
 
     @staticmethod
     def _get_key(prefix: str, tenant_id: int, model_id: int, date_key: str) -> str:
-        """生成 Redis 键"""
+        """Generate Redis key / 生成 Redis 键"""
         return f"{prefix}{tenant_id}:{model_id}:{date_key}"
 
     @staticmethod
@@ -73,15 +79,16 @@ class UsageTracker:
         stat_date: date | None = None
     ) -> int:
         """
-        获取当日 Token 使用量
+        Get daily token usage.
+        获取当日 Token 使用量。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            stat_date: 统计日期,默认今天
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            stat_date: Statistics date, defaults to today / 统计日期，默认今天
 
         Returns:
-            Token 使用量
+            Token usage / Token 使用量
         """
         redis = await get_redis()
         stat_date = stat_date or date.today()
@@ -98,16 +105,17 @@ class UsageTracker:
         month: int | None = None
     ) -> int:
         """
-        获取当月 Token 使用量
+        Get monthly token usage.
+        获取当月 Token 使用量。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            year: 年份,默认当前年
-            month: 月份,默认当前月
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            year: Year, defaults to current / 年份，默认当前年
+            month: Month, defaults to current / 月份，默认当前月
 
         Returns:
-            Token 使用量
+            Token usage / Token 使用量
         """
         redis = await get_redis()
         today = date.today()
@@ -133,16 +141,18 @@ class UsageTracker:
         period: str,
     ) -> int:
         """
-        原子检查+预扣减使用量（消除 TOCTOU 竞态）
+        Atomically check + pre-deduct usage (eliminates TOCTOU race).
+        原子检查+预扣减使用量（消除 TOCTOU 竞态）。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            estimated_tokens: 预估 Token 数量
-            limit: 配额上限
-            period: 周期(daily/monthly)
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            estimated_tokens: Estimated token count / 预估 Token 数量
+            limit: Quota limit / 配额上限
+            period: Period (daily/monthly) / 周期
 
         Returns:
+            -1 on success (pre-deducted), >= 0 = current usage (exceeded, rolled back)
             -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
         """
         redis = await get_redis()
@@ -180,18 +190,19 @@ class UsageTracker:
         stat_date: date | None = None
     ):
         """
-        记录 Token 使用量
+        Record token usage.
+        记录 Token 使用量。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            tokens: Token 数量
-            stat_date: 统计日期
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            tokens: Token count / Token 数量
+            stat_date: Statistics date / 统计日期
         """
         redis = await get_redis()
         stat_date = stat_date or date.today()
 
-        # 记录每日使用量
+        # Record daily usage / 记录每日使用量
         daily_key = UsageTracker._get_key(
             UsageTracker.PREFIX_DAILY,
             tenant_id,
@@ -199,9 +210,9 @@ class UsageTracker:
             stat_date.isoformat()
         )
         await redis.incrby(daily_key, tokens)
-        await redis.expire(daily_key, 86400 * 2)  # 保留 2 天
+        await redis.expire(daily_key, 86400 * 2)  # Keep 2 days / 保留 2 天
 
-        # 记录每月使用量
+        # Record monthly usage / 记录每月使用量
         monthly_key = UsageTracker._get_key(
             UsageTracker.PREFIX_MONTHLY,
             tenant_id,
@@ -209,7 +220,7 @@ class UsageTracker:
             f"{stat_date.year}-{stat_date.month:02d}"
         )
         await redis.incrby(monthly_key, tokens)
-        await redis.expire(monthly_key, 86400 * 35)  # 保留 35 天
+        await redis.expire(monthly_key, 86400 * 35)  # Keep 35 days / 保留 35 天
 
     @staticmethod
     async def adjust_usage(
@@ -219,13 +230,14 @@ class UsageTracker:
         actual_tokens: int,
     ) -> None:
         """
-        响应后调整使用量：从预估值调整为实际值
+        Adjust usage after response: from estimated to actual.
+        响应后调整使用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            estimated_tokens: 预估 Token 数量（已预扣）
-            actual_tokens: 实际 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
+            actual_tokens: Actual token count / 实际 Token 数量
         """
         diff = actual_tokens - estimated_tokens
         if diff == 0:
@@ -242,6 +254,7 @@ class UsageTracker:
             f"{today.year}-{today.month:02d}"
         )
 
+        # Atomic adjust: INCRBY + floor-at-zero guard (eliminates TOCTOU race)
         # 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
         for key in (daily_key, monthly_key):
             await redis.eval(
@@ -254,17 +267,19 @@ class UsageTracker:
 
 class QuotaManager:
     """
-    配额管理器
+    Quota Manager / 配额管理器
 
-    检查和执行租户配额限制
+    Checks and enforces tenant quota limits.
+    检查和执行租户配额限制。
     """
 
     def __init__(self, db: AsyncSession):
         """
-        初始化配额管理器
+        Initialize quota manager.
+        初始化配额管理器。
 
         Args:
-            db: 数据库会话
+            db: Database session / 数据库会话
         """
         from app.services.ai.metering_service import MeteringService
 
@@ -278,26 +293,29 @@ class QuotaManager:
         estimated_tokens: int = 0
     ) -> bool:
         """
-        检查配额
+        Check quota.
+        检查配额。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            estimated_tokens: 预估 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            estimated_tokens: Estimated token count / 预估 Token 数量
 
         Returns:
-            True 表示允许调用
+            True if call is allowed / True 表示允许调用
 
         Raises:
-            QuotaExceeded: 配额超出
+            QuotaExceeded: Quota exceeded / 配额超出
         """
-        # 获取租户配额配置
+        # Get tenant quota config / 获取租户配额配置
         quota = await self._get_tenant_quota(tenant_id, model_id)
 
         if not quota or not quota.is_active:
-            # 没有配置配额或配额未激活,允许调用
+            # No quota configured or quota inactive, allow call
+            # 没有配置配额或配额未激活，允许调用
             return True
 
+        # Check hard limit (atomic pre-deduct, eliminates TOCTOU race)
         # 检查硬限制（原子预扣减，消除 TOCTOU 竞态）
         if quota.quota_type == QuotaTypeEnum.HARD.value:
             result = await UsageTracker.check_and_record_usage(
@@ -320,7 +338,7 @@ class QuotaManager:
                     )
                 )
 
-        # 检查软限制 - 记录但允许超额
+        # Check soft limit - record but allow overuse / 检查软限制 - 记录但允许超额
         elif quota.quota_type == QuotaTypeEnum.SOFT.value:
             current_usage = await self._get_usage(
                 tenant_id,
@@ -333,7 +351,8 @@ class QuotaManager:
                     "Soft quota exceeded: tenant=%s model=%s current=%s limit=%s period=%s",
                     tenant_id, model_id, current_usage, quota.limit, quota.period,
                 )
-                # 软限制允许超额,但记录警告
+                # Soft limit allows overuse, but logs warning
+                # 软限制允许超额，但记录警告
                 # TODO: 发送通知给租户
 
         return True
@@ -346,13 +365,14 @@ class QuotaManager:
         stat_date: date | None = None
     ):
         """
-        记录使用量（用于软限制或无配额场景）
+        Record usage (for soft limit or no-quota scenarios).
+        记录使用量（用于软限制或无配额场景）。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            tokens: Token 数量
-            stat_date: 统计日期
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            tokens: Token count / Token 数量
+            stat_date: Statistics date / 统计日期
         """
         await UsageTracker.record_usage(tenant_id, model_id, tokens, stat_date)
 
@@ -364,13 +384,14 @@ class QuotaManager:
         actual_tokens: int,
     ) -> None:
         """
-        响应后调整使用量：从预估值调整为实际值
+        Adjust usage after response: from estimated to actual.
+        响应后调整使用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            estimated_tokens: 预估 Token 数量（已预扣）
-            actual_tokens: 实际 Token 数量
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
+            actual_tokens: Actual token count / 实际 Token 数量
         """
         await UsageTracker.adjust_usage(
             tenant_id, model_id, estimated_tokens, actual_tokens
@@ -382,14 +403,15 @@ class QuotaManager:
         model_id: int
     ) -> TenantQuota | None:
         """
-        获取租户配额配置
+        Get tenant quota config.
+        获取租户配额配置。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
 
         Returns:
-            TenantQuota 实例
+            TenantQuota instance / TenantQuota 实例
         """
         repo = TenantQuotaRepository(self.db, tenant_id)
         return await repo.get_active_quota(tenant_id, model_id)
@@ -401,15 +423,16 @@ class QuotaManager:
         period: str
     ) -> int:
         """
-        获取使用量
+        Get usage.
+        获取使用量。
 
         Args:
-            tenant_id: 租户 ID
-            model_id: 模型 ID
-            period: 周期(daily/monthly)
+            tenant_id: Tenant ID / 租户 ID
+            model_id: Model ID / 模型 ID
+            period: Period (daily/monthly) / 周期
 
         Returns:
-            Token 使用量
+            Token usage / Token 使用量
         """
         today = date.today()
 

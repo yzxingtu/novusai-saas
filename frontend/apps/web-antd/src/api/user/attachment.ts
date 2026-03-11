@@ -1,6 +1,6 @@
 /**
- * 用户端附件上传 API
- * 对接后端 /user/attachments/* 接口（精简版，仅上传+预检）
+ * User attachment upload API / 用户端附件上传 API
+ * Backend: /user/attachments/* (simplified: upload + preflight only) / 对接后端 /user/attachments/* 接口（精简版，仅上传+预检）
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
@@ -9,7 +9,7 @@ import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/api/user/attachments';
 
-/** 附件信息 */
+/** Attachment info (backend raw format) / 附件信息（后端原始格式） */
 interface AttachmentRaw {
   base_url?: string;
   business_id?: number;
@@ -31,14 +31,14 @@ interface AttachmentRaw {
   visibility?: string;
 }
 
-/** 上传响应 */
+/** Upload response / 上传响应 */
 export interface UploadResult {
   attachment: AttachmentRaw;
   url: string;
   used_bytes: number;
 }
 
-/** 预检响应 */
+/** Preflight response / 预检响应 */
 interface PreflightResult {
   attachment?: AttachmentRaw;
   exists: boolean;
@@ -46,13 +46,13 @@ interface PreflightResult {
   used_bytes?: number;
 }
 
-/** 上传参数 */
+/** Upload params / 上传参数 */
 export interface UserUploadParams {
   file: Blob | File;
   visibility?: 'private' | 'public';
 }
 
-/** 上传规则 */
+/** Upload rules / 上传规则 */
 export interface UploadRulesResponse {
   allowed_extensions: string;
   denied_extensions: string;
@@ -60,7 +60,7 @@ export interface UploadRulesResponse {
 }
 
 /**
- * 预检（秒传）
+ * Preflight check (instant upload) / 预检（秒传）
  */
 async function preflightCheckApi(
   params: {
@@ -79,7 +79,7 @@ async function preflightCheckApi(
 }
 
 /**
- * 普通上传
+ * Normal upload / 普通上传
  */
 async function uploadAttachmentApi(
   params: UserUploadParams,
@@ -112,7 +112,7 @@ async function uploadAttachmentApi(
 }
 
 /**
- * 获取上传规则
+ * Get upload rules / 获取上传规则
  */
 export async function getUserUploadRulesApi(
   options?: ApiRequestOptions,
@@ -124,9 +124,9 @@ export async function getUserUploadRulesApi(
 }
 
 /**
- * 智能上传文件（哈希→预检→上传）
+ * Smart upload file (hash → preflight → upload) / 智能上传文件（哈希→预检→上传）
  *
- * 用户端简化版，不含分片上传（头像等小文件场景）
+ * Simplified user version, no chunked upload (for small files like avatars) / 用户端简化版，不含分片上传（头像等小文件场景）
  */
 export async function smartUploadFile(
   params: UserUploadParams,
@@ -136,7 +136,7 @@ export async function smartUploadFile(
   const file = params.file as File;
   const HASH_PROGRESS_END = 5;
 
-  // 第一步：计算文件哈希
+  // Step 1: compute file hash / 第一步：计算文件哈希
   const fileHash = await computeFileHash(file, {
     onProgress: (pct) => {
       onProgress?.({ percent: Math.round((pct / 100) * HASH_PROGRESS_END) });
@@ -144,7 +144,7 @@ export async function smartUploadFile(
     signal: options?.signal,
   });
 
-  // 第二步：预检（秒传，仅在哈希可用时执行）
+  // Step 2: preflight (instant upload, only when hash is available) / 第二步：预检（秒传，仅在哈希可用时执行）
   onProgress?.({ percent: HASH_PROGRESS_END });
   if (fileHash) {
     try {
@@ -166,11 +166,11 @@ export async function smartUploadFile(
         };
       }
     } catch {
-      // 预检失败不影响正常上传
+      // Preflight failure does not affect normal upload / 预检失败不影响正常上传
     }
   }
 
-  // 第三步：普通上传
+  // Step 3: normal upload / 第三步：普通上传
   const uploadProgressStart = HASH_PROGRESS_END;
   const uploadProgressRange = 100 - uploadProgressStart;
 

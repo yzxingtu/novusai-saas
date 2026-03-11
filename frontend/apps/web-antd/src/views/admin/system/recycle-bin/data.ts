@@ -1,8 +1,11 @@
 /**
+ * Admin recycle bin — search form & column labels
  * 管理端总回收站 — 搜索表单 & 列标签
  *
- * 每个模块使用 searchInput 构建轻量搜索 Schema（不引入原 CRUD data.ts，
- * 避免其 ApiSelect 在回收站上下文触发无关 API 请求）。
+ * Each module uses searchInput for lightweight search Schema (avoids original CRUD data.ts
+ * 每个模块使用 searchInput 构建轻量搜索 Schema
+ * whose ApiSelect would trigger unrelated API requests in recycle bin context).
+ * Tenant-level modules additionally append a "tenant" dropdown.
  * 租户级模块额外追加「所属租户」下拉。
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -11,7 +14,7 @@ import { searchInput, select, statusSelect } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-// ── 租户选择器 ──
+// ── Tenant selector / 租户选择器 ──
 function tenantSelect(): VbenFormSchema {
   return select('filter[tenant_id]', $t('admin.system.recycleBin.tenant'), {
     api: getTenantSelectApi,
@@ -19,7 +22,7 @@ function tenantSelect(): VbenFormSchema {
   });
 }
 
-// ── 各模块搜索 Schema ──
+// ── Module search schemas / 各模块搜索 Schema ──
 const TENANT_MODULES = new Set([
   'agents',
   'knowledge_bases',
@@ -67,6 +70,7 @@ const MODULE_SEARCH_SCHEMAS: Record<string, SchemaFactory> = {
 };
 
 /**
+ * Get search schema for specified module
  * 获取指定模块的搜索 Schema
  */
 export function getModuleSearchSchema(moduleCode: string): VbenFormSchema[] {
@@ -79,43 +83,45 @@ export function getModuleSearchSchema(moduleCode: string): VbenFormSchema[] {
   return schemas;
 }
 
-// ── 各模块 × 各字段 → 翻译标签 ──
-// key = "module:field" 或 "field"（通用回退）
+// ── Module × field → translated label / 各模块字段翻译标签 ──
+// key = "module:field" or "field" (generic fallback)
 const COLUMN_LABELS: Record<string, () => string> = {
-  // 通用字段
+  // Common fields / 通用字段
   status: () => $t('shared.common.status'),
-  // AI 供应商
+  // AI providers / AI 供应商
   'ai_providers:name': () => $t('admin.ai.provider.name'),
   'ai_providers:code': () => $t('admin.ai.provider.code'),
-  // AI 模型
+  // AI models / AI 模型
   'ai_models:name': () => $t('admin.ai.model.name'),
   'ai_models:model_id': () => $t('admin.ai.model.code'),
   'ai_models:provider_id': () => $t('admin.ai.model.providerId'),
-  // 智能体
+  // Agents / 智能体
   'agents:name': () => $t('admin.ai.agent.name'),
-  // 技能包
+  // Skill packages / 技能包
   'skill_packages:name': () => $t('admin.ai.skillPackage.name'),
   'skill_packages:scope': () => $t('admin.ai.skillPackage.scope'),
-  // 知识库
+  // Knowledge bases / 知识库
   'knowledge_bases:name': () => $t('admin.knowledgeBase.field.name'),
-  // 角色
+  // Roles / 角色
   'admin_roles:name': () => $t('admin.system.organization.node.name'),
   'admin_roles:code': () => $t('admin.system.organization.node.code'),
-  // 套餐
+  // Plans / 套餐
   'tenant_plans:name': () => $t('admin.tenant.plan.name'),
   'tenant_plans:code': () => $t('admin.tenant.plan.code'),
-  // 租户
+  // Tenants / 租户
   'tenants:name': () => $t('admin.tenant.name'),
   'tenants:code': () => $t('admin.tenant.code'),
-  // 域名
+  // Domains / 域名
   'tenant_domains:domain': () => $t('admin.tenant.domain.domain'),
-  // 表策略
+  // Table policies / 表策略
   'table_policies:table_name': () => $t('admin.ai.tablePolicy.tableName'),
   'table_policies:label': () => $t('admin.ai.tablePolicy.label'),
 };
 
 /**
+ * Get translated label for column field
  * 获取列字段的翻译标签
+ * Try "module:field" first, fallback to "field", then raw field name
  * 先尝试 "module:field"，再回退到 "field"，最后返回原始字段名
  */
 export function getColumnLabel(field: string, moduleCode?: string): string {

@@ -1,5 +1,5 @@
 /**
- * 平台端插件市场 API
+ * Platform plugin marketplace API / 平台端插件市场 API
  */
 import type { InstallPreview } from '#/api/admin/plugin';
 
@@ -7,7 +7,7 @@ import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/plugins';
 
-/** 市场插件卡片 */
+/** Marketplace plugin card / 市场插件卡片 */
 export interface MarketplacePluginItem {
   name: string;
   slug: string;
@@ -26,7 +26,7 @@ export interface MarketplacePluginItem {
   installed_version: null | string;
 }
 
-/** 市场插件详情 */
+/** Marketplace plugin detail / 市场插件详情 */
 export interface MarketplacePluginDetail extends MarketplacePluginItem {
   readme: null | string;
   changelog: null | string;
@@ -37,7 +37,7 @@ export interface MarketplacePluginDetail extends MarketplacePluginItem {
   platform_version_required: null | string;
 }
 
-/** 更新信息 */
+/** Update info / 更新信息 */
 export interface PluginUpdateInfo {
   name: string;
   current_version: string;
@@ -45,26 +45,26 @@ export interface PluginUpdateInfo {
   slug: string;
 }
 
-/** 市场列表 */
+/** Marketplace list / 市场列表 */
 export function getMarketplaceListApi(params?: Record<string, unknown>) {
   return requestClient.get(`${BASE_URL}/marketplace`, { params });
 }
 
-/** 市场详情 */
+/** Marketplace detail / 市场详情 */
 export function getMarketplaceDetailApi(slug: string) {
   return requestClient.get<MarketplacePluginDetail>(
     `${BASE_URL}/marketplace/${slug}`,
   );
 }
 
-/** 市场安装预览 */
+/** Marketplace install preview / 市场安装预览 */
 export function marketplacePreviewInstallApi(slug: string) {
   return requestClient.post<InstallPreview>(
     `${BASE_URL}/marketplace/${slug}/install`,
   );
 }
 
-/** 市场确认安装 */
+/** Marketplace confirm install / 市场确认安装 */
 export function marketplaceConfirmInstallApi(
   slug: string,
   config?: Record<string, unknown>,
@@ -74,7 +74,7 @@ export function marketplaceConfirmInstallApi(
   });
 }
 
-/** 检查更新 */
+/** Check plugin updates / 检查更新 */
 export function checkPluginUpdatesApi() {
   return requestClient.get<PluginUpdateInfo[]>(`${BASE_URL}/updates`);
 }

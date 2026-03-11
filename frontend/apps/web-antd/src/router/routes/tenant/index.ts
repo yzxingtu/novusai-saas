@@ -1,4 +1,5 @@
 /**
+ * Tenant management route module
  * 租户管理端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
@@ -8,7 +9,7 @@ import { $t } from '#/locales';
 const AuthPageLayout = () => import('#/layouts/tenant-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
-/** 租户管理端认证路由 */
+/** Tenant authentication routes / 租户管理端认证路由 */
 const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
@@ -38,7 +39,7 @@ const authRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 租户管理端主布局路由 */
+/** Tenant main layout routes / 租户管理端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
@@ -96,7 +97,7 @@ const mainRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 租户管理端路由 */
+/** Tenant routes / 租户管理端路由 */
 export const tenantRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
 export { tenantCoreRouteNames } from './names';

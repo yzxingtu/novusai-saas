@@ -1,7 +1,8 @@
 """
-租户端智能体知识库绑定路由
+租户端智能体知识库绑定路由 / Tenant Agent Knowledge Base Binding Routes
 
 提供知识库绑定、解绑、批量绑定等接口
+Provides knowledge base bind, unbind, batch bind endpoints
 """
 
 from fastapi import APIRouter, Request
@@ -32,6 +33,7 @@ async def get_agent_kbs(
 ):
     """
     获取智能体绑定的所有知识库（含 KnowledgeBase 详情）
+    Get all knowledge bases bound to agent (with KnowledgeBase details)
     """
     agent_svc = AgentService(db, tenant_admin.tenant_id)
     agent = await agent_svc.get_by_id(agent_id)
@@ -53,7 +55,7 @@ async def bind_kb(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    绑定单个知识库到智能体
+    绑定单个知识库到智能体 / Bind a single knowledge base to agent
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
@@ -81,6 +83,7 @@ async def batch_bind_kbs(
 ):
     """
     批量绑定知识库（替换模式：先清空再批量插入）
+    Batch bind knowledge bases (replace mode: clear first then batch insert)
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
@@ -106,6 +109,7 @@ async def update_kb_binding(
 ):
     """
     更新知识库绑定（weight / enabled / sort_order）
+    Update knowledge base binding (weight / enabled / sort_order)
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
@@ -134,7 +138,7 @@ async def unbind_kb(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    解绑指定知识库
+    解绑指定知识库 / Unbind specified knowledge base
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)

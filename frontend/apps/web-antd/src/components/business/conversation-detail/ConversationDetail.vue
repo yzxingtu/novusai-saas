@@ -1,9 +1,13 @@
 <script lang="ts" setup>
 /**
+ * Conversation Detail Drawer (Shared Component)
  * 对话详情抽屉（共享组件）
  *
+ * Displays conversation basic info + message timeline.
  * 展示对话基本信息 + 消息时间线。
+ * Injects API functions and i18n prefix via props, adapts to admin/tenant endpoints.
  * 通过 props 注入 API 函数和 i18n 前缀，适配 admin/tenant 两端。
+ * Allows each endpoint to add custom description fields via #extra-descriptions slot.
  * 通过 #extra-descriptions slot 允许各端添加自定义描述字段。
  */
 import { computed, ref, watch } from 'vue';
@@ -64,15 +68,15 @@ const props = defineProps<{
   /** API prefix: '/admin' or '/tenant', for loading agent skill packages */
   apiPrefix?: string;
   conversationId: null | number;
-  /** 格式化费用的函数 */
+  /** Function to format cost / 格式化费用的函数 */
   formatCost: (cost: null | number | undefined) => string;
-  /** 格式化 token 数量的函数 */
+  /** Function to format token count / 格式化 token 数量的函数 */
   formatTokens: (count: null | number | undefined) => string;
-  /** 获取对话详情的 API 函数 */
+  /** API function to get conversation detail / 获取对话详情的 API 函数 */
   getDetailApi: (id: number, ...args: unknown[]) => Promise<unknown>;
-  /** 获取状态文本的函数 */
+  /** Function to get status text / 获取状态文本的函数 */
   getStatusText: (status: string) => string;
-  /** i18n 前缀，如 'admin.ai.conversation' 或 'tenant.ai.conversation' */
+  /** i18n prefix, e.g. 'admin.ai.conversation' or 'tenant.ai.conversation' / i18n 前缀 */
   i18nPrefix: string;
   open: boolean;
 }>();
@@ -159,7 +163,7 @@ defineExpose({ detail });
   >
     <Spin :spinning="loading">
       <template v-if="detail">
-        <!-- 基本信息 -->
+        <!-- Basic info / 基本信息 -->
         <Descriptions bordered :column="2" size="small">
           <Descriptions.Item
             :label="$t(`${i18nPrefix}.conversationTitle`)"
@@ -184,7 +188,7 @@ defineExpose({ detail });
             </Tag>
           </Descriptions.Item>
 
-          <!-- 允许各端插入自定义描述字段 -->
+          <!-- Allow each endpoint to insert custom description fields / 允许各端插入自定义描述字段 -->
           <slot name="extra-descriptions" :detail="detail"></slot>
 
           <Descriptions.Item :label="$t(`${i18nPrefix}.tokenCount`)" :span="1">
@@ -198,7 +202,7 @@ defineExpose({ detail });
           </Descriptions.Item>
         </Descriptions>
 
-        <!-- 消息时间线 -->
+        <!-- Message timeline / 消息时间线 -->
         <div class="mt-6">
           <h4 class="mb-3 font-medium text-foreground">
             <IconifyIcon
@@ -279,7 +283,7 @@ defineExpose({ detail });
               <div class="whitespace-pre-wrap rounded-lg bg-accent p-3 text-sm">
                 {{ msg.content || '-' }}
               </div>
-              <!-- tool_calls 展示 -->
+              <!-- tool_calls display / tool_calls 展示 -->
               <div
                 v-if="msg.tool_calls && msg.tool_calls.length > 0"
                 class="mt-1"

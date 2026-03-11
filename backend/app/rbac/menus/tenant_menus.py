@@ -1,32 +1,35 @@
 """
+Tenant Admin Menu Definitions
 租户管理端菜单定义
 
+Defines directory menu structure for tenant admin backend; leaf menus declared via controller decorators.
 定义租户管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
-菜单层级示例:
-- 仪表板 (dashboard)
-- 权限管理 (system)
-  ├── 用户架构 (user_architecture) - 由 user_roles.py 控制器声明
-  └── 组织架构 (organization) - 由 roles.py 控制器声明
-- 业务管理 (business) - 预留，具体子菜单由业务控制器声明
+Menu hierarchy example / 菜单层级示例:
+- Dashboard / 仪表板 (dashboard)
+- Permission Management / 权限管理 (system)
+  ├── User Architecture / 用户架构 (user_architecture) - declared by user_roles.py / 由 user_roles.py 声明
+  └── Organization / 组织架构 (organization) - declared by roles.py / 由 roles.py 声明
+- Business Management / 业务管理 (business) - reserved, child menus by business controllers / 预留
 
+The name field uses i18n keys, translated during frontend rendering.
 name 字段使用 i18n key，前端渲染时翻译。
-格式: menu.{scope}.{resource}
+Format / 格式: menu.{scope}.{resource}
 
-图标规范:
-使用 Lucide 图标库: https://lucide.dev/icons
-格式: "lucide:{icon-name}"
-示例: "lucide:settings", "lucide:users", "lucide:layout-dashboard"
-图标名称使用 kebab-case（小写字母，单词间用连字符分隔）
+Icon spec / 图标规范:
+Uses Lucide icon library / 使用 Lucide 图标库: https://lucide.dev/icons
+Format / 格式: "lucide:{icon-name}"
+Examples / 示例: "lucide:settings", "lucide:users", "lucide:layout-dashboard"
+Icon names use kebab-case / 图标名称使用 kebab-case
 """
 
 from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
 
-# 租户管理端目录菜单
+# Tenant admin directory menus / 租户管理端目录菜单
 TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
-    # 仪表板（首页，叶子菜单）
+    # Dashboard (homepage, leaf menu) / 仪表板（首页，叶子菜单）
     # ========================================
     PermissionMeta(
         code="menu:tenant.dashboard",
@@ -42,7 +45,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
 
     # ========================================
-    # 工作台（目录，供内容/文档类插件挂载）
+    # Workspace (directory, for content/doc plugin mounting) / 工作台（目录，供内容/文档类插件挂载）
     # ========================================
     PermissionMeta(
         code="menu:tenant.tenant_workspace",
@@ -55,11 +58,11 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/workspace",
         sort_order=5,
     ),
-    # 子菜单由插件声明:
-    # - menu:tenant.plugin_novusdoc_* (文档管理)
+    # Child menus declared by plugins / 子菜单由插件声明:
+    # - menu:tenant.plugin_novusdoc_* (Document Management / 文档管理)
 
     # ========================================
-    # 权限管理（目录）
+    # Permission Management (directory) / 权限管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:tenant.system",
@@ -72,14 +75,14 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/system",
         sort_order=10,
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.user_architecture (用户架构) - 由 user_roles.py 控制器声明
-    # - menu:tenant.organization (组织架构) - 由 roles.py 控制器声明
-    # - menu:tenant.permission (权限管理) - 可选，一般隐藏
-    # 注意: tenant_user (用户管理) 已合并到 user_architecture 页面，不再独立注册菜单
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.user_architecture (User Architecture / 用户架构) - declared by user_roles.py / 由 user_roles.py 声明
+    # - menu:tenant.organization (Organization / 组织架构) - declared by roles.py / 由 roles.py 声明
+    # - menu:tenant.permission (Permission Management / 权限管理) - optional, usually hidden / 可选，一般隐藏
+    # Note: tenant_user merged into user_architecture page / 注意: tenant_user 已合并到 user_architecture 页面
 
     # ========================================
-    # 系统管理（目录）
+    # System Management (directory) / 系统管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:tenant.system_mgmt",
@@ -92,12 +95,12 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/system-mgmt",
         sort_order=20,
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.tenant_config (租户配置)
-    # - menu:tenant.tenant_settings (租户设置)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.tenant_config (Tenant Config / 租户配置)
+    # - menu:tenant.tenant_settings (Tenant Settings / 租户设置)
 
     # ========================================
-    # AI 管理（目录）
+    # AI Management (directory) / AI 管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:tenant.ai_mgmt",
@@ -111,7 +114,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=25,
     ),
 
-    # ---- 智能应用（子目录，与管理端统一名称） ----
+    # ---- AI Apps (sub-directory, unified name with admin) / 智能应用（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_workspace",
         name="menu.tenant.ai_workspace",  # i18n key
@@ -124,13 +127,13 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
         parent_code="menu:tenant.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.agent (智能体管理)
-    # - menu:tenant.agent_chat (AI 对话)
-    # - menu:tenant.knowledge_base (知识库)
-    # - menu:tenant.agent_tool (工具管理)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.agent (Agent Management / 智能体管理)
+    # - menu:tenant.agent_chat (AI Chat / AI 对话)
+    # - menu:tenant.knowledge_base (Knowledge Base / 知识库)
+    # - menu:tenant.agent_tool (Tool Management / 工具管理)
 
-    # ---- 设置（子目录） ----
+    # ---- Settings (sub-directory) / 设置（子目录） ----
     PermissionMeta(
         code="menu:tenant.ai_settings",
         name="menu.tenant.ai_settings",  # i18n key
@@ -143,11 +146,11 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
         parent_code="menu:tenant.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.ai_config (AI 配置)
-    # - menu:tenant.ai_quota (配额管理)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.ai_config (AI Config / AI 配置)
+    # - menu:tenant.ai_quota (Quota Management / 配额管理)
 
-    # ---- 数据分析（子目录，与管理端统一名称） ----
+    # ---- Data Analytics (sub-directory, unified name with admin) / 数据分析（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_analytics",
         name="menu.tenant.ai_analytics",  # i18n key
@@ -160,14 +163,14 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=30,
         parent_code="menu:tenant.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.ai_usage (用量统计)
-    # - menu:tenant.ai_call_log (调用日志)
-    # - menu:tenant.agent_conversation (对话管理)
-    # - menu:tenant.ai_action_log (操作审计)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.ai_usage (Usage Statistics / 用量统计)
+    # - menu:tenant.ai_call_log (Call Log / 调用日志)
+    # - menu:tenant.agent_conversation (Conversation Management / 对话管理)
+    # - menu:tenant.ai_action_log (Action Audit / 操作审计)
 
     # ========================================
-    # 系统维护（目录）
+    # System Maintenance (directory) / 系统维护（目录）
     # ========================================
     PermissionMeta(
         code="menu:tenant.system_maintenance",
@@ -181,7 +184,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=30,
     ),
 
-    # ---- 日志中心（子目录） ----
+    # ---- Log Center (sub-directory) / 日志中心（子目录） ----
     PermissionMeta(
         code="menu:tenant.logs",
         name="menu.tenant.logs",
@@ -194,15 +197,15 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
         parent_code="menu:tenant.system_maintenance",
     ),
-    # 子菜单由控制器声明:
-    # - menu:tenant.operation_log (操作日志)
-    # - menu:tenant.task_log (任务日志)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.operation_log (Operation Log / 操作日志)
+    # - menu:tenant.task_log (Task Log / 任务日志)
 
-    # 其他子菜单由控制器声明:
-    # - menu:tenant.periodic_task (定时任务)
+    # Other child menus declared by controllers / 其他子菜单由控制器声明:
+    # - menu:tenant.periodic_task (Periodic Task / 定时任务)
 
     # ========================================
-    # 业务管理（目录，预留）
+    # Business Management (directory, reserved) / 业务管理（目录，预留）
     # ========================================
     # PermissionMeta(
     #     code="menu:tenant.business",

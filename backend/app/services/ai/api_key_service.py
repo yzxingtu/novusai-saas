@@ -1,7 +1,8 @@
 """
-AI API Key Service
+AI 供应商密钥 Service / AI API Key Service
 
 处理 AI API Key 业务逻辑
+Handles AI API key business logic.
 """
 
 from app.core.base_service import BaseService

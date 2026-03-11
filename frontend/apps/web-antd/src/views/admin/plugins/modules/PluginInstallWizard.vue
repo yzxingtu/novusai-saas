@@ -30,7 +30,7 @@ const expandedItems = ref<Set<string>>(new Set());
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-// 结构类型 → 图标（label 通过 i18n 获取）
+// Structure type → icon (label via i18n) / 结构类型 → 图标（label 通过 i18n 获取）
 const structureTypeIcons: Record<string, string> = {
   skills: 'lucide:sparkles',
   api_routes: 'lucide:route',

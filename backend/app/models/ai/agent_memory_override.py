@@ -1,8 +1,10 @@
 """
-智能体记忆开关租户覆盖模型
+智能体记忆开关租户覆盖模型 / Agent Memory Override Model
 
-用于租户端对特定智能体执行“关闭记忆”覆盖。
+用于租户端对特定智能体执行"关闭记忆"覆盖。
+Allows tenants to override "disable memory" for specific agents.
 规则：仅记录 disabled=True 的覆盖项，不支持租户端强制开启。
+Rule: Only records disabled=True overrides; tenants cannot force-enable memory.
 """
 
 from sqlalchemy import Boolean, Index, Integer

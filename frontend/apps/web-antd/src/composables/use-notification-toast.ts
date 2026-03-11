@@ -1,8 +1,10 @@
 /**
+ * Notification toast manager
  * 通知 Toast 弹窗管理器
  *
- * 管理右下角 toast 通知的队列、堆叠、自动消失。
- * 由 Socket.IO 通知事件触发，尊重用户偏好。
+ * Manages toast notification queue, stacking, and auto-dismiss in bottom-right corner.
+ * Triggered by Socket.IO notification events, respects user preferences.
+ * 管理右下角 toast 通知的队列、堆叠、自动消失。由 Socket.IO 通知事件触发。
  */
 import { ref } from 'vue';
 
@@ -47,7 +49,7 @@ function removeToast(id: number) {
     timers.delete(id);
   }
   toasts.value = toasts.value.filter((t) => t.id !== id);
-  // 从队列中弹出下一条
+  // Pop next item from queue / 从队列中弹出下一条
   if (queue.length > 0 && toasts.value.length < MAX_VISIBLE) {
     const next = queue.shift();
     if (!next) return;

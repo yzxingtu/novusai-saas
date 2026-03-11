@@ -1,5 +1,5 @@
 """
-插件版本模型
+插件版本模型 / Plugin Version Model
 """
 
 from datetime import datetime

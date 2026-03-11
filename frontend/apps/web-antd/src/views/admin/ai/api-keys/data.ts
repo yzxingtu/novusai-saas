@@ -166,7 +166,7 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     providerField,
   ];
 
-  // 仅新建模式显示 api_key 字段
+  // Only show api_key field in create mode / 仅新建模式显示 api_key 字段
   if (!isEdit) {
     fields.push({
       ...inputField('api_key', $t('admin.ai.apiKey.apiKey'), {

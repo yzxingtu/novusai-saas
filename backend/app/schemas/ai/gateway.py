@@ -1,7 +1,8 @@
 """
-AI Gateway Request/Response Schema
+AI 网关请求/响应 Schema / AI Gateway Request/Response Schema
 
-Data structures for AI gateway call requests and responses
+AI 网关调用的请求和响应数据结构
+Data structures for AI gateway call requests and responses.
 """
 
 from decimal import Decimal

@@ -1,7 +1,8 @@
 """
-租户 Schema 模块
+租户 Schema 模块 / Tenant Schema Module
 
 导出租户相关的 Schema
+Exports tenant related schemas.
 """
 
 from app.schemas.tenant.admin import (
@@ -14,6 +15,11 @@ from app.schemas.tenant.admin import (
 )
 from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 from app.schemas.tenant.domain import (
+    DevHostDomainStatus,
+    DevHostMutationResponse,
+    DevHostsRuntimeInfo,
+    DevHostsStatusResponse,
+    DevHostsSyncAllResponse,
     TenantDomainCreateRequest,
     TenantDomainResponse,
     TenantDomainSimpleResponse,
@@ -117,6 +123,11 @@ __all__ = [
     "TenantDomainSimpleResponse",
     "TenantDomainVerificationInfo",
     "TenantDomainResponse",
+    "DevHostsRuntimeInfo",
+    "DevHostDomainStatus",
+    "DevHostsStatusResponse",
+    "DevHostMutationResponse",
+    "DevHostsSyncAllResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",

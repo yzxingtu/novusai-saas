@@ -1,7 +1,9 @@
 """
+Event Type Definitions
 事件类型定义
 
-定义智能体引擎中使用的所有事件类型
+Defines all event types used in the agent engine.
+定义智能体引擎中使用的所有事件类型。
 """
 
 from dataclasses import dataclass, field
@@ -11,14 +13,15 @@ from typing import Any
 from app.core.base_model import utc_now
 
 # ============================================
-# 事件基类
+# Event Base Class / 事件基类
 # ============================================
 
 @dataclass
 class BaseEvent:
     """
-    事件基类
+    Event Base Class / 事件基类
 
+    All events must inherit this class. Contains common metadata.
     所有事件必须继承此类。包含通用元信息。
     """
 
@@ -28,41 +31,41 @@ class BaseEvent:
 
     @property
     def event_type(self) -> str:
-        """事件类型名称（类名）"""
+        """Event type name (class name) / 事件类型名称（类名）"""
         return self.__class__.__name__
 
 
 # ============================================
-# 智能体生命周期事件
+# Agent Lifecycle Events / 智能体生命周期事件
 # ============================================
 
 @dataclass
 class AgentCreated(BaseEvent):
-    """智能体创建事件"""
+    """Agent created event / 智能体创建事件"""
     agent_id: int = 0
     agent_name: str = ""
 
 
 @dataclass
 class AgentPublished(BaseEvent):
-    """智能体发布事件"""
+    """Agent published event / 智能体发布事件"""
     agent_id: int = 0
     version: int = 0
 
 
 @dataclass
 class AgentDisabled(BaseEvent):
-    """智能体禁用事件"""
+    """Agent disabled event / 智能体禁用事件"""
     agent_id: int = 0
 
 
 # ============================================
-# 对话事件
+# Conversation Events / 对话事件
 # ============================================
 
 @dataclass
 class ConversationStarted(BaseEvent):
-    """对话开始事件"""
+    """Conversation started event / 对话开始事件"""
     conversation_id: int = 0
     agent_id: int = 0
     user_id: int | None = None
@@ -70,7 +73,7 @@ class ConversationStarted(BaseEvent):
 
 @dataclass
 class MessageAdded(BaseEvent):
-    """消息添加事件"""
+    """Message added event / 消息添加事件"""
     conversation_id: int = 0
     message_id: int = 0
     role: str = ""
@@ -79,19 +82,19 @@ class MessageAdded(BaseEvent):
 
 @dataclass
 class ConversationCompleted(BaseEvent):
-    """对话完成事件（一轮交互结束）"""
+    """Conversation completed event (one round of interaction finished) / 对话完成事件（一轮交互结束）"""
     conversation_id: int = 0
     total_tokens: int = 0
     total_cost: float = 0.0
 
 
 # ============================================
-# 工具调用事件
+# Tool Call Events / 工具调用事件
 # ============================================
 
 @dataclass
 class ToolCallRequested(BaseEvent):
-    """工具调用请求事件"""
+    """Tool call requested event / 工具调用请求事件"""
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -100,7 +103,7 @@ class ToolCallRequested(BaseEvent):
 
 @dataclass
 class ToolCallCompleted(BaseEvent):
-    """工具调用完成事件"""
+    """Tool call completed event / 工具调用完成事件"""
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -110,7 +113,7 @@ class ToolCallCompleted(BaseEvent):
 
 @dataclass
 class ToolCallFailed(BaseEvent):
-    """工具调用失败事件"""
+    """Tool call failed event / 工具调用失败事件"""
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
@@ -118,12 +121,12 @@ class ToolCallFailed(BaseEvent):
 
 
 # ============================================
-# 配额与限流事件
+# Quota & Rate Limiting Events / 配额与限流事件
 # ============================================
 
 @dataclass
 class QuotaWarning(BaseEvent):
-    """配额预警事件"""
+    """Quota warning event / 配额预警事件"""
     agent_id: int = 0
     usage_percent: float = 0.0
     threshold: int = 80
@@ -131,18 +134,18 @@ class QuotaWarning(BaseEvent):
 
 @dataclass
 class QuotaExceeded(BaseEvent):
-    """配额超限事件"""
+    """Quota exceeded event / 配额超限事件"""
     agent_id: int = 0
     quota_type: str = ""  # soft / hard
 
 
 # ============================================
-# 执行引擎事件
+# Execution Engine Events / 执行引擎事件
 # ============================================
 
 @dataclass
 class ExecutionStarted(BaseEvent):
-    """执行开始事件"""
+    """Execution started event / 执行开始事件"""
     conversation_id: int = 0
     agent_id: int = 0
     execution_mode: str = ""
@@ -150,7 +153,7 @@ class ExecutionStarted(BaseEvent):
 
 @dataclass
 class ExecutionCompleted(BaseEvent):
-    """执行完成事件"""
+    """Execution completed event / 执行完成事件"""
     conversation_id: int = 0
     agent_id: int = 0
     total_tokens: int = 0
@@ -159,7 +162,7 @@ class ExecutionCompleted(BaseEvent):
 
 @dataclass
 class ExecutionFailed(BaseEvent):
-    """执行失败事件"""
+    """Execution failed event / 执行失败事件"""
     conversation_id: int = 0
     agent_id: int = 0
     error: str = ""
@@ -167,29 +170,29 @@ class ExecutionFailed(BaseEvent):
 
 
 # ============================================
-# 智能体扩展事件
+# Agent Extended Events / 智能体扩展事件
 # ============================================
 
 @dataclass
 class AgentUpdated(BaseEvent):
-    """智能体更新事件"""
+    """Agent updated event / 智能体更新事件"""
     agent_id: int = 0
     updated_fields: list[str] = field(default_factory=list)
 
 
 @dataclass
 class AgentDeleted(BaseEvent):
-    """智能体删除事件"""
+    """Agent deleted event / 智能体删除事件"""
     agent_id: int = 0
 
 
 # ============================================
-# 技能事件
+# Skill Events / 技能事件
 # ============================================
 
 @dataclass
 class SkillCreated(BaseEvent):
-    """技能创建事件"""
+    """Skill created event / 技能创建事件"""
     skill_id: int = 0
     skill_name: str = ""
     skill_type: str = ""
@@ -197,24 +200,24 @@ class SkillCreated(BaseEvent):
 
 @dataclass
 class SkillUpdated(BaseEvent):
-    """技能更新事件"""
+    """Skill updated event / 技能更新事件"""
     skill_id: int = 0
     updated_fields: list[str] = field(default_factory=list)
 
 
 @dataclass
 class SkillDeleted(BaseEvent):
-    """技能删除事件"""
+    """Skill deleted event / 技能删除事件"""
     skill_id: int = 0
 
 
 # ============================================
-# 对话扩展事件
+# Conversation Extended Events / 对话扩展事件
 # ============================================
 
 @dataclass
 class ConversationCreated(BaseEvent):
-    """对话创建事件"""
+    """Conversation created event / 对话创建事件"""
     conversation_id: int = 0
     agent_id: int = 0
     user_id: int | None = None
@@ -222,7 +225,7 @@ class ConversationCreated(BaseEvent):
 
 @dataclass
 class MessageCreated(BaseEvent):
-    """消息创建事件"""
+    """Message created event / 消息创建事件"""
     conversation_id: int = 0
     message_id: int = 0
     role: str = ""
@@ -230,60 +233,60 @@ class MessageCreated(BaseEvent):
 
 
 # ============================================
-# 插件生命周期事件
+# Plugin Lifecycle Events / 插件生命周期事件
 # ============================================
 
 @dataclass
 class PluginInstalled(BaseEvent):
-    """插件安装事件"""
+    """Plugin installed event / 插件安装事件"""
     plugin_name: str = ""
     plugin_version: str = ""
 
 
 @dataclass
 class PluginEnabled(BaseEvent):
-    """插件启用事件"""
+    """Plugin enabled event / 插件启用事件"""
     plugin_name: str = ""
 
 
 @dataclass
 class PluginDisabled(BaseEvent):
-    """插件禁用事件"""
+    """Plugin disabled event / 插件禁用事件"""
     plugin_name: str = ""
 
 
 @dataclass
 class PluginUninstalled(BaseEvent):
-    """插件卸载事件"""
+    """Plugin uninstalled event / 插件卸载事件"""
     plugin_name: str = ""
 
 
 # ============================================
-# 知识库事件
+# Knowledge Base Events / 知识库事件
 # ============================================
 
 @dataclass
 class KnowledgeBaseUpdated(BaseEvent):
-    """知识库更新事件"""
+    """Knowledge base updated event / 知识库更新事件"""
     knowledge_base_id: int = 0
     action: str = ""  # created / updated / deleted
 
 
 @dataclass
 class DocumentUploaded(BaseEvent):
-    """文档上传事件"""
+    """Document uploaded event / 文档上传事件"""
     knowledge_base_id: int = 0
     document_id: int = 0
     file_name: str = ""
 
 
 # ============================================
-# 模型调用事件
+# Model Call Events / 模型调用事件
 # ============================================
 
 @dataclass
 class ModelCallCompleted(BaseEvent):
-    """模型调用完成事件"""
+    """Model call completed event / 模型调用完成事件"""
     provider: str = ""
     model: str = ""
     input_tokens: int = 0
@@ -293,41 +296,41 @@ class ModelCallCompleted(BaseEvent):
 
 __all__ = [
     "BaseEvent",
-    # 智能体
+    # Agent / 智能体
     "AgentCreated",
     "AgentPublished",
     "AgentDisabled",
     "AgentUpdated",
     "AgentDeleted",
-    # 技能
+    # Skill / 技能
     "SkillCreated",
     "SkillUpdated",
     "SkillDeleted",
-    # 对话
+    # Conversation / 对话
     "ConversationStarted",
     "ConversationCreated",
     "MessageAdded",
     "MessageCreated",
     "ConversationCompleted",
-    # 工具
+    # Tool / 工具
     "ToolCallRequested",
     "ToolCallCompleted",
     "ToolCallFailed",
-    # 配额
+    # Quota / 配额
     "QuotaWarning",
     "QuotaExceeded",
-    # 执行
+    # Execution / 执行
     "ExecutionStarted",
     "ExecutionCompleted",
     "ExecutionFailed",
-    # 插件
+    # Plugin / 插件
     "PluginInstalled",
     "PluginEnabled",
     "PluginDisabled",
     "PluginUninstalled",
-    # 知识库
+    # Knowledge Base / 知识库
     "KnowledgeBaseUpdated",
     "DocumentUploaded",
-    # 模型
+    # Model / 模型
     "ModelCallCompleted",
 ]

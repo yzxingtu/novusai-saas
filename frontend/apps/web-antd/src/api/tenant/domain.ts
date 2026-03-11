@@ -1,6 +1,6 @@
 /**
- * 租户端域名管理 API
- * 对接后端 /tenant/domains/* 接口
+ * Tenant domain management API / 租户端域名管理 API
+ * Backend: /tenant/domains/* / 对接后端 /tenant/domains/* 接口
  */
 import type {
   DomainType,
@@ -23,10 +23,10 @@ export type {
 } from '#/types/domain';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 域名信息（后端原始格式 snake_case） */
+/** Domain info (backend raw format snake_case) / 域名信息（后端原始格式） */
 export interface TenantDomainInfoRaw {
   id: number;
   tenant_id: number;
@@ -46,7 +46,7 @@ export interface TenantDomainInfoRaw {
   updated_at: string;
 }
 
-/** 域名信息（前端格式 camelCase） */
+/** Domain info (frontend format camelCase) / 域名信息（前端格式） */
 export interface TenantDomainInfo {
   id: number;
   tenantId: number;
@@ -67,41 +67,41 @@ export interface TenantDomainInfo {
   updatedAt: string;
 }
 
-/** 创建域名请求 */
+/** Create domain request / 创建域名请求 */
 export interface TenantDomainCreateRequest {
-  /** 域名（如 app.example.com） */
+  /** Domain (e.g. app.example.com) / 域名 */
   domain: string;
-  /** 备注 */
+  /** Remark / 备注 */
   remark?: string;
 }
 
-/** 更新域名请求 */
+/** Update domain request / 更新域名请求 */
 export interface TenantDomainUpdateRequest {
-  /** 备注 */
+  /** Remark / 备注 */
   remark?: string;
 }
 
-/** 域名列表响应 */
+/** Domain list response / 域名列表响应 */
 export interface TenantDomainListResponse {
   items: TenantDomainInfo[];
   total: number;
 }
 
-/** DNS 验证信息 */
+/** DNS verification info / DNS 验证信息 */
 export interface DnsVerificationInfo {
-  /** CNAME 目标 */
+  /** CNAME target / CNAME 目标 */
   cname_target?: string;
-  /** TXT 记录 */
+  /** TXT record / TXT 记录 */
   txt_record?: string;
-  /** 验证 token */
+  /** Verification token / 验证 token */
   verification_token?: string;
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
 function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
   const domainType = raw.domain_type || 'custom';
 
@@ -133,11 +133,11 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 /**
- * 获取租户域名列表
+ * Get tenant domain list / 获取租户域名列表
  * GET /tenant/domains
  */
 export async function getTenantDomainsApi(
@@ -148,7 +148,7 @@ export async function getTenantDomainsApi(
     options,
   );
 
-  // 后端可能返回数组或分页对象，兼容处理
+  // Backend may return array or paginated object, handle both / 兼容处理
   if (Array.isArray(response)) {
     return {
       items: response.map((item) => transformDomainInfo(item)),
@@ -156,7 +156,7 @@ export async function getTenantDomainsApi(
     };
   }
 
-  // 如果后端返回分页格式
+  // If backend returns paginated format / 如果后端返回分页格式
   const pageResponse = response as unknown as {
     items: TenantDomainInfoRaw[];
     total: number;
@@ -168,7 +168,7 @@ export async function getTenantDomainsApi(
 }
 
 /**
- * 添加自定义域名
+ * Add custom domain / 添加自定义域名
  * POST /tenant/domains
  */
 export async function createTenantDomainApi(
@@ -184,7 +184,7 @@ export async function createTenantDomainApi(
 }
 
 /**
- * 获取域名详情
+ * Get domain detail / 获取域名详情
  * GET /tenant/domains/{domain_id}
  */
 export async function getTenantDomainApi(
@@ -199,7 +199,7 @@ export async function getTenantDomainApi(
 }
 
 /**
- * 更新域名
+ * Update domain / 更新域名
  * PUT /tenant/domains/{domain_id}
  */
 export async function updateTenantDomainApi(
@@ -216,7 +216,7 @@ export async function updateTenantDomainApi(
 }
 
 /**
- * 删除域名
+ * Delete domain / 删除域名
  * DELETE /tenant/domains/{domain_id}
  */
 export async function deleteTenantDomainApi(
@@ -227,7 +227,7 @@ export async function deleteTenantDomainApi(
 }
 
 /**
- * 验证域名
+ * Verify domain / 验证域名
  * POST /tenant/domains/{domain_id}/verify
  */
 export async function verifyTenantDomainApi(
@@ -243,7 +243,7 @@ export async function verifyTenantDomainApi(
 }
 
 /**
- * 设置主域名
+ * Set primary domain / 设置主域名
  * PUT /tenant/domains/{domain_id}/primary
  */
 export async function setPrimaryDomainApi(
@@ -278,7 +278,7 @@ export async function setPrimaryDomainApi(
 // ============================================================
 
 /**
- * 获取域名 SSL 证书详情
+ * Get domain SSL certificate detail / 获取域名 SSL 证书详情
  * GET /tenant/domains/{domain_id}/ssl
  */
 export async function getTenantSslDetailApi(
@@ -293,7 +293,7 @@ export async function getTenantSslDetailApi(
 }
 
 /**
- * 手动触发 SSL 签发
+ * Manually trigger SSL provisioning / 手动触发 SSL 签发
  * POST /tenant/domains/{domain_id}/ssl/provision
  */
 export async function provisionTenantSslApi(
@@ -308,7 +308,7 @@ export async function provisionTenantSslApi(
 }
 
 /**
- * 手动续期 SSL 证书
+ * Manually renew SSL certificate / 手动续期 SSL 证书
  * POST /tenant/domains/{domain_id}/ssl/renew
  */
 export async function renewTenantSslApi(
@@ -323,7 +323,7 @@ export async function renewTenantSslApi(
 }
 
 /**
- * 上传自定义 SSL 证书
+ * Upload custom SSL certificate / 上传自定义 SSL 证书
  * POST /tenant/domains/{domain_id}/ssl/upload
  */
 export async function uploadTenantSslCertApi(
@@ -344,7 +344,7 @@ export async function uploadTenantSslCertApi(
 }
 
 /**
- * 删除 SSL 证书
+ * Delete SSL certificate / 删除 SSL 证书
  * DELETE /tenant/domains/{domain_id}/ssl
  */
 export async function deleteTenantSslCertApi(
@@ -355,7 +355,7 @@ export async function deleteTenantSslCertApi(
 }
 
 /**
- * 设置 SSL 自动续期开关
+ * Set SSL auto-renew toggle / 设置 SSL 自动续期开关
  * PUT /tenant/domains/{domain_id}/ssl/auto-renew
  */
 export async function updateTenantSslAutoRenewApi(

@@ -1,6 +1,6 @@
-"""
-租户安全设置配置项
+"""Tenant security settings config items / 租户安全设置配置项
 
+Includes tenant-level login security, password policy, etc.
 包含租户级的登录安全、密码策略等配置
 """
 
@@ -9,10 +9,10 @@ from app.configs.meta import ConfigMeta, DisplayRule, max_value, min_value, opti
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
-# 登录安全
+# Login security / 登录安全
 # ==========================================
 
-# 启用验证码
+# Enable captcha / 启用验证码
 TENANT_CAPTCHA_ENABLED = ConfigMeta(
     key="tenant_captcha_enabled",
     name_key="config.tenant.captcha_enabled.name",
@@ -23,7 +23,7 @@ TENANT_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=10,
 )
 
-# 验证码驱动（租户端）
+# Captcha driver (tenant) / 验证码驱动（租户端）
 TENANT_CAPTCHA_PROVIDER = ConfigMeta(
     key="tenant_captcha_provider",
     name_key="config.tenant.captcha_provider.name",
@@ -40,7 +40,7 @@ TENANT_CAPTCHA_PROVIDER = ConfigMeta(
     ],
 )
 
-# 验证码难度（租户端）
+# Captcha difficulty (tenant) / 验证码难度（租户端）
 TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
     key="tenant_captcha_difficulty",
     name_key="config.tenant.captcha_difficulty.name",
@@ -59,7 +59,7 @@ TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
     ],
 )
 
-# 允许的登录方式
+# Allowed login methods / 允许的登录方式
 TENANT_LOGIN_METHODS = ConfigMeta(
     key="tenant_login_methods",
     name_key="config.tenant.login_methods.name",
@@ -77,7 +77,7 @@ TENANT_LOGIN_METHODS = ConfigMeta(
     sort_order=20,
 )
 
-# 登录失败锁定次数（覆盖平台默认）
+# Login failure lockout attempts (overrides platform default) / 登录失败锁定次数（覆盖平台默认）
 TENANT_LOGIN_MAX_ATTEMPTS = ConfigMeta(
     key="tenant_login_max_attempts",
     name_key="config.tenant.login_max_attempts.name",
@@ -92,7 +92,7 @@ TENANT_LOGIN_MAX_ATTEMPTS = ConfigMeta(
     sort_order=30,
 )
 
-# 账户锁定时长（分钟）
+# Account lockout duration (minutes) / 账户锁定时长（分钟）
 TENANT_LOGIN_LOCKOUT_MINUTES = ConfigMeta(
     key="tenant_login_lockout_minutes",
     name_key="config.tenant.login_lockout_minutes.name",
@@ -107,7 +107,7 @@ TENANT_LOGIN_LOCKOUT_MINUTES = ConfigMeta(
     sort_order=40,
 )
 
-# 验证码启用阈值（租户端）
+# Captcha enable threshold (tenant) / 验证码启用阈值（租户端）
 TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
     key="tenant_captcha_enable_threshold",
     name_key="config.tenant.captcha_enable_threshold.name",
@@ -127,10 +127,10 @@ TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
 
 
 # ==========================================
-# 密码策略
+# Password policy / 密码策略
 # ==========================================
 
-# 密码最小长度
+# Min password length / 密码最小长度
 TENANT_PASSWORD_MIN_LENGTH = ConfigMeta(
     key="tenant_password_min_length",
     name_key="config.tenant.password_min_length.name",
@@ -145,7 +145,7 @@ TENANT_PASSWORD_MIN_LENGTH = ConfigMeta(
     sort_order=50,
 )
 
-# 密码复杂度要求
+# Password complexity / 密码复杂度要求
 TENANT_PASSWORD_COMPLEXITY = ConfigMeta(
     key="tenant_password_complexity",
     name_key="config.tenant.password_complexity.name",
@@ -163,10 +163,10 @@ TENANT_PASSWORD_COMPLEXITY = ConfigMeta(
 
 
 # ==========================================
-# 会话设置
+# Session settings / 会话设置
 # ==========================================
 
-# 会话超时时间（分钟）
+# Session timeout (minutes) / 会话超时时间（分钟）
 TENANT_SESSION_TIMEOUT = ConfigMeta(
     key="tenant_session_timeout",
     name_key="config.tenant.session_timeout.name",
@@ -183,7 +183,7 @@ TENANT_SESSION_TIMEOUT = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
+# Register configs to group / 注册配置到分组
 # ==========================================
 
 TENANT_GENERAL_GROUP.configs = [

@@ -1,7 +1,9 @@
 """
-回收站自动清理定时任务
+Recycle bin auto-cleanup scheduled task / 回收站自动清理定时任务
 
+Cleans up deleted records exceeding retention days (physical delete).
 清理超过保留天数的已删除记录（物理删除）
+Registered to the scheduling system via the periodic-tasks page.
 通过 periodic-tasks 页面注册到调度系统
 """
 
@@ -15,9 +17,9 @@ from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
-# 需要清理的模型列表（延迟导入避免循环依赖）
+# List of models to clean up (lazy import to avoid circular dependency) / 需要清理的模型列表（延迟导入避免循环依赖）
 RECYCLABLE_MODELS = [
-    # ── 深层叶子节点（无子表依赖），优先清理 ──
+    # ── Deep leaf nodes (no child table dependency), clean first / 深层叶子节点（无子表依赖），优先清理 ──
     "app.models.ai.agent_conversation.AgentConversation",    # child of Agent
     "app.models.ai.batch_run.BatchRun",                      # child of Agent
     "app.models.ai.knowledge_document.KnowledgeDocument",    # child of KnowledgeBase
@@ -25,28 +27,28 @@ RECYCLABLE_MODELS = [
     "app.models.ai.table_policy.AITablePolicyOverride",      # child of AITablePolicy
     "app.models.ai.tenant_quota.TenantQuota",                # child of AIModel
     "app.models.ai.tenant_rate_limit.TenantModelRateLimit",  # child of AIModel
-    # ── 父节点（有子表 CASCADE_SOFT/CASCADE_DELETE） ──
+    # ── Parent nodes (have child tables CASCADE_SOFT/CASCADE_DELETE) / 父节点（有子表 CASCADE_SOFT/CASCADE_DELETE） ──
     "app.models.ai.agent.Agent",
     "app.models.ai.knowledge_base.KnowledgeBase",
     "app.models.ai.skill_package.SkillPackage",
     "app.models.ai.table_policy.AITablePolicy",
-    # ── 独立模型（无父子关系） ──
+    # ── Independent models (no parent-child relationship) / 独立模型（无父子关系） ──
     "app.models.ai.api_key.ProviderApiKey",
     "app.models.ai.model.AIModel",
     "app.models.ai.provider.AIProvider",
     "app.models.auth.admin_role.AdminRole",
     "app.models.auth.tenant_admin_role.TenantAdminRole",
-    # ── Tenant 子表，在 Tenant 之前清理 ──
+    # ── Tenant child tables, clean before Tenant / Tenant 子表，在 Tenant 之前清理 ──
     "app.models.tenant.tenant_plan.TenantPlan",
     "app.models.tenant.tenant_domain.TenantDomain",
     "app.models.system.periodic_task.PeriodicTask",
-    # ── Tenant 最后处理 ──
+    # ── Tenant processed last / Tenant 最后处理 ──
     "app.models.tenant.tenant.Tenant",
 ]
 
 
 def _import_model(model_path: str):
-    """动态导入模型类"""
+    """Dynamically import model class / 动态导入模型类"""
     module_path, class_name = model_path.rsplit(".", 1)
     import importlib
     module = importlib.import_module(module_path)
@@ -55,18 +57,20 @@ def _import_model(model_path: str):
 
 @register_task(
     queue="scheduled",
-    description="清理回收站过期记录（物理删除超过保留天数的软删除记录）",
+    description="Clean up expired recycle bin records (physically delete soft-deleted records exceeding retention days) / 清理回收站过期记录（物理删除超过保留天数的软删除记录）",
     max_retries=1,
 )
 def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
     """
-    清理回收站过期记录
+    Clean up expired recycle bin records / 清理回收站过期记录
 
+    Scans all registered Models, physically deletes records with deleted_at exceeding retention_days.
     扫描所有注册的 Model，物理删除 deleted_at 超过 retention_days 天的记录。
+    Processes in batches of 100 to avoid long transactions.
     分批处理，每批 100 条，避免长事务。
 
     Args:
-        retention_days: 保留天数，默认 30
+        retention_days: Retention days, default 30 / 保留天数，默认 30
     """
     from datetime import timedelta
 
@@ -93,7 +97,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
             model_cleaned = 0
 
             while True:
-                # 限制每批处理数量
+                # Limit batch processing count / 限制每批处理数量
                 sub = (
                     select(model_class.id)
                     .where(
@@ -105,7 +109,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                     .subquery()
                 )
 
-                # 技能包物理删除前清理磁盘存储
+                # Clean disk storage before physically deleting skill packages / 技能包物理删除前清理磁盘存储
                 if model_name == "SkillPackage":
                     ids_to_delete = session.execute(
                         select(sub.c.id)

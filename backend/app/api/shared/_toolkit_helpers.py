@@ -1,7 +1,8 @@
 """
-技能包工具共享逻辑
+技能包工具箱（Valves）管理共享逻辑 / Skill Package Toolkit (Valves) Management Shared Logic
 
-admin/tenant 两端 update_package_valves 的公共流程提取。
+admin/tenant 两端 toolkit 端点共用的工具函数。
+Utility functions shared by admin/tenant toolkit endpoints.
 """
 
 from __future__ import annotations
@@ -31,7 +32,13 @@ def _is_secret_key(key: str) -> bool:
 def mask_secret_values(
     valves_config: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    """对 valves_config 中的 secret 字段值替换为掩码，用于 GET 响应。"""
+    """
+    将 valves_config 中标记为秘密的值替换为脱敏形式。
+    Replace secret-marked values in valves_config with masked form.
+
+    用于 GET 接口返回时隐藏敏感信息。
+    Used to hide sensitive information in GET endpoint responses.
+    """
     if not valves_config:
         return valves_config
     result = dict(valves_config)
@@ -50,19 +57,13 @@ async def validate_and_update_valves(
 ) -> dict[str, Any]:
     """
     校验并更新技能包的 valves_config。
+    Validate and update skill package's valves_config.
 
-    Args:
-        db: 数据库会话
-        service: 已实例化的 SkillPackageService
-        package_id: 技能包 ID
-        data: 请求体 {"valves_config": {...}}
-
-    Returns:
-        包含 valves_schema 和 valves_config 的字典
-
-    Raises:
-        BusinessException: 技能包没有 valves_schema
-        ValidationException: 配置值校验失败
+    处理逻辑 / Processing logic:
+    1. 检查技能包是否定义了 valves_schema / Check if package has valves_schema defined
+    2. 校验必填参数 / Validate required parameters
+    3. 处理秘密字段的“不改写”逻辑 / Handle secret field "no-overwrite" logic
+    4. 持久化到 DB / Persist to DB
     """
     pkg = await service.get_by_id(package_id)
     if not pkg:
@@ -81,13 +82,14 @@ async def validate_and_update_valves(
             code=4001,
         )
 
-    # 保留掩码字段的原值（用户未修改的 secret 字段不覆盖）
+    # 保留掩码字段的原值（用户未修改的 secret 字段不覆盖） / Retain original values for masked fields (unmodified secret fields are not overwritten)
     existing_config = pkg.valves_config or {}
     for key, value in list(valves_config.items()):
+        # 步骤3: 处理秘密字段（如果提交的值 == MASK_VALUE，保留原值） / Step 3: handle secret fields (if submitted value == MASK_VALUE, retain original)
         if value == SECRET_MASK and key in existing_config:
             valves_config[key] = existing_config[key]
 
-    # 校验 required 字段是否存在
+    # 校验 required 字段是否存在 / Validate required fields exist
     schema = pkg.valves_schema or {}
     required_fields = schema.get("required", [])
     if required_fields:

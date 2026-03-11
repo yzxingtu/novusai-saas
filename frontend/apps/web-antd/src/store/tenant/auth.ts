@@ -1,6 +1,7 @@
 /**
- * 租户管理端认证 Store
- * 专用于租户管理员的登录、登出、用户信息管理
+ * Tenant admin authentication store / 租户管理端认证 Store
+ * Handles tenant admin login, logout, and user info management.
+ * 专用于租户管理员的登录、登出、用户信息管理。
  */
 import type { Recordable, UserInfo } from '@vben/types';
 
@@ -31,9 +32,9 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   const tenantAdminInfo = ref<null | TenantAdminInfo>(null);
 
   /**
-   * 租户管理员登录
-   * @param params 登录参数
-   * @param onSuccess 登录成功回调
+   * Tenant admin login / 租户管理员登录
+   * @param params Login parameters / 登录参数
+   * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
     params: Recordable<any>,
@@ -50,22 +51,22 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
       });
 
       if (accessToken) {
-        // 存储Token到tenant端专用存储
+        // Store token in tenant-specific storage / 存储 Token 到 tenant 端专用存储
         TokenStorage.setToken(EndpointType.TENANT, accessToken);
         if (refreshToken) {
           TokenStorage.setRefreshToken(EndpointType.TENANT, refreshToken);
         }
 
-        // 同时设置到accessStore（兼容vben框架）
+        // Also set in accessStore (vben framework compat) / 同时设置到 accessStore
         accessStore.setAccessToken(accessToken);
         if (refreshToken) {
           accessStore.setRefreshToken(refreshToken);
         }
 
-        // 获取用户信息
+        // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo();
 
-        // 转换为vben UserInfo格式
+        // Convert to vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: userInfo?.tenantName || $t('tenant.common.tenantAdmin'),
@@ -96,7 +97,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
         }
       }
     } catch {
-      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
+      // Error handled by axios interceptor; catch here to prevent bubbling to Vue event handler / 错误已由拦截器处理
     } finally {
       loginLoading.value = false;
     }
@@ -105,20 +106,20 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * 租户管理员登出
-   * @param redirect 是否重定向到登录页
+   * Tenant admin logout / 租户管理员登出
+   * @param redirect Whether to redirect to login page / 是否重定向到登录页
    */
   async function logout(redirect: boolean = true) {
     try {
       await tenantApi.tenantLogoutApi();
     } catch {
-      // 忽略错误
+      // Ignore error / 忽略错误
     }
 
-    // 仅清除tenant端Token
+    // Only clear tenant endpoint token / 仅清除 tenant 端 Token
     TokenStorage.clearToken(EndpointType.TENANT);
 
-    // 清除accessStore
+    // Clear accessStore / 清除 accessStore
     accessStore.setAccessToken(null);
     accessStore.setRefreshToken(null);
     accessStore.setLoginExpired(false);
@@ -137,8 +138,9 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * 获取租户管理员信息
-   * 注意：权限码从菜单接口获取，不在此处设置
+   * Fetch tenant admin info / 获取租户管理员信息
+   * Note: Permission codes are fetched from menu API, not set here.
+   * 注意：权限码从菜单接口获取。
    */
   async function fetchUserInfo() {
     const info = await tenantApi.getTenantAdminInfoApi();
@@ -147,21 +149,21 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * 检查是否已认证
+   * Check if authenticated / 检查是否已认证
    */
   function isAuthenticated(): boolean {
     return TokenStorage.hasToken(EndpointType.TENANT);
   }
 
   /**
-   * 获取当前Token
+   * Get current token / 获取当前 Token
    */
   function getToken(): null | string {
     return TokenStorage.getToken(EndpointType.TENANT);
   }
 
   /**
-   * 获取当前租户ID
+   * Get current tenant ID / 获取当前租户 ID
    */
   function getTenantId(): null | number | string {
     return tenantAdminInfo.value?.tenantId || null;

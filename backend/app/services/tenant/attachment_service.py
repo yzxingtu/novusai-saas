@@ -1,7 +1,8 @@
 """
-附件上传服务
+附件上传服务 / Attachment Upload Service
 
 提供统一上传、分片上传、断点续传等能力
+Provides unified upload, chunked upload, resumable upload capabilities.
 """
 
 from __future__ import annotations

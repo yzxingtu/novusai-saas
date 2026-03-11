@@ -1,7 +1,8 @@
 """
-权限相关 Schema
+权限相关 Schema / Permission Schema
 
 定义权限树、菜单等响应结构
+Defines permission tree, menu and other response structures.
 """
 
 from pydantic import Field

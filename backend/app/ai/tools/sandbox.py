@@ -1,8 +1,11 @@
 """
+Tool Execution Security Sandbox
 工具执行安全沙箱
 
+Provides a security shell for tool execution: timeout control, output truncation,
+domain filtering, EventBus event publishing and Hook triggering.
 提供工具执行的安全外壳：超时控制、输出截断、域名过滤、
-EventBus 事件发布和 Hook 触发
+EventBus 事件发布和 Hook 触发。
 """
 
 from __future__ import annotations
@@ -48,13 +51,13 @@ logger = LogManager.get_logger("ai.tool.sandbox")
 @dataclass
 class SandboxConfig:
     """
-    沙箱配置
+    Sandbox Configuration / 沙箱配置
 
     Attributes:
-        timeout_seconds: 单次工具调用超时秒数
-        max_output_size: 最大输出字符数
-        allowed_domains: HTTP 工具允许访问的域名列表
-        blocked_domains: HTTP 工具禁止访问的域名列表
+        timeout_seconds: Single tool call timeout in seconds / 单次工具调用超时秒数
+        max_output_size: Maximum output character count / 最大输出字符数
+        allowed_domains: Allowed domain list for HTTP tools / HTTP 工具允许访问的域名列表
+        blocked_domains: Blocked domain list for HTTP tools / HTTP 工具禁止访问的域名列表
     """
 
     timeout_seconds: int = 30
@@ -66,17 +69,18 @@ class SandboxConfig:
 
 class ToolSandbox:
     """
-    工具执行安全沙箱
+    Tool Execution Security Sandbox / 工具执行安全沙箱
 
+    Orchestrates the complete lifecycle of tool execution:
     编排工具执行的完整生命周期：
-    1. 参数校验
-    2. 触发 BEFORE_TOOL_CALL 钩子
-    3. 超时控制下分发到对应 Executor
-    4. 输出截断
-    5. 触发 AFTER_TOOL_CALL 钩子
-    6. 发布 EventBus 事件
+    1. Parameter validation / 参数校验
+    2. Trigger BEFORE_TOOL_CALL hook / 触发 BEFORE_TOOL_CALL 钩子
+    3. Dispatch to corresponding Executor under timeout control / 超时控制下分发
+    4. Output truncation / 输出截断
+    5. Trigger AFTER_TOOL_CALL hook / 触发 AFTER_TOOL_CALL 钩子
+    6. Publish EventBus events / 发布 EventBus 事件
 
-    使用示例:
+    Usage / 使用示例:
         sandbox = ToolSandbox(tenant_id=1, agent_id=42)
         result = await sandbox.execute("call_xxx", "weather_api", {"city": "Shanghai"})
     """
@@ -99,19 +103,19 @@ class ToolSandbox:
     ):
         """
         Args:
-            tenant_id: 租户 ID
-            agent_id: 智能体 ID
-            config: 沙箱配置
-            user_id: 当前操作用户 ID（可选，传递给 ExecutionContext）
-            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
-            permissions: 用户 RBAC 权限码集合
-            gateway: AI 网关（可选，供 TextToSQLExecutor 使用）
-            db: 数据库会话（可选，供 TextToSQLExecutor 使用）
-            agent: 智能体模型实例（可选，供 TextToSQLExecutor 使用）
-            toolkit_security_level: Toolkit 安全等级 (strict/normal/permissive)
-            toolkit_memory_limit_mb: Toolkit 子进程内存限制 (MB)
-            input_variables: 运行时变量（页面上下文等，传递给 ExecutionContext.variables）
-            page_session_id: 前端页面会话 ID（用于 PageOperationExecutor 定位目标页面）
+            tenant_id: Tenant ID / 租户 ID
+            agent_id: Agent ID / 智能体 ID
+            config: Sandbox configuration / 沙箱配置
+            user_id: Current user ID (optional, passed to ExecutionContext) / 当前操作用户 ID
+            user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
+            permissions: User RBAC permission code set / 用户 RBAC 权限码集合
+            gateway: AI gateway (optional, for TextToSQLExecutor) / AI 网关
+            db: Database session (optional, for TextToSQLExecutor) / 数据库会话
+            agent: Agent model instance (optional, for TextToSQLExecutor) / 智能体模型实例
+            toolkit_security_level: Toolkit security level (strict/normal/permissive) / 安全等级
+            toolkit_memory_limit_mb: Toolkit subprocess memory limit (MB) / 子进程内存限制
+            input_variables: Runtime variables (page context, etc.) / 运行时变量
+            page_session_id: Frontend page session ID (for PageOperationExecutor) / 页面会话 ID
         """
         self.tenant_id = tenant_id
         self.agent_id = agent_id
@@ -128,14 +132,14 @@ class ToolSandbox:
         self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
         self._page_session_id = page_session_id
 
-        # 初始化执行器
+        # Initialize executors / 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
         self._named_executors: dict[str, BaseToolExecutor] = {}
         self._init_executors()
 
     def _init_executors(self) -> None:
-        """初始化各类型执行器"""
-        # Toolkit 执行器（新架构核心）
+        """Initialize executors for each type / 初始化各类型执行器"""
+        # Toolkit executor (new architecture core) / Toolkit 执行器
         self._executors[ToolTypeEnum.TOOLKIT.value] = ToolkitExecutor(
             timeout=self.config.timeout_seconds,
             max_output_size=self.config.max_output_size,
@@ -143,39 +147,39 @@ class ToolSandbox:
             memory_limit_mb=self._toolkit_memory_limit_mb,
         )
         self._executors[ToolTypeEnum.BUILTIN.value] = BuiltinToolExecutor()
-        # Text-to-SQL 执行器（需要 AIGateway 注入）
+        # Text-to-SQL executor (requires AIGateway injection) / Text-to-SQL 执行器
         if self._gateway and self._db:
             self._executors[ToolTypeEnum.TEXT_TO_SQL.value] = TextToSQLExecutor(
                 gateway=self._gateway,
                 db=self._db,
                 agent=self._agent,
             )
-        # 通用 CRUD 执行器
+        # Generic CRUD executors / 通用 CRUD 执行器
         self._executors[ToolTypeEnum.DATA_CREATE.value] = CreateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_UPDATE.value] = UpdateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
-        # HTTP/Webhook 执行器
+        # HTTP/Webhook executor / HTTP/Webhook 执行器
         from app.ai.tools.executors.http_executor import HttpToolExecutor
         self._executors[ToolTypeEnum.HTTP.value] = HttpToolExecutor()
-        # 邮件执行器
+        # Email executor / 邮件执行器
         from app.ai.tools.executors.email_executor import EmailToolExecutor
         self._executors[ToolTypeEnum.EMAIL.value] = EmailToolExecutor()
-        # 代码执行器
+        # Code executor / 代码执行器
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
-        # 页面上下文执行器（按工具名匹配，优先于 type-based 查找）
+        # Page context executor (matched by tool name, prioritized over type-based lookup) / 页面上下文执行器
         from app.ai.tools.executors.page_context_executor import PageContextExecutor
         self._named_executors["get_page_context"] = PageContextExecutor()
-        # 页面操作执行器（通过 WebSocket 下发操作到前端）
+        # Page operation executor (dispatches operations to frontend via WebSocket) / 页面操作执行器
         from app.ai.tools.executors.page_operation_executor import PageOperationExecutor
         self._named_executors["invoke_page_operation"] = PageOperationExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
-        """获取指定类型的执行器"""
+        """Get executor for specified type / 获取指定类型的执行器"""
         return self._executors.get(tool_type)
 
     def register_executor(self, tool_type: str, executor: BaseToolExecutor) -> None:
-        """注册自定义执行器"""
+        """Register custom executor / 注册自定义执行器"""
         self._executors[tool_type] = executor
 
     async def execute(
@@ -187,23 +191,23 @@ class ToolSandbox:
         conversation_id: int = 0,
     ) -> ToolResult:
         """
-        执行工具调用
+        Execute tool call / 执行工具调用
 
         Args:
-            tool_call_id: LLM 返回的 tool_call_id
-            name: 工具名称
-            arguments: LLM 传入的参数
-            definitions: 当前对话的工具定义列表（可选，优先从中查找）
-            conversation_id: 对话 ID（用于工具调用次数限制）
+            tool_call_id: tool_call_id returned by LLM / LLM 返回的 tool_call_id
+            name: Tool name / 工具名称
+            arguments: Arguments passed by LLM / LLM 传入的参数
+            definitions: Tool definition list for current conversation (optional) / 工具定义列表
+            conversation_id: Conversation ID (for tool call count limiting) / 对话 ID
 
         Returns:
-            ToolResult 执行结果
+            ToolResult execution result / 执行结果
         """
         start = time.perf_counter()
         event_bus = get_event_bus()
         hook_registry = get_hook_registry()
 
-        # 1. 查找工具定义
+        # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)
         if not definition:
             return ToolResult(
@@ -213,7 +217,7 @@ class ToolSandbox:
                 error=_("tool.error.not_found", name=name),
             )
 
-        # 1.5 安全检查：输入参数校验 + 调用次数限制
+        # 1.5 Security check: input validation + call count limit / 安全检查
         try:
             InputValidator.validate(definition.input_schema, arguments)
             if conversation_id > 0:
@@ -229,7 +233,7 @@ class ToolSandbox:
                 error=str(sec_err),
             )
 
-        # 2. 发布请求事件
+        # 2. Publish request event / 发布请求事件
         await event_bus.publish(ToolCallRequested(
             tenant_id=self.tenant_id,
             conversation_id=conversation_id,
@@ -238,7 +242,7 @@ class ToolSandbox:
             arguments=arguments,
         ))
 
-        # 3. BEFORE_TOOL_CALL 钩子
+        # 3. BEFORE_TOOL_CALL hook / BEFORE_TOOL_CALL 钩子
         hook_context = await hook_registry.trigger(
             HookPoint.BEFORE_TOOL_CALL,
             tenant_id=self.tenant_id,
@@ -248,10 +252,10 @@ class ToolSandbox:
             definition=definition,
         )
 
-        # 钩子可修改 arguments
+        # Hook can modify arguments / 钩子可修改 arguments
         arguments = hook_context.get("arguments", arguments)
 
-        # 钩子可阻止执行
+        # Hook can block execution / 钩子可阻止执行
         if hook_context.get("blocked"):
             reason = hook_context.get("block_reason", _("tool.error.blocked_by_hook"))
             return ToolResult(
@@ -261,7 +265,7 @@ class ToolSandbox:
                 error=reason,
             )
 
-        # 4. 获取执行器（插件优先 → 内置 fallback）
+        # 4. Get executor (plugin priority → builtin fallback) / 获取执行器
         executor = None
         if definition.source_plugin:
             try:
@@ -279,7 +283,7 @@ class ToolSandbox:
                 error=_("tool.error.no_executor", tool_type=definition.tool_type),
             )
 
-        # 5. 构建 ExecutionContext（含 RBAC 权限信息 + 会话授权）
+        # 5. Build ExecutionContext (with RBAC permissions + session consent) / 构建执行上下文
         context = ExecutionContext(
             tenant_id=self.tenant_id,
             agent_id=self.agent_id,
@@ -293,7 +297,7 @@ class ToolSandbox:
             page_session_id=self._page_session_id,
         )
 
-        # 5.5 执行器级参数校验
+        # 5.5 Executor-level parameter validation / 执行器级参数校验
         try:
             valid = await executor.validate(definition, arguments)
             if not valid:
@@ -315,7 +319,7 @@ class ToolSandbox:
                 error=str(val_exc),
             )
 
-        # 6. 超时控制下执行（优先使用工具独立超时，否则回退到全局配置）
+        # 6. Execute under timeout control (prefer tool-specific timeout, fallback to global) / 超时控制下执行
         tool_timeout = definition.timeout or self.config.timeout_seconds
         try:
             result = await asyncio.wait_for(
@@ -356,14 +360,14 @@ class ToolSandbox:
                 duration_ms=duration_ms,
             )
 
-        # 7. 输出脱敏 + 截断
+        # 7. Output sanitization + truncation / 输出脱敏 + 截断
         if result.success:
             result.output = OutputSanitizer.sanitize(
                 result.output,
                 max_size=self.config.max_output_size,
             )[0]
 
-        # 9. AFTER_TOOL_CALL 钩子
+        # 9. AFTER_TOOL_CALL hook / AFTER_TOOL_CALL 钩子
         await hook_registry.trigger(
             HookPoint.AFTER_TOOL_CALL,
             tenant_id=self.tenant_id,
@@ -372,7 +376,7 @@ class ToolSandbox:
             result=result,
         )
 
-        # 10. 发布结果事件
+        # 10. Publish result event / 发布结果事件
         if result.success:
             await event_bus.publish(ToolCallCompleted(
                 tenant_id=self.tenant_id,
@@ -391,7 +395,7 @@ class ToolSandbox:
                 error=result.error,
             ))
 
-        # 11. 记录技能调用日志（fire-and-forget，不阻塞返回）
+        # 11. Log skill call (fire-and-forget, non-blocking) / 记录技能调用日志
         try:
             await self._log_skill_call(
                 definition=definition,
@@ -408,14 +412,14 @@ class ToolSandbox:
         definitions: list[ToolDefinition] | None = None,
     ) -> list[ToolResult]:
         """
-        批量执行工具调用（串行）
+        Batch execute tool calls (serial) / 批量执行工具调用（串行）
 
         Args:
-            tool_calls: 工具调用列表，每个元素含 id/name/arguments
-            definitions: 工具定义列表
+            tool_calls: Tool call list, each containing id/name/arguments / 工具调用列表
+            definitions: Tool definition list / 工具定义列表
 
         Returns:
-            ToolResult 列表
+            ToolResult list / 结果列表
         """
         results: list[ToolResult] = []
         for call in tool_calls:
@@ -433,7 +437,7 @@ class ToolSandbox:
         definition: ToolDefinition,
         result: ToolResult,
     ) -> None:
-        """记录技能调用日志到 skill_call_logs 表"""
+        """Log skill call to skill_call_logs table / 记录技能调用日志到 skill_call_logs 表"""
         if not self._db:
             return
 
@@ -449,7 +453,7 @@ class ToolSandbox:
             error_message=result.error if not result.success else None,
         )
         self._db.add(log)
-        # flush 但不 commit — 由外层事务统一提交
+        # flush without commit — committed by outer transaction / flush 但不 commit
         await self._db.flush()
 
     def _find_definition(
@@ -458,9 +462,10 @@ class ToolSandbox:
         definitions: list[ToolDefinition] | None = None,
     ) -> ToolDefinition | None:
         """
-        查找工具定义
+        Find tool definition / 查找工具定义
 
-        从 SkillResolver 传入的 definitions 列表中查找
+        Searches from the definitions list passed by SkillResolver.
+        从 SkillResolver 传入的 definitions 列表中查找。
         """
         if definitions:
             for d in definitions:

@@ -1,7 +1,8 @@
 """
-定时任务相关 Schema
+定时任务相关 Schema / Periodic Task Schema
 
 定义定时任务管理 API 的请求和响应数据结构
+Defines periodic task management API request and response data structures.
 """
 
 from datetime import datetime

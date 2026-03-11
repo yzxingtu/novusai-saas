@@ -1,8 +1,10 @@
 """
-插件更新检查器
+Plugin update checker.
+/ 插件更新检查器
 
-每天自动检查已安装插件是否有新版本，缓存检查结果。
-仅通知，不自动更新。
+Automatically checks daily whether installed plugins have new versions, caches results.
+Notification only, no auto-update.
+/ 每天自动检查新版本，仅通知不自动更新。
 """
 
 from __future__ import annotations
@@ -17,22 +19,23 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# 内存缓存：上次检查结果
+# In-memory cache: last check result / 内存缓存：上次检查结果
 _update_cache: dict[str, object] = {}
 _CACHE_KEY = "plugin_updates"
-_CACHE_TTL = 86400  # 24 小时
+_CACHE_TTL = 86400  # 24 hours / 24 小时
 
 
 async def check_updates(db: AsyncSession) -> list[dict]:
     """
-    检查已安装插件的可用更新。
+    Check available updates for installed plugins.
+    / 检查已安装插件的可用更新。
 
-    结果缓存 24 小时。
+    Results cached for 24 hours. / 结果缓存 24 小时。
 
     Returns:
         [{name, current_version, latest_version, slug, changelog?}, ...]
     """
-    # 检查缓存
+    # Check cache / 检查缓存
     cached = _update_cache.get(_CACHE_KEY)
     if cached:
         cache_time, cache_data = cached  # type: ignore
@@ -44,7 +47,7 @@ async def check_updates(db: AsyncSession) -> list[dict]:
     from app.models.system.plugin import Plugin
     from app.plugins.marketplace import MarketplaceClient
 
-    # 查询已安装插件
+    # Query installed plugins / 查询已安装插件
     result = await db.execute(
         select(Plugin.name, Plugin.version, Plugin.marketplace_slug).where(
             Plugin.is_deleted.is_(False),
@@ -63,11 +66,11 @@ async def check_updates(db: AsyncSession) -> list[dict]:
         _update_cache[_CACHE_KEY] = (time.time(), [])
         return []
 
-    # 从市场检查更新
+    # Check updates from marketplace / 从市场检查更新
     client = MarketplaceClient(db)
     updates = await client.check_for_updates(installed)
 
-    # 缓存结果
+    # Cache result / 缓存结果
     _update_cache[_CACHE_KEY] = (time.time(), updates)
 
     if updates:
@@ -81,11 +84,11 @@ async def check_updates(db: AsyncSession) -> list[dict]:
 
 
 def clear_update_cache() -> None:
-    """清除更新缓存（手动刷新用）"""
+    """Clear update cache (for manual refresh) / 清除更新缓存"""
     _update_cache.pop(_CACHE_KEY, None)
 
 
 async def get_update_count(db: AsyncSession) -> int:
-    """获取可更新插件数量（用于菜单角标）"""
+    """Get updatable plugin count (for menu badge) / 获取可更新插件数量"""
     updates = await check_updates(db)
     return len(updates)

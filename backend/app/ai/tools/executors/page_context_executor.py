@@ -1,6 +1,9 @@
 """
+Page Context Executor
 页面上下文执行器
 
+Reads page_context info from ExecutionContext.variables
+and returns it to the LLM to enable page-aware capabilities.
 从 ExecutionContext.variables 中读取 page_context 信息，
 返回给 LLM 以实现页面感知能力。
 """
@@ -16,6 +19,7 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY as SHARED_PAGE_CONTEXT_KEY, PageContext
 
+# Maximum characters of page_data output to LLM (truncation protection)
 # page_data 输出给 LLM 的最大字符数（截断保护）
 MAX_OUTPUT_CHARS = 6000
 
@@ -24,17 +28,21 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.page_context")
 
-# 页面上下文变量键名
+# Page context variable key name / 页面上下文变量键名
 PAGE_CONTEXT_KEY = SHARED_PAGE_CONTEXT_KEY
 
 
 class PageContextExecutor(BaseToolExecutor):
     """
-    页面上下文执行器
+    Page context executor.
+    页面上下文执行器。
 
+    Reads page info passed by the frontend from ExecutionContext.variables['page_context'],
+    formats it and returns to LLM so it knows which page the user is currently on.
     从 ExecutionContext.variables['page_context'] 读取前端传入的页面信息，
     格式化后返回给 LLM，使其了解用户当前所在页面。
 
+    Unified variable structure (across Router and standard chat pipeline):
     统一变量结构（贯穿 Router 与标准聊天链路）:
         {
             "page_key": "tenant.agent.detail",
@@ -50,7 +58,7 @@ class PageContextExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        """从上下文变量读取页面信息并返回"""
+        """Read page info from context variables and return / 从上下文变量读取页面信息并返回"""
         start = time.perf_counter()
 
         if not context or not context.variables:
@@ -72,7 +80,7 @@ class PageContextExecutor(BaseToolExecutor):
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # 构建结构化输出
+        # Build structured output / 构建结构化输出
         parts: list[str] = []
 
         page_key = page_ctx.get("page_key", "")
@@ -115,7 +123,8 @@ class PageContextExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """页面上下文工具不需要参数校验"""
+        """Page context tool requires no parameter validation
+        页面上下文工具不需要参数校验"""
         return True
 
 

@@ -1,7 +1,8 @@
 """
-租户端智能体批处理路由
+租户端智能体批处理路由 / Tenant Agent Batch Processing Routes
 
 提供批处理任务提交、进度查询、取消等接口
+Provides batch task submission, progress query, and cancellation endpoints
 """
 
 from fastapi import APIRouter, Request
@@ -26,12 +27,14 @@ async def submit_batch(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    提交智能体批处理任务
+    提交智能体批处理任务 / Submit agent batch processing task
 
     立即返回 batch_run_id，实际执行由 Celery Worker 异步完成。
+    Returns batch_run_id immediately, actual execution is done asynchronously by Celery Worker.
     通过 GET /{agent_id}/batch/{run_id} 查询进度。
+    Query progress via GET /{agent_id}/batch/{run_id}.
 
-    权限: agent:batch_submit
+    权限 / Permission: agent:batch_submit
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
@@ -40,7 +43,7 @@ async def submit_batch(
     from app.ai.engine.types import BatchItem, ExecutionRequest
     from app.enums.agent import AgentExecutionModeEnum
 
-    # 构建 BatchItem 列表
+    # 构建 BatchItem 列表 / Build BatchItem list
     items = [
         BatchItem(
             item_id=str(idx),
@@ -81,9 +84,9 @@ async def get_batch_progress(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    查询批处理进度和结果
+    查询批处理进度和结果 / Query batch processing progress and results
 
-    权限: agent:batch_progress
+    权限 / Permission: agent:batch_progress
     """
     from app.services.ai.batch_run_service import BatchRunService
 
@@ -112,10 +115,11 @@ async def cancel_batch(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    取消批处理任务
+    取消批处理任务 / Cancel batch processing task
 
     将 BatchRun 状态设为 cancelled，worker 会在下一项开始前检测并停止。
-    权限: agent:batch_cancel
+    Sets BatchRun status to cancelled, worker will detect and stop before starting next item.
+    权限 / Permission: agent:batch_cancel
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)

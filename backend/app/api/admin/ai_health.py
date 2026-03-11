@@ -1,7 +1,8 @@
 """
-AI 供应商健康状态 API (Admin)
+AI 供应商健康状态 API (Admin) / AI Provider Health API (Admin)
 
 提供供应商健康检查状态查询接口
+Provides provider health check status query endpoints.
 """
 
 from fastapi import Request
@@ -34,16 +35,16 @@ from app.rbac.decorators import (
 )
 class AdminAIHealthController(GlobalController):
     """
-    AI 供应商健康状态控制器
+    AI 供应商健康状态控制器 / AI Provider Health Status Controller
 
-    提供供应商健康检查状态查询
+    提供供应商健康检查状态查询 / Provides provider health check status queries
     """
 
     prefix = "/ai/health"
     tags = [_("menu.tags.admin_ai_health")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("", summary="获取所有供应商健康状态")
@@ -54,9 +55,9 @@ class AdminAIHealthController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取所有供应商当前健康状态（从 Redis 读取）
+            获取所有供应商当前健康状态（从 Redis 读取） / Get all provider current health status (from Redis)
 
-            权限: ai_health:list
+            权限 / Permission: ai_health:list
             """
             statuses = await FailoverService.get_all_provider_health()
             return success(data=statuses, message=_("common.success"))
@@ -70,9 +71,9 @@ class AdminAIHealthController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取供应商最近 24h 健康检查记录
+            获取供应商最近 24h 健康检查记录 / Get provider last 24h health check history
 
-            权限: ai_health:history
+            权限 / Permission: ai_health:history
             """
             history = await FailoverService.get_provider_health_history(
                 provider_id=provider_id,
@@ -81,7 +82,7 @@ class AdminAIHealthController(GlobalController):
             return success(data=history, message=_("common.success"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIHealthController.get_router()
 
 __all__ = ["router", "AdminAIHealthController"]

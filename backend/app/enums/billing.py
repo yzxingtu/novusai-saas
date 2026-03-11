@@ -1,14 +1,15 @@
 """
-计费相关枚举模块
+计费相关枚举模块 / Billing Enum Module
 
 定义租户套餐计费相关的枚举
+Defines tenant plan billing related enums.
 """
 
 from app.enums.base import LabeledStrEnum
 
 
 class BillingCycle(LabeledStrEnum):
-    """计费周期枚举"""
+    """Billing Cycle Enum / 计费周期枚举"""
 
     MONTHLY = ("monthly", "enum.billing_cycle.monthly")
     YEARLY = ("yearly", "enum.billing_cycle.yearly")

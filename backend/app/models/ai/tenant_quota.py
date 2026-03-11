@@ -1,7 +1,8 @@
 """
-租户 AI 配额配置模型
+租户 AI 配额配置模型 / Tenant AI Quota Model
 
 存储租户的 Token 配额、预算和超额策略
+Stores tenant token quota, budget and overage policy.
 """
 
 from typing import TYPE_CHECKING

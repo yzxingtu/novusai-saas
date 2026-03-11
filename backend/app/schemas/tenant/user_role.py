@@ -1,7 +1,8 @@
 """
-租户用户角色相关 Schema
+租户用户角色相关 Schema / Tenant User Role Schema
 
 定义租户用户角色管理的请求和响应数据结构（扁平结构，无层级）
+Defines tenant user role management request/response data structures (flat structure, no hierarchy).
 """
 
 from __future__ import annotations

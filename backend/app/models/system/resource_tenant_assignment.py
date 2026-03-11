@@ -1,7 +1,8 @@
 """
-资源-租户分配模型
+资源-租户分配模型 / Resource-Tenant Assignment Model
 
 通用分配表，支持所有需要「部分租户」作用域的资源类型：
+Generic assignment table for all resource types requiring "assigned tenants" scope:
 - skill_package: 技能包分配给指定租户
 - agent: 智能体分配给指定租户
 - knowledge_base: 知识库分配给指定租户

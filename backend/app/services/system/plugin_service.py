@@ -1,7 +1,8 @@
 """
-插件 Service
+插件 Service / Plugin Service
 
 封装插件安装/启停/卸载/配置/租户分配等业务逻辑。
+Encapsulates plugin install/enable/disable/uninstall/config/tenant assignment business logic.
 """
 
 from __future__ import annotations

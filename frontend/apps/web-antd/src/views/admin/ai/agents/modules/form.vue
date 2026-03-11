@@ -26,7 +26,8 @@ import { getRecommendedSkillPackagesApi } from '#/api/admin/skill-packages';
 import { extractScopePayload } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+import { getScopeColor } from '#/utils/scope-helpers';
+import { getAudienceColor } from '#/views/admin/ai/skill-packages/data';
 
 import {
   getFormDefaults,
@@ -346,11 +347,11 @@ function onPackageChange(val: unknown) {
             {{ $t('admin.ai.skillPackage.system') }}
           </ATag>
           <ATag
-            v-if="pkg.package_scope"
-            :color="getScopeColor(pkg.package_scope)"
+            v-if="pkg.package_target_audience"
+            :color="getAudienceColor(pkg.package_target_audience)"
             class="!m-0 shrink-0 !text-[10px]"
           >
-            {{ getScopeText(pkg.package_scope) }}
+            {{ pkg.package_target_audience }}
           </ATag>
           <ATag color="green" class="!m-0 shrink-0 !text-[10px]">
             {{ $t('admin.ai.agent.consentModeOptions.auto') }}

@@ -1,8 +1,10 @@
 /**
+ * Plugin install/uninstall progress store
  * 插件安装/卸载进度 Store
  *
- * 通过 Socket.IO 监听 plugin:install:progress 事件，
- * 管理安装/卸载的实时进度状态。
+ * Listens to plugin:install:progress events via Socket.IO
+ * to manage real-time install/uninstall progress state.
+ * 通过 Socket.IO 监听进度事件，管理安装/卸载的实时进度状态。
  */
 
 import { computed, ref } from 'vue';
@@ -11,10 +13,10 @@ import { defineStore } from 'pinia';
 
 import { useSocketIOStore } from '#/store';
 
-/** 进度事件名（与后端 progress.py 对齐） */
+/** Progress event name (aligned with backend progress.py) / 进度事件名 */
 const EVENT_PLUGIN_PROGRESS = 'plugin:install:progress';
 
-/** 单个步骤状态 */
+/** Single step status / 单个步骤状态 */
 export interface ProgressStep {
   step: string;
   status: 'error' | 'pending' | 'running' | 'success';
@@ -22,7 +24,7 @@ export interface ProgressStep {
   timestamp: string;
 }
 
-/** Socket.IO 推送的进度事件 payload */
+/** Socket.IO progress event payload / Socket.IO 推送的进度事件 payload */
 interface ProgressPayload {
   plugin_name: string;
   action: string;
@@ -36,63 +38,63 @@ interface ProgressPayload {
 export const usePluginInstallProgressStore = defineStore(
   'plugin-install-progress',
   () => {
-    // ── 状态 ──
+    // ── State / 状态 ──
 
-    /** 当前操作类型 */
+    /** Current operation type / 当前操作类型 */
     const currentAction = ref<
       'disable' | 'enable' | 'install' | 'uninstall' | null
     >(null);
 
-    /** 当前插件名 */
+    /** Current plugin name / 当前插件名 */
     const pluginName = ref('');
 
-    /** 步骤列表（按时间顺序） */
+    /** Steps list (chronological order) / 步骤列表（按时间顺序） */
     const steps = ref<ProgressStep[]>([]);
 
-    /** 实时日志行（pip/pnpm/alembic 输出） */
+    /** Real-time log lines (pip/pnpm/alembic output) / 实时日志行 */
     const logs = ref<string[]>([]);
 
-    /** 当前步骤名 */
+    /** Current step name / 当前步骤名 */
     const currentStep = ref('');
 
-    /** 整体进度 0-100 */
+    /** Overall progress 0-100 / 整体进度 */
     const progress = ref(0);
 
-    /** 是否正在执行 */
+    /** Whether operation is running / 是否正在执行 */
     const isRunning = ref(false);
 
-    /** 是否已完成 */
+    /** Whether operation is complete / 是否已完成 */
     const isComplete = ref(false);
 
-    /** 是否失败 */
+    /** Whether operation has failed / 是否失败 */
     const isFailed = ref(false);
 
-    /** 错误信息 */
+    /** Error message / 错误信息 */
     const errorMessage = ref('');
 
-    /** 是否需要刷新页面（npm 依赖安装后） */
+    /** Whether page reload is needed (after npm dependency install) / 是否需要刷新页面 */
     const needsReload = ref(false);
 
-    /** 是否显示进度面板 */
+    /** Whether progress panel is visible / 是否显示进度面板 */
     const visible = ref(false);
 
-    // ── 计算属性 ──
+    // ── Computed / 计算属性 ──
 
     const isActive = computed(
       () => isRunning.value || isComplete.value || isFailed.value,
     );
 
-    // ── 内部状态 ──
+    // ── Internal state / 内部状态 ──
 
     let _handlerRegistered = false;
 
-    // ── 方法 ──
+    // ── Methods / 方法 ──
 
     function _handleProgress(data: unknown) {
       const payload = data as ProgressPayload;
       if (!payload?.plugin_name) return;
 
-      // 首次收到事件时初始化
+      // Initialize on first event / 首次收到事件时初始化
       if (!isRunning.value && !isComplete.value) {
         isRunning.value = true;
         pluginName.value = payload.plugin_name;
@@ -104,15 +106,15 @@ export const usePluginInstallProgressStore = defineStore(
         visible.value = true;
       }
 
-      // 更新进度
+      // Update progress / 更新进度
       progress.value = payload.progress ?? 0;
       currentStep.value = payload.step;
 
       if (payload.status === 'log') {
-        // 子进程输出日志行
+        // Sub-process output log line / 子进程输出日志行
         if (payload.message) {
           logs.value.push(payload.message);
-          // 限制日志行数防止内存溢出
+          // Limit log lines to prevent memory overflow / 限制日志行数防止内存溢出
           if (logs.value.length > 500) {
             logs.value = logs.value.slice(-300);
           }
@@ -120,7 +122,7 @@ export const usePluginInstallProgressStore = defineStore(
         return;
       }
 
-      // 更新或添加步骤
+      // Update or add step / 更新或添加步骤
       const existingIdx = steps.value.findIndex((s) => s.step === payload.step);
       const stepData: ProgressStep = {
         step: payload.step,
@@ -135,15 +137,14 @@ export const usePluginInstallProgressStore = defineStore(
         steps.value[existingIdx] = stepData;
       }
 
-      // 完成/失败
+      // Complete/failed / 完成/失败
       if (payload.step === 'done' && payload.status === 'success') {
         isRunning.value = false;
         isComplete.value = true;
         progress.value = 100;
 
-        // 如果实际安装了 npm 依赖（pnpm 实际执行），标记需要刷新
-        // "Installed N package(s)" → pnpm 实际运行，需要刷新
-        // "No npm dependencies" / "already satisfied (skipped)" → 无需刷新
+        // Mark reload needed if npm deps were actually installed (pnpm ran)
+        // 如果实际安装了 npm 依赖，标记需要刷新
         if (
           (currentAction.value === 'install' ||
             currentAction.value === 'enable') &&
@@ -165,7 +166,7 @@ export const usePluginInstallProgressStore = defineStore(
       }
     }
 
-    /** 开始监听 Socket.IO 进度事件 */
+    /** Start listening to Socket.IO progress events / 开始监听 Socket.IO 进度事件 */
     function startListening() {
       if (_handlerRegistered) return;
 
@@ -174,7 +175,7 @@ export const usePluginInstallProgressStore = defineStore(
       _handlerRegistered = true;
     }
 
-    /** 停止监听 */
+    /** Stop listening / 停止监听 */
     function stopListening() {
       if (!_handlerRegistered) return;
 
@@ -183,7 +184,7 @@ export const usePluginInstallProgressStore = defineStore(
       _handlerRegistered = false;
     }
 
-    /** 重置状态 */
+    /** Reset state / 重置状态 */
     function reset() {
       currentAction.value = null;
       pluginName.value = '';
@@ -199,14 +200,15 @@ export const usePluginInstallProgressStore = defineStore(
       visible.value = false;
     }
 
-    /** 显示面板 */
+    /** Show panel / 显示面板 */
     function show() {
       visible.value = true;
     }
 
     /**
+     * Fallback complete: called when HTTP returns success but Socket.IO event not received
      * 后备完成：HTTP 返回成功但 Socket.IO 事件未到达时调用
-     * 正常情况下由 Socket.IO done 事件驱动，此为防御 fallback
+     * Normally driven by Socket.IO done event; this is a defensive fallback.
      */
     function markComplete() {
       if (!isComplete.value && !isFailed.value) {
@@ -217,6 +219,7 @@ export const usePluginInstallProgressStore = defineStore(
     }
 
     /**
+     * Fallback error: called when HTTP returns error but Socket.IO didn't push error event
      * 后备失败：HTTP 返回错误但 Socket.IO 未推送错误事件时调用
      */
     function markError(message: string) {
@@ -228,8 +231,9 @@ export const usePluginInstallProgressStore = defineStore(
     }
 
     /**
+     * Immediately mark operation as started (provide user feedback before first Socket.IO event)
      * 立即标记操作开始（在 Socket.IO 首条事件到来前给用户反馈）
-     * Modal 关闭后、HTTP 请求发出前调用。
+     * Called after modal close, before HTTP request.
      */
     function startOperation(
       name: string,
@@ -241,7 +245,7 @@ export const usePluginInstallProgressStore = defineStore(
       visible.value = true;
     }
 
-    /** 隐藏面板并重置 */
+    /** Hide panel and reset / 隐藏面板并重置 */
     function hide() {
       visible.value = false;
       if (!isRunning.value) {
@@ -250,7 +254,7 @@ export const usePluginInstallProgressStore = defineStore(
     }
 
     return {
-      // 状态
+      // State / 状态
       currentAction,
       pluginName,
       steps,
@@ -265,7 +269,7 @@ export const usePluginInstallProgressStore = defineStore(
       visible,
       isActive,
 
-      // 方法
+      // Methods / 方法
       startListening,
       stopListening,
       reset,

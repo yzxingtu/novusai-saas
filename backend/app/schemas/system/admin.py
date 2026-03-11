@@ -1,7 +1,8 @@
 """
-平台管理员相关 Schema
+平台管理员相关 Schema / Platform Admin Schema
 
 定义平台管理员 API 的请求和响应数据结构
+Defines platform admin API request and response data structures.
 """
 
 from datetime import datetime

@@ -1,7 +1,8 @@
 """
-AI 表策略 Repository
+AI 表策略 Repository / AI Table Policy Repository
 
 提供 AI 表策略的数据访问功能（平台级，无 tenant_id）
+Provides AI table policy data access (platform-level, no tenant_id).
 """
 
 from sqlalchemy import select, text

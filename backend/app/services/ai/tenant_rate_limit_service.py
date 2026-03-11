@@ -1,5 +1,5 @@
 """
-租户 AI 模型速率限制配置 Service
+租户 AI 模型速率限制配置 Service / Tenant AI Rate Limit Service
 """
 
 

@@ -9,10 +9,10 @@ from app.rbac.decorators import public
 from app.schemas.public import PlatformPublicConfig
 from app.schemas.public.platform import StoragePublicConfig
 
-router = APIRouter(prefix="/platform", tags=["平台公开接口"])
+router = APIRouter(prefix="/platform", tags=["平台公开接口 / Platform Public API"])
 
 
-@router.get("/config", summary="获取平台公开配置")
+@router.get("/config", summary="获取平台公开配置 / Get platform public config")
 @public
 async def get_platform_public_config(db: DbSession):
     config_service = ConfigService(db)

@@ -1,6 +1,7 @@
 """
-分片上传临时文件清理任务
+Chunk upload temporary file cleanup task / 分片上传临时文件清理任务
 
+Cleans up chunk upload sessions and temporary files exceeding retention time.
 清理超过保留时间的分片上传会话及临时文件
 """
 
@@ -17,19 +18,22 @@ from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
-# 默认保留时间：24 小时
+# Default retention time: 24 hours / 默认保留时间：24 小时
 DEFAULT_RETENTION_HOURS = 24
 
 
 @register_task(
     queue="scheduled",
-    description="清理分片上传临时文件（清理超过保留时间的分片上传会话）",
+    description="Clean up chunk upload temp files (sessions exceeding retention time) / 清理分片上传临时文件（清理超过保留时间的分片上传会话）",
     max_retries=1,
 )
 def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTION_HOURS) -> dict:
     """
-    清理过期的分片上传会话
+    Clean up expired chunk upload sessions / 清理过期的分片上传会话
 
+    Scans all session directories under tempdir/novusai_uploads/,
+    checks if created_at in session.json exceeds retention time,
+    and deletes the entire session directory (including chunk files) if expired.
     扫描 tempdir/novusai_uploads/ 下所有会话目录，
     检查 session.json 中的 created_at 是否超过保留时间，
     超过则删除整个会话目录（含分片文件）。
@@ -45,7 +49,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
     errors = 0
     now = utc_now()
 
-    # 遍历所有租户/admin 子目录
+    # Iterate all tenant/admin subdirectories / 遍历所有租户/admin 子目录
     for tenant_dir in upload_root.iterdir():
         if not tenant_dir.is_dir():
             continue
@@ -56,7 +60,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
 
             session_file = session_dir / "session.json"
             if not session_file.exists():
-                # 无 session.json 的孤立目录，直接清理
+                # Orphan directory without session.json, clean up directly / 无 session.json 的孤立目录，直接清理
                 try:
                     shutil.rmtree(session_dir, ignore_errors=True)
                     cleaned += 1
@@ -72,7 +76,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                 session = json.loads(session_file.read_text(encoding="utf-8"))
                 created_at_str = session.get("created_at", "")
                 if not created_at_str:
-                    # 无时间戳，视为过期
+                    # No timestamp, treat as expired / 无时间戳，视为过期
                     shutil.rmtree(session_dir, ignore_errors=True)
                     cleaned += 1
                     continue
@@ -96,7 +100,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                 )
                 errors += 1
 
-        # 如果租户目录为空，也清理掉
+        # Clean up empty tenant directories too / 如果租户目录为空，也清理掉
         try:
             if tenant_dir.exists() and not any(tenant_dir.iterdir()):
                 tenant_dir.rmdir()

@@ -1,8 +1,10 @@
 """
-通知渠道注册表
+通知渠道注册表 / Notification Channel Registry
 
 管理所有可用的通知渠道。渠道在模块加载时自动注册。
+Manages all available notification channels. Channels auto-register on module load.
 支持动态扩展：插件可通过 register_channel() 注册自定义渠道。
+Supports dynamic extension: plugins can register custom channels via register_channel().
 """
 
 from __future__ import annotations

@@ -248,6 +248,39 @@
       "deleteHint": "Deleting certificate will fall back to HTTP access",
       "platformWildcard": "Platform Wildcard SSL Certificate Active",
       "platformWildcardDesc": "Default domains are automatically protected by the platform wildcard SSL certificate, no separate configuration needed"
+    },
+    "devHosts": {
+      "title": "Dev Hosts Management",
+      "runtimeInfo": "Runtime Info",
+      "os": "Operating System",
+      "hostsPath": "Hosts File Path",
+      "writeAccess": "Write Access",
+      "writeYes": "Writable",
+      "writeNo": "Elevation Required",
+      "disabled": "Dev Hosts disabled (not DEBUG mode or unsupported OS)",
+      "syncAll": "Sync All",
+      "syncAllSuccess": "Batch sync complete: {synced} synced, {skipped} skipped",
+      "sync": "Sync hosts",
+      "syncSuccess": "Synced to hosts",
+      "remove": "Remove managed entry",
+      "removeSuccess": "Removed from hosts",
+      "refresh": "Refresh status",
+      "status": {
+        "managed_present": "Managed",
+        "manual_present": "Manual Entry",
+        "missing": "Not in hosts",
+        "not_required": "Not Required",
+        "unsupported": "Unsupported"
+      },
+      "elevationHint": "Current process lacks write permission. Run backend as admin or execute manually:",
+      "cliCommand": "python -m app.core.hosts_helper add {domain}",
+      "remoteWarning": "Note: Hosts changes only affect the backend machine. Browser on a remote machine may not be able to access the domain.",
+      "loadError": "Failed to load Dev Hosts status. Please refresh and try again.",
+      "reason": {
+        "unverified": "Domain not verified, no hosts entry needed",
+        "unsupported_platform": "Current OS does not support hosts management",
+        "dev_hosts_disabled": "Dev Hosts disabled (not DEBUG mode)"
+      }
     }
   },
   "manageDomains": "Manage Domains",

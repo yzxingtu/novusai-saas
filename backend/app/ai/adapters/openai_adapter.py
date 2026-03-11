@@ -1,7 +1,10 @@
 """
+OpenAI Compatible Adapter
 OpenAI 兼容适配器
 
-支持 OpenAI 官方 API 及所有兼容服务（如 DeepSeek、智谱、通义千问等国产大模型）
+Supports OpenAI official API and all compatible services
+(e.g. DeepSeek, Zhipu, Tongyi Qianwen and other domestic LLMs).
+支持 OpenAI 官方 API 及所有兼容服务（如 DeepSeek、智谱、通义千问等国产大模型）。
 """
 
 from collections.abc import AsyncIterator
@@ -27,15 +30,16 @@ logger = LogManager.get_logger("ai")
 
 class OpenAIAdapter(BaseAdapter):
     """
-    OpenAI 兼容适配器
+    OpenAI Compatible Adapter / OpenAI 兼容适配器
 
-    支持 OpenAI 官方 API 及所有兼容服务
+    Supports OpenAI official API and all compatible services.
+    支持 OpenAI 官方 API 及所有兼容服务。
     """
 
     def __init__(self, api_key: str, base_url: str | None = None, **kwargs):
         super().__init__(api_key, base_url, **kwargs)
 
-        # 初始化 OpenAI 客户端
+        # Initialize OpenAI client / 初始化 OpenAI 客户端
         client_kwargs = {"api_key": api_key}
         if base_url:
             client_kwargs["base_url"] = base_url
@@ -54,14 +58,14 @@ class OpenAIAdapter(BaseAdapter):
         **kwargs
     ) -> ChatResponse:
         """
-        聊天对话（同步模式）
+        Chat conversation (synchronous mode) / 聊天对话（同步模式）
         """
         _ = stream
         try:
-            # 转换消息格式
+            # Convert message format / 转换消息格式
             openai_messages = self._convert_messages(messages)
 
-            # 构建请求参数
+            # Build request parameters / 构建请求参数
             request_params: dict = {
                 "model": model,
                 "messages": openai_messages,
@@ -76,14 +80,14 @@ class OpenAIAdapter(BaseAdapter):
                 request_params["tools"] = tools
                 request_params["tool_choice"] = "auto"
 
-            # 添加额外参数
+            # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
 
-            # 调用 API
+            # Call API / 调用 API
             logger.info("Chat request: model=%s messages=%d", model, len(messages))
             response: ChatCompletion = await self.client.chat.completions.create(**request_params)
 
-            # 转换响应
+            # Convert response / 转换响应
             return self._convert_chat_response(response, model)
 
         except AIGatewayError:
@@ -103,13 +107,13 @@ class OpenAIAdapter(BaseAdapter):
         **kwargs
     ) -> AsyncIterator[ChatChunk]:
         """
-        聊天对话（流式模式）
+        Chat conversation (streaming mode) / 聊天对话（流式模式）
         """
         try:
-            # 转换消息格式
+            # Convert message format / 转换消息格式
             openai_messages = self._convert_messages(messages)
 
-            # 构建请求参数
+            # Build request parameters / 构建请求参数
             request_params: dict = {
                 "model": model,
                 "messages": openai_messages,
@@ -125,14 +129,14 @@ class OpenAIAdapter(BaseAdapter):
                 request_params["tools"] = tools
                 request_params["tool_choice"] = "auto"
 
-            # 添加额外参数
+            # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
 
-            # 调用流式 API
+            # Call streaming API / 调用流式 API
             logger.info("Stream chat request: model=%s", model)
             stream = await self.client.chat.completions.create(**request_params)
 
-            # 转换流式响应
+            # Convert streaming response / 转换流式响应
             async for chunk in stream:
                 yield self._convert_chat_chunk(chunk, model)
 
@@ -149,10 +153,10 @@ class OpenAIAdapter(BaseAdapter):
         **kwargs
     ) -> EmbeddingResponse:
         """
-        文本嵌入
+        Text embedding / 文本嵌入
         """
         try:
-            # 调用 API
+            # Call API / 调用 API
             logger.info("Embedding request: model=%s texts=%d", model, len(texts))
             response: CreateEmbeddingResponse = await self.client.embeddings.create(
                 input=texts,
@@ -160,7 +164,7 @@ class OpenAIAdapter(BaseAdapter):
                 **kwargs
             )
 
-            # 转换响应
+            # Convert response / 转换响应
             return EmbeddingResponse(
                 embeddings=[item.embedding for item in response.data],
                 input_tokens=response.usage.prompt_tokens if response.usage else None,
@@ -176,12 +180,13 @@ class OpenAIAdapter(BaseAdapter):
 
     async def list_models(self) -> list[dict]:
         """
-        列出供应商可用的模型列表
+        List available models for the provider / 列出供应商可用的模型列表
 
-        通过 OpenAI /models API 获取可用模型
+        Fetches available models via OpenAI /models API.
+        通过 OpenAI /models API 获取可用模型。
 
         Returns:
-            模型信息列表
+            Model info list / 模型信息列表
         """
         try:
             response = await self.client.models.list()
@@ -198,13 +203,13 @@ class OpenAIAdapter(BaseAdapter):
 
     def _convert_messages(self, messages: list[ChatMessage]) -> list[dict]:
         """
-        转换消息格式
+        Convert message format / 转换消息格式
 
         Args:
-            messages: 统一格式的消息列表
+            messages: Unified format message list / 统一格式的消息列表
 
         Returns:
-            OpenAI 格式的消息列表
+            OpenAI format message list / OpenAI 格式的消息列表
         """
         openai_messages = []
 
@@ -213,7 +218,7 @@ class OpenAIAdapter(BaseAdapter):
                 "role": msg.role,
             }
 
-            # 多模态内容：user 消息含图片附件时，转换为 content 数组
+            # Multimodal content: when user message has image attachments, convert to content array / 多模态内容：user 消息含图片附件时转换为 content 数组
             if msg.role == "user" and msg.attachments:
                 content_parts: list[dict] = []
                 if msg.content:
@@ -253,7 +258,7 @@ class OpenAIAdapter(BaseAdapter):
 
     def _convert_chat_response(self, response: ChatCompletion, model: str) -> ChatResponse:
         """
-        转换 OpenAI 聊天响应为统一格式
+        Convert OpenAI chat response to unified format / 转换 OpenAI 聊天响应为统一格式
         """
         if not response.choices:
             return ChatResponse(
@@ -264,7 +269,7 @@ class OpenAIAdapter(BaseAdapter):
         choice = response.choices[0]
         message = choice.message
 
-        # 将 OpenAI SDK tool_calls 对象转为 dict 列表
+        # Convert OpenAI SDK tool_calls objects to dict list / 将 OpenAI SDK tool_calls 对象转为 dict 列表
         tool_calls_dicts: list[dict] | None = None
         if message.tool_calls:
             tool_calls_dicts = [
@@ -279,14 +284,14 @@ class OpenAIAdapter(BaseAdapter):
                 for tc in message.tool_calls
             ]
 
-        # 构建统一消息格式
+        # Build unified message format / 构建统一消息格式
         chat_message = ChatMessage(
             role=message.role,
             content=message.content or "",
             tool_calls=tool_calls_dicts,
         )
 
-        # 提取 Token 使用量
+        # Extract token usage / 提取 Token 使用量
         usage = response.usage
         input_tokens = usage.prompt_tokens if usage else None
         output_tokens = usage.completion_tokens if usage else None
@@ -305,7 +310,7 @@ class OpenAIAdapter(BaseAdapter):
 
     def _convert_chat_chunk(self, chunk: ChatCompletionChunk, model: str) -> ChatChunk:
         """
-        转换 OpenAI 流式响应块为统一格式
+        Convert OpenAI streaming response chunk to unified format / 转换 OpenAI 流式响应块为统一格式
         """
         _ = model
         if not chunk.choices:
@@ -313,20 +318,20 @@ class OpenAIAdapter(BaseAdapter):
         choice = chunk.choices[0]
         delta = choice.delta
 
-        # 提取增量内容（兼容 reasoning_content，部分中转模型使用此字段）
+        # Extract delta content (compatible with reasoning_content used by some relay models) / 提取增量内容（兼容 reasoning_content）
         delta_content = delta.content or ""
         if not delta_content:
             reasoning = getattr(delta, "reasoning_content", None)
             if reasoning:
                 delta_content = reasoning
 
-        # 提取 Token 使用量（最后一个块包含）
+        # Extract token usage (included in the last chunk) / 提取 Token 使用量（最后一个块包含）
         usage = chunk.usage
         input_tokens = usage.prompt_tokens if usage else None
         output_tokens = usage.completion_tokens if usage else None
         total_tokens = usage.total_tokens if usage else None
 
-        # 将 OpenAI SDK tool_calls 对象转为可序列化 dict 列表（含 index 便于增量合并）
+        # Convert OpenAI SDK tool_calls to serializable dict list (with index for incremental merging) / 将 OpenAI SDK tool_calls 对象转为可序列化 dict 列表
         tool_calls_dicts: list[dict] | None = None
         if delta.tool_calls:
             tool_calls_dicts = []
@@ -365,7 +370,7 @@ class OpenAIAdapter(BaseAdapter):
         **kwargs,
     ) -> ImageGenerationResponse:
         """
-        图像生成（调用 OpenAI /v1/images/generations）
+        Image generation (calls OpenAI /v1/images/generations) / 图像生成
         """
         try:
             logger.info(
@@ -381,7 +386,7 @@ class OpenAIAdapter(BaseAdapter):
                 "n": n,
                 "response_format": "url",
             }
-            # style 仅 dall-e-3 支持
+            # style only supported by dall-e-3 / style 仅 dall-e-3 支持
             if "dall-e-3" in model:
                 request_params["style"] = style
 
@@ -418,7 +423,7 @@ class OpenAIAdapter(BaseAdapter):
 
     def get_supported_features(self) -> dict[str, bool]:
         """
-        获取支持的功能
+        Get supported features / 获取支持的功能
         """
         return {
             "chat": True,

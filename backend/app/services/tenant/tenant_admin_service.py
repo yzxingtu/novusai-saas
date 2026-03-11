@@ -1,7 +1,8 @@
 """
-租户管理员服务
+租户管理员服务 / Tenant Admin Service
 
 提供租户管理员的业务逻辑（租户隔离）
+Provides tenant admin business logic (tenant-isolated).
 """
 
 from typing import Any

@@ -1,7 +1,8 @@
 """
-智能体对话模型
+智能体对话模型 / Agent Conversation Model
 
 定义智能体对话记录，存储对话元信息和消息
+Defines agent conversation records, stores conversation metadata and messages.
 """
 
 from typing import TYPE_CHECKING

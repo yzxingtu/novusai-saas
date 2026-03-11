@@ -1,7 +1,8 @@
 """
-智能体版本模型
+智能体版本模型 / Agent Version Model
 
 存储智能体每次发布时的配置快照，支持历史查看和回滚
+Stores agent configuration snapshots on each publish, supports history viewing and rollback.
 """
 
 from typing import TYPE_CHECKING

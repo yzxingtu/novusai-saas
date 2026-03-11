@@ -1,7 +1,7 @@
 """
-AI API Key Repository
+AI 供应商密钥 Repository / AI API Key Repository
 
-处理 AI API Key 数据访问
+处理 AI API Key 数据访问 / Handles AI API key data access.
 """
 
 from sqlalchemy import and_, select

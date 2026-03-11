@@ -1,3 +1,10 @@
+"""
+附件模型 / Attachment Model
+
+存储上传文件的元信息，支持多存储驱动和秒传
+Stores uploaded file metadata, supports multiple storage drivers and instant upload.
+"""
+
 from sqlalchemy import JSON, Column, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -50,7 +57,7 @@ class Attachment(TenantModel):
 
     # 索引
     __table_args__ = (
-        Index("ix_attachments_tenant_path", "tenant_id", "path", unique=True),
+        Index("ix_attachments_path", "path", unique=True),
         Index("ix_attachments_tenant_hash", "tenant_id", "hash"),
     )
 

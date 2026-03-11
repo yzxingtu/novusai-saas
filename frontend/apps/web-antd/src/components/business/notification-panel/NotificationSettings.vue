@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 /**
+ * Notification Preferences Component
  * 通知偏好设置组件
  *
+ * 5 categories × 3 channels Switch matrix, saved to backend.
  * 5 类 × 3 渠道的 Switch 矩阵，保存到后端。
  */
 import { ref } from 'vue';
@@ -14,7 +16,7 @@ import { requestClient } from '#/utils/request';
 defineOptions({ name: 'NotificationSettings' });
 
 const props = defineProps<{
-  /** API 前缀: '/admin' 或 '/tenant' */
+  /** API prefix: '/admin' or '/tenant' / API 前缀 */
   apiPrefix?: string;
 }>();
 
@@ -38,13 +40,13 @@ function getApiBase(): string {
   return window.location.pathname.startsWith('/tenant') ? '/tenant' : '/admin';
 }
 
-/** 打开设置面板 */
+/** Open settings panel / 打开设置面板 */
 async function open() {
   visible.value = true;
   await loadPreferences();
 }
 
-/** 加载偏好数据 */
+/** Load preferences data / 加载偏好数据 */
 async function loadPreferences() {
   loading.value = true;
   try {
@@ -60,7 +62,7 @@ async function loadPreferences() {
           channel_inbox: true,
         }));
   } catch {
-    // API 不存在时使用默认值
+    // Use defaults when API doesn't exist / API 不存在时使用默认值
     preferences.value = CATEGORIES.map((cat) => ({
       category: cat,
       channel_ws: true,
@@ -72,7 +74,7 @@ async function loadPreferences() {
   }
 }
 
-/** 保存偏好 */
+/** Save preferences / 保存偏好 */
 async function handleSave() {
   saving.value = true;
   try {
@@ -89,7 +91,7 @@ async function handleSave() {
   }
 }
 
-/** 获取分类对应的偏好行（保证返回 preferences 数组中的引用） */
+/** Get preference row for a category (returns reference from preferences array) / 获取分类对应的偏好行 */
 function getPref(category: string): PrefRow {
   let row = preferences.value.find((p) => p.category === category);
   if (!row) {

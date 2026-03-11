@@ -1,7 +1,9 @@
 """
-数据库驱动的动态调度器
+Database-driven dynamic scheduler / 数据库驱动的动态调度器
 
+Loads periodic task configuration from DB and registers with Celery Beat scheduler.
 从数据库加载定时任务配置，注册到 Celery Beat 调度
+Supports runtime dynamic addition/removal of schedules.
 支持运行时动态添加/移除调度
 """
 
@@ -16,6 +18,7 @@ logger = LogManager.get_logger("queue")
 
 
 def parse_cron_expression(expression: str) -> crontab:
+    """Parse cron expression string to Celery crontab object / 将 cron 表达式字符串解析为 Celery crontab 对象"""
     parts = expression.strip().split()
     if len(parts) != 5:
         raise ValueError(f"Invalid cron expression: {expression}")
@@ -30,6 +33,7 @@ def parse_cron_expression(expression: str) -> crontab:
 
 
 def load_periodic_tasks_from_db() -> dict:
+    """Load periodic tasks from DB and return schedule dict / 从数据库加载定时任务并返回调度配置字典"""
     schedule = {}
     session = sync_session_factory()
     try:
@@ -75,6 +79,7 @@ def load_periodic_tasks_from_db() -> dict:
 
 
 def setup_periodic_tasks() -> None:
+    """Register DB periodic tasks to Celery Beat schedule / 将数据库定时任务注册到 Celery Beat 调度"""
     db_schedule = load_periodic_tasks_from_db()
 
     beat_schedule = {**celery_app.conf.beat_schedule} if celery_app.conf.beat_schedule else {}
@@ -88,5 +93,6 @@ def setup_periodic_tasks() -> None:
 
 
 def refresh_schedule() -> None:
+    """Refresh periodic task schedule from DB / 从数据库刷新定时任务调度"""
     setup_periodic_tasks()
     logger.info("Periodic task schedule refreshed from DB")

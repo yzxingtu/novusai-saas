@@ -1,6 +1,6 @@
-"""
-平台 SSL 证书管理配置项
+"""Platform SSL certificate management config items / 平台 SSL 证书管理配置项
 
+Includes ACME/Let's Encrypt connection config, auto-renewal policy, etc.
 包含 ACME/Let's Encrypt 连接配置、自动续期策略等
 """
 
@@ -9,10 +9,10 @@ from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
-# ACME 服务配置
+# ACME service config / ACME 服务配置
 # ==========================================
 
-# ACME 账户邮箱
+# ACME account email / ACME 账户邮箱
 ACME_ACCOUNT_EMAIL = ConfigMeta(
     key="acme_account_email",
     name_key="config.platform.acme_account_email.name",
@@ -24,7 +24,7 @@ ACME_ACCOUNT_EMAIL = ConfigMeta(
     sort_order=10,
 )
 
-# ACME 环境模式
+# ACME environment mode / ACME 环境模式
 ACME_USE_STAGING = ConfigMeta(
     key="acme_use_staging",
     name_key="config.platform.acme_use_staging.name",
@@ -35,7 +35,7 @@ ACME_USE_STAGING = ConfigMeta(
     sort_order=20,
 )
 
-# ACME 生产环境目录 URL
+# ACME production directory URL / ACME 生产环境目录 URL
 ACME_DIRECTORY_URL = ConfigMeta(
     key="acme_directory_url",
     name_key="config.platform.acme_directory_url.name",
@@ -46,7 +46,7 @@ ACME_DIRECTORY_URL = ConfigMeta(
     sort_order=30,
 )
 
-# ACME 测试环境目录 URL
+# ACME staging directory URL / ACME 测试环境目录 URL
 ACME_STAGING_URL = ConfigMeta(
     key="acme_staging_url",
     name_key="config.platform.acme_staging_url.name",
@@ -58,10 +58,10 @@ ACME_STAGING_URL = ConfigMeta(
 )
 
 # ==========================================
-# 证书管理策略
+# Certificate management policy / 证书管理策略
 # ==========================================
 
-# 私钥加密密钥（Fernet key）
+# Private key encryption key (Fernet key) / 私钥加密密钥
 SSL_PRIVATE_KEY_ENCRYPTION_KEY = ConfigMeta(
     key="ssl_private_key_encryption_key",
     name_key="config.platform.ssl_private_key_encryption_key.name",
@@ -74,7 +74,7 @@ SSL_PRIVATE_KEY_ENCRYPTION_KEY = ConfigMeta(
     sort_order=50,
 )
 
-# 自动续期提前天数
+# Auto-renewal advance days / 自动续期提前天数
 SSL_AUTO_RENEW_DAYS = ConfigMeta(
     key="ssl_auto_renew_days",
     name_key="config.platform.ssl_auto_renew_days.name",
@@ -85,7 +85,7 @@ SSL_AUTO_RENEW_DAYS = ConfigMeta(
     sort_order=60,
 )
 
-# 是否允许租户上传自定义证书
+# Allow tenants to upload custom certificates / 是否允许租户上传自定义证书
 SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
     key="ssl_allow_custom_cert",
     name_key="config.platform.ssl_allow_custom_cert.name",
@@ -98,10 +98,10 @@ SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
 
 
 # ==========================================
-# DNS 提供商配置（用于 ACME DNS-01 验证）
+# DNS provider config (for ACME DNS-01 challenge) / DNS 提供商配置
 # ==========================================
 
-# DNS 提供商类型
+# DNS provider type / DNS 提供商类型
 DNS_PROVIDER = ConfigMeta(
     key="dns_provider",
     name_key="config.platform.dns_provider.name",
@@ -209,7 +209,7 @@ DNS_DNSPOD_SECRET_KEY = ConfigMeta(
 
 
 # ==========================================
-# 注册配置项到分组
+# Register configs to group / 注册配置项到分组
 # ==========================================
 
 PLATFORM_SSL_GROUP.configs = [

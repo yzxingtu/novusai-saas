@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 /**
+ * Cache Clear Modal Component
  * 缓存清理弹窗组件
  *
+ * Displays server + frontend cache category statistics, supports selective clearing.
  * 展示服务端 + 前端缓存分类的统计信息，支持选择性清理。
- * - 服务端缓存：通过 API 获取统计、执行清理
- * - 前端缓存：客户端扫描 localStorage / sessionStorage / preferences
+ * - Server cache: fetch stats and execute clearing via API / 服务端缓存：通过 API 获取统计、执行清理
+ * - Frontend cache: client-side scan of localStorage / sessionStorage / preferences / 前端缓存：客户端扫描 localStorage / sessionStorage / preferences
  */
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -30,12 +32,12 @@ interface CacheItem {
 }
 
 // ============================================================
-// 前端缓存类别定义
+// Frontend cache category definitions / 前端缓存类别定义
 // ============================================================
 
 type FrontendCategory = 'fe_local_storage' | 'fe_preferences' | 'fe_tab_cache';
 
-/** Token 相关 key 后缀，清理 localStorage 时必须保留 */
+/** Token-related key suffixes, must be preserved when clearing localStorage / Token 相关 key 后缀，清理 localStorage 时必须保留 */
 const TOKEN_KEY_SUFFIXES = [
   'admin_token',
   'admin_refresh_token',
@@ -45,7 +47,7 @@ const TOKEN_KEY_SUFFIXES = [
   'tenant_user_refresh_token',
 ];
 
-/** Preference 相关 key 后缀 */
+/** Preference-related key suffixes / Preference 相关 key 后缀 */
 const PREF_KEY_SUFFIXES = [
   'preferences',
   'preferences-locale',
@@ -134,13 +136,13 @@ function toggleAll() {
 }
 
 // ============================================================
-// 前端缓存扫描
+// Frontend cache scanning / 前端缓存扫描
 // ============================================================
 
 function scanFrontendCaches(): CacheItem[] {
   const items: CacheItem[] = [];
 
-  // 1. fe_local_storage — 非 Token、非 Preferences 的 localStorage 条目
+  // 1. fe_local_storage — localStorage entries excluding Token and Preferences / 非 Token、非 Preferences 的 localStorage 条目
   {
     let keyCount = 0;
     let sizeBytes = 0;
@@ -160,7 +162,7 @@ function scanFrontendCaches(): CacheItem[] {
     });
   }
 
-  // 2. fe_tab_cache — sessionStorage 中的标签页缓存
+  // 2. fe_tab_cache — Tab cache in sessionStorage / sessionStorage 中的标签页缓存
   {
     let keyCount = 0;
     let sizeBytes = 0;
@@ -180,7 +182,7 @@ function scanFrontendCaches(): CacheItem[] {
     });
   }
 
-  // 3. fe_preferences — Preferences localStorage 条目
+  // 3. fe_preferences — Preferences localStorage entries / Preferences localStorage 条目
   {
     let keyCount = 0;
     let sizeBytes = 0;
@@ -204,7 +206,7 @@ function scanFrontendCaches(): CacheItem[] {
 }
 
 // ============================================================
-// 前端缓存清理
+// Frontend cache clearing / 前端缓存清理
 // ============================================================
 
 function clearFrontendCategory(category: FrontendCategory) {
@@ -287,7 +289,7 @@ const [Modal, modalApi] = useVbenModal({
 
       const messages: string[] = [];
 
-      // 清理服务端缓存
+      // Clear server-side cache / 清理服务端缓存
       if (backendCats.length > 0) {
         const result = await clearCacheApi({ categories: backendCats });
         messages.push(
@@ -297,7 +299,7 @@ const [Modal, modalApi] = useVbenModal({
         );
       }
 
-      // 清理前端缓存
+      // Clear frontend cache / 清理前端缓存
       if (frontendCats.length > 0) {
         for (const cat of frontendCats) {
           clearFrontendCategory(cat);
@@ -359,7 +361,7 @@ defineExpose({ open });
           </Tag>
         </div>
 
-        <!-- 服务端缓存 -->
+        <!-- Server cache / 服务端缓存 -->
         <template v-if="backendItems.length > 0">
           <Divider orientation="left" class="!my-2 !text-xs">
             {{ $t('admin.system.cache.backendSection') }}
@@ -402,7 +404,7 @@ defineExpose({ open });
           </div>
         </template>
 
-        <!-- 前端缓存 -->
+        <!-- Frontend cache / 前端缓存 -->
         <Divider orientation="left" class="!my-2 !mt-4 !text-xs">
           {{ $t('admin.system.cache.frontendSection') }}
         </Divider>

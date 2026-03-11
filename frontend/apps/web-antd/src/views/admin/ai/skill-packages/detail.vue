@@ -2,7 +2,7 @@
 /**
  * 管理端技能包详情页
  *
- * - 顶部：返回按钮 + 包名 + scope/status 标签
+ * - 顶部：返回按钮 + 包名 + audience/status 标签
  * - 基本信息卡片：完整展示所有字段（描述/作用域/系统标识/排序/来源插件/时间等）
  * - Tab 1: 包内技能列表（翻译类型、超时、描述、状态切换、删除）
  * - Tab 2: Valves 环境变量配置
@@ -48,8 +48,6 @@ import { $t } from '#/locales';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { formatRelativeTime } from '#/utils/common';
 import { requestClient } from '#/utils/request';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
-
 import { getSkillTypeText } from '../skills/data';
 
 defineOptions({ name: 'AdminSkillPackageDetail' });
@@ -252,8 +250,8 @@ onUnmounted(() => {
             class="size-5 text-primary"
           />
           <h2 class="m-0 text-lg font-semibold">{{ pkg.name }}</h2>
-          <Tag :color="getScopeColor(pkg.scope)">
-            {{ getScopeText(pkg.scope) }}
+          <Tag color="processing">
+            {{ pkg.target_audience }}
           </Tag>
           <Tag v-if="pkg.is_system" color="purple">
             {{ $t('admin.ai.skillPackage.system') }}
@@ -289,9 +287,9 @@ onUnmounted(() => {
               $t('admin.ai.skillPackage.detail.noDescription')
             }}</span>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.scope')">
-            <Tag :color="getScopeColor(pkg.scope)">
-              {{ getScopeText(pkg.scope) }}
+          <DescriptionsItem :label="$t('admin.ai.skillPackage.targetAudience')">
+            <Tag color="processing">
+              {{ pkg.target_audience }}
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.isActive')">

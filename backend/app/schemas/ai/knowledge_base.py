@@ -1,7 +1,8 @@
 """
-知识库相关 Schema
+知识库相关 Schema / Knowledge Base Schema
 
 定义知识库、文档、分块的请求和响应数据结构
+Defines knowledge base, document, chunk request and response data structures.
 """
 
 from datetime import datetime

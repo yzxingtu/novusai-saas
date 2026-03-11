@@ -1,6 +1,9 @@
 """
-插件沙箱上下文
+Plugin sandbox context / 插件沙箱上下文
 
+PluginContext is the sole entry point for plugins to interact with the core system.
+All methods check capability authorization before execution.
+/
 PluginContext 是插件与核心系统交互的唯一入口。
 所有方法在执行前检查能力授权（capabilities）。
 """
@@ -24,7 +27,8 @@ from app.enums.agent import (
 from app.enums.plugin import PluginLicenseTypeEnum
 from app.plugins.exceptions import PluginSecurityError
 
-# 预编译：匹配 SQL 关键字后跟表名（含 \t \n 等空白分隔符）
+# Precompiled: match SQL keywords followed by table names (including \t \n whitespace separators)
+# / 预编译：匹配 SQL 关键字后跟表名（含 \t \n 等空白分隔符）
 _TABLE_KEYWORD_RE = _re.compile(
     r'\b(?:from|join|into|update|table)\s+["\']?([a-z0-9_][a-z0-9_.]*)',
     _re.IGNORECASE,
@@ -41,9 +45,13 @@ logger = get_logger(__name__)
 @dataclass(frozen=True)
 class RequestContext:
     """
-    请求上下文 — 从 HTTP 请求 / WebSocket 连接中提取的身份信息。
+    Request context — identity info extracted from HTTP request / WebSocket connection.
+    / 请求上下文 — 从 HTTP 请求 / WebSocket 连接中提取的身份信息。
 
-    在 API dispatcher 层创建，注入到 PluginContext。
+    Created in API dispatcher layer, injected into PluginContext.
+    Lifecycle hook scenarios (on_enable/on_disable, etc.) have no request context,
+    in which case it is None and PluginContext methods return safe defaults.
+    / 在 API dispatcher 层创建，注入到 PluginContext。
     lifecycle hook 场景（on_enable/on_disable 等）无请求上下文，
     此时为 None，PluginContext 方法返回安全默认值。
     """
@@ -57,9 +65,11 @@ class RequestContext:
 
 class PluginDbProxy:
     """
-    数据库代理 — 限制插件只能操作 px_{name}_* 表
+    Database proxy — restricts plugins to only operate on px_{name}_* tables
+    / 数据库代理 — 限制插件只能操作 px_{name}_* 表
 
-    包装 AsyncSession，拦截 execute() 检查表名前缀。
+    Wraps AsyncSession, intercepts execute() to check table name prefixes.
+    / 包装 AsyncSession，拦截 execute() 检查表名前缀。
     """
 
     def __init__(
@@ -77,13 +87,13 @@ class PluginDbProxy:
 
     @property
     def session(self) -> AsyncSession:
-        """禁止暴露原始 session，避免绕过沙箱检查。"""
+        """Forbidden: do not expose raw session to avoid bypassing sandbox checks. / 禁止暴露原始 session，避免绕过沙箱检查。"""
         raise PluginSecurityError(
             message="Access to raw session is forbidden in plugin sandbox",
         )
 
     async def execute(self, statement: Any, *args: Any, **kwargs: Any) -> Any:
-        """执行 SQL，检查表名前缀"""
+        """Execute SQL with table name prefix check / 执行 SQL，检查表名前缀"""
         sql_text = str(statement)
         self._check_table_access(sql_text)
         return await self._db.execute(statement, *args, **kwargs)
@@ -93,9 +103,13 @@ class PluginDbProxy:
 
     async def commit(self) -> None:
         """
-        在当前事务内 flush 插件数据（不提交外层事务）。
+        Flush plugin data within the current transaction (does not commit outer transaction).
+        / 在当前事务内 flush 插件数据（不提交外层事务）。
 
-        注意：为保护生命周期事务原子性，此方法等同于 flush()。
+        Note: To protect lifecycle transaction atomicity, this method is equivalent to flush().
+        For cross-session visibility, use flush() in the plugin's final response path;
+        the lifecycle framework will commit uniformly at request end.
+        / 注意：为保护生命周期事务原子性，此方法等同于 flush()。
         若需要确保跨会话可见性，请在插件代码的最终响应路径使用 flush()；
         生命周期框架会在请求结束时统一 commit。
         """
@@ -103,9 +117,13 @@ class PluginDbProxy:
 
     async def rollback(self) -> None:
         """
-        禁止插件回滚整个数据库会话。
+        Plugins cannot rollback the entire database session.
+        / 禁止插件回滚整个数据库会话。
 
-        调用 rollback() 会撤销所有生命周期变更（如 plugin.status=ENABLED），
+        Calling rollback() would undo all lifecycle changes (e.g. plugin.status=ENABLED),
+        causing the system to enter an inconsistent state. To undo plugin's own writes,
+        avoid writing to DB in on_enable hooks or use business logic checks.
+        / 调用 rollback() 会撤销所有生命周期变更（如 plugin.status=ENABLED），
         导致系统进入不一致状态。如需撤销插件自身写入，
         请避免在 on_enable 等 Hook 中写入 DB 或使用业务逻辑判断。
         """
@@ -158,33 +176,39 @@ class PluginDbProxy:
         return any(table_name.startswith(prefix) for prefix in self._allowed_prefixes)
 
     def _check_table_access(self, sql_text: str) -> None:
-        """检查 SQL 是否只涉及插件自有表（基础检查 + CTE 检测）
+        """Check if SQL only involves plugin-owned tables (basic check + CTE detection)
+        / 检查 SQL 是否只涉及插件自有表（基础检查 + CTE 检测）
 
-        已知限制（defense-in-depth，非完美沙箱）：
-        - 字符串常量中的 "FROM xxx" 可能误触发检查
-        - 不检查 raw SQL 中的函数调用（如 pg_catalog.*）
-        - SQLAlchemy ORM 查询经过 add/execute 时有额外 _check_instance_access 保护
-        - CTE 内部的表名已通过 "FROM|JOIN|INTO|UPDATE|TABLE" 关键字检测（M52-T6）
-        - 生产环境强烈建议通过 PostgreSQL RLS (Row-Level Security) 做最终防线：
-          ALTER TABLE px_{name}_* ENABLE ROW LEVEL SECURITY;
-          CREATE POLICY plugin_isolation ON px_{name}_* USING (true);
+        Known limitations (defense-in-depth, not a perfect sandbox) / 已知限制：
+        - String constants with "FROM xxx" may trigger false checks / 字符串常量中的 "FROM xxx" 可能误触发检查
+        - Does not check function calls in raw SQL (e.g. pg_catalog.*) / 不检查 raw SQL 中的函数调用
+        - SQLAlchemy ORM queries have extra _check_instance_access protection via add/execute
+          / SQLAlchemy ORM 查询经过 add/execute 时有额外 _check_instance_access 保护
+        - CTE inner table names detected via FROM|JOIN|INTO|UPDATE|TABLE keywords (M52-T6)
+          / CTE 内部的表名已通过关键字检测
+        - Strongly recommend PostgreSQL RLS as the final defense in production
+          / 生产环境强烈建议通过 PostgreSQL RLS 做最终防线
 
-        注意：WITH cte AS (SELECT ... FROM real_table ...) 中的 real_table 会被
-        内部的 FROM 关键字扫描捕获，故 CTE 自身不需要额外处理。
+        Note: real_table in WITH cte AS (SELECT ... FROM real_table ...) is captured
+        by the internal FROM keyword scan, so CTE itself needs no extra handling.
+        / 注意：CTE 中的 real_table 会被内部 FROM 关键字扫描捕获，故不需额外处理。
         """
         sql_lower = sql_text.lower()
-        # 跳过空语句和参数化查询占位
+        # Skip empty statements and parameterized query placeholders / 跳过空语句和参数化查询占位
         if not sql_lower.strip():
             return
 
-        # 允许名单：alembic 元数据表 + 系统 schema
+        # Allow list: alembic metadata tables + system schemas / 允许名单：alembic 元数据表 + 系统 schema
         _ALLOW_LIST = {"alembic_version", "information_schema", "pg_catalog", "dual"}
 
-        # 检查常见的表操作关键字后的表名（含 CTE 内部通过 FROM/JOIN 引用的表）
+        # Check table names after common table operation keywords (including CTE internal FROM/JOIN refs)
+        # _TABLE_KEYWORD_RE defined at module level, handles \t/\n whitespace separators
+        # / 检查常见的表操作关键字后的表名（含 CTE 内部通过 FROM/JOIN 引用的表）
         # _TABLE_KEYWORD_RE 定义在模块级，处理 \t/\n 等任意空白分隔符
         for match in _TABLE_KEYWORD_RE.finditer(sql_lower):
             table_name = match.group(1).strip('"\'')
-            # 允许的表：插件自有表（由 allowed_prefixes 限定）+ 允许名单
+            # Allowed tables: plugin-owned tables (limited by allowed_prefixes) + allow list
+            # / 允许的表：插件自有表（由 allowed_prefixes 限定）+ 允许名单
             if table_name and not self._is_allowed_table(table_name) and table_name not in _ALLOW_LIST:
                 raise PluginSecurityError(
                     message=f"Plugin can only access tables with prefixes "
@@ -194,9 +218,10 @@ class PluginDbProxy:
 
 class PluginContext:
     """
-    插件沙箱上下文
+    Plugin sandbox context / 插件沙箱上下文
 
-    插件生命周期钩子的 ctx 参数类型。提供受控的系统访问 API。
+    The ctx parameter type for plugin lifecycle hooks. Provides controlled system access APIs.
+    / 插件生命周期钩子的 ctx 参数类型。提供受控的系统访问 API。
     """
 
     def __init__(
@@ -214,10 +239,10 @@ class PluginContext:
         self._request_context = request_context
         self._logger: logging.Logger | None = None
 
-    # ── 能力检查 ──
+    # ── Capability checks / 能力检查 ──
 
     def _require(self, cap: str) -> None:
-        """检查插件是否拥有指定能力，无则抛出 PluginSecurityError"""
+        """Check if plugin has the specified capability, raise PluginSecurityError if not / 检查插件是否拥有指定能力，无则抛出 PluginSecurityError"""
         if cap not in self._granted_capabilities:
             raise PluginSecurityError(
                 message=f"Plugin '{self.plugin_name}' requires capability '{cap}' "
@@ -225,17 +250,18 @@ class PluginContext:
             )
 
     def has_capability(self, cap: str) -> bool:
-        """检查插件是否拥有指定能力"""
+        """Check if plugin has the specified capability / 检查插件是否拥有指定能力"""
         return cap in self._granted_capabilities
 
-    # ── 配置 ──
+    # ── Config / 配置 ──
 
     async def get_config(self) -> dict:
         """
-        获取插件全局配置（自动解密敏感字段）
+        Get plugin global config (auto-decrypt sensitive fields)
+        / 获取插件全局配置（自动解密敏感字段）
 
-        从 Plugin.config 读取，根据 manifest.config_schema 中的
-        x-encrypted 标记自动解密。
+        Reads from Plugin.config, auto-decrypts fields marked with x-encrypted in manifest.config_schema.
+        / 从 Plugin.config 读取，根据 manifest.config_schema 中的 x-encrypted 标记自动解密。
         """
         from sqlalchemy import select
 
@@ -261,7 +287,7 @@ class PluginContext:
         return config
 
     async def get_tenant_config(self, tenant_id: int) -> dict:
-        """获取租户级配置"""
+        """Get tenant-level config / 获取租户级配置"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
@@ -283,7 +309,7 @@ class PluginContext:
         return row or {}
 
     async def update_config(self, config: dict) -> None:
-        """更新插件全局配置（自动加密敏感字段），需 config:write 能力"""
+        """Update plugin global config (auto-encrypt sensitive fields), requires config:write capability / 更新插件全局配置（自动加密敏感字段），需 config:write 能力"""
         self._require("config:write")
 
         from sqlalchemy import select, update
@@ -312,10 +338,10 @@ class PluginContext:
         )
         await self._db.flush()
 
-    # ── 数据库 ──
+    # ── Database / 数据库 ──
 
     def get_db(self) -> PluginDbProxy:
-        """返回数据库代理（仅允许当前插件自有表），需 db:own_tables 能力"""
+        """Return database proxy (only allows current plugin's own tables), requires db:own_tables capability / 返回数据库代理（仅允许当前插件自有表），需 db:own_tables 能力"""
         self._require("db:own_tables")
 
         own_prefix = f"px_{self.plugin_name.replace('-', '_')}_"
@@ -329,9 +355,11 @@ class PluginContext:
 
     async def get_own_license_status(self) -> dict[str, Any]:
         """
-        获取当前插件的许可证状态（受控只读）。
+        Get current plugin's license status (controlled read-only).
+        / 获取当前插件的许可证状态（受控只读）。
 
-        仅允许读取当前插件自身的 license，不暴露任意系统表访问能力。
+        Only allows reading the current plugin's own license, does not expose arbitrary system table access.
+        / 仅允许读取当前插件自身的 license，不暴露任意系统表访问能力。
         """
         from sqlalchemy import select
 
@@ -396,7 +424,7 @@ class PluginContext:
             }
 
         if is_valid:
-            # 检查付费 License 是否过期
+            # Check if paid license has expired / 检查付费 License 是否过期
             if expires_at and now >= expires_at:
                 return {
                     "status": "expired",
@@ -425,21 +453,23 @@ class PluginContext:
             "message": "License expired or revoked",
         }
 
-    # ── 日志 ──
+    # ── Logging / 日志 ──
 
     def get_logger(self) -> logging.Logger:
-        """返回插件专属 Logger"""
+        """Return plugin-specific Logger / 返回插件专属 Logger"""
         if self._logger is None:
             self._logger = get_logger(f"plugin.{self.plugin_name}")
         return self._logger
 
-    # ── 存储 ──
+    # ── Storage / 存储 ──
 
     async def get_storage(self) -> Any:
         """
-        返回路径限定在 plugins/{name}/ 命名空间的存储驱动。
+        Return storage driver scoped to plugins/{name}/ namespace.
+        / 返回路径限定在 plugins/{name}/ 命名空间的存储驱动。
 
-        需要 storage:read 或 storage:write 能力。
+        Requires storage:read or storage:write capability.
+        / 需要 storage:read 或 storage:write 能力。
         """
         if not (self.has_capability("storage:read") or self.has_capability("storage:write")):
             raise PluginSecurityError(
@@ -456,7 +486,7 @@ class PluginContext:
         driver = storage_manager.get_driver(storage_conf)
         return _NamespacedStorageProxy(driver, f"plugins/{self.plugin_name}")
 
-    # ── HTTP ──
+    # ── HTTP / HTTP 请求 ──
 
     async def http_request(
         self,
@@ -465,9 +495,12 @@ class PluginContext:
         **kwargs: Any,
     ) -> dict:
         """
-        发送 HTTP 请求，需 http:outbound 能力。
+        Send HTTP request, requires http:outbound capability.
+        / 发送 HTTP 请求，需 http:outbound 能力。
 
-        自动添加 30 秒超时保护。
+        Auto-adds 30-second timeout protection.
+        SSRF protection: blocks access to private network segments and cloud-metadata endpoints.
+        / 自动添加 30 秒超时保护。
         SSRF 防护：禁止访问私有网络段和 cloud-metadata 端点。
         """
         self._require("http:outbound")
@@ -475,7 +508,8 @@ class PluginContext:
         import httpx
 
         kwargs.setdefault("timeout", 30.0)
-        # 强制禁止 follow_redirects，防止恶意重定向绕过 SSRF 检查
+        # Force-disable follow_redirects to prevent malicious redirects bypassing SSRF checks
+        # / 强制禁止 follow_redirects，防止恶意重定向绕过 SSRF 检查
         # (e.g., external URL → redirect → 169.254.169.254)
         kwargs["follow_redirects"] = False
         async with httpx.AsyncClient() as client:
@@ -489,16 +523,17 @@ class PluginContext:
     @staticmethod
     def _check_ssrf(url: str) -> None:
         """
-        SSRF 防护：解析目标 URL，拒绝访问私有/保留 IP 段。
+        SSRF protection: parse target URL, deny access to private/reserved IP segments.
+        / SSRF 防护：解析目标 URL，拒绝访问私有/保留 IP 段。
 
-        阻断：
+        Blocks / 阻断：
         - 127.x.x.x / ::1 — localhost
-        - 10.x.x.x — 私有 A 类
-        - 172.16–31.x.x — 私有 B 类
-        - 192.168.x.x — 私有 C 类
-        - 169.254.x.x — link-local / cloud metadata (AWS IMDS 等)
-        - 0.x.x.x — 保留
-        - file:// / gopher:// / ftp:// 等非 HTTP 协议
+        - 10.x.x.x — private class A / 私有 A 类
+        - 172.16–31.x.x — private class B / 私有 B 类
+        - 192.168.x.x — private class C / 私有 C 类
+        - 169.254.x.x — link-local / cloud metadata (AWS IMDS, etc.)
+        - 0.x.x.x — reserved / 保留
+        - file:// / gopher:// / ftp:// — non-HTTP protocols / 非 HTTP 协议
         """
         import ipaddress
         import urllib.parse
@@ -541,22 +576,23 @@ class PluginContext:
                     message=f"SSRF blocked: plugin http_request cannot access '{host}'",
                 )
 
-    # ── AI ──
+    # ── AI / AI 功能 ──
 
     async def _resolve_ai_assignment(
         self, feature_code: str,
     ) -> tuple[int, int]:
         """
-        解析 AI 功能绑定：查找 agent_id 和 effective_tenant_id。
+        Resolve AI feature binding: find agent_id and effective_tenant_id.
+        / 解析 AI 功能绑定：查找 agent_id 和 effective_tenant_id。
 
         Args:
-            feature_code: 功能代码（不含 plugin.{name}. 前缀）
+            feature_code: Feature code (without plugin.{name}. prefix) / 功能代码（不含 plugin.{name}. 前缀）
 
         Returns:
             (agent_id, effective_tenant_id)
 
         Raises:
-            PluginError: 未绑定 Agent
+            PluginError: Agent not bound / 未绑定 Agent
         """
         from sqlalchemy import select
 
@@ -595,7 +631,7 @@ class PluginContext:
                 f"Please configure it in plugin management.",
             )
 
-        # 校验绑定的 Agent 仍然存在且已发布
+        # Verify the bound Agent still exists and is published / 校验绑定的 Agent 仍然存在且已发布
         from app.enums.agent import AgentStatusEnum
         from app.models.ai.agent import Agent
 
@@ -614,7 +650,9 @@ class PluginContext:
                 f"which is no longer available (deleted or unpublished).",
             )
 
-        # effective_tenant_id 用于 AgentChatService 创建对话记录
+        # effective_tenant_id used for AgentChatService to create conversation records
+        # Always use requester's tenant_id (even if agent is global with tenant_id=NULL)
+        # / effective_tenant_id 用于 AgentChatService 创建对话记录
         # 始终使用请求者的 tenant_id（即使 agent 是全局的 tenant_id=NULL）
         effective_tenant_id = resolved_tenant_id or 0
 
@@ -622,7 +660,7 @@ class PluginContext:
 
     @staticmethod
     def _extract_user_message(messages: list[dict]) -> str:
-        """从消息列表中提取最后一条 user 消息内容"""
+        """Extract the last user message content from the message list / 从消息列表中提取最后一条 user 消息内容"""
         for msg in reversed(messages):
             if msg.get("role") == "user":
                 return msg.get("content", "")
@@ -633,7 +671,8 @@ class PluginContext:
     @staticmethod
     def _filter_callable_kwargs(callable_obj: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
         """
-        根据可调用对象签名过滤 kwargs，兼容旧实现不支持的新参数。
+        Filter kwargs based on callable signature, compatible with new params unsupported by old implementations.
+        / 根据可调用对象签名过滤 kwargs，兼容旧实现不支持的新参数。
         """
         try:
             sig = inspect.signature(callable_obj)
@@ -651,17 +690,18 @@ class PluginContext:
         self, feature_code: str, messages: list[dict]
     ) -> str:
         """
-        调用 AI 功能（非流式），需 ai:call 能力。
+        Call AI feature (non-streaming), requires ai:call capability.
+        / 调用 AI 功能（非流式），需 ai:call 能力。
 
-        通过 SystemAgentAssignment 查找绑定的 Agent，
-        然后调用 AgentChatService 进行对话。
+        Finds the bound Agent via SystemAgentAssignment, then calls AgentChatService for conversation.
+        / 通过 SystemAgentAssignment 查找绑定的 Agent，然后调用 AgentChatService 进行对话。
 
         Args:
-            feature_code: 功能代码（不含 plugin.{name}. 前缀）
-            messages: 对话消息列表（[{"role": "user", "content": "..."}]）
+            feature_code: Feature code (without plugin.{name}. prefix) / 功能代码（不含 plugin.{name}. 前缀）
+            messages: Conversation message list / 对话消息列表（[{"role": "user", "content": "..."}]）
 
         Returns:
-            AI 响应文本
+            AI response text / AI 响应文本
         """
         self._require("ai:call")
 
@@ -691,28 +731,31 @@ class PluginContext:
         messages: list[dict],
     ) -> AsyncGenerator[str, None]:
         """
-        调用 AI 功能（流式），需 ai:call 能力。
+        Call AI feature (streaming), requires ai:call capability.
+        / 调用 AI 功能（流式），需 ai:call 能力。
 
-        通过 SystemAgentAssignment 查找绑定的 Agent，
+        Finds the bound Agent via SystemAgentAssignment,
+        calls AgentChatService.stream_chat to get SSE stream,
+        parses and only yields text deltas.
+        / 通过 SystemAgentAssignment 查找绑定的 Agent，
         调用 AgentChatService.stream_chat 获取 SSE 流，
         解析并仅 yield 文本增量（delta）。
 
-        SSE 事件格式：
-        - message 事件: yield delta 文本
-        - done 事件: 流正常结束
-        - error 事件: 抛出 PluginError
-        - 其他事件（tool_call, thinking 等）: 跳过
+        SSE event format / SSE 事件格式：
+        - message event: yield delta text / message 事件: yield delta 文本
+        - done event: stream ends normally / done 事件: 流正常结束
+        - error event: raise PluginError / error 事件: 抛出 PluginError
+        - other events (tool_call, thinking, etc.): skip / 其他事件: 跳过
 
-        如果上游模型不支持流式或 stream_chat 异常，
-        自动降级为非流式 call_ai_feature 并将完整内容
-        作为单个 chunk yield。
+        Falls back to non-streaming call_ai_feature if upstream doesn't support streaming.
+        / 如果上游模型不支持流式或 stream_chat 异常，自动降级为非流式。
 
         Args:
-            feature_code: 功能代码（不含 plugin.{name}. 前缀）
-            messages: 对话消息列表（[{"role": "user", "content": "..."}]）
+            feature_code: Feature code (without plugin.{name}. prefix) / 功能代码
+            messages: Conversation message list / 对话消息列表
 
         Yields:
-            文本增量字符串（仅内容部分，不含 SSE 包装）
+            Text delta strings (content only, without SSE wrapping) / 文本增量字符串
         """
         self._require("ai:call")
 
@@ -800,7 +843,7 @@ class PluginContext:
             )
 
     async def is_ai_feature_configured(self, feature_code: str) -> bool:
-        """检查 AI 功能是否已配置（自动添加 plugin.{name}. 前缀）"""
+        """Check if AI feature is configured (auto-adds plugin.{name}. prefix) / 检查 AI 功能是否已配置（自动添加 plugin.{name}. 前缀）"""
         from sqlalchemy import select
 
         from app.models.system.agent_assignment import SystemAgentAssignment
@@ -815,7 +858,7 @@ class PluginContext:
         )
         return result.scalar_one_or_none() is not None
 
-    # ── 通知 ──
+    # ── Notifications / 通知 ──
 
     async def send_notification(
         self,
@@ -824,7 +867,7 @@ class PluginContext:
         template_code: str,
         variables: dict | None = None,
     ) -> None:
-        """发送通知，需 notifications:send 能力"""
+        """Send notification, requires notifications:send capability / 发送通知，需 notifications:send 能力"""
         _ = tenant_id
         self._require("notifications:send")
         from app.services.common.notification_service import notify
@@ -832,24 +875,28 @@ class PluginContext:
         recipients = [("tenant_admin", uid) for uid in user_ids]
         await notify(self._db, template_code, recipients, variables or {})
 
-    # ── 事件 ──
+    # ── Events / 事件 ──
 
     async def emit_event(self, event_name: str, data: dict | None = None) -> dict:
         """
-        发布跨插件事件 + 触发同名钩子点。
+        Publish cross-plugin event + trigger same-name hook points.
+        / 发布跨插件事件 + 触发同名钩子点。
 
-        同时触发两个通道：
-        1. PluginEventBus — 异步通知（只读，handler 异常不影响发布方）
-        2. HookRegistry — 同步拦截（可修改 context，用于 BEFORE_*/AFTER_*）
+        Triggers two channels simultaneously / 同时触发两个通道：
+        1. PluginEventBus — async notification (read-only, handler errors don't affect publisher)
+           / 异步通知（只读，handler 异常不影响发布方）
+        2. HookRegistry — sync interception (can modify context, for BEFORE_*/AFTER_*)
+           / 同步拦截（可修改 context，用于 BEFORE_*/AFTER_*）
 
-        事件名：plugin.{name}.{event_name}
+        Event name / 事件名：plugin.{name}.{event_name}
 
         Args:
-            event_name: 事件名称（不含 plugin.{name}. 前缀）
-            data: 事件数据
+            event_name: Event name (without plugin.{name}. prefix) / 事件名称
+            data: Event data / 事件数据
 
         Returns:
-            钩子处理后的上下文字典（PluginEventBus 不修改数据）
+            Context dict after hook processing (PluginEventBus doesn't modify data)
+            / 钩子处理后的上下文字典
         """
         full_event = f"plugin.{self.plugin_name}.{event_name}"
 
@@ -857,7 +904,8 @@ class PluginContext:
         context["plugin_name"] = self.plugin_name
         context["event_name"] = event_name
 
-        # 1. PluginEventBus — 异步通知（不阻塞、不修改 context）
+        # 1. PluginEventBus — async notification (non-blocking, doesn't modify context)
+        # / PluginEventBus — 异步通知（不阻塞、不修改 context）
         from app.plugins.event_bus import get_plugin_event_bus
 
         bus = get_plugin_event_bus()
@@ -871,7 +919,8 @@ class PluginContext:
                 bus_result["delivered"], bus_result["failed"],
             )
 
-        # 2. HookRegistry — 同步拦截（可修改 context）
+        # 2. HookRegistry — sync interception (can modify context)
+        # / HookRegistry — 同步拦截（可修改 context）
         from app.ai.events.hooks import HookRegistry
 
         hook_registry = HookRegistry.get_instance()
@@ -892,12 +941,13 @@ class PluginContext:
         priority: int = 100,
     ) -> None:
         """
-        订阅其他插件的事件（跨插件通信）。
+        Subscribe to other plugins' events (cross-plugin communication).
+        / 订阅其他插件的事件（跨插件通信）。
 
         Args:
-            event_name: 完整事件名（如 "plugin.novusdoc.document_saved"）
-            handler: async 处理函数，签名 (event_name: str, payload: dict) -> None
-            priority: 优先级（数字越小越优先）
+            event_name: Full event name (e.g. "plugin.novusdoc.document_saved") / 完整事件名
+            handler: Async handler function, signature (event_name: str, payload: dict) -> None
+            priority: Priority (lower number = higher priority) / 优先级（数字越小越优先）
         """
         from app.plugins.event_bus import get_plugin_event_bus
 
@@ -908,34 +958,34 @@ class PluginContext:
             priority=priority,
         )
 
-    # ── 系统 ──
+    # ── System / 系统 ──
 
     def get_platform_version(self) -> str:
-        """获取平台版本"""
+        """Get platform version / 获取平台版本"""
         from app.core.config import settings
 
         return settings.APP_VERSION
 
     def get_current_tenant_id(self) -> int | None:
-        """获取当前请求的租户 ID（从 RequestContext 注入）"""
+        """Get current request's tenant ID (injected from RequestContext) / 获取当前请求的租户 ID（从 RequestContext 注入）"""
         if self._request_context:
             return self._request_context.tenant_id
         return None
 
     def get_current_user_id(self) -> int | None:
-        """获取当前请求的用户 ID（从 RequestContext 注入）"""
+        """Get current request's user ID (injected from RequestContext) / 获取当前请求的用户 ID（从 RequestContext 注入）"""
         if self._request_context:
             return self._request_context.user_id
         return None
 
     def get_current_user_role(self) -> str:
-        """获取当前请求的用户角色（admin / tenant_admin / tenant_user）"""
+        """Get current request's user role (admin / tenant_admin / tenant_user) / 获取当前请求的用户角色"""
         if self._request_context:
             return self._request_context.user_role
         return ""
 
     def get_request_id(self) -> str:
-        """获取当前请求 ID（用于链路追踪）"""
+        """Get current request ID (for trace linking) / 获取当前请求 ID（用于链路追踪）"""
         if self._request_context:
             return self._request_context.request_id
         return ""
@@ -948,18 +998,22 @@ class PluginContext:
         side: str = "tenant",
     ) -> bool:
         """
-        通过 Socket.IO 向指定用户实时推送数据。
+        Push data to a specific user in real-time via Socket.IO.
+        / 通过 Socket.IO 向指定用户实时推送数据。
 
-        需 notifications:send 能力。
+        Requires notifications:send capability. / 需 notifications:send 能力。
 
         Args:
-            user_id: 目标用户 ID
-            event:   事件名（前端监听该名称）；框架自动添加 plugin.{name}. 前缀防止冲突
-            data:    要推送的数据字典
-            side:    目标端  "admin" | "tenant"（决定 SIO namespace /admin 或 /tenant）
+            user_id: Target user ID / 目标用户 ID
+            event:   Event name (frontend listens on this); framework auto-adds plugin.{name}. prefix
+                     / 事件名；框架自动添加 plugin.{name}. 前缀防止冲突
+            data:    Data dict to push / 要推送的数据字典
+            side:    Target side "admin" | "tenant" (determines SIO namespace)
+                     / 目标端（决定 SIO namespace /admin 或 /tenant）
 
         Returns:
-            True = 推送成功，False = SIO 不可用（非阻塞降级）
+            True = push succeeded, False = SIO unavailable (non-blocking degradation)
+            / True = 推送成功，False = SIO 不可用（非阻塞降级）
         """
         self._require("notifications:send")
         full_event = f"plugin.{self.plugin_name}.{event}"
@@ -984,9 +1038,12 @@ class PluginContext:
 
     async def is_feature_enabled(self, feature_code: str) -> bool:
         """
-        检查 Feature Flag 是否启用。
+        Check if a Feature Flag is enabled.
+        / 检查 Feature Flag 是否启用。
 
-        从 Plugin.config['_feature_flags'] 读取开关状态。
+        Reads toggle state from Plugin.config['_feature_flags'].
+        Unconfigured features default to manifest.features' default value.
+        / 从 Plugin.config['_feature_flags'] 读取开关状态。
         未配置的功能默认按 manifest.features 的 default 值。
         """
         from sqlalchemy import select
@@ -1006,24 +1063,26 @@ class PluginContext:
         config = row[0] or {}
         flags = config.get("_feature_flags", {})
 
-        # 如果已设置，直接返回
+        # If already set, return directly / 如果已设置，直接返回
         if feature_code in flags:
             return bool(flags[feature_code])
 
-        # 未设置，查 manifest.features 的 default 值
+        # Not set, check manifest.features default value / 未设置，查 manifest.features 的 default 值
         manifest_data = row[1] or {}
         features = manifest_data.get("features", [])
         for feat in features:
             if feat.get("code") == feature_code:
                 return feat.get("default", True)
 
-        return True  # 未声明的功能默认启用
+        return True  # Undeclared features default to enabled / 未声明的功能默认启用
 
 
 class _NamespacedStorageProxy:
-    """存储代理 — 限制插件只能访问 plugins/{name}/ 路径下的文件
+    """Storage proxy — restricts plugins to only access files under plugins/{name}/ path
+    / 存储代理 — 限制插件只能访问 plugins/{name}/ 路径下的文件
 
-    方法签名与 StorageDriver 基类对齐，但路径自动加 plugins/{name}/ 前缀。
+    Method signatures align with StorageDriver base class, but paths are auto-prefixed with plugins/{name}/.
+    / 方法签名与 StorageDriver 基类对齐，但路径自动加 plugins/{name}/ 前缀。
     """
 
     def __init__(self, driver: Any, namespace: str) -> None:
@@ -1031,12 +1090,14 @@ class _NamespacedStorageProxy:
         self._namespace = namespace
 
     def _ns_path(self, path: str) -> str:
-        """规范化路径并确保不逃逸命名空间（防止 ../ 路径遍历）"""
+        """Normalize path and ensure it doesn't escape namespace (prevent ../ path traversal) / 规范化路径并确保不逃逸命名空间（防止 ../ 路径遍历）"""
         import posixpath
 
-        # 去除前导斜杠后规范化（posixpath.normpath 会折叠 ../ 和 ./）
+        # Strip leading slashes then normalize (posixpath.normpath collapses ../ and ./)
+        # / 去除前导斜杠后规范化
         normalized = posixpath.normpath(path.lstrip("/"))
-        # 若规范化后路径以 .. 开头，说明尝试逃逸命名空间
+        # If normalized path starts with .., namespace escape attempt detected
+        # / 若规范化后路径以 .. 开头，说明尝试逃逸命名空间
         if normalized.startswith(".."):
             from app.plugins.exceptions import PluginSecurityError
             raise PluginSecurityError(

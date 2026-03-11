@@ -1,7 +1,8 @@
 """
-AI 供应商 Repository
+AI 供应商 Repository / AI Provider Repository
 
 处理 AI 供应商数据访问
+Handles AI provider data access.
 """
 
 

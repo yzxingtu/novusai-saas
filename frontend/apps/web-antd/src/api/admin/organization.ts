@@ -1,19 +1,19 @@
 /**
- * 平台组织架构管理 API
- * 对接后端 /admin/roles/* 组织架构相关接口
+ * Platform organization management API / 平台组织架构管理 API
+ * Backend: /admin/roles/* (organization related)
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 节点类型枚举 */
+/** Node type enum / 节点类型枚举 */
 export type OrgNodeType = 'department' | 'position' | 'role';
 
-/** 负责人基本信息 */
+/** Leader basic info / 负责人基本信息 */
 export interface LeaderInfo {
   id: number;
   username: string;
@@ -21,7 +21,7 @@ export interface LeaderInfo {
   avatar?: string;
 }
 
-/** 组织架构节点信息（后端原始格式 snake_case） */
+/** Org node info (backend raw snake_case) / 组织架构节点信息（后端原始） */
 export interface OrgNodeInfoRaw {
   id: number;
   code: string;
@@ -42,7 +42,7 @@ export interface OrgNodeInfoRaw {
   updated_at?: string;
 }
 
-/** 组织架构节点信息（前端格式 camelCase） */
+/** Org node info (frontend camelCase) / 组织架构节点信息（前端） */
 export interface OrgNodeInfo {
   id: number;
   code: string;
@@ -61,13 +61,13 @@ export interface OrgNodeInfo {
   permissionsCount?: number;
   createdAt: string;
   updatedAt?: string;
-  /** 前端树形控件使用：子节点（按需加载时动态填充） */
+  /** Frontend tree control: children (dynamically populated on lazy load) / 前端树形控件子节点 */
   children?: OrgNodeInfo[];
-  /** 前端树形控件使用：是否正在加载子节点 */
+  /** Frontend tree control: loading children / 前端树形控件加载中 */
   loading?: boolean;
 }
 
-/** 节点成员信息（后端原始格式） */
+/** Node member info (backend raw) / 节点成员信息（后端原始） */
 export interface OrgMemberRaw {
   id: number;
   username: string;
@@ -77,17 +77,17 @@ export interface OrgMemberRaw {
   is_active: boolean;
   is_leader: boolean;
   joined_at: string;
-  /** 所属角色 ID */
+  /** Role ID / 所属角色 ID */
   role_id?: number;
-  /** 所属角色名称 */
+  /** Role name / 所属角色名称 */
   role_name?: string;
-  /** 创建时间 */
+  /** Created at / 创建时间 */
   created_at?: string;
-  /** 更新时间 */
+  /** Updated at / 更新时间 */
   updated_at?: string;
 }
 
-/** 节点成员信息（前端格式） */
+/** Node member info (frontend) / 节点成员信息（前端） */
 export interface OrgMember {
   id: number;
   username: string;
@@ -97,29 +97,29 @@ export interface OrgMember {
   isActive: boolean;
   isLeader: boolean;
   joinedAt: string;
-  /** 所属角色 ID */
+  /** Role ID / 所属角色 ID */
   roleId?: number;
-  /** 所属角色名称 */
+  /** Role name / 所属角色名称 */
   roleName?: string;
-  /** 创建时间 */
+  /** Created at / 创建时间 */
   createdAt?: string;
-  /** 更新时间 */
+  /** Updated at / 更新时间 */
   updatedAt?: string;
 }
 
-/** 成员列表查询参数 */
+/** Member list query params / 成员列表查询参数 */
 export interface MemberListParams {
-  /** 搜索关键词（用户名/昵称/邮箱） */
+  /** Search keyword (username/nickname/email) / 搜索关键词 */
   search?: string;
-  /** 页码 */
+  /** Page number / 页码 */
   page?: number;
-  /** 每页数量 */
+  /** Page size / 每页数量 */
   pageSize?: number;
-  /** 是否包含子节点成员（递归查询），默认 true */
+  /** Include descendant members (recursive), default true / 是否包含子节点成员 */
   includeDescendants?: boolean;
 }
 
-/** 成员列表分页响应（后端原始格式） */
+/** Member list paginated response (backend raw) / 成员列表分页响应（后端原始） */
 export interface MemberListResponseRaw {
   items: OrgMemberRaw[];
   total: number;
@@ -127,7 +127,7 @@ export interface MemberListResponseRaw {
   page_size: number;
 }
 
-/** 成员列表分页响应（前端格式） */
+/** Member list paginated response (frontend) / 成员列表分页响应（前端） */
 export interface MemberListResponse {
   items: OrgMember[];
   total: number;
@@ -135,12 +135,12 @@ export interface MemberListResponse {
   pageSize: number;
 }
 
-/** 添加成员请求（关联现有成员） */
+/** Add member request (associate existing member) / 添加成员请求（关联现有） */
 export interface AddMemberRequest {
   admin_id: number;
 }
 
-/** 创建成员请求（直接创建新成员） */
+/** Create member request (create new member) / 创建成员请求（直接创建） */
 export interface CreateMemberRequest {
   username: string;
   email: string;
@@ -151,7 +151,7 @@ export interface CreateMemberRequest {
   is_super?: boolean;
 }
 
-/** 更新成员请求 */
+/** Update member request / 更新成员请求 */
 export interface UpdateMemberRequest {
   email?: null | string;
   phone?: null | string;
@@ -159,30 +159,30 @@ export interface UpdateMemberRequest {
   avatar?: null | string;
   is_active?: boolean | null;
   is_super?: boolean | null;
-  /** 新角色 ID（调整所属角色组） */
+  /** New role ID (change role group) / 新角色 ID */
   role_id?: null | number;
 }
 
-/** 重置成员密码请求 */
+/** Reset member password request / 重置成员密码请求 */
 export interface ResetMemberPasswordRequest {
   new_password: string;
 }
 
-/** 切换成员状态请求 */
+/** Toggle member status request / 切换成员状态请求 */
 export interface MemberStatusRequest {
   is_active: boolean;
 }
 
-/** 设置负责人请求 */
+/** Set leader request / 设置负责人请求 */
 export interface SetLeaderRequest {
   leader_id: null | number;
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端节点数据转换为前端格式 */
+/** Convert backend node data to frontend format / 将后端节点数据转换为前端格式 */
 function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
   return {
     id: raw.id,
@@ -205,7 +205,7 @@ function transformOrgNode(raw: OrgNodeInfoRaw): OrgNodeInfo {
   };
 }
 
-/** 将后端成员数据转换为前端格式 */
+/** Convert backend member data to frontend format / 将后端成员数据转换为前端格式 */
 function transformOrgMember(raw: OrgMemberRaw): OrgMember {
   return {
     id: raw.id,
@@ -224,15 +224,15 @@ function transformOrgMember(raw: OrgMemberRaw): OrgMember {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/admin/roles';
 
 /**
- * 获取组织架构根节点
+ * Get organization root nodes / 获取组织架构根节点
  * GET /admin/roles/organization
- * 返回 level=1 的根节点列表，包含 has_children 标记
+ * Returns level=1 root nodes with has_children flag
  */
 export async function getOrganizationRootNodesApi(
   options?: ApiRequestOptions,
@@ -245,7 +245,7 @@ export async function getOrganizationRootNodesApi(
 }
 
 /**
- * 获取子节点（按需加载）
+ * Get child nodes (lazy load) / 获取子节点（按需加载）
  * GET /admin/roles/{role_id}/children
  */
 export async function getNodeChildrenApi(
@@ -260,11 +260,11 @@ export async function getNodeChildrenApi(
 }
 
 /**
- * 获取节点成员列表（分页 + 搜索）
+ * Get node member list (paginated + search) / 获取节点成员列表
  * GET /admin/roles/{role_id}/members
- * @param roleId - 节点 ID
- * @param params - 查询参数（搜索、分页）
- * @param options - 请求选项
+ * @param roleId - Node ID / 节点 ID
+ * @param params - Query params (search, pagination) / 查询参数
+ * @param options - Request options / 请求选项
  */
 export async function getNodeMembersApi(
   roleId: number,
@@ -281,7 +281,7 @@ export async function getNodeMembersApi(
   if (params?.pageSize) {
     queryParams['page[size]'] = params.pageSize;
   }
-  // 递归查询子节点成员，默认 true
+  // Recursively query descendant members, default true / 递归查询子节点成员
   if (params?.includeDescendants !== undefined) {
     queryParams.include_descendants = params.includeDescendants;
   }
@@ -302,7 +302,7 @@ export async function getNodeMembersApi(
 }
 
 /**
- * 添加成员到节点（关联现有用户）
+ * Add member to node (associate existing user) / 添加成员到节点
  * POST /admin/roles/{role_id}/members
  */
 export async function addMemberToNodeApi(
@@ -318,7 +318,7 @@ export async function addMemberToNodeApi(
 }
 
 /**
- * 在节点下创建新成员
+ * Create new member under node / 在节点下创建新成员
  * POST /admin/roles/{role_id}/members/create
  */
 export async function createMemberApi(
@@ -335,7 +335,7 @@ export async function createMemberApi(
 }
 
 /**
- * 更新节点成员信息
+ * Update node member info / 更新节点成员信息
  * PUT /admin/roles/{role_id}/members/{admin_id}
  */
 export async function updateMemberApi(
@@ -353,7 +353,7 @@ export async function updateMemberApi(
 }
 
 /**
- * 重置成员密码
+ * Reset member password / 重置成员密码
  * PUT /admin/roles/{role_id}/members/{admin_id}/reset-password
  */
 export async function resetMemberPasswordApi(
@@ -370,7 +370,7 @@ export async function resetMemberPasswordApi(
 }
 
 /**
- * 切换成员状态
+ * Toggle member status / 切换成员状态
  * PUT /admin/roles/{role_id}/members/{admin_id}/status
  */
 export async function toggleMemberStatusApi(
@@ -388,7 +388,7 @@ export async function toggleMemberStatusApi(
 }
 
 /**
- * 从节点移除成员
+ * Remove member from node / 从节点移除成员
  * DELETE /admin/roles/{role_id}/members/{admin_id}
  */
 export async function removeMemberFromNodeApi(
@@ -403,11 +403,11 @@ export async function removeMemberFromNodeApi(
 }
 
 /**
- * 设置节点负责人
+ * Set node leader / 设置节点负责人
  * PUT /admin/roles/{role_id}/leader
- * @param roleId - 节点 ID
- * @param leaderId - 负责人 ID，传 null 表示取消负责人
- * @param options - 请求选项
+ * @param roleId - Node ID / 节点 ID
+ * @param leaderId - Leader ID, pass null to unset / 负责人 ID，传 null 取消
+ * @param options - Request options / 请求选项
  */
 export async function setNodeLeaderApi(
   roleId: number,

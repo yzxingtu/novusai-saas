@@ -1,6 +1,9 @@
 """
+RAG Injector
 RAG 注入器
 
+Engine-independent RAG context injection module.
+Retrieves relevant chunks from knowledge bases and injects them into system_prompt.
 独立于 Engine 的 RAG 上下文注入模块。
 从知识库检索相关分块并注入到 system_prompt 末尾。
 """
@@ -24,7 +27,7 @@ def merge_kb_ids(
     agent_kb_ids: list[int] | None,
     request_kb_ids: list[int] | None,
 ) -> list[int] | None:
-    """合并 agent 绑定的知识库 IDs 和用户 @ 选择的知识库 IDs（去重保序）"""
+    """Merge agent-bound KB IDs and user @-selected KB IDs (deduplicated, order-preserved) / 合并 agent 绑定的知识库 IDs 和用户 @ 选择的知识库 IDs（去重保序）"""
     combined: list[int] = []
     seen: set[int] = set()
     for ids in (agent_kb_ids, request_kb_ids):
@@ -41,10 +44,11 @@ async def load_agent_kb_bindings(
     agent_id: int,
 ) -> tuple[list[int] | None, dict[int, float]]:
     """
-    从 AgentKnowledgeBaseBinding 中间表加载 enabled=True 的绑定
+    Load enabled bindings from AgentKnowledgeBaseBinding junction table.
+    从 AgentKnowledgeBaseBinding 中间表加载 enabled=True 的绑定。
 
     Returns:
-        (kb_ids, kb_weights): 知识库 ID 列表 + {kb_id: weight} 映射
+        (kb_ids, kb_weights): KB ID list + {kb_id: weight} mapping / 知识库 ID 列表 + {kb_id: weight} 映射
     """
     from sqlalchemy import select
 
@@ -80,22 +84,26 @@ async def inject_rag_context(
     kb_weights: dict[int, float] | None = None,
 ) -> tuple[list[ChatMessage], list[dict[str, Any]] | None]:
     """
-    将 RAG 上下文注入 system_prompt
+    Inject RAG context into system_prompt.
+    将 RAG 上下文注入 system_prompt。
 
+    If KB IDs are provided, retrieves relevant chunks and appends to system message.
+    Returns original messages when no KB IDs are provided.
     如果提供了知识库 IDs，检索相关分块并注入到 system 消息末尾。
     未提供知识库时直接返回原始消息。
 
     Args:
-        db: 数据库会话
-        agent: 智能体模型实例
-        messages: 已构建的消息列表（第一条为 system）
-        tenant_id: 租户 ID
-        kb_ids: 知识库 ID 列表（已合并 Agent 绑定 + 用户 @ 选择）
-        rag_config: RAG 配置（来自 agent.rag_config）
-        kb_weights: {kb_id: weight} 映射，来自 AgentKnowledgeBaseBinding
+        db: Database session / 数据库会话
+        agent: Agent model instance / 智能体模型实例
+        messages: Built message list (first is system) / 已构建的消息列表（第一条为 system）
+        tenant_id: Tenant ID / 租户 ID
+        kb_ids: KB ID list (merged Agent binding + user @ selection) / 知识库 ID 列表（已合并 Agent 绑定 + 用户 @ 选择）
+        rag_config: RAG config (from agent.rag_config) / RAG 配置（来自 agent.rag_config）
+        kb_weights: {kb_id: weight} mapping from AgentKnowledgeBaseBinding / {kb_id: weight} 映射，来自 AgentKnowledgeBaseBinding
 
     Returns:
-        (messages, rag_sources): 注入后的消息列表 + 引用来源列表（无 RAG 时为 None）
+        (messages, rag_sources): Injected message list + citation sources (None if no RAG)
+        注入后的消息列表 + 引用来源列表（无 RAG 时为 None）
     """
     if not kb_ids:
         return messages, None
@@ -111,15 +119,19 @@ async def inject_rag_context(
             KnowledgeBaseRepository,
         )
 
-        # 获取知识库（用于 Embedding 模型配置）
+        # Get knowledge bases (for Embedding model config) / 获取知识库（用于 Embedding 模型配置）
+        # Tenant scenario: KnowledgeBaseRepository ensures tenant isolation (visibility controls cross-tenant access)
         # 租户场景：使用 KnowledgeBaseRepository 确保租户隔离（visibility 控制跨租户访问）
+        # Admin scenario: AdminKnowledgeBaseRepository (no tenant_id restriction)
         # 平台管理员场景：使用 AdminKnowledgeBaseRepository（无 tenant_id 限制）
         if tenant_id:
             kb_repo = KnowledgeBaseRepository(db, tenant_id=tenant_id)
         else:
             kb_repo = AdminKnowledgeBaseRepository(db)
 
+        # Security check: verify all kb_ids belong to current tenant (prevent cross-tenant data leak)
         # 安全校验：验证所有 kb_ids 均属于当前租户（防止跨租户数据泄露）
+        # Only KBs passing tenant-scoped repo validation are allowed for retrieval
         # 只有通过 tenant-scoped repo 校验的 KB 才允许检索
         validated_kb_ids: list[int] = []
         primary_kb = None
@@ -140,7 +152,7 @@ async def inject_rag_context(
 
         kb_ids = validated_kb_ids
 
-        # 提取用户最新问题
+        # Extract user's latest question / 提取用户最新问题
         user_query = ""
         for msg in reversed(messages):
             if msg.role == "user":
@@ -150,8 +162,9 @@ async def inject_rag_context(
         if not user_query:
             return messages, None
 
-        # 检索
+        # Retrieval / 检索
         retriever = HybridRetriever(db, tenant_id)
+        # RAG retrieval params unified from Agent.rag_config, no longer falling back to KB model fields
         # RAG 检索参数统一从 Agent.rag_config 读取，不再回退到 KB 模型字段
         chunks = await retriever.search(
             knowledge_base=primary_kb,
@@ -167,14 +180,14 @@ async def inject_rag_context(
         if not chunks:
             return messages, None
 
-        # 计算 Token 预算
+        # Calculate token budget / 计算 Token 预算
         builder = RAGContextBuilder(
             context_token_ratio=rag_config.get("context_token_ratio", 0.6),
         )
 
-        # 估算 system prompt 的 token 数
+        # Estimate system prompt token count / 估算 system prompt 的 token 数
         system_tokens = estimate_tokens(messages[0].content) if messages else 0
-        # 从关联的 AIModel 获取实际上下文窗口大小
+        # Get actual context window size from associated AIModel / 从关联的 AIModel 获取实际上下文窗口大小
         model_context = 0
         if hasattr(agent, "model") and agent.model:
             model_context = getattr(agent.model, "context_window", 0) or 0
@@ -186,20 +199,20 @@ async def inject_rag_context(
             max_tokens=agent.max_tokens,
         )
 
-        # 构建 RAG 上下文
+        # Build RAG context / 构建 RAG 上下文
         rag_context = builder.build_rag_context(chunks, rag_budget)
 
         if not rag_context.rag_text:
             return messages, None
 
-        # 注入到 system 消息末尾
+        # Inject into system message tail / 注入到 system 消息末尾
         if messages and messages[0].role == "system":
             messages[0] = ChatMessage(
                 role="system",
                 content=messages[0].content + "\n" + rag_context.rag_text,
             )
 
-        # 构建引用来源
+        # Build citation sources / 构建引用来源
         sources = [s.to_dict() for s in rag_context.sources]
 
         logger.info(

@@ -1,7 +1,8 @@
 """
-租户用户角色管理 API（租户端）
+租户用户角色管理 API（租户端） / Tenant User Role Management API (Tenant Side)
 
 提供租户业务用户角色的 CRUD、权限分配、状态切换等接口
+Provides tenant user role CRUD, permission assignment, status toggle endpoints
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from app.services.tenant.tenant_user_role_service import TenantUserRoleService
 
 
 def _serialize_role(role) -> dict:
-    """序列化角色信息"""
+    """序列化角色信息 / Serialize role info"""
     return {
         "id": role.id,
         "tenant_id": role.tenant_id,
@@ -49,7 +50,7 @@ def _serialize_role(role) -> dict:
 
 
 def _serialize_role_detail(role) -> dict:
-    """序列化角色详情（含权限）"""
+    """序列化角色详情（含权限） / Serialize role details (with permissions)"""
     data = _serialize_role(role)
     data["permission_ids"] = [p.id for p in role.permissions]
     data["permission_codes"] = [p.code for p in role.permissions]
@@ -70,7 +71,7 @@ def _serialize_role_detail(role) -> dict:
     ),
 )
 class TenantUserRoleController(TenantController):
-    """租户用户角色管理控制器"""
+    """租户用户角色管理控制器 / Tenant User Role Management Controller"""
 
     prefix = "/user-roles"
     tags = ["Tenant User Role Management"]

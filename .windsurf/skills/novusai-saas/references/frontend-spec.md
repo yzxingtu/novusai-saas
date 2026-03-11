@@ -984,6 +984,30 @@ pnpm run check         # 类型检查 + 循环依赖检测
 | `prefer-const` | `let x = 1` | `const x = 1` |
 | `@typescript-eslint/no-invalid-void-type` | `post<void>()` | `post()` |
 
+### 注释与备注规范
+
+- 新增代码注释、说明性备注、`TODO`、`FIXME`、`NOTE` 等文本时，**必须同时包含中文和英文**
+- **禁止只写中文注释/备注**
+- **禁止只写英文注释/备注**
+- 如果代码本身已经足够清晰，**优先不新增注释**
+
+示例：
+
+```typescript
+// Correct usage / 正确用法
+const title = $t('admin.system.role.title');
+
+// TODO: handle empty state fallback / TODO：处理空状态兜底
+```
+
+```typescript
+// ❌ 错误：只写中文
+// 处理空状态
+
+// ❌ 错误：只写英文
+// Handle empty state
+```
+
 ### 需要 eslint-disable 的场景
 
 ```typescript
@@ -1022,6 +1046,7 @@ const emits = defineEmits<{ ... }>();
 - [ ] 无 `@ts-ignore`（用 `@ts-expect-error` + 注释原因替代）
 - [ ] 泛型函数正确推断（`post<ResponseType>()`）
 - [ ] `void` 返回值不滥用（不作为泛型参数 `post<void>()`）
+- [ ] 新增代码注释/备注必须中英双语，禁止只写中文或英文
 
 #### 国际化
 - [ ] 无中文硬编码，全部使用 `$t()` 或 `t()`
@@ -1115,6 +1140,63 @@ const emits = defineEmits<{ ... }>();
 2. 优先用 `transform` + `opacity`（GPU 加速，不触发重排）
 3. 禁止对 `width`、`height`、`top`、`left` 做动画（性能差）
 4. `prefers-reduced-motion` 媒体查询下自动禁用动画
+
+---
+
+## 十一、Ant Design 组件 Flex 高度陷阱
+
+在 `<Page auto-content-height>` 内使用 Master-Detail 等需要固定高度+独立滚动的布局时，**禁止直接用 Ant Design `<Card>` 作为 flex 容器**。
+
+### 问题根因
+
+Ant Design 的 `<Card>`、`<Spin>` 等组件内部会生成额外的 wrapper div（如 `.ant-card-head` + `.ant-card-body`、`.ant-spin-nested-loading` + `.ant-spin-container`），这些 wrapper **不继承 flex 属性**，会扩展到内容高度，导致：
+- `h-full` 无效（内部 wrapper 不遵守高度约束）
+- `overflow-y-auto` 无效（内部 wrapper 的 overflow 为 visible）
+- 页面整体溢出，无法滚动
+
+### ✅ 正确做法
+
+```vue
+<!-- 1. Page 不要用 content-class，用显式 wrapper div -->
+<Page auto-content-height>
+  <div class="flex h-full gap-4 overflow-hidden">
+    <!-- 2. 面板用纯 div，不用 <Card> -->
+    <div class="flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div class="shrink-0 border-b px-3 py-2">标题栏</div>
+      <div class="min-h-0 flex-1 overflow-y-auto p-3">
+        <!-- 3. Spin 不要放 overflow-y-auto，包裹在外层 div 上 -->
+        <Spin :spinning="loading">
+          <!-- 列表内容 -->
+        </Spin>
+      </div>
+    </div>
+    <div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div class="shrink-0">头部信息</div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <Table />
+      </div>
+    </div>
+  </div>
+</Page>
+```
+
+### ❌ 错误做法
+
+```vue
+<!-- Card 内部 .ant-card-body 不遵守 flex 高度 -->
+<Card class="h-full flex-1" :body-style="{ height: '100%', display: 'flex' }">
+
+<!-- Spin 内部 .ant-spin-nested-loading 会扩展到内容高度 -->
+<Spin class="overflow-y-auto flex-1 min-h-0">
+
+<!-- content-class 设置在 Page 内部 wrapper 上，可能缺少 overflow 约束 -->
+<Page content-class="flex gap-4">
+```
+
+### 参考页面
+
+- `views/admin/system/organization/index.vue` — 正确的 Master-Detail 布局（纯 div）
+- `views/admin/ai/skill-packages/index.vue` — 修复后的 Master-Detail 布局
 
 ---
 

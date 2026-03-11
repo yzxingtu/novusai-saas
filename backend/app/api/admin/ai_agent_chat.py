@@ -1,6 +1,7 @@
 """
-Platform admin AI agent chat API
+平台管理员 AI 智能体对话 API / Platform Admin AI Agent Chat API
 
+允许平台管理员与任何租户的已发布智能体进行对话，用于测试和支持。
 Allows platform administrators to chat with any tenant's published agents
 for testing and support purposes.
 """
@@ -43,12 +44,13 @@ from app.services.ai.conversation_service import ConversationService
 
 
 async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
-    """Load agent via AdminAgentService and return its tenant_id.
+    """加载智能体并返回其 tenant_id / Load agent via AdminAgentService and return its tenant_id.
 
+    对于 tenant_id 为 NULL 的全局/管理端智能体，返回 0 作为管理端上下文对话的哨兵值。
     For global/admin agents where tenant_id is NULL, returns 0
     as a sentinel value for admin-context conversations.
 
-    Raises NotFoundException if agent does not exist.
+    智能体不存在时抛出 NotFoundException / Raises NotFoundException if agent does not exist.
     """
     service = AdminAgentService(db)
     agent = await service.get_by_id(agent_id)
@@ -72,8 +74,9 @@ async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
 )
 class AdminAgentChatController(GlobalController):
     """
-    Platform admin agent chat controller
+    平台管理员智能体对话控制器 / Platform Admin Agent Chat Controller
 
+    允许管理员测试/交互任何租户的已发布智能体，自动解析智能体的 tenant_id。
     Allows admins to test / interact with any tenant's published agents.
     The agent's own tenant_id is resolved automatically.
     """
@@ -82,11 +85,11 @@ class AdminAgentChatController(GlobalController):
     tags = [_("menu.tags.admin_agent_chat")]
 
     def _register_routes(self) -> None:
-        """Register routes"""
+        """注册路由 / Register routes"""
         router = self.router
 
         # ========================================
-        # 对话执行
+        # 对话执行 / Chat Execution
         # ========================================
 
         @router.post("/{agent_id}/chat", summary="Send chat message (non-streaming)")
@@ -99,12 +102,12 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Send a chat message and wait for full response.
+            发送对话消息并等待完整响应 / Send a chat message and wait for full response.
 
-            - New conversation: omit conversation_id
-            - Continue conversation: pass conversation_id
+            - 新对话：省略 conversation_id / New conversation: omit conversation_id
+            - 继续对话：传入 conversation_id / Continue conversation: pass conversation_id
 
-            Permission: admin_agent_chat:chat
+            权限 / Permission: admin_agent_chat:chat
             """
             tenant_id = await _get_agent_tenant_id(db, agent_id)
             perm_service = PermissionService(db)
@@ -124,7 +127,7 @@ class AdminAgentChatController(GlobalController):
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
-                memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
+                memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
             )
             return success(data=result.model_dump())
@@ -139,15 +142,15 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Send a chat message and stream the response via SSE.
+            发送对话消息并通过 SSE 流式返回响应 / Send a chat message and stream the response via SSE.
 
-            Event types:
-            - message: content delta
-            - tool_call: tool call progress
-            - done: completion (contains conversation_id, total_tokens)
-            - [DONE]: SSE end marker
+            事件类型 / Event types:
+            - message: 内容增量 / content delta
+            - tool_call: 工具调用进度 / tool call progress
+            - done: 完成（含 conversation_id, total_tokens） / completion
+            - [DONE]: SSE 结束标记 / SSE end marker
 
-            Permission: admin_agent_chat:stream
+            权限 / Permission: admin_agent_chat:stream
             """
             tenant_id = await _get_agent_tenant_id(db, agent_id)
             perm_service = PermissionService(db)
@@ -168,12 +171,12 @@ class AdminAgentChatController(GlobalController):
                 image_params=data.image_params.model_dump() if data.image_params else None,
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
-                memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
+                memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 page_session_id=data.page_session_id,
             )
 
         # ========================================
-        # 智能路由
+        # 智能路由 / Intelligent Routing
         # ========================================
 
         @router.post("/route", summary="Intelligent agent routing", response_model=None)
@@ -185,14 +188,14 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Intelligently select target agent based on message and page context.
+            基于消息和页面上下文智能选择目标智能体 / Intelligently select target agent based on message and page context.
 
-            Priority:
-            1. pinned_agent_id pass-through
-            2. Router agent AI selection
-            3. default_chat fallback
+            优先级 / Priority:
+            1. pinned_agent_id 直通 / pinned_agent_id pass-through
+            2. Router 智能体 AI 选择 / Router agent AI selection
+            3. default_chat 回退 / default_chat fallback
 
-            Permission: admin_agent_chat:route
+            权限 / Permission: admin_agent_chat:route
             """
             return await handle_route(
                 db,
@@ -204,7 +207,7 @@ class AdminAgentChatController(GlobalController):
             )
 
         # ========================================
-        # 操作确认
+        # 操作确认 / Action Confirmation
         # ========================================
 
         @router.post("/confirm", summary="Confirm/cancel AI action")
@@ -216,21 +219,21 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Handle AI action confirmation or cancellation.
+            处理 AI 操作确认或取消 / Handle AI action confirmation or cancellation.
 
-            - action="confirm": validate confirm_id and execute
-            - action="cancel": remove confirm_id, cancel operation
+            - action="confirm": 验证 confirm_id 并执行 / validate confirm_id and execute
+            - action="cancel": 移除 confirm_id，取消操作 / remove confirm_id, cancel operation
 
-            Permission: admin_agent_chat:confirm
+            权限 / Permission: admin_agent_chat:confirm
             """
-            # 该接口与具体智能体无关，使用租户哨兵值 0
+            # 该接口与具体智能体无关，使用租户哨兵值 0 / This endpoint is agent-agnostic, uses tenant sentinel value 0
             service = AgentChatService(db, 0)
             return await handle_confirm_or_cancel(
                 service, data, tenant_id=0, user_id=admin.id,
             )
 
         # ========================================
-        # 对话管理
+        # 对话管理 / Conversation Management
         # ========================================
 
         @router.get("/conversations", summary="List all conversations (global)")
@@ -242,12 +245,13 @@ class AdminAgentChatController(GlobalController):
             query: QueryParams,
         ):
             """
-            List conversations across all agents for the admin context.
+            列出管理端上下文中所有智能体的对话 / List conversations across all agents for the admin context.
 
+            用于 AI 面板的全局历史侧边栏，为每个对话添加 agent_name 和 agent_avatar。
             Used by the AI panel's global history sidebar.
             Enriches each conversation with agent_name and agent_avatar.
 
-            Permission: admin_agent_chat:conversations
+            权限 / Permission: admin_agent_chat:conversations
             """
             service = ConversationService(db, 0)
             items, total = await service.query_list(spec=query)
@@ -270,9 +274,9 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Get conversation detail including message list.
+            获取对话详情（含消息列表） / Get conversation detail including message list.
 
-            Permission: admin_agent_chat:conversation_detail
+            权限 / Permission: admin_agent_chat:conversation_detail
             """
             service, _ = await ConversationService.get_service_for_conversation(
                 db,
@@ -293,9 +297,9 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Delete a conversation (soft delete).
+            删除对话（软删除） / Delete a conversation (soft delete).
 
-            Permission: admin_agent_chat:delete_conversation
+            权限 / Permission: admin_agent_chat:delete_conversation
             """
             service, _ = await ConversationService.get_service_for_conversation(
                 db,
@@ -317,7 +321,7 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Get memory state for a specific conversation.
+            获取指定对话的记忆状态 / Get memory state for a specific conversation.
             """
             service, _ = await ConversationService.get_service_for_conversation(
                 db,
@@ -330,7 +334,7 @@ class AdminAgentChatController(GlobalController):
             "/conversations/{conversation_id}/memory-state",
             summary="Clear conversation memory",
         )
-        @action_delete("action.admin_agent_chat.delete_conversation")
+        @action_delete("action.admin_agent_chat.clear_memory")
         async def clear_conversation_memory(
             request: Request,
             db: DbSession,
@@ -338,7 +342,7 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            Clear memory state for a specific conversation.
+            清除指定对话的记忆状态 / Clear memory state for a specific conversation.
             """
             service, _ = await ConversationService.get_service_for_conversation(
                 db,
@@ -348,7 +352,7 @@ class AdminAgentChatController(GlobalController):
             return success(data={"deleted_count": deleted_count})
 
 
-# 导出路由
+# 导出路由 / Export router
 router = AdminAgentChatController.get_router()
 
 __all__ = ["router", "AdminAgentChatController"]

@@ -1,7 +1,8 @@
 """
-操作日志相关 Schema
+操作日志相关 Schema / Operation Log Schema
 
 定义操作日志 API 的请求和响应数据结构
+Defines operation log API request and response data structures.
 """
 
 from datetime import datetime

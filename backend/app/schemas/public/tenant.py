@@ -1,7 +1,8 @@
 """
-租户公开配置 Schema
+租户公开配置 Schema / Tenant Public Config Schema
 
 定义登录前可获取的租户公开信息
+Defines tenant public info accessible before login.
 """
 
 from pydantic import Field

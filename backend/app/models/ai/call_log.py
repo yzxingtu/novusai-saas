@@ -1,7 +1,8 @@
 """
-AI 调用日志模型
+AI 调用日志模型 / AI Call Log Model
 
 记录所有 AI 调用请求和响应，用于计量计费和监控
+Records all AI call requests and responses for metering, billing and monitoring.
 """
 
 from typing import TYPE_CHECKING

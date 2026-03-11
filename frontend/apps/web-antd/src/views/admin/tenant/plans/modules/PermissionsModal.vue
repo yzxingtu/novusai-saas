@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 /**
+ * Plan permissions settings modal
  * 套餐权限设置弹窗
+ * Reuses PermissionSelector component
  * 复用 PermissionSelector 组件
  */
 import type { adminApi } from '#/api';
@@ -23,20 +25,20 @@ const emits = defineEmits<{
   success: [];
 }>();
 
-// 状态
+// State / 状态
 const permissionTree = ref<PermissionNode[]>([]);
 const selectedPermissionIds = ref<number[]>([]);
 const loading = ref(false);
 const currentPlan = ref<null | TenantPlanInfo>(null);
 
-// 计算标题
+// Computed title / 计算标题
 const title = computed(() =>
   currentPlan.value
     ? $t('admin.tenant.plan.permissionsTitle', { name: currentPlan.value.name })
     : $t('admin.tenant.plan.setPermissions'),
 );
 
-// Modal - 使用 onConfirm 回调处理保存
+// Modal - use onConfirm callback to handle save / 使用 onConfirm 回调处理保存
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     if (!currentPlan.value?.id) return;
@@ -55,14 +57,14 @@ const [Modal, modalApi] = useVbenModal({
 
   async onOpenChange(isOpen) {
     if (isOpen) {
-      // 从 modalApi 获取传入的数据
+      // Get data passed via modalApi / 从 modalApi 获取传入的数据
       const data = modalApi.getData<TenantPlanInfo>();
       if (data?.id) {
         currentPlan.value = data;
         await loadData();
       }
     } else {
-      // 关闭时清空数据
+      // Clear data on close / 关闭时清空数据
       currentPlan.value = null;
       permissionTree.value = [];
       selectedPermissionIds.value = [];
@@ -78,16 +80,16 @@ async function loadData() {
 
   loading.value = true;
   try {
-    // 并行加载可分配权限和已分配权限
+    // Load available & assigned permissions in parallel / 并行加载可分配权限和已分配权限
     const [availablePermissions, assignedPermissions] = await Promise.all([
       admin.getAvailablePermissionsApi(),
       admin.getTenantPlanPermissionsApi(currentPlan.value.id),
     ]);
 
-    // 转换为 PermissionNode 格式
+    // Convert to PermissionNode format / 转换为 PermissionNode 格式
     permissionTree.value = transformPermissions(availablePermissions);
 
-    // 提取已分配权限的 ID
+    // Extract assigned permission IDs / 提取已分配权限的 ID
     selectedPermissionIds.value = assignedPermissions.map((p) => p.id);
   } catch {
   } finally {

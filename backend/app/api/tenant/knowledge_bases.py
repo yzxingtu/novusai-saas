@@ -1,7 +1,8 @@
 """
-租户端知识库管理 API
+租户端知识库管理 API / Tenant Knowledge Base Management API
 
 提供知识库 CRUD、文档管理、检索测试等接口
+Provides knowledge base CRUD, document management, search testing endpoints
 """
 
 import hashlib
@@ -47,9 +48,12 @@ async def _ensure_tenant_owned_kb(
 ):
     """
     确保知识库为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
+    Ensures the knowledge base is tenant-owned (tenant_id matches current tenant) before allowing mutations.
 
     平台创建的全局 KB（tenant_id=null）及其他租户的 KB 对当前租户只读，
     不允许上传文档、删除文档等变更操作。
+    Platform-created global KBs (tenant_id=null) and other tenants' KBs are read-only,
+    upload/delete document mutations are not allowed.
     """
     kb_service = KnowledgeBaseService(db, tenant_id)
     kb = await kb_service.get_by_id(kb_id)
@@ -60,7 +64,7 @@ async def _ensure_tenant_owned_kb(
     return kb
 
 
-# 支持的文件类型映射
+# 支持的文件类型映射 / Supported file type mapping
 ALLOWED_EXTENSIONS: dict[str, str] = {
     ".txt": DocumentTypeEnum.TXT.value,
     ".md": DocumentTypeEnum.MD.value,
@@ -94,19 +98,20 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 )
 class TenantKnowledgeBaseController(TenantController):
     """
-    租户知识库管理控制器
+    租户知识库管理控制器 / Tenant Knowledge Base Management Controller
 
     提供知识库 CRUD、文档上传/管理、检索测试
+    Provides knowledge base CRUD, document upload/management, search testing
     """
 
     prefix = "/ai/knowledge-bases"
     tags = [_("menu.tags.tenant_knowledge_base")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_tenant_recycle_bin_routes(
             router=router,
             service_class=KnowledgeBaseService,
@@ -114,7 +119,7 @@ class TenantKnowledgeBaseController(TenantController):
         )
 
         # ========================================
-        # 知识库 CRUD
+        # 知识库 CRUD / Knowledge Base CRUD
         # ========================================
 
         @router.get("/selectable", summary="获取可 @ 选择的知识库列表")
@@ -125,11 +130,12 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户端可 @ 选择的知识库列表
+            获取租户端可 @ 选择的知识库列表 / Get tenant selectable knowledge base list
 
             返回 scope=tenant(本租户) + scope=global 的知识库（精简字段）
+            Returns scope=tenant (current tenant) + scope=global knowledge bases (compact fields)
 
-            权限: knowledge_base:selectable
+            权限 / Permission: knowledge_base:selectable
             """
             from sqlalchemy import and_, or_, select
 
@@ -146,14 +152,14 @@ class TenantKnowledgeBaseController(TenantController):
                 .where(
                     KnowledgeBase.is_deleted.is_(False),
                     or_(
-                        # 本租户创建的 KB
+                        # 本租户创建的 KB / KBs created by current tenant
                         and_(
                             KnowledgeBase.scope == ResourceScopeEnum.ALL_TENANTS.value,
                             KnowledgeBase.tenant_id == tenant_id,
                         ),
-                        # 全局共享的 KB（admin 创建，所有租户可见）
+                        # 全局共享的 KB（admin 创建，所有租户可见） / Global shared KBs (admin-created, visible to all tenants)
                         KnowledgeBase.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                        # 已分配给当前租户的 KB
+                        # 已分配给当前租户的 KB / KBs assigned to current tenant
                         and_(
                             KnowledgeBase.scope.in_([
                                 ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -189,10 +195,11 @@ class TenantKnowledgeBaseController(TenantController):
             query: QueryParams,
         ):
             """
-            获取知识库列表
+            获取知识库列表 / Get knowledge base list
 
             支持 JSON:API 分页、筛选、排序
-            权限: knowledge_base:list
+            Supports JSON:API pagination, filtering, sorting
+            权限 / Permission: knowledge_base:list
             """
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
@@ -230,9 +237,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取知识库详情
+            获取知识库详情 / Get knowledge base details
 
-            权限: knowledge_base:detail
+            权限 / Permission: knowledge_base:detail
             """
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             result = await service.get_kb_detail(kb_id)
@@ -248,9 +255,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            创建知识库
+            创建知识库 / Create knowledge base
 
-            权限: knowledge_base:create
+            权限 / Permission: knowledge_base:create
             """
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             kb = await service.create(data.model_dump(exclude_unset=True))
@@ -285,9 +292,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            更新知识库配置
+            更新知识库配置 / Update knowledge base configuration
 
-            权限: knowledge_base:update
+            权限 / Permission: knowledge_base:update
             """
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
 
@@ -328,9 +335,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除知识库（软删除，级联删除文档和分块）
+            删除知识库（软删除，级联删除文档和分块） / Delete knowledge base (soft delete, cascades to documents and chunks)
 
-            权限: knowledge_base:delete
+            权限 / Permission: knowledge_base:delete
             """
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
 
@@ -344,7 +351,7 @@ class TenantKnowledgeBaseController(TenantController):
             return deleted(message=_("knowledge_base.deleted"))
 
         # ========================================
-        # 文档管理
+        # 文档管理 / Document Management
         # ========================================
 
         @router.get("/{kb_id}/documents", summary="获取文档列表")
@@ -357,11 +364,11 @@ class TenantKnowledgeBaseController(TenantController):
             query: QueryParams,
         ):
             """
-            获取知识库下的文档列表
+            获取知识库下的文档列表 / Get document list under knowledge base
 
-            权限: knowledge_base:document_list
+            权限 / Permission: knowledge_base:document_list
             """
-            # 验证知识库存在
+            # 验证知识库存在 / Verify knowledge base exists
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             kb = await kb_service.get_by_id(kb_id)
             if not kb:
@@ -369,7 +376,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
 
-            # 添加知识库 ID 过滤
+            # 添加知识库 ID 过滤 / Add knowledge base ID filter
             query.filters.append(FilterRule(
                 field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id)
             ))
@@ -394,24 +401,25 @@ class TenantKnowledgeBaseController(TenantController):
             file: UploadFile = File(..., description="上传的文档文件"),
         ):
             """
-            上传文档到知识库
+            上传文档到知识库 / Upload document to knowledge base
 
             复用附件系统存储文件，创建文档记录并触发 Celery 异步处理。
+            Reuses attachment system for file storage, creates document record and triggers Celery async processing.
 
-            支持格式: txt, md, pdf, docx, csv, html
-            权限: knowledge_base:document_upload
+            支持格式 / Supported formats: txt, md, pdf, docx, csv, html
+            权限 / Permission: knowledge_base:document_upload
             """
             from app.enums.attachment import AttachmentSource, AttachmentVisibility
             from app.services.tenant.attachment_service import AttachmentService
 
-            # 验证知识库存在且为租户自有
+            # 验证知识库存在且为租户自有 / Verify KB exists and is tenant-owned
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
-            # 配额检查
+            # 配额检查 / Quota check
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
-            # 验证文件类型
+            # 验证文件类型 / Validate file type
             filename = file.filename or "unnamed"
             ext = os.path.splitext(filename)[1].lower()
             if ext not in ALLOWED_EXTENSIONS:
@@ -421,12 +429,12 @@ class TenantKnowledgeBaseController(TenantController):
 
             file_type = ALLOWED_EXTENSIONS[ext]
 
-            # 读取文件内容并计算哈希
+            # 读取文件内容并计算哈希 / Read file content and calculate hash
             file_bytes = await file.read()
             file_hash = hashlib.md5(file_bytes).hexdigest()
             file_size = len(file_bytes)
 
-            # 去重检查
+            # 去重检查 / Deduplication check
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             existing = await doc_service.get_by_kb_and_hash(kb_id, file_hash)
             if existing:
@@ -434,7 +442,7 @@ class TenantKnowledgeBaseController(TenantController):
                     message=_("knowledge_base.error.document_exists"),
                 )
 
-            # 复用附件系统上传
+            # 复用附件系统上传 / Reuse attachment system for upload
             import io
             attachment_service = AttachmentService(db, tenant_admin.tenant_id)
             upload_result = await attachment_service.upload_file(
@@ -451,7 +459,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             attachment = upload_result["attachment"]
 
-            # 创建文档记录
+            # 创建文档记录 / Create document record
             doc = await doc_service.create({
                 "knowledge_base_id": kb_id,
                 "attachment_id": attachment.id,
@@ -463,7 +471,7 @@ class TenantKnowledgeBaseController(TenantController):
             })
             await db.commit()
 
-            # 触发 Celery 异步处理
+            # 触发 Celery 异步处理 / Trigger Celery async processing
             from app.ai.rag.processor import process_document
             process_document.delay(
                 tenant_id=tenant_admin.tenant_id,
@@ -485,9 +493,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取文档详情
+            获取文档详情 / Get document details
 
-            权限: knowledge_base:document_detail
+            权限 / Permission: knowledge_base:document_detail
             """
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             doc = await doc_service.get_by_id(doc_id)
@@ -509,10 +517,11 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            直接输入文本内容创建文档
+            直接输入文本内容创建文档 / Create document from direct text input
 
             将文本包装为虚拟 TXT 文件，走标准分块/Embedding 流程
-            权限: knowledge_base:document_text
+            Wraps text as virtual TXT file, follows standard chunking/embedding pipeline
+            权限 / Permission: knowledge_base:document_text
             """
             import hashlib
 
@@ -566,9 +575,9 @@ class TenantKnowledgeBaseController(TenantController):
             page_size: int = 20,
         ):
             """
-            获取文档的分块列表（预览用）
+            获取文档的分块列表（预览用） / Get document chunk list (for preview)
 
-            权限: knowledge_base:document_chunks
+            权限 / Permission: knowledge_base:document_chunks
             """
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             doc = await doc_service.get_by_id(doc_id)
@@ -609,9 +618,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除文档（级联删除分块）
+            删除文档（级联删除分块） / Delete document (cascades to chunks)
 
-            权限: knowledge_base:document_delete
+            权限 / Permission: knowledge_base:document_delete
             """
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
@@ -623,14 +632,14 @@ class TenantKnowledgeBaseController(TenantController):
                     message=_("knowledge_base.error.document_not_found"),
                 )
 
-            # 删除分块
+            # 删除分块 / Delete chunks
             chunk_service = DocumentChunkService(db, tenant_admin.tenant_id)
             await chunk_service.delete_by_document(doc_id)
 
-            # 删除文档
+            # 删除文档 / Delete document
             await doc_service.delete(doc_id)
 
-            # 更新知识库统计
+            # 更新知识库统计 / Update knowledge base statistics
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.update_statistics(kb_id)
             await db.commit()
@@ -653,9 +662,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            重试失败的文档处理（断点续传）
+            重试失败的文档处理（断点续传） / Retry failed document processing (resume from checkpoint)
 
-            权限: knowledge_base:document_retry
+            权限 / Permission: knowledge_base:document_retry
             """
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
@@ -672,11 +681,11 @@ class TenantKnowledgeBaseController(TenantController):
                     message=_("knowledge_base.error.document_not_error"),
                 )
 
-            # 重置为 pending 保留 error_stage（供断点续传）
+            # 重置为 pending 保留 error_stage（供断点续传） / Reset to pending, keep error_stage (for resume)
             doc.status = DocumentStatusEnum.PENDING.value
             await db.commit()
 
-            # 触发 Celery 重新处理
+            # 触发 Celery 重新处理 / Trigger Celery reprocessing
             from app.ai.rag.processor import process_document
             process_document.delay(
                 tenant_id=tenant_admin.tenant_id,
@@ -701,9 +710,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取文档实时处理进度（Redis）
+            获取文档实时处理进度（Redis） / Get real-time document processing progress (Redis)
 
-            权限: knowledge_base:document_progress
+            权限 / Permission: knowledge_base:document_progress
             """
             from app.ai.rag.processor import get_document_progress as _get_progress
 
@@ -715,10 +724,10 @@ class TenantKnowledgeBaseController(TenantController):
                     message=_("knowledge_base.error.document_not_found"),
                 )
 
-            # 从 Redis 获取实时进度
+            # 从 Redis 获取实时进度 / Get real-time progress from Redis
             progress = await _get_progress(doc_id)
             if progress is None:
-                # 回退到数据库状态
+                # 回退到数据库状态 / Fallback to database status
                 progress = {
                     "stage": doc.status,
                     "progress": 100 if doc.status == "completed" else 0,
@@ -729,7 +738,7 @@ class TenantKnowledgeBaseController(TenantController):
             return success(data=progress)
 
         # ========================================
-        # 重索引
+        # 重索引 / Re-index
         # ========================================
 
         @router.post("/{kb_id}/reindex", summary="重新向量化知识库")
@@ -741,10 +750,10 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            重新向量化知识库所有文档
+            重新向量化知识库所有文档 / Re-vectorize all knowledge base documents
 
-            删除现有分块并重新触发处理
-            权限: knowledge_base:reindex
+            删除现有分块并重新触发处理 / Deletes existing chunks and re-triggers processing
+            权限 / Permission: knowledge_base:reindex
             """
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
@@ -760,7 +769,7 @@ class TenantKnowledgeBaseController(TenantController):
             )
 
         # ========================================
-        # Q&A 问答对
+        # Q&A 问答对 / Q&A Pairs
         # ========================================
 
         @router.post("/{kb_id}/qa-pairs", summary="添加 Q&A 问答对")
@@ -773,24 +782,25 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            手动添加 Q&A 问答对
+            手动添加 Q&A 问答对 / Manually add Q&A pair
 
             直接创建文档记录并生成对应 chunk，无需上传文件
-            权限: knowledge_base:qa_create
+            Directly creates document record and generates corresponding chunk, no file upload needed
+            权限 / Permission: knowledge_base:qa_create
             """
             import hashlib
 
             kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
-            # 配额检查
+            # 配额检查 / Quota check
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
-            # 构建 Q&A 内容
+            # 构建 Q&A 内容 / Build Q&A content
             qa_content = f"Q: {data.question}\nA: {data.answer}"
             content_hash = hashlib.md5(qa_content.encode("utf-8")).hexdigest()
 
-            # 去重检查
+            # 去重检查 / Deduplication check
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
             if existing:
@@ -799,6 +809,7 @@ class TenantKnowledgeBaseController(TenantController):
                 )
 
             # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用）
+            # Create document record (metadata_extra stores original Q&A JSON for reindex)
             import json as _json
             doc = await doc_service.create({
                 "knowledge_base_id": kb_id,
@@ -812,13 +823,13 @@ class TenantKnowledgeBaseController(TenantController):
                 "metadata_extra": _json.dumps({"question": data.question, "answer": data.answer}),
             })
 
-            # 直接创建 chunk（无需 Celery 异步）
+            # 直接创建 chunk（无需 Celery 异步） / Directly create chunk (no Celery async needed)
             from app.ai.rag.embedding import EmbeddingService
             from app.ai.utils.token_estimator import estimate_tokens
 
             chunk_service = DocumentChunkService(db, tenant_admin.tenant_id)
 
-            # 生成 embedding
+            # 生成 embedding / Generate embedding
             embedding_service = EmbeddingService(db, tenant_admin.tenant_id)
             embeddings = await embedding_service.generate_embedding(qa_content, kb)
 
@@ -840,10 +851,10 @@ class TenantKnowledgeBaseController(TenantController):
                 },
             })
 
-            # 更新文档 token_count
+            # 更新文档 token_count / Update document token_count
             doc.token_count = token_count
 
-            # 更新知识库统计
+            # 更新知识库统计 / Update knowledge base statistics
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
@@ -865,18 +876,20 @@ class TenantKnowledgeBaseController(TenantController):
             file: UploadFile = File(..., description="CSV/Excel 文件（需含 question, answer 列）"),
         ):
             """
-            批量导入 Q&A 问答对（CSV/Excel）
+            批量导入 Q&A 问答对（CSV/Excel） / Batch import Q&A pairs (CSV/Excel)
 
             文件需包含 question 和 answer 两列，每行创建一条 Q&A 文档+chunk。
+            File must contain question and answer columns, each row creates one Q&A document+chunk.
             跳过空行和重复行，返回导入统计。
-            权限: knowledge_base:qa_batch
+            Skips empty and duplicate rows, returns import statistics.
+            权限 / Permission: knowledge_base:qa_batch
             """
             import hashlib
             import os
 
             kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
-            # 配额检查
+            # 配额检查 / Quota check
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
@@ -974,7 +987,7 @@ class TenantKnowledgeBaseController(TenantController):
             })
 
         # ========================================
-        # URL 网页导入
+        # URL 网页导入 / URL Web Page Import
         # ========================================
 
         @router.post("/{kb_id}/documents/url", summary="URL 网页导入")
@@ -987,14 +1000,15 @@ class TenantKnowledgeBaseController(TenantController):
             urls: list[str] = Form(..., description="URL 列表"),
         ):
             """
-            通过 URL 导入网页内容
+            通过 URL 导入网页内容 / Import web page content via URL
 
             每个 URL 创建一个文档，异步爬取和处理。
-            权限: knowledge_base:document_url
+            Each URL creates one document, crawled and processed asynchronously.
+            权限 / Permission: knowledge_base:document_url
             """
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
-            # 配额检查
+            # 配额检查 / Quota check
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
@@ -1038,7 +1052,7 @@ class TenantKnowledgeBaseController(TenantController):
             })
 
         # ========================================
-        # 检索测试
+        # 检索测试 / Search Testing
         # ========================================
 
         @router.post("/{kb_id}/search", summary="检索测试")
@@ -1051,10 +1065,11 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            知识库检索测试
+            知识库检索测试 / Knowledge base search testing
 
             输入查询文本，返回最相似的分块列表
-            权限: knowledge_base:search
+            Input query text, returns most similar chunk list
+            权限 / Permission: knowledge_base:search
             """
             from app.ai.rag.retriever import VectorRetriever
 
@@ -1087,7 +1102,7 @@ class TenantKnowledgeBaseController(TenantController):
             ])
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantKnowledgeBaseController.get_router()
 
 __all__ = ["router", "TenantKnowledgeBaseController"]

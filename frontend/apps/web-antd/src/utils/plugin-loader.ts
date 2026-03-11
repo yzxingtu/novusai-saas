@@ -1,26 +1,33 @@
 /**
+ * Plugin frontend dynamic loader utility
  * 插件前端动态加载工具
  *
+ * Load via injection mode only:
+ *   - Runtime plugins (prod/dev) → load UMD bundle via <script> tag
  * 仅通过注入模式加载：
  *   - 运行时插件（生产/开发）→ 通过 <script> 标签加载 UMD 包
  *
+ * Design constraints:
+ *   - Do not compile backend/plugins source into host frontend bundle
+ *   - Plugins must maintain independent build and release
  * 设计约束：
  *   - 不将 backend/plugins 源码编译进宿主前端 bundle
  *   - 插件必须保持独立构建与独立发布
  */
 
-/** 已加载的插件缓存 */
+/** Loaded plugin cache / 已加载的插件缓存 */
 const loadedPlugins: Map<string, Record<string, unknown>> = new Map();
 
-/** 加载中的 Promise 缓存（防止重复加载） */
+/** Loading Promise cache (prevent duplicate loading) / 加载中的 Promise 缓存（防止重复加载） */
 const loadingPromises: Map<
   string,
   Promise<Record<string, unknown>>
 > = new Map();
-/** CSS 解析中的 Promise 缓存（防止重复加载） */
+/** CSS loading Promise cache (prevent duplicate loading) / CSS 解析中的 Promise 缓存（防止重复加载） */
 const cssLoadingPromises: Map<string, Promise<void>> = new Map();
 
 /**
+ * Convert plugin name to global variable name: crm-module → NovusPlugin_crm_module
  * 将插件名转为全局变量名: crm-module → NovusPlugin_crm_module
  */
 function toGlobalVarName(pluginName: string): string {
@@ -42,6 +49,8 @@ function _injectPluginCSS(pluginName: string, cssFileName: string): void {
 }
 
 /**
+ * Load plugin CSS by manifest declared styles list.
+ * No HEAD probing to avoid browser console 404 noise.
  * 按 manifest 声明的 styles 列表加载插件 CSS。
  * 不做 HEAD 探测，避免浏览器控制台出现大量 404 噪音。
  */
@@ -80,10 +89,11 @@ async function loadPluginCSS(
 }
 
 /**
+ * Dynamically load plugin UMD JS bundle (+ CSS)
  * 动态加载插件 UMD JS 包（+ CSS）
  *
- * @param pluginName 插件名（kebab-case）
- * @returns 插件导出的模块对象
+ * @param pluginName - Plugin name (kebab-case) / 插件名（kebab-case）
+ * @returns Plugin exported module object / 插件导出的模块对象
  */
 export async function loadPluginComponents(
   pluginName: string,
@@ -172,10 +182,11 @@ export async function loadPluginComponents(
 }
 
 /**
+ * Get a single exported component from a plugin
  * 获取插件导出的单个组件
  *
- * @param pluginName 插件名
- * @param componentName 组件名（插件模块的导出 key）
+ * @param pluginName - Plugin name / 插件名
+ * @param componentName - Component name (export key of plugin module) / 组件名（插件模块的导出 key）
  */
 export async function getPluginComponent(
   pluginName: string,
@@ -193,6 +204,7 @@ export async function getPluginComponent(
 }
 
 /**
+ * Check if a plugin is loaded
  * 检查插件是否已加载
  */
 export function isPluginLoaded(pluginName: string): boolean {
@@ -200,6 +212,7 @@ export function isPluginLoaded(pluginName: string): boolean {
 }
 
 /**
+ * Unload plugin (clear cache + remove script tags)
  * 卸载插件（清除缓存 + 移除 script 标签）
  */
 export function unloadPlugin(pluginName: string): void {

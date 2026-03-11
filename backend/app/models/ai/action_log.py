@@ -1,8 +1,8 @@
 """
-AI 操作审计日志模型
+AI 操作审计日志模型 / AI Action Audit Log Model
 
-记录 Text-to-SQL 查询和 API 业务操作的审计日志，
-用于安全追溯、合规审计和操作分析
+记录 Text-to-SQL 查询和 API 业务操作的审计日志，用于安全追溯、合规审计和操作分析
+Records Text-to-SQL queries and API business operation audit logs for security tracing, compliance and analysis.
 """
 
 from sqlalchemy import JSON, Index, Integer, String, Text

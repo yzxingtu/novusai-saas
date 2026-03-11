@@ -1,7 +1,9 @@
 """
+Task Execution Engine
 任务执行引擎
 
-单次执行模式，将 input_variables 注入到 system_prompt，无对话上下文
+Single execution mode, injects input_variables into system_prompt, no conversation context.
+单次执行模式，将 input_variables 注入到 system_prompt，无对话上下文。
 """
 
 import time
@@ -17,19 +19,20 @@ from .types import ExecutionRequest, ExecutionResult
 
 logger = LogManager.get_logger("ai.engine.task")
 
-# 默认 user 消息的 i18n key（运行时调用 _() 以适配请求语言）
+# Default user message i18n key (called at runtime via _() to adapt to request language) / 默认 user 消息的 i18n key（运行时调用 _() 以适配请求语言）
 _DEFAULT_TASK_USER_MSG_KEY = "tool.task.default_user_message"
 
 
 class TaskEngine(BaseEngine):
     """
-    任务执行引擎
+    Task Execution Engine / 任务执行引擎
 
+    Handles single task scenarios:
     处理单次任务场景：
-    1. 将 input_variables 注入 system_prompt 占位符
-    2. 构建 user 消息（来自 messages 或默认提示）
-    3. 调用 LLM（含 tool calling）
-    4. 返回结果，不维护对话上下文
+    1. Inject input_variables into system_prompt placeholders / 将 input_variables 注入 system_prompt 占位符
+    2. Build user message (from messages or default prompt) / 构建 user 消息
+    3. Call LLM (with tool calling) / 调用 LLM（含 tool calling）
+    4. Return result, no conversation context maintained / 返回结果，不维护对话上下文
     """
 
     async def execute(
@@ -38,27 +41,27 @@ class TaskEngine(BaseEngine):
         request: ExecutionRequest,
         skill_result: Any | None = None,
     ) -> ExecutionResult:
-        """执行任务模式"""
+        """Execute task mode / 执行任务模式"""
         start = time.perf_counter()
 
         try:
-            # 1. 构建消息
+            # 1. Build messages / 构建消息
             messages: list[ChatMessage] = []
 
-            # system 消息（注入变量）
+            # System message (inject variables) / system 消息（注入变量）
             system_msg = self._build_system_message(
                 agent,
                 input_variables=request.input_variables,
             )
             messages.append(system_msg)
 
-            # user 消息
+            # User message / user 消息
             if request.messages:
                 messages.extend(request.messages)
             else:
                 messages.append(self._user_message(_(_DEFAULT_TASK_USER_MSG_KEY)))
 
-            # 2. 解析工具（使用预解析结果或回退到 resolve_for_agent）
+            # 2. Resolve tools (use pre-resolved result or fallback to resolve_for_agent) / 解析工具
             if skill_result is None:
                 from app.ai.skills.resolver import resolve_for_agent
                 skill_result = await resolve_for_agent(
@@ -68,7 +71,7 @@ class TaskEngine(BaseEngine):
                 )
             tools = skill_result.tools if skill_result else []
 
-            # 3. 调用 LLM
+            # 3. Call LLM / 调用 LLM
             response = await self._call_llm(
                 agent=agent,
                 messages=messages,
@@ -79,7 +82,7 @@ class TaskEngine(BaseEngine):
 
             total_tokens = response.total_tokens or 0
 
-            # 4. 工具调用循环
+            # 4. Tool call loop / 工具调用循环
             tool_results = []
             if response.tool_calls and tools:
                 response, tool_results, total_tokens = await self._handle_tool_calls(
@@ -90,7 +93,7 @@ class TaskEngine(BaseEngine):
                     request=request,
                 )
 
-            # 5. 最终输出
+            # 5. Final output / 最终输出
             output = response.message.content or ""
             messages.append(ChatMessage(role="assistant", content=output))
 

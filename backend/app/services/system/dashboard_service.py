@@ -1,7 +1,8 @@
 """
-仪表盘统计服务
+仪表盘统计服务 / Dashboard Service
 
 提供平台端和租户端 Dashboard 统计数据查询。
+Provides platform and tenant Dashboard statistics data queries.
 将 Controller 中的直接 DB 查询下沉到 Service 层。
 
 A1-A6: Admin Dashboard 统计

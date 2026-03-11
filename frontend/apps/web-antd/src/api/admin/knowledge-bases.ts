@@ -1,12 +1,12 @@
 /**
- * 平台管理端知识库监控 API
- * 对接后端 /admin/ai/knowledge-bases/* 接口
+ * Platform admin knowledge base monitoring API / 平台管理端知识库监控 API
+ * Backend: /admin/ai/knowledge-bases/*
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 知识库列表项（全租户） */
+/** Knowledge base list item (all tenants) / 知识库列表项（全租户） */
 export interface AdminKnowledgeBaseItem {
   id: number;
   tenant_id: null | number;
@@ -28,7 +28,7 @@ export interface AdminKnowledgeBaseItem {
   created_at: string;
 }
 
-/** 创建知识库请求 */
+/** Create knowledge base request / 创建知识库请求 */
 export interface AdminKnowledgeBaseCreateParams {
   name: string;
   description?: string;
@@ -46,7 +46,7 @@ export interface AdminKnowledgeBaseCreateParams {
   score_threshold?: number;
 }
 
-/** 更新知识库请求 */
+/** Update knowledge base request / 更新知识库请求 */
 export interface AdminKnowledgeBaseUpdateParams {
   name?: string;
   description?: string;
@@ -58,7 +58,7 @@ export interface AdminKnowledgeBaseUpdateParams {
   embedding_model_id?: number;
 }
 
-/** 全局统计 */
+/** Global stats / 全局统计 */
 export interface KnowledgeBaseGlobalStats {
   total_knowledge_bases: number;
   total_documents: number;
@@ -75,7 +75,7 @@ interface PageResponse<T> {
 
 const PREFIX = '/admin/ai/knowledge-bases';
 
-/** 获取知识库列表 */
+/** Get knowledge base list / 获取知识库列表 */
 export async function getAdminKnowledgeBaseListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -86,7 +86,7 @@ export async function getAdminKnowledgeBaseListApi(
   });
 }
 
-/** 获取全局统计 */
+/** Get global stats / 获取全局统计 */
 export async function getKnowledgeBaseStatsApi(
   options?: ApiRequestOptions,
 ): Promise<KnowledgeBaseGlobalStats> {
@@ -96,7 +96,7 @@ export async function getKnowledgeBaseStatsApi(
   );
 }
 
-/** 获取知识库详情 */
+/** Get knowledge base detail / 获取知识库详情 */
 export async function getAdminKnowledgeBaseDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -104,7 +104,7 @@ export async function getAdminKnowledgeBaseDetailApi(
   return requestClient.get<AdminKnowledgeBaseItem>(`${PREFIX}/${id}`, options);
 }
 
-/** 创建知识库 */
+/** Create knowledge base / 创建知识库 */
 export async function createAdminKnowledgeBaseApi(
   data: AdminKnowledgeBaseCreateParams,
   options?: ApiRequestOptions,
@@ -112,7 +112,7 @@ export async function createAdminKnowledgeBaseApi(
   return requestClient.post<AdminKnowledgeBaseItem>(PREFIX, data, options);
 }
 
-/** 更新知识库 */
+/** Update knowledge base / 更新知识库 */
 export async function updateAdminKnowledgeBaseApi(
   id: number,
   data: AdminKnowledgeBaseUpdateParams,
@@ -125,7 +125,7 @@ export async function updateAdminKnowledgeBaseApi(
   );
 }
 
-/** 强制删除知识库 */
+/** Force delete knowledge base / 强制删除知识库 */
 export async function deleteAdminKnowledgeBaseApi(
   id: number,
   options?: ApiRequestOptions,
@@ -134,10 +134,10 @@ export async function deleteAdminKnowledgeBaseApi(
 }
 
 // ============================================================
-// 文档子资源 API
+// Document sub-resource API / 文档子资源 API
 // ============================================================
 
-/** 知识库文档 */
+/** Knowledge base document / 知识库文档 */
 export interface AdminKnowledgeDocumentItem {
   id: number;
   knowledge_base_id: number;
@@ -155,7 +155,7 @@ export interface AdminKnowledgeDocumentItem {
   updated_at: string;
 }
 
-/** 检索结果项 */
+/** Search result item / 检索结果项 */
 export interface AdminSearchResultItem {
   chunk_id: number;
   content: string;
@@ -166,7 +166,7 @@ export interface AdminSearchResultItem {
   highlight: null | string;
 }
 
-/** 文档处理进度 */
+/** Document processing progress / 文档处理进度 */
 export interface AdminDocumentProgress {
   stage: string;
   progress: number;
@@ -174,7 +174,7 @@ export interface AdminDocumentProgress {
   processed_chunks: number;
 }
 
-/** 获取文档列表 */
+/** Get document list / 获取文档列表 */
 export async function getAdminDocumentListApi(
   kbId: number,
   params?: Record<string, unknown>,
@@ -186,7 +186,7 @@ export async function getAdminDocumentListApi(
   );
 }
 
-/** 上传文档 */
+/** Upload document / 上传文档 */
 export async function uploadAdminDocumentApi(
   kbId: number,
   file: File,
@@ -204,7 +204,7 @@ export async function uploadAdminDocumentApi(
   );
 }
 
-/** 删除文档 */
+/** Delete document / 删除文档 */
 export async function deleteAdminDocumentApi(
   kbId: number,
   docId: number,
@@ -213,7 +213,7 @@ export async function deleteAdminDocumentApi(
   await requestClient.delete(`${PREFIX}/${kbId}/documents/${docId}`, options);
 }
 
-/** 重试文档 */
+/** Retry document / 重试文档 */
 export async function retryAdminDocumentApi(
   kbId: number,
   docId: number,
@@ -226,7 +226,7 @@ export async function retryAdminDocumentApi(
   );
 }
 
-/** 获取文档处理进度 */
+/** Get document processing progress / 获取文档处理进度 */
 export async function getAdminDocumentProgressApi(
   kbId: number,
   docId: number,
@@ -238,7 +238,7 @@ export async function getAdminDocumentProgressApi(
   );
 }
 
-/** 重新向量化 */
+/** Re-vectorize / 重新向量化 */
 export async function reindexAdminKnowledgeBaseApi(
   kbId: number,
   options?: ApiRequestOptions,
@@ -250,7 +250,7 @@ export async function reindexAdminKnowledgeBaseApi(
   );
 }
 
-/** 文档分块预览（管理端） */
+/** Document chunk preview (admin) / 文档分块预览（管理端） */
 export async function getAdminDocumentChunksApi(
   kbId: number,
   docId: number,
@@ -273,7 +273,7 @@ export async function getAdminDocumentChunksApi(
   });
 }
 
-/** 检索测试 */
+/** Search test / 检索测试 */
 export async function searchAdminKnowledgeBaseApi(
   kbId: number,
   data: {
@@ -291,7 +291,7 @@ export async function searchAdminKnowledgeBaseApi(
   );
 }
 
-/** 直接文本输入创建文档 */
+/** Create document from direct text input / 直接文本输入创建文档 */
 export async function createAdminTextDocumentApi(
   kbId: number,
   data: { content: string; title: string },
@@ -304,7 +304,7 @@ export async function createAdminTextDocumentApi(
   );
 }
 
-/** 添加 Q&A 问答对 */
+/** Add Q&A pair / 添加 Q&A 问答对 */
 export async function createAdminQAPairApi(
   kbId: number,
   data: { answer: string; question: string },
@@ -317,7 +317,7 @@ export async function createAdminQAPairApi(
   );
 }
 
-/** URL 网页导入 */
+/** Import from URL / URL 网页导入 */
 export async function importAdminUrlApi(
   kbId: number,
   urls: string[],
@@ -332,7 +332,7 @@ export async function importAdminUrlApi(
   );
 }
 
-/** 批量导入 Q&A 问答对（CSV/Excel） */
+/** Batch import Q&A pairs (CSV/Excel) / 批量导入 Q&A 问答对 */
 export async function batchImportAdminQAApi(
   kbId: number,
   file: File,
@@ -347,7 +347,7 @@ export async function batchImportAdminQAApi(
   );
 }
 
-/** 可选知识库项 */
+/** Selectable knowledge base item / 可选知识库项 */
 export interface SelectableKBItem {
   id: number;
   name: string;
@@ -355,7 +355,7 @@ export interface SelectableKBItem {
   description: null | string;
 }
 
-/** 获取可选知识库列表（管理端：admin + global） */
+/** Get selectable knowledge base list (admin: admin + global) / 获取可选知识库列表 */
 export async function getAdminSelectableKBApi(
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {

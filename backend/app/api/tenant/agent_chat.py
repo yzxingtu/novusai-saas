@@ -1,7 +1,8 @@
 """
-租户端 AI 对话 API
+租户端 AI 对话 API / Tenant AI Chat API
 
 提供 AI 对话（非流式/流式）、对话列表、删除等接口
+Provides AI chat (non-streaming/streaming), conversation list, delete endpoints
 """
 
 from fastapi import Request
@@ -55,20 +56,21 @@ from app.services.ai.conversation_service import ConversationService
 )
 class TenantAgentChatController(TenantController):
     """
-    租户 AI 对话控制器
+    租户 AI 对话控制器 / Tenant AI Chat Controller
 
     提供 AI 对话交互和对话管理
+    Provides AI chat interaction and conversation management
     """
 
     prefix = "/ai/agent-chat"
     tags = [_("menu.tags.tenant_agent_chat")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         # ========================================
-        # 对话执行
+        # 对话执行 / Chat Execution
         # ========================================
 
         async def _check_agent_access(
@@ -77,7 +79,7 @@ class TenantAgentChatController(TenantController):
             agent_id: int,
             user_id: int,
         ) -> None:
-            """检查用户是否有权访问该智能体"""
+            """检查用户是否有权访问该智能体 / Check if user has access to this agent"""
             agent_service = AgentService(db, tenant_id)
             has_access = await agent_service.check_user_access(
                 agent_id=agent_id,
@@ -100,12 +102,12 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            发送对话消息，等待完整响应返回
+            发送对话消息，等待完整响应返回 / Send chat message, wait for complete response
 
-            - 新对话：不传 conversation_id
-            - 续接对话：传 conversation_id
+            - 新对话：不传 conversation_id / New conversation: omit conversation_id
+            - 续接对话：传 conversation_id / Continue conversation: pass conversation_id
 
-            权限: agent_chat:chat
+            权限 / Permission: agent_chat:chat
             """
             await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
 
@@ -142,15 +144,15 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            发送对话消息，通过 SSE 流式推送响应
+            发送对话消息，通过 SSE 流式推送响应 / Send chat message, stream response via SSE
 
-            事件类型：
-            - message: 内容增量
-            - tool_call: 工具调用进度
-            - done: 完成（含 conversation_id、total_tokens）
-            - [DONE]: SSE 结束标记
+            事件类型 / Event types：
+            - message: 内容增量 / content delta
+            - tool_call: 工具调用进度 / tool call progress
+            - done: 完成（含 conversation_id、total_tokens） / complete (with conversation_id, total_tokens)
+            - [DONE]: SSE 结束标记 / SSE end marker
 
-            权限: agent_chat:stream
+            权限 / Permission: agent_chat:stream
             """
             await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
 
@@ -178,7 +180,7 @@ class TenantAgentChatController(TenantController):
             )
 
         # ========================================
-        # 智能路由
+        # 智能路由 / Smart Routing
         # ========================================
 
         @router.post("/route", summary="智能体路由", response_model=None)
@@ -190,14 +192,14 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            根据消息和页面上下文智能选择目标智能体
+            根据消息和页面上下文智能选择目标智能体 / Smart select target agent based on message and page context
 
-            路由优先级:
-            1. pinned_agent_id 直通
-            2. Router 智能体 AI 选择
-            3. default_chat 降级
+            路由优先级 / Routing priority:
+            1. pinned_agent_id 直通 / pinned_agent_id direct pass
+            2. Router 智能体 AI 选择 / Router agent AI selection
+            3. default_chat 降级 / default_chat fallback
 
-            权限: agent_chat:route
+            权限 / Permission: agent_chat:route
             """
             return await handle_route(
                 db,
@@ -209,7 +211,7 @@ class TenantAgentChatController(TenantController):
             )
 
         # ========================================
-        # 操作确认
+        # 操作确认 / Action Confirmation
         # ========================================
 
         @router.post("/confirm", summary="确认/取消 AI 操作")
@@ -221,12 +223,12 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            处理 AI 操作确认或取消
+            处理 AI 操作确认或取消 / Handle AI action confirmation or cancellation
 
-            - action="confirm": 验证 confirm_id 并执行操作
-            - action="cancel": 删除 confirm_id，取消操作
+            - action="confirm": 验证 confirm_id 并执行操作 / Verify confirm_id and execute action
+            - action="cancel": 删除 confirm_id，取消操作 / Delete confirm_id, cancel action
 
-            权限: agent_chat:confirm
+            权限 / Permission: agent_chat:confirm
             """
             service = AgentChatService(db, tenant_admin.tenant_id)
             return await handle_confirm_or_cancel(
@@ -236,7 +238,7 @@ class TenantAgentChatController(TenantController):
             )
 
         # ========================================
-        # 对话管理
+        # 对话管理 / Conversation Management
         # ========================================
 
         @router.get("/conversations", summary="获取全局 AI 对话列表")
@@ -248,11 +250,12 @@ class TenantAgentChatController(TenantController):
             query: QueryParams,
         ):
             """
-            获取当前用户所有智能体的对话列表
+            获取当前用户所有智能体的对话列表 / Get all agent conversation list for current user
 
             用于 AI 面板的全局历史侧边栏，包含 agent_name 和 agent_avatar。
+            Used for AI panel global history sidebar, includes agent_name and agent_avatar.
 
-            权限: agent_chat:conversations
+            权限 / Permission: agent_chat:conversations
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             from app.schemas.common.query import FilterRule
@@ -282,9 +285,9 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取对话详情（含消息列表）
+            获取对话详情（含消息列表） / Get conversation details (with message list)
 
-            权限: agent_chat:conversation_detail
+            权限 / Permission: agent_chat:conversation_detail
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             result = await service.get_conversation_detail(
@@ -305,9 +308,9 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除对话（软删除）
+            删除对话（软删除） / Delete conversation (soft delete)
 
-            权限: agent_chat:delete_conversation
+            权限 / Permission: agent_chat:delete_conversation
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             await service.delete_accessible_conversation(
@@ -329,7 +332,7 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前会话的记忆状态（偏好/约束/任务/事实）
+            获取当前会话的记忆状态（偏好/约束/任务/事实） / Get current conversation memory state (preferences/constraints/tasks/facts)
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             state = await service.get_conversation_memory_state(
@@ -342,7 +345,7 @@ class TenantAgentChatController(TenantController):
             "/conversations/{conversation_id}/memory-state",
             summary="清空本会话记忆",
         )
-        @action_delete("action.agent_chat.delete_conversation")
+        @action_delete("action.agent_chat.clear_memory")
         async def clear_conversation_memory(
             request: Request,
             db: DbSession,
@@ -350,7 +353,7 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            清空当前会话的记忆状态（仅当前租户当前用户）
+            清空当前会话的记忆状态（仅当前租户当前用户） / Clear current conversation memory state (current tenant and user only)
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             deleted_count = await service.clear_conversation_memory_state(
@@ -360,7 +363,7 @@ class TenantAgentChatController(TenantController):
             return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAgentChatController.get_router()
 
 __all__ = ["router", "TenantAgentChatController"]

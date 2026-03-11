@@ -1,7 +1,8 @@
 """
-邮件发送服务
+邮件发送服务 / Email Service
 
 提供 SMTP 邮件发送核心逻辑，从平台配置动态读取 SMTP 参数。
+Provides SMTP email sending core logic, dynamically reads SMTP params from platform config.
 支持 HTML/纯文本/附件/CC/BCC，发送前检查 email_enabled 开关。
 
 注意：此服务需要 async DB session（用于读取配置），

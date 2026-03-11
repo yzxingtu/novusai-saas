@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Operation log list page
  * 操作日志列表页面
  */
 import type { adminApi } from '#/api';
@@ -40,23 +41,23 @@ defineOptions({ name: 'SystemOperationLogList' });
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
-// 详情抽屉
+// Detail drawer / 详情抽屉
 const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
   connectedComponent: DetailDrawer,
 });
 
-// 选中的行
+// Selected rows / 选中的行
 const selectedRows = ref<OperationLogInfo[]>([]);
 
 /**
- * 查看详情
+ * View detail / 查看详情
  */
 function onViewDetail(row: OperationLogInfo) {
   detailDrawerApi.setData({ id: row.id, mode: 'view' }).open();
 }
 
 /**
- * 批量删除
+ * Batch delete / 批量删除
  */
 async function onBatchDelete() {
   if (selectedRows.value.length === 0) return;
@@ -72,7 +73,7 @@ async function onBatchDelete() {
   }
 }
 
-// CRUD 页面（只读列表，不需要表单组件）
+// CRUD page (read-only list, no form component needed) / CRUD 页面（只读列表，不需要表单组件）
 const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
     list: admin.getOperationLogListApi,
@@ -88,19 +89,19 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   },
 });
 
-// 操作人列表（头像 + 下拉）
+// Operator list (avatar + dropdown) / 操作人列表（头像 + 下拉）
 const avatarMap = ref<Record<number, null | string | undefined>>({});
 
 async function loadOperators() {
   try {
     const list = await admin.getOperatorsApi();
-    // 构建 userId → avatar 映射
+    // Build userId → avatar map / 构建 userId → avatar 映射
     const map: Record<number, null | string | undefined> = {};
     for (const op of list) {
       if (op.user_id) map[op.user_id] = op.avatar;
     }
     avatarMap.value = map;
-    // 动态更新搜索表单下拉选项
+    // Dynamically update search form dropdown options / 动态更新搜索表单下拉选项
     gridApi.formApi?.updateSchema([
       {
         componentProps: {
@@ -122,7 +123,7 @@ onMounted(() => {
 });
 
 /**
- * 监听选中变化
+ * Listen to selection change / 监听选中变化
  */
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;

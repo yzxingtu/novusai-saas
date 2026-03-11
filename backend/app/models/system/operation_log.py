@@ -1,7 +1,8 @@
 """
-操作日志模型
+操作日志模型 / Operation Log Model
 
 记录系统中所有 API 调用的审计日志
+Records audit logs for all API calls in the system.
 """
 
 

@@ -1,7 +1,8 @@
 """
-租户管理员认证 API
+租户管理员认证 API / Tenant Admin Authentication API
 
 提供租户管理员的登录、登出、Token 刷新等接口
+Provides tenant admin login, logout, token refresh endpoints
 """
 
 from fastapi import APIRouter, Request
@@ -26,9 +27,9 @@ from app.schemas.tenant import (
 from app.services.common import AuthService
 
 
-# 审计日志辅助类
+# 审计日志辅助类 / Audit log helper class
 class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
-    """Impersonate 审计日志器"""
+    """Impersonate 审计日志器 / Impersonate audit logger"""
     pass
 
 _audit_helper = _ImpersonateAuditLogger()
@@ -45,14 +46,14 @@ async def tenant_admin_login(
     login_data: TenantAdminLoginRequest,
 ):
     """
-    租户管理员登录
+    租户管理员登录 / Tenant admin login
 
-    - **username**: 用户名或邮箱
-    - **password**: 密码
+    - **username**: 用户名或邮箱 / Username or email
+    - **password**: 密码 / Password
     """
     auth_service = AuthService(db)
 
-    # 从域名中间件获取 tenant_ctx 作为回退
+    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
     tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
 
@@ -81,7 +82,7 @@ async def refresh_token(
     refresh_data: RefreshTokenRequest,
 ):
     """
-    使用 Refresh Token 获取新的 Token 对
+    使用 Refresh Token 获取新的 Token 对 / Use refresh token to get new token pair
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_tenant_admin_token(refresh_data.refresh_token)
@@ -98,7 +99,7 @@ async def tenant_admin_logout(
     current_admin: ActiveTenantAdmin,
 ):
     """
-    租户管理员登出
+    租户管理员登出 / Tenant admin logout
     """
     return success(
         message=_("auth.logout_success"),
@@ -112,9 +113,10 @@ async def get_current_tenant_admin_info(
     current_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前登录租户管理员的详细信息
+    获取当前登录租户管理员的详细信息 / Get current logged-in tenant admin details
 
-    响应中包含 has_plan 字段，前端据此判断是否显示"未分配套餐"提示。
+    响应中包含 has_plan 字段，前端据此判断是否显示“未分配套餐”提示。
+    Response includes has_plan field for frontend to determine whether to show "no plan assigned" prompt.
     """
     from sqlalchemy import select as sa_select
     from sqlalchemy.orm import selectinload
@@ -146,7 +148,7 @@ async def change_password(
     password_data: TenantAdminChangePasswordRequest,
 ):
     """
-    修改当前租户管理员密码
+    修改当前租户管理员密码 / Change current tenant admin password
     """
     auth_service = AuthService(db)
 
@@ -170,9 +172,9 @@ async def update_profile(
     profile_data: TenantAdminUpdateProfileRequest,
 ):
     """
-    修改当前租户管理员的个人信息
+    修改当前租户管理员的个人信息 / Update current tenant admin profile
 
-    允许修改: nickname, avatar, email, phone
+    允许修改 / Allowed fields: nickname, avatar, email, phone
     """
     update_fields = profile_data.model_dump(exclude_unset=True)
     if not update_fields:
@@ -204,10 +206,10 @@ async def impersonate_login(
     data: ImpersonateTokenRequest,
 ):
     """
-    验证平台管理员的 impersonate token 并换取正式 Token
+    验证平台管理员的 impersonate token 并换取正式 Token / Verify platform admin impersonate token and exchange for formal tokens
 
-    - Token 60 秒过期，一次性使用
-    - 返回标准的 access_token 和 refresh_token
+    - Token 60 秒过期，一次性使用 / Token expires in 60 seconds, single use
+    - 返回标准的 access_token 和 refresh_token / Returns standard access_token and refresh_token
     """
     auth_service = AuthService(db)
 
@@ -215,7 +217,7 @@ async def impersonate_login(
         impersonate_token=data.impersonate_token,
     )
 
-    # 记录审计日志
+    # 记录审计日志 / Record audit log
     _audit_helper.logger.info(
         "Admin impersonate completed | admin_id=%s | admin_username=%s | "
         "target_tenant_id=%s | target_tenant_code=%s | tenant_owner_id=%s | "

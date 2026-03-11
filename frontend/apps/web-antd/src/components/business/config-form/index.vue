@@ -25,13 +25,14 @@ interface Props {
 const props = defineProps<Props>();
 const formRef = ref<FormInstance>();
 const formModel = reactive<Record<string, any>>({});
-// 保存初始值用于比较是否有修改
+// Save initial values for comparison to detect modifications / 保存初始值用于比较是否有修改
 let initialSnapshot = '';
 
 /**
+ * Get value from nested object by path
  * 从嵌套对象中根据路径获取值
- * @param obj 对象
- * @param path 路径，支持 . 分隔
+ * @param obj Object / 对象
+ * @param path Path, supports dot notation / 路径，支持 . 分隔
  */
 function getValueByPath(obj: any, path: string): any {
   if (!obj || !path) return undefined;
@@ -45,10 +46,11 @@ function getValueByPath(obj: any, path: string): any {
 }
 
 /**
+ * Set value in nested object by path
  * 在嵌套对象中根据路径设置值
- * @param obj 对象
- * @param path 路径，支持 . 分隔
- * @param value 要设置的值
+ * @param obj Object / 对象
+ * @param path Path, supports dot notation / 路径，支持 . 分隔
+ * @param value Value to set / 要设置的值
  */
 function setValueByPath(obj: any, path: string, value: any): void {
   if (!obj || !path) return;
@@ -65,6 +67,8 @@ function setValueByPath(obj: any, path: string, value: any): void {
 }
 
 /**
+ * Recursively initialize config item values into formModel
+ * Handles value mapping for regular fields and child fields
  * 递归初始化配置项值到 formModel
  * 处理普通字段和子字段的值映射
  */
@@ -75,21 +79,21 @@ function initConfigValue(
 ) {
   const raw = cfg.value ?? cfg.default_value;
 
-  // 如果有 value_path，说明这是子字段，从父 JSON 中读取值
+  // If value_path exists, this is a child field, read value from parent JSON / 如果有 value_path，说明这是子字段，从父 JSON 中读取值
   if (cfg.value_path && parentJsonValue !== undefined) {
     const val = getValueByPath(parentJsonValue, cfg.value_path);
     const resolvedVal = val ?? cfg.default_value;
-    // 只有当后端明确返回 '******' 时才显示占位符，否则直接使用 resolvedVal (可能是 null/undefined，即空值)
+    // Only show placeholder when backend explicitly returns '******', otherwise use resolvedVal (may be null/undefined) / 只有当后端明确返回 '******' 时才显示占位符，否则直接使用 resolvedVal
     data[cfg.key] = resolvedVal;
   } else {
-    // 允许后端返回真实值，只有在值为空且加密时才显示占位符
-    // 只有当后端明确返回 '******' 时才显示占位符，否则直接使用 raw (可能是 null/undefined，即空值)
+    // Allow backend to return real value, only show placeholder when value is empty and encrypted / 允许后端返回真实值，只有在值为空且加密时才显示占位符
+    // Only show placeholder when backend explicitly returns '******', otherwise use raw (may be null/undefined) / 只有当后端明确返回 '******' 时才显示占位符
     data[cfg.key] = raw;
   }
 
-  // 如果有 children，递归初始化子字段
+  // If there are children, recursively initialize child fields / 如果有 children，递归初始化子字段
   if (cfg.children && cfg.children.length > 0) {
-    // 父字段的 JSON 值
+    // Parent field's JSON value / 父字段的 JSON 值
     const jsonValue =
       typeof data[cfg.key] === 'object' ? data[cfg.key] : tryParseJson(raw);
     for (const child of cfg.children) {
@@ -99,7 +103,7 @@ function initConfigValue(
 }
 
 /**
- * 尝试解析 JSON 字符串
+ * Try to parse JSON string / 尝试解析 JSON 字符串
  */
 function tryParseJson(val: any): any {
   if (typeof val === 'string') {
@@ -113,7 +117,7 @@ function tryParseJson(val: any): any {
 }
 
 /**
- * 格式化 JSON 值为字符串（用于 TextArea 显示）
+ * Format JSON value to string (for TextArea display) / 格式化 JSON 值为字符串（用于 TextArea 显示）
  */
 function formatJsonValue(val: any): string {
   if (val === null || val === undefined) return '';
@@ -126,19 +130,19 @@ function formatJsonValue(val: any): string {
 }
 
 /**
- * 更新 JSON 字段值（从 TextArea 输入）
+ * Update JSON field value (from TextArea input) / 更新 JSON 字段值（从 TextArea 输入）
  */
 function updateJsonValue(key: string, val: string) {
   try {
-    // 尝试解析为 JSON
+    // Try to parse as JSON / 尝试解析为 JSON
     formModel[key] = JSON.parse(val);
   } catch {
-    // 解析失败时保存原始字符串
+    // Save raw string on parse failure / 解析失败时保存原始字符串
     formModel[key] = val;
   }
 }
 
-// 初始化表单值
+// Initialize form values / 初始化表单值
 watch(
   () => props.configs,
   (list) => {
@@ -146,10 +150,10 @@ watch(
     (list || []).forEach((cfg) => {
       initConfigValue(cfg, data);
     });
-    // 清空旧数据再赋新值
+    // Clear old data and assign new values / 清空旧数据再赋新值
     Object.keys(formModel).forEach((key) => delete formModel[key]);
     Object.assign(formModel, data);
-    // 保存初始快照
+    // Save initial snapshot / 保存初始快照
     initialSnapshot = JSON.stringify(data);
   },
   { immediate: true },
@@ -162,7 +166,7 @@ const orderedConfigs = computed(() => {
 });
 
 /**
- * 检查单个显示规则是否满足
+ * Check if a single display rule is satisfied / 检查单个显示规则是否满足
  */
 function checkDisplayRule(
   rule: DisplayRuleMeta,
@@ -186,6 +190,8 @@ function checkDisplayRule(
 }
 
 /**
+ * Determine if config item should be visible
+ * Multiple rules are AND-ed, all must be satisfied to show
  * 判断配置项是否应该显示
  * 多个规则之间为 AND 关系，全部满足才显示
  */
@@ -193,12 +199,12 @@ function shouldShowConfig(cfg: ConfigItemMeta): boolean {
   if (!cfg.display_rules || cfg.display_rules.length === 0) {
     return true;
   }
-  // 所有规则都满足才显示
+  // All rules must be satisfied to show / 所有规则都满足才显示
   return cfg.display_rules.every((rule) => checkDisplayRule(rule, formModel));
 }
 
 /**
- * 获取排序后的子字段
+ * Get sorted child fields / 获取排序后的子字段
  */
 function getOrderedChildren(cfg: ConfigItemMeta): ConfigItemMeta[] {
   if (!cfg.children || cfg.children.length === 0) {
@@ -209,16 +215,16 @@ function getOrderedChildren(cfg: ConfigItemMeta): ConfigItemMeta[] {
   );
 }
 
-// 获取配置项标签（优先使用 name，其次 name_key，最后 fallback）
+// Get config item label (prefer name, then name_key, finally fallback) / 获取配置项标签（优先使用 name，其次 name_key，最后 fallback）
 function getConfigLabel(cfg: ConfigItemMeta): string {
-  // 1. 直接使用 name 字段
+  // 1. Use name field directly / 直接使用 name 字段
   if (cfg.name) return cfg.name;
-  // 2. 使用 name_key 翻译
+  // 2. Use name_key translation / 使用 name_key 翻译
   if (cfg.name_key) {
     const translated = t(cfg.name_key);
     if (translated !== cfg.name_key) return translated;
   }
-  // 3. fallback: 尝试 shared.config.platform.{key} 或 shared.config.tenant.{key}
+  // 3. fallback: try shared.config.platform.{key} or shared.config.tenant.{key}
   const platformKey = `shared.config.platform.${cfg.key}`;
   const platformTranslated = t(platformKey);
   if (platformTranslated !== platformKey) return platformTranslated;
@@ -226,20 +232,20 @@ function getConfigLabel(cfg: ConfigItemMeta): string {
   const tenantKey = `shared.config.tenant.${cfg.key}`;
   const tenantTranslated = t(tenantKey);
   if (tenantTranslated !== tenantKey) return tenantTranslated;
-  // 4. 最后 fallback 到 key 本身
+  // 4. Final fallback to key itself / 最后 fallback 到 key 本身
   return cfg.key;
 }
 
-// 获取配置项描述（优先使用 description，其次 description_key，最后 fallback）
+// Get config item description (prefer description, then description_key, finally fallback) / 获取配置项描述（优先使用 description，其次 description_key，最后 fallback）
 function getConfigDesc(cfg: ConfigItemMeta): string | undefined {
-  // 1. 直接使用 description 字段
+  // 1. Use description field directly / 直接使用 description 字段
   if (cfg.description) return cfg.description;
-  // 2. 使用 description_key 翻译
+  // 2. Use description_key translation / 使用 description_key 翻译
   if (cfg.description_key) {
     const translated = t(cfg.description_key);
     if (translated !== cfg.description_key) return translated;
   }
-  // 3. fallback: 尝试 shared.config.platform_desc.{key} 或 shared.config.tenant_desc.{key}
+  // 3. fallback: try shared.config.platform_desc.{key} or shared.config.tenant_desc.{key}
   const platformDescKey = `shared.config.platform_desc.${cfg.key}`;
   const platformDescTranslated = t(platformDescKey);
   if (platformDescTranslated !== platformDescKey) return platformDescTranslated;
@@ -250,18 +256,18 @@ function getConfigDesc(cfg: ConfigItemMeta): string | undefined {
   return undefined;
 }
 
-// 获取下拉选项
+// Get select options / 获取下拉选项
 function getSelectOptions(cfg: ConfigItemMeta) {
   return (cfg.options || []).map((o) => {
-    // 1. 直接使用 label 字段
+    // 1. Use label field directly / 直接使用 label 字段
     if (o.label) return { value: o.value, label: o.label };
-    // 2. 使用 label_key 翻译
+    // 2. Use label_key translation / 使用 label_key 翻译
     if (o.label_key) {
       const translated = t(o.label_key);
       if (translated !== o.label_key)
         return { value: o.value, label: translated };
     }
-    // 3. fallback: 尝试 shared.config.platform_options.{key}.{value}
+    // 3. fallback: try shared.config.platform_options.{key}.{value}
     const platformOptKey = `shared.config.platform_options.${cfg.key}.${o.value}`;
     const platformOptTranslated = t(platformOptKey);
     if (platformOptTranslated !== platformOptKey)
@@ -271,13 +277,13 @@ function getSelectOptions(cfg: ConfigItemMeta) {
     const tenantOptTranslated = t(tenantOptKey);
     if (tenantOptTranslated !== tenantOptKey)
       return { value: o.value, label: tenantOptTranslated };
-    // 4. fallback 到 value
+    // 4. fallback to value
     return { value: o.value, label: o.value };
   });
 }
 
 /**
- * 递归收集所有配置项的校验规则
+ * Recursively collect validation rules for all config items / 递归收集所有配置项的校验规则
  */
 function collectRules(
   configs: ConfigItemMeta[],
@@ -367,6 +373,7 @@ function getValues(): Record<string, any> {
 }
 
 /**
+ * Recursively process child fields, merge child values into parent JSON field
  * 递归处理子字段，将子字段值合并到父字段 JSON 中
  */
 function mergeChildrenToParent(
@@ -377,7 +384,7 @@ function mergeChildrenToParent(
     return;
   }
 
-  // 获取父字段当前的 JSON 值
+  // Get parent field's current JSON value / 获取父字段当前的 JSON 值
   let parentValue = payload[cfg.key];
   if (typeof parentValue === 'string') {
     try {
@@ -390,37 +397,37 @@ function mergeChildrenToParent(
     parentValue = {};
   }
 
-  // 将子字段的值合并到父字段 JSON 中
+  // Merge child field values into parent JSON / 将子字段的值合并到父字段 JSON 中
   for (const child of cfg.children) {
     if (child.value_path) {
       const childVal = formModel[child.key];
-      // 密码字段特殊处理
+      // Special handling for password fields / 密码字段特殊处理
       if (child.value_type === 'password' && child.is_encrypted) {
         if (childVal && childVal !== '******') {
           setValueByPath(parentValue, child.value_path, childVal);
         }
-        // 如果是占位符，不更新
+        // If placeholder, don't update / 如果是占位符，不更新
       } else {
         setValueByPath(parentValue, child.value_path, childVal);
       }
-      // 从 payload 中删除子字段的独立条目（它已经合并到父字段了）
+      // Remove child field's independent entry from payload (it's been merged into parent) / 从 payload 中删除子字段的独立条目（它已经合并到父字段了）
       delete payload[child.key];
     }
 
-    // 递归处理嵌套的子字段
+    // Recursively process nested child fields / 递归处理嵌套的子字段
     if (child.children && child.children.length > 0) {
       mergeChildrenToParent(child, payload);
     }
   }
 
-  // 更新父字段的值
+  // Update parent field's value / 更新父字段的值
   payload[cfg.key] = parentValue;
 }
 
 function prepareSubmitData(): ConfigSubmitPayload {
   const payload: ConfigSubmitPayload = {};
 
-  // 第一步：收集所有字段的值
+  // Step 1: Collect all field values / 第一步：收集所有字段的值
   const collectValues = (configs: ConfigItemMeta[]) => {
     for (const cfg of configs) {
       const val = formModel[cfg.key];
@@ -431,7 +438,7 @@ function prepareSubmitData(): ConfigSubmitPayload {
       } else {
         payload[cfg.key] = val;
       }
-      // 递归收集子字段
+      // Recursively collect child fields / 递归收集子字段
       if (cfg.children && cfg.children.length > 0) {
         collectValues(cfg.children);
       }
@@ -439,7 +446,7 @@ function prepareSubmitData(): ConfigSubmitPayload {
   };
   collectValues(props.configs || []);
 
-  // 第二步：将子字段值合并到父字段 JSON 中
+  // Step 2: Merge child field values into parent JSON / 第二步：将子字段值合并到父字段 JSON 中
   (props.configs || []).forEach((cfg) => {
     mergeChildrenToParent(cfg, payload);
   });
@@ -451,13 +458,13 @@ function reset() {
   formRef.value?.resetFields();
 }
 
-// 检查表单是否有修改
+// Check if form has been modified / 检查表单是否有修改
 function isDirty(): boolean {
   const currentSnapshot = JSON.stringify(formModel);
   return currentSnapshot !== initialSnapshot;
 }
 
-// 暴露方法给父组件
+// Expose methods to parent component / 暴露方法给父组件
 defineExpose({
   validate,
   getValues,
@@ -563,13 +570,13 @@ defineExpose({
             <Input v-model:value="formModel[cfg.key]" style="width: 120px" />
           </div>
 
-          <!-- image：使用附件管理器选择图片，存储附件 ID -->
+          <!-- image：使用附件管理器选择图片，存储附件 ID / Use attachment manager to select image, store attachment ID -->
           <ConfigImagePicker
             v-else-if="cfg.value_type === 'image'"
             v-model="formModel[cfg.key]"
           />
 
-          <!-- json with children: render children as sub-fields -->
+          <!-- json with children: render children as sub-fields / JSON 类型且有子字段时，渲染子字段 -->
           <template
             v-else-if="
               cfg.value_type === 'json' &&
@@ -577,7 +584,7 @@ defineExpose({
               cfg.children.length > 0
             "
           >
-            <!-- JSON 类型且有子字段时，不渲染父字段输入框，而是渲染子字段 -->
+            <!-- When JSON type has child fields, don't render parent input, render child fields instead / JSON 类型且有子字段时，不渲染父字段输入框，而是渲染子字段 -->
           </template>
 
           <!-- json without children: textarea for raw JSON editing -->
@@ -594,7 +601,7 @@ defineExpose({
         </Form.Item>
       </Transition>
 
-      <!-- 渲染 JSON 字段的子字段 -->
+      <!-- Render JSON field's child fields / 渲染 JSON 字段的子字段 -->
       <template
         v-if="
           cfg.value_type === 'json' &&
@@ -685,7 +692,7 @@ defineExpose({
                 />
               </div>
 
-              <!-- image：使用附件管理器选择图片，存储附件 ID -->
+              <!-- image: use attachment manager to select image, store attachment ID / 使用附件管理器选择图片，存储附件 ID -->
               <ConfigImagePicker
                 v-else-if="child.value_type === 'image'"
                 v-model="formModel[child.key]"
@@ -708,7 +715,7 @@ defineExpose({
 <style scoped>
 .config-slide-enter-active,
 .config-slide-leave-active {
-  max-height: 500px; /* 足够大的高度 */
+  max-height: 500px; /* Large enough height / 足够大的高度 */
   overflow: hidden;
   transition: all 0.3s ease;
 }

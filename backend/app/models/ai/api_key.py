@@ -1,7 +1,8 @@
 """
-AI 供应商 API Key 模型
+AI 供应商 API Key 模型 / AI Provider API Key Model
 
 存储 AI 供应商的 API Key，支持平台级和租户级 Key
+Stores AI provider API keys, supports platform-level and tenant-level keys.
 """
 
 from datetime import datetime

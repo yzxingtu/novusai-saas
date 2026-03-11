@@ -1,7 +1,8 @@
 """
-平台管理员服务
+平台管理员服务 / Admin Service
 
 提供平台管理员的业务逻辑
+Provides platform admin business logic.
 """
 
 from typing import Any

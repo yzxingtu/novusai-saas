@@ -1,7 +1,8 @@
 """
-租户域名仓储
+租户域名仓储 / Tenant Domain Repository
 
 提供租户域名的数据访问操作（平台级，非租户隔离）
+Provides tenant domain data access (platform-level, no tenant isolation).
 """
 
 from sqlalchemy import asc, select

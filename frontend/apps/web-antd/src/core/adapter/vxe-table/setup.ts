@@ -1,4 +1,5 @@
 /**
+ * vxe-table global configuration and initialization
  * vxe-table 全局配置和初始化
  */
 import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
@@ -9,13 +10,13 @@ import { useVbenForm } from '../form';
 import { registerRenderers } from './renderers';
 
 /**
- * 初始化 vxe-table
- * 在应用启动时调用
+ * Initialize vxe-table, called at app startup
+ * 初始化 vxe-table，在应用启动时调用
  */
 export function setupVxeTable() {
   setupVbenVxeTable({
     configVxeTable: (vxeUI) => {
-      // 全局配置
+      // Global configuration / 全局配置
       vxeUI.setConfig({
         grid: {
           align: 'center',
@@ -51,7 +52,7 @@ export function setupVxeTable() {
         } as VxeTableGridOptions,
       });
 
-      // 注册所有渲染器
+      // Register all renderers / 注册所有渲染器
       registerRenderers(vxeUI);
     },
     useVbenForm,

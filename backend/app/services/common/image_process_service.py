@@ -1,9 +1,10 @@
 """
-图片处理服务
+图片处理服务 / Image Processing Service
 
 提供统一的图片处理入口，自动选择最优处理方式：
-- 云存储使用原生图片处理 URL
-- 本地存储使用 Pillow + 文件缓存
+Provides unified image processing entry point, auto-selects optimal approach:
+- 云存储使用原生图片处理 URL / Cloud storage uses native image processing URL
+- 本地存储使用 Pillow + 文件缓存 / Local storage uses Pillow + file cache
 """
 
 from __future__ import annotations

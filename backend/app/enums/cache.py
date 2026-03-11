@@ -1,12 +1,12 @@
 """
-缓存管理相关枚举
+缓存管理相关枚举 / Cache Management Enums
 """
 
 from app.enums.base import LabeledStrEnum
 
 
 class CacheCategoryEnum(LabeledStrEnum):
-    """缓存分类枚举"""
+    """Cache Category Enum / 缓存分类枚举"""
 
     AI_RESPONSE = ("ai_response", "enum.cache.category.ai_response")
     AI_SCHEMA = ("ai_schema", "enum.cache.category.ai_schema")

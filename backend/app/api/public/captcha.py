@@ -19,10 +19,10 @@ from app.schemas.common.captcha import (
     CaptchaVerifyResponse,
 )
 
-router = APIRouter(prefix="/captcha", tags=["验证码"])
+router = APIRouter(prefix="/captcha", tags=["验证码 / Captcha"])
 
 
-@router.post("/challenge", summary="获取验证码挑战")
+@router.post("/challenge", summary="获取验证码挑战 / Get captcha challenge")
 @public
 async def create_challenge(
     request: Request,
@@ -53,7 +53,7 @@ async def create_challenge(
     )
 
 
-@router.post("/verify", summary="校验验证码")
+@router.post("/verify", summary="校验验证码 / Verify captcha")
 @public
 async def verify_captcha(
     request: Request,

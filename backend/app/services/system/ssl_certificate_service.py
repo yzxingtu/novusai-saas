@@ -1,8 +1,10 @@
 """
-SSL 证书服务
+SSL 证书服务 / SSL Certificate Service
 
 提供 SSL 证书的业务逻辑（平台级）
+Provides SSL certificate business logic (platform-level).
 包括证书查询、上传、删除、自动续期开关、证书解析与验证
+Includes cert query, upload, delete, auto-renewal toggle, cert parsing and validation.
 """
 
 from datetime import datetime

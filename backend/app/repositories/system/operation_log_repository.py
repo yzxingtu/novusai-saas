@@ -1,7 +1,8 @@
 """
-操作日志仓储
+操作日志仓储 / Operation Log Repository
 
 提供操作日志的数据访问操作
+Provides operation log data access operations.
 """
 
 from datetime import datetime

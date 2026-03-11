@@ -1,4 +1,5 @@
-"""Dependency whitelist helpers for plugin pip install safety checks."""
+"""Dependency whitelist helpers for plugin pip install safety checks.
+/ 插件 pip 安装安全检查的依赖白名单工具。"""
 
 from __future__ import annotations
 
@@ -29,7 +30,8 @@ ALLOWED_PACKAGES: set[str] = {
 
 
 def _parse_package_name(requirement_line: str) -> str:
-    """Extract normalized package name from a requirement line."""
+    """Extract normalized package name from a requirement line.
+    / 从 requirement 行中提取规范化的包名。"""
     line = (requirement_line or "").strip()
     if not line or line.startswith("#"):
         return ""
@@ -52,7 +54,8 @@ def _parse_package_name(requirement_line: str) -> str:
 
 
 def validate_requirements(requirements: list[str]) -> tuple[list[str], list[str]]:
-    """Split requirements into (allowed_lines, rejected_package_names)."""
+    """Split requirements into (allowed_lines, rejected_package_names).
+    / 将依赖列表拆分为（允许的行, 被拒绝的包名）。"""
     allowed: list[str] = []
     rejected: list[str] = []
 

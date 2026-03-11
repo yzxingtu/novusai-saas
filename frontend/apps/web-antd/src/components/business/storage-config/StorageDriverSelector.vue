@@ -1,9 +1,13 @@
 <script lang="ts" setup>
 /**
+ * Storage Driver Selector
  * 存储驱动选择器
  *
+ * Displays all available storage drivers, marks plugin activation status.
  * 展示所有可用存储驱动，标记插件启用状态。
+ * Disabled plugin drivers show "unavailable" tag and cannot be selected.
  * 未启用的插件驱动显示「不可用」标签且禁止选择。
+ * Shared between admin and tenant storage config pages.
  * 管理端和租户端存储配置页面共用。
  */
 import type { StorageDriverInfo } from '#/types/storage';
@@ -52,21 +56,26 @@ function getDriverIcon(name: string): string {
 }
 
 /**
+ * Driver display name translation
  * 驱动显示名称翻译
  *
+ * Backend display_name has two formats:
  * 后端返回的 display_name 有两种情况：
- * 1. i18n key 格式如 "storage.driver.local" → 转换为 "shared.storage.driver.local" 翻译
- * 2. 未注册驱动直接返回中文文本如 "七牛云 Kodo" → 原样返回
+ * 1. i18n key like "storage.driver.local" → convert to "shared.storage.driver.local" for translation
+ *    i18n key 格式如 "storage.driver.local" → 转换为 "shared.storage.driver.local" 翻译
+ * 2. Unregistered driver returns text directly like "七牛云 Kodo" → return as-is
+ *    未注册驱动直接返回中文文本如 "七牛云 Kodo" → 原样返回
  *
+ * Note: Only call keys that are known to exist, to avoid intlify Not found warnings.
  * 注意：只调用确定存在的 key，避免 intlify Not found 警告。
  */
 function getDriverDisplayName(displayName: string): string {
   if (!displayName) return '';
-  // 后端 i18n key 格式 "storage.driver.xxx" → 前端 "shared.storage.driver.xxx"
+  // Backend i18n key format "storage.driver.xxx" → frontend "shared.storage.driver.xxx" / 后端 i18n key 格式 "storage.driver.xxx" → 前端 "shared.storage.driver.xxx"
   if (displayName.startsWith('storage.driver.')) {
     return $t(`shared.${displayName}`);
   }
-  // 非 i18n key（直接中文/英文文本），原样返回
+  // Not an i18n key (direct text), return as-is / 非 i18n key（直接中文/英文文本），原样返回
   return displayName;
 }
 </script>

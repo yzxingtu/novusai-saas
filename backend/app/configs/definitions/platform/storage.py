@@ -43,7 +43,7 @@ PLATFORM_STORAGE_BASE_URL = ConfigMeta(
     scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.STRING,
     default_value="",
-    # 所有驱动都需要设置访问域名，本地存储用于构建文件 URL
+    # All drivers need base URL; local storage uses it to build file URLs / 所有驱动都需要设置访问域名
     sort_order=30,
 )
 
@@ -315,7 +315,7 @@ PLATFORM_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
 )
 
 # ==========================================
-# 图片处理配置
+# Image processing config / 图片处理配置
 # ==========================================
 
 PLATFORM_IMAGE_PROCESS_ENABLED = ConfigMeta(
@@ -349,7 +349,7 @@ PLATFORM_IMAGE_CACHE_DRIVER = ConfigMeta(
     sort_order=110,
 )
 
-# 图片缓存路径已硬编码，不再作为配置项
+# Image cache path is hardcoded, no longer a config item / 图片缓存路径已硬编码，不再作为配置项
 
 PLATFORM_IMAGE_CACHE_TTL_DAYS = ConfigMeta(
     key="platform_image_cache_ttl_days",
@@ -487,7 +487,7 @@ PLATFORM_STORAGE_ALLOWED_CUSTOM_DRIVERS = ConfigMeta(
     scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.JSON,
     default_value=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
-    # display_rules 已移除：自主配置改为逐租户控制，允许的驱动白名单始终可配置
+    # display_rules removed: self-config changed to per-tenant control / 自主配置改为逐租户控制
     sort_order=180,
 )
 
@@ -501,7 +501,7 @@ PLATFORM_STORAGE_GROUP.configs = [
     PLATFORM_STORAGE_MAX_FILE_SIZE_MB,
     PLATFORM_STORAGE_ALLOWED_EXTENSIONS,
     PLATFORM_STORAGE_DENIED_EXTENSIONS,
-    # 图片处理配置
+    # Image processing config / 图片处理配置
     PLATFORM_IMAGE_PROCESS_ENABLED,
     PLATFORM_IMAGE_CACHE_DRIVER,
     PLATFORM_IMAGE_CACHE_TTL_DAYS,
@@ -527,7 +527,7 @@ __all__ = [
     "PLATFORM_STORAGE_MAX_FILE_SIZE_MB",
     "PLATFORM_STORAGE_ALLOWED_EXTENSIONS",
     "PLATFORM_STORAGE_DENIED_EXTENSIONS",
-    # 图片处理配置
+    # Image processing config / 图片处理配置
     "PLATFORM_IMAGE_PROCESS_ENABLED",
     "PLATFORM_IMAGE_CACHE_DRIVER",
     "PLATFORM_IMAGE_CACHE_TTL_DAYS",

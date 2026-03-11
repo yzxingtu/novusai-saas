@@ -1,7 +1,8 @@
 """
-AI 表策略相关 Schema
+AI 表策略相关 Schema / AI Table Policy Schema
 
 定义 AI 表策略的请求和响应数据结构
+Defines AI table policy request and response data structures.
 """
 
 from pydantic import Field

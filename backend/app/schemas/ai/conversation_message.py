@@ -1,7 +1,8 @@
 """
-对话消息相关 Schema
+对话消息相关 Schema / Conversation Message Schema
 
 定义对话消息的请求和响应数据结构
+Defines conversation message request and response data structures.
 """
 
 from pydantic import Field

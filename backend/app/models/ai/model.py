@@ -1,7 +1,8 @@
 """
-AI 模型模型
+AI 模型模型 / AI Model Model
 
 定义 AI 供应商提供的具体模型信息
+Defines specific model information provided by AI providers.
 """
 
 from typing import TYPE_CHECKING

@@ -1,8 +1,8 @@
 """
-系统智能体绑定模型
+系统智能体绑定模型 / System Agent Assignment Model
 
-将功能代码（feature_code）映射到指定智能体，
-用于系统级功能（如 CRUD Generator、全局 AI Chat）自动选择对应智能体。
+将功能代码（feature_code）映射到指定智能体，用于系统级功能自动选择对应智能体。
+Maps feature_code to designated agents for system-level features (e.g. CRUD Generator, global AI Chat).
 """
 
 from sqlalchemy import (

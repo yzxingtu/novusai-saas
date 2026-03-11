@@ -1,5 +1,5 @@
 """
-智能体技能绑定相关 Schema
+智能体技能绑定相关 Schema / Agent Skill Binding Schema
 """
 
 from typing import Any

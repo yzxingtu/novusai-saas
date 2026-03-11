@@ -1,7 +1,8 @@
 """
-知识库 Service
+知识库 Service / Knowledge Base Service
 
 提供知识库的创建、更新、删除等业务逻辑
+Provides knowledge base create, update, delete business logic.
 """
 
 from typing import Any

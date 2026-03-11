@@ -1,4 +1,5 @@
 /**
+ * Admin (platform management) route module
  * 平台管理端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
@@ -8,7 +9,7 @@ import { $t } from '#/locales';
 const AuthPageLayout = () => import('#/layouts/admin-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
-/** 平台管理端认证路由 */
+/** Admin authentication routes / 平台管理端认证路由 */
 const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
@@ -30,7 +31,7 @@ const authRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 平台管理端主布局路由 */
+/** Admin main layout routes / 平台管理端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
@@ -111,8 +112,8 @@ const mainRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 平台管理端路由 */
+/** Admin routes / 平台管理端路由 */
 export const adminRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
-/** 平台管理端路由名称列表（不需要权限拦截） */
+/** Admin core route names (bypass permission checks) / 平台管理端路由名称列表（不需要权限拦截） */
 export const adminCoreRouteNames = ['AdminAuthentication', 'AdminLogin'];

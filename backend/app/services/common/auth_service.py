@@ -1,7 +1,8 @@
 """
-认证服务
+认证服务 / Authentication Service
 
 提供平台管理员、租户管理员、租户用户的认证逻辑
+Provides authentication logic for platform admins, tenant admins and tenant users.
 """
 
 import secrets

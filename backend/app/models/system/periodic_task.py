@@ -1,7 +1,8 @@
 """
-定时任务模型
+定时任务模型 / Periodic Task Model
 
 记录和管理数据库驱动的定时任务调度配置
+Records and manages database-driven periodic task scheduling configuration.
 """
 
 from datetime import datetime

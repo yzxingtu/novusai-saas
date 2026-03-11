@@ -1,7 +1,8 @@
 """
-AI 表策略 Service
+AI 表策略 Service / AI Table Policy Service
 
 提供 AI 表策略的业务逻辑（平台级管理）
+Provides AI table policy business logic (platform-level management).
 """
 
 from app.core.base_service import BaseService

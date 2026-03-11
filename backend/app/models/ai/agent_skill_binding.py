@@ -1,7 +1,8 @@
 """
-智能体技能包绑定模型
+智能体技能包绑定模型 / Agent Skill Binding Model
 
 定义 Agent 与 SkillPackage 的多对多关系
+Defines Agent-SkillPackage many-to-many relationship.
 """
 
 from typing import TYPE_CHECKING

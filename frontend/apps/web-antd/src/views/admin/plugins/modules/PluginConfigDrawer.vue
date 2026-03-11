@@ -1,7 +1,9 @@
 <script setup lang="ts">
 /**
+ * Plugin config drawer (based on legacy PluginConfigDrawer)
  * 插件配置抽屉（参考旧版 PluginConfigDrawer）
  *
+ * Shows plugin details + config editing + version history + health status
  * 展示插件详情 + 配置编辑 + 版本历史 + 健康状态
  */
 import type {
@@ -335,7 +337,7 @@ function onDisable() {
   Modal.confirm({
     title: $t('admin.plugin.confirm.disable', { name: pluginVal.display_name }),
     onOk() {
-      // 不 return Promise，让 Modal 立即关闭
+      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
       disablePluginApi(pluginVal.id)
         .then(async () => {
           message.success($t('admin.plugin.messages.disableSuccess'));
@@ -352,7 +354,7 @@ function onDisable() {
             (error as AxiosLike)?.response?.data?.message ??
             (error as AxiosLike)?.message ??
             '';
-          // 依赖插件错误
+          // Dependent plugin error / 依赖插件错误
           if (apiMsg.includes('depend on it') || apiMsg.includes('plugins [')) {
             const match = apiMsg.match(/plugins \[([^\]]+)\]/);
             const deps = match ? match[1] : apiMsg;
@@ -366,7 +368,7 @@ function onDisable() {
             });
             return;
           }
-          // 存储驱动错误 —— 弹出强制禁用确认
+          // Storage driver error — pop force-disable confirmation / 存储驱动错误 —— 弹出强制禁用确认
           if (
             apiMsg.includes('storage driver') ||
             apiMsg.includes('used by tenant')
@@ -389,7 +391,7 @@ function onDisable() {
             });
             return;
           }
-          // 其他意外错误 — 兜底提示
+          // Other unexpected error — fallback hint / 其他意外错误 — 兜底提示
           message.error(apiMsg || $t('admin.common.operationFailed'));
         });
     },
@@ -405,7 +407,7 @@ function onUninstall() {
     }),
     okType: 'danger',
     onOk() {
-      // 不 return Promise，让 Modal 立即关闭
+      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
       uninstallPluginApi(pluginVal.id)
         .then(() => {
           message.success($t('admin.plugin.messages.uninstallSuccess'));
@@ -490,7 +492,7 @@ function onRollback(version: string) {
     title: `${$t('admin.plugin.action.rollback')} → v${version}`,
     okType: 'danger',
     onOk() {
-      // 不 return Promise，让 Modal 立即关闭
+      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
       rollbackPluginApi(pluginVal.id, version)
         .then(async () => {
           message.success($t('admin.plugin.messages.rollbackSuccess'));
@@ -601,7 +603,7 @@ function getLicenseStatusText(status: string): string {
   return map[status] || status;
 }
 
-// ── 备份 ──
+// ── Backups / 备份 ──
 const backups = ref<PluginBackupInfo[]>([]);
 const backupsLoading = ref(false);
 
@@ -642,7 +644,7 @@ defineExpose({ open });
     :destroy-on-close="true"
   >
     <template v-if="plugin">
-      <!-- 头部信息 -->
+      <!-- Header info / 头部信息 -->
       <div class="mb-6 flex items-start gap-4">
         <div
           class="flex size-14 shrink-0 items-center justify-center rounded-xl"
@@ -715,7 +717,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 操作按钮 -->
+      <!-- Action buttons / 操作按钮 -->
       <div class="mb-6 flex flex-wrap gap-2">
         <Button
           v-if="plugin.status === 'installed' || plugin.status === 'disabled'"
@@ -739,7 +741,7 @@ defineExpose({ open });
         </Button>
       </div>
 
-      <!-- 基本信息 -->
+      <!-- Basic info / 基本信息 -->
       <Descriptions :column="1" size="small" bordered class="mb-6">
         <DescriptionsItem :label="$t('admin.plugin.scope')">
           {{ getScopeText(plugin.scope) }}
@@ -771,7 +773,7 @@ defineExpose({ open });
         </DescriptionsItem>
       </Descriptions>
 
-      <!-- README 文档（可折叠） -->
+      <!-- README document (collapsible) / README 文档（可折叠） -->
       <div v-if="plugin.readme" class="mb-6">
         <Collapse :bordered="false" class="!bg-transparent">
           <CollapsePanel
@@ -796,7 +798,7 @@ defineExpose({ open });
         </Collapse>
       </div>
 
-      <!-- 能力授权 -->
+      <!-- Granted capabilities / 能力授权 -->
       <div v-if="plugin.granted_capabilities?.length" class="mb-6">
         <h4 class="mb-2 text-sm font-medium">
           {{ $t('admin.plugin.capabilitiesLabel') }}
@@ -814,7 +816,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- License 管理 -->
+      <!-- License management / License 管理 -->
       <div v-if="isPaidPlugin" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">
@@ -829,7 +831,7 @@ defineExpose({ open });
         </div>
 
         <div class="rounded-lg border border-border/60 p-4">
-          <!-- 加载中 -->
+          <!-- Loading / 加载中 -->
           <div
             v-if="licenseLoading"
             class="text-center text-sm text-muted-foreground"
@@ -837,7 +839,7 @@ defineExpose({ open });
             {{ $t('common.loading') }}...
           </div>
 
-          <!-- 有效 License 详情 -->
+          <!-- Valid License details / 有效 License 详情 -->
           <template v-else-if="licenseInfo && licenseInfo.is_valid">
             <Descriptions :column="1" size="small" class="mb-3">
               <DescriptionsItem :label="$t('admin.plugin.license.type')">
@@ -908,13 +910,13 @@ defineExpose({ open });
             </Button>
           </template>
 
-          <!-- 无 License / 过期 -->
+          <!-- No License / expired / 无 License / 过期 -->
           <template v-else>
             <p class="mb-3 text-sm text-muted-foreground">
               {{ licenseInfo?.message || $t('admin.plugin.license.noLicense') }}
             </p>
 
-            <!-- 输入 License Key -->
+            <!-- Input License Key / 输入 License Key -->
             <div class="mb-3">
               <div class="mb-1.5 text-xs font-medium">
                 {{ $t('admin.plugin.license.inputKey') }}
@@ -938,7 +940,7 @@ defineExpose({ open });
               </div>
             </div>
 
-            <!-- 开始试用 -->
+            <!-- Start trial / 开始试用 -->
             <Button
               v-if="!licenseInfo || licenseInfo.status === 'none'"
               size="small"
@@ -952,7 +954,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 租户分配（仅 assigned_tenants / admin_and_assigned 显示） -->
+      <!-- Tenant assignment (only shown for assigned_tenants / admin_and_assigned) / 租户分配（仅 assigned_tenants / admin_and_assigned 显示） -->
       <div v-if="needsTenantAssignment" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">
@@ -964,7 +966,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- 租户选择 -->
+        <!-- Tenant selection / 租户选择 -->
         <div v-if="showTenantSelect" class="mb-3 flex items-center gap-2">
           <Select
             v-model:value="selectedTenantIds"
@@ -986,7 +988,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- 已分配租户列表 -->
+        <!-- Assigned tenants list / 已分配租户列表 -->
         <div v-if="tenantAssignments.length > 0" class="flex flex-wrap gap-1.5">
           <Tag
             v-for="assignment in tenantAssignments"
@@ -1005,7 +1007,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 配置编辑（仅在有 config_schema 或已有配置时显示） -->
+      <!-- Config editing (only shown when config_schema or existing config present) / 配置编辑（仅在有 config_schema 或已有配置时显示） -->
       <div v-if="hasConfigToShow" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">
@@ -1021,7 +1023,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- 有 config_schema 时渲染动态表单 -->
+        <!-- Render dynamic form when config_schema exists / 有 config_schema 时渲染动态表单 -->
         <template v-if="configSchemaFields.length > 0">
           <Form
             layout="vertical"
@@ -1087,7 +1089,7 @@ defineExpose({ open });
           </Form>
         </template>
 
-        <!-- 无 schema 但有已存配置时显示 JSON 编辑器 -->
+        <!-- Show JSON editor when no schema but has existing config / 无 schema 但有已存配置时显示 JSON 编辑器 -->
         <template v-else>
           <Input.TextArea
             v-model:value="configJson"
@@ -1097,7 +1099,7 @@ defineExpose({ open });
         </template>
       </div>
 
-      <!-- 备份记录 -->
+      <!-- Backup records / 备份记录 -->
       <div class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">
@@ -1167,7 +1169,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 版本历史 -->
+      <!-- Version history / 版本历史 -->
       <div class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">

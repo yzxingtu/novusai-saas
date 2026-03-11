@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * DependencyBlockModal - Deletion dependency block modal
  * DependencyBlockModal - 删除依赖阻止弹窗
  *
+ * Shows referenced resource list when deletion is blocked by 4221 error.
  * 当删除被 4221 错误阻止时，展示被引用资源列表。
+ * Supports standalone usage or auto-trigger via useCrudPage.
  * 支持独立使用或通过 useCrudPage 自动触发。
  */
 import { computed, ref } from 'vue';
@@ -32,26 +35,26 @@ const resourceName = ref('');
 
 const MAX_PREVIEW = 5;
 
-/** 打开弹窗 */
+/** Open modal / 打开弹窗 */
 function open(deps: DependencyGroup[], name?: string) {
   dependencies.value = deps;
   resourceName.value = name || '';
   visible.value = true;
 }
 
-/** 关闭弹窗 */
+/** Close modal / 关闭弹窗 */
 function close() {
   visible.value = false;
 }
 
-/** 获取模型的 i18n 名称 */
+/** Get model i18n label / 获取模型的 i18n 名称 */
 function getModelLabel(type: string): string {
   const key = `common.dependency.model.${type}`;
   const translated = $t(key);
   return translated === key ? type : translated;
 }
 
-/** 获取依赖类型图标 */
+/** Get dependency type icon / 获取依赖类型图标 */
 function getTypeIcon(type: string): string {
   const iconMap: Record<string, string> = {
     ai_model: 'lucide:brain',
@@ -81,7 +84,7 @@ function getTypeIcon(type: string): string {
   return iconMap[type] || 'lucide:box';
 }
 
-/** 标题 */
+/** Title / 标题 */
 const title = computed(() => {
   if (resourceName.value) {
     return `${$t('common.dependency.title')}「${resourceName.value}」`;
@@ -100,7 +103,7 @@ defineExpose({ open, close });
     :width="520"
     centered
   >
-    <!-- 提示文案 -->
+    <!-- Warning message / 提示文案 -->
     <div class="mb-4 flex items-start gap-2 rounded-lg bg-warning/10 px-4 py-3">
       <IconifyIcon
         icon="lucide:alert-triangle"
@@ -111,14 +114,14 @@ defineExpose({ open, close });
       </span>
     </div>
 
-    <!-- 依赖分组列表 -->
+    <!-- Dependency group list / 依赖分组列表 -->
     <div class="space-y-3">
       <div
         v-for="dep in dependencies"
         :key="dep.type"
         class="rounded-lg border border-border/50 bg-accent/5 px-4 py-3"
       >
-        <!-- 类型标题 -->
+        <!-- Type heading / 类型标题 -->
         <div class="mb-2 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <IconifyIcon
@@ -134,7 +137,7 @@ defineExpose({ open, close });
           </Tag>
         </div>
 
-        <!-- 记录摘要 -->
+        <!-- Record summary / 记录摘要 -->
         <div v-if="dep.items && dep.items.length > 0" class="space-y-1 pl-6">
           <div
             v-for="item in dep.items.slice(0, MAX_PREVIEW)"
@@ -160,7 +163,7 @@ defineExpose({ open, close });
       </div>
     </div>
 
-    <!-- 引导文案 -->
+    <!-- Guidance message / 引导文案 -->
     <div
       class="mt-4 flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-2.5"
     >

@@ -1,7 +1,8 @@
 """
-邮件模板引擎
+邮件模板引擎 / Email Template Engine
 
 基于 Jinja2 的邮件模板系统，支持：
+Jinja2-based email template system, supports:
 - HTML 模板渲染 + 纯文本自动回退
 - 基础布局模板（品牌一致性）
 - i18n 多语言支持

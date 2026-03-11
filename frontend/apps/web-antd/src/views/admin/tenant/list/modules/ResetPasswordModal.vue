@@ -24,13 +24,13 @@ const emits = defineEmits<{
 
 const tenantData = ref<ResetPasswordTarget>();
 
-// 表单
+// Form / 表单
 const [Form, formApi] = useVbenForm({
   schema: useResetPasswordSchema(),
   showDefaultActions: false,
 });
 
-// 弹窗
+// Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();

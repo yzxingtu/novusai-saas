@@ -1,7 +1,8 @@
 """
-文档分块模型
+文档分块模型 / Document Chunk Model
 
 定义分块文本内容、向量、元数据等，包含 pgvector 向量字段和 HNSW 索引
+Defines chunk text content, vectors, metadata, with pgvector vector fields and HNSW indexes.
 """
 
 from typing import TYPE_CHECKING

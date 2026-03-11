@@ -1,4 +1,5 @@
 /**
+ * Tenant domain management - type definitions
  * 租户域名管理 - 类型定义
  */
 import type {
@@ -15,7 +16,7 @@ export type {
   VerificationStatus,
 } from '#/types/domain';
 
-/** 域名信息 */
+/** Domain info / 域名信息 */
 export interface TenantDomainInfo {
   id: number;
   tenantId: number;
@@ -37,11 +38,11 @@ export interface TenantDomainInfo {
   remark?: string;
   createdAt: string;
   updatedAt: string;
-  // SSL 扩展 (预留)
+  // SSL extension (reserved) / SSL 扩展 (预留)
   sslInfo?: SslInfo;
 }
 
-/** SSL 信息 (预留) */
+/** SSL info (reserved) / SSL 信息 (预留) */
 export interface SslInfo {
   status: SslStatus;
   type: SslType;
@@ -53,39 +54,39 @@ export interface SslInfo {
   domainMatch?: boolean;
 }
 
-/** SSL 详情响应 (预留，包含证书内容用于复制) */
+/** SSL detail response (reserved, includes cert content for copying) / SSL 详情响应 (预留，包含证书内容用于复制) */
 export interface SslDetailResponse {
   status: SslStatus;
   type: SslType;
-  // 证书内容 (平台签发模式可复制)
+  // Certificate content (copyable in platform-issued mode) / 证书内容 (平台签发模式可复制)
   certificate?: string;
   privateKey?: string;
   certificateChain?: string;
-  // 证书信息
+  // Certificate info / 证书信息
   issuer?: string;
   validFrom?: string;
   validTo?: string;
-  // 自动续期 (仅平台签发)
+  // Auto-renew (platform-issued only) / 自动续期 (仅平台签发)
   autoRenew: boolean;
   nextRenewAt?: string;
-  // 域名匹配 (仅自定义证书)
+  // Domain match (custom cert only) / 域名匹配 (仅自定义证书)
   domainMatch?: boolean;
 }
 
-/** 域名弹窗打开数据 */
+/** Domain modal open data / 域名弹窗打开数据 */
 export interface DomainModalData {
   tenantId: number;
   tenantName: string;
   tenantCode: string;
 }
 
-/** 域名详情抽屉数据 */
+/** Domain detail drawer data / 域名详情抽屉数据 */
 export interface DomainDetailData {
   domainId: number;
   tenantId: number;
 }
 
-/** DNS 引导弹窗数据 */
+/** DNS guide modal data / DNS 引导弹窗数据 */
 export interface DnsGuideData {
   domain: string;
   tenantId: number;

@@ -1,8 +1,13 @@
 import type { ApiEndpoint, RefreshTokenResultRaw } from './types';
 
 /**
+ * Request instance configuration
  * 请求实例配置
  *
+ * Creates and configures requestClient instance with:
+ * - Multi-endpoint Token management
+ * - Request/response interceptors
+ * - Error handling
  * 创建并配置 requestClient 实例，集成：
  * - 多端 Token 管理
  * - 请求/响应拦截器
@@ -32,12 +37,15 @@ import {
 import { RequestClient } from './request-client';
 
 // ============================================================
-// 配置
+// Configuration / 配置
 // ============================================================
 
 const { apiURL: rawApiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
 /**
+ * In dev mode, replace 127.0.0.1 with current page hostname,
+ * ensuring API requests carry the correct Host header (tenant domain isolation relies on Host header).
+ * Example: as.dakkii.cn:5666 → API sends to as.dakkii.cn:8000
  * Dev 模式下使用当前页面 hostname 替代 127.0.0.1，
  * 确保 API 请求携带正确的 Host header（租户域名隔离依赖 Host header）。
  * 例如：as.dakkii.cn:5666 → API 发送到 as.dakkii.cn:8000
@@ -53,14 +61,14 @@ const apiURL = (() => {
   }
 })();
 
-/** 刷新 Token URL 映射 */
+/** Refresh Token URL mapping / 刷新 Token URL 映射 */
 const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
   admin: '/admin/auth/refresh',
   tenant: '/tenant/auth/refresh',
   user: '/api/user/auth/refresh',
 };
 
-/** 登录页 URL 映射（避免依赖 store 入口造成循环依赖） */
+/** Login page URL mapping (avoid circular dependency from store imports) / 登录页 URL 映射（避免依赖 store 入口造成循环依赖） */
 const LOGIN_PATHS: Record<ApiEndpoint, string> = {
   admin: '/admin/login',
   tenant: '/tenant/login',
@@ -68,7 +76,7 @@ const LOGIN_PATHS: Record<ApiEndpoint, string> = {
 };
 
 // ============================================================
-// Token 获取器
+// Token getter / Token 获取器
 // ============================================================
 
 const tokenGetter = {
@@ -78,10 +86,11 @@ const tokenGetter = {
 };
 
 // ============================================================
-// 认证处理器
+// Authentication handler / 认证处理器
 // ============================================================
 
 /**
+ * Re-authenticate (called when Token refresh fails)
  * 重新认证（Token 刷新失败时调用）
  */
 async function doReAuthenticate() {
@@ -117,6 +126,7 @@ async function doReAuthenticate() {
 }
 
 /**
+ * Refresh Token
  * 刷新 Token
  */
 async function doRefreshToken(): Promise<string> {
@@ -168,7 +178,7 @@ const authHandler = {
 };
 
 // ============================================================
-// 消息处理器
+// Message handler / 消息处理器
 // ============================================================
 
 const messageHandler = {
@@ -183,10 +193,11 @@ const messageHandler = {
 };
 
 // ============================================================
-// 创建请求实例
+// Create request instances / 创建请求实例
 // ============================================================
 
 /**
+ * Create configured request client
  * 创建配置好的请求客户端
  */
 function createConfiguredClient(
@@ -251,15 +262,17 @@ function createConfiguredClient(
 }
 
 // ============================================================
-// 导出实例
+// Export instances / 导出实例
 // ============================================================
 
 /**
+ * Request client with full interceptors
  * 带完整拦截器的请求客户端
  */
 export const requestClient = createConfiguredClient(true);
 
 /**
+ * Base request client (no interceptors, for Token refresh and special scenarios)
  * 基础请求客户端（无拦截器，用于 Token 刷新等特殊场景）
  */
 export const baseRequestClient = createConfiguredClient(false);

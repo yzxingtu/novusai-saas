@@ -1,7 +1,8 @@
 """
-共享技能辅助函数
+共享技能辅助函数 / Shared Skill Helpers
 
 从 admin/skills.py 提取，供 admin 和 tenant 端共同使用。
+Extracted from admin/skills.py, shared by admin and tenant endpoints.
 """
 
 from __future__ import annotations
@@ -27,16 +28,19 @@ async def enrich_plugin_skill_info(
 ) -> None:
     """
     为插件注册的技能补充 source_plugin 和 plugin_tools 信息
+    Enrich plugin-registered skills with source_plugin and plugin_tools info
 
     通过 SkillPackage.source_plugin 判断是否为插件技能，
+    Determines if skill is plugin-registered via SkillPackage.source_plugin,
     若是则从 ExtensionRegistry 调用 resolver 获取工具列表。
+    if so, calls resolver from ExtensionRegistry to get tool list.
     """
     from sqlalchemy import select
 
     from app.models.ai.skill_package import SkillPackage
     from app.schemas.ai.skill import PluginToolInfo
 
-    # 查询所属技能包的 source_plugin
+    # 查询所属技能包的 source_plugin / Query source_plugin of the parent skill package
     result = await db.execute(
         select(SkillPackage.source_plugin).where(
             SkillPackage.id == skill.package_id,
@@ -49,7 +53,7 @@ async def enrich_plugin_skill_info(
 
     data.source_plugin = source_plugin
 
-    # 从插件 registry 获取 resolver 并调用
+    # 从插件 registry 获取 resolver 并调用 / Get resolver from plugin registry and invoke
     try:
         from app.plugins.registry import ExtensionRegistry
 

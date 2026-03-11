@@ -1,8 +1,10 @@
 """
-Socket.IO 服务器单例
+Socket.IO 服务器单例 / Socket.IO Server Singleton
 
 提供全局 AsyncServer 实例，使用 AsyncRedisManager 支持多 Worker 部署。
+Provides global AsyncServer instance, using AsyncRedisManager for multi-worker deployment.
 通过 ASGI 模式与 FastAPI 集成。
+Integrated with FastAPI via ASGI mode.
 """
 
 import socketio
@@ -13,7 +15,7 @@ from app.core.logging import LogManager
 logger = LogManager.get_logger("app")
 
 # ========================================
-# Redis Manager（多 Worker 消息同步）
+# Redis Manager（多 Worker 消息同步 / Multi-worker message sync）
 # ========================================
 
 _redis_manager = socketio.AsyncRedisManager(
@@ -44,17 +46,20 @@ logger.info("Socket.IO AsyncServer created with Redis manager")
 
 
 def get_sio() -> socketio.AsyncServer:
-    """获取全局 Socket.IO 服务器实例"""
+    """获取全局 Socket.IO 服务器实例 / Get global Socket.IO server instance"""
     return sio
 
 
 async def apply_ws_config() -> None:
     """
     从平台配置读取 WS 参数并应用到 AsyncServer
+    Read WS params from platform config and apply to AsyncServer.
 
     在 lifespan startup（DB + Redis 初始化之后）调用。
+    Called during lifespan startup (after DB + Redis initialization).
     修改 engine.io 的 ping_interval / ping_timeout 属性，
     对新建连接生效（已有连接保持旧值）。
+    Modifies engine.io ping_interval/ping_timeout; takes effect for new connections only.
     """
     try:
         from app.sio.ws_config import get_ws_configs
@@ -66,7 +71,7 @@ async def apply_ws_config() -> None:
         ping_interval = cfg.get("ws_ping_interval", 25)
         ping_timeout = cfg.get("ws_ping_timeout", 20)
 
-        # 更新 engine.io 属性（对新连接生效）
+        # 更新 engine.io 属性（对新连接生效） / Update engine.io attributes (effective for new connections)
         if hasattr(sio, "eio"):
             sio.eio.ping_interval = int(ping_interval)
             sio.eio.ping_timeout = int(ping_timeout)

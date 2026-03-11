@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 /**
+ * Permission Preview Popover Component
  * 权限预览 Popover 组件
- * 点击触发，显示节点已分配的权限树
+ *
+ * Click to trigger, displays the assigned permission tree for a node.
+ * 点击触发，显示节点已分配的权限树。
  */
 import { computed, ref, watch } from 'vue';
 
@@ -12,7 +15,7 @@ import { Empty, Popover, Skeleton, Tag, Tree } from 'ant-design-vue';
 import { adminApi as admin, tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
 
-/** 权限节点通用类型 */
+/** Generic permission node type / 权限节点通用类型 */
 interface PermissionNode {
   id: number;
   code: string;
@@ -23,11 +26,11 @@ interface PermissionNode {
 }
 
 const props = defineProps<{
-  /** API 前缀: admin 或 tenant */
+  /** API prefix: admin or tenant / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
-  /** 节点 ID */
+  /** Node ID / 节点 ID */
   nodeId: number;
-  /** 权限数量 */
+  /** Permission count / 权限数量 */
   permissionsCount: number;
 }>();
 
@@ -38,12 +41,12 @@ const permissionTree = ref<PermissionNode[]>([]);
 const expandedKeys = ref<number[]>([]);
 
 /**
- * 加载节点权限
+ * Load node permissions / 加载节点权限
  */
 async function loadPermissions() {
-  // 权限数为 0 时不需要加载
+  // No need to load when permission count is 0 / 权限数为 0 时不需要加载
   if (props.permissionsCount === 0) return;
-  // 已加载过
+  // Already loaded / 已加载过
   if (permissionIdSet.value.size > 0) return;
 
   loading.value = true;
@@ -51,14 +54,14 @@ async function loadPermissions() {
     let permIds: number[] = [];
 
     if (props.apiPrefix === 'tenant') {
-      // 租户端 API
+      // Tenant API / 租户端 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
-      // 优先使用 permissionIds，否则从 permissions 提取
+      // Prefer permissionIds, otherwise extract from permissions / 优先使用 permissionIds
       permIds =
         detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
       permissionTree.value = await tenant.getTenantPermissionTreeApi();
     } else {
-      // 平台端 API
+      // Platform API / 平台端 API
       const detail = await admin.getRoleDetailApi(props.nodeId);
       permIds =
         detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
@@ -67,7 +70,7 @@ async function loadPermissions() {
 
     permissionIdSet.value = new Set(permIds);
 
-    // 默认展开所有节点
+    // Expand all nodes by default / 默认展开所有节点
     expandedKeys.value = getAllKeys(permissionTree.value);
   } catch (error) {
     console.error('Load permissions error:', error);
@@ -79,7 +82,7 @@ async function loadPermissions() {
 }
 
 /**
- * 获取所有节点 keys
+ * Get all node keys / 获取所有节点 keys
  */
 function getAllKeys(nodes: PermissionNode[]): number[] {
   const keys: number[] = [];
@@ -93,6 +96,7 @@ function getAllKeys(nodes: PermissionNode[]): number[] {
 }
 
 /**
+ * Filter permission tree, keep only assigned permissions and their parent nodes
  * 过滤权限树，只保留已分配的权限及其父节点
  */
 interface FilteredPermNode {
@@ -132,7 +136,7 @@ const filteredTreeData = computed(() =>
 );
 
 /**
- * 获取权限类型图标
+ * Get permission type icon / 获取权限类型图标
  */
 function getTypeIcon(type: string): string {
   switch (type) {
@@ -155,7 +159,7 @@ function getTypeIcon(type: string): string {
 }
 
 /**
- * 获取权限类型颜色
+ * Get permission type color / 获取权限类型颜色
  */
 function getTypeColor(type: string): string {
   switch (type) {
@@ -184,7 +188,7 @@ function handleOpenChange(visible: boolean) {
   }
 }
 
-// 当 nodeId 变化时重置状态
+// Reset state when nodeId changes / 当 nodeId 变化时重置状态
 watch(
   () => props.nodeId,
   () => {
@@ -204,7 +208,7 @@ watch(
   >
     <template #content>
       <div class="max-h-[400px] min-w-[280px] max-w-[480px] overflow-auto">
-        <!-- 骨架加载 -->
+        <!-- Skeleton loading / 骨架加载 -->
         <div v-if="loading" class="space-y-2 p-1">
           <Skeleton
             v-for="i in 4"
@@ -215,13 +219,13 @@ watch(
             class="!mb-0"
           />
         </div>
-        <!-- 空状态 -->
+        <!-- Empty state / 空状态 -->
         <Empty
           v-else-if="filteredTreeData.length === 0"
           :description="$t('admin.system.role.noPermissions')"
           :image="Empty.PRESENTED_IMAGE_SIMPLE"
         />
-        <!-- 权限树 -->
+        <!-- Permission tree / 权限树 -->
         <Tree
           v-else
           v-model:expanded-keys="expandedKeys"

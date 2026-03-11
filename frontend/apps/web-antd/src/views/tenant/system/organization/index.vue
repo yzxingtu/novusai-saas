@@ -2,7 +2,9 @@
 <script lang="ts" setup>
 import type { TenantRoleType } from '#/api/tenant/role';
 /**
+ * Tenant organization management page
  * 租户端组织架构管理页面
+ * Left org tree + right detail/member panel
  * 左侧组织树 + 右侧详情/成员面板
  */
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
@@ -38,7 +40,7 @@ import { $t } from '#/locales';
 defineOptions({ name: 'TenantOrganization' });
 
 // ============================================================
-// 组织树管理
+// Org tree management / 组织树管理
 // ============================================================
 
 const {
@@ -55,36 +57,36 @@ const {
 } = useOrgTree({ apiPrefix: 'tenant', immediate: false });
 
 // ============================================================
-// 选中节点状态
+// Selected node state / 选中节点状态
 // ============================================================
 
 const selectedNode = ref<null | OrgTreeNodeData>(null);
 
-/** 左侧树面板折叠状态 */
+/** Left tree panel collapsed state / 左侧树面板折叠状态 */
 const treeCollapsed = ref(false);
 
-/** 选中节点的类型配置 */
+/** Type config of the selected node / 选中节点的类型配置 */
 const selectedNodeTypeConfig = computed(() => {
   if (!selectedNode.value) return null;
   return NODE_TYPE_CONFIG[selectedNode.value.type];
 });
 
-/** 处理节点选中 */
+/** Handle node selection / 处理节点选中 */
 function handleNodeSelect(node: OrgTreeNodeData) {
   selectedNode.value = node;
 }
 
 // ============================================================
-// 右侧面板显示模式
+// Right panel display mode / 右侧面板显示模式
 // ============================================================
 
-/** 获取节点类型的翻译标签 */
+/** Get translated label for node type / 获取节点类型的翻译标签 */
 function getNodeTypeLabel(type: string) {
   return $t(`tenant.system.${type}`);
 }
 
 // ============================================================
-// 节点弹窗管理
+// Node dialog management / 节点弹窗管理
 // ============================================================
 
 const nodeDialogOpen = ref(false);
@@ -94,7 +96,7 @@ const nodeDialogParentType = ref<null | TenantRoleType>(null);
 const nodeDialogParentName = ref('');
 const nodeDialogNodeId = ref<null | number>(null);
 
-/** 创建根节点 */
+/** Create root node / 创建根节点 */
 function handleCreateRoot() {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = null;
@@ -104,7 +106,7 @@ function handleCreateRoot() {
   nodeDialogOpen.value = true;
 }
 
-/** 在选中节点下创建子节点 */
+/** Create child node under selected node / 在选中节点下创建子节点 */
 function handleAddChild(node: OrgTreeNodeData, _type: TenantRoleType) {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = node.id;
@@ -114,7 +116,7 @@ function handleAddChild(node: OrgTreeNodeData, _type: TenantRoleType) {
   nodeDialogOpen.value = true;
 }
 
-/** 编辑节点 */
+/** Edit node / 编辑节点 */
 function handleEditNode(node: OrgTreeNodeData) {
   nodeDialogMode.value = 'edit';
   nodeDialogParentId.value = node.parentId ?? null;
@@ -124,13 +126,13 @@ function handleEditNode(node: OrgTreeNodeData) {
   nodeDialogOpen.value = true;
 }
 
-/** 节点保存成功 */
+/** Node saved successfully / 节点保存成功 */
 function handleNodeSaved() {
   refreshTree();
 }
 
 // ============================================================
-// 删除节点
+// Delete node / 删除节点
 // ============================================================
 
 const deleting = ref(false);
@@ -159,21 +161,21 @@ async function handleDeleteNode(node: OrgTreeNodeData) {
 }
 
 // ============================================================
-// 成员面板事件
+// Member panel events / 成员面板事件
 // ============================================================
 
 function handleMemberPanelRefresh() {
-  // 刷新树以更新成员计数
+  // Refresh tree to update member count / 刷新树以更新成员计数
   refreshTree();
 }
 
 // ============================================================
-// 生命周期
+// Lifecycle / 生命周期
 // ============================================================
 
 onMounted(async () => {
   const firstNode = await loadRootNodes();
-  // 自动选择第一个根节点
+  // Auto-select the first root node / 自动选择第一个根节点
   if (firstNode) {
     selectedNode.value = firstNode;
   }
@@ -220,14 +222,14 @@ onUnmounted(() => {
 <template>
   <Page auto-content-height>
     <div class="flex h-full gap-2 overflow-hidden lg:gap-4">
-      <!-- 左侧：组织树 -->
+      <!-- Left: Org tree / 左侧：组织树 -->
       <div
         class="flex flex-shrink-0 flex-col overflow-hidden rounded-xl bg-card shadow-sm transition-all duration-300"
         :class="[
           treeCollapsed ? 'w-12' : 'w-[320px] lg:w-[380px] xl:w-[440px]',
         ]"
       >
-        <!-- 工具栏 -->
+        <!-- Toolbar / 工具栏 -->
         <div
           class="flex items-center justify-between border-b border-border/50 px-2 py-2 lg:px-4 lg:py-3"
         >
@@ -359,11 +361,11 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 右侧：详情/成员面板 -->
+      <!-- Right: Detail/member panel / 右侧：详情/成员面板 -->
       <div
         class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm"
       >
-        <!-- 未选中节点时的提示 -->
+        <!-- Hint when no node selected / 未选中节点时的提示 -->
         <div
           v-if="!selectedNode"
           class="flex flex-1 items-center justify-center text-muted-foreground"
@@ -382,11 +384,11 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 选中节点时显示详情 -->
+        <!-- Show details when node selected / 选中节点时显示详情 -->
         <template v-else>
-          <!-- 节点头部信息 + 基本信息 -->
+          <!-- Node header + basic info / 节点头部信息 + 基本信息 -->
           <div class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4">
-            <!-- 第一行：标题和操作按钮 -->
+            <!-- Row 1: Title and action buttons / 第一行：标题和操作按钮 -->
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 items-center gap-2 lg:gap-3">
                 <div
@@ -474,15 +476,15 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- 第二行：基本信息详情 -->
+            <!-- Row 2: Basic info details / 第二行：基本信息详情 -->
             <div
               class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground lg:text-sm"
             >
-              <!-- 编码 -->
+              <!-- Code / 编码 -->
               <code class="rounded bg-muted px-1.5 py-0.5 text-xs">{{
                 selectedNode.code
               }}</code>
-              <!-- 允许成员 -->
+              <!-- Allow members / 允许成员 -->
               <span class="flex items-center gap-1">
                 {{ $t('tenant.system.organization.node.allowMembers') }}:
                 <Badge
@@ -494,25 +496,25 @@ onUnmounted(() => {
                   "
                 />
               </span>
-              <!-- 排序号 -->
+              <!-- Sort order / 排序号 -->
               <span
                 >{{ $t('tenant.system.organization.node.sortOrder') }}:
                 {{ selectedNode.sortOrder }}</span
               >
-              <!-- 权限数 -->
+              <!-- Permission count / 权限数 -->
               <PermissionPreview
                 :node-id="selectedNode.id"
                 :permissions-count="selectedNode.permissionsCount ?? 0"
                 api-prefix="tenant"
               />
-              <!-- 创建时间 -->
+              <!-- Created at / 创建时间 -->
               <span
                 >{{ $t('shared.common.createdAt') }}:
                 {{ selectedNode.createdAt }}</span
               >
             </div>
 
-            <!-- 第三行：描述（如果有） -->
+            <!-- Row 3: Description (if any) / 第三行：描述（如果有） -->
             <div
               v-if="selectedNode.description"
               class="mt-2 rounded bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
@@ -521,7 +523,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 成员管理面板 -->
+          <!-- Member management panel / 成员管理面板 -->
           <div class="flex-1 overflow-hidden p-2 lg:p-4">
             <Card class="h-full overflow-hidden" size="small">
               <template #title>
@@ -545,7 +547,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 节点编辑弹窗 -->
+    <!-- Node edit dialog / 节点编辑弹窗 -->
     <OrgNodeDialog
       v-model:open="nodeDialogOpen"
       :mode="nodeDialogMode"

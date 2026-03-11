@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 /**
+ * Image captcha form adapter
+ * Combines CaptchaImage + Input, outputs unified CaptchaResult
  * 图片验证码表单适配器
  * 组合 CaptchaImage + Input，输出统一 CaptchaResult
  */
@@ -19,13 +21,13 @@ defineOptions({ name: 'CaptchaImageForm' });
 
 const props = withDefaults(
   defineProps<{
-    /** 端点标识 */
+    /** Endpoint identifier / 端点标识 */
     endpoint: CaptchaEndpoint;
-    /** 难度等级 */
+    /** Difficulty level / 难度等级 */
     difficulty?: CaptchaDifficulty;
-    /** 操作类型 */
+    /** Action type / 操作类型 */
     action?: string;
-    /** 是否禁用 */
+    /** Whether disabled / 是否禁用 */
     disabled?: boolean;
   }>(),
   {

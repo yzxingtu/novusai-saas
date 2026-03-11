@@ -1,5 +1,5 @@
 """
-租户 AI 模型速率限制配置 Repository
+租户 AI 模型速率限制 Repository / Tenant AI Rate Limit Repository
 """
 
 

@@ -1,7 +1,8 @@
 """
-租户角色相关 Schema
+租户角色相关 Schema / Tenant Role Schema
 
 定义租户角色管理的请求和响应数据结构，支持多级角色层级结构
+Defines tenant role management request/response data structures with multi-level hierarchy.
 """
 
 from __future__ import annotations

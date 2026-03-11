@@ -1,7 +1,8 @@
 """
-平台端 AI 网关调用 API
+平台端 AI 网关调用 API / Platform AI Gateway API
 
 提供平台管理员 AI 网关统一调用接口，用于测试和系统内部调用
+Provides platform admin unified AI gateway call interface for testing and internal use.
 """
 
 from fastapi import Request
@@ -41,9 +42,9 @@ from app.schemas.ai.gateway import (
 )
 class AdminAIGatewayController(GlobalController):
     """
-    AI 网关控制器 (Admin)
+    AI 网关控制器 (Admin) / AI Gateway Controller (Admin)
 
-    平台管理员可直接调用 AI 网关进行测试
+    平台管理员可直接调用 AI 网关进行测试 / Platform admin can directly call AI gateway for testing
     """
 
     prefix = "/ai/gateway"
@@ -61,9 +62,9 @@ class AdminAIGatewayController(GlobalController):
             body: ChatRequest,
         ):
             """
-            AI 聊天对话（非流式）
+            AI 聊天对话（非流式） / AI chat conversation (non-streaming)
 
-            权限: ai_gateway:chat
+            权限 / Permission: ai_gateway:chat
             """
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
@@ -100,9 +101,9 @@ class AdminAIGatewayController(GlobalController):
             body: ChatRequest,
         ):
             """
-            AI 聊天对话（流式 SSE）
+            AI 聊天对话（流式 SSE） / AI chat conversation (streaming SSE)
 
-            权限: ai_gateway:chat_stream
+            权限 / Permission: ai_gateway:chat_stream
             """
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
@@ -138,9 +139,9 @@ class AdminAIGatewayController(GlobalController):
             body: EmbeddingRequest,
         ):
             """
-            文本向量化
+            文本向量化 / Text embedding
 
-            权限: ai_gateway:embedding
+            权限 / Permission: ai_gateway:embedding
             """
             provider_code, model = parse_provider_and_model(body.model_code)
 
@@ -167,11 +168,12 @@ class AdminAIGatewayController(GlobalController):
             body: ModelTestRequest,
         ):
             """
-            测试模型连通性和响应质量
+            测试模型连通性和响应质量 / Test model connectivity and response quality
 
-            权限: ai_gateway:test
+            权限 / Permission: ai_gateway:test
 
             不记录调用日志和计量，仅用于测试配置是否正确。
+            No call logging or metering, only for testing configuration correctness.
             """
             try:
                 gateway = AIGateway(db)
@@ -190,7 +192,7 @@ class AdminAIGatewayController(GlobalController):
                 raise ExternalServiceException(message=_("ai.error.test_failed") + f": {str(e)}")
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIGatewayController.get_router()
 
 __all__ = ["router", "AdminAIGatewayController"]

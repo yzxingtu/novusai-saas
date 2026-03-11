@@ -1,14 +1,15 @@
 """
-删除依赖检查器
+删除依赖检查器 / Deletion Dependency Checker
 
-通用依赖检查器，读取 Model.__delete_deps__ 声明，
-在删除前自动检查是否有活跃记录引用当前实例。
+通用依赖检查器，读取 Model.__delete_deps__ 声明，在删除前自动检查是否有活跃记录引用当前实例。
+Generic dependency checker that reads Model.__delete_deps__ declarations and
+automatically checks for active records referencing the current instance before deletion.
 
-- BLOCK: 存在活跃依赖时阻止删除
-- CASCADE_SOFT: 收集需要级联软删除的依赖
-- CASCADE_DELETE: 收集需要级联物理删除的依赖
-- NULLIFY: 收集需要置 NULL 的依赖
-- IGNORE: 跳过
+- BLOCK: 存在活跃依赖时阻止删除 / Block deletion when active dependencies exist
+- CASCADE_SOFT: 收集需要级联软删除的依赖 / Collect dependencies for cascade soft-delete
+- CASCADE_DELETE: 收集需要级联物理删除的依赖 / Collect dependencies for cascade hard-delete
+- NULLIFY: 收集需要置 NULL 的依赖 / Collect dependencies to nullify FK
+- IGNORE: 跳过 / Skip
 """
 
 from __future__ import annotations
@@ -27,15 +28,17 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("db")
 
-# ── Model 类名 → ORM 类的注册表缓存 ──
+# ── Model 类名 → ORM 类的注册表缓存 / Model class name → ORM class registry cache ──
 _MODEL_REGISTRY: dict[str, type] | None = None
 
 
 def _get_model_registry() -> dict[str, type]:
     """
     构建 Model 类名 → ORM 类的映射表（惰性构建，首次调用后缓存）。
+    Build Model class name → ORM class mapping (lazy, cached after first call).
 
     通过遍历 SQLAlchemy Base 的所有已注册 mapper 获取。
+    Obtained by iterating all registered mappers of SQLAlchemy Base.
     """
     global _MODEL_REGISTRY
     if _MODEL_REGISTRY is not None:
@@ -53,12 +56,13 @@ def _get_model_registry() -> dict[str, type]:
 def resolve_model_class(class_name: str) -> type | None:
     """
     根据类名解析 ORM Model 类。
+    Resolve ORM Model class by class name.
 
     Args:
-        class_name: Model 类名（如 "AIModel"）
+        class_name: Model 类名（如 "AIModel"） / Model class name (e.g. "AIModel")
 
     Returns:
-        ORM 类或 None
+        ORM 类或 None / ORM class or None
     """
     return _get_model_registry().get(class_name)
 
@@ -67,12 +71,13 @@ def resolve_model_class(class_name: str) -> type | None:
 class DependencyInfo:
     """
     单个依赖的检查结果（用于前端展示）
+    Single dependency check result (for frontend display)
 
     Attributes:
-        model_name: 模型的 i18n key（如 "deletion.model.ai_model"）
-        count: 依赖记录总数
-        items: 前 N 条记录摘要 [{"id": 1, "label": "deepseek-chat"}, ...]
-        strategy: 策略值
+        model_name: 模型的 i18n key（如 "deletion.model.ai_model"） / Model i18n key
+        count: 依赖记录总数 / Total dependent record count
+        items: 前 N 条记录摘要 / Top N record summaries [{"id": 1, "label": "deepseek-chat"}, ...]
+        strategy: 策略值 / Strategy value
     """
 
     model_name: str
@@ -84,14 +89,14 @@ class DependencyInfo:
 @dataclass
 class DependencyCheckResult:
     """
-    依赖检查总结果
+    依赖检查总结果 / Overall dependency check result
 
     Attributes:
-        blocked: 是否被 BLOCK 策略阻止
-        blockers: 阻止删除的依赖列表
-        cascade_soft: 需要级联软删除的依赖
-        cascade_delete: 需要级联物理删除的依赖
-        nullify: 需要置 NULL 的依赖
+        blocked: 是否被 BLOCK 策略阻止 / Whether blocked by BLOCK strategy
+        blockers: 阻止删除的依赖列表 / List of blocking dependencies
+        cascade_soft: 需要级联软删除的依赖 / Dependencies requiring cascade soft-delete
+        cascade_delete: 需要级联物理删除的依赖 / Dependencies requiring cascade hard-delete
+        nullify: 需要置 NULL 的依赖 / Dependencies requiring FK nullification
     """
 
     blocked: bool = False
@@ -101,7 +106,7 @@ class DependencyCheckResult:
     nullify: list[DependencyInfo] = field(default_factory=list)
 
 
-# 前端展示摘要的最大条目数
+# 前端展示摘要的最大条目数 / Max items for frontend preview summary
 _MAX_ITEMS_PREVIEW = 5
 
 
@@ -112,14 +117,15 @@ async def check_deletion_deps(
 ) -> DependencyCheckResult:
     """
     通用依赖检查器。
+    Generic dependency checker.
 
-    读取 instance.__class__.__delete_deps__，逐条检查是否有活跃记录
-    引用当前实例。
+    读取 instance.__class__.__delete_deps__，逐条检查是否有活跃记录引用当前实例。
+    Reads instance.__class__.__delete_deps__ and checks each for active records referencing the instance.
 
     Args:
-        db: 异步数据库会话
-        instance: 要删除的模型实例
-        tenant_id: 租户 ID（TenantModel 子类自动添加过滤）
+        db: 异步数据库会话 / Async database session
+        instance: 要删除的模型实例 / Model instance to delete
+        tenant_id: 租户 ID（TenantModel 子类自动添加过滤） / Tenant ID (auto-filter for TenantModel subclasses)
 
     Returns:
         DependencyCheckResult
@@ -152,12 +158,12 @@ async def check_deletion_deps(
             )
             continue
 
-        # 基础过滤条件：FK 匹配 + 未软删除
+        # 基础过滤条件：FK 匹配 + 未软删除 / Base filter: FK match + not soft-deleted
         conditions = [fk_col == instance_id]
         if hasattr(target_cls, "is_deleted"):
             conditions.append(target_cls.is_deleted.is_(False))
 
-        # 多租户隔离：如果目标模型是 TenantModel 且提供了 tenant_id
+        # 多租户隔离：如果目标模型是 TenantModel 且提供了 tenant_id / Multi-tenant isolation
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 
@@ -193,21 +199,22 @@ async def _check_block(
 ) -> DependencyInfo | None:
     """
     BLOCK 策略检查：使用 EXISTS 快速判断，存在依赖时获取数量和摘要。
+    BLOCK strategy check: uses EXISTS for fast detection, fetches count and summary when deps exist.
 
     Returns:
         DependencyInfo if blocked, None otherwise
     """
-    # 快速 EXISTS 检查
+    # 快速 EXISTS 检查 / Fast EXISTS check
     stmt = select(exists().where(*conditions))
     has_deps = (await db.execute(stmt)).scalar()
     if not has_deps:
         return None
 
-    # 获取数量
+    # 获取数量 / Get count
     count_stmt = select(func.count()).select_from(target_cls).where(*conditions)
     count = (await db.execute(count_stmt)).scalar() or 0
 
-    # 获取前 N 条摘要
+    # 获取前 N 条摘要 / Get top N preview items
     items = await _fetch_preview_items(db, target_cls, conditions, dep.label_field)
 
     return DependencyInfo(
@@ -226,6 +233,7 @@ async def _count_deps(
 ) -> DependencyInfo | None:
     """
     非 BLOCK 策略：统计数量（用于级联操作日志）。
+    Non-BLOCK strategy: count records (for cascade operation logging).
 
     Returns:
         DependencyInfo if count > 0, None otherwise
@@ -251,6 +259,7 @@ async def _fetch_preview_items(
 ) -> list[dict[str, Any]]:
     """
     获取前 N 条记录摘要用于前端展示。
+    Fetch top N record summaries for frontend display.
 
     Returns:
         [{"id": 1, "label": "deepseek-chat"}, ...]
@@ -290,14 +299,16 @@ async def execute_cascade_deps(
 ) -> dict[str, int]:
     """
     执行非 BLOCK 的级联操作（CASCADE_SOFT / CASCADE_DELETE / NULLIFY）。
+    Execute non-BLOCK cascade operations (CASCADE_SOFT / CASCADE_DELETE / NULLIFY).
 
     在主记录 soft_delete 之后调用。
+    Called after the main record is soft-deleted.
 
     Args:
-        db: 异步数据库会话
-        instance: 已软删除的模型实例
-        delete_level: 删除层级（tenant / admin）
-        tenant_id: 租户 ID
+        db: 异步数据库会话 / Async database session
+        instance: 已软删除的模型实例 / Soft-deleted model instance
+        delete_level: 删除层级（tenant / admin） / Deletion level
+        tenant_id: 租户 ID / Tenant ID
 
     Returns:
         {"cascade_soft": N, "cascade_delete": N, "nullify": N}
@@ -323,17 +334,17 @@ async def execute_cascade_deps(
         if fk_col is None:
             continue
 
-        # 基础条件
+        # 基础条件 / Base conditions
         conditions = [fk_col == instance_id]
 
-        # 多租户隔离
+        # 多租户隔离 / Multi-tenant isolation
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 
         if dep.strategy == DeletionStrategy.CASCADE_SOFT:
             if not hasattr(target_cls, "is_deleted"):
                 continue
-            # 只对未删除的记录执行
+            # 只对未删除的记录执行 / Only execute on non-deleted records
             conditions.append(target_cls.is_deleted.is_(False))
             stmt = (
                 update(target_cls)
@@ -394,11 +405,13 @@ async def execute_cascade_escalate(
 ) -> int:
     """
     级联升级子记录的删除层级（tenant → admin）。
+    Escalate child records' deletion level (tenant → admin).
 
     对 CASCADE_SOFT 声明的子模型中已软删除的记录执行升级。
+    Escalates soft-deleted records in CASCADE_SOFT declared child models.
 
     Returns:
-        总影响行数
+        总影响行数 / Total affected rows
     """
     from app.enums.common import DeleteLevelEnum
 
@@ -448,11 +461,13 @@ async def execute_cascade_restore(
 ) -> int:
     """
     级联恢复子记录。
+    Cascade restore child records.
 
     对 CASCADE_SOFT 声明的子模型中已软删除的记录执行恢复。
+    Restores soft-deleted records in CASCADE_SOFT declared child models.
 
     Returns:
-        总影响行数
+        总影响行数 / Total affected rows
     """
     model_cls = instance.__class__
     deps: list[DeletionDep] = getattr(model_cls, "__delete_deps__", [])

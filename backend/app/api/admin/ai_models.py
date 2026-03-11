@@ -1,7 +1,8 @@
 """
-平台端 AI 模型管理 API
+平台端 AI 模型管理 API / Platform AI Model API
 
 提供 AI 模型的 CRUD 接口（平台管理员专用）
+Provides AI model CRUD endpoints (platform admin only).
 """
 
 from fastapi import Request
@@ -44,9 +45,9 @@ from app.services.ai import AIModelService
 )
 class AdminAIModelController(GlobalController):
     """
-    AI 模型管理控制器
+    AI 模型管理控制器 / AI Model Management Controller
 
-    提供 AI 模型 CRUD 接口
+    提供 AI 模型 CRUD 接口 / Provides AI model CRUD endpoints
     """
 
     prefix = "/ai/models"
@@ -54,10 +55,10 @@ class AdminAIModelController(GlobalController):
     service_class = AIModelService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AIModelService,
@@ -73,13 +74,13 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 模型列表
+            获取 AI 模型列表 / Get AI model list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,name
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / General filtering: filter[field][op]=value
+            - 支持排序 / Sorting: sort=-created_at,name
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
 
-            权限: ai_model:list
+            权限 / Permission: ai_model:list
             """
             service = AIModelService(db)
             items, total = await service.query_list(spec)
@@ -103,9 +104,9 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            根据供应商 ID 获取其所有模型
+            根据供应商 ID 获取其所有模型 / Get all models by provider ID
 
-            权限: ai_model:list_by_provider
+            权限 / Permission: ai_model:list_by_provider
             """
             service = AIModelService(db)
             models = await service.get_by_provider(provider_id)
@@ -124,12 +125,14 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            从供应商 API 远程拉取可用模型列表
+            从供应商 API 远程拉取可用模型列表 / Fetch available model list from provider API remotely
 
             通过供应商配置的 API 地址和密钥，调用 /models 接口获取可用模型。
+            Calls /models endpoint via provider's configured API address and key.
             用于创建模型时自动填充模型代码和名称。
+            Used for auto-filling model code and name when creating models.
 
-            权限: ai_model:list
+            权限 / Permission: ai_model:list
             """
             service = AIModelService(db)
             remote_models = await service.fetch_remote_models(provider_id)
@@ -148,9 +151,9 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取 AI 模型详情
+            获取 AI 模型详情 / Get AI model details
 
-            权限: ai_model:detail
+            权限 / Permission: ai_model:detail
             """
             service = AIModelService(db)
             model = await service.get_by_id(model_id)
@@ -173,9 +176,9 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建 AI 模型
+            创建 AI 模型 / Create AI model
 
-            权限: ai_model:create
+            权限 / Permission: ai_model:create
             """
             service = AIModelService(db)
             model = await service.create_model(data)
@@ -197,9 +200,9 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新 AI 模型信息
+            更新 AI 模型信息 / Update AI model info
 
-            权限: ai_model:update
+            权限 / Permission: ai_model:update
             """
             service = AIModelService(db)
             model = await service.update_model(model_id, data)
@@ -220,9 +223,9 @@ class AdminAIModelController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除 AI 模型（软删除）
+            删除 AI 模型（软删除） / Delete AI model (soft delete)
 
-            权限: ai_model:delete
+            权限 / Permission: ai_model:delete
             """
             service = AIModelService(db)
             await service.delete_model(model_id)
@@ -231,7 +234,7 @@ class AdminAIModelController(GlobalController):
             return success(message=_("ai.model.deleted"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIModelController.get_router()
 
 __all__ = ["router", "AdminAIModelController"]

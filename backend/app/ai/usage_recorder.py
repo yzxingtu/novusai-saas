@@ -1,6 +1,9 @@
 """
+AI Usage Recorder
 AI 使用量记录器
 
+Handles rate/quota checks, usage recording, cost calculation, and call logging.
+Extracted from AIGateway to reduce God Object complexity.
 负责速率/配额检查、使用量记录、费用计算、调用日志。
 从 AIGateway 提取，降低 God Object 复杂度。
 """
@@ -33,14 +36,14 @@ logger = LogManager.get_logger("ai")
 
 class UsageRecorder:
     """
-    AI 使用量记录器
+    AI Usage Recorder / AI 使用量记录器
 
-    职责：
-    - 速率限制 + 配额检查
-    - 使用量记录 + TPM/配额校正
-    - 调用日志（成功/失败）
-    - 流式完成回调
-    - ChatResponse 序列化
+    Responsibilities / 职责：
+    - Rate limit + quota check / 速率限制 + 配额检查
+    - Usage recording + TPM/quota correction / 使用量记录 + TPM/配额校正
+    - Call logging (success/failure) / 调用日志（成功/失败）
+    - Stream completion callback / 流式完成回调
+    - ChatResponse serialization / ChatResponse 序列化
     """
 
     def __init__(self, db: AsyncSession) -> None:
@@ -57,11 +60,13 @@ class UsageRecorder:
         estimated_tokens: int,
     ) -> None:
         """
-        原子检查速率限制 + 配额（仅租户调用时执行）
+        Atomic rate limit + quota check (executed only for tenant calls).
+        原子检查速率限制 + 配额（仅租户调用时执行）。
 
-        速率限制优先级：租户自定义 > 模型默认值
+        Rate limit priority: tenant custom > model default.
+        速率限制优先级：租户自定义 > 模型默认值。
         """
-        # 确定有效的速率限制：优先使用租户专属配置
+        # Determine effective rate limits: prioritize tenant-specific config / 确定有效的速率限制：优先使用租户专属配置
         rpm_limit = ai_model.rpm_limit
         tpm_limit = ai_model.tpm_limit
 
@@ -115,7 +120,8 @@ class UsageRecorder:
         user_id: int | None = None,
     ) -> None:
         """
-        记录使用量 + 调整 TPM/配额（从预估调整为实际）
+        Record usage + adjust TPM/quota (from estimated to actual).
+        记录使用量 + 调整 TPM/配额（从预估调整为实际）。
         """
         await self.metering.record_usage(
             tenant_id=tenant_id,
@@ -161,7 +167,8 @@ class UsageRecorder:
         user_id: int | None = None,
     ) -> None:
         """
-        记录失败调用日志到 DB（用于审计追踪）
+        Log failed call to DB (for audit trail).
+        记录失败调用日志到 DB（用于审计追踪）。
         """
         _ = model
         if not tenant_id:
@@ -210,14 +217,16 @@ class UsageRecorder:
         latency_ms: int = 0,
     ) -> None:
         """
-        流式响应完成回调
+        Stream response completion callback.
+        流式响应完成回调。
 
-        记录日志、更新使用统计、调整 TPM/配额
+        Records logs, updates usage stats, adjusts TPM/quota.
+        记录日志、更新使用统计、调整 TPM/配额。
         """
-        # 更新 API Key 使用计数
+        # Update API Key usage count / 更新 API Key 使用计数
         api_key.increment_usage()
 
-        # 记录使用量（如果提供了 tenant_id）
+        # Record usage (if tenant_id is provided) / 记录使用量（如果提供了 tenant_id）
         if tenant_id:
             try:
                 await self.record_usage_and_adjust(
@@ -233,7 +242,7 @@ class UsageRecorder:
                     user_id=user_id,
                 )
 
-                # 异步记录调用日志
+                # Async record call log / 异步记录调用日志
                 await self.call_log_service.log_call_async(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -268,8 +277,10 @@ class UsageRecorder:
     @staticmethod
     def serialize_response(response: ChatResponse) -> dict:
         """
-        安全序列化 ChatResponse
+        Safely serialize ChatResponse.
+        安全序列化 ChatResponse。
 
+        Recursively converts Decimal → str, dataclass → dict, excludes raw_response.
         递归处理 Decimal → str、dataclass → dict，排除 raw_response。
         """
         def _safe_value(val: Any) -> Any:

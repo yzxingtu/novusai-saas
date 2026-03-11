@@ -1,7 +1,8 @@
 """
-平台端附件服务
+平台端附件服务 / Admin Attachment Service
 
 提供跨租户的附件管理能力（平台管理员专用）
+Provides cross-tenant attachment management (platform admin only).
 """
 
 import hashlib

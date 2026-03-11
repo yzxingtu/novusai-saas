@@ -145,7 +145,7 @@ export function getFormDefaults(): Record<string, unknown> {
 }
 
 // ============================================================
-// 速率限制 Schema
+// Rate limit Schema / 速率限制 Schema
 // ============================================================
 
 /**

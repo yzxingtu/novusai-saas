@@ -1,10 +1,11 @@
 """
-管理端总回收站 API
+管理端总回收站 API / Admin Recycle Bin API
 
 聚合展示所有模块的已删除记录，支持按模块筛选、恢复、升级、永久删除。
-支持：
-- 区分管理端/租户级记录（is_tenant + tenant_name）
-- 继承原模块 __filterable__/__sortable__ 搜索能力
+Aggregate display of all modules' deleted records, supports filtering by module, restore, upgrade, permanent delete.
+支持：/ Supports：
+- 区分管理端/租户级记录（is_tenant + tenant_name） / Distinguish admin/tenant-level records
+- 继承原模块 __filterable__/__sortable__ 搜索能力 / Inherit original module __filterable__/__sortable__ search capabilities
 """
 
 from typing import Any
@@ -32,8 +33,8 @@ router = APIRouter(prefix="/recycle-bin", tags=["admin-recycle-bin"])
 _MAX_BATCH_SIZE = 100
 
 
-# ── 可回收模块注册表 ──
-# columns: 前端需要展示的字段列表（id / deleted_at / delete_level / tenant_name 由框架自动附加）
+# ── 可回收模块注册表 / Recyclable Module Registry ──
+# columns: 前端需要展示的字段列表（id / deleted_at / delete_level / tenant_name 由框架自动附加） / columns: fields frontend needs to display (id / deleted_at / delete_level / tenant_name are auto-appended by framework)
 RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
     "ai_providers": {
         "model": "app.models.ai.provider.AIProvider",
@@ -117,13 +118,13 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
     },
 }
 
-# ── 模块类缓存 ──
+# ── 模块类缓存 / Module Class Cache ──
 _model_cache: dict[str, type] = {}
 _svc_cache: dict[str, type] = {}
 
 
 def _import_class(path: str):
-    """动态导入类"""
+    """动态导入类 / Dynamically import class"""
     import importlib
     module_path, class_name = path.rsplit(".", 1)
     module = importlib.import_module(module_path)
@@ -131,7 +132,7 @@ def _import_class(path: str):
 
 
 def _get_model(module_code: str):
-    """获取并缓存模块的 Model 类"""
+    """获取并缓存模块的 Model 类 / Get and cache module's Model class"""
     if module_code not in _model_cache:
         config = RECYCLABLE_MODULES[module_code]
         _model_cache[module_code] = _import_class(config["model"])
@@ -139,12 +140,16 @@ def _get_model(module_code: str):
 
 
 def _get_service(module_code: str, db: Any):
-    """获取模块对应的 Service 实例
+    """获取模块对应的 Service 实例 / Get the Service instance for the module
 
     TenantService 子类需要 tenant_id，但管理端总回收站跨租户查询，
+    TenantService subclasses require tenant_id, but admin recycle bin queries across tenants,
     因此对 TenantService 子类动态构建基于 BaseRepository 的
+    so for TenantService subclasses, dynamically build a BaseRepository-based
     GlobalService（无租户隔离），并继承原模型的 __filterable__ /
+    GlobalService (no tenant isolation), inheriting original model's __filterable__ /
     __sortable__ 搜索能力，同时额外开放 tenant_id 过滤。
+    __sortable__ search capabilities, with additional tenant_id filter.
     """
     from app.core.base_repository import BaseRepository
     from app.core.base_service import GlobalService
@@ -164,7 +169,7 @@ def _get_service(module_code: str, db: Any):
             model = model_cls
 
             def get_allowed_fields(self, scope=None):
-                """继承原模型 __filterable__ 并额外开放 tenant_id"""
+                """继承原模型 __filterable__ 并额外开放 tenant_id / Inherit original model __filterable__ and additionally expose tenant_id"""
                 fields = super().get_allowed_fields(scope)
                 if hasattr(self.model, "tenant_id") and "tenant_id" not in fields:
                     fields["tenant_id"] = self.model.tenant_id
@@ -180,7 +185,7 @@ def _get_service(module_code: str, db: Any):
 
 
 def _model_to_dict(instance: Any, columns: list[str]) -> dict[str, Any]:
-    """将模型实例序列化为 dict，仅包含指定列 + 通用字段"""
+    """将模型实例序列化为 dict，仅包含指定列 + 通用字段 / Serialize model instance to dict, only including specified columns + common fields"""
     data: dict[str, Any] = {"id": instance.id}
     for col in columns:
         val = getattr(instance, col, None)
@@ -196,7 +201,7 @@ async def _batch_resolve_tenant_names(
     db: Any,
     tenant_ids: set[int],
 ) -> dict[int, str]:
-    """批量查询 tenant_id → tenant_name 映射"""
+    """批量查询 tenant_id → tenant_name 映射 / Batch query tenant_id → tenant_name mapping"""
     if not tenant_ids:
         return {}
     from app.models.tenant.tenant import Tenant
@@ -222,7 +227,7 @@ class AdminRecycleBinController:
     pass
 
 
-# ──────────────────── 模块元数据 ────────────────────
+# ──────────────────── 模块元数据 / Module Metadata ────────────────────
 
 @router.get("/modules", summary="获取所有可回收模块元数据")
 @action_read()
@@ -233,13 +238,15 @@ async def recycle_bin_modules(
 ):
     """
     返回各模块的元数据：label、is_tenant、columns、filterable fields。
+    Return each module's metadata: label, is_tenant, columns, filterable fields.
     前端据此渲染动态列和搜索表单。
+    Frontend uses this to render dynamic columns and search forms.
     """
     result = {}
     for code, config in RECYCLABLE_MODULES.items():
         model_cls = _get_model(code)
         filterable = getattr(model_cls, "__filterable__", {})
-        # 对租户模型额外开放 tenant_id
+        # 对租户模型额外开放 tenant_id / Additionally expose tenant_id for tenant models
         if config.get("is_tenant") and "tenant_id" not in filterable:
             filterable = {**filterable, "tenant_id": "tenant_id"}
         result[code] = {
@@ -252,7 +259,7 @@ async def recycle_bin_modules(
     return success(data=result)
 
 
-# ──────────────────── 汇总 ────────────────────
+# ──────────────────── 汇总 / Summary ────────────────────
 
 @router.get("/summary", summary="各模块已删除记录数统计")
 @action_read()
@@ -261,7 +268,7 @@ async def recycle_bin_summary(
     db: DbSession,
     admin: ActiveAdmin,
 ):
-    """返回各模块在 admin 回收站中的已删除记录数"""
+    """返回各模块在 admin 回收站中的已删除记录数 / Return deleted record counts for each module in admin recycle bin"""
     results = []
     for code, config in RECYCLABLE_MODULES.items():
         try:
@@ -289,7 +296,7 @@ async def recycle_bin_summary(
     return success(data=results)
 
 
-# ──────────────────── 列表（支持搜索） ────────────────────
+# ──────────────────── 列表（支持搜索） / List (with search) ────────────────────
 
 @router.get("", summary="按模块查询已删除记录")
 @action_read()
@@ -302,9 +309,12 @@ async def recycle_bin_list(
 ):
     """
     查询指定模块的已删除记录。
+    Query deleted records for the specified module.
 
     搜索/排序继承原模块的 __filterable__ / __sortable__ 定义。
+    Search/sort inherits the original module's __filterable__ / __sortable__ definitions.
     租户级记录自动附带 tenant_id / tenant_name。
+    Tenant-level records automatically include tenant_id / tenant_name.
     """
     config = RECYCLABLE_MODULES.get(module)
     if not config:
@@ -320,7 +330,7 @@ async def recycle_bin_list(
 
     result = [_model_to_dict(item, columns) for item in items]
 
-    # 批量解析租户名称
+    # 批量解析租户名称 / Batch resolve tenant names
     if is_tenant:
         tenant_ids = {r["tenant_id"] for r in result if r.get("tenant_id")}
         name_map = await _batch_resolve_tenant_names(db, tenant_ids)
@@ -335,7 +345,7 @@ async def recycle_bin_list(
     )
 
 
-# ──────────────────── 恢复 / 永久删除 / 清理 ────────────────────
+# ──────────────────── 恢复 / 永久删除 / 清理 / Restore / Permanent Delete / Cleanup ────────────────────
 
 @router.post("/{module}/{item_id}/restore", summary="恢复记录")
 @action_delete()
@@ -379,7 +389,7 @@ async def recycle_bin_cleanup(
     admin: ActiveAdmin,
     retention_days: int = Query(default=30, ge=1, le=365),
 ):
-    """手动触发回收站过期记录清理"""
+    """手动触发回收站过期记录清理 / Manually trigger expired record cleanup in recycle bin"""
     from app.tasks.recycle_bin import cleanup_recycle_bin
     result = cleanup_recycle_bin.delay(retention_days=retention_days)
     return success(

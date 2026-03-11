@@ -1,7 +1,8 @@
 """
-技能调用统计聚合查询
+技能调用统计聚合查询 / Skill Call Statistics Aggregation Query
 
 提供按技能包、按技能、按时间范围的调用统计数据。
+Provides call statistics by skill package, by skill, and by time range.
 """
 
 from __future__ import annotations
@@ -23,19 +24,19 @@ async def get_package_call_stats(
     days: int = 7,
 ) -> dict[str, Any]:
     """
-    获取技能包内所有技能的调用统计
+    获取技能包内所有技能的调用统计 / Get call statistics for all skills in a package
 
     Args:
-        db: 数据库会话
-        package_id: 技能包 ID
-        days: 统计天数（默认 7 天）
+        db: 数据库会话 / Database session
+        package_id: 技能包 ID / Skill package ID
+        days: 统计天数（默认 7 天） / Statistics period in days (default 7)
 
     Returns:
-        统计数据字典
+        统计数据字典 / Statistics data dictionary
     """
     since = utc_now() - timedelta(days=days)
 
-    # 查询包内技能 ID 列表
+    # 查询包内技能 ID 列表 / Query skill ID list in package
     skill_ids_result = await db.execute(
         select(Skill.id).where(
             Skill.package_id == package_id,
@@ -55,7 +56,7 @@ async def get_package_call_stats(
             "by_skill": [],
         }
 
-    # 总体统计
+    # 总体统计 / Overall statistics
     total_result = await db.execute(
         select(
             func.count(SkillCallLog.id).label("total"),
@@ -80,7 +81,7 @@ async def get_package_call_stats(
     failed_count = row.failed_count or 0
     avg_duration = round(float(row.avg_duration or 0), 1)
 
-    # 按技能分组统计
+    # 按技能分组统计 / Statistics grouped by skill
     by_skill_result = await db.execute(
         select(
             SkillCallLog.skill_id,

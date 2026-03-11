@@ -1,3 +1,7 @@
+/**
+ * Platform config management API / 平台配置管理 API
+ * Backend: /admin/configs/*
+ */
 import type {
   ConfigGroupListItemMeta,
   ConfigGroupMeta,
@@ -8,7 +12,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 获取平台配置分组列表 */
+/** Get platform config group list / 获取平台配置分组列表 */
 export async function getAdminConfigGroupsApi(
   options?: ApiRequestOptions,
 ): Promise<ConfigGroupListItemMeta[]> {
@@ -18,7 +22,7 @@ export async function getAdminConfigGroupsApi(
   );
 }
 
-/** 获取平台配置分组详情（含配置项） */
+/** Get platform config group detail (with config items) / 获取平台配置分组详情 */
 export async function getAdminConfigGroupDetailApi(
   groupCode: string,
   options?: ApiRequestOptions,
@@ -29,7 +33,7 @@ export async function getAdminConfigGroupDetailApi(
   );
 }
 
-/** 更新平台配置分组配置，后端期望 { configs: { key: value } } 格式 */
+/** Update platform config group, backend expects { configs: { key: value } } format / 更新平台配置分组配置 */
 export async function updateAdminConfigGroupApi(
   groupCode: string,
   configs: ConfigSubmitPayload,
@@ -42,7 +46,7 @@ export async function updateAdminConfigGroupApi(
   );
 }
 
-/** 生成 Fernet 加密密钥 */
+/** Generate Fernet encryption key / 生成 Fernet 加密密钥 */
 export async function generateFernetKeyApi(
   options?: ApiRequestOptions,
 ): Promise<{ key: string }> {
@@ -53,7 +57,7 @@ export async function generateFernetKeyApi(
   );
 }
 
-/** 测试存储连接 */
+/** Test storage connection / 测试存储连接 */
 export async function testStorageConnectionApi(
   data: {
     base_url?: string;
@@ -70,14 +74,14 @@ export async function testStorageConnectionApi(
   );
 }
 
-/** 获取可用存储驱动列表（含插件启用状态） */
+/** Get available storage drivers (with plugin enable status) / 获取可用存储驱动列表 */
 export async function getStorageDriversApi(
   options?: ApiRequestOptions,
 ): Promise<StorageDriverInfo[]> {
   return await requestClient.get('/admin/configs/storage/drivers', options);
 }
 
-/** 获取租户存储配置 */
+/** Get tenant storage config / 获取租户存储配置 */
 export async function getTenantStorageConfigApi(
   tenantId: number,
   options?: ApiRequestOptions,
@@ -88,7 +92,7 @@ export async function getTenantStorageConfigApi(
   );
 }
 
-/** 设置租户存储配置 */
+/** Set tenant storage config / 设置租户存储配置 */
 export async function updateTenantStorageConfigApi(
   tenantId: number,
   data: Record<string, unknown>,
@@ -101,7 +105,7 @@ export async function updateTenantStorageConfigApi(
   );
 }
 
-/** 测试租户存储连接 */
+/** Test tenant storage connection / 测试租户存储连接 */
 export async function testTenantStorageConnectionApi(
   tenantId: number,
   data: {

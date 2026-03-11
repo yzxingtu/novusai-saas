@@ -1,5 +1,5 @@
 """
-AI 表策略租户覆盖 Schema
+AI 表策略租户覆盖 Schema / AI Table Policy Tenant Override Schema
 """
 
 from __future__ import annotations

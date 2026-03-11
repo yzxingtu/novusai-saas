@@ -1,5 +1,5 @@
 """
-租户 AI 配额配置 Schema
+租户 AI 配额配置 Schema / Tenant AI Quota Schema
 """
 
 from __future__ import annotations

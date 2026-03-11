@@ -1,7 +1,8 @@
 """
-租户用户角色仓储
+租户用户角色仓储 / Tenant User Role Repository
 
 提供租户用户角色的数据访问操作（租户隔离），扁平结构无层级
+Provides tenant user role data access (tenant-isolated), flat structure without hierarchy.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
 """
-知识库监控 API (Admin)
+知识库监控 API (Admin) / Knowledge Base Monitoring API (Admin)
 
 提供平台端知识库全局查询、统计监控、文档管理、检索测试等接口（平台管理员专用）
+Provides platform-level knowledge base global query, statistics monitoring, document management, retrieval testing endpoints (platform admin only)
 """
 
 import hashlib
@@ -48,7 +49,7 @@ SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 )
 
-# 支持的文件类型映射
+# 支持的文件类型映射 / Supported file type mapping
 ALLOWED_EXTENSIONS: dict[str, str] = {
     ".txt": DocumentTypeEnum.TXT.value,
     ".md": DocumentTypeEnum.MD.value,
@@ -82,19 +83,19 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 )
 class AdminKnowledgeBaseController(GlobalController):
     """
-    平台端知识库监控控制器
+    平台端知识库监控控制器 / Platform Knowledge Base Monitoring Controller
 
-    提供全租户知识库查询和统计
+    提供全租户知识库查询和统计 / Provides cross-tenant knowledge base query and statistics
     """
 
     prefix = "/ai/knowledge-bases"
     tags = [_("menu.tags.admin_ai_knowledge_base")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{kb_id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{kb_id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{kb_id} to avoid path conflicts
         from app.core.recycle_bin import register_admin_recycle_bin_routes
         register_admin_recycle_bin_routes(
             router=router,
@@ -111,14 +112,14 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            查询全部租户的知识库列表
+            查询全部租户的知识库列表 / Query knowledge base list across all tenants
 
-            支持 JSON:API 风格筛选:
-            - filter[tenant_id][eq]: 租户 ID
-            - filter[status][eq]: 状态
-            - filter[name][ilike]: 名称模糊搜索
+            支持 JSON:API 风格筛选 / Supports JSON:API style filtering:
+            - filter[tenant_id][eq]: 租户 ID / Tenant ID
+            - filter[status][eq]: 状态 / Status
+            - filter[name][ilike]: 名称模糊搜索 / Name fuzzy search
 
-            权限: ai_knowledge_base:list
+            权限 / Permission: ai_knowledge_base:list
             """
             service = AdminKnowledgeBaseService(db)
             items, total = await service.query_list(spec)
@@ -159,14 +160,14 @@ class AdminKnowledgeBaseController(GlobalController):
             body: AdminKnowledgeBaseCreate,
         ):
             """
-            管理端创建知识库
+            管理端创建知识库 / Admin create knowledge base
 
-            支持 3 种 scope:
-            - tenant: 属于指定租户（需提供 tenant_id）
-            - global: 全局共享（所有租户可见）
-            - admin: 仅管理端可见
+            支持 3 种 scope / Supports 3 scopes:
+            - tenant: 属于指定租户（需提供 tenant_id） / Belongs to specified tenant (requires tenant_id)
+            - global: 全局共享（所有租户可见） / Global shared (visible to all tenants)
+            - admin: 仅管理端可见 / Admin only visible
 
-            权限: ai_knowledge_base:create
+            权限 / Permission: ai_knowledge_base:create
             """
             service = AdminKnowledgeBaseService(db)
             data = body.model_dump(exclude_unset=True)
@@ -174,7 +175,7 @@ class AdminKnowledgeBaseController(GlobalController):
             data.pop("assigned_tenant_ids", None)
             kb = await service.create(data)
 
-            # scope=assigned_tenants/admin_and_assigned 时同步租户分配
+            # scope=assigned_tenants/admin_and_assigned 时同步租户分配 / Sync tenant assignments when scope=assigned_tenants/admin_and_assigned
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("knowledge_base", kb.id, tenant_ids)
@@ -208,9 +209,9 @@ class AdminKnowledgeBaseController(GlobalController):
             body: AdminKnowledgeBaseUpdate,
         ):
             """
-            管理端更新知识库
+            管理端更新知识库 / Admin update knowledge base
 
-            权限: ai_knowledge_base:update
+            权限 / Permission: ai_knowledge_base:update
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -222,13 +223,13 @@ class AdminKnowledgeBaseController(GlobalController):
             data.pop("assigned_tenant_ids", None)
             kb = await service.update(kb_id, data)
 
-            # 同步租户分配
+            # 同步租户分配 / Sync tenant assignments
             effective_scope = kb.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("knowledge_base", kb_id, tenant_ids)
             elif effective_scope not in SCOPES_NEEDING_ASSIGNMENT:
-                # scope 不再需要分配，清理残留记录
+                # scope 不再需要分配，清理残留记录 / Scope no longer needs assignment, clean up residual records
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.delete_all_for_resource("knowledge_base", kb_id)
 
@@ -259,18 +260,19 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取管理端可 @ 选择的知识库列表
+            获取管理端可 @ 选择的知识库列表 / Get knowledge base list selectable via @ in admin
 
             返回 scope=admin + scope=global 的知识库（精简字段）
+            Returns knowledge bases with scope=admin + scope=global (simplified fields)
 
-            权限: ai_knowledge_base:selectable
+            权限 / Permission: ai_knowledge_base:selectable
             """
             from sqlalchemy import select
 
             from app.enums.common import ResourceScopeEnum
             from app.models.ai.knowledge_base import KnowledgeBase
 
-            # 查询管理端可见的知识库（admin_only / admin_and_all）
+            # 查询管理端可见的知识库（admin_only / admin_and_all） / Query admin-visible knowledge bases
             stmt = (
                 select(KnowledgeBase)
                 .where(
@@ -305,11 +307,12 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取全局知识库统计
+            获取全局知识库统计 / Get global knowledge base statistics
 
             返回总知识库数、总文档数、总分块数、总存储大小
+            Returns total knowledge bases, total documents, total chunks, total storage size
 
-            权限: ai_knowledge_base:stats
+            权限 / Permission: ai_knowledge_base:stats
             """
             from sqlalchemy import func, select
 
@@ -341,9 +344,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取知识库详情
+            获取知识库详情 / Get knowledge base details
 
-            权限: ai_knowledge_base:detail
+            权限 / Permission: ai_knowledge_base:detail
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -364,7 +367,7 @@ class AdminKnowledgeBaseController(GlobalController):
             except Exception:
                 pass
 
-            # 返回已分配的租户 ID 列表
+            # 返回已分配的租户 ID 列表 / Return assigned tenant ID list
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 result["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
@@ -376,7 +379,7 @@ class AdminKnowledgeBaseController(GlobalController):
             return success(data=result)
 
         # ========================================
-        # 文档子资源
+        # 文档子资源 / Document Sub-resources
         # ========================================
 
         @router.get("/{kb_id}/documents", summary="获取文档列表（管理端）")
@@ -389,9 +392,9 @@ class AdminKnowledgeBaseController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取知识库下的文档列表（跨租户）
+            获取知识库下的文档列表（跨租户） / Get document list under knowledge base (cross-tenant)
 
-            权限: ai_knowledge_base:document_list
+            权限 / Permission: ai_knowledge_base:document_list
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -421,9 +424,9 @@ class AdminKnowledgeBaseController(GlobalController):
             file: UploadFile = File(..., description="上传的文档文件"),
         ):
             """
-            上传文档到知识库
+            上传文档到知识库 / Upload document to knowledge base
 
-            权限: ai_knowledge_base:document_upload
+            权限 / Permission: ai_knowledge_base:document_upload
             """
             from app.enums.attachment import AttachmentSource, AttachmentVisibility
             from app.services.tenant.attachment_service import AttachmentService
@@ -435,7 +438,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
             tenant_id = kb.tenant_id
 
-            # 配额检查（per-KB 文档数量限制）
+            # 配额检查（per-KB 文档数量限制） / Quota check (per-KB document count limit)
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
@@ -462,7 +465,7 @@ class AdminKnowledgeBaseController(GlobalController):
             import io
 
             if tenant_id is not None:
-                # 租户 KB：通过 AttachmentService 上传（含租户配额校验）
+                # 租户 KB：通过 AttachmentService 上传（含租户配额校验） / Tenant KB: upload via AttachmentService (with tenant quota check)
                 attachment_service = AttachmentService(db, tenant_id)
                 upload_result = await attachment_service.upload_file(
                     content=io.BytesIO(file_bytes),
@@ -477,7 +480,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
                 attachment = upload_result["attachment"]
             else:
-                # 全局/管理端 KB：直接使用平台存储，跳过租户校验
+                # 全局/管理端 KB：直接使用平台存储，跳过租户校验 / Global/admin KB: use platform storage directly, skip tenant validation
                 from app.configs.service import ConfigService
                 from app.models.tenant.attachment import Attachment as AttachmentModel
                 from app.storage import storage_manager
@@ -564,10 +567,11 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            直接输入文本内容创建文档
+            直接输入文本内容创建文档 / Create document by direct text input
 
             将文本包装为虚拟 TXT 文件，走标准分块/Embedding 流程
-            权限: ai_knowledge_base:document_text
+            Wraps text as virtual TXT file, goes through standard chunking/embedding pipeline
+            权限 / Permission: ai_knowledge_base:document_text
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -625,9 +629,9 @@ class AdminKnowledgeBaseController(GlobalController):
             page_size: int = 20,
         ):
             """
-            获取文档的分块列表（预览用）
+            获取文档的分块列表（预览用） / Get document chunk list (for preview)
 
-            权限: ai_knowledge_base:document_chunks
+            权限 / Permission: ai_knowledge_base:document_chunks
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -674,9 +678,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除文档（级联删除分块）
+            删除文档（级联删除分块） / Delete document (cascade delete chunks)
 
-            权限: ai_knowledge_base:document_delete
+            权限 / Permission: ai_knowledge_base:document_delete
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -719,9 +723,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            重试失败的文档处理
+            重试失败的文档处理 / Retry failed document processing
 
-            权限: ai_knowledge_base:document_retry
+            权限 / Permission: ai_knowledge_base:document_retry
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -769,9 +773,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取文档实时处理进度
+            获取文档实时处理进度 / Get real-time document processing progress
 
-            权限: ai_knowledge_base:document_progress
+            权限 / Permission: ai_knowledge_base:document_progress
             """
             from app.ai.rag.processor import get_document_progress as _get_progress
 
@@ -801,7 +805,7 @@ class AdminKnowledgeBaseController(GlobalController):
             return success(data=progress)
 
         # ========================================
-        # 重索引 & 检索测试
+        # 重索引 & 检索测试 / Re-index & Retrieval Testing
         # ========================================
 
         @router.post("/{kb_id}/reindex", summary="重新向量化知识库（管理端）")
@@ -813,9 +817,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            重新向量化知识库所有文档
+            重新向量化知识库所有文档 / Re-vectorize all documents in knowledge base
 
-            权限: ai_knowledge_base:reindex
+            权限 / Permission: ai_knowledge_base:reindex
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -844,9 +848,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            知识库检索测试
+            知识库检索测试 / Knowledge base retrieval test
 
-            权限: ai_knowledge_base:search
+            权限 / Permission: ai_knowledge_base:search
             """
             from app.ai.rag.retriever import VectorRetriever
 
@@ -880,7 +884,7 @@ class AdminKnowledgeBaseController(GlobalController):
             ])
 
         # ========================================
-        # Q&A 问答对
+        # Q&A 问答对 / Q&A Pairs
         # ========================================
 
         @router.post("/{kb_id}/qa-pairs", summary="添加 Q&A 问答对（管理端）")
@@ -893,10 +897,11 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            手动添加 Q&A 问答对
+            手动添加 Q&A 问答对 / Manually add Q&A pair
 
             直接创建文档记录并生成对应 chunk，无需上传文件
-            权限: ai_knowledge_base:qa_create
+            Directly creates document record and generates corresponding chunk, no file upload needed
+            权限 / Permission: ai_knowledge_base:qa_create
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -905,16 +910,16 @@ class AdminKnowledgeBaseController(GlobalController):
 
             tenant_id = kb.tenant_id
 
-            # 配额检查
+            # 配额检查 / Quota check
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
 
-            # 构建 Q&A 内容
+            # 构建 Q&A 内容 / Build Q&A content
             qa_content = f"Q: {data.question}\nA: {data.answer}"
             content_hash = hashlib.md5(qa_content.encode("utf-8")).hexdigest()
 
-            # 去重检查
+            # 去重检查 / Deduplication check
             doc_service = KnowledgeDocumentService(db, tenant_id)
             existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
             if existing:
@@ -922,7 +927,7 @@ class AdminKnowledgeBaseController(GlobalController):
                     message=_("knowledge_base.document.error.duplicate"),
                 )
 
-            # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用）
+            # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用） / Create document record (metadata_extra stores original Q&A JSON for reindex)
             import json as _json
             doc = await doc_service.create({
                 "knowledge_base_id": kb_id,
@@ -936,7 +941,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 "metadata_extra": _json.dumps({"question": data.question, "answer": data.answer}),
             })
 
-            # 直接创建 chunk（无需 Celery 异步）
+            # 直接创建 chunk（无需 Celery 异步） / Directly create chunk (no Celery async needed)
             from app.ai.rag.embedding import EmbeddingService
             from app.ai.utils.token_estimator import estimate_tokens
 
@@ -984,10 +989,11 @@ class AdminKnowledgeBaseController(GlobalController):
             file: UploadFile = File(..., description="CSV/Excel 文件（需含 question, answer 列）"),
         ):
             """
-            批量导入 Q&A 问答对（CSV/Excel）
+            批量导入 Q&A 问答对（CSV/Excel） / Batch import Q&A pairs (CSV/Excel)
 
             文件需包含 question 和 answer 两列，每行创建一条 Q&A 文档+chunk。
-            权限: ai_knowledge_base:qa_batch
+            File must contain question and answer columns, each row creates one Q&A document+chunk.
+            权限 / Permission: ai_knowledge_base:qa_batch
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -1092,7 +1098,7 @@ class AdminKnowledgeBaseController(GlobalController):
             })
 
         # ========================================
-        # URL 网页导入
+        # URL 网页导入 / URL Web Import
         # ========================================
 
         @router.post("/{kb_id}/documents/url", summary="URL 网页导入（管理端）")
@@ -1105,10 +1111,11 @@ class AdminKnowledgeBaseController(GlobalController):
             urls: list[str] = Form(..., description="URL 列表"),
         ):
             """
-            通过 URL 导入网页内容
+            通过 URL 导入网页内容 / Import web content via URL
 
             每个 URL 创建一个文档，异步爬取和处理。
-            权限: ai_knowledge_base:document_url
+            Each URL creates a document, crawled and processed asynchronously.
+            权限 / Permission: ai_knowledge_base:document_url
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -1156,7 +1163,7 @@ class AdminKnowledgeBaseController(GlobalController):
             })
 
         # ========================================
-        # 删除
+        # 删除 / Delete
         # ========================================
 
         @router.delete("/{kb_id}", summary="强制删除知识库")
@@ -1168,9 +1175,9 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            强制删除知识库（平台管理权限）
+            强制删除知识库（平台管理权限） / Force delete knowledge base (platform admin permission)
 
-            权限: ai_knowledge_base:delete
+            权限 / Permission: ai_knowledge_base:delete
             """
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -1183,7 +1190,7 @@ class AdminKnowledgeBaseController(GlobalController):
             return deleted(message=_("knowledge_base.deleted"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminKnowledgeBaseController.get_router()
 
 __all__ = ["router", "AdminKnowledgeBaseController"]

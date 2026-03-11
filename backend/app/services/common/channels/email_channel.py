@@ -1,8 +1,8 @@
 """
-邮件通知渠道
+邮件通知渠道 / Email Notification Channel
 
-通过 Celery 异步任务发送邮件通知。
-使用专门的 notification 队列，不走 default 队列。
+通过 Celery 异步任务发送邮件通知。使用专门的 notification 队列。
+Sends email notifications via Celery async tasks. Uses dedicated notification queue.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
 """
-租户管理员角色服务
+租户管理员角色服务 / Tenant Admin Role Service
 
 提供租户角色的业务逻辑，支持层级结构和权限继承（租户隔离）
+Provides tenant role business logic with hierarchy and permission inheritance (tenant-isolated).
 """
 
 import uuid

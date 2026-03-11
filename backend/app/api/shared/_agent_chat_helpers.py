@@ -1,7 +1,8 @@
 """
-AI 对话 API 共享逻辑
+AI 对话 API 共享逻辑 / AI Chat API Shared Logic
 
 admin/tenant 两端 agent chat controller 的公共部分提取。
+Common logic extracted from admin/tenant agent chat controllers.
 """
 
 from __future__ import annotations
@@ -22,9 +23,10 @@ async def handle_confirm_or_cancel(
     user_id: int,
 ) -> dict[str, Any]:
     """
-    处理确认/取消 AI 操作的共享逻辑
+    处理确认/取消 AI 操作的共享逻辑 / Shared logic for confirm/cancel AI actions
 
     admin/tenant 两端 confirm 端点共用。
+    Shared by admin/tenant confirm endpoints.
     """
     if data.action == ConfirmActionEnum.CANCEL.value:
         result = await service.cancel_action(data.confirm_id)
@@ -35,7 +37,7 @@ async def handle_confirm_or_cancel(
         )
         return success(data=result, message=msg_key)
 
-    # 确认执行
+    # 确认执行 / Confirm execution
     result = await service.confirm_action(
         confirm_id=data.confirm_id,
         tenant_id=tenant_id,
@@ -54,12 +56,13 @@ async def handle_route(
     pinned_agent_id: int | None,
 ) -> dict[str, Any]:
     """
-    智能路由的共享逻辑
+    智能路由的共享逻辑 / Shared logic for smart routing
 
     admin/tenant/user 三端 route 端点共用。
+    Shared by admin/tenant/user route endpoints.
 
     Args:
-        user_role: 调用方角色（UserRoleEnum 值），用于候选过滤 + target_audience 校验
+        user_role: 调用方角色（UserRoleEnum 值），用于候选过滤 + target_audience 校验 / Caller role (UserRoleEnum value), used for candidate filtering + target_audience validation
     """
     from app.services.ai.agent_router_service import AgentRouterService
 
@@ -84,8 +87,10 @@ def enrich_conversations_with_agent(
 ) -> list[dict[str, Any]]:
     """
     将对话列表 ORM 对象转为字典并补充 agent_name / agent_avatar
+    Convert conversation list ORM objects to dicts and enrich with agent_name / agent_avatar
 
     admin/tenant 两端 list_all_conversations 共用。
+    Shared by admin/tenant list_all_conversations.
     """
     result: list[dict[str, Any]] = []
     for item in items:

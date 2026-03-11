@@ -1,7 +1,8 @@
 """
-平台角色相关 Schema
+平台角色相关 Schema / Platform Role Schema
 
 定义平台角色管理的请求和响应数据结构，支持多级角色层级结构
+Defines platform role management request/response data structures with multi-level hierarchy.
 """
 
 from __future__ import annotations

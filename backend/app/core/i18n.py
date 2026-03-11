@@ -1,10 +1,11 @@
 """
-国际化（i18n）模块
+国际化（i18n）模块 / Internationalization (i18n) Module
 
 提供多语言支持，包括：
-- 翻译文件加载与缓存
-- 翻译函数 _()
-- 语言上下文管理
+Provides multi-language support, including:
+- 翻译文件加载与缓存 / Translation file loading and caching
+- 翻译函数 _() / Translation function _()
+- 语言上下文管理 / Language context management
 """
 
 import contextlib

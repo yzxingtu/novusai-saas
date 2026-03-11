@@ -1,9 +1,13 @@
 <script lang="ts" setup>
 /**
+ * Storage Credential Form
  * 存储凭证表单
  *
+ * Dynamically renders credential fields based on the selected storage driver.
  * 根据选中的存储驱动动态渲染对应的凭证字段。
+ * Supports 4 cloud storage drivers: s3, aliyun-oss, qiniu-kodo, tencent-cos.
  * 支持 4 种云存储驱动：s3、aliyun-oss、qiniu-kodo、tencent-cos。
+ * Shared between admin and tenant storage config pages.
  * 管理端和租户端存储配置页面共用。
  */
 import { computed, nextTick, reactive, watch } from 'vue';
@@ -39,13 +43,13 @@ interface CredentialValue {
 const formState = reactive<Record<string, any>>({});
 let isSyncingFromProps = false;
 
-// 同步外部 props.value → 内部 formState
+// Sync external props.value → internal formState / 同步外部 props.value → 内部 formState
 watch(
   () => props.value,
   (val) => {
     if (!val) return;
     isSyncingFromProps = true;
-    // 先清理 formState 中不再属于新值的旧 key，防止脏状态残留
+    // Clean up old keys in formState that no longer belong to new value, prevent stale state / 先清理 formState 中不再属于新值的旧 key，防止脏状态残留
     const newKeys = new Set([
       'base_url',
       'root_path',
@@ -76,7 +80,7 @@ watch(
   { immediate: true, deep: true },
 );
 
-// 用户编辑字段时自动向外 emit（由 v-model 驱动 formState 变化）
+// Auto emit when user edits fields (driven by v-model formState changes) / 用户编辑字段时自动向外 emit（由 v-model 驱动 formState 变化）
 watch(
   formState,
   () => {
@@ -252,11 +256,11 @@ const fieldsByDriver = computed<FieldDef[]>(() => {
     ];
   }
 
-  // 未知驱动兜底：只显示通用字段
+  // Unknown driver fallback: only show common fields / 未知驱动兜底：只显示通用字段
   return common;
 });
 
-// 驱动切换时清理不属于当前驱动的旧字段
+// Clean up old fields not belonging to current driver on driver switch / 驱动切换时清理不属于当前驱动的旧字段
 watch(
   () => props.driver,
   () => {

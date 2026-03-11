@@ -56,7 +56,7 @@ import UserRoleFormComponent from './modules/UserRoleForm.vue';
 defineOptions({ name: 'TenantUserArchitecture' });
 
 // ============================================================
-// 左侧角色列表
+// Left: Role list / 左侧角色列表
 // ============================================================
 
 const ALL_USERS_ID = -1;
@@ -86,7 +86,7 @@ async function loadRoles() {
       sort: 'sort_order',
     });
     roles.value = res.items;
-    // 如果之前选中的角色仍然存在，更新引用
+    // If previously selected role still exists, update reference / 如果之前选中的角色仍然存在，更新引用
     if (selectedRole.value) {
       const updated = roles.value.find((r) => r.id === selectedRole.value!.id);
       if (updated) {
@@ -107,7 +107,7 @@ function handleSelectRole(role: TenantUserRoleInfo) {
 }
 
 // ============================================================
-// 角色 CRUD 弹窗（使用 useVbenDrawer）
+// Role CRUD drawer (useVbenDrawer) / 角色 CRUD 弹窗
 // ============================================================
 
 const [RoleFormDrawer, roleFormApi] = useVbenDrawer({
@@ -136,7 +136,7 @@ function handleEditRole(role: TenantUserRoleInfo) {
 }
 
 // ============================================================
-// 角色删除
+// Role deletion / 角色删除
 // ============================================================
 
 const roleDeleting = ref(false);
@@ -162,7 +162,7 @@ async function handleDeleteRole(role: TenantUserRoleInfo) {
 }
 
 // ============================================================
-// 角色状态切换
+// Role status toggle / 角色状态切换
 // ============================================================
 
 async function handleToggleRoleStatus(role: TenantUserRoleInfo) {
@@ -177,7 +177,7 @@ async function handleToggleRoleStatus(role: TenantUserRoleInfo) {
 }
 
 // ============================================================
-// 权限分配
+// Permission assignment / 权限分配
 // ============================================================
 
 const permissionDrawerVisible = ref(false);
@@ -193,7 +193,7 @@ function onPermissionSaved() {
 }
 
 // ============================================================
-// 右侧用户成员表格
+// Right: User member table / 右侧用户成员表格
 // ============================================================
 
 /** Wrapper to match ToggleStatusApi signature */
@@ -204,7 +204,7 @@ async function toggleUserStatus(
   return toggleTenantUserStatusApi(id, !!data.is_active);
 }
 
-/** 带 role_id 过滤的用户列表 API（"全部用户"时不过滤） */
+/** User list API with role_id filter (no filter for "all users") / 带 role_id 过滤的用户列表 API */
 function getUserListForRole(params: Record<string, unknown>) {
   if (!selectedRole.value) {
     return Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 });
@@ -219,7 +219,7 @@ function getUserListForRole(params: Record<string, unknown>) {
 }
 
 // ============================================================
-// 用户审批操作
+// User approval operations / 用户审批操作
 // ============================================================
 
 async function onApproveUser(row: TenantUserInfo) {
@@ -325,20 +325,20 @@ const {
   },
 });
 
-/** 角色选择变化时重新加载成员表（nextTick 等待 Grid 挂载） */
+/** Reload member table on role selection change (nextTick waits for Grid mount) / 角色选择变化时重新加载成员表 */
 watch(selectedRole, async () => {
   await nextTick();
   onMemberRefresh();
 });
 
-/** 成员表单提交成功后同时刷新角色列表（更新 memberCount） */
+/** After member form success, also refresh role list (update memberCount) / 成员表单成功后刷新角色列表 */
 function onMemberFormSuccess() {
   onMemberRefresh();
   loadRoles();
 }
 
 // ============================================================
-// 角色表单弹窗回调
+// Role form drawer callback / 角色表单弹窗回调
 // ============================================================
 
 function onRoleFormSuccess() {
@@ -346,14 +346,14 @@ function onRoleFormSuccess() {
 }
 
 // ============================================================
-// 生命周期
+// Lifecycle / 生命周期
 // ============================================================
 
 const presenceStore = usePresenceStore();
 
 onMounted(async () => {
   await loadRoles();
-  // 默认选择"全部用户"
+  // Select "All Users" by default / 默认选择"全部用户"
   selectedRole.value = {
     id: ALL_USERS_ID,
     name: $t('tenant.system.userArchitecture.allUsers'),
@@ -363,7 +363,7 @@ onMounted(async () => {
     isSystem: false,
     permissionsCount: 0,
   } as TenantUserRoleInfo;
-  // 加载业务用户在线状态
+  // Load business user online status / 加载业务用户在线状态
   presenceStore.loadTenantUserPresence();
 });
 

@@ -1,10 +1,13 @@
 """
-租户业务用户认证 API
+租户业务用户认证 API / Tenant Business User Authentication API
 
 提供租户业务用户（C端用户）的登录、登出、注册、Token 刷新、
+Provides login, logout, registration, token refresh,
 个人资料管理、忘记密码等接口
+profile management, forgot password endpoints for tenant business users (end users)
 
 迁移自 api/v1/auth.py → api/user/auth.py
+Migrated from api/v1/auth.py → api/user/auth.py
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -38,7 +41,7 @@ from app.services.common import AuthService
 router = APIRouter(prefix="/auth", tags=["User Authentication"])
 
 
-@router.post("/login", summary="用户登录（OAuth2 表单）")
+@router.post("/login", summary="用户登录（OAuth2 表单） / User login (OAuth2 form)")
 @public
 async def login_oauth2(
     db: DbSession,
@@ -46,15 +49,15 @@ async def login_oauth2(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ):
     """
-    OAuth2 密码模式登录
+    OAuth2 密码模式登录 / OAuth2 password mode login
 
-    - **username**: 用户名或邮箱
-    - **password**: 密码
+    - **username**: 用户名或邮箱 / Username or email
+    - **password**: 密码 / Password
     """
     auth_service = AuthService(db)
     form = await request.form()
 
-    # 从域名中间件获取 tenant_ctx 作为回退
+    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
     tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
 
@@ -76,7 +79,7 @@ async def login_oauth2(
     )
 
 
-@router.post("/login/json", summary="用户登录（JSON 格式）")
+@router.post("/login/json", summary="用户登录（JSON 格式） / User login (JSON format)")
 @public
 async def login_json(
     db: DbSession,
@@ -84,14 +87,14 @@ async def login_json(
     login_data: LoginRequest,
 ):
     """
-    JSON 格式登录
+    JSON 格式登录 / JSON format login
 
-    - **username**: 用户名或邮箱
-    - **password**: 密码
+    - **username**: 用户名或邮箱 / Username or email
+    - **password**: 密码 / Password
     """
     auth_service = AuthService(db)
 
-    # 从域名中间件获取 tenant_ctx 作为回退
+    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
     tenant_ctx = get_tenant_context(request)
     tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
 
@@ -113,7 +116,7 @@ async def login_json(
     )
 
 
-@router.post("/refresh", summary="刷新 Token")
+@router.post("/refresh", summary="刷新 Token / Refresh Token")
 @public
 async def refresh_token(
     db: DbSession,
@@ -121,6 +124,7 @@ async def refresh_token(
 ):
     """
     使用 Refresh Token 获取新的 Token 对
+    Use Refresh Token to obtain a new Token pair
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_tenant_user_token(refresh_data.refresh_token)
@@ -131,29 +135,32 @@ async def refresh_token(
     )
 
 
-@router.post("/logout", summary="用户登出")
+@router.post("/logout", summary="用户登出 / User logout")
 @auth_only
 async def logout(
     current_user: ActiveTenantUser,
 ):
     """
-    用户登出
+    用户登出 / User logout
 
     注意：JWT 是无状态的，登出只是客户端行为。
+    Note: JWT is stateless, logout is only a client-side action.
     如需服务端黑名单机制，请使用 Redis 存储已失效的 Token。
+    For server-side blacklist mechanism, use Redis to store invalidated tokens.
     """
     return success(
         message=_("auth.logout_success"),
     )
 
 
-@router.get("/me", summary="获取当前用户信息")
+@router.get("/me", summary="获取当前用户信息 / Get current user info")
 @auth_only
 async def get_current_user_info(
     current_user: ActiveTenantUser,
 ):
     """
     获取当前登录用户的详细信息
+    Get detailed info of the currently logged-in user
     """
     return success(
         data=UserResponse.model_validate(current_user, from_attributes=True),
@@ -161,7 +168,7 @@ async def get_current_user_info(
     )
 
 
-@router.put("/password", summary="修改密码")
+@router.put("/password", summary="修改密码 / Change password")
 @auth_only
 async def change_password(
     db: DbSession,
@@ -170,6 +177,7 @@ async def change_password(
 ):
     """
     修改当前用户密码
+    Change current user's password
     """
     auth_service = AuthService(db)
 
@@ -185,7 +193,7 @@ async def change_password(
     )
 
 
-@router.post("/register", summary="用户注册")
+@router.post("/register", summary="用户注册 / User registration")
 @public
 async def register(
     db: DbSession,
@@ -193,12 +201,12 @@ async def register(
     register_data: TenantUserRegisterRequest,
 ):
     """
-    租户用户自助注册
+    租户用户自助注册 / Tenant user self-registration
 
-    - **username**: 用户名
-    - **email**: 邮箱
-    - **password**: 密码
-    - **confirm_password**: 确认密码
+    - **username**: 用户名 / Username
+    - **email**: 邮箱 / Email
+    - **password**: 密码 / Password
+    - **confirm_password**: 确认密码 / Confirm password
     """
     auth_service = AuthService(db)
 
@@ -226,7 +234,7 @@ async def register(
     )
 
 
-@router.put("/profile", summary="更新个人资料")
+@router.put("/profile", summary="更新个人资料 / Update profile")
 @auth_only
 async def update_profile(
     db: DbSession,
@@ -235,6 +243,7 @@ async def update_profile(
 ):
     """
     更新当前用户个人资料
+    Update current user's profile
     """
     config_service = ConfigService(db)
     allow_edit = await config_service.get_tenant_config(
@@ -262,7 +271,7 @@ async def update_profile(
     )
 
 
-@router.post("/forgot-password", summary="忘记密码")
+@router.post("/forgot-password", summary="忘记密码 / Forgot password")
 @public
 async def forgot_password(
     db: DbSession,
@@ -270,9 +279,10 @@ async def forgot_password(
     forgot_data: ForgotPasswordRequest,
 ):
     """
-    请求密码重置
+    请求密码重置 / Request password reset
 
     发送验证码到指定邮箱
+    Send verification code to specified email
     """
     auth_service = AuthService(db)
 
@@ -291,7 +301,7 @@ async def forgot_password(
     )
 
 
-@router.post("/reset-password", summary="重置密码")
+@router.post("/reset-password", summary="重置密码 / Reset password")
 @public
 async def reset_password(
     db: DbSession,
@@ -300,6 +310,7 @@ async def reset_password(
 ):
     """
     使用验证码重置密码
+    Reset password using verification code
     """
     auth_service = AuthService(db)
 

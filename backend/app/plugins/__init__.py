@@ -1,7 +1,5 @@
 """
-插件系统框架
-
-提供插件的加载、生命周期管理、扩展点注册等核心功能
+Plugin system framework providing core functionalities like plugin loading, lifecycle management, and extension point registration. / 插件系统框架，提供插件加载、生命周期管理、扩展点注册等核心功能。
 
 导入方式（避免循环依赖）：
     from app.plugins.base import PluginBase
@@ -23,7 +21,7 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    """延迟导入，避免循环依赖"""
+    """Lazy import to avoid circular dependencies. / 延迟导入，避免循环依赖。"""
     if name == "PluginBase":
         from app.plugins.base import PluginBase
         return PluginBase

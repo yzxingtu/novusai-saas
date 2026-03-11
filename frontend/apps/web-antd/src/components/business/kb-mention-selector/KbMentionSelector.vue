@@ -1,10 +1,15 @@
 <script lang="ts" setup>
 /**
+ * Knowledge Base @ Mention Selector (Auxiliary Feature)
  * 知识库 @ 提及选择器（辅助功能）
  *
+ * Displays selected KB tags in chat input area, click @ button to show selectable KB list.
  * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
+ * Shares between admin and tenant endpoints by passing different API functions via props.fetchApi.
  * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
  *
+ * Note: Primary KB binding has migrated to Agent-level junction table (AgentKnowledgeBaseBinding),
+ * this component serves as an auxiliary feature, allowing users to temporarily attach extra KBs.
  * 注意：主要 KB 绑定已迁移至 Agent 级别中间表（AgentKnowledgeBaseBinding），
  * 此组件仅作为辅助功能，允许用户临时附加额外知识库。
  */
@@ -70,7 +75,7 @@ function onPopoverOpen(visible: boolean) {
 
 <template>
   <div class="flex flex-wrap items-center gap-1.5">
-    <!-- 已选知识库标签 -->
+    <!-- Selected KB tags / 已选知识库标签 -->
     <Tag
       v-for="kbId in selectedKBs"
       :key="kbId"
@@ -83,7 +88,7 @@ function onPopoverOpen(visible: boolean) {
       {{ getKBName(kbId) }}
     </Tag>
 
-    <!-- @ 按钮 -->
+    <!-- @ button / @ 按钮 -->
     <Popover
       v-model:open="popoverVisible"
       trigger="click"

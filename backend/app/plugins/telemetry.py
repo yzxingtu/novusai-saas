@@ -1,8 +1,10 @@
 """
-插件 Telemetry 使用统计
+Plugin telemetry usage statistics.
+/ 插件 Telemetry 使用统计
 
-使用 Redis Hash + HINCRBY 原子操作按天聚合插件扩展点调用数据。
-高并发下计数不会丢失。
+Uses Redis Hash + HINCRBY atomic operations to aggregate plugin extension point
+call data per day. Counts are never lost under high concurrency.
+/ 使用 Redis Hash + HINCRBY 原子操作按天聚合，高并发不丢失。
 """
 
 from __future__ import annotations
@@ -14,11 +16,11 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-_TTL_SECONDS = 86400 * 35  # 35 天
+_TTL_SECONDS = 86400 * 35  # 35 days / 35 天
 
 
 def _day_key(plugin_name: str, date_str: str | None = None) -> str:
-    """生成某日 Redis Hash key"""
+    """Generate Redis Hash key for a given day / 生成某日 Redis Hash key"""
     if date_str is None:
         date_str = utc_now().strftime("%Y-%m-%d")
     return f"plugin:{plugin_name}:stats:{date_str}"
@@ -31,9 +33,11 @@ async def record_call(
     success: bool = True,
 ) -> None:
     """
-    记录一次扩展点调用（原子操作）。
+    Record one extension point call (atomic operation).
+    / 记录一次扩展点调用（原子操作）。
 
-    使用 Redis Hash + HINCRBY 保证并发安全，按天聚合。
+    Uses Redis Hash + HINCRBY for concurrency safety, aggregated per day.
+    / 使用 Redis Hash + HINCRBY 保证并发安全。
     Hash fields:
       total_calls, success_calls, error_calls, total_duration_ms,
       type:{ext_type}:calls, type:{ext_type}:errors, type:{ext_type}:duration_ms
@@ -55,16 +59,16 @@ async def record_call(
             if not success:
                 pipe.hincrby(key, f"type:{ext_type}:errors", 1)
             pipe.hincrby(key, f"type:{ext_type}:duration_ms", duration_ms)
-            pipe.expire(key, 86400 * 35)  # 保留 35 天
+            pipe.expire(key, 86400 * 35)  # Retain 35 days / 保留 35 天
             await pipe.execute()
 
     except Exception as exc:
-        # Telemetry 不应影响主逻辑
+        # Telemetry should not affect main logic / 不应影响主逻辑
         logger.debug("Telemetry record failed for %s: %s", plugin_name, exc)
 
 
 def _parse_hash(raw: dict[bytes | str, bytes | str]) -> dict[str, int]:
-    """将 Redis Hash 原始结果转为 {str: int} 字典"""
+    """Convert Redis Hash raw result to {str: int} dict / 将 Redis Hash 原始结果转为字典"""
     result: dict[str, int] = {}
     for k, v in raw.items():
         field = k.decode() if isinstance(k, bytes) else k
@@ -77,7 +81,8 @@ def _parse_hash(raw: dict[bytes | str, bytes | str]) -> dict[str, int]:
 
 async def get_stats(plugin_name: str, days: int = 30) -> dict:
     """
-    获取插件统计数据。
+    Get plugin statistics data.
+    / 获取插件统计数据。
 
     Returns:
         {
@@ -127,7 +132,8 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
                 "errors": day_errors,
             })
 
-            # 聚合 by_type — 从 type:{ext}:calls / type:{ext}:errors / type:{ext}:duration_ms
+            # Aggregate by_type — from type:{ext}:calls / type:{ext}:errors / type:{ext}:duration_ms
+            # / 聚合 by_type
             seen_types: set[str] = set()
             for field_name in fields:
                 if field_name.startswith("type:") and field_name.endswith(":calls"):
@@ -150,7 +156,7 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
             "avg_duration_ms": avg_ms,
             "error_rate": round(error_calls / total_calls * 100, 1) if total_calls > 0 else 0,
             "by_type": by_type_agg,
-            "daily": list(reversed(daily)),  # 按时间正序
+            "daily": list(reversed(daily)),  # Chronological order / 按时间正序
         }
 
     except Exception as exc:

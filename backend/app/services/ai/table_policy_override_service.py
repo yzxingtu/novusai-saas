@@ -1,5 +1,5 @@
 """
-AI 表策略租户覆盖 Service
+AI 表策略租户覆盖 Service / AI Table Policy Override Service
 """
 
 from __future__ import annotations

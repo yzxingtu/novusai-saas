@@ -1,9 +1,13 @@
 """
+Toolkit Tool Executor
 Toolkit 工具执行器
 
+Dynamically loads Toolkit Python source code, instantiates the Tools class, injects Valves configuration,
+calls the specified method and returns the result. Supports both async and sync methods.
 动态加载 Toolkit Python 源码，实例化 Tools 类，注入 Valves 配置，
 调用指定方法并返回结果。支持 async 和 sync 方法。
 
+Reference: Open WebUI's Workspace Tools execution model: in-process importlib loading.
 参考 Open WebUI 的 Workspace Tools 执行模式：进程内 importlib 加载。
 """
 
@@ -32,58 +36,64 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.toolkit")
 
+# Sandbox mode: subprocess (child process isolation) or inprocess (in-process, for dev environment)
 # 沙箱模式：subprocess（子进程隔离）或 inprocess（进程内，开发环境用）
 _SANDBOX_MODE = os.environ.get("TOOLKIT_SANDBOX_MODE", "subprocess")
 
-# 沙箱运行器脚本路径
+# Sandbox runner script path / 沙箱运行器脚本路径
 _SANDBOX_RUNNER_PATH = str(Path(__file__).parent / "_sandbox_runner.py")
 
+# Cache of loaded modules: toolkit_content sha256 -> module
 # 已加载模块的缓存：toolkit_content sha256 → module
 _MODULE_CACHE: dict[str, types.ModuleType] = {}
 _CACHE_MAX_SIZE = 128
 
 # --------------------------------------------------------------------------- #
+# Security: dangerous module / builtin function blacklists (by security level)
 # 安全：危险模块 / 内置函数黑名单（按安全等级分级）
 # --------------------------------------------------------------------------- #
 
+# permissive: only block the most dangerous modules (suitable for trusted environments)
 # permissive: 仅禁止最危险的模块（适合可信环境）
 _BLOCKED_MODULES_PERMISSIVE: frozenset[str] = frozenset({
     "os", "subprocess", "ctypes",
     "builtins", "__builtin__",
 })
 
+# normal (default): block system/process/file/deserialization modules, allow network libs
 # normal (默认): 禁止系统/进程/文件/反序列化模块，允许网络库
 _BLOCKED_MODULES_NORMAL: frozenset[str] = frozenset({
-    # 进程 / OS
+    # Process / OS / 进程 / OS
     "os", "subprocess", "shutil", "signal",
     "multiprocessing", "threading",
-    # 系统内部
+    # System internals / 系统内部
     "sys", "ctypes", "importlib",
-    # 反序列化攻击
+    # Deserialization attacks / 反序列化攻击
     "pickle", "marshal",
-    # 数据库
+    # Database / 数据库
     "sqlite3",
-    # 原始网络
+    # Raw network / 原始网络
     "socket",
-    # 文件系统
+    # Filesystem / 文件系统
     "pathlib", "io", "tempfile", "glob", "fnmatch",
-    # 代码生成
+    # Code generation / 代码生成
     "code", "codeop", "compileall", "py_compile",
-    # 杂项
+    # Miscellaneous / 杂项
     "webbrowser", "antigravity",
     "builtins", "__builtin__",
 })
 
+# strict: only allow safe computation/data processing modules
 # strict: 仅允许安全的计算/数据处理模块
 _BLOCKED_MODULES_STRICT: frozenset[str] = _BLOCKED_MODULES_NORMAL | frozenset({
-    # 网络
+    # Network / 网络
     "requests", "httpx", "urllib", "urllib3", "aiohttp",
     "http", "xmlrpc", "ftplib", "smtplib", "poplib", "imaplib",
-    # 外部进程
+    # External processes / 外部进程
     "asyncio",
-    # 序列化
+    # Serialization / 序列化
     "shelve", "dbm",
-    # 调试
+    # Debugging / 调试
     "pdb", "traceback", "dis", "inspect",
 })
 
@@ -94,8 +104,8 @@ _SECURITY_LEVEL_MAP: dict[str, frozenset[str]] = {
 }
 
 _BLOCKED_MODULE_PREFIXES: tuple[str, ...] = (
-    "app.",       # 应用内部模块
-    "config.",    # 配置模块
+    "app.",       # Application internal modules / 应用内部模块
+    "config.",    # Configuration modules / 配置模块
 )
 
 _BLOCKED_BUILTINS: frozenset[str] = frozenset({
@@ -105,7 +115,8 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset({
 
 
 def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
-    """根据安全等级返回被阻止的模块集合"""
+    """Return the set of blocked modules based on security level
+    根据安全等级返回被阻止的模块集合"""
     if security_level is None:
         security_level = "normal"
     return _SECURITY_LEVEL_MAP.get(security_level, _BLOCKED_MODULES_NORMAL)
@@ -113,17 +124,22 @@ def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
 
 class ToolkitExecutor(BaseToolExecutor):
     """
-    Toolkit 工具执行器
+    Toolkit tool executor.
+    Toolkit 工具执行器。
 
+    Reads from ToolDefinition.config:
     从 ToolDefinition.config 中读取：
-    - _toolkit_content: Toolkit Python 源码
-    - _toolkit_method: 要调用的方法名
-    - _toolkit_is_async: 方法是否为 async
-    - _valves_config: Valves 配置值 dict
+    - _toolkit_content: Toolkit Python source code / Toolkit Python 源码
+    - _toolkit_method: Method name to call / 要调用的方法名
+    - _toolkit_is_async: Whether the method is async / 方法是否为 async
+    - _valves_config: Valves configuration values dict / Valves 配置值 dict
 
+    Supports two execution modes (controlled by TOOLKIT_SANDBOX_MODE env var):
     支持两种执行模式（通过 TOOLKIT_SANDBOX_MODE 环境变量控制）:
-    - subprocess: 在子进程中执行（默认，安全隔离）
-    - inprocess: 在主进程中执行（开发环境用）
+    - subprocess: Execute in child process (default, secure isolation)
+      在子进程中执行（默认，安全隔离）
+    - inprocess: Execute in main process (for dev environment)
+      在主进程中执行（开发环境用）
     """
 
     def __init__(
@@ -147,7 +163,7 @@ class ToolkitExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        """执行 Toolkit 方法调用"""
+        """Execute Toolkit method call / 执行 Toolkit 方法调用"""
         _ = context
         start = time.perf_counter()
         method_name = definition.config.get("_toolkit_method", definition.name)
@@ -164,7 +180,7 @@ class ToolkitExecutor(BaseToolExecutor):
             )
 
         try:
-            # 0. 安全扫描（非信任工具包）
+            # 0. Security scan (untrusted toolkits) / 安全扫描（非信任工具包）
             if not trusted:
                 violations = _scan_toolkit_security(
                     toolkit_content, self._security_level,
@@ -182,7 +198,7 @@ class ToolkitExecutor(BaseToolExecutor):
                         error=f"Toolkit blocked: {detail}",
                     )
 
-            # 根据沙箱模式选择执行方式
+            # Choose execution mode based on sandbox mode / 根据沙箱模式选择执行方式
             if self._sandbox_mode == "subprocess":
                 output = await self._execute_in_subprocess(
                     toolkit_content, method_name, arguments, valves_config,
@@ -192,7 +208,7 @@ class ToolkitExecutor(BaseToolExecutor):
                     toolkit_content, method_name, arguments, valves_config,
                 )
 
-            # 截断
+            # Truncate / 截断
             if len(output) > self._max_output_size:
                 output = output[: self._max_output_size] + "\n... (truncated)"
 
@@ -220,7 +236,7 @@ class ToolkitExecutor(BaseToolExecutor):
             )
 
         except TypeError as exc:
-            # 参数不匹配
+            # Argument mismatch / 参数不匹配
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(
                 "Toolkit method argument error: %s.%s: %s",
@@ -261,23 +277,26 @@ class ToolkitExecutor(BaseToolExecutor):
         valves_config: dict[str, Any],
     ) -> str:
         """
-        在子进程中执行 Toolkit 代码（安全隔离）
+        Execute Toolkit code in a child process (secure isolation).
+        在子进程中执行 Toolkit 代码（安全隔离）。
 
+        Runs via the _sandbox_runner.py helper script in an independent process,
+        so the main process is not affected by user code.
         通过 _sandbox_runner.py 辅助脚本在独立进程中运行，
         主进程不受用户代码影响。
 
         Raises:
-            asyncio.TimeoutError: 执行超时
-            RuntimeError: 子进程执行失败
+            asyncio.TimeoutError: Execution timeout / 执行超时
+            RuntimeError: Child process execution failed / 子进程执行失败
         """
-        # 写入临时文件
+        # Write to temporary file / 写入临时文件
         content_hash = hashlib.sha256(toolkit_content.encode("utf-8")).hexdigest()[:16]
         tmp_dir = Path(tempfile.gettempdir()) / "novusai_toolkits"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         source_path = tmp_dir / f"_toolkit_{content_hash}.py"
         source_path.write_text(toolkit_content, encoding="utf-8")
 
-        # 构建 stdin 参数
+        # Build stdin arguments / 构建 stdin 参数
         stdin_data = json.dumps({
             "source_path": str(source_path),
             "method": method_name,
@@ -286,7 +305,7 @@ class ToolkitExecutor(BaseToolExecutor):
             "memory_limit_mb": self._memory_limit_mb,
         }, ensure_ascii=False)
 
-        # 启动子进程
+        # Start child process / 启动子进程
         proc = await asyncio.create_subprocess_exec(
             sys.executable, _SANDBOX_RUNNER_PATH,
             stdin=asyncio.subprocess.PIPE,
@@ -300,7 +319,7 @@ class ToolkitExecutor(BaseToolExecutor):
                 timeout=self._timeout,
             )
         except asyncio.TimeoutError:
-            # 超时：强制终止子进程
+            # Timeout: forcefully terminate child process / 超时：强制终止子进程
             try:
                 proc.kill()
                 await proc.wait()
@@ -308,7 +327,7 @@ class ToolkitExecutor(BaseToolExecutor):
                 pass
             raise
 
-        # 解析结果
+        # Parse result / 解析结果
         if proc.returncode != 0:
             err_msg = stderr.decode("utf-8", errors="replace").strip()
             raise RuntimeError(
@@ -335,41 +354,46 @@ class ToolkitExecutor(BaseToolExecutor):
         valves_config: dict[str, Any],
     ) -> str:
         """
-        在主进程中执行 Toolkit 代码（开发环境用）
+        Execute Toolkit code in the main process (for dev environment).
+        在主进程中执行 Toolkit 代码（开发环境用）。
 
+        Keeps the original importlib loading logic, no process isolation.
         保留原有的 importlib 加载逻辑，不做进程隔离。
         """
-        # 1. 加载模块（带缓存）
+        # 1. Load module (with cache) / 加载模块（带缓存）
         module = _load_toolkit_module(toolkit_content)
 
-        # 2. 实例化 Tools 类
+        # 2. Instantiate Tools class / 实例化 Tools 类
         tools_cls = getattr(module, "Tools", None)
         if tools_cls is None:
             raise RuntimeError("Toolkit module has no 'Tools' class")
 
         tools_instance = tools_cls()
 
-        # 3. 注入 Valves 配置
+        # 3. Inject Valves configuration / 注入 Valves 配置
         valves_error = _inject_valves(tools_instance, module, valves_config)
 
-        # 4. 查找目标方法
+        # 4. Find target method / 查找目标方法
         method = getattr(tools_instance, method_name, None)
         if method is None or not callable(method):
             raise RuntimeError(f"Method '{method_name}' not found in Tools class")
 
+        # 5. Call method (use runtime detection, ignore is_async flag in config)
         # 5. 调用方法（以运行时检测为准，忽略 config 中的 is_async 标记）
         if asyncio.iscoroutinefunction(method):
             result_value = await method(**arguments)
         else:
+            # sync methods run in thread pool to avoid blocking the event loop
             # sync 方法在线程池中执行，避免阻塞事件循环
             loop = asyncio.get_running_loop()
             result_value = await loop.run_in_executor(
                 None, lambda: method(**arguments)
             )
 
-        # 6. 转为字符串
+        # 6. Convert to string / 转为字符串
         output = _to_string(result_value)
 
+        # If Valves injection failed, prepend warning to output
         # 如果 Valves 注入失败，在输出前附加警告
         if valves_error:
             output = (
@@ -384,7 +408,7 @@ class ToolkitExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """校验参数"""
+        """Validate parameters / 校验参数"""
         for param in definition.parameters:
             if param.required and param.name not in arguments:
                 return False
@@ -392,7 +416,7 @@ class ToolkitExecutor(BaseToolExecutor):
 
 
 # --------------------------------------------------------------------------- #
-# 内部：安全扫描
+# Internal: Security scanning / 内部：安全扫描
 # --------------------------------------------------------------------------- #
 
 
@@ -401,13 +425,16 @@ def _scan_toolkit_security(
     security_level: str | None = None,
 ) -> list[str]:
     """
+    AST static analysis: detect dangerous imports and builtin function calls in Toolkit source code.
     AST 静态分析：检测 Toolkit 源码中的危险 import 和内置函数调用。
 
     Args:
-        source: Toolkit Python 源码
-        security_level: 安全等级 (strict/normal/permissive)，None 使用 normal
+        source: Toolkit Python source code / Toolkit Python 源码
+        security_level: Security level (strict/normal/permissive), None uses normal
+                        安全等级 (strict/normal/permissive)，None 使用 normal
 
     Returns:
+        List of violation descriptions (empty list means safe).
         违规描述列表（空列表表示安全）。
     """
     try:
@@ -419,16 +446,17 @@ def _scan_toolkit_security(
     violations: list[str] = []
 
     for node in ast.walk(tree):
-        # 检查 import xxx
+        # Check import xxx / 检查 import xxx
         if isinstance(node, ast.Import):
             for alias in node.names:
                 _check_module(alias.name, node.lineno, violations, blocked_modules)
 
-        # 检查 from xxx import yyy
+        # Check from xxx import yyy / 检查 from xxx import yyy
         elif isinstance(node, ast.ImportFrom):
             if node.module:
                 _check_module(node.module, node.lineno, violations, blocked_modules)
 
+        # Check dangerous builtin function calls: eval(), exec(), open(), etc.
         # 检查危险内置函数调用：eval(), exec(), open() 等
         elif isinstance(node, ast.Call):
             func_name = _get_call_name(node)
@@ -446,7 +474,7 @@ def _check_module(
     violations: list[str],
     blocked_modules: frozenset[str],
 ) -> None:
-    """检查模块名是否在黑名单中"""
+    """Check if module name is in the blacklist / 检查模块名是否在黑名单中"""
     top_level = module_name.split(".")[0]
     if top_level in blocked_modules:
         violations.append(
@@ -463,7 +491,7 @@ def _check_module(
 
 
 def _get_call_name(node: ast.Call) -> str | None:
-    """从 AST Call 节点中提取函数名"""
+    """Extract function name from AST Call node / 从 AST Call 节点中提取函数名"""
     if isinstance(node.func, ast.Name):
         return node.func.id
     if isinstance(node.func, ast.Attribute):
@@ -472,14 +500,16 @@ def _get_call_name(node: ast.Call) -> str | None:
 
 
 # --------------------------------------------------------------------------- #
-# 内部：模块加载
+# Internal: Module loading / 内部：模块加载
 # --------------------------------------------------------------------------- #
 
 
 def _load_toolkit_module(source: str) -> types.ModuleType:
     """
+    Dynamically load Toolkit Python source code as a module.
     动态加载 Toolkit Python 源码为模块。
 
+    Uses content hash for caching to avoid repeated compilation.
     使用 content hash 做缓存，避免重复编译。
     """
     content_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
@@ -488,10 +518,13 @@ def _load_toolkit_module(source: str) -> types.ModuleType:
     if cached is not None:
         return cached
 
+    # Write to temp file then load with importlib
+    # Use temp file instead of exec() for correct __file__ and better error tracing
     # 写入临时文件后用 importlib 加载
     # 使用临时文件而非 exec() 以获得正确的 __file__ 和更好的错误追踪
     module_name = f"_toolkit_{content_hash[:16]}"
 
+    # If module name already exists in sys.modules, reuse directly
     # 如果模块名已存在于 sys.modules 中，直接复用
     if module_name in sys.modules:
         mod = sys.modules[module_name]
@@ -513,12 +546,12 @@ def _load_toolkit_module(source: str) -> types.ModuleType:
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
-        # 缓存（LRU 简易实现）
+        # Cache (simple LRU implementation) / 缓存（LRU 简易实现）
         if len(_MODULE_CACHE) >= _CACHE_MAX_SIZE:
-            # 移除最早的条目
+            # Remove oldest entry / 移除最早的条目
             oldest_key = next(iter(_MODULE_CACHE))
             old_mod = _MODULE_CACHE.pop(oldest_key)
-            # 清理 sys.modules
+            # Clean up sys.modules / 清理 sys.modules
             mod_name = getattr(old_mod, "__name__", None)
             if mod_name and mod_name in sys.modules:
                 del sys.modules[mod_name]
@@ -531,7 +564,7 @@ def _load_toolkit_module(source: str) -> types.ModuleType:
             f"Toolkit syntax error at line {exc.lineno}: {exc.msg}"
         ) from exc
     except Exception as exc:
-        # 清理失败的模块
+        # Clean up failed module / 清理失败的模块
         if module_name in sys.modules:
             del sys.modules[module_name]
         raise RuntimeError(f"Failed to load toolkit module: {exc}") from exc
@@ -543,12 +576,16 @@ def _inject_valves(
     valves_config: dict[str, Any],
 ) -> str | None:
     """
+    Inject Valves configuration into the Tools instance.
     向 Tools 实例注入 Valves 配置。
 
+    Finds the Valves class in the module, creates an instance with valves_config,
+    and assigns it to tools_instance.valves.
     查找模块中的 Valves 类，用 valves_config 创建实例，
     赋值给 tools_instance.valves。
 
     Returns:
+        None means success (or no injection needed), str means error description of failed injection.
         None 表示成功（或无需注入），str 表示注入失败的错误描述。
     """
     if not valves_config:
@@ -559,6 +596,8 @@ def _inject_valves(
         return None
 
     try:
+        # Valves inherits from BaseModel, construct with dict args
+        # Normalize to lowercase: compatible with old UPPERCASE key valves_config
         # Valves 继承自 BaseModel，用 dict 参数构造
         # 统一 lowercase：兼容旧版 UPPERCASE key 的 valves_config
         normalized = {k.lower(): v for k, v in valves_config.items()}
@@ -574,7 +613,7 @@ def _inject_valves(
 
 
 def _to_string(value: Any) -> str:
-    """将方法返回值转为字符串"""
+    """Convert method return value to string / 将方法返回值转为字符串"""
     if value is None:
         return ""
     if isinstance(value, str):
@@ -590,7 +629,8 @@ def _to_string(value: Any) -> str:
 
 
 def clear_toolkit_cache() -> None:
-    """清空 Toolkit 模块缓存（测试或热更新时使用）"""
+    """Clear Toolkit module cache (used during testing or hot updates)
+    清空 Toolkit 模块缓存（测试或热更新时使用）"""
     for mod in _MODULE_CACHE.values():
         mod_name = getattr(mod, "__name__", None)
         if mod_name and mod_name in sys.modules:

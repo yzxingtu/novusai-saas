@@ -1,4 +1,5 @@
 /**
+ * Plan management - table columns & form config
  * 套餐管理 - 表格列和表单配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -19,12 +20,12 @@ import {
 import { checkboxColumn, dragColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
-// ... (保留类型定义和辅助函数)
+// ... (keep type definitions and helper functions) / (保留类型定义和辅助函数)
 
-// ... (保留 useColumns)
+// ... (keep useColumns) / (保留 useColumns)
 
 /**
- * 获取计费周期选项
+ * Get billing cycle options / 获取计费周期选项
  */
 export function getBillingCycleOptions(): {
   label: string;
@@ -55,7 +56,7 @@ export function getBillingCycleOptions(): {
 }
 
 /**
- * 获取计费周期显示文本
+ * Get billing cycle display text / 获取计费周期显示文本
  */
 export function getBillingCycleText(cycle: adminApi.BillingCycle): string {
   const key = `admin.tenant.plan.billingCycleOptions.${cycle}`;
@@ -63,7 +64,7 @@ export function getBillingCycleText(cycle: adminApi.BillingCycle): string {
 }
 
 /**
- * 格式化价格显示
+ * Format price display / 格式化价格显示
  */
 export function formatPrice(
   price?: null | number | string,
@@ -81,16 +82,16 @@ export function formatPrice(
 }
 
 /**
- * 表格列定义
+ * Table column definitions / 表格列定义
  */
 export function useColumns<T = adminApi.TenantPlanInfo>(
   onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
   return [
-    // 复选框列
+    // Checkbox column / 复选框列
     checkboxColumn,
-    // 拖拽排序列
+    // Drag sort column / 拖拽排序列
     dragColumn,
     {
       field: 'name',
@@ -202,7 +203,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
 }
 
 /**
- * 搜索表单 Schema
+ * Search form Schema / 搜索表单 Schema
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
@@ -221,11 +222,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
 }
 
 /**
- * 新建/编辑表单 Schema
+ * Create/edit form Schema / 新建/编辑表单 Schema
  */
 export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // 基本信息
+    // Basic info / 基本信息
     inputField('name', $t('admin.tenant.plan.name'), {
       required: true,
       maxLength: 100,
@@ -254,7 +255,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       defaultValue: true,
     }),
 
-    // 配额设置
+    // Quota settings / 配额设置
     dividerField('_quota_divider', $t('admin.tenant.plan.quota')),
     numberField(
       'quota.storage_limit_gb',
@@ -301,7 +302,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
       },
     ),
 
-    // 特性标记
+    // Feature flags / 特性标记
     dividerField('_features_divider', $t('admin.tenant.plan.features')),
     switchField('features.ai_enabled', $t('admin.tenant.plan.aiEnabled')),
     switchField(
@@ -317,7 +318,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
 }
 
 /**
- * 表单默认值
+ * Form default values / 表单默认值
  */
 export function getFormDefaults(): Record<string, any> {
   return {

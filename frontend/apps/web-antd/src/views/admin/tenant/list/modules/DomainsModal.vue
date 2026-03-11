@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 /**
+ * Tenant domain management modal - main modal
  * 租户域名管理弹窗 - 主弹窗
+ * Shows domain list, provides add/detail/set primary/verify/delete entries
  * 展示域名列表，提供添加、详情、设为主域名、验证、删除等入口
  */
 import type {
@@ -8,6 +10,11 @@ import type {
   DomainModalData,
   TenantDomainInfo,
 } from './domains-types';
+import type {
+  DevHostDomainStatus,
+  DevHostsStatus,
+  DevHostsStatusResponse,
+} from '#/api/admin/tenant-domain';
 
 import { computed, ref } from 'vue';
 
@@ -15,6 +22,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Alert,
   Button,
   message,
   Popconfirm,
@@ -25,6 +33,7 @@ import {
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
+import { copyToClipboard } from '#/utils/common';
 
 import DomainsAddDrawer from './DomainsAddDrawer.vue';
 import DomainsDetailDrawer from './DomainsDetailDrawer.vue';
@@ -36,18 +45,24 @@ const emits = defineEmits<{
   success: [];
 }>();
 
-// 状态
+// State / 状态
 const domains = ref<TenantDomainInfo[]>([]);
 const loading = ref(false);
 const currentTenant = ref<DomainModalData | null>(null);
+const devHostsOverview = ref<DevHostsStatusResponse | null>(null);
+const devHostsLoading = ref(false);
+const devHostsLoadError = ref(false);
+const syncingDomainIds = ref<number[]>([]);
+const removingDomainIds = ref<number[]>([]);
+const syncingAllDevHosts = ref(false);
 
-// 子组件引用
+// Child component refs / 子组件引用
 const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
 const detailDrawerRef = ref<InstanceType<typeof DomainsDetailDrawer>>();
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 const sslDrawerRef = ref<InstanceType<typeof DomainsSslDrawer>>();
 
-// 计算标题
+// Computed title / 计算标题
 const title = computed(() =>
   currentTenant.value
     ? `${$t('admin.tenant.domain.title')} - ${currentTenant.value.tenantName}`
@@ -61,17 +76,22 @@ const [Modal, modalApi] = useVbenModal({
       const data = modalApi.getData<DomainModalData>();
       if (data?.tenantId) {
         currentTenant.value = data;
-        await loadDomains();
+        await Promise.all([loadDomains(), loadDevHosts()]);
       }
     } else {
       currentTenant.value = null;
       domains.value = [];
+      devHostsOverview.value = null;
+      devHostsLoadError.value = false;
+      syncingDomainIds.value = [];
+      removingDomainIds.value = [];
+      syncingAllDevHosts.value = false;
     }
   },
   footer: false,
 });
 
-/** 加载域名列表 */
+/** Load domain list / 加载域名列表 */
 async function loadDomains() {
   if (!currentTenant.value?.tenantId) return;
 
@@ -87,17 +107,33 @@ async function loadDomains() {
   }
 }
 
-/** 打开添加域名抽屉 */
+async function loadDevHosts() {
+  if (!currentTenant.value?.tenantId) return;
+
+  devHostsLoading.value = true;
+  devHostsLoadError.value = false;
+  try {
+    devHostsOverview.value = await admin.getTenantDevHostsStatusApi(
+      currentTenant.value.tenantId,
+    );
+  } catch {
+    devHostsLoadError.value = true;
+  } finally {
+    devHostsLoading.value = false;
+  }
+}
+
+/** Open add domain drawer / 打开添加域名抽屉 */
 function onOpenAddDrawer() {
   if (!currentTenant.value) return;
   addDrawerRef.value?.open(currentTenant.value.tenantId);
 }
 
-/** 添加成功回调 */
+/** Add success callback / 添加成功回调 */
 async function onAddSuccess(newDomain: TenantDomainInfo) {
-  await loadDomains();
+  await Promise.all([loadDomains(), loadDevHosts()]);
   emits('success');
-  // 打开 DNS 引导
+  // Open DNS guide / 打开 DNS 引导
   if (newDomain.verificationStatus === 'pending' && currentTenant.value) {
     const guideData: DnsGuideData = {
       domain: newDomain.domain,
@@ -111,7 +147,7 @@ async function onAddSuccess(newDomain: TenantDomainInfo) {
   }
 }
 
-/** 打开详情抽屉 */
+/** Open detail drawer / 打开详情抽屉 */
 function onOpenDetail(domain: TenantDomainInfo) {
   if (!currentTenant.value) return;
   detailDrawerRef.value?.open({
@@ -120,13 +156,13 @@ function onOpenDetail(domain: TenantDomainInfo) {
   });
 }
 
-/** 详情更新成功回调 */
+/** Detail update success callback / 详情更新成功回调 */
 async function onDetailSuccess() {
-  await loadDomains();
+  await Promise.all([loadDomains(), loadDevHosts()]);
   emits('success');
 }
 
-/** 打开 DNS 引导 */
+/** Open DNS guide / 打开 DNS 引导 */
 function onOpenDnsGuide(domain: TenantDomainInfo) {
   if (!currentTenant.value) return;
   const guideData: DnsGuideData = {
@@ -140,7 +176,7 @@ function onOpenDnsGuide(domain: TenantDomainInfo) {
   dnsGuideModalRef.value?.open(guideData);
 }
 
-/** 打开 SSL 管理抽屉 */
+/** Open SSL management drawer / 打开 SSL 管理抽屉 */
 function onOpenSslDrawer(domain: TenantDomainInfo) {
   if (!currentTenant.value) return;
   sslDrawerRef.value?.open({
@@ -151,19 +187,19 @@ function onOpenSslDrawer(domain: TenantDomainInfo) {
   });
 }
 
-/** 设置主域名 */
+/** Set primary domain / 设置主域名 */
 async function onSetPrimary(domain: TenantDomainInfo) {
   if (!currentTenant.value?.tenantId || domain.isPrimary) return;
 
   try {
     await admin.setPrimaryDomainApi(currentTenant.value.tenantId, domain.id);
     message.success($t('admin.tenant.domain.setPrimarySuccess'));
-    await loadDomains();
+    await Promise.all([loadDomains(), loadDevHosts()]);
     emits('success');
   } catch {}
 }
 
-/** 验证域名 */
+/** Verify domain / 验证域名 */
 async function onVerifyDomain(domain: TenantDomainInfo) {
   if (!currentTenant.value?.tenantId) return;
 
@@ -177,24 +213,183 @@ async function onVerifyDomain(domain: TenantDomainInfo) {
     } else {
       message.warning($t('admin.tenant.domain.verifyFailed'));
     }
-    await loadDomains();
+    await Promise.all([loadDomains(), loadDevHosts()]);
     emits('success');
   } catch {}
 }
 
-/** 删除域名 */
+/** Delete domain / 删除域名 */
 async function onDeleteDomain(domain: TenantDomainInfo) {
   if (!currentTenant.value?.tenantId) return;
 
   try {
     await admin.deleteTenantDomainApi(currentTenant.value.tenantId, domain.id);
     message.success($t('admin.tenant.domain.deleteSuccess'));
-    await loadDomains();
+    await Promise.all([loadDomains(), loadDevHosts()]);
     emits('success');
   } catch {}
 }
 
-/** 获取验证状态标签配置 */
+function getDevHostsDomainStatus(domainId: number) {
+  return (
+    devHostsOverview.value?.domains.find((item) => item.domainId === domainId) ||
+    null
+  );
+}
+
+function getDevHostsTagConfig(status: DevHostsStatus) {
+  switch (status) {
+    case 'managed_present': {
+      return {
+        color: 'success',
+        icon: 'lucide:hard-drive-download',
+      };
+    }
+    case 'manual_present': {
+      return {
+        color: 'processing',
+        icon: 'lucide:file-pen-line',
+      };
+    }
+    case 'not_required': {
+      return {
+        color: 'default',
+        icon: 'lucide:minus-circle',
+      };
+    }
+    case 'unsupported': {
+      return {
+        color: 'default',
+        icon: 'lucide:ban',
+      };
+    }
+    default: {
+      return {
+        color: 'warning',
+        icon: 'lucide:triangle-alert',
+      };
+    }
+  }
+}
+
+function isSyncingDomain(domainId: number) {
+  return syncingDomainIds.value.includes(domainId);
+}
+
+function isRemovingDomain(domainId: number) {
+  return removingDomainIds.value.includes(domainId);
+}
+
+function canSyncDevHost(domainStatus: DevHostDomainStatus | null) {
+  if (!domainStatus || !devHostsOverview.value?.runtime.enabled) return false;
+  return domainStatus.eligible && domainStatus.status !== 'unsupported';
+}
+
+/** Translate reason code to i18n string / 将 reason 内部码转换为 i18n 文本 */
+function getDevHostsReasonText(reason?: null | string): string {
+  if (!reason) return '';
+  const key = `admin.tenant.domain.devHosts.reason.${reason}`;
+  const translated = $t(key);
+  return translated === key ? reason : translated;
+}
+
+function canRemoveDevHost(domainStatus: DevHostDomainStatus | null) {
+  if (!domainStatus) return false;
+  return domainStatus.managed;
+}
+
+function getDevHostsCliCommand(domain?: string) {
+  if (!domain) return '';
+  return $t('admin.tenant.domain.devHosts.cliCommand', { domain });
+}
+
+async function onCopyDevHostsCommand(domain?: string) {
+  const command = getDevHostsCliCommand(domain);
+  if (!command) return;
+  const success = await copyToClipboard(command);
+  if (success) {
+    message.success($t('admin.tenant.domain.copySuccess'));
+  } else {
+    message.error($t('admin.tenant.domain.copyFailed'));
+  }
+}
+
+async function onSyncAllDevHosts() {
+  if (!currentTenant.value?.tenantId) return;
+
+  syncingAllDevHosts.value = true;
+  try {
+    const result = await admin.syncAllTenantDevHostsApi(currentTenant.value.tenantId);
+    devHostsOverview.value = {
+      runtime: result.runtime,
+      domains: result.domains,
+    };
+    message.success(
+      $t('admin.tenant.domain.devHosts.syncAllSuccess', {
+        skipped: result.skipped,
+        synced: result.synced,
+      }),
+    );
+    await loadDomains();
+  } catch {
+  } finally {
+    syncingAllDevHosts.value = false;
+  }
+}
+
+async function onSyncDevHost(domain: TenantDomainInfo) {
+  if (!currentTenant.value?.tenantId || isSyncingDomain(domain.id)) return;
+
+  syncingDomainIds.value = [...syncingDomainIds.value, domain.id];
+  try {
+    const result = await admin.syncTenantDevHostApi(
+      currentTenant.value.tenantId,
+      domain.id,
+    );
+    if (devHostsOverview.value) {
+      devHostsOverview.value = {
+        runtime: result.runtime,
+        domains: devHostsOverview.value.domains.map((item) =>
+          item.domainId === domain.id ? result.domain : item,
+        ),
+      };
+    } else {
+      await loadDevHosts();
+    }
+    message.success($t('admin.tenant.domain.devHosts.syncSuccess'));
+  } catch {
+  } finally {
+    syncingDomainIds.value = syncingDomainIds.value.filter((id) => id !== domain.id);
+  }
+}
+
+async function onRemoveDevHost(domain: TenantDomainInfo) {
+  if (!currentTenant.value?.tenantId || isRemovingDomain(domain.id)) return;
+
+  removingDomainIds.value = [...removingDomainIds.value, domain.id];
+  try {
+    const result = await admin.removeTenantDevHostApi(
+      currentTenant.value.tenantId,
+      domain.id,
+    );
+    if (devHostsOverview.value) {
+      devHostsOverview.value = {
+        runtime: result.runtime,
+        domains: devHostsOverview.value.domains.map((item) =>
+          item.domainId === domain.id ? result.domain : item,
+        ),
+      };
+    } else {
+      await loadDevHosts();
+    }
+    message.success($t('admin.tenant.domain.devHosts.removeSuccess'));
+  } catch {
+  } finally {
+    removingDomainIds.value = removingDomainIds.value.filter((id) => id !== domain.id);
+  }
+}
+
+/** Get verification status tag config / 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {
     case 'failed': {
@@ -221,7 +416,7 @@ function getVerificationTagConfig(status: string) {
   }
 }
 
-/** 获取 SSL 状态标签配置 */
+/** Get SSL status tag config / 获取 SSL 状态标签配置 */
 function getSslTagConfig(status: string) {
   switch (status) {
     case 'active': {
@@ -255,7 +450,7 @@ function getSslTagConfig(status: string) {
   }
 }
 
-/** 打开弹窗 */
+/** Open modal / 打开弹窗 */
 function open(data: DomainModalData) {
   modalApi.setData(data).open();
 }
@@ -267,15 +462,126 @@ defineExpose({ open });
   <Modal :title="title" :loading="loading" class="w-[800px]">
     <div class="min-h-[400px]">
       <Spin :spinning="loading">
-        <!-- 添加域名按钮 -->
-        <div class="mb-4">
+        <div class="mb-4 flex flex-wrap items-center gap-2">
           <Button type="primary" @click="onOpenAddDrawer">
             <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.addDomain') }}
           </Button>
+          <Button :loading="devHostsLoading" @click="loadDevHosts">
+            <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-4" />
+            {{ $t('admin.tenant.domain.devHosts.refresh') }}
+          </Button>
+          <Button
+            v-if="devHostsOverview?.runtime.enabled"
+            :loading="syncingAllDevHosts"
+            @click="onSyncAllDevHosts"
+          >
+            <IconifyIcon icon="lucide:hard-drive-download" class="mr-1 size-4" />
+            {{ $t('admin.tenant.domain.devHosts.syncAll') }}
+          </Button>
         </div>
 
-        <!-- 域名卡片列表 -->
+        <div class="mb-4 rounded-lg border border-border bg-card p-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconifyIcon icon="lucide:laptop" class="size-4 text-primary" />
+            <span class="font-medium">{{
+              $t('admin.tenant.domain.devHosts.title')
+            }}</span>
+          </div>
+
+          <Spin :spinning="devHostsLoading">
+            <template v-if="devHostsOverview">
+              <div class="grid gap-3 md:grid-cols-3">
+                <div class="rounded-md bg-accent/30 p-3">
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('admin.tenant.domain.devHosts.os') }}
+                  </div>
+                  <div class="mt-1 font-medium">
+                    {{ devHostsOverview.runtime.osName || '--' }}
+                  </div>
+                </div>
+                <div class="rounded-md bg-accent/30 p-3">
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('admin.tenant.domain.devHosts.hostsPath') }}
+                  </div>
+                  <div class="mt-1 break-all font-mono text-xs">
+                    {{ devHostsOverview.runtime.hostsPath || '--' }}
+                  </div>
+                </div>
+                <div class="rounded-md bg-accent/30 p-3">
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('admin.tenant.domain.devHosts.writeAccess') }}
+                  </div>
+                  <div class="mt-1 font-medium">
+                    {{
+                      devHostsOverview.runtime.canWriteHint
+                        ? $t('admin.tenant.domain.devHosts.writeYes')
+                        : $t('admin.tenant.domain.devHosts.writeNo')
+                    }}
+                  </div>
+                </div>
+              </div>
+
+              <Alert
+                v-if="!devHostsOverview.runtime.enabled"
+                class="mt-3"
+                type="warning"
+                show-icon
+                :message="$t('admin.tenant.domain.devHosts.disabled')"
+              />
+
+              <Alert
+                v-else-if="devHostsOverview.runtime.requiresElevation"
+                class="mt-3"
+                type="warning"
+                show-icon
+              >
+                <template #message>
+                  {{ $t('admin.tenant.domain.devHosts.elevationHint') }}
+                </template>
+                <template #description>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <code class="rounded bg-accent/30 px-2 py-1 text-xs">
+                      {{ getDevHostsCliCommand(domains[0]?.domain) }}
+                    </code>
+                    <Button
+                      v-if="domains[0]?.domain"
+                      size="small"
+                      type="link"
+                      @click="onCopyDevHostsCommand(domains[0]?.domain)"
+                    >
+                      {{ $t('admin.tenant.domain.clickToCopy') }}
+                    </Button>
+                  </div>
+                </template>
+              </Alert>
+
+              <Alert
+                v-if="devHostsOverview.runtime.enabled"
+                class="mt-3"
+                type="info"
+                show-icon
+                :message="$t('admin.tenant.domain.devHosts.remoteWarning')"
+              />
+            </template>
+
+            <template v-else-if="!devHostsLoading">
+              <Alert
+                v-if="devHostsLoadError"
+                type="error"
+                show-icon
+                :message="$t('admin.tenant.domain.devHosts.loadError')"
+              >
+                <template #action>
+                  <Button size="small" @click="loadDevHosts">
+                    {{ $t('admin.tenant.domain.devHosts.refresh') }}
+                  </Button>
+                </template>
+              </Alert>
+            </template>
+          </Spin>
+        </div>
+
         <div class="flex flex-col gap-3">
           <div
             v-for="domain in domains"
@@ -346,6 +652,40 @@ defineExpose({ open });
                   {{ getSslTagConfig(domain.sslStatus).text }}
                 </Tag>
               </div>
+
+              <div
+                v-if="getDevHostsDomainStatus(domain.id)"
+                class="flex items-center gap-1"
+              >
+                <span class="text-sm text-muted-foreground">
+                  {{ $t('admin.tenant.domain.devHosts.title') }}:
+                </span>
+                <Tag
+                  :color="
+                    getDevHostsTagConfig(getDevHostsDomainStatus(domain.id)!.status)
+                      .color
+                  "
+                >
+                  <IconifyIcon
+                    :icon="
+                      getDevHostsTagConfig(getDevHostsDomainStatus(domain.id)!.status)
+                        .icon
+                    "
+                    class="mr-1 size-3"
+                  />
+                  {{
+                    $t(
+                      `admin.tenant.domain.devHosts.status.${getDevHostsDomainStatus(domain.id)!.status}`,
+                    )
+                  }}
+                </Tag>
+                <span
+                  v-if="getDevHostsDomainStatus(domain.id)?.matchedIp"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ getDevHostsDomainStatus(domain.id)?.matchedIp }}
+                </span>
+              </div>
             </div>
 
             <!-- 备注 -->
@@ -357,6 +697,13 @@ defineExpose({ open });
                 >{{ $t('admin.tenant.domain.remark') }}:</span
               >
               <span class="ml-1">{{ domain.remark }}</span>
+            </div>
+
+            <div
+              v-if="getDevHostsDomainStatus(domain.id)?.reason"
+              class="mt-2 text-xs text-muted-foreground"
+            >
+              {{ getDevHostsReasonText(getDevHostsDomainStatus(domain.id)?.reason) }}
             </div>
 
             <!-- 操作按钮 -->
@@ -424,6 +771,31 @@ defineExpose({ open });
                   {{ $t('admin.tenant.domain.setPrimary') }}
                 </Button>
               </Tooltip>
+
+              <Button
+                v-if="canSyncDevHost(getDevHostsDomainStatus(domain.id))"
+                type="link"
+                size="small"
+                :loading="isSyncingDomain(domain.id)"
+                @click="onSyncDevHost(domain)"
+              >
+                <IconifyIcon
+                  icon="lucide:hard-drive-download"
+                  class="mr-1 size-4"
+                />
+                {{ $t('admin.tenant.domain.devHosts.sync') }}
+              </Button>
+
+              <Button
+                v-if="canRemoveDevHost(getDevHostsDomainStatus(domain.id))"
+                type="link"
+                size="small"
+                :loading="isRemovingDomain(domain.id)"
+                @click="onRemoveDevHost(domain)"
+              >
+                <IconifyIcon icon="lucide:eraser" class="mr-1 size-4" />
+                {{ $t('admin.tenant.domain.devHosts.remove') }}
+              </Button>
 
               <!-- 删除 (自定义域名且非主域名才显示) -->
               <Popconfirm

@@ -1,7 +1,7 @@
 """
-平台端系统日志管理 API
+平台端系统日志管理 API / Platform System Log Management API
 
-提供文件日志的查看、下载、删除接口
+提供文件日志的查看、下载、删除接口 / Provides file log viewing, downloading, and deletion endpoints
 """
 
 from datetime import datetime
@@ -23,43 +23,43 @@ from app.rbac.decorators import (
 )
 from app.services.system import SystemLogService
 
-# ============ Schemas ============
+# ============ Schemas / 数据模型 ============
 
 class LogCategoryResponse(BaseModel):
-    """日志分类响应"""
-    code: str = Field(..., description="分类代码")
-    name: str = Field(..., description="分类名称")
-    description: str = Field(..., description="分类描述")
-    file_count: int = Field(..., description="文件数量")
-    total_size: int = Field(..., description="总大小（字节）")
+    """日志分类响应 / Log category response"""
+    code: str = Field(..., description="分类代码 / Category code")
+    name: str = Field(..., description="分类名称 / Category name")
+    description: str = Field(..., description="分类描述 / Category description")
+    file_count: int = Field(..., description="文件数量 / File count")
+    total_size: int = Field(..., description="总大小（字节） / Total size (bytes)")
 
 
 class LogFileResponse(BaseModel):
-    """日志文件响应"""
-    name: str = Field(..., description="文件名")
-    category: str = Field(..., description="分类代码")
-    size: int = Field(..., description="文件大小（字节）")
-    modified_at: datetime = Field(..., description="最后修改时间")
-    is_current: bool = Field(..., description="是否为当前活动日志")
+    """日志文件响应 / Log file response"""
+    name: str = Field(..., description="文件名 / Filename")
+    category: str = Field(..., description="分类代码 / Category code")
+    size: int = Field(..., description="文件大小（字节） / File size (bytes)")
+    modified_at: datetime = Field(..., description="最后修改时间 / Last modified time")
+    is_current: bool = Field(..., description="是否为当前活动日志 / Whether this is the current active log")
 
 
 class LogContentResponse(BaseModel):
-    """日志内容响应"""
-    lines: list[str] = Field(..., description="日志行内容")
-    total_lines: int = Field(..., description="总行数")
-    page: int = Field(..., description="当前页码")
-    page_size: int = Field(..., description="每页行数")
-    has_more: bool = Field(..., description="是否有更多")
+    """日志内容响应 / Log content response"""
+    lines: list[str] = Field(..., description="日志行内容 / Log line content")
+    total_lines: int = Field(..., description="总行数 / Total lines")
+    page: int = Field(..., description="当前页码 / Current page")
+    page_size: int = Field(..., description="每页行数 / Lines per page")
+    has_more: bool = Field(..., description="是否有更多 / Has more")
 
 
 class LogStatsResponse(BaseModel):
-    """日志统计响应"""
-    total_files: int = Field(..., description="总文件数")
-    total_size: int = Field(..., description="总大小（字节）")
-    categories: list[LogCategoryResponse] = Field(..., description="分类统计")
+    """日志统计响应 / Log statistics response"""
+    total_files: int = Field(..., description="总文件数 / Total files")
+    total_size: int = Field(..., description="总大小（字节） / Total size (bytes)")
+    categories: list[LogCategoryResponse] = Field(..., description="分类统计 / Category statistics")
 
 
-# ============ Controller ============
+# ============ Controller / 控制器 ============
 
 @permission_resource(
     resource="system_log",
@@ -76,16 +76,17 @@ class LogStatsResponse(BaseModel):
 )
 class AdminSystemLogController(GlobalController):
     """
-    平台端系统日志控制器
+    平台端系统日志控制器 / Platform System Log Controller
 
     提供文件日志的查看、下载、删除接口
+    Provides file log viewing, downloading, and deletion endpoints
     """
 
     prefix = "/system-logs"
     tags = ["System Log Management"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/stats", summary="获取日志统计")
@@ -96,11 +97,12 @@ class AdminSystemLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取日志统计信息
+            获取日志统计信息 / Get log statistics
 
             返回总文件数、总大小及各分类统计
+            Returns total files, total size, and statistics per category
 
-            权限: system_log:stats
+            Permission: system_log:stats
             """
             service = SystemLogService()
             stats = service.get_log_stats()
@@ -124,11 +126,12 @@ class AdminSystemLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取日志分类列表
+            获取日志分类列表 / Get log category list
 
             返回所有日志分类及其统计信息
+            Returns all log categories with their statistics
 
-            权限: system_log:categories
+            Permission: system_log:categories
             """
             service = SystemLogService()
             categories = service.list_categories()
@@ -153,14 +156,15 @@ class AdminSystemLogController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            category: str = Query(None, description="日志分类"),
+            category: str = Query(None, description="日志分类 / Log category"),
         ):
             """
-            获取日志文件列表
+            获取日志文件列表 / Get log file list
 
             可按分类筛选，按修改时间倒序排列
+            Filter by category, sorted by modification time in descending order
 
-            权限: system_log:files
+            Permission: system_log:files
             """
             service = SystemLogService()
             files = service.list_log_files(category=category)
@@ -186,16 +190,17 @@ class AdminSystemLogController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             filename: str,
-            page: int = Query(1, ge=1, description="页码"),
-            page_size: int = Query(100, ge=1, le=500, description="每页行数"),
-            reverse: bool = Query(True, description="是否倒序（最新在前）"),
+            page: int = Query(1, ge=1, description="页码 / Page number"),
+            page_size: int = Query(100, ge=1, le=500, description="每页行数 / Lines per page"),
+            reverse: bool = Query(True, description="是否倒序（最新在前） / Reverse order (newest first)"),
         ):
             """
-            分页读取日志文件内容
+            分页读取日志文件内容 / Read log file content with pagination
 
             默认最新的日志在前（倒序）
+            Default: newest logs first (reverse order)
 
-            权限: system_log:read
+            Permission: system_log:read
             """
             service = SystemLogService()
             content = service.read_log_file(
@@ -231,9 +236,9 @@ class AdminSystemLogController(GlobalController):
             filename: str,
         ):
             """
-            下载日志文件
+            下载日志文件 / Download log file
 
-            权限: system_log:download
+            Permission: system_log:download
             """
             service = SystemLogService()
             file_path = service.get_log_file_path(filename)
@@ -259,15 +264,16 @@ class AdminSystemLogController(GlobalController):
             filename: str,
         ):
             """
-            删除日志文件
+            删除日志文件 / Delete log file
 
             注意：不允许删除当前活动日志文件（如 app.log）
+            Note: Current active log files (e.g. app.log) cannot be deleted
 
-            权限: system_log:delete
+            Permission: system_log:delete
             """
             service = SystemLogService()
 
-            # 检查文件是否存在
+            # 检查文件是否存在 / Check if file exists
             file_path = service.get_log_file_path(filename)
             if file_path is None:
                 raise HTTPException(
@@ -275,7 +281,7 @@ class AdminSystemLogController(GlobalController):
                     detail=_("system_log.file_not_found"),
                 )
 
-            # 尝试删除
+            # 尝试删除 / Attempt deletion
             deleted = service.delete_log_file(filename)
 
             if not deleted:
@@ -290,7 +296,7 @@ class AdminSystemLogController(GlobalController):
             )
 
 
-# 创建路由
+# 创建路由 / Create router
 router = AdminSystemLogController.get_router()
 
 

@@ -1,7 +1,8 @@
 """
-租户端任务日志服务
+租户端任务日志服务 / Tenant Task Log Service
 
 提供租户端任务日志查询（只读，自动按 tenant_id 过滤）
+Provides tenant task log queries (read-only, auto-filtered by tenant_id).
 """
 
 from datetime import datetime

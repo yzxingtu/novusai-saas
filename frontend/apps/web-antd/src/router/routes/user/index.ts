@@ -1,4 +1,5 @@
 /**
+ * User-facing route module
  * 用户端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
@@ -7,7 +8,7 @@ import { $t } from '#/locales';
 
 const UserLayout = () => import('#/layouts/user.vue');
 
-/** 用户端主布局路由 */
+/** User main layout routes / 用户端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: UserLayout,
   meta: {
@@ -76,8 +77,8 @@ const mainRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 用户端路由 */
+/** User routes / 用户端路由 */
 export const userRoutes: RouteRecordRaw[] = [mainRoutes];
 
-/** 用户端路由名称列表（不需要权限拦截） */
+/** User core route names (bypass permission checks) / 用户端路由名称列表（不需要权限拦截） */
 export const userCoreRouteNames: string[] = [];

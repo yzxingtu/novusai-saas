@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Tenant agent management list page — useCrudList + card grid
  * 租户端智能体管理列表页面 — useCrudList + 卡片网格
  *
+ * useCrudList manages: list/pagination/search/delete/recycle bin
  * useCrudList 管理：列表/分页/搜索/删除/回收站
+ * Custom: AgentForm ref mode/publish/version history
  * 自定义：AgentForm ref 模式/发布/版本历史
  */
 import type { AgentListItem } from '#/api/tenant/agents';
@@ -57,7 +60,7 @@ import VersionHistory from './modules/VersionHistory.vue';
 defineOptions({ name: 'TenantAgentList' });
 
 // ============================================================
-// 声明式 CRUD
+// Declarative CRUD / 声明式 CRUD
 // ============================================================
 
 const {
@@ -87,7 +90,7 @@ const {
   },
 });
 
-// ========== 回收站 ==========
+// ========== Recycle bin / 回收站 ==========
 const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
   null,
 );
@@ -97,14 +100,14 @@ function openRecycleBin() {
 }
 
 // ============================================================
-// AgentForm（ref 模式）
+// AgentForm (ref mode) / AgentForm（ref 模式）
 // ============================================================
 
 const router = useRouter();
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
 
 // ============================================================
-// 版本历史
+// Version history / 版本历史
 // ============================================================
 
 const [VersionHistoryDrawer, versionHistoryApi] = useVbenDrawer({
@@ -120,7 +123,7 @@ function onVersions(agent: AgentListItem) {
 }
 
 // ============================================================
-// 发布
+// Publish / 发布
 // ============================================================
 
 const publishModalOpen = ref(false);
@@ -151,7 +154,7 @@ async function onPublishConfirm() {
 }
 
 // ============================================================
-// 搜索过滤
+// Search filters / 搜索过滤
 // ============================================================
 
 const filterStatus = ref<string>();
@@ -178,7 +181,7 @@ const hasActiveFilters = computed(
 );
 
 // ============================================================
-// 辅助
+// Helpers / 辅助
 // ============================================================
 
 function getStatusDotClass(status: string): string {

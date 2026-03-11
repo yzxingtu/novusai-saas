@@ -1,5 +1,5 @@
 /**
- * 租户端技能包管理 API
+ * Tenant skill package management API / 租户端技能包管理 API
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 
@@ -7,14 +7,13 @@ import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/tenant/ai/skill-packages';
 
-/** 技能包信息 */
+/** Skill package info / 技能包信息 */
 export interface TenantSkillPackageInfo {
   id: number;
   tenant_id: number;
   name: string;
   description: null | string;
   avatar: null | string;
-  scope: string;
   target_audience: string;
   is_recommended: boolean;
   is_system: boolean;
@@ -28,7 +27,7 @@ export interface TenantSkillPackageInfo {
   updated_at: string;
 }
 
-/** 创建技能包请求 */
+/** Create skill package request / 创建技能包请求 */
 export interface SkillPackageCreateParams {
   name: string;
   description?: null | string;
@@ -37,7 +36,7 @@ export interface SkillPackageCreateParams {
   sort_order?: number;
 }
 
-/** 更新技能包请求 */
+/** Update skill package request / 更新技能包请求 */
 export interface SkillPackageUpdateParams {
   name?: string;
   description?: null | string;
@@ -46,13 +45,12 @@ export interface SkillPackageUpdateParams {
   sort_order?: number;
 }
 
-/** 推荐技能包信息 */
+/** Recommended skill package info / 推荐技能包信息 */
 export interface RecommendedSkillPackageInfo {
   id: number;
   name: string;
   description: null | string;
   avatar: null | string;
-  scope: string;
   target_audience: string;
   is_recommended: boolean;
   is_system: boolean;
@@ -60,14 +58,14 @@ export interface RecommendedSkillPackageInfo {
   source_plugin: null | string;
 }
 
-/** 获取推荐技能包列表 */
+/** Get recommended skill package list / 获取推荐技能包列表 */
 export function getRecommendedSkillPackagesApi() {
   return requestClient.get<RecommendedSkillPackageInfo[]>(
     `${BASE_URL}/recommended`,
   );
 }
 
-/** 获取技能包列表 */
+/** Get skill package list / 获取技能包列表 */
 export function getSkillPackageListApi(params?: Record<string, unknown>) {
   return requestClient.get<{ items: TenantSkillPackageInfo[]; total: number }>(
     BASE_URL,
@@ -75,17 +73,17 @@ export function getSkillPackageListApi(params?: Record<string, unknown>) {
   );
 }
 
-/** 获取技能包详情 */
+/** Get skill package detail / 获取技能包详情 */
 export function getSkillPackageDetailApi(id: number) {
   return requestClient.get<TenantSkillPackageInfo>(`${BASE_URL}/${id}`);
 }
 
-/** 创建技能包 */
+/** Create skill package / 创建技能包 */
 export function createSkillPackageApi(data: SkillPackageCreateParams) {
   return requestClient.post<TenantSkillPackageInfo>(BASE_URL, data);
 }
 
-/** 更新技能包 */
+/** Update skill package / 更新技能包 */
 export function updateSkillPackageApi(
   id: number,
   data: SkillPackageUpdateParams,
@@ -93,12 +91,12 @@ export function updateSkillPackageApi(
   return requestClient.put<TenantSkillPackageInfo>(`${BASE_URL}/${id}`, data);
 }
 
-/** 删除技能包 */
+/** Delete skill package / 删除技能包 */
 export function deleteSkillPackageApi(id: number) {
   return requestClient.delete(`${BASE_URL}/${id}`);
 }
 
-/** 获取技能包下拉选项 */
+/** Get skill package select options / 获取技能包下拉选项 */
 export function getSkillPackageSelectApi(params?: Record<string, unknown>) {
   return requestClient.get<Array<{ label: string; value: number }>>(
     `${BASE_URL}/select`,
@@ -106,21 +104,20 @@ export function getSkillPackageSelectApi(params?: Record<string, unknown>) {
   );
 }
 
-/** 可绑定技能包选项（含 admin 共享包） */
+/** Available package option (including admin shared packages) / 可绑定技能包选项 */
 export interface AvailablePackageOption {
   label: string;
   value: number;
-  scope: string;
   description: null | string;
   is_system: boolean;
 }
 
-/** 获取可绑定的技能包列表（自有 + admin 共享） */
+/** Get available package list (own + admin shared) / 获取可绑定的技能包列表 */
 export function getAvailablePackagesApi() {
   return requestClient.get<AvailablePackageOption[]>(`${BASE_URL}/available`);
 }
 
-/** 上传技能 ZIP 包 */
+/** Upload skill ZIP package / 上传技能 ZIP 包 */
 export function uploadSkillPackageApi(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -133,14 +130,14 @@ export function uploadSkillPackageApi(file: File) {
   );
 }
 
-/** Valves 属性定义 */
+/** Valves property definition / Valves 属性定义 */
 interface ValvesProperty {
   type: string;
   description?: string;
   default?: unknown;
 }
 
-/** Valves 配置响应 */
+/** Valves config response / Valves 配置响应 */
 export interface SkillPackageValvesInfo {
   valves_schema: null | {
     properties: Record<string, ValvesProperty>;
@@ -150,14 +147,14 @@ export interface SkillPackageValvesInfo {
   valves_config: null | Record<string, unknown>;
 }
 
-/** 获取技能包 Valves 配置 */
+/** Get skill package Valves config / 获取技能包 Valves 配置 */
 export function getSkillPackageValvesApi(packageId: number) {
   return requestClient.get<SkillPackageValvesInfo>(
     `${BASE_URL}/${packageId}/valves`,
   );
 }
 
-/** 更新技能包 Valves 配置 */
+/** Update skill package Valves config / 更新技能包 Valves 配置 */
 export function updateSkillPackageValvesApi(
   packageId: number,
   data: { valves_config: Record<string, unknown> },
@@ -168,12 +165,12 @@ export function updateSkillPackageValvesApi(
   );
 }
 
-/** 获取回收站数量 */
+/** Get recycle bin count / 获取回收站数量 */
 export function getSkillPackageRecycleBinCountApi() {
   return requestClient.get<{ count: number }>(`${BASE_URL}/recycle-bin/count`);
 }
 
-/** 获取回收站列表 */
+/** Get recycle bin list / 获取回收站列表 */
 export function getSkillPackageRecycleBinApi(params?: Record<string, unknown>) {
   return requestClient.get<{ items: TenantSkillPackageInfo[]; total: number }>(
     `${BASE_URL}/recycle-bin`,
@@ -181,17 +178,17 @@ export function getSkillPackageRecycleBinApi(params?: Record<string, unknown>) {
   );
 }
 
-/** 恢复技能包 */
+/** Restore skill package / 恢复技能包 */
 export function restoreSkillPackageApi(id: number) {
   return requestClient.post(`${BASE_URL}/recycle-bin/${id}/restore`);
 }
 
-/** 永久删除技能包 */
+/** Permanently delete skill package / 永久删除技能包 */
 export function permanentDeleteSkillPackageApi(id: number) {
   return requestClient.delete(`${BASE_URL}/recycle-bin/${id}`);
 }
 
-/** 从模板克隆技能包 */
+/** Clone skill package from template / 从模板克隆技能包 */
 export function cloneFromTemplateApi(
   packageId: number,
   data?: { new_name?: string },
@@ -204,7 +201,7 @@ export function cloneFromTemplateApi(
   }>(`${BASE_URL}/from-template/${packageId}`, data ?? {});
 }
 
-/** 获取技能包内的技能列表 */
+/** Get skills within skill package / 获取技能包内的技能列表 */
 export function getSkillPackageSkillsApi(
   packageId: number,
   params?: Record<string, unknown>,

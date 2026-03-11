@@ -1,7 +1,9 @@
 """
+Builtin Tool Executor
 内置工具执行器
 
-提供安全的内置函数（datetime、math 等），不涉及外部调用
+Provides safe built-in functions (datetime, math, etc.) without external calls.
+提供安全的内置函数（datetime、math 等），不涉及外部调用。
 """
 
 import ast
@@ -22,16 +24,18 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.builtin")
 
-# 内置函数类型
+# Built-in function type / 内置函数类型
 BuiltinFunc = Callable[..., Coroutine[Any, Any, str]]
 
 
+# SSRF protection: block access to intranet/cloud metadata hostnames
 # SSRF 防护：阻止访问内网/云元数据的主机名
 _SSRF_BLOCKED_HOSTS = frozenset({
     "localhost", "127.0.0.1", "0.0.0.0", "::1",
     "169.254.169.254", "metadata.google.internal",
     "metadata.google", "100.100.100.200",
 })
+# Private IP range prefixes (quick check, not exact CIDR)
 # 内网 IP 段前缀（快速检查，非精确 CIDR）
 _SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
                           "172.20.", "172.21.", "172.22.", "172.23.",
@@ -41,7 +45,8 @@ _SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
 
 
 def _is_ssrf_blocked(url: str) -> str | None:
-    """检查 URL 是否指向内网/云元数据，返回错误消息或 None"""
+    """Check if URL points to intranet/cloud metadata, return error message or None
+    检查 URL 是否指向内网/云元数据，返回错误消息或 None"""
     try:
         from urllib.parse import urlparse
         parsed = urlparse(url)
@@ -52,7 +57,7 @@ def _is_ssrf_blocked(url: str) -> str | None:
             return f"Blocked: requests to {host} are not allowed"
         if host.startswith(_SSRF_PRIVATE_PREFIXES):
             return f"Blocked: requests to private network ({host}) are not allowed"
-        # 阻止非 HTTP(S) 协议
+        # Block non-HTTP(S) protocols / 阻止非 HTTP(S) 协议
         if parsed.scheme not in ("http", "https"):
             return f"Blocked: only http/https URLs are allowed, got {parsed.scheme}"
     except Exception:
@@ -62,8 +67,11 @@ def _is_ssrf_blocked(url: str) -> str | None:
 
 class BuiltinToolExecutor(BaseToolExecutor):
     """
-    内置函数工具执行器
+    Built-in function tool executor.
+    内置函数工具执行器。
 
+    Maintains a safe function registry; all functions execute in-process.
+    Any IO operations and dangerous calls are forbidden.
     维护一个安全函数注册表，所有函数在进程内执行。
     禁止任何 IO 操作和危险调用。
     """
@@ -73,7 +81,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         self._register_defaults()
 
     def register_function(self, name: str, func: BuiltinFunc) -> None:
-        """注册一个内置函数"""
+        """Register a built-in function / 注册一个内置函数"""
         self._functions[name] = func
 
     async def execute(
@@ -83,7 +91,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: "ExecutionContext | None" = None,
     ) -> ToolResult:
-        """执行内置函数"""
+        """Execute a built-in function / 执行内置函数"""
         _ = context
         start = time.perf_counter()
         func_name = definition.name
@@ -130,12 +138,12 @@ class BuiltinToolExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """校验内置函数参数"""
+        """Validate built-in function arguments / 校验内置函数参数"""
         func_name = definition.name
         if func_name not in self._functions:
             return False
 
-        # 检查必填参数
+        # Check required parameters / 检查必填参数
         for param in definition.parameters:
             if param.required and param.name not in arguments:
                 return False
@@ -143,11 +151,11 @@ class BuiltinToolExecutor(BaseToolExecutor):
         return True
 
     # ========================================
-    # 默认内置函数
+    # Default built-in functions / 默认内置函数
     # ========================================
 
     def _register_defaults(self) -> None:
-        """注册默认内置函数"""
+        """Register default built-in functions / 注册默认内置函数"""
         self.register_function("get_current_time", self._get_current_time)
         self.register_function("calculate", self._calculate)
         self.register_function("format_json", self._format_json)
@@ -159,7 +167,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         timezone_name: str = "UTC",
         format: str = "%Y-%m-%d %H:%M:%S",
     ) -> str:
-        """获取当前时间"""
+        """Get current time / 获取当前时间"""
         import zoneinfo
 
         try:
@@ -173,8 +181,11 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _calculate(expression: str = "") -> str:
         """
-        安全的数学计算
+        Safe mathematical calculation.
+        安全的数学计算。
 
+        Uses an AST parser, only allowing numeric constants and basic arithmetic operators.
+        Function calls, attribute access, imports, or any other code execution are forbidden.
         使用 AST 解析器，仅允许数字常量和基本算术运算符。
         禁止函数调用、属性访问、导入或任何其他代码执行。
         """
@@ -189,7 +200,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
 
     @staticmethod
     async def _format_json(data: str = "") -> str:
-        """格式化 JSON 字符串"""
+        """Format JSON string / 格式化 JSON 字符串"""
         try:
             parsed = json.loads(data)
             return json.dumps(parsed, indent=2, ensure_ascii=False)
@@ -199,8 +210,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _web_search(query: str = "", max_results: int = 5) -> str:
         """
+        Web search: search web content via DuckDuckGo HTML API.
         联网搜索：通过 DuckDuckGo HTML API 搜索网页内容。
 
+        Returns a list of search results (title + snippet + link).
         返回搜索结果列表（标题 + 摘要 + 链接）。
         """
         if not query:
@@ -266,14 +279,16 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
         """
+        Fetch web content: retrieve text content from a specified URL.
         抓取网页内容：获取指定 URL 的文本内容。
 
+        Automatically extracts body text, removing HTML tags and scripts.
         自动提取正文文本，去除 HTML 标签和脚本。
         """
         if not url:
             return "Error: url parameter is required"
 
-        # SSRF 防护：阻止内网/云元数据访问
+        # SSRF protection: block intranet/cloud metadata access / SSRF 防护：阻止内网/云元数据访问
         ssrf_err = _is_ssrf_blocked(url)
         if ssrf_err:
             return f"Error: {ssrf_err}"
@@ -316,10 +331,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
 
 
 # ========================================
-# 安全数学表达式解析器
+# Safe Math Expression Parser / 安全数学表达式解析器
 # ========================================
 
-# 允许的二元运算符
+# Allowed binary operators / 允许的二元运算符
 _SAFE_BINOPS: dict[type, Callable[..., object]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -330,7 +345,7 @@ _SAFE_BINOPS: dict[type, Callable[..., object]] = {
     ast.Pow: operator.pow,
 }
 
-# 允许的一元运算符
+# Allowed unary operators / 允许的一元运算符
 _SAFE_UNARYOPS: dict[type, Callable[..., object]] = {
     ast.UAdd: operator.pos,
     ast.USub: operator.neg,
@@ -338,7 +353,8 @@ _SAFE_UNARYOPS: dict[type, Callable[..., object]] = {
 
 
 def _safe_eval_node(node: ast.AST) -> int | float:
-    """递归求值 AST 节点，仅允许安全的数学操作"""
+    """Recursively evaluate AST node, only allowing safe math operations
+    递归求值 AST 节点，仅允许安全的数学操作"""
     if isinstance(node, ast.Expression):
         return _safe_eval_node(node.body)
 
@@ -351,7 +367,7 @@ def _safe_eval_node(node: ast.AST) -> int | float:
             raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
         left = _safe_eval_node(node.left)
         right = _safe_eval_node(node.right)
-        # 防止天文数字指数 (如 10**10000)
+        # Prevent astronomical exponents (e.g. 10**10000) / 防止天文数字指数 (如 10**10000)
         if isinstance(node.op, ast.Pow) and isinstance(right, (int, float)) and abs(right) > 1000:
             raise ValueError("Exponent too large (max 1000)")
         return op_func(left, right)
@@ -369,16 +385,20 @@ def _safe_eval_node(node: ast.AST) -> int | float:
 
 
 def _safe_eval_math(expression: str) -> int | float:
-    """安全地求值数学表达式
+    """Safely evaluate a math expression.
+    安全地求值数学表达式。
 
+    Uses ast.parse to parse the expression into an AST, then recursively evaluates it.
+    Only numeric constants and basic arithmetic operators are allowed; any function calls,
+    attribute access, variable references, or other code execution are forbidden.
     使用 ast.parse 将表达式解析为 AST，然后递归求值。
     仅允许数字常量和基本算术运算符，禁止任何函数调用、
     属性访问、变量引用或其他代码执行。
 
     Raises:
-        ValueError: 表达式包含不安全的操作
-        SyntaxError: 表达式语法错误
-        ZeroDivisionError: 除零错误
+        ValueError: Expression contains unsafe operations / 表达式包含不安全的操作
+        SyntaxError: Expression syntax error / 表达式语法错误
+        ZeroDivisionError: Division by zero / 除零错误
     """
     tree = ast.parse(expression.strip(), mode="eval")
     return _safe_eval_node(tree)

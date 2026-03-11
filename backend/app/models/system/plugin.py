@@ -1,5 +1,5 @@
 """
-插件模型
+插件模型 / Plugin Model
 """
 
 from datetime import datetime

@@ -1,6 +1,7 @@
 """
-Celery 任务基类与装饰器
+Celery task base classes and decorators / Celery 任务基类与装饰器
 
+Provides BaseTask, TenantTask base classes and @register_task decorator.
 提供 BaseTask、TenantTask 基类和 @register_task 装饰器
 """
 
@@ -27,13 +28,15 @@ def get_task_registry() -> dict[str, dict[str, Any]]:
     return _task_registry
 
 
-# 缓存 periodic_tasks 配置，避免每次任务执行都查 DB
+# Cache periodic_tasks config to avoid DB query on every task execution / 缓存 periodic_tasks 配置，避免每次任务执行都查 DB
 _periodic_task_config_cache: dict[str, dict[str, Any]] = {}
 
 
 def _load_periodic_task_config(task_path: str) -> dict[str, Any]:
     """
+    Load task config from periodic_tasks table.
     从 periodic_tasks 表加载任务配置。
+    Results are cached in memory; DB is queried only once per Worker lifecycle.
     结果缓存在内存中，Worker 生命周期内只查一次 DB。
     """
     if task_path in _periodic_task_config_cache:
@@ -74,9 +77,11 @@ def _load_periodic_task_config(task_path: str) -> dict[str, Any]:
 
 class BaseTask(Task):
     """
-    Celery 任务基类
+    Celery task base class / Celery 任务基类
 
+    Automatically logs, handles retries and error callbacks.
     自动记录日志、处理重试和错误回调。
+    Dynamically reads max_retries / retry_delay / timeout config from periodic_tasks table.
     动态从 periodic_tasks 表读取 max_retries / retry_delay / timeout 配置。
     """
 
@@ -94,7 +99,9 @@ class BaseTask(Task):
 
     def _apply_db_config(self) -> None:
         """
+        Dynamically load config from periodic_tasks table and override Celery params.
         从 periodic_tasks 表动态加载配置并覆盖 Celery 参数。
+        DB config takes priority over @register_task hardcoded values.
         DB 配置优先级高于 @register_task 硬编码值。
         """
         config = _load_periodic_task_config(self.name)
@@ -108,6 +115,7 @@ class BaseTask(Task):
 
     def get_retry_countdown(self) -> int:
         """
+        Get retry interval (seconds). Prefers DB config, falls back to default_retry_delay.
         获取重试间隔（秒）。优先使用 DB 配置，回退到 default_retry_delay。
         """
         if self._db_config and self._db_config.get("retry_delay"):
@@ -145,11 +153,12 @@ class BaseTask(Task):
 
     def _notify_failure(self, task_id: str, exc: Exception) -> None:
         """
-        任务失败通知钩子。
+        Task failure notification hook / 任务失败通知钩子。
 
+        Decides whether to send notification based on periodic_tasks table's notify_on_failure config.
         根据 periodic_tasks 表的 notify_on_failure 配置决定是否发送通知。
-        当前支持：日志记录
-        预留接口：WebSocket 实时推送、邮件通知
+        Currently supported: log recording. Reserved: WebSocket push, email notification.
+        当前支持：日志记录。预留接口：WebSocket 实时推送、邮件通知
         """
         if not self._db_config or not self._db_config.get("notify_on_failure"):
             return
@@ -157,13 +166,13 @@ class BaseTask(Task):
         task_name = self._db_config.get("task_name", self.name)
         notify_emails = self._db_config.get("notify_emails", "")
 
-        # 1. 记录通知日志
+        # 1. Record notification log / 记录通知日志
         logger.warning(
             "Task failure notification: task=%s task_id=%s error=%s emails=%s",
             task_name, task_id, str(exc)[:200], notify_emails or "(none)",
         )
 
-        # 2. Socket.IO 实时推送（通过 sio_bridge 同步发布）
+        # 2. Socket.IO real-time push (via sio_bridge sync publish) / Socket.IO 实时推送（通过 sio_bridge 同步发布）
         try:
             from app.core.sio_bridge import notify_admins_sync
             notify_admins_sync({
@@ -177,7 +186,7 @@ class BaseTask(Task):
         except Exception as ws_err:
             logger.warning("Failed to send WS task failure notification: %s", str(ws_err))
 
-        # 3. 邮件通知（通过统一通知系统）
+        # 3. Email notification (via unified notification system) / 邮件通知（通过统一通知系统）
         if notify_emails:
             try:
                 from app.services.common.email_templates import (
@@ -211,12 +220,12 @@ class BaseTask(Task):
     def get_db_session(self) -> Session:
         return sync_session_factory()
 
-    # ── Task Log Recording (sync) ──────────────────────────
+    # ── Task Log Recording (sync) / 任务日志记录（同步） ──────────────────────────
 
     def _record_task_log_start(
         self, task_id: str, args: tuple, kwargs: dict,
     ) -> None:
-        """Insert a TaskLog row when task starts."""
+        """Insert a TaskLog row when task starts. / 任务启动时插入 TaskLog 记录。"""
         session = None
         try:
             from app.models.system.task_log import TaskLog
@@ -225,7 +234,7 @@ class BaseTask(Task):
             queue = getattr(self, "queue", "default") or "default"
             tenant_id = kwargs.get("tenant_id") if kwargs else None
 
-            # Serialize args/kwargs safely
+            # Serialize args/kwargs safely / 安全序列化 args/kwargs
             safe_args = self._safe_json(list(args)) if args else None
             safe_kwargs = self._safe_json(dict(kwargs)) if kwargs else None
 
@@ -252,7 +261,7 @@ class BaseTask(Task):
     def _record_task_log_success(
         self, task_id: str, retval: Any, elapsed: float,
     ) -> None:
-        """Update TaskLog to SUCCESS."""
+        """Update TaskLog to SUCCESS. / 更新 TaskLog 为成功状态。"""
         session = None
         try:
             from app.models.system.task_log import TaskLog
@@ -280,7 +289,7 @@ class BaseTask(Task):
     def _record_task_log_failure(
         self, task_id: str, exc: Exception, einfo: Any, elapsed: float,
     ) -> None:
-        """Update or create TaskLog as FAILED."""
+        """Update or create TaskLog as FAILED. / 更新或创建失败状态的 TaskLog。"""
         session = None
         try:
             from app.models.system.task_log import TaskLog
@@ -299,7 +308,7 @@ class BaseTask(Task):
                 log.finished_at = now
                 log.duration_ms = int(elapsed * 1000)
             else:
-                # before_start 未能创建日志时，直接新建一条失败记录
+                # Create a new failure record if before_start failed to create log / before_start 未能创建日志时，直接新建一条失败记录
                 queue = getattr(self, "queue", "default") or "default"
                 log = TaskLog(
                     task_id=task_id,
@@ -323,7 +332,7 @@ class BaseTask(Task):
                 session.close()
 
     def _record_task_log_retry(self, task_id: str, exc: Exception) -> None:
-        """Update TaskLog to RETRYING."""
+        """Update TaskLog to RETRYING. / 更新 TaskLog 为重试状态。"""
         session = None
         try:
             from app.models.system.task_log import TaskLog
@@ -349,7 +358,7 @@ class BaseTask(Task):
 
     @staticmethod
     def _safe_json(value: Any) -> Any:
-        """Convert value to JSON-serializable form."""
+        """Convert value to JSON-serializable form. / 将值转换为 JSON 可序列化格式。"""
         if value is None:
             return None
         if isinstance(value, (dict, list, str, int, float, bool)):
@@ -360,7 +369,7 @@ class BaseTask(Task):
             return None
 
     def _update_periodic_task_timestamps(self) -> None:
-        """更新 periodic_tasks 表中的 last_run_at 和 next_run_at"""
+        """Update last_run_at and next_run_at in periodic_tasks table / 更新 periodic_tasks 表中的 last_run_at 和 next_run_at"""
         session = None
         try:
             from datetime import timedelta
@@ -382,7 +391,7 @@ class BaseTask(Task):
             now = utc_now()
             task.last_run_at = now
 
-            # 计算 next_run_at
+            # Calculate next_run_at / 计算 next_run_at
             if task.schedule_type == "cron" and task.cron_expression:
                 try:
                     from celery.schedules import crontab
@@ -415,8 +424,9 @@ class BaseTask(Task):
 
 class TenantTask(BaseTask):
     """
-    租户隔离任务基类
+    Tenant-isolated task base class / 租户隔离任务基类
 
+    Automatically extracts tenant_id from task params and sets it to context.
     自动从任务参数中提取 tenant_id 并设置到上下文
     """
 
@@ -445,8 +455,9 @@ def register_task(
     **task_kwargs: Any,
 ) -> Callable:
     """
-    任务注册装饰器
+    Task registration decorator / 任务注册装饰器
 
+    Automatically sets base=BaseTask, bind=True, and registers to the global task registry.
     自动设置 base=BaseTask、bind=True，并注册到全局任务注册表
     """
 

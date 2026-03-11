@@ -1,7 +1,8 @@
 """
-批量运行模型
+批量运行模型 / Batch Run Model
 
 跟踪智能体批量执行任务的进度和结果
+Tracks agent batch execution task progress and results.
 """
 
 from datetime import datetime

@@ -1,7 +1,8 @@
 """
-租户配置管理 API
+租户配置管理 API / Tenant Configuration Management API
 
 提供租户级配置管理接口（租户管理员专用）
+Provides tenant-level configuration management endpoints (tenant admin only)
 """
 
 from __future__ import annotations
@@ -42,16 +43,19 @@ from app.schemas.system.config import (
     DisplayRuleSchema,
 )
 
-# 密钥类字段名关键词，匹配到的值做脱敏处理
+# 密钥类字段名关键词，匹配到的值做脱敏处理 / Sensitive field name keywords, matched values are masked
 _SENSITIVE_KEYWORDS = {"secret", "key", "password", "token"}
 
 
 def _mask_sensitive_options(options: dict) -> dict:
     """
     对存储凭证中的密钥类字段做脱敏处理。
+    Masks sensitive fields in storage credentials.
 
     规则：字段名包含 secret/key/password/token 关键词的，值脱敏为前 2 位 + **** + 后 2 位。
+    Rule: Fields containing secret/key/password/token keywords are masked as first 2 chars + **** + last 2 chars.
     非密钥字段（bucket、region、endpoint、prefix 等）原样返回。
+    Non-sensitive fields (bucket, region, endpoint, prefix, etc.) are returned as-is.
     """
     if not options:
         return {}
@@ -78,8 +82,10 @@ async def _inject_role_options(
 ) -> None:
     """
     为 user_default_role_id 配置项动态注入当前租户的角色选项。
+    Dynamically injects current tenant's role options for user_default_role_id config.
 
     在静态的「不分配角色」选项之后，追加租户的所有活跃角色。
+    Appends all active tenant roles after the static "no role" option.
     """
     for cfg in configs:
         if cfg["key"] != "user_default_role_id":
@@ -100,8 +106,8 @@ async def _inject_role_options(
 
 
 def _translate_config_item(config: dict) -> ConfigItemResponse:
-    """将配置项字典转换为响应对象并翻译 i18n 键"""
-    # 翻译选项标签
+    """将配置项字典转换为响应对象并翻译 i18n 键 / Convert config item dict to response object and translate i18n keys"""
+    # 翻译选项标签 / Translate option labels
     translated_options = []
     for opt in config.get("options", []):
         if opt.get("label"):
@@ -115,7 +121,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "label": label,
         })
 
-    # 翻译验证规则消息
+    # 翻译验证规则消息 / Translate validation rule messages
     translated_rules = []
     for rule in config.get("validation_rules", []):
         translated_rules.append({
@@ -124,7 +130,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "message": _(rule["message_key"]) if rule.get("message_key") else "",
         })
 
-    # 转换显示规则
+    # 转换显示规则 / Convert display rules
     display_rules = [
         DisplayRuleSchema(
             field=rule["field"],
@@ -135,7 +141,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         for rule in config.get("display_rules", [])
     ]
 
-    # 递归转换子字段
+    # 递归转换子字段 / Recursively convert child fields
     children = [
         _translate_config_item(child)
         for child in config.get("children", [])
@@ -170,22 +176,23 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         icon="lucide:sliders-horizontal",
         path="/system-mgmt/configs",
         component="system/configs/List",
-        parent="system_mgmt",  # 父菜单: 系统管理
+        parent="system_mgmt",  # 父菜单: 系统管理 / Parent menu: system management
         sort_order=10,
     ),
 )
 class TenantConfigController(TenantController):
     """
-    租户配置管理控制器
+    租户配置管理控制器 / Tenant Configuration Management Controller
 
     提供租户级配置的查看和修改接口
+    Provides tenant-level configuration viewing and editing endpoints
     """
 
     prefix = "/configs"
     tags = ["Tenant Configuration"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/groups", summary="获取配置分组列表")
@@ -196,11 +203,12 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户配置分组列表
+            获取租户配置分组列表 / Get tenant config group list
 
             返回所有租户级配置分组（不含具体配置项）
+            Returns all tenant-level config groups (without config items)
 
-            权限: tenant_config:groups
+            权限 / Permission: tenant_config:groups
             """
             groups = config_registry.get_groups_by_scope(ConfigScope.ALL_TENANTS)
 
@@ -209,7 +217,7 @@ class TenantConfigController(TenantController):
                 if not group.is_active:
                     continue
 
-                # 计算可见配置项数量
+                # 计算可见配置项数量 / Calculate visible config item count
                 visible_count = sum(
                     1 for c in group.configs if c.is_visible
                 )
@@ -237,11 +245,11 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取指定分组的配置项列表（含当前值）
+            获取指定分组的配置项列表（含当前值） / Get config items for specified group (with current values)
 
-            权限: tenant_config:detail
+            权限 / Permission: tenant_config:detail
             """
-            # 验证分组存在
+            # 验证分组存在 / Verify group exists
             group = config_registry.get_group(group_code)
             if not group or group.scope != ConfigScope.ALL_TENANTS:
                 raise NotFoundException(
@@ -249,14 +257,14 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 获取配置值
+            # 获取配置值 / Get config values
             config_service = ConfigService(db)
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
             )
 
-            # 找到目标分组
+            # 找到目标分组 / Find target group
             target_group = None
             for g in groups_with_configs:
                 if g["code"] == group_code:
@@ -269,10 +277,10 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 动态注入角色选项
+            # 动态注入角色选项 / Dynamically inject role options
             await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
 
-            # 转换响应
+            # 转换响应 / Convert response
             configs = [
                 _translate_config_item(c)
                 for c in target_group["configs"]
@@ -300,11 +308,11 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            批量更新分组下的配置项
+            批量更新分组下的配置项 / Batch update config items under a group
 
-            权限: tenant_config:update
+            权限 / Permission: tenant_config:update
             """
-            # 验证分组存在
+            # 验证分组存在 / Verify group exists
             group = config_registry.get_group(group_code)
             if not group or group.scope != ConfigScope.ALL_TENANTS:
                 raise NotFoundException(
@@ -312,10 +320,10 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
-            # 获取分组下的配置键列表
+            # 获取分组下的配置键列表 / Get config key list under the group
             valid_keys = {c.key for c in group.configs}
 
-            # 验证传入的配置键
+            # 验证传入的配置键 / Validate incoming config keys
             invalid_keys = set(data.configs.keys()) - valid_keys
             if invalid_keys:
                 raise BusinessException(
@@ -323,7 +331,7 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.CONFIG_INVALID_KEYS,
                 )
 
-            # 更新配置
+            # 更新配置 / Update configs
             config_service = ConfigService(db)
             for key, value in data.configs.items():
                 await config_service.set_tenant_config(
@@ -334,7 +342,7 @@ class TenantConfigController(TenantController):
 
             await db.commit()
 
-            # 返回更新后的配置
+            # 返回更新后的配置 / Return updated configs
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
@@ -346,7 +354,7 @@ class TenantConfigController(TenantController):
                     target_group = g
                     break
 
-            # 动态注入角色选项
+            # 动态注入角色选项 / Dynamically inject role options
             if target_group:
                 await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
 
@@ -376,9 +384,9 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户当前存储状态（有效模式、驱动信息、自配置权限等）
+            获取租户当前存储状态（有效模式、驱动信息、自配置权限等） / Get tenant storage status (effective mode, driver info, self-config permission)
 
-            权限: tenant_config:groups
+            权限 / Permission: tenant_config:groups
             """
             from app.configs.service import ConfigService
             from app.services.common.storage_config_resolver import (
@@ -391,12 +399,12 @@ class TenantConfigController(TenantController):
 
             effective_mode = await resolver.get_storage_mode(tenant_id)
 
-            # 逐租户自主配置开关（不依赖全局开关）
+            # 逐租户自主配置开关（不依赖全局开关） / Per-tenant self-config toggle (independent of global toggle)
             tenant_self_config_enabled = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
 
-            # 当前租户配置值
+            # 当前租户配置值 / Current tenant config values
             tenant_mode = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_mode", default="platform"
             )
@@ -413,7 +421,7 @@ class TenantConfigController(TenantController):
                 tenant_id, "tenant_storage_options", default={}
             )
 
-            # 当前生效的驱动
+            # 当前生效的驱动 / Currently effective driver
             if effective_mode == "platform":
                 effective_driver = await config_service.get_platform_config(
                     "platform_storage_driver", default="local"
@@ -421,7 +429,7 @@ class TenantConfigController(TenantController):
             else:
                 effective_driver = tenant_driver
 
-            # 构建返回数据
+            # 构建返回数据 / Build response data
             response_data: dict = {
                 "effective_mode": str(effective_mode),
                 "effective_driver": str(effective_driver) if effective_driver else "local",
@@ -430,7 +438,7 @@ class TenantConfigController(TenantController):
             }
 
             if effective_mode == "admin_override":
-                # 管理员帮配模式：展示脱敏后的配置信息（租户只读）
+                # 管理员帮配模式：展示脱敏后的配置信息（租户只读） / Admin override mode: show masked config info (tenant read-only)
                 response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
@@ -438,7 +446,7 @@ class TenantConfigController(TenantController):
                     tenant_options or {}
                 )
             elif effective_mode == "custom":
-                # 自定义模式：返回租户自己填写的配置（密钥同样脱敏）
+                # 自定义模式：返回租户自己填写的配置（密钥同样脱敏） / Custom mode: return tenant's own config (credentials also masked)
                 response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
@@ -446,7 +454,7 @@ class TenantConfigController(TenantController):
                     tenant_options or {}
                 )
             else:
-                # 平台模式：不返回凭证细节
+                # 平台模式：不返回凭证细节 / Platform mode: do not return credential details
                 response_data["tenant_storage_driver"] = None
                 response_data["tenant_storage_root_path"] = ""
                 response_data["tenant_storage_base_url"] = ""
@@ -463,16 +471,16 @@ class TenantConfigController(TenantController):
             data: dict = Body(...),
         ):
             """
-            租户保存自主存储配置（Mode 3）
+            租户保存自主存储配置（Mode 3） / Tenant saves self-managed storage config (Mode 3)
 
-            权限: tenant_config:update
+            权限 / Permission: tenant_config:update
             """
             from app.configs.service import ConfigService
 
             tenant_id = current_admin.tenant_id
             config_service = ConfigService(db)
 
-            # 检查逐租户自主配置开关（不依赖全局开关）
+            # 检查逐租户自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
             tenant_enabled = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
@@ -482,7 +490,7 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.FORBIDDEN,
                 )
 
-            # 必填校验：驱动和 Bucket
+            # 必填校验：驱动和 Bucket / Required validation: driver and Bucket
             driver = data.get("tenant_storage_driver")
             if not driver:
                 raise BusinessException(
@@ -496,7 +504,7 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.INVALID_PARAMETER,
                 )
 
-            # 驱动不允许选 local
+            # 驱动不允许选 local / Driver cannot be local
             if driver == "local":
                 raise BusinessException(
                     message=_("config.storage.local_not_allowed_for_tenant"),
@@ -546,9 +554,9 @@ class TenantConfigController(TenantController):
             config: dict = Body({}, embed=True),
         ):
             """
-            测试租户自主存储连接（Mode 3）
+            测试租户自主存储连接（Mode 3） / Test tenant self-managed storage connection (Mode 3)
 
-            权限: tenant_config:update
+            权限 / Permission: tenant_config:update
             """
             import io
             import uuid
@@ -557,7 +565,7 @@ class TenantConfigController(TenantController):
             from app.storage import storage_manager
             from app.storage.base import StorageConfig
 
-            # 检查逐租户自主配置开关（不依赖全局开关）
+            # 检查逐租户自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
             config_service = ConfigService(db)
             tenant_enabled = await config_service.get_tenant_config(
                 current_admin.tenant_id,
@@ -619,9 +627,9 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户允许选择的存储驱动列表（受平台白名单限制，标记插件启用状态）
+            获取租户允许选择的存储驱动列表（受平台白名单限制，标记插件启用状态） / Get allowed storage driver list for tenant (restricted by platform whitelist, marks plugin enabled status)
 
-            权限: tenant_config:groups
+            权限 / Permission: tenant_config:groups
             """
             from app.configs.service import ConfigService
             from app.storage import storage_manager
@@ -644,7 +652,7 @@ class TenantConfigController(TenantController):
             return success(data=filtered)
 
 
-# 导出路由
+# 导出路由 / Export router
 router = TenantConfigController.get_router()
 
 

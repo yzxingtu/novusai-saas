@@ -1,7 +1,8 @@
 """
-平台端技能包管理 API
+平台端技能包管理 API / Platform Skill Package Management API
 
-提供跨租户技能包列表、详情、CRUD，支持 admin / tenant / global scope 技能包管理
+提供技能包列表、详情、CRUD 接口（平台管理员专用）
+Provides skill package listing, details, CRUD endpoints (platform admin only)
 """
 
 from typing import Any
@@ -14,7 +15,6 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
-from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill_package import SkillPackage
@@ -26,9 +26,6 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
-from app.repositories.system.resource_tenant_assignment_repository import (
-    ResourceTenantAssignmentRepository,
-)
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
     SkillPackageResponse,
@@ -36,23 +33,18 @@ from app.schemas.ai.skill_package import (
 )
 from app.services.ai.skill_package_service import AdminSkillPackageService
 
-SCOPES_NEEDING_ASSIGNMENT = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
-
 logger = LogManager.get_logger("ai")
 
 
 def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
-    """从 ORM 对象构建管理端列表项字典（不含 valves_config 敏感值）"""
+    """从 ORM 对象构建管理端列表项字典（不含 valves_config 敏感值） / Build admin list item dict from ORM object (excluding valves_config sensitive values)"""
     return {
         "id": pkg.id,
         "tenant_id": pkg.tenant_id,
         "name": pkg.name,
         "description": pkg.description,
         "avatar": pkg.avatar,
-        "scope": pkg.scope,
+        "target_audience": pkg.target_audience,
         "is_system": pkg.is_system,
         "is_active": pkg.is_active,
         "sort_order": pkg.sort_order,
@@ -79,19 +71,20 @@ def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[s
 )
 class AdminSkillPackageController(GlobalController):
     """
-    平台端技能包管理控制器
+    平台端技能包管理控制器 / Platform Skill Package Management Controller
 
-    跨租户查看 + admin/tenant scope 技能包 CRUD
+    提供技能包 CRUD 接口
+    Provides skill package CRUD endpoints
     """
 
     prefix = "/ai/skill-packages"
     tags = ["Skill Package Management (Platform)"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AdminSkillPackageService,
@@ -105,11 +98,12 @@ class AdminSkillPackageController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词"),
-            include_system: bool = Query(False, description="是否包含系统包（用于智能体绑定）"),
+            search: str = Query("", description="搜索关键词 / Search keyword"),
+            include_system: bool = Query(False, description="是否包含系统包（用于智能体绑定） / Include system packages (for agent binding)"),
         ):
             """
             获取技能包下拉选项（用于 Skill 创建时选择所属包）
+            Get skill package dropdown options (for selecting parent package when creating Skill)
             """
             service = AdminSkillPackageService(db)
             response = await service.get_select_options(
@@ -128,9 +122,12 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取所有推荐技能包（is_recommended=true）
+            Get all recommended skill packages (is_recommended=true)
 
             管理端无 target_audience 限制，返回全部推荐包。
+            Admin has no target_audience restriction, returns all recommended packages.
             用于创建智能体时显示推荐绑定列表。
+            Used to display recommended binding list when creating agents.
             """
             from sqlalchemy import and_, select
 
@@ -168,13 +165,15 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取全租户技能包列表
+            Get cross-tenant skill package list
 
             支持 JSON:API 风格筛选、排序、分页
+            Supports JSON:API style filtering, sorting, pagination
             """
             service = AdminSkillPackageService(db)
             items, total = await service.query_list(query)
 
-            # 批量查询每个包的技能数
+            # 批量查询每个包的技能数 / Batch query skill count for each package
             pkg_ids = [item.id for item in items]
             skill_counts = await service.get_skill_counts_batch(pkg_ids)
 
@@ -200,21 +199,13 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取技能包详情（含技能数量）
+            Get skill package details (including skill count)
             """
             service = AdminSkillPackageService(db)
             data = await service.get_with_skill_count(package_id)
 
             if not data:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
-
-            # 追加已分配的租户 ID 列表
-            if data.get("scope") in SCOPES_NEEDING_ASSIGNMENT:
-                repo = ResourceTenantAssignmentRepository(db)
-                data["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
-                    "skill_package", package_id
-                )
-            else:
-                data["assigned_tenant_ids"] = []
 
             return success(data=data)
 
@@ -227,23 +218,12 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建技能包
-
-            - scope=admin: tenant_id 自动设为 NULL
-            - scope=tenant: 需要指定 tenant_id
+            创建技能包 / Create skill package
             """
             service = AdminSkillPackageService(db)
 
             pkg_data = data.model_dump(exclude_unset=True)
-            tenant_ids = pkg_data.pop("tenant_ids", None)
-
-            # 校验和创建均由 Service._before_create 处理
             pkg = await service.create(pkg_data)
-
-            # 同步租户分配
-            if pkg.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
-                repo = ResourceTenantAssignmentRepository(db)
-                await repo.sync_assignments("skill_package", pkg.id, tenant_ids)
 
             await db.commit()
 
@@ -262,7 +242,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新技能包
+            更新技能包 / Update skill package
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -271,19 +251,7 @@ class AdminSkillPackageController(GlobalController):
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
             update_data = data.model_dump(exclude_unset=True)
-            tenant_ids = update_data.pop("tenant_ids", None)
-
-            # scope 不可变 + 名称唯一性等校验统一由 Service._before_update 处理
             updated = await service.update(package_id, update_data)
-
-            # 同步租户分配
-            effective_scope = updated.scope
-            if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
-                repo = ResourceTenantAssignmentRepository(db)
-                await repo.sync_assignments("skill_package", package_id, tenant_ids)
-            elif effective_scope not in SCOPES_NEEDING_ASSIGNMENT:
-                repo = ResourceTenantAssignmentRepository(db)
-                await repo.delete_all_for_resource("skill_package", package_id)
 
             await db.commit()
 
@@ -302,6 +270,7 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             删除技能包（软删除，连带包内所有技能）
+            Delete skill package (soft delete, cascading to all skills in the package)
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -323,7 +292,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            切换技能包 is_active 状态
+            切换技能包 is_active 状态 / Toggle skill package is_active status
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -353,10 +322,11 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             上传技能 ZIP 包并自动创建 SkillPackage + Skill (toolkit)
+            Upload skill ZIP package and auto-create SkillPackage + Skill (toolkit)
 
-            ZIP 包结构参见 SKILL.md 规范。
+            ZIP 包结构参见 SKILL.md 规范。 / ZIP structure see SKILL.md spec.
             - scope=admin, tenant_id=NULL
-            - is_system=True 时不可删除
+            - is_system=True 时不可删除 / Cannot be deleted when is_system=True
             """
             from app.api.shared._skill_package_upload import (
                 process_skill_package_upload,
@@ -398,6 +368,7 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
+            Get skill package valves config (schema + current values, secret fields masked)
             """
             from app.api.shared._toolkit_helpers import mask_secret_values
 
@@ -422,6 +393,7 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             更新技能包的 valves_config（用户填写的环境变量配置值）
+            Update skill package valves_config (user-filled environment variable config values)
             """
             from app.api.shared._toolkit_helpers import validate_and_update_valves
 
@@ -442,6 +414,7 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取指定技能包内的技能列表
+            Get skill list within the specified skill package
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -475,9 +448,12 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取技能包内所有技能通过 resolve() 解析出的工具定义列表。
+            Get tool definition list resolved from all skills in the package via resolve().
 
             仅对插件类型技能（source_plugin 不为空）有效。
+            Only effective for plugin-type skills (source_plugin is not empty).
             Toolkit 类型技能的工具由 ToolkitResolver 解析。
+            Tools for Toolkit-type skills are resolved by ToolkitResolver.
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -486,7 +462,7 @@ class AdminSkillPackageController(GlobalController):
 
             tools: list[dict] = []
 
-            # Toolkit 类型技能：从 toolkit_content 解析
+            # Toolkit 类型技能：从 toolkit_content 解析 / Toolkit-type skills: resolve from toolkit_content
             if not tools:
                 from app.schemas.common.query import FilterRule
                 from app.services.ai.skill_service import AdminSkillService
@@ -527,7 +503,7 @@ class AdminSkillPackageController(GlobalController):
                 "tools": tools,
             })
 
-        # ==================== 导入 / 导出 ====================
+        # ==================== 导入 / 导出 / Import / Export ====================
 
         @router.get("/{package_id}/export", summary="导出技能包")
         @action_read("action.ai_skill_package.detail")
@@ -539,11 +515,12 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             导出技能包为 JSON（含所有技能定义、valves_schema）
+            Export skill package as JSON (including all skill definitions, valves_schema)
 
-            导出内容：
-            - package_info: 技能包基本信息（不含 id/tenant_id/created_at 等运行时字段）
-            - skills: 包内所有技能的定义
-            - export_version: 导出格式版本号
+            导出内容： / Export content:
+            - package_info: 技能包基本信息（不含 id/tenant_id/created_at 等运行时字段） / Basic info (excluding runtime fields like id/tenant_id/created_at)
+            - skills: 包内所有技能的定义 / All skill definitions in the package
+            - export_version: 导出格式版本号 / Export format version number
             """
             from app.api.shared._skill_package_export import export_skill_package
 
@@ -564,13 +541,13 @@ class AdminSkillPackageController(GlobalController):
             data: dict[str, Any] = ...,
         ):
             """
-            从导出 JSON 导入技能包
+            从导出 JSON 导入技能包 / Import skill package from exported JSON
 
-            参数：
-            - data: 导出的 JSON 数据
-            - conflict_mode (in data): skip / rename（同名技能包处理方式）
-            - target_scope (in data): 目标作用域 (admin/tenant/global)
-            - target_tenant_id (in data): 目标租户 ID（scope=tenant 时必填）
+            参数： / Parameters:
+            - data: 导出的 JSON 数据 / Exported JSON data
+            - conflict_mode (in data): skip / rename（同名技能包处理方式） / Conflict resolution for same-name packages
+            - target_scope (in data): 目标作用域 (admin/tenant/global) / Target scope
+            - target_tenant_id (in data): 目标租户 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
             """
             from app.api.shared._skill_package_export import import_skill_package
 
@@ -578,7 +555,7 @@ class AdminSkillPackageController(GlobalController):
             await db.commit()
             return created(data=result, message=_("skill_package.import_success"))
 
-        # ==================== 克隆 ====================
+        # ==================== 克隆 / Clone ====================
 
         @router.post("/{package_id}/clone", summary="克隆技能包")
         @action_create("action.ai_skill_package.create")
@@ -590,12 +567,12 @@ class AdminSkillPackageController(GlobalController):
             data: dict[str, Any] = ...,
         ):
             """
-            克隆技能包（含所有技能）
+            克隆技能包（含所有技能） / Clone skill package (including all skills)
 
-            参数：
-            - new_name: 新技能包名称（可选，默认追加 " (Copy)"）
-            - target_scope: 目标作用域 (admin/tenant/global)
-            - target_tenant_id: 目标租户 ID（scope=tenant 时必填）
+            参数： / Parameters:
+            - new_name: 新技能包名称（可选，默认追加 " (Copy)"） / New name (optional, defaults to append " (Copy)")
+            - target_scope: 目标作用域 (admin/tenant/global) / Target scope
+            - target_tenant_id: 目标租户 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
             """
             from app.api.shared._skill_package_export import (
                 export_skill_package,
@@ -607,7 +584,7 @@ class AdminSkillPackageController(GlobalController):
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            # 导出再导入实现克隆
+            # 导出再导入实现克隆 / Clone via export-then-import
             export_data = await export_skill_package(db, pkg)
 
             new_name = data.get("new_name") or f"{pkg.name} (Copy)"
@@ -616,14 +593,13 @@ class AdminSkillPackageController(GlobalController):
             result = await import_skill_package(db, {
                 "export_data": export_data,
                 "conflict_mode": "rename",
-                "target_scope": data.get("target_scope", pkg.scope),
                 "target_tenant_id": data.get("target_tenant_id", pkg.tenant_id),
             })
             await db.commit()
 
             return created(data=result, message=_("skill_package.created"))
 
-        # ==================== 调用统计 ====================
+        # ==================== 调用统计 / Call Statistics ====================
 
         @router.get("/{package_id}/stats", summary="技能包调用统计")
         @action_read("action.ai_skill_package.detail")
@@ -636,8 +612,10 @@ class AdminSkillPackageController(GlobalController):
         ):
             """
             获取技能包内所有技能的调用统计
+            Get call statistics for all skills in the package
 
             返回：总调用次数、成功率、平均耗时、按技能分组统计
+            Returns: total calls, success rate, avg duration, per-skill grouped stats
             """
             from app.api.shared._skill_stats import get_package_call_stats
 
@@ -650,7 +628,7 @@ class AdminSkillPackageController(GlobalController):
             return success(data=stats)
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminSkillPackageController.get_router()
 
 __all__ = ["router", "AdminSkillPackageController"]

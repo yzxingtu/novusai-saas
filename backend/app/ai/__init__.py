@@ -1,16 +1,18 @@
 """
+AI Gateway Module
 AI 网关模块
 
-提供统一的 AI 调用接口，支持多供应商适配和 SSE 流式响应
+Unified AI call interface with multi-provider adapters and SSE streaming.
+提供统一的 AI 调用接口，支持多供应商适配和 SSE 流式响应。
 """
 
-# 导出统一数据类型
+# Export unified data types / 导出统一数据类型
 from app.ai.adapters import AdapterRegistry
 
-# 导出适配器
+# Export adapters / 导出适配器
 from app.ai.adapters.base import BaseAdapter
 
-# 导出智能体配额与并发控制
+# Export agent quota & concurrency control / 导出智能体配额与并发控制
 from app.ai.agent_quota import (
     AgentConcurrencyExceeded,
     AgentConcurrencyLimiter,
@@ -19,13 +21,13 @@ from app.ai.agent_quota import (
     AgentQuotaManager,
 )
 
-# 导出执行引擎
+# Export execution engine / 导出执行引擎
 from app.ai.engine import ExecutionDispatcher
 
-# 导出事件与钩子系统
+# Export events & hooks / 导出事件与钩子系统
 from app.ai.events import EventBus, HookRegistry, get_event_bus, get_hook_registry
 
-# 导出统一异常
+# Export unified exceptions / 导出统一异常
 from app.ai.exceptions import (
     AIGatewayError,
     ContentFilterError,
@@ -39,13 +41,13 @@ from app.ai.exceptions import (
     is_retryable,
 )
 
-# 导出网关
+# Export gateway / 导出网关
 from app.ai.gateway import AIGateway
 
-# 导出 SSE 流式响应
+# Export SSE streaming response / 导出 SSE 流式响应
 from app.ai.sse import SSEChunkEncoder, SSEStreamingResponse
 
-# 导出工具执行沙箱
+# Export tool execution sandbox / 导出工具执行沙箱
 from app.ai.tools import ToolSandbox
 from app.ai.types import (
     ChatChunk,
@@ -56,21 +58,21 @@ from app.ai.types import (
 )
 
 __all__ = [
-    # 数据类型
+    # Data types / 数据类型
     "ChatMessage",
     "ChatResponse",
     "ChatChunk",
     "EmbeddingResponse",
     "ImageResponse",
-    # SSE 流式响应
+    # SSE streaming / SSE 流式响应
     "SSEChunkEncoder",
     "SSEStreamingResponse",
-    # 适配器
+    # Adapters / 适配器
     "BaseAdapter",
     "AdapterRegistry",
-    # 网关
+    # Gateway / 网关
     "AIGateway",
-    # 异常
+    # Exceptions / 异常
     "AIGatewayError",
     "ProviderError",
     "ProviderRateLimitError",
@@ -81,19 +83,19 @@ __all__ = [
     "ContentFilterError",
     "ContextLengthExceededError",
     "is_retryable",
-    # 事件与钩子
+    # Events & hooks / 事件与钩子
     "EventBus",
     "get_event_bus",
     "HookRegistry",
     "get_hook_registry",
-    # 工具沙箱
+    # Tool sandbox / 工具沙箱
     "ToolSandbox",
-    # 智能体配额与并发
+    # Agent quota & concurrency / 智能体配额与并发
     "AgentQuotaConfig",
     "AgentQuotaManager",
     "AgentQuotaExceeded",
     "AgentConcurrencyLimiter",
     "AgentConcurrencyExceeded",
-    # 执行引擎
+    # Execution engine / 执行引擎
     "ExecutionDispatcher",
 ]

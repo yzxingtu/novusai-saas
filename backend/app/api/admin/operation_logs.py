@@ -1,7 +1,8 @@
 """
-平台端操作日志管理 API
+平台端操作日志管理 API / Platform Operation Log API
 
 提供操作日志查询、详情、删除接口
+Provides operation log query, detail, delete endpoints.
 """
 
 from fastapi import Request
@@ -42,9 +43,9 @@ from app.services.system.operation_log_service import OperationLogService
 )
 class AdminOperationLogController(GlobalController):
     """
-    平台端操作日志控制器
+    平台端操作日志控制器 / Platform Operation Log Controller
 
-    提供操作日志查询、详情、删除接口
+    提供操作日志查询、详情、删除接口 / Provides operation log query, detail, delete endpoints
     """
 
     prefix = "/operation-logs"
@@ -52,10 +53,10 @@ class AdminOperationLogController(GlobalController):
     service_class = OperationLogService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("", summary="获取操作日志列表")
+        @router.get("", summary="获取操作日志列表 / Get operation log list")
         @action_read("action.operation_log.list")
         async def list_logs(
             request: Request,
@@ -64,23 +65,23 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取操作日志列表（仅平台端日志）
+            获取操作日志列表（仅平台端日志） / Get operation log list (platform logs only)
 
-            基于当前管理员权限过滤：
-            - 超级管理员：可查看所有平台端日志
-            - 普通管理员：只能查看自己及其角色子树下用户的日志
+            基于当前管理员权限过滤 / Filtered based on current admin permissions:
+            - 超级管理员：可查看所有平台端日志 / Super admin: can view all platform logs
+            - 普通管理员：只能查看自己及其角色子树下用户的日志 / Regular admin: own logs and role subtree users' logs only
 
-            支持 JSON:API 风格筛选参数:
-            - filter[username][ilike]=xxx 用户名模糊搜索
-            - filter[module]=auth 按模块筛选
-            - filter[action]=login 按操作类型筛选
-            - filter[response_code]=0 按响应码筛选
-            - filter[ip][ilike]=192.168 按 IP 筛选
-            - filter[created_at][gte]=2026-01-01 按时间筛选
-            - sort=-created_at 排序
-            - page[number]=1&page[size]=20 分页
+            支持 JSON:API 风格筛选参数 / Supports JSON:API style filter params:
+            - filter[username][ilike]=xxx 用户名模糊搜索 / Username fuzzy search
+            - filter[module]=auth 按模块筛选 / Filter by module
+            - filter[action]=login 按操作类型筛选 / Filter by action type
+            - filter[response_code]=0 按响应码筛选 / Filter by response code
+            - filter[ip][ilike]=192.168 按 IP 筛选 / Filter by IP
+            - filter[created_at][gte]=2026-01-01 按时间筛选 / Filter by time
+            - sort=-created_at 排序 / Sort
+            - page[number]=1&page[size]=20 分页 / Pagination
 
-            权限: operation_log:list
+            权限 / Permission: operation_log:list
             """
             service = OperationLogService(db)
             items, total = await service.query_admin_logs_by_permission(
@@ -98,7 +99,7 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.get("/operators", summary="获取操作人下拉列表")
+        @router.get("/operators", summary="获取操作人下拉列表 / Get operator list")
         @action_read("action.operation_log.list")
         async def list_operators(
             request: Request,
@@ -106,11 +107,11 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取平台端操作日志中的去重操作人列表（含头像）
+            获取平台端操作日志中的去重操作人列表（含头像） / Get deduplicated operator list from platform logs (with avatar)
 
-            用于搜索下拉选择和列表头像显示
+            用于搜索下拉选择和列表头像显示 / Used for search dropdown and list avatar display
 
-            权限: operation_log:list
+            权限 / Permission: operation_log:list
             """
             service = OperationLogService(db)
             operators = await service.get_admin_operators()
@@ -119,7 +120,7 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.get("/{log_id}", summary="获取操作日志详情")
+        @router.get("/{log_id}", summary="获取操作日志详情 / Get operation log detail")
         @action_read("action.operation_log.detail")
         async def get_log(
             request: Request,
@@ -128,9 +129,9 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取操作日志详情
+            获取操作日志详情 / Get operation log detail
 
-            权限: operation_log:detail
+            权限 / Permission: operation_log:detail
             """
             service = OperationLogService(db)
             log = await service.get_by_id(log_id)
@@ -147,7 +148,7 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.get("/export", summary="导出操作日志 CSV")
+        @router.get("/export", summary="导出操作日志 CSV / Export operation logs as CSV")
         @action_read("action.operation_log.list")
         async def export_logs(
             request: Request,
@@ -156,11 +157,11 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            导出操作日志为 CSV（最多 10000 条）
+            导出操作日志为 CSV（最多 10000 条） / Export operation logs as CSV (max 10000 records)
 
-            支持与列表相同的筛选参数
+            支持与列表相同的筛选参数 / Supports same filter params as list
 
-            权限: operation_log:list
+            权限 / Permission: operation_log:list
             """
             from app.core.csv_export import MAX_EXPORT_ROWS, csv_streaming_response
 
@@ -197,7 +198,7 @@ class AdminOperationLogController(GlobalController):
 
             return csv_streaming_response(rows, columns, "operation_logs.csv")
 
-        @router.delete("", summary="批量删除操作日志")
+        @router.delete("", summary="批量删除操作日志 / Batch delete operation logs")
         @action_delete("action.operation_log.delete")
         async def delete_logs(
             request: Request,
@@ -206,9 +207,9 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            批量删除操作日志（软删除）
+            批量删除操作日志（软删除） / Batch delete operation logs (soft delete)
 
-            权限: operation_log:delete
+            权限 / Permission: operation_log:delete
             """
             service = OperationLogService(db)
             deleted_count = await service.delete_logs(data.ids, soft=True)
@@ -220,7 +221,7 @@ class AdminOperationLogController(GlobalController):
             )
 
 
-# 创建路由
+# 创建路由 / Create router
 router = AdminOperationLogController.get_router()
 
 

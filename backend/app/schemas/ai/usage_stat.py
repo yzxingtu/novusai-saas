@@ -1,7 +1,8 @@
 """
-AI 使用量统计相关 Schema
+AI 使用量统计相关 Schema / AI Usage Statistics Schema
 
 定义使用量统计的响应数据结构
+Defines usage statistics response data structures.
 """
 
 from datetime import date

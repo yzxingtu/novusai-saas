@@ -1395,8 +1395,8 @@ onUnmounted(() => {
                               <div class="min-w-0">
                                 <div class="flex items-center gap-2">
                                   <span class="text-sm font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
-                                  <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
-                                    {{ getScopeText(b.package_scope) }}
+                                  <Tag v-if="b.package_target_audience" color="processing" class="!text-[10px]">
+                                    {{ b.package_target_audience }}
                                   </Tag>
                                 </div>
                                 <p v-if="b.package_description" class="mt-0.5 truncate text-xs text-muted-foreground">{{ b.package_description }}</p>
@@ -1454,8 +1454,8 @@ onUnmounted(() => {
                               <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2">
                                   <span class="text-sm font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
-                                  <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
-                                    {{ getScopeText(b.package_scope) }}
+                                  <Tag v-if="b.package_target_audience" color="processing" class="!text-[10px]">
+                                    {{ b.package_target_audience }}
                                   </Tag>
                                 </div>
                                 <p v-if="b.package_description" class="mt-0.5 truncate text-xs text-muted-foreground">{{ b.package_description }}</p>

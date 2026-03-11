@@ -1,7 +1,8 @@
 """
-通知模板 Repository
+通知模板 Repository / Notification Template Repository
 
 提供通知模板的数据访问层。
+Provides notification template data access layer.
 """
 
 from app.core.base_repository import BaseRepository

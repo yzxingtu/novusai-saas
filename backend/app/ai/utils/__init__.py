@@ -1,7 +1,9 @@
 """
+AI Gateway Utility Functions
 AI 网关通用工具函数
 
-提供 admin/tenant 网关控制器共享的解析函数
+Provides shared parsing functions for admin/tenant gateway controllers.
+提供 admin/tenant 网关控制器共享的解析函数。
 """
 
 from app.ai.types import ChatMessage as AIChatMessage
@@ -10,17 +12,18 @@ from app.ai.utils.token_estimator import estimate_tokens
 
 def parse_provider_and_model(model_code: str) -> tuple[str, str]:
     """
-    从 model_code 解析供应商代码和模型名称
+    Parse provider code and model name from model_code.
+    从 model_code 解析供应商代码和模型名称。
 
-    支持格式:
+    Supported formats / 支持格式:
     - "provider:model" → (provider, model)
     - "model" → ("openai", model)
 
     Args:
-        model_code: 模型代码
+        model_code: Model code / 模型代码
 
     Returns:
-        (provider_code, model_name) 元组
+        (provider_code, model_name) tuple / (provider_code, model_name) 元组
     """
     if ":" in model_code:
         provider_code, model = model_code.split(":", 1)
@@ -32,13 +35,14 @@ def parse_provider_and_model(model_code: str) -> tuple[str, str]:
 
 def parse_messages(messages: list) -> list[AIChatMessage]:
     """
-    将 Pydantic 消息列表转换为 AI 网关消息列表
+    Convert Pydantic message list to AI Gateway message list.
+    将 Pydantic 消息列表转换为 AI 网关消息列表。
 
     Args:
-        messages: Pydantic ChatMessage 列表
+        messages: Pydantic ChatMessage list / Pydantic ChatMessage 列表
 
     Returns:
-        AI 网关 ChatMessage 列表
+        AI Gateway ChatMessage list / AI 网关 ChatMessage 列表
     """
     return [
         AIChatMessage(

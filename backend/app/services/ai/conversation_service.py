@@ -1,7 +1,8 @@
 """
-对话数据生命周期管理 Service
+对话数据生命周期管理 Service / Conversation Lifecycle Service
 
 提供对话列表、详情、搜索、归档、批量归档、删除和导出
+Provides conversation list, detail, search, archive, batch archive, delete and export.
 """
 
 import json

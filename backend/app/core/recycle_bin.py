@@ -1,7 +1,8 @@
 """
-回收站路由注册工具
+回收站路由注册工具 / Recycle Bin Route Registration Utility
 
 为 Controller 提供标准化的回收站 API 端点注册。
+Provides standardized recycle bin API endpoint registration for Controllers.
 
 使用示例（TenantController）:
     from app.core.recycle_bin import register_tenant_recycle_bin_routes
@@ -51,17 +52,19 @@ def register_tenant_recycle_bin_routes(
 ) -> None:
     """
     为租户端控制器注册回收站路由
+    Register recycle bin routes for tenant-side controllers.
 
     租户端回收站行为：
-    - 查询：查 delete_level='tenant' 的记录
-    - 恢复：还原记录
-    - 删除：升级到 admin 回收站（escalate_delete）
+    Tenant-side recycle bin behavior:
+    - 查询：查 delete_level='tenant' 的记录 / Query: records with delete_level='tenant'
+    - 恢复：还原记录 / Restore: undelete records
+    - 删除：升级到 admin 回收站（escalate_delete） / Delete: escalate to admin recycle bin
 
     Args:
-        router: 控制器路由器
-        service_class: 服务类（TenantService 子类）
-        resource_name: 资源名称（用于 i18n）
-        serialize: 可选的序列化函数，将 ORM 实例转为 dict
+        router: 控制器路由器 / Controller router
+        service_class: 服务类（TenantService 子类） / Service class (TenantService subclass)
+        resource_name: 资源名称（用于 i18n） / Resource name (for i18n)
+        serialize: 可选的序列化函数，将 ORM 实例转为 dict / Optional serializer, converts ORM instance to dict
     """
     _serialize = serialize or _default_serialize
 
@@ -153,7 +156,7 @@ def register_tenant_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db, tenant_admin.tenant_id)
-        # 逐个升级，因为 batch_permanent_delete 是物理删除
+        # 逐个升级，因为 batch_permanent_delete 是物理删除 / Escalate one by one since batch_permanent_delete is hard delete
         count = 0
         for item_id in ids:
             result = await svc.escalate_delete(item_id)
@@ -171,17 +174,19 @@ def register_admin_recycle_bin_routes(
 ) -> None:
     """
     为管理端控制器注册回收站路由
+    Register recycle bin routes for admin-side controllers.
 
     管理端回收站行为：
-    - 查询：查 delete_level='admin' 的记录
-    - 恢复：还原记录
-    - 删除：物理删除（permanent_delete）
+    Admin-side recycle bin behavior:
+    - 查询：查 delete_level='admin' 的记录 / Query: records with delete_level='admin'
+    - 恢复：还原记录 / Restore: undelete records
+    - 删除：物理删除（permanent_delete） / Delete: permanent hard delete
 
     Args:
-        router: 控制器路由器
-        service_class: 服务类（GlobalService/BaseService 子类）
-        resource_name: 资源名称（用于 i18n）
-        serialize: 可选的序列化函数
+        router: 控制器路由器 / Controller router
+        service_class: 服务类（GlobalService/BaseService 子类） / Service class (GlobalService/BaseService subclass)
+        resource_name: 资源名称（用于 i18n） / Resource name (for i18n)
+        serialize: 可选的序列化函数 / Optional serializer
     """
     _serialize = serialize or _default_serialize
 
@@ -279,7 +284,7 @@ def register_admin_recycle_bin_routes(
 
 
 def _serialize_with_delete_meta(instance: Any, serialize_fn: Callable) -> dict:
-    """序列化并自动注入回收站元数据（deleted_at / delete_level）"""
+    """序列化并自动注入回收站元数据（deleted_at / delete_level） / Serialize and auto-inject recycle bin metadata"""
     data = serialize_fn(instance)
     if "deleted_at" not in data:
         deleted_at = getattr(instance, "deleted_at", None)
@@ -290,7 +295,7 @@ def _serialize_with_delete_meta(instance: Any, serialize_fn: Callable) -> dict:
 
 
 def _default_serialize(instance: Any) -> dict:
-    """默认序列化：调用 to_dict()"""
+    """默认序列化：调用 to_dict() / Default serializer: calls to_dict()"""
     if hasattr(instance, "to_dict"):
         return instance.to_dict()
     return {"id": getattr(instance, "id", None)}

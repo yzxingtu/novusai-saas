@@ -1,9 +1,10 @@
 """
-租户套餐服务
+租户套餐服务 / Tenant Plan Service
 
 提供套餐的业务逻辑（平台级，非租户隔离）
-"""
+Provides plan business logic (platform-level, no tenant isolation).
 
+"""
 import secrets
 import string
 from typing import Any

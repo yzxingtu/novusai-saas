@@ -17,24 +17,25 @@ import {
 
 import { generateAccess } from './access';
 
-/** 根据路由路径获取对应端的登录路径 */
+/** Get login path for the endpoint matching the route path / 根据路由路径获取对应端的登录路径 */
 function getLoginPathByRoute(path: string): string {
   const endpoint = getApiEndpoint(path);
   return LOGIN_PATHS[endpoint];
 }
 
-/** 根据路由路径获取对应端的首页路径 */
+/** Get home path for the endpoint matching the route path / 根据路由路径获取对应端的首页路径 */
 function getHomePathByRoute(path: string): string {
   const endpoint = getApiEndpoint(path);
   return HOME_PATHS[endpoint];
 }
 
-/** 判断是否是登录页面 */
+/** Check if the path is a login page / 判断是否是登录页面 */
 function isLoginPath(path: string): boolean {
   return Object.values(LOGIN_PATHS).includes(path);
 }
 
 /**
+ * Common guard configuration
  * 通用守卫配置
  * @param router
  */
@@ -64,10 +65,11 @@ function setupCommonGuard(router: Router) {
   });
 }
 
-// 记录上一次的端类型，用于检测端切换
+// Record last endpoint type for detecting endpoint switches / 记录上一次的端类型，用于检测端切换
 let lastEndpoint: ApiEndpoint | null = null;
 
 /**
+ * Reset endpoint type record (called on logout to avoid stale state during HMR or session switching)
  * 重置端类型记录（登出时调用，避免 HMR 或会话切换时的残留状态）
  */
 export function resetLastEndpoint() {
@@ -75,6 +77,7 @@ export function resetLastEndpoint() {
 }
 
 /**
+ * Access permission guard configuration
  * 权限访问守卫配置
  * @param router
  */
@@ -349,6 +352,8 @@ function setupAccessGuard(router: Router) {
 }
 
 /**
+ * Tabbar guard configuration
+ * Handles multi-endpoint tab isolation
  * 标签页守卫配置
  * 处理多端标签页隔离
  * @param router
@@ -382,15 +387,16 @@ function setupTabbarGuard(router: Router) {
 }
 
 /**
+ * Project guard configuration
  * 项目守卫配置
  * @param router
  */
 function createRouterGuard(router: Router) {
-  /** 通用 */
+  /** Common / 通用 */
   setupCommonGuard(router);
-  /** 权限访问 */
+  /** Access permission / 权限访问 */
   setupAccessGuard(router);
-  /** 标签页隔离 */
+  /** Tab isolation / 标签页隔离 */
   setupTabbarGuard(router);
 }
 

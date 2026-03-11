@@ -1,8 +1,10 @@
 """
+AI Response Cache Service
 AI 响应缓存服务
 
-基于 Redis 实现 AI 响应的缓存，提高响应速度并降低成本。
-仅缓存非流式请求。
+Redis-based AI response caching to improve speed and reduce costs.
+Only caches non-streaming requests.
+基于 Redis 实现 AI 响应的缓存，提高响应速度并降低成本。仅缓存非流式请求。
 """
 
 import hashlib
@@ -20,10 +22,11 @@ logger = LogManager.get_logger("ai.cache")
 
 class AIResponseCache:
     """
-    AI 响应缓存
+    AI Response Cache / AI 响应缓存
 
-    缓存 AI 调用响应，支持 TTL 和自动失效。
-    提供缓存命中率统计功能。
+    Caches AI call responses with TTL and auto-expiry.
+    Provides cache hit rate statistics.
+    缓存 AI 调用响应，支持 TTL 和自动失效。提供缓存命中率统计功能。
     """
 
     CACHE_PREFIX = "ai:response:"
@@ -31,7 +34,7 @@ class AIResponseCache:
 
     @staticmethod
     def _get_default_ttl() -> int:
-        """获取默认缓存 TTL（从配置读取）"""
+        """Get default cache TTL (from config) / 获取默认缓存 TTL（从配置读取）"""
         return settings.AI_CACHE_TTL
 
     @staticmethod
@@ -44,20 +47,21 @@ class AIResponseCache:
         tools: list | None = None,
     ) -> str:
         """
-        生成缓存键
+        Generate cache key.
+        生成缓存键。
 
-        键 = hash(model_code + sorted(messages) + temperature + max_tokens)
+        key = hash(model_code + sorted(messages) + temperature + max_tokens)
 
         Args:
-            provider_code: 供应商代码
-            model: 模型名称
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大 tokens
-            tools: 工具列表
+            provider_code: Provider code / 供应商代码
+            model: Model name / 模型名称
+            messages: Message list / 消息列表
+            temperature: Temperature parameter / 温度参数
+            max_tokens: Max tokens / 最大 tokens
+            tools: Tool list / 工具列表
 
         Returns:
-            缓存键
+            Cache key / 缓存键
         """
         params = {
             "provider": provider_code,
@@ -76,13 +80,14 @@ class AIResponseCache:
     @staticmethod
     async def get(cache_key: str) -> dict | None:
         """
-        获取缓存响应
+        Get cached response.
+        获取缓存响应。
 
         Args:
-            cache_key: 缓存键
+            cache_key: Cache key / 缓存键
 
         Returns:
-            缓存的响应数据，如果不存在则返回 None
+            Cached response data, or None if not found / 缓存的响应数据，如果不存在则返回 None
         """
         try:
             redis = await get_redis()
@@ -92,6 +97,7 @@ class AIResponseCache:
                 try:
                     data = json.loads(cached)
                 except (json.JSONDecodeError, ValueError):
+                    # Cache data corrupt, delete and log warning (not counted as hit)
                     # 缓存数据损坏，删除并记录警告，不计入 hit 统计
                     logger.warning(
                         "Cache corrupt: key=%s", cache_key[:40],
@@ -100,12 +106,12 @@ class AIResponseCache:
                     await AIResponseCache._record_hit(redis, hit=False)
                     return None
 
-                # 统计命中
+                # Record hit / 统计命中
                 await AIResponseCache._record_hit(redis, hit=True)
                 logger.info("Cache hit: key=%s", cache_key[:40])
                 return data
 
-            # 统计未命中
+            # Record miss / 统计未命中
             await AIResponseCache._record_hit(redis, hit=False)
             return None
 
@@ -120,12 +126,13 @@ class AIResponseCache:
         ttl: int | None = None,
     ) -> None:
         """
-        设置缓存响应
+        Set cached response.
+        设置缓存响应。
 
         Args:
-            cache_key: 缓存键
-            response_data: 响应数据（必须 JSON 可序列化）
-            ttl: 过期时间(秒)，默认 1 小时
+            cache_key: Cache key / 缓存键
+            response_data: Response data (must be JSON-serializable) / 响应数据（必须 JSON 可序列化）
+            ttl: Expiry time in seconds, default 1 hour / 过期时间(秒)，默认 1 小时
         """
         try:
             redis = await get_redis()
@@ -145,10 +152,11 @@ class AIResponseCache:
     @staticmethod
     async def delete(cache_key: str) -> None:
         """
-        删除缓存
+        Delete cache entry.
+        删除缓存。
 
         Args:
-            cache_key: 缓存键
+            cache_key: Cache key / 缓存键
         """
         try:
             redis = await get_redis()
@@ -161,10 +169,11 @@ class AIResponseCache:
     @staticmethod
     async def clear_pattern(pattern: str) -> None:
         """
-        批量删除缓存
+        Batch delete cache entries by pattern.
+        批量删除缓存。
 
         Args:
-            pattern: 匹配模式（如 "openai:*"）
+            pattern: Match pattern (e.g. "openai:*") / 匹配模式（如 "openai:*"）
         """
         try:
             redis = await get_redis()
@@ -181,26 +190,27 @@ class AIResponseCache:
 
     @staticmethod
     async def clear_all() -> None:
-        """清除所有 AI 响应缓存"""
+        """Clear all AI response cache / 清除所有 AI 响应缓存"""
         await AIResponseCache.clear_pattern("*")
 
-    # ========== 缓存命中率统计 ==========
+    # ========== Cache hit rate statistics / 缓存命中率统计 ==========
 
     @staticmethod
     async def _record_hit(redis: Any, hit: bool) -> None:
-        """记录缓存命中/未命中"""
+        """Record cache hit/miss / 记录缓存命中/未命中"""
         try:
             if hit:
                 await redis.hincrby(AIResponseCache.STATS_KEY, "hits", 1)
             else:
                 await redis.hincrby(AIResponseCache.STATS_KEY, "misses", 1)
         except RedisError:
-            pass  # 统计失败不影响主流程
+            pass  # Stats failure doesn't affect main flow / 统计失败不影响主流程
 
     @staticmethod
     async def get_hit_rate() -> dict:
         """
-        获取缓存命中率统计
+        Get cache hit rate statistics.
+        获取缓存命中率统计。
 
         Returns:
             {
@@ -231,7 +241,7 @@ class AIResponseCache:
 
     @staticmethod
     async def reset_stats() -> None:
-        """重置缓存命中率统计"""
+        """Reset cache hit rate statistics / 重置缓存命中率统计"""
         try:
             redis = await get_redis()
             await redis.delete(AIResponseCache.STATS_KEY)

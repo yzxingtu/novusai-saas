@@ -1,8 +1,10 @@
 """
-插件 SSE 流式响应工具
+Plugin SSE streaming response utility.
+/ 插件 SSE 流式响应工具
 
-提供可复用的 StreamingResponse 生成器模板，
-供插件 API handler 直接复用，避免各插件重复实现 SSE 封装。
+Provides reusable StreamingResponse generator templates for plugin API handlers
+to reuse directly, avoiding each plugin re-implementing SSE encapsulation.
+/ 提供可复用的 StreamingResponse 生成器模板，供插件 API handler 直接复用。
 """
 
 from __future__ import annotations
@@ -19,10 +21,12 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# 心跳间隔（秒）— 防止反向代理超时断开
+# Heartbeat interval (seconds) — prevent reverse proxy timeout disconnect
+# / 心跳间隔
 _HEARTBEAT_INTERVAL = 15.0
 
-# SSE 心跳注释（不会被客户端 EventSource 当作事件处理）
+# SSE heartbeat comment (not treated as event by client EventSource)
+# / SSE 心跳注释
 _HEARTBEAT_LINE = ":heartbeat\n\n"
 
 
@@ -33,15 +37,17 @@ def plugin_sse_response(
     plugin_name: str = "",
 ) -> StreamingResponse:
     """
-    将插件文本增量生成器包装为标准 SSE StreamingResponse。
+    Wrap plugin text delta generator as standard SSE StreamingResponse.
+    / 将插件文本增量生成器包装为标准 SSE StreamingResponse。
 
-    SSE 协议：
-    - 每个文本 chunk → ``data: {"event":"message","delta":"..."}\n\n``
-    - 流结束 → ``data: {"event":"done"}\n\n`` + ``data: [DONE]\n\n``
-    - 异常 → ``data: {"error":true,"message":"..."}\n\n`` + ``data: [DONE]\n\n``
-    - 心跳 → ``:heartbeat\n\n``（每 15 秒，防 Nginx/ALB 超时）
+    SSE protocol:
+    - Each text chunk → ``data: {"event":"message","delta":"..."}\n\n``
+    - Stream end → ``data: {"event":"done"}\n\n`` + ``data: [DONE]\n\n``
+    - Exception → ``data: {"error":true,"message":"..."}\n\n`` + ``data: [DONE]\n\n``
+    - Heartbeat → ``:heartbeat\n\n`` (every 15s, prevent Nginx/ALB timeout)
+    / SSE 协议说明
 
-    用法示例（插件 API handler）::
+    Usage example (plugin API handler) / 用法示例::
 
         async def my_stream_handler(request, db, ctx):
             async def gen():
@@ -50,9 +56,9 @@ def plugin_sse_response(
             return plugin_sse_response(gen(), plugin_name="my-plugin")
 
     Args:
-        generator: 异步生成器，yield 纯文本 delta 字符串
-        heartbeat: 是否启用心跳（默认 True）
-        plugin_name: 插件名称（仅用于日志）
+        generator: Async generator, yields plain text delta strings / 异步生成器，产生纯文本增量字符串
+        heartbeat: Whether to enable heartbeat (default True) / 是否启用心跳（默认 True）
+        plugin_name: Plugin name (for logging only) / 插件名称（仅用于日志）
 
     Returns:
         FastAPI StreamingResponse (text/event-stream)
@@ -64,8 +70,9 @@ def plugin_sse_response(
 
         try:
             if heartbeat:
-                # 使用 anext + wait_for 实现心跳：
-                # 如果生成器在 _HEARTBEAT_INTERVAL 内没有产出，发送心跳保活
+                # Use anext + wait_for to implement heartbeat:
+                # if generator produces nothing within _HEARTBEAT_INTERVAL, send heartbeat keepalive
+                # / 使用 anext + wait_for 实现心跳保活
                 gen_iter = generator.__aiter__()
                 while True:
                     try:
@@ -86,7 +93,7 @@ def plugin_sse_response(
                         chunk_count += 1
                         yield _encode({"event": "message", "delta": delta})
 
-            # 正常结束
+            # Normal end / 正常结束
             yield _encode({"event": "done"})
             yield _done()
 
@@ -100,7 +107,7 @@ def plugin_sse_response(
                 yield _encode({"error": True, "message": str(exc)})
                 yield _done()
             except Exception:
-                pass  # 连接已断开
+                pass  # Connection already closed / 连接已断开
 
         finally:
             latency_ms = int((time.perf_counter() - start) * 1000)
@@ -122,12 +129,12 @@ def plugin_sse_response(
 
 
 def _encode(data: dict[str, Any]) -> str:
-    """编码为 SSE data 行"""
+    """Encode as SSE data line / 编码为 SSE data 行"""
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _done() -> str:
-    """SSE 结束标记"""
+    """SSE end marker / SSE 结束标记"""
     return "data: [DONE]\n\n"
 
 

@@ -1,7 +1,8 @@
 """
-通用查询 Schema
+通用查询 Schema / Common Query Schema
 
 定义列表筛选、排序、分页的数据结构，支持 JSON:API 风格查询参数
+Defines list filtering, sorting, pagination data structures with JSON:API style query parameters.
 """
 
 from enum import Enum

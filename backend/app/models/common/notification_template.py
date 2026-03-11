@@ -1,8 +1,8 @@
 """
-通知模板模型
+通知模板模型 / Notification Template Model
 
-系统预置 + 租户自定义的通知模板。
-每种通知类型对应一个模板，定义标题/正文模板、投递渠道、优先级。
+系统预置 + 租户自定义的通知模板。每种通知类型对应一个模板，定义标题/正文模板、投递渠道、优先级。
+System preset + tenant custom notification templates. Each notification type has a template defining title/body, channels, priority.
 """
 
 from sqlalchemy import Boolean, Integer, String, Text

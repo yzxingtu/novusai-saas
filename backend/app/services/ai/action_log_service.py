@@ -1,7 +1,8 @@
 """
-AI 操作审计日志 Service
+AI 操作审计日志 Service / AI Action Log Service
 
 提供审计日志的查询和统计功能（只读 Service）
+Provides audit log query and statistics functions (read-only service).
 """
 
 from app.core.base_service import TenantService

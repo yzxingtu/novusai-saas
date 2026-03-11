@@ -1,8 +1,10 @@
 """
-技能模型
+技能模型 / Skill Model
 
-定义智能体可使用的技能，包括 Toolkit、知识库、数据智能、Builtin 四种类型
-Skill 是面向用户的管理单元，通过 SkillResolver 转换为面向 LLM 的 ToolDefinition
+定义智能体可使用的技能，包括 Toolkit、知识库、数据智能、Builtin 四种类型。
+Defines skills usable by agents, including Toolkit, KnowledgeBase, DataIntelligence, Builtin types.
+Skill 是面向用户的管理单元，通过 SkillResolver 转换为面向 LLM 的 ToolDefinition。
+Skill is a user-facing management unit, converted to LLM-facing ToolDefinition via SkillResolver.
 """
 
 from sqlalchemy import JSON, Boolean, Column, ForeignKey, Index, Integer, String, Text

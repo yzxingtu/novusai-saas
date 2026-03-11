@@ -1,12 +1,14 @@
 """
-技能包模型
+技能包模型 / Skill Package Model
 
 技能包是 Skill 的上层容器，一个技能包包含多个技能。
+Skill package is the upper-level container for Skills; one package contains multiple skills.
 Agent 通过绑定技能包来获取其中所有技能的能力。
 
-作用域:
-  - scope=tenant: 租户端使用（tenant_id 必填）
-  - scope=admin: 仅管理端使用（tenant_id 为 NULL）
+可见性通过 target_audience 控制（admin_only / admin_tenant / all）。
+Visibility is controlled by target_audience (admin_only / admin_tenant / all).
+tenant_id=NULL 表示平台级包，tenant_id=X 表示租户自有包。
+tenant_id=NULL means platform-level package, tenant_id=X means tenant-owned package.
 """
 
 from sqlalchemy import Boolean, Column, Index, Integer, String, Text
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.common import AudienceEnum, ResourceScopeEnum, SkillBindModeEnum
+from app.enums.common import AudienceEnum, SkillBindModeEnum
 
 
 class SkillPackage(TenantModel):
@@ -34,19 +36,17 @@ class SkillPackage(TenantModel):
                     label_field="name", i18n_key="skill"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id，admin scope 时为 NULL
     tenant_id = Column(
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（scope=tenant 时必填，scope=admin 时为 NULL）"
+        comment="租户ID（平台级包为 NULL，租户自有包为租户 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)"
     )
 
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",
         "name": "name",
-        "scope": "scope",
         "target_audience": "target_audience",
         "is_active": "is_active",
         "is_system": "is_system",
@@ -71,7 +71,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
-        "extra": ["scope", "is_system", "source_plugin", "bind_mode", "target_audience"],
+        "extra": ["is_system", "source_plugin", "bind_mode", "target_audience"],
     }
 
     # ==================== 基本信息 ====================
@@ -91,16 +91,6 @@ class SkillPackage(TenantModel):
         String(255),
         nullable=True,
         comment=_("skill_package.field.avatar"),
-    )
-
-    # ==================== 作用域 ====================
-
-    scope: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=ResourceScopeEnum.ALL_TENANTS.value,
-        index=True,
-        comment=_("skill_package.field.scope"),
     )
 
     # ==================== 目标受众 ====================
@@ -194,12 +184,11 @@ class SkillPackage(TenantModel):
     # ==================== 复合索引 ====================
 
     __table_args__ = (
-        Index("ix_skill_packages_tenant_scope", "tenant_id", "scope"),
         Index("ix_skill_packages_tenant_active", "tenant_id", "is_active"),
     )
 
     def __repr__(self) -> str:
-        return f"<SkillPackage(id={self.id}, name={self.name}, scope={self.scope})>"
+        return f"<SkillPackage(id={self.id}, name={self.name})>"
 
 
 __all__ = ["SkillPackage"]

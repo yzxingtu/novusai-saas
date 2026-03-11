@@ -1,7 +1,8 @@
 """
-平台管理员角色 API
+平台管理员角色 API / Platform Admin Role API
 
 提供平台端角色 CRUD、权限分配、层级管理等接口
+Provides platform role CRUD, permission assignment, hierarchy management endpoints.
 """
 
 from fastapi import HTTPException, Query, Request, status
@@ -58,16 +59,17 @@ from app.services.system.admin_role_service import AdminRoleService
 )
 class AdminRoleController(GlobalController):
     """
-    平台组织架构控制器
+    平台组织架构控制器 / Platform Organization Controller
 
     提供组织架构 CRUD、权限分配、层级管理等接口
+    Provides organization CRUD, permission assignment, hierarchy management endpoints.
     """
 
     prefix = "/roles"
     tags = ["Role Management (Platform)"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/tree", summary="获取角色树")
@@ -78,22 +80,22 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取角色树形结构
+            获取角色树形结构 / Get role tree structure
 
-            层级权限控制：
-            - 超级管理员可以看到完整角色树
-            - 普通管理员只能看到以自己角色为根的子树
+            层级权限控制 / Hierarchy access control:
+            - 超级管理员可以看到完整角色树 / Super admin can see the full role tree
+            - 普通管理员只能看到以自己角色为根的子树 / Normal admin can only see subtree rooted at their own role
 
-            权限: role:tree
+            权限 / Permission: role:tree
             """
             service = AdminRoleService(db)
 
-            # 超级管理员可以看到完整树
+            # 超级管理员可以看到完整树 / Super admin can see the full tree
             if current_admin.is_super:
                 tree = await service.get_tree()
                 return success(data=tree, message=_("common.success"))
 
-            # 普通管理员只能看到以自己角色为根的子树
+            # 普通管理员只能看到以自己角色为根的子树 / Normal admin can only see subtree rooted at their role
             if current_admin.role_id is None:
                 return success(data=[], message=_("common.success"))
 
@@ -108,19 +110,20 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取组织架构根节点列表（按需加载）
+            获取组织架构根节点列表（按需加载） / Get organization root nodes (lazy loading)
 
-            层级权限控制：
-            - 超级管理员：返回 level=1 的系统根节点
-            - 普通管理员：返回自己所在角色作为根节点
+            层级权限控制 / Hierarchy access control:
+            - 超级管理员：返回 level=1 的系统根节点 / Super admin: returns level=1 system root nodes
+            - 普通管理员：返回自己所在角色作为根节点 / Normal admin: returns own role as root node
 
             前端可通过 GET /roles/{id}/children 按需加载子节点。
+            Frontend can lazy-load children via GET /roles/{id}/children.
 
-            权限: role:organization
+            权限 / Permission: role:organization
             """
             service = AdminRoleService(db)
 
-            # 超级管理员可以看到完整组织架构
+            # 超级管理员可以看到完整组织架构 / Super admin can see the full organization
             if current_admin.is_super:
                 roles = await service.get_organization_root_nodes()
                 return success(
@@ -128,11 +131,11 @@ class AdminRoleController(GlobalController):
                     message=_("common.success"),
                 )
 
-            # 普通管理员只能看到以自己角色为根的子树
+            # 普通管理员只能看到以自己角色为根的子树 / Normal admin can only see subtree rooted at their role
             if current_admin.role_id is None:
                 return success(data=[], message=_("common.success"))
 
-            # 获取当前用户的角色作为根节点
+            # 获取当前用户的角色作为根节点 / Get current user's role as root node
             result = await db.execute(
                 select(AdminRole)
                 .where(
@@ -154,7 +157,7 @@ class AdminRoleController(GlobalController):
                 message=_("common.success"),
             )
 
-        # ========== 排序管理 API ==========
+        # ========== 排序管理 API / Sorting Management API ==========
 
         @router.put("/reorder", summary="批量重排序")
         @action_update("action.organization.reorder")
@@ -165,26 +168,27 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            批量重排序组织架构节点
+            批量重排序组织架构节点 / Batch reorder organization nodes
 
             接收有序的 ID 列表，按顺序重新分配排序值。
+            Receives an ordered ID list and reassigns sort values accordingly.
 
-            层级权限控制：
-            - 超级管理员：可重排所有节点
-            - 普通管理员：只能重排自己可管理的节点
+            层级权限控制 / Hierarchy access control:
+            - 超级管理员：可重排所有节点 / Super admin: can reorder all nodes
+            - 普通管理员：只能重排自己可管理的节点 / Normal admin: can only reorder manageable nodes
 
-            请求示例:
+            请求示例 / Request example:
                 {
                     "ids": [3, 1, 5, 2, 4],
-                    "parent_id": 1  // 可选，限定同级范围
+                    "parent_id": 1  // 可选，限定同级范围 / Optional, restricts to siblings
                 }
 
-            权限: organization:reorder
+            权限 / Permission: organization:reorder
             """
             service = AdminRoleService(db)
             validator = AdminRoleHierarchyValidator(db, current_admin)
 
-            # 非超管需要校验每个节点的可管理性
+            # 非超管需要校验每个节点的可管理性 / Non-super admin must verify manageability of each node
             if not current_admin.is_super:
                 for role_id in data.ids:
                     if not await validator.can_manage_role(role_id):
@@ -220,13 +224,14 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取角色详情（含权限列表）
+            获取角色详情（含权限列表） / Get role details (with permission list)
 
             层级权限控制：只能查看可见角色的详情
+            Hierarchy access control: can only view details of visible roles.
 
-            权限: role:detail
+            权限 / Permission: role:detail
             """
-            # 先查询角色是否存在
+            # 先查询角色是否存在 / Check if role exists
             result = await db.execute(
                 select(AdminRole)
                 .where(AdminRole.id == role_id, AdminRole.is_deleted.is_(False))
@@ -244,7 +249,7 @@ class AdminRoleController(GlobalController):
                     detail=_("role.not_found"),
                 )
 
-            # 校验角色可见性
+            # 校验角色可见性 / Verify role visibility
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_view_role(role_id):
                 raise HTTPException(
@@ -282,13 +287,14 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取指定节点的直接子节点（用于按需加载组织架构树）
+            获取指定节点的直接子节点（用于按需加载组织架构树） / Get direct children of a node (for lazy-loading organization tree)
 
             层级权限控制：只能查看可见角色的子角色
+            Hierarchy access control: can only view children of visible roles.
 
-            权限: role:children
+            权限 / Permission: role:children
             """
-            # 校验角色可见性
+            # 校验角色可见性 / Verify role visibility
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_view_role(role_id):
                 raise HTTPException(
@@ -313,13 +319,14 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取角色的有效权限（含继承的权限）
+            获取角色的有效权限（含继承的权限） / Get effective permissions of a role (including inherited)
 
             层级权限控制：只能查看可见角色的有效权限
+            Hierarchy access control: can only view effective permissions of visible roles.
 
-            权限: role:effective_permissions
+            权限 / Permission: role:effective_permissions
             """
-            # 校验角色可见性
+            # 校验角色可见性 / Verify role visibility
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_view_role(role_id):
                 raise HTTPException(
@@ -351,25 +358,25 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            创建平台角色
+            创建平台角色 / Create platform role
 
-            层级权限控制：
-            - 超级管理员可以在任何位置创建角色
-            - 普通管理员只能在自己角色或其下级角色下创建
-            - 只能分配自己已拥有的权限
+            层级权限控制 / Hierarchy access control:
+            - 超级管理员可以在任何位置创建角色 / Super admin can create roles anywhere
+            - 普通管理员只能在自己角色或其下级角色下创建 / Normal admin can only create under own or subordinate roles
+            - 只能分配自己已拥有的权限 / Can only assign permissions already owned
 
-            权限: role:create
+            权限 / Permission: role:create
             """
             validator = AdminRoleHierarchyValidator(db, current_admin)
 
-            # 校验父角色
+            # 校验父角色 / Validate parent role
             if not await validator.can_create_under_parent(data.parent_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.parent_must_be_visible"),
                 )
 
-            # 校验权限分配
+            # 校验权限分配 / Validate permission assignment
             if data.permission_ids:
                 unassignable = await validator.get_unassignable_permissions(data.permission_ids)
                 if unassignable:
@@ -391,13 +398,13 @@ class AdminRoleController(GlobalController):
                     allow_members=data.allow_members,
                 )
 
-                # 分配权限
+                # 分配权限 / Assign permissions
                 if data.permission_ids:
                     role = await service.assign_permissions(role.id, data.permission_ids)
 
                 await db.commit()
 
-                # 重新加载角色以获取完整关联
+                # 重新加载角色以获取完整关联 / Reload role to get full associations
                 result = await db.execute(
                     select(AdminRole)
                     .where(AdminRole.id == role.id)
@@ -434,31 +441,31 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            更新平台角色
+            更新平台角色 / Update platform role
 
-            层级权限控制：
-            - 只能更新自己的下级角色
-            - 只能分配自己已拥有的权限
+            层级权限控制 / Hierarchy access control:
+            - 只能更新自己的下级角色 / Can only update subordinate roles
+            - 只能分配自己已拥有的权限 / Can only assign permissions already owned
 
-            权限: role:update
+            权限 / Permission: role:update
             """
             validator = AdminRoleHierarchyValidator(db, current_admin)
 
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.no_permission_to_manage"),
                 )
 
-            # 如果更新父角色，校验新父角色
+            # 如果更新父角色，校验新父角色 / If updating parent role, validate the new parent
             if data.parent_id is not None and not await validator.can_create_under_parent(data.parent_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.parent_must_be_visible"),
                 )
 
-            # 校验权限分配
+            # 校验权限分配 / Validate permission assignment
             if data.permission_ids is not None:
                 unassignable = await validator.get_unassignable_permissions(data.permission_ids)
                 if unassignable:
@@ -470,7 +477,7 @@ class AdminRoleController(GlobalController):
             service = AdminRoleService(db)
 
             try:
-                # 构建更新数据
+                # 构建更新数据 / Build update data
                 update_data = {}
                 if data.name is not None:
                     update_data["name"] = data.name
@@ -485,13 +492,13 @@ class AdminRoleController(GlobalController):
 
                 role = await service.update_role(role_id, update_data)
 
-                # 更新权限
+                # 更新权限 / Update permissions
                 if data.permission_ids is not None:
                     role = await service.assign_permissions(role_id, data.permission_ids)
 
                 await db.commit()
 
-                # 重新加载角色以获取完整关联
+                # 重新加载角色以获取完整关联 / Reload role to get full associations
                 result = await db.execute(
                     select(AdminRole)
                     .where(AdminRole.id == role.id)
@@ -527,20 +534,21 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            删除平台角色（软删除）
+            删除平台角色（软删除） / Delete platform role (soft delete)
 
             层级权限控制：只能删除自己的下级角色
+            Hierarchy access control: can only delete subordinate roles.
 
-            删除前检查：
-            - 系统内置角色不可删除
-            - 有子角色的角色不可删除
-            - 有关联用户的角色不可删除
+            删除前检查 / Pre-delete checks:
+            - 系统内置角色不可删除 / System built-in roles cannot be deleted
+            - 有子角色的角色不可删除 / Roles with children cannot be deleted
+            - 有关联用户的角色不可删除 / Roles with associated users cannot be deleted
 
-            权限: role:delete
+            权限 / Permission: role:delete
             """
             service = AdminRoleService(db)
 
-            # 先检查角色是否存在
+            # 先检查角色是否存在 / Check if role exists
             role = await service.repo.get_by_id(role_id)
             if not role:
                 raise HTTPException(
@@ -548,7 +556,7 @@ class AdminRoleController(GlobalController):
                     detail=_("role.not_found"),
                 )
 
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -575,7 +583,7 @@ class AdminRoleController(GlobalController):
                     detail=str(e.message),
                 )
 
-        # ========== 组织架构管理 API ==========
+        # ========== 组织架构管理 API / Organization Management API ==========
 
         @router.get("/{role_id}/members", summary="获取节点成员列表")
         @action_read("action.organization.members")
@@ -590,15 +598,15 @@ class AdminRoleController(GlobalController):
             include_descendants: bool = Query(True, description="是否包含子节点成员"),
         ):
             """
-            获取节点成员列表（分页 + 搜索 + 递归子节点）
+            获取节点成员列表（分页 + 搜索 + 递归子节点） / Get node members (paginated + search + recursive children)
 
-            - 支持通用搜索: search=xxx 模糊匹配用户名/昵称/邮箱
-            - 支持分页: page[number]=1&page[size]=20
-            - 支持递归查询: include_descendants=true 查询所有子节点成员
+            - 支持通用搜索 / General search: search=xxx fuzzy match username/nickname/email
+            - 支持分页 / Pagination: page[number]=1&page[size]=20
+            - 支持递归查询 / Recursive query: include_descendants=true to query all descendant members
 
-            权限: role:members
+            权限 / Permission: role:members
             """
-            # 校验角色可见性
+            # 校验角色可见性 / Verify role visibility
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_view_role(role_id):
                 raise HTTPException(
@@ -609,7 +617,7 @@ class AdminRoleController(GlobalController):
             service = AdminRoleService(db)
 
             try:
-                # 获取角色信息（用于判断负责人）
+                # 获取角色信息（用于判断负责人） / Get role info (to determine leader)
                 role = await service.repo.get_by_id(role_id)
                 if not role:
                     raise NotFoundException(message=_("role.not_found"))
@@ -663,13 +671,14 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            在指定节点下创建新成员
+            在指定节点下创建新成员 / Create a new member under specified node
 
             创建新管理员并自动关联到指定角色/节点。
+            Creates a new admin and automatically associates with the specified role/node.
 
-            权限: organization:create_member
+            权限 / Permission: organization:create_member
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -691,7 +700,7 @@ class AdminRoleController(GlobalController):
                 )
                 await db.commit()
 
-                # 返回创建的成员信息
+                # 返回创建的成员信息 / Return created member info
                 return success(
                     data=AdminRoleMemberResponse(
                         id=admin.id,
@@ -731,13 +740,14 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            更新节点成员信息
+            更新节点成员信息 / Update node member info
 
             支持修改成员的邮箱、手机号、昵称、状态，以及调整所属角色。
+            Supports modifying member's email, phone, nickname, status, and adjusting role.
 
-            权限: organization:update_member
+            权限 / Permission: organization:update_member
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -745,7 +755,7 @@ class AdminRoleController(GlobalController):
                     detail=_("role.no_permission_to_manage"),
                 )
 
-            # 如果要调整到新角色，也需要校验新角色的可管理性
+            # 如果要调整到新角色，也需要校验新角色的可管理性 / If moving to a new role, also verify the new role's manageability
             if data.role_id is not None and not await validator.can_manage_role(data.role_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -767,7 +777,7 @@ class AdminRoleController(GlobalController):
                 )
                 await db.commit()
 
-                # 重新加载管理员以获取角色信息
+                # 重新加载管理员以获取角色信息 / Reload admin to get role info
                 await db.refresh(admin)
 
                 return success(
@@ -809,11 +819,11 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            重置节点成员密码
+            重置节点成员密码 / Reset node member password
 
-            权限: organization:reset_password
+            权限 / Permission: organization:reset_password
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -858,11 +868,11 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            切换节点成员状态
+            切换节点成员状态 / Toggle node member status
 
-            权限: organization:toggle_status
+            权限 / Permission: organization:toggle_status
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -880,7 +890,7 @@ class AdminRoleController(GlobalController):
                 )
                 await db.commit()
 
-                # 重新加载以获取角色信息
+                # 重新加载以获取角色信息 / Reload to get role info
                 await db.refresh(admin)
 
                 return success(
@@ -921,11 +931,11 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            添加成员到节点
+            添加成员到节点 / Add member to node
 
-            权限: role:add_member
+            权限 / Permission: role:add_member
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -940,6 +950,7 @@ class AdminRoleController(GlobalController):
                 await db.commit()
 
                 # 返回成功消息，不返回完整角色数据（避免 session 断开后的懒加载问题）
+                # Return success message without full role data (avoid lazy loading issues after session disconnect)
                 return success(
                     data={"role_id": role_id},
                     message=_("role.member_added"),
@@ -966,11 +977,11 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            从节点移除成员
+            从节点移除成员 / Remove member from node
 
-            权限: role:remove_member
+            权限 / Permission: role:remove_member
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -985,6 +996,7 @@ class AdminRoleController(GlobalController):
                 await db.commit()
 
                 # 返回成功消息，不返回完整角色数据（避免 session 断开后的懒加载问题）
+                # Return success message without full role data (avoid lazy loading issues after session disconnect)
                 return success(
                     data={"role_id": role_id},
                     message=_("role.member_removed"),
@@ -1011,11 +1023,11 @@ class AdminRoleController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            设置节点负责人（仅部门类型可设置）
+            设置节点负责人（仅部门类型可设置） / Set node leader (department type only)
 
-            权限: role:set_leader
+            权限 / Permission: role:set_leader
             """
-            # 校验角色可管理性
+            # 校验角色可管理性 / Verify role manageability
             validator = AdminRoleHierarchyValidator(db, current_admin)
             if not await validator.can_manage_role(role_id):
                 raise HTTPException(
@@ -1023,7 +1035,7 @@ class AdminRoleController(GlobalController):
                     detail=_("role.no_permission_to_manage"),
                 )
 
-            # 禁止当前负责人自己修改负责人身份
+            # 禁止当前负责人自己修改负责人身份 / Prevent current leader from modifying their own leader status
             role = await AdminRoleRepository(db).get_by_id(role_id)
             if role and role.leader_id == current_admin.id:
                 raise HTTPException(
@@ -1038,6 +1050,7 @@ class AdminRoleController(GlobalController):
                 await db.commit()
 
                 # 返回成功消息，不返回完整角色数据（避免 session 断开后的懒加载问题）
+                # Return success message without full role data (avoid lazy loading issues after session disconnect)
                 return success(
                     data={"role_id": role_id, "leader_id": data.leader_id},
                     message=_("role.leader_set"),
@@ -1055,7 +1068,7 @@ class AdminRoleController(GlobalController):
                 )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminRoleController.get_router()
 
 __all__ = ["router", "AdminRoleController"]

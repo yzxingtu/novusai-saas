@@ -1,6 +1,6 @@
-"""
-租户用户注册配置项
+"""Tenant user registration config items / 租户用户注册配置项
 
+Includes tenant-level user self-registration configs.
 包含租户级的用户自助注册相关配置
 """
 
@@ -10,10 +10,10 @@ from app.enums.config import ConfigScope, ConfigValueType
 
 
 # ==========================================
-# 用户注册
+# User registration / 用户注册
 # ==========================================
 
-# 是否开放用户注册
+# Whether user registration is open / 是否开放用户注册
 USER_REGISTRATION_ENABLED = ConfigMeta(
     key="user_registration_enabled",
     name_key="config.tenant.user_registration_enabled.name",
@@ -24,7 +24,7 @@ USER_REGISTRATION_ENABLED = ConfigMeta(
     sort_order=100,
 )
 
-# 注册是否需要验证码
+# Whether registration requires captcha / 注册是否需要验证码
 USER_REGISTRATION_CAPTCHA_ENABLED = ConfigMeta(
     key="user_registration_captcha_enabled",
     name_key="config.tenant.user_registration_captcha_enabled.name",
@@ -38,7 +38,7 @@ USER_REGISTRATION_CAPTCHA_ENABLED = ConfigMeta(
     ],
 )
 
-# 注册用户是否默认激活
+# Whether registered users are active by default / 注册用户是否默认激活
 USER_DEFAULT_ACTIVE = ConfigMeta(
     key="user_default_active",
     name_key="config.tenant.user_default_active.name",
@@ -52,7 +52,7 @@ USER_DEFAULT_ACTIVE = ConfigMeta(
     ],
 )
 
-# 注册是否需要审批（已由 features.py 的 tenant_registration_approval 控制，此处保留供兼容）
+# Whether registration requires approval (controlled by features.py tenant_registration_approval, kept for compatibility) / 注册是否需要审批（已由 features.py 控制，保留兼容）
 USER_REQUIRE_APPROVAL = ConfigMeta(
     key="user_require_approval",
     name_key="config.tenant.user_require_approval.name",
@@ -66,7 +66,7 @@ USER_REQUIRE_APPROVAL = ConfigMeta(
     ],
 )
 
-# 注册用户默认角色 ID（由种子自动设置，管理员可修改）
+# Default role ID for registered users (auto-set by seed, admin can modify) / 注册用户默认角色 ID
 USER_DEFAULT_ROLE_ID = ConfigMeta(
     key="user_default_role_id",
     name_key="config.tenant.user_default_role_id.name",
@@ -83,7 +83,7 @@ USER_DEFAULT_ROLE_ID = ConfigMeta(
     ],
 )
 
-# 隐私政策链接
+# Privacy policy URL / 隐私政策链接
 USER_PRIVACY_POLICY_URL = ConfigMeta(
     key="user_privacy_policy_url",
     name_key="config.tenant.user_privacy_policy_url.name",
@@ -97,7 +97,7 @@ USER_PRIVACY_POLICY_URL = ConfigMeta(
     ],
 )
 
-# 服务条款链接
+# Terms of service URL / 服务条款链接
 USER_TERMS_URL = ConfigMeta(
     key="user_terms_url",
     name_key="config.tenant.user_terms_url.name",
@@ -113,9 +113,9 @@ USER_TERMS_URL = ConfigMeta(
 
 
 # ==========================================
-# 注册配置到分组
-# 注意：USER_REGISTRATION_ENABLED (user_registration_enabled) 已由
-# features.py 的 tenant_allow_registration 替代，不再重复注册
+# Register configs to group / 注册配置到分组
+# Note: USER_REGISTRATION_ENABLED replaced by features.py tenant_allow_registration
+# 注意：USER_REGISTRATION_ENABLED 已由 features.py 的 tenant_allow_registration 替代
 # ==========================================
 
 TENANT_FEATURES_GROUP.configs = TENANT_FEATURES_GROUP.configs + [

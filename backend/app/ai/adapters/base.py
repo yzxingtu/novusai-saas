@@ -1,7 +1,9 @@
 """
+AI Adapter Abstract Base Class
 AI 适配器抽象基类
 
-定义所有供应商适配器必须实现的接口
+Defines the interface that all provider adapters must implement.
+定义所有供应商适配器必须实现的接口。
 """
 
 from abc import ABC, abstractmethod
@@ -18,9 +20,10 @@ from app.ai.types import (
 
 class BaseAdapter(ABC):
     """
-    AI 供应商适配器抽象基类
+    AI Provider Adapter Abstract Base Class / AI 供应商适配器抽象基类
 
-    所有供应商适配器必须继承此类并实现抽象方法
+    All provider adapters must inherit this class and implement abstract methods.
+    所有供应商适配器必须继承此类并实现抽象方法。
     """
 
     def __init__(
@@ -30,12 +33,12 @@ class BaseAdapter(ABC):
         **kwargs
     ):
         """
-        初始化适配器
+        Initialize adapter / 初始化适配器
 
         Args:
-            api_key: API 密钥
-            base_url: API 基础 URL（可选，用于自定义端点）
-            **kwargs: 其他供应商特定配置
+            api_key: API key / API 密钥
+            base_url: API base URL (optional, for custom endpoints) / API 基础 URL（可选）
+            **kwargs: Other provider-specific configuration / 其他供应商特定配置
         """
         self.api_key = api_key
         self.base_url = base_url
@@ -54,20 +57,20 @@ class BaseAdapter(ABC):
         **kwargs
     ) -> ChatResponse:
         """
-        聊天对话（同步模式）
+        Chat conversation (synchronous mode) / 聊天对话（同步模式）
 
         Args:
-            messages: 聊天消息列表
-            model: 模型名称
-            temperature: 温度参数（0-2）
-            max_tokens: 最大生成 tokens
-            top_p: 核采样参数
-            stream: 是否使用流式响应
-            tools: 工具列表（Function Calling）
-            **kwargs: 其他参数
+            messages: Chat message list / 聊天消息列表
+            model: Model name / 模型名称
+            temperature: Temperature parameter (0-2) / 温度参数
+            max_tokens: Maximum generated tokens / 最大生成 tokens
+            top_p: Nucleus sampling parameter / 核采样参数
+            stream: Whether to use streaming response / 是否使用流式响应
+            tools: Tool list (Function Calling) / 工具列表
+            **kwargs: Other parameters / 其他参数
 
         Returns:
-            ChatResponse: 聊天响应
+            ChatResponse: Chat response / 聊天响应
         """
         pass
 
@@ -83,19 +86,19 @@ class BaseAdapter(ABC):
         **kwargs
     ) -> AsyncIterator[ChatChunk]:
         """
-        聊天对话（流式模式）
+        Chat conversation (streaming mode) / 聊天对话（流式模式）
 
         Args:
-            messages: 聊天消息列表
-            model: 模型名称
-            temperature: 温度参数
-            max_tokens: 最大生成 tokens
-            top_p: 核采样参数
-            tools: 工具列表
-            **kwargs: 其他参数
+            messages: Chat message list / 聊天消息列表
+            model: Model name / 模型名称
+            temperature: Temperature parameter / 温度参数
+            max_tokens: Maximum generated tokens / 最大生成 tokens
+            top_p: Nucleus sampling parameter / 核采样参数
+            tools: Tool list / 工具列表
+            **kwargs: Other parameters / 其他参数
 
         Yields:
-            ChatChunk: 流式响应块
+            ChatChunk: Streaming response chunk / 流式响应块
         """
         pass
 
@@ -107,15 +110,15 @@ class BaseAdapter(ABC):
         **kwargs
     ) -> EmbeddingResponse:
         """
-        文本嵌入
+        Text embedding / 文本嵌入
 
         Args:
-            texts: 文本列表
-            model: 模型名称
-            **kwargs: 其他参数
+            texts: Text list / 文本列表
+            model: Model name / 模型名称
+            **kwargs: Other parameters / 其他参数
 
         Returns:
-            EmbeddingResponse: 嵌入向量响应
+            EmbeddingResponse: Embedding vector response / 嵌入向量响应
         """
         pass
 
@@ -130,22 +133,22 @@ class BaseAdapter(ABC):
         **kwargs,
     ) -> ImageGenerationResponse:
         """
-        图像生成
+        Image generation / 图像生成
 
         Args:
-            prompt: 生成提示词
-            model: 模型名称（如 dall-e-3）
-            size: 图片尺寸（如 1024x1024, 1792x1024, 1024x1792）
-            quality: 质量（standard / hd）
-            style: 风格（vivid / natural）
-            n: 生成数量
-            **kwargs: 其他参数
+            prompt: Generation prompt / 生成提示词
+            model: Model name (e.g. dall-e-3) / 模型名称
+            size: Image size (e.g. 1024x1024, 1792x1024, 1024x1792) / 图片尺寸
+            quality: Quality (standard / hd) / 质量
+            style: Style (vivid / natural) / 风格
+            n: Number to generate / 生成数量
+            **kwargs: Other parameters / 其他参数
 
         Returns:
-            ImageGenerationResponse: 图像生成响应
+            ImageGenerationResponse: Image generation response / 图像生成响应
 
         Raises:
-            NotImplementedError: 子类未实现时抛出
+            NotImplementedError: Raised when subclass not implemented / 子类未实现时抛出
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support image generation"
@@ -153,33 +156,34 @@ class BaseAdapter(ABC):
 
     async def list_models(self) -> list[dict]:
         """
-        列出供应商可用的模型列表
+        List available models for the provider / 列出供应商可用的模型列表
 
         Returns:
-            模型信息列表，每项包含 id（模型代码）和 owned_by（所属者）
+            Model info list, each containing id (model code) and owned_by (owner)
+            模型信息列表，每项包含 id和 owned_by
         """
-        # 默认实现：返回空列表（子类可覆盖）
+        # Default implementation: return empty list (subclass can override) / 默认实现：返回空列表
         return []
 
     def validate_model(self, model: str) -> bool:
         """
-        验证模型名称是否有效
+        Validate model name / 验证模型名称是否有效
 
         Args:
-            model: 模型名称
+            model: Model name / 模型名称
 
         Returns:
-            是否有效
+            Whether valid / 是否有效
         """
-        # 默认实现：非空字符串即可
+        # Default implementation: non-empty string is valid / 默认实现：非空字符串即可
         return bool(model and isinstance(model, str))
 
     def get_supported_features(self) -> dict[str, bool]:
         """
-        获取适配器支持的功能
+        Get adapter supported features / 获取适配器支持的功能
 
         Returns:
-            功能字典，例如：
+            Feature dictionary / 功能字典，例如：
             {
                 "chat": True,
                 "streaming": True,

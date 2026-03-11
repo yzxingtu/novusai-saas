@@ -1,7 +1,8 @@
 """
-租户设置服务
+租户设置服务 / Tenant Settings Service
 
 提供租户设置和自定义域名管理的业务逻辑
+Provides tenant settings and custom domain management business logic.
 """
 
 import secrets

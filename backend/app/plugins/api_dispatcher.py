@@ -1,10 +1,14 @@
-"""插件 API 路由分发器
+"""Plugin API route dispatcher / 插件 API 路由分发器
 
+Unified plugin API entry point — dispatches to plugin-registered handlers by plugin name and path.
+All plugin APIs go through this dispatcher; no dynamic FastAPI route add/remove needed.
+Disabled plugins automatically return 404 (via DB status check).
+/
 统一的插件 API 入口，根据插件名和路径分发到插件注册的 handler。
 所有插件 API 走此 dispatcher，无需动态增删 FastAPI 路由。
 禁用插件后请求自动 404（通过 DB 状态检查）。
 
-路径约定:
+Path convention / 路径约定:
   /admin/plugins/{plugin_name}/api/{path}
   /tenant/plugins/{plugin_name}/api/{path}
 """
@@ -57,8 +61,8 @@ async def _dispatch_plugin_api(
     user_role: str = "",
     allow_public_only: bool = False,
 ) -> JSONResponse:
-    """插件 API 核心分发逻辑（admin/tenant 共用）"""
-    # 检查插件是否存在且已启用
+    """Core plugin API dispatch logic (shared by admin/tenant) / 插件 API 核心分发逻辑（admin/tenant 共用）"""
+    # Check if plugin exists and is enabled / 检查插件是否存在且已启用
     result = await db.execute(
         select(
             Plugin.id, Plugin.status, Plugin.scope,
@@ -78,7 +82,8 @@ async def _dispatch_plugin_api(
     plugin_id: int = row[0]
     plugin_scope: str = row[2]
 
-    # C1: 租户端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
+    # C1: Tenant-side scope visibility check — prevent unauthorized access to admin_only / unassigned plugins
+    # / C1: 租户端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
     if tenant_id is not None:
         visible = await ScopeChecker.is_visible_to_tenant(
             scope=plugin_scope,
@@ -96,7 +101,9 @@ async def _dispatch_plugin_api(
     manifest_data = row[3] or {}
     granted_capabilities = row[4] or []
 
-    # 开发模式：从磁盘 plugin.yaml 实时读取路由（改了 yaml 不需要重新禁用/启用）
+    # Dev mode: read routes from disk plugin.yaml in real-time (no need to re-disable/enable after yaml changes)
+    # Prod mode: read from DB manifest snapshot (better performance)
+    # / 开发模式：从磁盘 plugin.yaml 实时读取路由（改了 yaml 不需要重新禁用/启用）
     # 生产模式：从 DB manifest 快照读取（性能更好）
     if settings.DEBUG:
         try:
@@ -107,11 +114,14 @@ async def _dispatch_plugin_api(
     else:
         api_config = manifest_data.get("extensions", {}).get("api", {})
 
-    # 查找匹配的路由
-    # 安全规则：
-    # 1) allow_public_only=True 时仅允许 public_routes，并且 route.auth 必须为 none
-    # 2) tenant 端只匹配 tenant_routes + public_routes，不回退到 admin_routes
-    # 3) admin 端匹配 admin_routes + tenant_routes + public_routes（admin 权限 ⊇ tenant）
+    # Find matching route / 查找匹配的路由
+    # Security rules / 安全规则：
+    # 1) When allow_public_only=True, only public_routes allowed, and route.auth must be none
+    #    / allow_public_only=True 时仅允许 public_routes，并且 route.auth 必须为 none
+    # 2) Tenant side only matches tenant_routes + public_routes, no fallback to admin_routes
+    #    / tenant 端只匹配 tenant_routes + public_routes，不回退到 admin_routes
+    # 3) Admin side matches admin_routes + tenant_routes + public_routes (admin perms ⊇ tenant)
+    #    / admin 端匹配 admin_routes + tenant_routes + public_routes（admin 权限 ⊇ tenant）
     method = request.method.upper()
     matched_route = None
     public_routes = api_config.get("public_routes", [])
@@ -123,7 +133,8 @@ async def _dispatch_plugin_api(
         is_tenant_side = request_path.startswith("/tenant")
         side = "tenant" if is_tenant_side else "admin"
         primary_routes = api_config.get(f"{side}_routes", [])
-        # admin 端额外回退到 tenant_routes（admin 是 tenant 的超集）
+        # Admin side additionally falls back to tenant_routes (admin is superset of tenant)
+        # / admin 端额外回退到 tenant_routes（admin 是 tenant 的超集）
         fallback_routes = api_config.get("tenant_routes", []) if side == "admin" else []
         candidate_routes = [*primary_routes, *fallback_routes, *public_routes]
 
@@ -147,14 +158,17 @@ async def _dispatch_plugin_api(
             content={"code": 4040, "message": "Route not found"},
         )
 
-    # 注入提取到的路径参数（如 {doc_id}=123）到 request.path_params
+    # Inject extracted path params (e.g. {doc_id}=123) into request.path_params
+    # so handler can access via request.path_params.get("doc_id")
+    # / 注入提取到的路径参数（如 {doc_id}=123）到 request.path_params
     # 这样 handler 可以通过 request.path_params.get("doc_id") 访问
     if path_params:
         existing = dict(request.path_params)
         existing.update(path_params)
         request.scope["path_params"] = existing
 
-    # 权限动作门控：若路由声明了 permission 字段，校验用户是否拥有该动作权限
+    # Permission action gating: if route declares a permission field, check user has that action permission
+    # / 权限动作门控：若路由声明了 permission 字段，校验用户是否拥有该动作权限
     route_permission = matched_route.get("permission", "")
     if route_permission and not allow_public_only:
         has_perm = await _check_plugin_permission(
@@ -173,7 +187,7 @@ async def _dispatch_plugin_api(
                 },
             )
 
-    # 加载并执行 handler
+    # Load and execute handler / 加载并执行 handler
     handler_path = matched_route.get("handler", "")
     handler = load_plugin_handler(plugin_name, handler_path)
     if not handler:
@@ -183,7 +197,7 @@ async def _dispatch_plugin_api(
             content={"code": 5000, "message": "Plugin handler failed to load"},
         )
 
-    # 创建 PluginContext（含 RequestContext）
+    # Create PluginContext (including RequestContext) / 创建 PluginContext（含 RequestContext）
     ctx = _build_plugin_context(
         plugin_name=plugin_name,
         manifest_data=manifest_data,
@@ -196,10 +210,11 @@ async def _dispatch_plugin_api(
     )
 
     try:
-        # 根据 handler 签名自动注入（严格沙箱）：
+        # Auto-inject based on handler signature (strict sandbox) / 根据 handler 签名自动注入（严格沙箱）：
         # - request: Request
         # - ctx: PluginContext
-        # - db: PluginDbProxy（仅声明且具备 db:own_tables 能力时）
+        # - db: PluginDbProxy (only when declared and has db:own_tables capability)
+        #   / db: PluginDbProxy（仅声明且具备 db:own_tables 能力时）
         handler_kwargs: dict[str, object] = {}
         if _handler_accepts_param(handler, "request"):
             handler_kwargs["request"] = request
@@ -221,11 +236,13 @@ async def _dispatch_plugin_api(
         else:
             result = handler(**handler_kwargs)
 
-        # handler 返回 Response 对象时直接透传（JSONResponse / StreamingResponse 等）
+        # Pass through directly when handler returns a Response object (JSONResponse / StreamingResponse, etc.)
+        # / handler 返回 Response 对象时直接透传（JSONResponse / StreamingResponse 等）
         from starlette.responses import Response as StarletteResponse
         if isinstance(result, StarletteResponse):
             return result
-        # handler 返回含 error 的 dict 时转为错误响应
+        # Convert to error response when handler returns dict containing 'error'
+        # / handler 返回含 error 的 dict 时转为错误响应
         if isinstance(result, dict) and "error" in result:
             code = result.get("code", 4220)
             status_code = result.get("status_code")
@@ -239,16 +256,17 @@ async def _dispatch_plugin_api(
                     5000: 500,
                     5001: 500,
                 }.get(code, 422)
-            # 以异常返回错误，确保 get_db 触发 rollback，避免插件写入后逻辑失败仍被 commit
+            # Raise exception to ensure get_db triggers rollback, preventing commit after plugin write failure
+            # / 以异常返回错误，确保 get_db 触发 rollback，避免插件写入后逻辑失败仍被 commit
             raise AppException(
                 message=str(result["error"]),
                 code=code,
                 status_code=status_code,
             )
-        # 正常 dict 包装为 success 响应
+        # Wrap normal dict as success response / 正常 dict 包装为 success 响应
         if isinstance(result, dict):
             return success(data=result)
-        # M4: 非 dict/JSONResponse 兜底 — 包装为 success
+        # M4: Fallback for non-dict/JSONResponse — wrap as success / 非 dict/JSONResponse 兜底 — 包装为 success
         return success(data=result)
     except AppException:
         raise
@@ -277,7 +295,7 @@ async def admin_plugin_api(
     db: DbSession,
     admin: ActiveAdmin,
 ):
-    """插件 API 分发器（管理端）"""
+    """Plugin API dispatcher (admin side) / 插件 API 分发器（管理端）"""
     return await _dispatch_plugin_api(
         plugin_name, path, request, db,
         tenant_id=None,
@@ -298,7 +316,7 @@ async def tenant_plugin_api(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """插件 API 分发器（租户端）"""
+    """Plugin API dispatcher (tenant side) / 插件 API 分发器（租户端）"""
     return await _dispatch_plugin_api(
         plugin_name, path, request, db,
         tenant_id=tenant_admin.tenant_id,
@@ -318,7 +336,7 @@ async def public_plugin_api(
     request: Request,
     db: DbSession,
 ):
-    """插件 API 分发器（公开路由，仅 public_routes）"""
+    """Plugin API dispatcher (public routes, public_routes only) / 插件 API 分发器（公开路由，仅 public_routes）"""
     return await _dispatch_plugin_api(
         plugin_name,
         path,
@@ -333,7 +351,7 @@ async def public_plugin_api(
 
 @lru_cache(maxsize=256)
 def _compile_route_regex(route_pattern: str) -> re.Pattern[str]:
-    """编译并缓存路由模式的正则表达式（DEBUG 模式下 enable/disable 时需调用 cache_clear）"""
+    """Compile and cache route pattern regex (call cache_clear on enable/disable in DEBUG mode) / 编译并缓存路由模式的正则表达式（DEBUG 模式下 enable/disable 时需调用 cache_clear）"""
     regex_parts = []
     for segment in route_pattern.split("/"):
         if segment.startswith("{") and segment.endswith("}"):
@@ -367,7 +385,7 @@ def _match_route_path(route_pattern: str, actual_path: str) -> tuple[bool, dict[
 
 
 def _get_plugin_loader():
-    """获取模块级缓存的 PluginLoader 实例（避免每次请求新建）"""
+    """Get module-level cached PluginLoader instance (avoid creating new one per request) / 获取模块级缓存的 PluginLoader 实例（避免每次请求新建）"""
     from app.plugins.loader import PluginLoader
 
     if not hasattr(_get_plugin_loader, "_instance"):
@@ -376,7 +394,7 @@ def _get_plugin_loader():
 
 
 def _handler_accepts_param(handler: Callable[..., object], param_name: str) -> bool:
-    """检查 handler 是否接受指定参数（含 **kwargs 兼容）。"""
+    """Check if handler accepts the specified parameter (including **kwargs compatibility). / 检查 handler 是否接受指定参数（含 **kwargs 兼容）。"""
     try:
         sig = inspect.signature(handler)
         if param_name in sig.parameters:
@@ -390,7 +408,7 @@ def _handler_accepts_param(handler: Callable[..., object], param_name: str) -> b
 
 
 def _handler_accepts_ctx(handler: Callable[..., object]) -> bool:
-    """向后兼容 helper：仅检查显式 ctx 参数（不匹配 **kwargs）。"""
+    """Backward-compatible helper: only checks explicit ctx parameter (does not match **kwargs). / 向后兼容 helper：仅检查显式 ctx 参数（不匹配 **kwargs）。"""
     try:
         sig = inspect.signature(handler)
         return "ctx" in sig.parameters
@@ -399,7 +417,7 @@ def _handler_accepts_ctx(handler: Callable[..., object]) -> bool:
 
 
 def _context_has_db_capability(ctx: object) -> bool:
-    """检查 PluginContext 是否被授予 db:own_tables 能力。"""
+    """Check if PluginContext has been granted db:own_tables capability. / 检查 PluginContext 是否被授予 db:own_tables 能力。"""
     checker = getattr(ctx, "has_capability", None)
     if not callable(checker):
         return False
@@ -418,23 +436,24 @@ async def _check_plugin_permission(
     tenant_id: int | None,
 ) -> bool:
     """
-    检查用户是否拥有插件路由要求的权限动作。
+    Check if user has the permission action required by the plugin route.
+    / 检查用户是否拥有插件路由要求的权限动作。
 
-    route_permission 格式: "permission_code:action"（如 "novusdoc-pro:comment"）
-    - admin 用户默认拥有所有插件权限（超集）
-    - tenant_admin 通过 RBAC 权限检查
+    route_permission format / 格式: "permission_code:action" (e.g. "novusdoc-pro:comment")
+    - Admin users have all plugin permissions by default (superset) / admin 用户默认拥有所有插件权限（超集）
+    - tenant_admin checked via RBAC / tenant_admin 通过 RBAC 权限检查
 
     Returns:
-        True = 允许, False = 拒绝
+        True = allow / 允许, False = deny / 拒绝
     """
     if not route_permission or not user_id:
         return False
 
-    # admin 角色默认拥有所有插件权限
+    # Admin role has all plugin permissions by default / admin 角色默认拥有所有插件权限
     if user_role == TOKEN_SCOPE_ADMIN:
         return True
 
-    # 解析 permission_code:action
+    # Parse permission_code:action / 解析 permission_code:action
     parts = route_permission.split(":")
     if len(parts) != 2:
         logger.warning(
@@ -446,7 +465,8 @@ async def _check_plugin_permission(
     perm_code, action = parts
     full_perm_code = f"plugin.{plugin_name}.{perm_code}"
 
-    # 查询插件注册的权限元数据，校验 action 是否在声明列表中
+    # Query plugin registered permission metadata, verify action is in declared list
+    # / 查询插件注册的权限元数据，校验 action 是否在声明列表中
     from app.plugins.registry import ExtensionRegistry
     registry = ExtensionRegistry.get_instance()
     plugin_perms = registry.get_plugin_permissions(plugin_name)
@@ -458,14 +478,14 @@ async def _check_plugin_permission(
             break
 
     if action not in declared_actions:
-        # C2: Fail-close — 未声明的 action 默认拒绝
+        # C2: Fail-close — undeclared actions denied by default / 未声明的 action 默认拒绝
         logger.warning(
             "Plugin permission action '%s' not declared in '%s' actions %s — denying",
             action, full_perm_code, declared_actions,
         )
         return False
 
-    # tenant_admin: 检查 RBAC 权限
+    # tenant_admin: check RBAC permissions / 检查 RBAC 权限
     if user_role == TOKEN_SCOPE_TENANT_ADMIN and tenant_id:
         try:
             from app.rbac.services.permission_service import PermissionService
@@ -483,18 +503,18 @@ async def _check_plugin_permission(
             if not ta:
                 return False
 
-            # 租户所有者拥有全部权限
+            # Tenant owner has all permissions / 租户所有者拥有全部权限
             if ta.is_owner:
                 return True
 
             user_perms = await perm_service.get_tenant_admin_permissions(ta)
-            # 检查 full_perm_code:action 格式的权限
+            # Check permission in full_perm_code:action format / 检查 full_perm_code:action 格式的权限
             return perm_service.check_permission(user_perms, f"{full_perm_code}:{action}")
         except Exception as exc:
             logger.error("Plugin permission check failed: %s", exc)
             return False
 
-    # 其他角色（如 tenant_user）暂不支持插件权限，拒绝
+    # Other roles (e.g. tenant_user) don't support plugin permissions yet, deny / 其他角色（如 tenant_user）暂不支持插件权限，拒绝
     return False
 
 
@@ -508,12 +528,14 @@ def _build_plugin_context(
     user_role: str = "",
     request_id: str = "",
 ) -> object:
-    """为插件 API handler 创建 PluginContext（含 RequestContext）"""
+    """Create PluginContext for plugin API handler (including RequestContext) / 为插件 API handler 创建 PluginContext（含 RequestContext）"""
     from app.plugins.context import RequestContext
     from app.plugins.context_factory import create_plugin_context
     from app.plugins.manifest import PluginManifest
 
-    # 生产模式：以 DB manifest 快照为准，避免磁盘变更突破授权边界
+    # Prod mode: use DB manifest snapshot to prevent disk changes from bypassing auth boundaries
+    # DEBUG mode: allow hot-loading disk manifest for better dev experience
+    # / 生产模式：以 DB manifest 快照为准，避免磁盘变更突破授权边界
     # DEBUG 模式：允许热加载磁盘 manifest，提升开发体验
     if settings.DEBUG:
         try:

@@ -1,12 +1,13 @@
 """
-Schema 模块
+Schema 模块 / Schema Module
 
 按模块分层组织，统一导出所有 Pydantic Schema
+Organized by module layers, exports all Pydantic schemas.
 
-目录结构:
-- common/: 公共 Schema（三端共用）
-- system/: 平台管理后台 Schema
-- tenant/: 租户相关 Schema
+目录结构 / Directory structure:
+- common/: 公共 Schema（三端共用） / Common schemas (shared across all endpoints)
+- system/: 平台管理后台 Schema / Platform admin schemas
+- tenant/: 租户相关 Schema / Tenant schemas
 """
 
 # Common

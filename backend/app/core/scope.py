@@ -1,12 +1,13 @@
 """
-统一作用域判定工具
+统一作用域判定工具 / Unified Scope Determination Utility
 
 提供全平台通用的作用域可见性判定方法，替代各模块零散的 scope 判定逻辑。
+Provides platform-wide scope visibility determination methods, replacing scattered scope logic.
 
-注意区分：本模块处理的是「资源作用域」（ResourceScopeEnum），与以下概念无关：
-  - JWT Token Scope (TOKEN_SCOPE_ADMIN 等) — 认证身份标识
-  - ASGI Scope (Starlette.types.Scope) — HTTP 请求元数据
-  - BaseRepository._scope_fields — API 端字段过滤标识
+注意区分 / Note: This module handles 「Resource Scope」(ResourceScopeEnum), unrelated to:
+  - JWT Token Scope (TOKEN_SCOPE_ADMIN etc.) — 认证身份标识 / Authentication identity
+  - ASGI Scope (Starlette.types.Scope) — HTTP 请求元数据 / HTTP request metadata
+  - BaseRepository._scope_fields — API 端字段过滤标识 / API endpoint field filter identifier
 """
 
 from __future__ import annotations
@@ -19,35 +20,37 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-# 管理端可见的 scope 集合
+# 管理端可见的 scope 集合 / Admin-visible scope set
 _ADMIN_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ADMIN_ONLY.value,
     ResourceScopeEnum.ADMIN_AND_ALL.value,
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 所有租户可见的 scope 集合（无需分配表）
+# 所有租户可见的 scope 集合（无需分配表） / All-tenants-visible scope set (no assignment table needed)
 _ALL_TENANTS_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ALL_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ALL.value,
 })
 
-# 需要租户分配表的 scope 集合
+# 需要租户分配表的 scope 集合 / Scopes requiring tenant assignment table
 _ASSIGNMENT_REQUIRED_SCOPES = frozenset({
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 租户端可能可见的 scope 集合（全部租户 + 部分租户）
+# 租户端可能可见的 scope 集合（全部租户 + 部分租户） / Tenant-possibly-visible scopes (all + assigned)
 _TENANT_POSSIBLE_SCOPES = _ALL_TENANTS_VISIBLE_SCOPES | _ASSIGNMENT_REQUIRED_SCOPES
 
 
 class ScopeChecker:
     """
-    统一作用域判定工具
+    统一作用域判定工具 / Unified Scope Checker
 
     所有需要判断资源可见性的代码统一调用此类的静态方法，
     避免各模块各自硬编码 scope 判定逻辑。
+    All code requiring resource visibility checks should call this class's static methods,
+    avoiding scattered hardcoded scope logic across modules.
 
     Usage::
 
@@ -71,7 +74,7 @@ class ScopeChecker:
     @staticmethod
     def is_visible_to_admin(scope: str) -> bool:
         """
-        管理端是否可见
+        管理端是否可见 / Whether visible to admin
 
         admin_only / admin_and_all / admin_and_assigned → True
         all_tenants / assigned_tenants → False
@@ -81,10 +84,10 @@ class ScopeChecker:
     @staticmethod
     def is_visible_to_all_tenants(scope: str) -> bool:
         """
-        是否对所有租户可见（无需分配表查询）
+        是否对所有租户可见（无需分配表查询） / Whether visible to all tenants (no assignment query needed)
 
         all_tenants / admin_and_all → True
-        其他 → False
+        其他 / Others → False
         """
         return scope in _ALL_TENANTS_VISIBLE_SCOPES
 
@@ -97,21 +100,21 @@ class ScopeChecker:
         db: AsyncSession,
     ) -> bool:
         """
-        指定租户是否可见
+        指定租户是否可见 / Whether visible to a specific tenant
 
-        - all_tenants / admin_and_all → True（全部租户可见）
-        - assigned_tenants / admin_and_assigned → 查 ResourceTenantAssignment
+        - all_tenants / admin_and_all → True（全部租户可见 / visible to all tenants）
+        - assigned_tenants / admin_and_assigned → 查 ResourceTenantAssignment / check assignment table
         - admin_only → False
 
         Args:
-            scope: 资源的作用域值
-            resource_type: 资源类型（如 "skill_package" / "plugin"）
-            resource_id: 资源 ID
-            tenant_id: 目标租户 ID
-            db: 数据库会话
+            scope: 资源的作用域值 / Resource scope value
+            resource_type: 资源类型（如 "skill_package" / "plugin"） / Resource type
+            resource_id: 资源 ID / Resource ID
+            tenant_id: 目标租户 ID / Target tenant ID
+            db: 数据库会话 / Database session
 
         Returns:
-            该租户是否可见此资源
+            该租户是否可见此资源 / Whether the tenant can see this resource
         """
         if scope in _ALL_TENANTS_VISIBLE_SCOPES:
             return True
@@ -124,31 +127,31 @@ class ScopeChecker:
     @staticmethod
     def requires_tenant_assignment(scope: str) -> bool:
         """
-        是否需要手动分配租户
+        是否需要手动分配租户 / Whether manual tenant assignment is required
 
         assigned_tenants / admin_and_assigned → True
-        其他 → False
+        其他 / Others → False
         """
         return scope in _ASSIGNMENT_REQUIRED_SCOPES
 
     @staticmethod
     def get_admin_visible_scopes() -> list[str]:
-        """返回管理端可见的 scope 值列表（用于 SQL IN 查询）"""
+        """返回管理端可见的 scope 值列表（用于 SQL IN 查询） / Return admin-visible scope values (for SQL IN)"""
         return list(_ADMIN_VISIBLE_SCOPES)
 
     @staticmethod
     def get_all_tenants_visible_scopes() -> list[str]:
-        """返回所有租户可见的 scope 值列表（无需分配表）"""
+        """返回所有租户可见的 scope 值列表（无需分配表） / Return all-tenants-visible scope values (no assignment)"""
         return list(_ALL_TENANTS_VISIBLE_SCOPES)
 
     @staticmethod
     def get_tenant_possible_scopes() -> list[str]:
-        """返回租户端可能可见的所有 scope 值列表（含需要分配表的）"""
+        """返回租户端可能可见的所有 scope 值列表（含需要分配表的） / Return all tenant-possibly-visible scope values"""
         return list(_TENANT_POSSIBLE_SCOPES)
 
     @staticmethod
     def get_assignment_required_scopes() -> list[str]:
-        """返回需要租户分配表的 scope 值列表"""
+        """返回需要租户分配表的 scope 值列表 / Return scopes requiring tenant assignment table"""
         return list(_ASSIGNMENT_REQUIRED_SCOPES)
 
 
@@ -158,7 +161,7 @@ async def _check_assignment(
     tenant_id: int,
     db: AsyncSession,
 ) -> bool:
-    """查询 ResourceTenantAssignment 是否存在且启用"""
+    """查询 ResourceTenantAssignment 是否存在且启用 / Check if ResourceTenantAssignment exists and is active"""
     from sqlalchemy import select
 
     from app.models.system.resource_tenant_assignment import ResourceTenantAssignment

@@ -1,6 +1,8 @@
 """
+Email Tool Executor
 邮件工具执行器
 
+Calls the existing EmailService to send emails, with domain whitelist and recipient count limits.
 调用已有的 EmailService 发送邮件，支持域名白名单、收件人数量限制。
 """
 
@@ -23,7 +25,7 @@ _EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
 def _parse_email_list(raw: str) -> list[str]:
-    """解析逗号分隔的邮箱列表"""
+    """Parse comma-separated email list / 解析逗号分隔的邮箱列表"""
     if not raw:
         return []
     return [addr.strip() for addr in raw.split(",") if addr.strip()]
@@ -33,7 +35,8 @@ def _validate_emails(
     addresses: list[str],
     allowed_domains: list[str],
 ) -> str | None:
-    """校验邮箱格式和域名白名单，返回错误消息或 None"""
+    """Validate email format and domain whitelist, return error message or None
+    校验邮箱格式和域名白名单，返回错误消息或 None"""
     for addr in addresses:
         if not _EMAIL_REGEX.match(addr):
             return f"Invalid email address: {addr}"
@@ -46,14 +49,17 @@ def _validate_emails(
 
 class EmailToolExecutor(BaseToolExecutor):
     """
-    邮件工具执行器
+    Email tool executor.
+    邮件工具执行器。
 
+    Reads from ToolDefinition.config:
     从 ToolDefinition.config 中读取：
-    - _email_subject_prefix: 主题前缀
-    - _email_allowed_domains: 允许的收件域名列表
-    - _email_max_recipients: 最大收件人数
-    - _email_require_confirmation: 是否需要用户确认（由 consent 机制处理）
-    - _email_allow_cc: 是否允许抄送
+    - _email_subject_prefix: Subject prefix / 主题前缀
+    - _email_allowed_domains: Allowed recipient domain list / 允许的收件域名列表
+    - _email_max_recipients: Maximum number of recipients / 最大收件人数
+    - _email_require_confirmation: Whether user confirmation is needed (handled by consent mechanism)
+      是否需要用户确认（由 consent 机制处理）
+    - _email_allow_cc: Whether CC is allowed / 是否允许抄送
     """
 
     async def execute(
@@ -63,7 +69,7 @@ class EmailToolExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        """执行邮件发送"""
+        """Execute email sending / 执行邮件发送"""
         start = time.perf_counter()
         cfg = definition.config or {}
 
@@ -91,7 +97,7 @@ class EmailToolExecutor(BaseToolExecutor):
                 error="Email subject is required",
             )
 
-        # 收件人数量限制
+        # Recipient count limit / 收件人数量限制
         max_recipients = cfg.get("_email_max_recipients", 5)
         all_recipients = to_list + cc_list
         if len(all_recipients) > max_recipients:
@@ -102,7 +108,7 @@ class EmailToolExecutor(BaseToolExecutor):
                 error=f"Too many recipients ({len(all_recipients)}), maximum is {max_recipients}",
             )
 
-        # 域名白名单校验
+        # Domain whitelist validation / 域名白名单校验
         allowed_domains = cfg.get("_email_allowed_domains", [])
         err = _validate_emails(all_recipients, allowed_domains)
         if err:
@@ -113,7 +119,7 @@ class EmailToolExecutor(BaseToolExecutor):
                 error=err,
             )
 
-        # 添加主题前缀
+        # Add subject prefix / 添加主题前缀
         prefix = cfg.get("_email_subject_prefix", "")
         if prefix and not subject.startswith(prefix):
             subject = f"{prefix} {subject}"
@@ -180,7 +186,7 @@ class EmailToolExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """校验邮件参数"""
+        """Validate email parameters / 校验邮件参数"""
         _ = definition
         return bool(arguments.get("to") and arguments.get("subject"))
 

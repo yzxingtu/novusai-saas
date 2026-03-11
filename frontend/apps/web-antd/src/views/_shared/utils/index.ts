@@ -5,5 +5,5 @@
  * 当前暂无共享工具函数，此文件作为占位符
  */
 
-// 在此导出共享的工具函数
+// Export shared utility functions here / 在此导出共享的工具函数
 // export { formatXxx } from './format';

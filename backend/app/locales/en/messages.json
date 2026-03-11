@@ -895,6 +895,10 @@
       "delete": "Delete Domain",
       "verify": "Verify Domain",
       "set_primary": "Set Primary Domain",
+      "hosts_status": "View Dev Hosts Status",
+      "hosts_sync": "Sync Dev Hosts",
+      "hosts_remove": "Remove Managed Dev Hosts Entry",
+      "hosts_sync_all": "Batch Sync Dev Hosts",
       "ssl_detail": "View SSL Certificate Details",
       "ssl_provision": "Provision SSL Certificate",
       "ssl_renew": "Renew SSL Certificate",
@@ -1019,7 +1023,8 @@
       "delete_conversation": "Delete Conversation",
       "confirm": "Confirm Operation",
       "read_conversation": "Read Conversation",
-      "route": "Route Conversation"
+      "route": "Route Conversation",
+      "clear_memory": "Clear Conversation Memory"
     },
     "agent_conversation": {
       "list": "View Conversation List",
@@ -1159,7 +1164,8 @@
       "conversations": "View Conversation List",
       "conversation_detail": "View Conversation Detail",
       "delete_conversation": "Delete Conversation",
-      "read_conversation": "Read Conversation"
+      "read_conversation": "Read Conversation",
+      "clear_memory": "Clear Conversation Memory"
     },
     "ai_api_key": {
       "list": "View API Key List",

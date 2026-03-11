@@ -1,8 +1,10 @@
 """
-租户管理端通知 API
+租户管理端通知 API / Tenant Admin Notification API
 
 提供租户管理员通知列表、未读计数、已读、全部已读、删除接口。
+Provides tenant admin notification list, unread count, mark read, mark all read, delete endpoints.
 严格租户隔离：只能查看本租户的通知。
+Strict tenant isolation: can only view own tenant's notifications.
 """
 
 from fastapi import APIRouter, Query
@@ -27,7 +29,7 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    """获取当前租户管理员的通知列表（分页）"""
+    """获取当前租户管理员的通知列表（分页） / Get current tenant admin notification list (paginated)"""
     service = NotificationService(db)
 
     read_filter = None
@@ -74,7 +76,7 @@ async def get_unread_count(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """获取当前租户管理员的未读通知数量"""
+    """获取当前租户管理员的未读通知数量 / Get current tenant admin unread notification count"""
     service = NotificationService(db)
     count = await service.get_unread_count("tenant_admin", tenant_admin.id)
     return success(data={"count": count})
@@ -87,7 +89,7 @@ async def mark_read(
     tenant_admin: ActiveTenantAdmin,
     notification_id: int,
 ):
-    """标记单条通知已读"""
+    """标记单条通知已读 / Mark single notification as read"""
     service = NotificationService(db)
     found = await service.mark_read(notification_id, "tenant_admin", tenant_admin.id)
     if not found:
@@ -102,7 +104,7 @@ async def mark_all_read(
     tenant_admin: ActiveTenantAdmin,
     category: str = Query("", description="可选分类筛选"),
 ):
-    """标记全部通知已读"""
+    """标记全部通知已读 / Mark all notifications as read"""
     service = NotificationService(db)
     count = await service.mark_all_read("tenant_admin", tenant_admin.id, category or None)
     return success(data={"count": count})
@@ -115,7 +117,7 @@ async def delete_notification(
     tenant_admin: ActiveTenantAdmin,
     notification_id: int,
 ):
-    """删除单条通知（软删除）"""
+    """删除单条通知（软删除） / Delete single notification (soft delete)"""
     service = NotificationService(db)
     found = await service.delete_notification(notification_id, "tenant_admin", tenant_admin.id)
     if not found:

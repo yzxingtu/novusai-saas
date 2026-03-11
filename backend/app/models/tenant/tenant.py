@@ -1,7 +1,8 @@
 """
-租户模型
+租户模型 / Tenant Model
 
 多租户 SaaS 的租户实体
+Multi-tenant SaaS tenant entity.
 """
 
 from datetime import datetime

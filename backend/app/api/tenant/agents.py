@@ -1,7 +1,8 @@
 """
-租户端智能体管理 API
+租户端智能体管理 API / Tenant Agent Management API
 
 提供智能体的 CRUD、发布等接口
+Provides agent CRUD, publishing endpoints
 """
 
 from fastapi import Request
@@ -32,9 +33,12 @@ from app.services.ai.agent_service import AgentService
 async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     """
     确保智能体为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
+    Ensures the agent is tenant-owned (tenant_id matches current tenant) before allowing mutations.
 
     平台创建的全局智能体（tenant_id=null）及其他租户的智能体对当前租户只读，
     不允许编辑、发布、回滚、绑定技能等变更操作。
+    Platform-created global agents (tenant_id=null) and other tenants' agents are read-only,
+    edit/publish/rollback/bind skill mutations are not allowed.
     """
     service = AgentService(db, tenant_id)
     agent = await service.get_by_id(agent_id)
@@ -46,7 +50,7 @@ async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
 
 
 def _build_agent_list_item(agent) -> dict:
-    """从 ORM 对象构建列表项字典，提取 model_name + skill_count"""
+    """从 ORM 对象构建列表项字典，提取 model_name + skill_count / Build list item dict from ORM object, extract model_name + skill_count"""
     from app.api.shared._agent_helpers import build_agent_base_item
 
     item = build_agent_base_item(agent)
@@ -69,19 +73,20 @@ def _build_agent_list_item(agent) -> dict:
 )
 class TenantAgentController(TenantController):
     """
-    租户智能体管理控制器
+    租户智能体管理控制器 / Tenant Agent Management Controller
 
     提供智能体 CRUD、发布等操作
+    Provides agent CRUD, publishing operations
     """
 
     prefix = "/ai/agents"
     tags = [_("menu.tags.tenant_agent_mgmt")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{id} to avoid path conflicts
         register_tenant_recycle_bin_routes(
             router=router,
             service_class=AgentService,
@@ -98,10 +103,10 @@ class TenantAgentController(TenantController):
             query: QueryParams,
         ):
             """
-            获取智能体列表
+            获取智能体列表 / Get agent list
 
-            支持 JSON:API 分页、筛选、排序
-            权限: agent:list
+            支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting
+            权限 / Permission: agent:list
             """
             service = AgentService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
@@ -123,9 +128,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取智能体详情
+            获取智能体详情 / Get agent details
 
-            权限: agent:detail
+            权限 / Permission: agent:detail
             """
             service = AgentService(db, tenant_admin.tenant_id)
             result = await service.get_agent_detail(agent_id)
@@ -141,9 +146,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            创建智能体
+            创建智能体 / Create agent
 
-            权限: agent:create
+            权限 / Permission: agent:create
             """
             service = AgentService(db, tenant_admin.tenant_id)
             agent = await service.create(data.model_dump(exclude_unset=True))
@@ -161,9 +166,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            更新智能体
+            更新智能体 / Update agent
 
-            权限: agent:update
+            权限 / Permission: agent:update
             """
             service = AgentService(db, tenant_admin.tenant_id)
 
@@ -186,9 +191,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除智能体（软删除）
+            删除智能体（软删除） / Delete agent (soft delete)
 
-            权限: agent:delete
+            权限 / Permission: agent:delete
             """
             service = AgentService(db, tenant_admin.tenant_id)
 
@@ -210,9 +215,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取智能体配额使用情况
+            获取智能体配额使用情况 / Get agent quota usage
 
-            权限: agent:quota_usage
+            权限 / Permission: agent:quota_usage
             """
             service = AgentService(db, tenant_admin.tenant_id)
             agent = await service.get_by_id(agent_id)
@@ -229,7 +234,7 @@ class TenantAgentController(TenantController):
             return success(data=usage)
 
         # ========================================
-        # 用量统计
+        # 用量统计 / Usage Statistics
         # ========================================
 
         @router.get("/{agent_id}/stats", summary="获取智能体用量统计")
@@ -241,9 +246,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取智能体用量统计（对话次数、Token 消耗）
+            获取智能体用量统计（对话次数、Token 消耗） / Get agent usage statistics (conversation count, token consumption)
 
-            权限: agent:stats
+            权限 / Permission: agent:stats
             """
             service = AgentService(db, tenant_admin.tenant_id)
             agent = await service.get_by_id(agent_id)
@@ -258,7 +263,7 @@ class TenantAgentController(TenantController):
             return success(data=stats)
 
         # ========================================
-        # 访问权限配置
+        # 访问权限配置 / Access Permission Configuration
         # ========================================
 
         @router.get("/{agent_id}/access", summary="获取智能体访问权限配置")
@@ -270,9 +275,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取智能体访问权限配置
+            获取智能体访问权限配置 / Get agent access permission configuration
 
-            权限: agent:access_config
+            权限 / Permission: agent:access_config
             """
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.get_access_config(agent_id)
@@ -289,10 +294,11 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            更新智能体访问权限配置
+            更新智能体访问权限配置 / Update agent access permission configuration
 
-            权限: agent:update_access
+            权限 / Permission: agent:update_access
             注：访问配置存储在 AgentAccess（租户级独立表），允许对平台分配的智能体配置。
+            Note: Access config stored in AgentAccess (tenant-level table), allows configuring platform-assigned agents.
             """
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.update_access_config(
@@ -314,9 +320,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户侧智能体记忆配置状态
+            获取租户侧智能体记忆配置状态 / Get tenant-side agent memory configuration status
 
-            权限: agent:detail
+            权限 / Permission: agent:detail
             """
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.get_memory_config(agent_id)
@@ -332,9 +338,9 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            设置租户侧“关闭记忆/恢复默认”
+            设置租户侧“关闭记忆/恢复默认” / Set tenant-side "disable memory / restore default"
 
-            权限: agent:update
+            权限 / Permission: agent:update
             """
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.set_memory_disabled(
@@ -344,7 +350,7 @@ class TenantAgentController(TenantController):
             await db.commit()
             return success(data=config, message=_("agent.updated"))
 
-        # 包含子路由模块
+        # 包含子路由模块 / Include sub-route modules
         from app.api.tenant._agent_batch import router as batch_router
         from app.api.tenant._agent_kbs import router as kbs_router
         from app.api.tenant._agent_skills import router as skills_router
@@ -356,7 +362,7 @@ class TenantAgentController(TenantController):
         router.include_router(batch_router)
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAgentController.get_router()
 
 __all__ = ["router", "TenantAgentController"]

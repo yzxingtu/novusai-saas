@@ -1,11 +1,18 @@
-/** * 配置项图片选择器 * * 配合 ConfigForm 使用，在系统配置中为
-value_type='image' 的配置项提供图片选择功能。 * 通过 FilePicker
-附件管理器弹窗选择图片，存储附件 ID（字符串）， * 显示时根据 ID 动态拼接图片处理
-URL。 * * @example *
-<ConfigImagePicker v-model="formModel[cfg.key]" />
-*
-<ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
-*/
+/**
+ * Config Image Picker
+ * 配置项图片选择器
+ *
+ * Used with ConfigForm, provides image selection for config items with value_type='image'.
+ * 配合 ConfigForm 使用，在系统配置中为 value_type='image' 的配置项提供图片选择功能。
+ * Selects images via FilePicker attachment manager modal, stores attachment ID (string),
+ * 通过 FilePicker 附件管理器弹窗选择图片，存储附件 ID（字符串），
+ * dynamically constructs image processing URL from ID for display.
+ * 显示时根据 ID 动态拼接图片处理 URL。
+ *
+ * @example
+ * <ConfigImagePicker v-model="formModel[cfg.key]" />
+ * <ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
+ */
 <script setup lang="ts">
 import type { AttachmentInfo } from '#/types/attachment';
 
@@ -21,11 +28,11 @@ import { getProcessedImageUrl } from '#/utils/image';
 
 withDefaults(
   defineProps<{
-    /** 允许的文件类型，传给 FilePicker 的 accept（如 'image/*', 'image/png'） */
+    /** Allowed file types, passed to FilePicker's accept (e.g. 'image/*', 'image/png') / 允许的文件类型，传给 FilePicker 的 accept（如 'image/*', 'image/png'） */
     accept?: string;
-    /** 是否仅显示图片类型文件 */
+    /** Whether to show only image type files / 是否仅显示图片类型文件 */
     imageOnly?: boolean;
-    /** 当前值：附件 ID（字符串形式），也兼容旧的 URL 格式 */
+    /** Current value: attachment ID (string format), also compatible with legacy URL format / 当前值：附件 ID（字符串形式），也兼容旧的 URL 格式 */
     modelValue?: string;
   }>(),
   {
@@ -41,6 +48,8 @@ const filePickerRef = ref<InstanceType<typeof FilePicker>>();
 const previewVisible = ref(false);
 
 /**
+ * Convert stored attachment ID to thumbnail URL (for list/card preview)
+ * If value is a legacy full URL, return directly
  * 将存储的附件 ID 转换为缩略图 URL（用于列表/卡片预览）
  * 如果值是旧格式的完整 URL，直接返回
  */
@@ -50,11 +59,13 @@ function toDisplayUrl(val: string | undefined): string {
   if (Number.isFinite(id) && id > 0) {
     return getProcessedImageUrl(id, { preset: 'medium' });
   }
-  // 兼容旧的 URL 格式
+  // Compatible with legacy URL format / 兼容旧的 URL 格式
   return val;
 }
 
 /**
+ * Convert stored attachment ID to original image URL (for zoom preview)
+ * No preset parameter, returns original size image
  * 将存储的附件 ID 转换为原图 URL（用于放大镜查看大图）
  * 不传 preset 参数，返回原始尺寸图片
  */
@@ -67,12 +78,12 @@ function toPreviewUrl(val: string | undefined): string {
   return val;
 }
 
-/** 打开附件管理器弹窗 */
+/** Open attachment manager modal / 打开附件管理器弹窗 */
 function openPicker() {
   filePickerRef.value?.open();
 }
 
-/** 选择文件后，将附件 ID（字符串）通过 v-model 传出 */
+/** After selecting a file, emit attachment ID (string) via v-model / 选择文件后，将附件 ID（字符串）通过 v-model 传出 */
 function handleSelect(files: AttachmentInfo[]) {
   if (files.length > 0) {
     const file = files[0]!;
@@ -80,7 +91,7 @@ function handleSelect(files: AttachmentInfo[]) {
   }
 }
 
-/** 移除已选图片，清空值 */
+/** Remove selected image, clear value / 移除已选图片，清空值 */
 function handleRemove() {
   emit('update:modelValue', '');
 }
@@ -88,7 +99,7 @@ function handleRemove() {
 
 <template>
   <div class="flex items-start gap-3">
-    <!-- 已选图片预览卡片 -->
+    <!-- Selected image preview card / 已选图片预览卡片 -->
     <div
       v-if="modelValue"
       class="group relative size-[120px] overflow-hidden rounded-lg border border-border"
@@ -99,7 +110,7 @@ function handleRemove() {
         class="size-full cursor-pointer object-contain"
         @click="previewVisible = true"
       />
-      <!-- hover 遮罩：放大 / 删除按钮 -->
+      <!-- Hover overlay: zoom / delete buttons / hover 遮罩：放大 / 删除按钮 -->
       <div
         class="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
@@ -122,7 +133,7 @@ function handleRemove() {
       </div>
     </div>
 
-    <!-- 选择 / 更换按钮 -->
+    <!-- Select / change button / 选择 / 更换按钮 -->
     <Button @click="openPicker">
       <template #icon>
         <IconifyIcon icon="lucide:image-plus" />
@@ -131,6 +142,8 @@ function handleRemove() {
     </Button>
 
     <!--
+      Wrap FilePicker and Image with Form.ItemRest,
+      prevents Ant Design Form.Item from mistakenly collecting internal form controls (Upload/Input) causing warnings
       用 Form.ItemRest 包裹 FilePicker 和 Image，
       防止 Ant Design Form.Item 误收集内部表单控件（Upload/Input）导致警告
     -->
@@ -142,7 +155,7 @@ function handleRemove() {
         @select="handleSelect"
       />
 
-      <!-- 隐藏的 Image 组件，仅用于控制 antd 图片预览弹窗 -->
+      <!-- Hidden Image component, only used to control antd image preview modal / 隐藏的 Image 组件，仅用于控制 antd 图片预览弹窗 -->
       <Image
         v-if="modelValue"
         :src="toPreviewUrl(modelValue)"

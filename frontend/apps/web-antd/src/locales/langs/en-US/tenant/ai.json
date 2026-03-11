@@ -38,31 +38,6 @@
       "premium": "Premium"
     }
   },
-  "apiKey": {
-    "title": "API Key Management",
-    "pageDesc": "Manage tenant API keys. Each key is bound to a provider for AI call authentication.",
-    "name": "Key Name",
-    "providerId": "Provider",
-    "providerName": "Provider",
-    "apiKey": "API Key",
-    "keyPreview": "Key Preview",
-    "isActive": "Status",
-    "isAvailable": "Available",
-    "unavailable": "Unavailable",
-    "usageCount": "Usage Count",
-    "lastUsedAt": "Last Used",
-    "create": "Add API Key",
-    "confirmDelete": "Are you sure to delete this API Key?",
-    "placeholder": {
-      "inputName": "Enter key name",
-      "inputApiKey": "Enter API Key",
-      "selectProvider": "Select provider"
-    },
-    "messages": {
-      "createSuccess": "API Key created successfully",
-      "deleteSuccess": "API Key deleted"
-    }
-  },
   "usage": {
     "title": "Usage Statistics",
     "pageDesc": "View AI call volume, token consumption, and cost trend charts for your tenant.",
@@ -610,102 +585,6 @@
     "countdown": "Auto-cancel in {seconds}s",
     "reject": "Reject",
     "confirmExecute": "Confirm"
-  },
-  "guide": {
-    "title": "🚀 AI Agent Quick Start",
-    "subtitle": "Follow these steps to create and publish an agent, then start chatting",
-    "dismiss": "Don't show again",
-    "showGuide": "Quick Start",
-    "totalTime": "Estimated total time: 10~15 minutes",
-    "step1": {
-      "title": "Create Agent",
-      "desc": "Configure name, model, system prompt, and basic settings",
-      "detail": "Select an AI model, write a system prompt to define the agent's role and behavior, adjust generation parameters like temperature",
-      "time": "~3 min"
-    },
-    "step2": {
-      "title": "Bind Tools & Knowledge Base",
-      "desc": "Optional: bind tools for extended capabilities, link knowledge bases for RAG",
-      "detail": "Create HTTP/database tools for external service calls; upload documents to knowledge bases and bind them for document Q&A",
-      "time": "~5 min"
-    },
-    "step3": {
-      "title": "Publish Agent",
-      "desc": "Publishing creates a version snapshot, users can then start chatting",
-      "detail": "Click publish to create a version snapshot. You can roll back to previous versions anytime; changes require re-publishing",
-      "time": "~1 min"
-    },
-    "step4": {
-      "title": "Start Chatting",
-      "desc": "Go to the chat page, select an agent and begin a conversation",
-      "detail": "Select a published agent on the chat page and test conversations. View RAG sources and tool call logs inline",
-      "time": "~2 min"
-    }
-  },
-  "guidePage": {
-    "title": "AI Agent Guide",
-    "subtitle": "Learn the core capabilities of the AI module and get started quickly",
-    "featuresTitle": "Core Capabilities",
-    "features": {
-      "chat": {
-        "title": "Intelligent Chat",
-        "desc": "Multi-turn conversations with AI agents, supporting context memory, tool calling, and streaming output"
-      },
-      "sql": {
-        "title": "Data Intelligence (Text-to-SQL)",
-        "desc": "Query business data with natural language. AI generates safe SQL and visualizes results automatically"
-      },
-      "rag": {
-        "title": "Document Q&A (RAG)",
-        "desc": "Upload documents to knowledge bases. Agents answer questions based on document content with hybrid retrieval"
-      }
-    },
-    "quickStartTitle": "Quick Start",
-    "quickStart": {
-      "step1": {
-        "title": "Create an Agent",
-        "desc": "Select a model, write a system prompt, configure temperature and other parameters"
-      },
-      "step2": {
-        "title": "Create Tools (Optional)",
-        "desc": "Configure HTTP, database, and other tools to let agents call external services"
-      },
-      "step3": {
-        "title": "Create Knowledge Base (Optional)",
-        "desc": "Upload documents for auto-parsing, chunking, and vectorization. Bind to agents for document Q&A"
-      },
-      "step4": {
-        "title": "Publish the Agent",
-        "desc": "Click publish to create a version snapshot. Users can then start using the agent"
-      },
-      "step5": {
-        "title": "Start Chatting",
-        "desc": "Select a published agent on the chat page and test conversation quality"
-      }
-    },
-    "faqTitle": "FAQ",
-    "faq": {
-      "faq1": {
-        "q": "How do I enable knowledge base Q&A for an agent?",
-        "a": "Create a knowledge base and upload documents. Once processing completes, select the knowledge base in the agent's Knowledge Base section, enable RAG, and publish."
-      },
-      "faq2": {
-        "q": "What does the temperature parameter do?",
-        "a": "Temperature controls response randomness. 0 is most deterministic (good for data queries), 0.7 is balanced (general chat), 1.0+ is more creative (writing tasks)."
-      },
-      "faq3": {
-        "q": "How does tool calling work?",
-        "a": "When an agent determines it needs to call a tool during conversation, it automatically sends requests. HTTP tools call external APIs, database tools execute queries. Results are injected into the conversation context."
-      },
-      "faq4": {
-        "q": "How do I limit agent usage?",
-        "a": "In the agent edit page's Quota Settings section, configure daily conversation limits, daily/monthly token limits, max concurrency, etc. New requests are rejected once quotas are exceeded."
-      },
-      "faq5": {
-        "q": "What document formats are supported?",
-        "a": "Knowledge bases support PDF, Word (.docx), Markdown (.md), plain text (.txt), and CSV file uploads."
-      }
-    }
   },
   "rateLimit": {
     "title": "Rate Limits",

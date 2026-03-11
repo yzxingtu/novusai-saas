@@ -30,7 +30,7 @@ const emits = defineEmits<{
   success: [];
 }>();
 
-// 状态
+// State / 状态
 const detailData = ref<DomainDetailData | null>(null);
 const domainDetail = ref<null | TenantDomainInfo>(null);
 const loading = ref(false);
@@ -38,7 +38,7 @@ const submitting = ref(false);
 const editMode = ref(false);
 const editRemark = ref('');
 
-// 子组件引用
+// Child component refs / 子组件引用
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 
 // Drawer

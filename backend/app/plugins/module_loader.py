@@ -1,11 +1,15 @@
 """
-插件模块统一加载器
+Unified plugin module loader.
+/ 插件模块统一加载器
 
-所有插件模块的动态导入统一走此入口，避免散落各处的 importlib.util 代码，
-确保 module_name 命名一致、sys.modules 缓存正确共享。
+All dynamic imports of plugin modules go through this entry point,
+avoiding scattered importlib.util code and ensuring consistent module_name
+naming and correct sys.modules cache sharing.
+/ 所有插件模块的动态导入统一走此入口。
 
-module_name 约定: plugins.{plugin_name}.backend.{dotted_path}
-物理路径约定: backend/plugins/{plugin_name}/backend/{path_parts...}.py
+module_name convention: plugins.{plugin_name}.backend.{dotted_path}
+Physical path convention: backend/plugins/{plugin_name}/backend/{path_parts...}.py
+/ module_name 约定 / 物理路径约定
 """
 
 from __future__ import annotations
@@ -22,30 +26,32 @@ logger = get_logger(__name__)
 
 
 def _get_plugins_dir() -> Path:
-    """延迟获取 PLUGINS_DIR，避免循环导入"""
+    """Lazily get PLUGINS_DIR to avoid circular imports / 延迟获取 PLUGINS_DIR，避免循环导入"""
     from app.plugins.loader import PLUGINS_DIR
     return PLUGINS_DIR
 
 
 def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
     """
-    加载插件子模块。
+    Load a plugin submodule.
+    / 加载插件子模块。
 
     Args:
-        plugin_name: 插件名称 (如 "my-plugin")
-        dotted_path: 模块在 backend/ 下的点分路径 (如 "api.handlers", "skills.my_resolver")
+        plugin_name: Plugin name (e.g. "my-plugin") / 插件名称
+        dotted_path: Dot-separated path under backend/ (e.g. "api.handlers", "skills.my_resolver")
+                     / 模块在 backend/ 下的点分路径
 
     Returns:
-        已加载的模块对象，失败返回 None
+        Loaded module object, or None on failure / 已加载的模块对象，失败返回 None
     """
     plugins_dir = _get_plugins_dir()
 
     parts = dotted_path.split(".")
     module_file = plugins_dir / plugin_name / "backend" / Path(*parts).with_suffix(".py")
 
-    # 尝试直接文件路径
+    # Try direct file path / 尝试直接文件路径
     if not module_file.is_file():
-        # 尝试目录 __init__.py
+        # Try directory __init__.py / 尝试目录 __init__.py
         module_dir = plugins_dir / plugin_name / "backend" / Path(*parts) / "__init__.py"
         if module_dir.is_file():
             module_file = module_dir
@@ -68,7 +74,7 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
         spec.loader.exec_module(mod)
         return mod
     except Exception as exc:
-        # 清理失败的模块条目
+        # Clean up failed module entry / 清理失败的模块条目
         sys.modules.pop(module_name, None)
         logger.warning(
             "Failed to load plugin module %s: %s",
@@ -79,16 +85,18 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
 
 def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     """
-    加载插件处理函数/类。
+    Load a plugin handler function/class.
+    / 加载插件处理函数/类。
 
     Args:
-        plugin_name: 插件名称
-        handler_dotpath: 处理函数的点分路径
-            - "api.handlers.handle_current" → 加载 backend/api/handlers.py 的 handle_current
-            - "skills.weather_resolver.resolve" → 加载 backend/skills/weather_resolver.py 的 resolve
+        plugin_name: Plugin name / 插件名称
+        handler_dotpath: Dot-separated path to the handler
+            / 处理函数的点分路径
+            - "api.handlers.handle_current" → load handle_current from backend/api/handlers.py
+            - "skills.weather_resolver.resolve" → load resolve from backend/skills/weather_resolver.py
 
     Returns:
-        函数/类对象，失败返回 None
+        Function/class object, or None on failure / 函数/类对象，失败返回 None
     """
     if not handler_dotpath:
         return None
@@ -104,7 +112,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     module_dotpath = ".".join(parts[:-1])
     attr_name = parts[-1]
 
-    # 优先尝试子模块加载
+    # Try submodule loading first / 优先尝试子模块加载
     mod = load_plugin_module(plugin_name, module_dotpath)
     if mod is not None:
         attr = getattr(mod, attr_name, None)
@@ -115,8 +123,9 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
             )
         return attr
 
-    # 回退: 尝试从 main module 的 getattr 链加载
-    # (支持 main.py 中直接定义或导入的情况)
+    # Fallback: try loading from main module's getattr chain
+    # (supports cases where handler is directly defined or imported in main.py)
+    # / 回退: 尝试从 main module 的 getattr 链加载
     main_mod = load_plugin_module(plugin_name, "main")
     if main_mod is None:
         logger.warning(
@@ -140,7 +149,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
 
 
 def _find_executor_in_module(mod: Any) -> type | None:
-    """在模块中查找 BaseToolExecutor 子类"""
+    """Find BaseToolExecutor subclass in module / 在模块中查找 BaseToolExecutor 子类"""
     from app.ai.tools.executors.base import BaseToolExecutor
 
     for _name, obj in inspect.getmembers(mod, inspect.isclass):
@@ -151,20 +160,22 @@ def _find_executor_in_module(mod: Any) -> type | None:
 
 def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
     """
-    加载插件的 executor 类。
+    Load a plugin's executor class.
+    / 加载插件的 executor 类。
 
-    查找顺序：
-    1. 约定路径: backend/executors/{skill_type}_executor.py
-    2. 回退扫描: backend/executors/ 下所有 *_executor.py 文件
+    Lookup order:
+    1. Convention path: backend/executors/{skill_type}_executor.py
+    2. Fallback scan: all *_executor.py files under backend/executors/
+    / 查找顺序：约定路径 → 回退扫描
 
     Args:
-        plugin_name: 插件名称
-        skill_type: 技能类型 (如 "toolkit", "weather_widget")
+        plugin_name: Plugin name / 插件名称
+        skill_type: Skill type (e.g. "toolkit", "weather_widget") / 技能类型
 
     Returns:
-        BaseToolExecutor 子类，找不到返回 None
+        BaseToolExecutor subclass, or None if not found / BaseToolExecutor 子类，找不到返回 None
     """
-    # 1. 按约定名称查找
+    # 1. Look up by convention name / 按约定名称查找
     executor_module_name = f"{skill_type.replace('-', '_')}_executor"
     mod = load_plugin_module(plugin_name, f"executors.{executor_module_name}")
     if mod is not None:
@@ -178,7 +189,8 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
                 skill_type, plugin_name, exc,
             )
 
-    # 2. 回退：扫描 executors 目录下所有 *_executor.py
+    # 2. Fallback: scan all *_executor.py in executors directory
+    # / 回退：扫描 executors 目录下所有 *_executor.py
     plugins_dir = _get_plugins_dir()
     executors_dir = plugins_dir / plugin_name / "backend" / "executors"
     if not executors_dir.is_dir():
@@ -187,7 +199,7 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
     for py_file in executors_dir.glob("*_executor.py"):
         stem = py_file.stem
         if stem == executor_module_name:
-            continue  # 已经尝试过
+            continue  # Already tried / 已经尝试过
         fallback_mod = load_plugin_module(plugin_name, f"executors.{stem}")
         if fallback_mod is None:
             continue
@@ -207,12 +219,14 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
 
 def unload_plugin_modules(plugin_name: str) -> int:
     """
-    从 sys.modules 中移除指定插件的所有模块。
+    Remove all modules of the specified plugin from sys.modules.
+    / 从 sys.modules 中移除指定插件的所有模块。
 
-    在卸载插件时调用，避免内存泄漏和模块残留。
+    Called during plugin uninstall to avoid memory leaks and module residue.
+    / 在卸载插件时调用，避免内存泄漏和模块残留。
 
     Returns:
-        移除的模块数量
+        Number of modules removed / 移除的模块数量
     """
     prefix = f"plugins.{plugin_name}."
     exact = f"plugins.{plugin_name}"

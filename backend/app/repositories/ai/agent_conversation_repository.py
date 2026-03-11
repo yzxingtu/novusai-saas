@@ -1,5 +1,5 @@
 """
-智能体对话 Repository
+智能体对话 Repository / Agent Conversation Repository
 """
 
 from datetime import date, datetime

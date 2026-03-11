@@ -1,7 +1,8 @@
 """
-存储配额服务
+存储配额服务 / Storage Quota Service
 
 提供租户存储配额的统一计算逻辑，供平台端和租户端共用
+Provides unified tenant storage quota calculation logic, shared by platform and tenant endpoints.
 """
 
 from typing import Any

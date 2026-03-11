@@ -46,7 +46,7 @@ const versions = ref<AgentVersionListItem[]>([]);
 const agentId = ref<number>(0);
 const publishedVersion = ref<null | number>(null);
 
-// 版本对比状态
+// Version diff state / 版本对比状态
 const diffLoading = ref(false);
 const diffResult = ref<AgentVersionDiff | null>(null);
 const diffV1 = ref<number | undefined>(undefined);
@@ -65,7 +65,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         await loadVersions();
       }
     } else {
-      // 关闭时重置
+      // Reset on close / 关闭时重置
       versions.value = [];
       diffResult.value = null;
       diffV1.value = undefined;

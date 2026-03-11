@@ -1,12 +1,18 @@
 """
-工具优化选择器（Tool Optimizer）
+Tool Optimizer / 工具优化选择器
 
+Pre-filters the tool list before LLM invocation to prevent passing too many tools
+at once, which may confuse the LLM or waste tokens.
 在 LLM 调用前对工具列表进行预筛选，防止一次性传入过多工具导致 LLM 混乱或 token 浪费。
 
+Filtering strategies (by priority):
 筛选策略（按优先级）：
-1. 关键词匹配：用户消息与工具 description 的关键词重叠度
-2. 历史偏好：同一对话中已成功调用过的工具优先保留
-3. 类型优先级：data_query 在数据相关问题中优先，knowledge_base 在知识问答中优先
+1. Keyword matching: overlap between user message and tool description keywords
+   关键词匹配：用户消息与工具 description 的关键词重叠度
+2. History preference: tools successfully called in the same conversation are prioritized
+   历史偏好：同一对话中已成功调用过的工具优先保留
+3. Type priority: data_query prioritized for data questions, knowledge_base for knowledge Q&A
+   类型优先级：data_query 在数据相关问题中优先
 """
 
 from __future__ import annotations
@@ -19,19 +25,19 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.tool.optimizer")
 
-# 工具数 ≤ 此值时跳过优化，直接全部传入
+# Skip optimization when tool count ≤ this value, pass all / 工具数≤此值时跳过优化
 MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
 
-# 优化后最多保留的工具数
+# Maximum tools to keep after optimization / 优化后最多保留的工具数
 MAX_TOOLS_AFTER_OPTIMIZATION = 8
 
-# 基础设施工具白名单：始终保留，不参与优化淘汰
+# Infrastructure tool whitelist: always kept, not subject to optimization / 基础设施工具白名单
 _PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
     "get_page_context",
     "invoke_page_operation",
 })
 
-# 中文分词用的停用词（高频无意义词）
+# Chinese stopwords (high-frequency meaningless words) / 中文停用词
 _STOPWORDS_ZH = frozenset({
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人",
     "都", "一", "个", "上", "也", "很", "到", "说", "要", "去",
@@ -41,7 +47,7 @@ _STOPWORDS_ZH = frozenset({
     "可以", "需要", "想", "能不能", "麻烦",
 })
 
-# 英文停用词
+# English stopwords / 英文停用词
 _STOPWORDS_EN = frozenset({
     "the", "a", "an", "is", "are", "was", "were", "be", "been",
     "being", "have", "has", "had", "do", "does", "did", "will",
@@ -58,7 +64,7 @@ _STOPWORDS_EN = frozenset({
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
 
-# 数据相关关键词 → data_* 工具加权
+# Data-related keywords → boost data_* tools / 数据相关关键词
 _DATA_KEYWORDS = frozenset({
     "数据", "查询", "统计", "记录", "表", "创建", "修改", "删除",
     "更新", "新增", "编辑", "添加", "搜索", "筛选", "过滤", "排序",
@@ -67,7 +73,7 @@ _DATA_KEYWORDS = frozenset({
     "report", "list", "find", "show", "display",
 })
 
-# 知识/文档相关关键词 → knowledge_base 工具加权
+# Knowledge/document keywords → boost knowledge_base tools / 知识文档关键词
 _KB_KEYWORDS = frozenset({
     "知识", "文档", "资料", "说明", "手册", "指南", "规范", "政策",
     "制度", "流程", "标准", "参考", "介绍", "解释", "含义", "定义",
@@ -75,7 +81,7 @@ _KB_KEYWORDS = frozenset({
     "explain", "definition", "meaning", "describe", "about",
 })
 
-# 联网搜索相关关键词 → web_search/fetch_url 工具加权
+# Web search keywords → boost web_search/fetch_url tools / 联网搜索关键词
 _WEB_KEYWORDS = frozenset({
     "联网", "搜索", "搜一下", "查一下", "查阅", "上网", "网上",
     "最新", "实时", "新闻", "百科", "维基", "天气", "今天",
@@ -85,15 +91,15 @@ _WEB_KEYWORDS = frozenset({
     "browse", "lookup", "fetch",
 })
 
-# 中文字符正则
+# Chinese character regex / 中文字符正则
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
-# 英文单词正则
+# English word regex / 英文单词正则
 _WORD_RE = re.compile(r"[a-zA-Z]{2,}")
 
 
 @dataclass
 class OptimizeResult:
-    """工具优化结果"""
+    """Tool optimization result / 工具优化结果"""
 
     tools: list[ToolDefinition]
     total: int
@@ -102,12 +108,12 @@ class OptimizeResult:
 
 
 def _tokenize(text: str) -> set[str]:
-    """简单分词：提取中文字符组和英文单词，去停用词"""
+    """Simple tokenization: extract CJK character groups and English words, remove stopwords / 简单分词"""
     tokens: set[str] = set()
 
     for match in _CJK_RE.finditer(text):
         chars = match.group()
-        # 中文按 bigram 拆分
+        # Split Chinese by bigram / 中文按 bigram 拆分
         for i in range(len(chars)):
             char = chars[i]
             if char not in _STOPWORDS:
@@ -132,54 +138,54 @@ def _score_tool(
     used_tool_names: set[str] | None = None,
 ) -> float:
     """
-    为工具打分
+    Score a tool for relevance / 为工具打分
 
     Args:
-        tool: 工具定义
-        query_tokens: 用户查询分词结果
-        query_text: 用户原始查询（小写）
-        used_tool_names: 本次对话中已成功调用过的工具名
+        tool: Tool definition / 工具定义
+        query_tokens: User query tokenization result / 用户查询分词结果
+        query_text: User original query (lowercase) / 用户原始查询
+        used_tool_names: Tool names already called in this conversation / 已调用工具名
 
     Returns:
-        相关性分数（越高越相关）
+        Relevance score (higher is more relevant) / 相关性分数
     """
     score = 0.0
 
-    # 1. 工具名/描述与查询的关键词重叠
+    # 1. Keyword overlap between tool name/description and query / 工具名描述与查询的关键词重叠
     tool_text = f"{tool.name} {tool.description or ''}"
     tool_tokens = _tokenize(tool_text)
     overlap = query_tokens & tool_tokens
     if overlap:
         score += len(overlap) * 2.0
 
-    # 2. 工具名直接出现在查询中
+    # 2. Tool name appears directly in query / 工具名直接出现在查询中
     tool_name_lower = tool.name.lower()
     if tool_name_lower in query_text or tool_name_lower.replace("_", " ") in query_text:
         score += 10.0
 
-    # 3. 数据类工具加权
+    # 3. Data tool boost / 数据类工具加权
     if (
         (tool.name.startswith("data_") or tool.tool_type in ("text_to_sql", "crud"))
         and query_tokens & _DATA_KEYWORDS
     ):
         score += 5.0
 
-    # 4. 知识库工具加权
+    # 4. Knowledge base tool boost / 知识库工具加权
     if ("knowledge" in tool_name_lower or "kb" in tool_name_lower) and query_tokens & _KB_KEYWORDS:
         score += 5.0
 
-    # 4.5 联网搜索工具加权
+    # 4.5 Web search tool boost / 联网搜索工具加权
     if (
         ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
         and query_tokens & _WEB_KEYWORDS
     ):
         score += 8.0
 
-    # 5. 历史偏好：已使用过的工具加权
+    # 5. History preference: boost previously used tools / 历史偏好加权
     if used_tool_names and tool.name in used_tool_names:
         score += 3.0
 
-    # 6. 基础分（确保每个工具至少有个最小分数，避免全0排序不稳定）
+    # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
     score += 0.1
 
     return score
@@ -193,23 +199,25 @@ def optimize_tools(
     max_after_optimization: int = MAX_TOOLS_AFTER_OPTIMIZATION,
 ) -> OptimizeResult:
     """
-    优化工具列表
+    Optimize tool list / 优化工具列表
 
+    When tool count exceeds the threshold, filter out the most relevant tool subset
+    based on user query content.
     当工具数超过阈值时，根据用户查询内容筛选出最相关的工具子集。
 
     Args:
-        tools: 完整工具定义列表
-        user_query: 用户当前查询文本
-        used_tool_names: 本次对话中已成功调用过的工具名集合
-        max_without_optimization: 工具数 ≤ 此值时跳过优化
-        max_after_optimization: 优化后最多保留的工具数
+        tools: Full tool definition list / 完整工具定义列表
+        user_query: User current query text / 用户当前查询文本
+        used_tool_names: Tool names successfully called in this conversation / 已调用工具名集合
+        max_without_optimization: Skip optimization when count ≤ this / 跳过优化阈值
+        max_after_optimization: Max tools to keep after optimization / 优化后最多保留数
 
     Returns:
         OptimizeResult
     """
     total = len(tools)
 
-    # 工具数量在阈值内，跳过优化
+    # Tool count within threshold, skip optimization / 工具数量在阈值内，跳过优化
     if total <= max_without_optimization:
         return OptimizeResult(
             tools=tools,
@@ -218,7 +226,7 @@ def optimize_tools(
             skipped=True,
         )
 
-    # 分离保护工具与可优化工具
+    # Separate protected tools and optimizable tools / 分离保护工具与可优化工具
     protected: list[ToolDefinition] = []
     optimizable: list[ToolDefinition] = []
     for tool in tools:
@@ -227,10 +235,10 @@ def optimize_tools(
         else:
             optimizable.append(tool)
 
-    # 扣除保护工具后的可用名额
+    # Available budget after deducting protected tools / 扣除保护工具后的可用名额
     budget = max(max_after_optimization - len(protected), 1)
 
-    # 可优化工具在名额内，直接全部保留
+    # Optimizable tools within budget, keep all / 可优化工具在名额内，全部保留
     if len(optimizable) <= budget:
         return OptimizeResult(
             tools=protected + optimizable,
@@ -239,20 +247,20 @@ def optimize_tools(
             skipped=True,
         )
 
-    # 分词
+    # Tokenize / 分词
     query_text = user_query.lower()
     query_tokens = _tokenize(user_query)
 
-    # 打分（仅对可优化工具）
+    # Score (only optimizable tools) / 打分
     scored: list[tuple[float, int, ToolDefinition]] = []
     for idx, tool in enumerate(optimizable):
         s = _score_tool(tool, query_tokens, query_text, used_tool_names)
         scored.append((s, idx, tool))
 
-    # 按分数降序排序（分数相同按原始顺序）
+    # Sort by score descending (same score keeps original order) / 按分数降序排序
     scored.sort(key=lambda x: (-x[0], x[1]))
 
-    # 取 top-N
+    # Take top-N / 取 top-N
     selected_optimizable = [item[2] for item in scored[:budget]]
     selected = protected + selected_optimizable
 

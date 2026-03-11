@@ -1,16 +1,16 @@
 /**
- * 租户端 AI 配置与用量 API
- * 对接后端 /tenant/ai/* 接口
+ * Tenant AI config & usage API / 租户端 AI 配置与用量 API
+ * Backend: /tenant/ai/* / 对接后端 /tenant/ai/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - 可用模型
+// Type definitions - Available models / 类型定义 - 可用模型
 // ============================================================
 
-/** AI 模型信息 */
+/** AI model info / AI 模型信息 */
 export interface TenantAIModelInfo {
   id: number;
   provider_id: number;
@@ -32,10 +32,10 @@ export interface TenantAIModelInfo {
 }
 
 // ============================================================
-// 类型定义 - API Key
+// Type definitions - API Key / 类型定义 - API Key
 // ============================================================
 
-/** 租户 API Key 信息 */
+/** Tenant API Key info / 租户 API Key 信息 */
 export interface TenantAIApiKeyInfo {
   id: number;
   provider_id: number;
@@ -54,7 +54,7 @@ export interface TenantAIApiKeyInfo {
   updated_at: string;
 }
 
-/** 创建 API Key 请求 */
+/** Create API Key request / 创建 API Key 请求 */
 export interface TenantAIApiKeyCreateRequest {
   provider_id: number;
   name: string;
@@ -64,10 +64,10 @@ export interface TenantAIApiKeyCreateRequest {
 }
 
 // ============================================================
-// 类型定义 - 用量统计
+// Type definitions - Usage stats / 类型定义 - 用量统计
 // ============================================================
 
-/** 用量汇总 */
+/** Usage summary / 用量汇总 */
 export interface TenantAIUsageSummary {
   total_tokens: number;
   total_cost: number;
@@ -78,7 +78,7 @@ export interface TenantAIUsageSummary {
   model_stats?: TenantAIUsageByModel[];
 }
 
-/** 每日用量 */
+/** Daily usage / 每日用量 */
 export interface TenantAIUsageDaily {
   date: string;
   input_tokens: number;
@@ -88,7 +88,7 @@ export interface TenantAIUsageDaily {
   calls: number;
 }
 
-/** 按模型用量 */
+/** Usage by model / 按模型用量 */
 export interface TenantAIUsageByModel {
   model_id: number;
   model_name: string;
@@ -98,22 +98,22 @@ export interface TenantAIUsageByModel {
 }
 
 // ============================================================
-// 类型定义 - 供应商选项（用于租户端下拉选择）
+// Type definitions - Provider options (for tenant dropdown) / 供应商选项
 // ============================================================
 
-/** 供应商简要信息（从模型列表中提取） */
+/** Provider brief info (extracted from model list) / 供应商简要信息 */
 export interface TenantProviderOption {
   label: string;
   value: number;
 }
 
 // ============================================================
-// API 接口 - AI 配置
+// API functions - AI config / API 接口 - AI 配置
 // ============================================================
 
 const CONFIG_PREFIX = '/tenant/ai/config';
 
-/** 获取可用 AI 模型列表 */
+/** Get available AI model list / 获取可用 AI 模型列表 */
 export async function getTenantAIModelsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -124,7 +124,7 @@ export async function getTenantAIModelsApi(
   });
 }
 
-/** 获取我的 API Keys */
+/** Get my API Keys / 获取我的 API Keys */
 export async function getTenantAIKeysApi(
   options?: ApiRequestOptions,
 ): Promise<TenantAIApiKeyInfo[]> {
@@ -134,7 +134,7 @@ export async function getTenantAIKeysApi(
   );
 }
 
-/** 创建 API Key */
+/** Create API Key / 创建 API Key */
 export async function createTenantAIKeyApi(
   data: TenantAIApiKeyCreateRequest,
   options?: ApiRequestOptions,
@@ -146,7 +146,7 @@ export async function createTenantAIKeyApi(
   );
 }
 
-/** 删除 API Key */
+/** Delete API Key / 删除 API Key */
 export async function deleteTenantAIKeyApi(
   keyId: number,
   options?: ApiRequestOptions,
@@ -155,12 +155,12 @@ export async function deleteTenantAIKeyApi(
 }
 
 // ============================================================
-// API 接口 - 用量统计
+// API functions - Usage stats / API 接口 - 用量统计
 // ============================================================
 
 const USAGE_PREFIX = '/tenant/ai/usage';
 
-/** 获取使用量汇总 */
+/** Get usage summary / 获取使用量汇总 */
 export async function getTenantAIUsageSummaryApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -172,10 +172,10 @@ export async function getTenantAIUsageSummaryApi(
 }
 
 // ============================================================
-// 类型定义 - 调用日志
+// Type definitions - Call logs / 类型定义 - 调用日志
 // ============================================================
 
-/** 调用日志信息 */
+/** Call log info / 调用日志信息 */
 export interface TenantAICallLogInfo {
   id: number;
   tenant_id: null | number;
@@ -206,12 +206,12 @@ interface TenantCallLogPageResponse {
 }
 
 // ============================================================
-// API 接口 - 调用日志
+// API functions - Call logs / API 接口 - 调用日志
 // ============================================================
 
 const CALL_LOG_PREFIX = '/tenant/ai/call-logs';
 
-/** 获取调用日志列表 */
+/** Get call log list / 获取调用日志列表 */
 export async function getTenantAICallLogListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -222,7 +222,7 @@ export async function getTenantAICallLogListApi(
   });
 }
 
-/** 获取调用日志详情 */
+/** Get call log detail / 获取调用日志详情 */
 export async function getTenantAICallLogDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -234,10 +234,10 @@ export async function getTenantAICallLogDetailApi(
 }
 
 // ============================================================
-// 类型定义 - 配额管理
+// Type definitions - Quota management / 类型定义 - 配额管理
 // ============================================================
 
-/** 租户配额信息 */
+/** Tenant quota info / 租户配额信息 */
 export interface TenantQuotaInfo {
   id: number;
   tenant_id: number;
@@ -253,7 +253,7 @@ export interface TenantQuotaInfo {
   updated_at: string;
 }
 
-/** 配额及使用量信息 */
+/** Quota with usage info / 配额及使用量信息 */
 export interface TenantQuotaWithUsageInfo {
   quota: TenantQuotaInfo;
   usage: number;
@@ -264,7 +264,7 @@ export interface TenantQuotaWithUsageInfo {
   remaining: number;
 }
 
-/** 创建配额请求 */
+/** Create quota request / 创建配额请求 */
 export interface TenantQuotaCreateRequest {
   model_id?: null | number;
   period: string;
@@ -274,7 +274,7 @@ export interface TenantQuotaCreateRequest {
   description?: null | string;
 }
 
-/** 更新配额请求 */
+/** Update quota request / 更新配额请求 */
 export interface TenantQuotaUpdateRequest {
   limit?: number;
   quota_type?: string;
@@ -284,10 +284,10 @@ export interface TenantQuotaUpdateRequest {
 }
 
 // ============================================================
-// 类型定义 - 速率限制
+// Type definitions - Rate limiting / 类型定义 - 速率限制
 // ============================================================
 
-/** 租户速率限制信息 */
+/** Tenant rate limit info / 租户速率限制信息 */
 export interface TenantRateLimitInfo {
   id: number;
   tenant_id: number;
@@ -301,7 +301,7 @@ export interface TenantRateLimitInfo {
   updated_at: string;
 }
 
-/** 创建速率限制请求 */
+/** Create rate limit request / 创建速率限制请求 */
 export interface TenantRateLimitCreateRequest {
   model_id: number;
   rpm_limit?: null | number;
@@ -309,7 +309,7 @@ export interface TenantRateLimitCreateRequest {
   description?: null | string;
 }
 
-/** 更新速率限制请求 */
+/** Update rate limit request / 更新速率限制请求 */
 export interface TenantRateLimitUpdateRequest {
   rpm_limit?: null | number;
   tpm_limit?: null | number;
@@ -318,12 +318,12 @@ export interface TenantRateLimitUpdateRequest {
 }
 
 // ============================================================
-// API 接口 - 配额管理
+// API functions - Quota management / API 接口 - 配额管理
 // ============================================================
 
 const QUOTA_PREFIX = '/tenant/ai/quotas';
 
-/** 获取配额列表（含使用量） */
+/** Get quota list (with usage) / 获取配额列表（含使用量） */
 export async function getTenantQuotasApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -334,7 +334,7 @@ export async function getTenantQuotasApi(
   });
 }
 
-/** 获取配额详情 */
+/** Get quota detail / 获取配额详情 */
 export async function getTenantQuotaDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -345,7 +345,7 @@ export async function getTenantQuotaDetailApi(
   );
 }
 
-/** 创建配额 */
+/** Create quota / 创建配额 */
 export async function createTenantQuotaApi(
   data: TenantQuotaCreateRequest,
   options?: ApiRequestOptions,
@@ -353,7 +353,7 @@ export async function createTenantQuotaApi(
   return requestClient.post<TenantQuotaInfo>(QUOTA_PREFIX, data, options);
 }
 
-/** 更新配额 */
+/** Update quota / 更新配额 */
 export async function updateTenantQuotaApi(
   id: number,
   data: TenantQuotaUpdateRequest,
@@ -366,7 +366,7 @@ export async function updateTenantQuotaApi(
   );
 }
 
-/** 删除配额 */
+/** Delete quota / 删除配额 */
 export async function deleteTenantQuotaApi(
   id: number,
   options?: ApiRequestOptions,
@@ -375,10 +375,10 @@ export async function deleteTenantQuotaApi(
 }
 
 // ============================================================
-// API 接口 - 速率限制
+// API functions - Rate limiting / API 接口 - 速率限制
 // ============================================================
 
-/** 获取速率限制列表 */
+/** Get rate limit list / 获取速率限制列表 */
 export async function getTenantRateLimitsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -389,7 +389,7 @@ export async function getTenantRateLimitsApi(
   );
 }
 
-/** 创建速率限制 */
+/** Create rate limit / 创建速率限制 */
 export async function createTenantRateLimitApi(
   data: TenantRateLimitCreateRequest,
   options?: ApiRequestOptions,
@@ -401,7 +401,7 @@ export async function createTenantRateLimitApi(
   );
 }
 
-/** 更新速率限制 */
+/** Update rate limit / 更新速率限制 */
 export async function updateTenantRateLimitApi(
   id: number,
   data: TenantRateLimitUpdateRequest,
@@ -414,7 +414,7 @@ export async function updateTenantRateLimitApi(
   );
 }
 
-/** 删除速率限制 */
+/** Delete rate limit / 删除速率限制 */
 export async function deleteTenantRateLimitApi(
   id: number,
   options?: ApiRequestOptions,
@@ -423,14 +423,15 @@ export async function deleteTenantRateLimitApi(
 }
 
 // ============================================================
-// 辅助函数 - 供应商下拉选项
+// Helper - Provider dropdown options / 辅助函数 - 供应商下拉选项
 // ============================================================
 
 /**
+ * Extract provider dropdown options from available models (deduplicated)
  * 从可用模型列表中提取供应商下拉选项（去重）
  *
- * 租户端没有独立的供应商列表 API，通过模型列表的 provider_id/provider_name 提取。
- * 用于表单中的供应商下拉选择。
+ * No standalone provider list API on tenant side; extracted from model list.
+ * 租户端无独立供应商 API，通过模型列表提取。
  */
 export async function getTenantProviderSelectOptions(): Promise<
   TenantProviderOption[]
@@ -456,10 +457,10 @@ export async function getTenantProviderSelectOptions(): Promise<
 }
 
 // ============================================================
-// AI 表策略覆盖
+// AI table policy override / AI 表策略覆盖
 // ============================================================
 
-/** 有效策略（全局 + 租户覆盖合并） */
+/** Effective policy (global + tenant override merged) / 有效策略 */
 export interface EffectiveTablePolicy {
   id: number;
   table_name: string;
@@ -478,7 +479,7 @@ export interface EffectiveTablePolicy {
   has_override: boolean;
 }
 
-/** 覆盖更新请求 */
+/** Override update request / 覆盖更新请求 */
 export interface TablePolicyOverrideRequest {
   allow_read?: boolean;
   allow_create?: boolean;
@@ -489,12 +490,12 @@ export interface TablePolicyOverrideRequest {
   is_active?: boolean;
 }
 
-/** 获取当前租户的有效策略列表 */
+/** Get current tenant effective policies / 获取当前租户的有效策略列表 */
 export async function getTenantTablePoliciesApi() {
   return requestClient.get<EffectiveTablePolicy[]>('/tenant/ai/table-policies');
 }
 
-/** 创建/更新策略覆盖 */
+/** Create/update policy override / 创建或更新策略覆盖 */
 export async function upsertTablePolicyOverrideApi(
   policyId: number,
   data: TablePolicyOverrideRequest,
@@ -505,7 +506,7 @@ export async function upsertTablePolicyOverrideApi(
   );
 }
 
-/** 删除策略覆盖（恢复全局） */
+/** Delete policy override (restore global) / 删除策略覆盖（恢复全局） */
 export async function removeTablePolicyOverrideApi(policyId: number) {
   return requestClient.delete(`/tenant/ai/table-policies/${policyId}/override`);
 }

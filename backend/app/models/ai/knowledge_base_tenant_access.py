@@ -1,7 +1,8 @@
 """
-知识库租户访问关联表
+知识库租户访问关联表 / Knowledge Base Tenant Access Model
 
 当 KnowledgeBase.visibility='assigned' 时，通过此表控制哪些租户可以访问该知识库。
+Controls which tenants can access a KB when KnowledgeBase.visibility='assigned'.
 """
 
 from sqlalchemy import ForeignKey, Index, Integer, UniqueConstraint

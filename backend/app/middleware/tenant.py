@@ -1,9 +1,9 @@
 """
-租户识别中间件
+Tenant Identification Middleware / 租户识别中间件
 
-根据请求的 Host 头解析租户信息，支持：
-1. 子域名模式: {tenant_code}.app.novusai.com
-2. 自定义域名模式: custom.domain.com -> 查询 tenant_domains 表
+Resolves tenant info from request Host header, supports / 根据 Host 头解析租户信息，支持：
+1. Subdomain mode / 子域名模式: {tenant_code}.app.novusai.com
+2. Custom domain mode / 自定义域名模式: custom.domain.com -> tenant_domains table
 """
 
 
@@ -20,9 +20,10 @@ from app.models import Tenant, TenantDomain
 
 class TenantContext:
     """
-    租户上下文
+    Tenant Context.
+    租户上下文。
 
-    存储从请求中解析出的租户信息
+    Stores tenant info resolved from request / 存储从请求中解析出的租户信息
     """
 
     def __init__(
@@ -39,7 +40,7 @@ class TenantContext:
 
     @property
     def is_resolved(self) -> bool:
-        """租户是否已解析"""
+        """Whether tenant is resolved / 租户是否已解析"""
         return self.tenant is not None
 
     def __repr__(self) -> str:
@@ -48,38 +49,38 @@ class TenantContext:
 
 def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
     """
-    从 Host 头解析租户信息
+    Parse tenant info from Host header / 从 Host 头解析租户信息
 
     Args:
-        host: 请求的 Host 头，如 "abc.app.novusai.com" 或 "custom.com"
+        host: Request Host header / 请求的 Host 头, e.g. "abc.app.novusai.com" or "custom.com"
 
     Returns:
         tuple: (tenant_code, domain_type)
-        - 如果是子域名，返回 (tenant_code, "subdomain")
-        - 如果是自定义域名，返回 (None, "custom")
-        - 如果无法解析，返回 (None, "unknown")
+        - Subdomain / 子域名: (tenant_code, "subdomain")
+        - Custom domain / 自定义域名: (None, "custom")
+        - Unresolvable / 无法解析: (None, "unknown")
     """
     if not host:
         return None, "unknown"
 
-    # 移除端口号
+    # Remove port number / 移除端口号
     host = host.split(":")[0].lower()
 
-    # 检查是否是子域名模式
+    # Check if subdomain mode / 检查是否是子域名模式
     suffix = settings.TENANT_DOMAIN_SUFFIX.lower()
     if host.endswith(suffix):
-        # 提取子域名部分
+        # Extract subdomain part / 提取子域名部分
         subdomain = host[:-len(suffix)]
         if subdomain and "." not in subdomain:
-            # 合法的租户子域名（不含点号）
+            # Valid tenant subdomain (no dots) / 合法的租户子域名
             return subdomain, "subdomain"
 
-    # 可能是自定义域名
-    # 排除平台主域名（如 app.novusai.com 本身）
+    # Possibly custom domain / 可能是自定义域名
+    # Exclude platform main domain / 排除平台主域名
     if host == suffix.lstrip("."):
         return None, "unknown"
 
-    # 排除已配置的平台管理端域名，避免不必要的 DB 查询
+    # Exclude configured platform admin domains to avoid unnecessary DB queries / 排除管理端域名
     platform_domains = [d.lower() for d in settings.platform_domains_list]
     if host in platform_domains:
         return None, "unknown"
@@ -89,15 +90,17 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
 
 class TenantMiddleware:
     """
-    租户识别中间件（纯 ASGI 实现）
+    Tenant Identification Middleware (pure ASGI implementation).
+    租户识别中间件（纯 ASGI 实现）。
 
-    在每个请求中解析租户信息并存储到 request.state.tenant_ctx
+    Resolves tenant info in each request and stores to request.state.tenant_ctx.
+    在每个请求中解析租户信息并存储到 request.state.tenant_ctx。
     """
 
     def __init__(self, app: ASGIApp):
         self.app = app
 
-    # 需要执行租户域名解析的路径前缀
+    # Path prefixes that need tenant domain resolution / 需要执行租户域名解析的路径前缀
     TENANT_PATHS = (
         "/tenant/",
         "/api/v1/",
@@ -107,7 +110,7 @@ class TenantMiddleware:
 
     @staticmethod
     def _needs_tenant_resolution(path: str) -> bool:
-        """判断请求路径是否需要执行租户域名解析"""
+        """Check if request path needs tenant domain resolution / 判断请求路径是否需要租户域名解析"""
         return any(path.startswith(prefix) for prefix in TenantMiddleware.TENANT_PATHS)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -115,10 +118,10 @@ class TenantMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # 获取请求路径
+        # Get request path / 获取请求路径
         path = scope.get("path", "")
 
-        # 非租户路径跳过域名解析，设置空上下文避免下游报错
+        # Non-tenant paths skip domain resolution, set empty context to avoid downstream errors / 非租户路径跳过解析
         if not self._needs_tenant_resolution(path):
             if "state" not in scope:
                 scope["state"] = {}
@@ -126,20 +129,20 @@ class TenantMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # 获取 Host 头
+        # Get Host header / 获取 Host 头
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode("utf-8", errors="ignore")
 
-        # 解析租户
+        # Parse tenant / 解析租户
         tenant_code, domain_type = parse_tenant_from_host(host)
 
-        # 创建租户上下文
+        # Create tenant context / 创建租户上下文
         tenant_ctx = TenantContext(
             tenant_code=tenant_code,
             domain_type=domain_type,
         )
 
-        # 如果解析出了租户信息，从数据库加载
+        # If tenant info resolved, load from DB / 如果解析出了租户信息，从数据库加载
         if tenant_code or domain_type == "custom":
             async with async_session_factory() as db:
                 tenant = await self._resolve_tenant(db, tenant_code, host, domain_type)
@@ -148,8 +151,8 @@ class TenantMiddleware:
                     tenant_ctx.tenant_id = tenant.id
                     tenant_ctx.tenant_code = tenant.code
 
-        # 将租户上下文存储到 scope 的 state 中
-        # FastAPI 会将其映射到 request.state
+        # Store tenant context in scope state / 将租户上下文存储到 scope state
+        # FastAPI maps this to request.state / FastAPI 会将其映射到 request.state
         if "state" not in scope:
             scope["state"] = {}
         scope["state"]["tenant_ctx"] = tenant_ctx
@@ -164,19 +167,19 @@ class TenantMiddleware:
         domain_type: str,
     ) -> Tenant | None:
         """
-        从数据库解析租户
+        Resolve tenant from database / 从数据库解析租户
 
         Args:
-            db: 数据库会话
-            tenant_code: 租户代码（子域名模式）
-            host: 原始 Host（自定义域名模式）
-            domain_type: 域名类型
+            db: Database session / 数据库会话
+            tenant_code: Tenant code (subdomain mode) / 租户代码
+            host: Original Host (custom domain mode) / 原始 Host
+            domain_type: Domain type / 域名类型
 
         Returns:
             Tenant or None
         """
         if domain_type == "subdomain" and tenant_code:
-            # 子域名模式：直接按 code 查询
+            # Subdomain mode: query by code directly / 子域名模式：直接按 code 查询
             result = await db.execute(
                 select(Tenant).where(
                     Tenant.code == tenant_code,
@@ -187,8 +190,8 @@ class TenantMiddleware:
             return result.scalar_one_or_none()
 
         elif domain_type == "custom":
-            # 自定义域名模式：查询 tenant_domains 表
-            # 移除端口号
+            # Custom domain mode: query tenant_domains table / 自定义域名模式
+            # Remove port number / 移除端口号
             domain = host.split(":")[0].lower()
 
             result = await db.execute(
@@ -208,7 +211,7 @@ class TenantMiddleware:
                 and tenant_domain.tenant.is_active
                 and not tenant_domain.tenant.is_deleted
             ):
-                # 检查租户是否激活
+                # Check if tenant is active / 检查租户是否激活
                 return tenant_domain.tenant
 
         return None
@@ -216,7 +219,7 @@ class TenantMiddleware:
 
 def get_tenant_context(request: Request) -> TenantContext | None:
     """
-    从请求中获取租户上下文
+    Get tenant context from request / 从请求中获取租户上下文
 
     Usage:
         tenant_ctx = get_tenant_context(request)
@@ -228,7 +231,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
 
 def get_current_tenant(request: Request) -> Tenant | None:
     """
-    从请求中获取当前租户
+    Get current tenant from request / 从请求中获取当前租户
 
     Usage:
         tenant = get_current_tenant(request)

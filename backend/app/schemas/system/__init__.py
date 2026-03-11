@@ -1,7 +1,8 @@
 """
-平台管理后台 Schema 模块
+平台管理后台 Schema 模块 / Platform Admin Schema Module
 
 导出平台管理相关的 Schema
+Exports platform admin related schemas.
 """
 
 from app.schemas.system.admin import (

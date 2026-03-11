@@ -1,7 +1,8 @@
 """
-收件箱通知渠道
+收件箱通知渠道 / Inbox Notification Channel
 
 将通知写入 notifications 表，用户可在通知面板中查看。
+Writes notifications to the notifications table for viewing in the notification panel.
 """
 
 from __future__ import annotations

@@ -1,13 +1,14 @@
 /**
- * 系统智能体绑定 API（共享）
+ * System agent assignment API (shared) / 系统智能体绑定 API（共享）
  *
+ * Provides resolve function to get bound agent_id by feature_code.
+ * Automatically selects endpoint based on current user API prefix (admin/tenant).
  * 提供 resolve 函数，根据 feature_code 获取绑定的 agent_id。
- * 自动根据当前用户 API 前缀（admin/tenant）选择对应端点。
  */
 
 import { requestClient } from '#/utils/request';
 
-/** Resolve 响应 */
+/** Resolve response / Resolve 响应 */
 export interface AgentAssignmentResolveResult {
   feature_code: string;
   agent_id: null | number;
@@ -17,7 +18,7 @@ export interface AgentAssignmentResolveResult {
   is_override?: boolean;
 }
 
-/** 绑定列表项 */
+/** Assignment list item / 绑定列表项 */
 export interface AgentAssignmentItem {
   id: number;
   feature_code: string;
@@ -38,10 +39,10 @@ export interface AgentAssignmentItem {
 }
 
 /**
- * Resolve 智能体绑定
+ * Resolve agent assignment / Resolve 智能体绑定
  *
- * @param apiPrefix - '/admin' 或 '/tenant'
- * @param featureCode - 功能代码，如 'general_chat'
+ * @param apiPrefix - '/admin' or '/tenant'
+ * @param featureCode - Feature code, e.g. 'general_chat' / 功能代码
  */
 export async function resolveAgentAssignmentApi(
   apiPrefix: string,
@@ -53,9 +54,9 @@ export async function resolveAgentAssignmentApi(
 }
 
 /**
- * 获取智能体绑定列表
+ * Get agent assignment list / 获取智能体绑定列表
  *
- * @param apiPrefix - '/admin' 或 '/tenant'
+ * @param apiPrefix - '/admin' or '/tenant'
  */
 export async function getAgentAssignmentListApi(
   apiPrefix: string,
@@ -65,7 +66,7 @@ export async function getAgentAssignmentListApi(
   );
 }
 
-/** 已发布智能体选项 */
+/** Published agent option / 已发布智能体选项 */
 export interface PublishedAgentOption {
   id: number;
   name: string;
@@ -73,9 +74,9 @@ export interface PublishedAgentOption {
 }
 
 /**
- * 获取已发布智能体列表（用于 Select 下拉）
+ * Get published agents list (for Select dropdown) / 获取已发布智能体列表
  *
- * @param apiPrefix - '/admin' 或 '/tenant'
+ * @param apiPrefix - '/admin' or '/tenant'
  */
 export async function getPublishedAgentsApi(
   apiPrefix: string,
@@ -87,13 +88,13 @@ export async function getPublishedAgentsApi(
 }
 
 /**
- * 更新智能体绑定
+ * Update agent assignment / 更新智能体绑定
  *
- * @param apiPrefix - '/admin' 或 '/tenant'
- * @param featureCode - 功能代码
- * @param data - 更新数据
- * @param data.agent_id - 绑定的智能体 ID（null 表示解绑）
- * @param data.is_active - 是否启用此绑定
+ * @param apiPrefix - '/admin' or '/tenant'
+ * @param featureCode - Feature code / 功能代码
+ * @param data - Update data / 更新数据
+ * @param data.agent_id - Bound agent ID (null to unbind) / 绑定的智能体 ID
+ * @param data.is_active - Whether this assignment is active / 是否启用
  */
 export async function updateAgentAssignmentApi(
   apiPrefix: string,
@@ -107,10 +108,10 @@ export async function updateAgentAssignmentApi(
 }
 
 /**
- * 删除租户覆盖（恢复全局默认）
+ * Delete tenant override (restore global default) / 删除租户覆盖（恢复全局默认）
  *
- * @param apiPrefix - '/admin' 或 '/tenant'
- * @param featureCode - 功能代码
+ * @param apiPrefix - '/admin' or '/tenant'
+ * @param featureCode - Feature code / 功能代码
  */
 export async function deleteAgentAssignmentApi(
   apiPrefix: string,

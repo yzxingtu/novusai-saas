@@ -1,12 +1,14 @@
 """
+Token Estimation Utility
 Token 估算工具
 
+Uses more accurate estimation coefficients for CJK characters to avoid severe underestimation by len//4.
 对 CJK 字符采用更准确的估算系数，避免 len//4 对中日韩文本严重低估。
 """
 
 
 def _is_cjk(char: str) -> bool:
-    """判断字符是否为 CJK 统一表意文字"""
+    """Check if character is a CJK unified ideograph / 判断字符是否为 CJK 统一表意文字"""
     cp = ord(char)
     # CJK Unified Ideographs: U+4E00 - U+9FFF
     # CJK Extension A: U+3400 - U+4DBF
@@ -32,18 +34,19 @@ def _is_cjk(char: str) -> bool:
 
 def estimate_tokens(text: str) -> int:
     """
-    估算文本的 token 数量
+    Estimate token count for text.
+    估算文本的 token 数量。
 
-    规则:
-    - ASCII 字符: 每 4 字符 ≈ 1 token
-    - CJK 字符: 每 1.5 字符 ≈ 1 token（即 1 个 CJK 字约 0.67 token）
-    - 其他 Unicode: 每 2 字符 ≈ 1 token
+    Rules / 规则:
+    - ASCII characters: ~1 token per 4 chars / ASCII 字符: 每 4 字符 ≈ 1 token
+    - CJK characters: ~1 token per 1.5 chars / CJK 字符: 每 1.5 字符 ≈ 1 token
+    - Other Unicode: ~1 token per 2 chars / 其他 Unicode: 每 2 字符 ≈ 1 token
 
     Args:
-        text: 待估算文本
+        text: Text to estimate / 待估算文本
 
     Returns:
-        估算 token 数（至少为 0）
+        Estimated token count (minimum 0) / 估算 token 数（至少为 0）
     """
     if not text:
         return 0

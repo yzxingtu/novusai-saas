@@ -1,29 +1,32 @@
 """
+User Menu Definitions
 用户端菜单定义
 
+Defines directory menu structure for tenant business user; leaf menus declared via controller decorators.
 定义租户业务用户端的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
-菜单层级示例:
-- 仪表板 (dashboard)
-- AI 对话 (ai_chat)
-- 设置 (settings)
+Menu hierarchy example / 菜单层级示例:
+- Dashboard / 仪表板 (dashboard)
+- AI Chat / AI 对话 (ai_chat)
+- Settings / 设置 (settings)
 
+The name field uses i18n keys, translated during frontend rendering.
 name 字段使用 i18n key，前端渲染时翻译。
-格式: menu.user.{resource}
+Format / 格式: menu.user.{resource}
 
-图标规范:
-使用 Lucide 图标库: https://lucide.dev/icons
-格式: "lucide:{icon-name}"
-图标名称使用 kebab-case（小写字母，单词间用连字符分隔）
+Icon spec / 图标规范:
+Uses Lucide icon library / 使用 Lucide 图标库: https://lucide.dev/icons
+Format / 格式: "lucide:{icon-name}"
+Icon names use kebab-case / 图标名称使用 kebab-case
 """
 
 from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
 
-# 用户端目录菜单
+# User directory menus / 用户端目录菜单
 USER_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
-    # 仪表板（首页，叶子菜单）
+    # Dashboard (homepage, leaf menu) / 仪表板（首页，叶子菜单）
     # ========================================
     PermissionMeta(
         code="menu:user.dashboard",
@@ -39,7 +42,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
 
     # ========================================
-    # AI 对话
+    # AI Chat / AI 对话
     # ========================================
     PermissionMeta(
         code="menu:user.ai_chat",
@@ -55,7 +58,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
 
     # ========================================
-    # 设置（目录）
+    # Settings (directory) / 设置（目录）
     # ========================================
     PermissionMeta(
         code="menu:user.settings",
@@ -69,7 +72,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=900,
     ),
 
-    # ---- 个人资料 ----
+    # ---- Profile / 个人资料 ----
     PermissionMeta(
         code="menu:user.profile",
         name="menu.user.profile",
@@ -84,7 +87,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
     ),
 
-    # ---- 修改密码 ----
+    # ---- Change Password / 修改密码 ----
     PermissionMeta(
         code="menu:user.change_password",
         name="menu.user.change_password",

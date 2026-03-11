@@ -1,6 +1,9 @@
 /**
+ * Page Operation Registry
  * 页面操作注册表
  *
+ * Pages declare available operations (with handler callbacks) via registerPageOperations();
+ * the AI layer discovers operations via listPageOperations() and executes them via executePageOperation().
  * 页面通过 registerPageOperations() 声明当前页面可用的操作列表（含 handler 回调），
  * AI 层通过 listPageOperations() 发现操作，通过 executePageOperation() 执行操作。
  *
@@ -38,61 +41,68 @@
 
 import { ref } from 'vue';
 
-/** 操作执行结果 */
+/** Operation execution result / 操作执行结果 */
 export interface PageOperationResult {
-  /** 是否执行成功 */
+  /** Whether execution succeeded / 是否执行成功 */
   success: boolean;
-  /** 结果消息（返回给 LLM） */
+  /** Result message (returned to LLM) / 结果消息（返回给 LLM） */
   message: string;
-  /** 附加数据（可选，结构化结果供 LLM 分析） */
+  /** Additional data (optional, structured result for LLM analysis) / 附加数据（可选，结构化结果供 LLM 分析） */
   data?: Record<string, unknown>;
 }
 
-/** 操作处理函数类型 */
+/** Operation handler function type / 操作处理函数类型 */
 export type PageOperationHandler = (
   params: Record<string, unknown>,
 ) => PageOperationResult | Promise<PageOperationResult>;
 
 /**
+ * Page operation declaration
  * 页面操作声明
  *
+ * readonly=true:  Read-only operation (e.g. refresh, export), executed without confirmation
+ * readonly=false: Mutation operation (e.g. update, delete), requires user confirmation before execution
  * readonly=true:  只读操作（如刷新、导出），直接执行无需确认
  * readonly=false: 变更操作（如更新、删除），执行前需用户确认
  */
 export interface PageOperation {
-  /** 操作唯一标识 */
+  /** Operation unique identifier / 操作唯一标识 */
   name: string;
-  /** 人类可读标签 */
+  /** Human-readable label / 人类可读标签 */
   label: string;
-  /** 操作描述（供 LLM 理解意图） */
+  /** Operation description (for LLM intent understanding) / 操作描述（供 LLM 理解意图） */
   description?: string;
-  /** 是否为只读操作 */
+  /** Whether it is a read-only operation / 是否为只读操作 */
   readonly: boolean;
-  /** 参数 schema（JSON Schema 子集，供 LLM 构建参数） */
+  /** Parameter schema (JSON Schema subset, for LLM to build parameters) / 参数 schema（JSON Schema 子集，供 LLM 构建参数） */
   params?: Record<string, unknown>;
-  /** 操作处理函数（未提供时操作不可执行，仅可发现） */
+  /** Operation handler function (if not provided, operation is discoverable but not executable) / 操作处理函数（未提供时操作不可执行，仅可发现） */
   handler?: PageOperationHandler;
 }
 
 /**
+ * Registry: pageContextKey → operations[]
+ * Key should match the registerPageContext key.
  * 注册表：pageContextKey → operations[]
- *
  * key 建议与 registerPageContext 的 key 保持一致。
  */
 const registry = new Map<string, PageOperation[]>();
 
 /**
+ * Reactive version number — incremented on each register/unregister,
+ * allowing external computed properties to track changes in real time.
  * 响应式版本号 — 每次注册/注销时自增，
  * 供外部 computed 建立依赖以实现实时感知。
  */
 export const pageOperationVersion = ref(0);
 
 /**
+ * Register page operation list
  * 注册页面操作列表
  *
- * @param key 页面标识（建议与 pageContextKey 一致）
- * @param operations 该页面可用的操作列表
- * @returns cleanup 函数
+ * @param key - Page identifier (recommended: same as pageContextKey) / 页面标识
+ * @param operations - Available operations for this page / 该页面可用的操作列表
+ * @returns Cleanup function / cleanup 函数
  */
 export function registerPageOperations(
   key: string,
@@ -109,22 +119,24 @@ export function registerPageOperations(
 }
 
 /**
+ * Get operation list for a specific page (read-only discovery)
  * 获取指定页面的操作列表（只读发现）
  *
- * @param key 页面标识
- * @returns 操作列表，未注册时返回空数组
+ * @param key - Page identifier / 页面标识
+ * @returns Operation list, empty array if not registered / 操作列表，未注册时返回空数组
  */
 export function listPageOperations(key: string): readonly PageOperation[] {
   return registry.get(key) ?? [];
 }
 
 /**
+ * Execute a page operation
  * 执行页面操作
  *
- * @param key 页面标识（pageContextKey）
- * @param operationName 操作名称
- * @param params 操作参数
- * @returns 执行结果
+ * @param key - Page identifier (pageContextKey) / 页面标识
+ * @param operationName - Operation name / 操作名称
+ * @param params - Operation parameters / 操作参数
+ * @returns Execution result / 执行结果
  */
 export async function executePageOperation(
   key: string,
@@ -172,11 +184,12 @@ export async function executePageOperation(
 }
 
 /**
+ * Find a specific operation (for safety confirmation scenarios)
  * 查找指定操作（用于安全确认等场景）
  *
- * @param key 页面标识
- * @param operationName 操作名称
- * @returns 操作定义，未找到时返回 undefined
+ * @param key - Page identifier / 页面标识
+ * @param operationName - Operation name / 操作名称
+ * @returns Operation definition, undefined if not found / 操作定义，未找到时返回 undefined
  */
 export function findPageOperation(
   key: string,
@@ -187,6 +200,7 @@ export function findPageOperation(
 }
 
 /**
+ * Get all currently registered page operation keys (for debugging)
  * 获取当前所有已注册的页面操作 key（调试用）
  */
 export function getRegisteredOperationKeys(): string[] {
@@ -194,6 +208,7 @@ export function getRegisteredOperationKeys(): string[] {
 }
 
 /**
+ * Clear all registrations (for testing/reset)
  * 清空所有注册（测试/重置用）
  */
 export function clearPageOperationRegistry(): void {

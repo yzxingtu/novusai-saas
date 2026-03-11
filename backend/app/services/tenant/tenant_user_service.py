@@ -1,7 +1,8 @@
 """
-租户用户服务
+租户用户服务 / Tenant User Service
 
 提供租户业务用户的业务逻辑（租户隔离）
+Provides tenant business user logic (tenant-isolated).
 """
 
 from __future__ import annotations

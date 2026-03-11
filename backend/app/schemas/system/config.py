@@ -1,7 +1,8 @@
 """
-系统配置相关 Schema
+系统配置相关 Schema / System Config Schema
 
 定义配置管理的请求和响应数据结构
+Defines config management request and response data structures.
 """
 
 from typing import Any

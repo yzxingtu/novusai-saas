@@ -895,6 +895,10 @@
       "delete": "删除域名",
       "verify": "验证域名",
       "set_primary": "设置主域名",
+      "hosts_status": "查看 Dev Hosts 状态",
+      "hosts_sync": "同步 Dev Hosts",
+      "hosts_remove": "移除 Dev Hosts 托管条目",
+      "hosts_sync_all": "批量同步 Dev Hosts",
       "ssl_detail": "查看 SSL 证书详情",
       "ssl_provision": "申请 SSL 证书",
       "ssl_renew": "续期 SSL 证书",
@@ -1019,7 +1023,8 @@
       "delete_conversation": "删除对话",
       "confirm": "确认操作",
       "read_conversation": "查看对话内容",
-      "route": "路由对话"
+      "route": "路由对话",
+      "clear_memory": "清空会话记忆"
     },
     "agent_conversation": {
       "list": "查看对话列表",
@@ -1159,7 +1164,8 @@
       "conversations": "查看对话列表",
       "conversation_detail": "查看对话详情",
       "delete_conversation": "删除对话",
-      "read_conversation": "阅读对话"
+      "read_conversation": "阅读对话",
+      "clear_memory": "清空会话记忆"
     },
     "ai_api_key": {
       "list": "查看 API Key 列表",

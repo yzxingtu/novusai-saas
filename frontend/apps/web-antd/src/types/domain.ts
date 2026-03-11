@@ -1,15 +1,17 @@
 /**
+ * Domain management - shared type definitions
+ * Unified domain-related types for both admin/tenant endpoints
  * 域名管理 - 共享类型定义
  * 统一 admin/tenant 两端的域名相关类型
  */
 
-/** 域名类型 */
+/** Domain type / 域名类型 */
 export type DomainType = 'custom' | 'default';
 
-/** 验证状态 */
+/** Verification status / 验证状态 */
 export type VerificationStatus = 'failed' | 'pending' | 'verified';
 
-/** SSL 状态 */
+/** SSL status / SSL 状态 */
 export type SslStatus =
   | 'active'
   | 'expired'
@@ -18,10 +20,10 @@ export type SslStatus =
   | 'pending'
   | 'provisioning';
 
-/** SSL 类型 */
+/** SSL type / SSL 类型 */
 export type SslType = 'custom' | 'platform';
 
-/** SSL 证书状态（证书记录级别） */
+/** SSL certificate status (certificate record level) / SSL 证书状态（证书记录级别） */
 export type SslCertStatus =
   | 'active'
   | 'expired'
@@ -29,7 +31,7 @@ export type SslCertStatus =
   | 'pending'
   | 'revoked';
 
-/** DNS 验证信息（后端返回 dns_name/dns_type/dns_value，前端统一为 host/type/value） */
+/** DNS verification info (backend returns dns_name/dns_type/dns_value, frontend unifies to host/type/value) / DNS 验证信息（后端返回 dns_name/dns_type/dns_value，前端统一为 host/type/value） */
 export interface VerificationInfo {
   dns_name?: string;
   dns_type?: string;
@@ -39,7 +41,7 @@ export interface VerificationInfo {
   value?: string;
 }
 
-/** SSL 证书详情（前端 camelCase 格式） */
+/** SSL certificate details (frontend camelCase format) / SSL 证书详情（前端 camelCase 格式） */
 export interface SslCertificateInfo {
   id: number;
   domainId: number;
@@ -60,7 +62,7 @@ export interface SslCertificateInfo {
   updatedAt: string;
 }
 
-/** SSL 证书详情（后端 snake_case 原始格式） */
+/** SSL certificate details (backend snake_case raw format) / SSL 证书详情（后端 snake_case 原始格式） */
 export interface SslCertificateInfoRaw {
   id: number;
   domain_id: number;
@@ -81,7 +83,7 @@ export interface SslCertificateInfoRaw {
   updated_at: string;
 }
 
-/** SSL 证书 snake→camelCase 转换 */
+/** SSL certificate snake→camelCase transform / SSL 证书 snake→camelCase 转换 */
 export function transformSslCertInfo(
   raw: SslCertificateInfoRaw,
 ): SslCertificateInfo {

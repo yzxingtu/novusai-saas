@@ -1,16 +1,16 @@
 /**
- * AI 调用日志 & 使用量统计 API
- * 对接后端 /admin/ai/call-logs, /admin/ai/usage 接口
+ * AI call logs & usage stats API / AI 调用日志 & 使用量统计 API
+ * Backend: /admin/ai/call-logs, /admin/ai/usage
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - 调用日志
+// Type definitions - Call logs / 类型定义 - 调用日志
 // ============================================================
 
-/** 调用日志信息 */
+/** Call log info / 调用日志信息 */
 export interface AICallLogInfo {
   id: number;
   tenant_id: null | number;
@@ -27,24 +27,24 @@ export interface AICallLogInfo {
   user_id: null | number;
   user_type: null | string;
   created_at: string;
-  // 关联名称
+  // Related names / 关联名称
   model_name?: null | string;
   provider_name?: null | string;
   tenant_name?: null | string;
-  // 路由字段（多模型路由）
+  // Routing fields (multi-model routing) / 路由字段（多模型路由）
   routed_model_id?: null | number;
   route_reason?: null | string;
   routed_model_name?: null | string;
-  // 详情字段（仅详情 API 返回）
+  // Detail fields (only returned by detail API) / 详情字段（仅详情 API 返回）
   request_data?: null | Record<string, unknown>;
   response_data?: null | Record<string, unknown>;
 }
 
 // ============================================================
-// 类型定义 - AI 使用量统计
+// Type definitions - AI usage stats / 类型定义 - AI 使用量统计
 // ============================================================
 
-/** 使用量统计记录 */
+/** Usage stat record / 使用量统计记录 */
 export interface AIUsageStatInfo {
   id: number;
   tenant_id: number;
@@ -61,7 +61,7 @@ export interface AIUsageStatInfo {
   total_cost: number;
   avg_latency_ms: null | number;
   max_latency_ms: null | number;
-  // 关联名称
+  // Related names / 关联名称
   tenant_name?: null | string;
   model_name?: null | string;
   created_at: string;
@@ -69,7 +69,7 @@ export interface AIUsageStatInfo {
 }
 
 // ============================================================
-// 通用分页响应
+// Generic paginated response / 通用分页响应
 // ============================================================
 
 interface PageResponse<T> {
@@ -80,12 +80,12 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - 调用日志
+// API - Call logs / API 接口 - 调用日志
 // ============================================================
 
 const CALL_LOG_PREFIX = '/admin/ai/call-logs';
 
-/** 获取调用日志列表 */
+/** Get call log list / 获取调用日志列表 */
 export async function getAICallLogListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -96,7 +96,7 @@ export async function getAICallLogListApi(
   });
 }
 
-/** 获取调用日志详情 */
+/** Get call log detail / 获取调用日志详情 */
 export async function getAICallLogDetailApi(
   id: number,
   options?: ApiRequestOptions,
@@ -104,7 +104,7 @@ export async function getAICallLogDetailApi(
   return requestClient.get<AICallLogInfo>(`${CALL_LOG_PREFIX}/${id}`, options);
 }
 
-/** 获取调用统计 */
+/** Get call statistics / 获取调用统计 */
 export async function getAICallLogStatisticsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -115,7 +115,7 @@ export async function getAICallLogStatisticsApi(
   );
 }
 
-/** 获取失败的调用日志 */
+/** Get failed call logs / 获取失败的调用日志 */
 export async function getAICallLogFailedApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -127,12 +127,12 @@ export async function getAICallLogFailedApi(
 }
 
 // ============================================================
-// API 接口 - AI 使用量统计
+// API - AI usage stats / API 接口 - AI 使用量统计
 // ============================================================
 
 const USAGE_PREFIX = '/admin/ai/usage';
 
-/** 获取使用量统计列表 */
+/** Get usage stats list / 获取使用量统计列表 */
 export async function getAIUsageStatsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -143,7 +143,7 @@ export async function getAIUsageStatsApi(
   );
 }
 
-/** 获取租户使用量汇总 */
+/** Get tenant usage summary / 获取租户使用量汇总 */
 export async function getAITenantUsageSummaryApi(
   tenantId: number,
   params?: Record<string, unknown>,
@@ -155,7 +155,7 @@ export async function getAITenantUsageSummaryApi(
   );
 }
 
-/** 获取模型使用量汇总 */
+/** Get model usage summary / 获取模型使用量汇总 */
 export async function getAIModelUsageSummaryApi(
   modelId: number,
   params?: Record<string, unknown>,

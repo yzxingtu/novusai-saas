@@ -1,5 +1,5 @@
 """
-智能体访问权限 Repository
+智能体访问权限 Repository / Agent Access Repository
 
 提供 AgentAccess 的数据访问操作（基于租户隔离）
 """

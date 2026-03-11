@@ -1,7 +1,8 @@
 """
-AI 模型相关 Schema
+AI 模型相关 Schema / AI Model Schema
 
 定义 AI 模型的请求和响应数据结构
+Defines AI model request and response data structures.
 """
 
 from decimal import Decimal

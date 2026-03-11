@@ -74,7 +74,7 @@ async function handleSubmit() {
       await router.push('/auth/login');
     }
   } catch {
-    // 错误已由 axios 拦截器处理并显示
+    // Error handled by axios interceptor / 错误已由 axios 拦截器处理并显示
   } finally {
     loading.value = false;
   }

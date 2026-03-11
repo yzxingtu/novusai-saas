@@ -1,5 +1,5 @@
 """
-批量运行 Service
+批量运行 Service / Batch Run Service
 """
 
 from app.core.base_service import TenantService

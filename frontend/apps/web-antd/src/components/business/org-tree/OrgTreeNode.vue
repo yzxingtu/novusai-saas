@@ -2,8 +2,11 @@
 import type { OrgTreeNodeData } from './types';
 
 /**
+ * Org Tree Node Component (recursive)
  * 组织架构树节点组件（递归）
- * 支持 department/position/role 三种节点类型
+ *
+ * Supports department/position/role node types.
+ * 支持 department/position/role 三种节点类型。
  */
 import type { OrgNodeType } from '#/api/admin/organization';
 
@@ -25,7 +28,7 @@ const props = withDefaults(
     isExpanded: (id: number) => boolean;
     level: number;
     node: OrgTreeNodeData;
-    /** 节点内在线成员数（传入时显示在线计数 badge） */
+    /** Online member count inside the node (shows online count badge when passed) / 节点内在线成员数 */
     onlineCount?: null | number;
     selectedId?: null | number;
   }>(),
@@ -45,7 +48,7 @@ const emit = defineEmits<{
   toggle: [id: number];
 }>();
 
-// 计算属性
+// Computed properties / 计算属性
 const hasChildren = computed(
   () => props.node.hasChildren || props.node.children.length > 0,
 );
@@ -57,14 +60,14 @@ const typeConfig = computed(
 );
 
 /**
- * 处理节点点击
+ * Handle node click / 处理节点点击
  */
 function handleClick() {
   emit('select', props.node);
 }
 
 /**
- * 处理右键菜单
+ * Handle context menu / 处理右键菜单
  */
 function handleContextMenu(event: MouseEvent) {
   event.preventDefault();
@@ -73,7 +76,7 @@ function handleContextMenu(event: MouseEvent) {
 </script>
 
 <script lang="ts">
-// 递归组件需要显式命名
+// Recursive component requires explicit name / 递归组件需要显式命名
 export default {
   name: 'OrgTreeNode',
 };
@@ -81,25 +84,25 @@ export default {
 
 <template>
   <div class="org-tree-node relative">
-    <!-- 树形连接线 -->
+    <!-- Tree connector lines / 树形连接线 -->
     <div
       v-if="level > 0"
       class="absolute left-0 top-0 h-full"
       :style="{ width: `${level * 24}px` }"
     >
-      <!-- 水平连接线 -->
+      <!-- Horizontal connector line / 水平连接线 -->
       <div
         class="absolute top-1/2 h-px bg-border/40"
         :style="{ left: `${(level - 1) * 24 + 12}px`, width: '12px' }"
       ></div>
-      <!-- 垂直连接线 -->
+      <!-- Vertical connector line / 垂直连接线 -->
       <div
         class="absolute w-px bg-border/40"
         :style="{ left: `${(level - 1) * 24 + 12}px`, top: 0, height: '50%' }"
       ></div>
     </div>
 
-    <!-- 节点卡片 -->
+    <!-- Node card / 节点卡片 -->
     <div
       class="group relative mb-1 flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-all duration-200"
       :class="[
@@ -111,13 +114,13 @@ export default {
       @click="handleClick"
       @contextmenu="handleContextMenu"
     >
-      <!-- 左侧装饰条 -->
+      <!-- Left decoration bar / 左侧装饰条 -->
       <div
         class="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full transition-[height] duration-200 group-hover:h-8"
         :class="colors.bar"
       ></div>
 
-      <!-- 展开按钮 -->
+      <!-- Expand button / 展开按钮 -->
       <button
         class="flex size-6 flex-shrink-0 items-center justify-center rounded transition-all duration-150"
         :class="
@@ -135,29 +138,29 @@ export default {
         />
       </button>
 
-      <!-- 节点类型图标 -->
+      <!-- Node type icon / 节点类型图标 -->
       <div
         class="flex size-7 flex-shrink-0 items-center justify-center rounded bg-primary/10 text-primary"
       >
         <IconifyIcon :icon="typeConfig.icon" class="size-4" />
       </div>
 
-      <!-- 节点信息 -->
+      <!-- Node info / 节点信息 -->
       <div class="min-w-0 flex-1 overflow-hidden">
         <div class="flex items-center gap-1.5">
-          <!-- 节点名称 -->
+          <!-- Node name / 节点名称 -->
           <Tooltip :title="node.name" placement="topLeft">
             <span class="truncate text-sm font-medium text-foreground">{{
               node.name
             }}</span>
           </Tooltip>
-          <!-- 节点类型标签 -->
+          <!-- Node type tag / 节点类型标签 -->
           <Tag
             class="!m-0 flex-shrink-0 !border-primary/30 !bg-primary/10 !px-1.5 !py-0.5 !text-[10px] !leading-none !text-primary"
           >
             {{ $t(`${i18nPrefix}.system.${typeConfig.label}`) }}
           </Tag>
-          <!-- 层级徽章 -->
+          <!-- Level badge / 层级徽章 -->
           <span
             v-if="level > 0"
             class="inline-flex size-4 flex-shrink-0 items-center justify-center rounded text-[9px] font-bold"
@@ -177,7 +180,7 @@ export default {
         </Tooltip>
       </div>
 
-      <!-- 成员数量 + 在线计数 -->
+      <!-- Member count + online count / 成员数量 + 在线计数 -->
       <Tooltip
         v-if="node.allowMembers"
         :title="$t(`${i18nPrefix}.system.organization.memberCount`)"
@@ -196,7 +199,7 @@ export default {
         </div>
       </Tooltip>
 
-      <!-- 权限数量 -->
+      <!-- Permission count / 权限数量 -->
       <Tooltip
         :title="$t(`${i18nPrefix}.system.organization.permissionsCount`)"
       >
@@ -208,7 +211,7 @@ export default {
         </div>
       </Tooltip>
 
-      <!-- 负责人 -->
+      <!-- Leader / 负责人 -->
       <div v-if="node.leader" class="flex flex-shrink-0 items-center gap-1.5">
         <Tooltip :title="$t(`${i18nPrefix}.system.organization.leader`)">
           <div
@@ -220,7 +223,7 @@ export default {
         </Tooltip>
       </div>
 
-      <!-- 操作按钮 -->
+      <!-- Action buttons / 操作按钮 -->
       <div
         class="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
@@ -260,10 +263,10 @@ export default {
       </div>
     </div>
 
-    <!-- 子节点 (带动画) -->
+    <!-- Child nodes (with animation) / 子节点（带动画） -->
     <Transition name="tree-slide">
       <div v-if="hasChildren && expanded" class="org-tree-children relative">
-        <!-- 子节点之间的垂直连接线 -->
+        <!-- Vertical connector line between children / 子节点之间的垂直连接线 -->
         <div
           class="absolute w-px bg-border/40"
           :style="{ left: `${level * 24 + 12}px`, top: 0, bottom: '50%' }"
@@ -290,7 +293,7 @@ export default {
 </template>
 
 <style scoped>
-/* 展开/收起过渡动画 */
+/* Expand/collapse transition animation / 展开/收起过渡动画 */
 .tree-slide-enter-active,
 .tree-slide-leave-active {
   overflow: hidden;

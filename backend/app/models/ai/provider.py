@@ -1,7 +1,8 @@
 """
-AI 供应商模型
+AI 供应商模型 / AI Provider Model
 
 定义 AI 供应商的信息和配置
+Defines AI provider information and configuration.
 """
 
 from typing import TYPE_CHECKING

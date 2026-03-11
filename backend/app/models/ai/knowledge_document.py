@@ -1,7 +1,8 @@
 """
-知识文档模型
+知识文档模型 / Knowledge Document Model
 
 定义文档的文件信息、处理状态、统计数据等
+Defines document file info, processing status, statistics, etc.
 """
 
 from datetime import datetime

@@ -1,16 +1,19 @@
 """
 Server Package → Toolkit Converter
+Server 包 → Toolkit 转换器
 
 Automatically converts SKILL.md server packages (FastAPI-based)
 into class Tools format compatible with ToolkitParser.
+自动将 SKILL.md server 包（基于 FastAPI）转换为与 ToolkitParser 兼容的 class Tools 格式。
 
-Handles the common pattern:
+Handles the common pattern / 处理常见模式：
   server/
-    auth.py          → _get_token() / _request() internal helpers
-    xxx_api.py       → async def methods in class Tools
-    main.py          → skipped (app entry point)
+    auth.py          → _get_token() / _request() internal helpers / 内部辅助函数
+    xxx_api.py       → async def methods in class Tools / Tools 类的异步方法
+    main.py          → skipped (app entry point) / 跳过（应用入口）
 
 Falls back to a combined-source template if auto-conversion fails.
+自动转换失败时回退到合并源码模板。
 """
 
 from __future__ import annotations
@@ -32,21 +35,26 @@ def convert_server_to_toolkit(
 ) -> str:
     """
     Convert a server/ directory to a class Tools Python source.
+    将 server/ 目录转换为 class Tools 的 Python 源码。
 
     Args:
-        server_dir: Path to the extracted server/ directory
-        metadata: Parsed SKILL.md metadata
-        env_schema: 从 .env.example 解析的 valves_schema（可选），
+        server_dir: Path to the extracted server/ directory / 解压后的 server/ 目录路径
+        metadata: Parsed SKILL.md metadata / 解析后的 SKILL.md 元数据
+        env_schema: Valves schema parsed from .env.example (optional),
+                    used to generate Valves class with descriptions and defaults /
+                    从 .env.example 解析的 valves_schema（可选），
                     用于生成带描述和默认值的 Valves 类
 
     Returns:
-        Python source code containing class Valves + class Tools
+        Python source code containing class Valves + class Tools /
+        包含 class Valves + class Tools 的 Python 源码
     """
     sources = _read_sources(server_dir)
     if not sources:
         return ""
 
     # If any file already has class Tools, use it directly
+    # 如果任何文件已有 class Tools，直接使用
     for src in sources.values():
         if "class Tools" in src:
             return src
@@ -67,11 +75,11 @@ def convert_server_to_toolkit(
 
 
 # ─────────────────────────────────────────────────────────────
-# File reading
+# File reading / 文件读取
 # ─────────────────────────────────────────────────────────────
 
 def _read_sources(server_dir: Path) -> dict[str, str]:
-    """Read all .py files recursively, skip __init__.py."""
+    """Read all .py files recursively, skip __init__.py. / 递归读取所有 .py 文件，跳过 __init__.py。"""
     result: dict[str, str] = {}
     for pf in sorted(server_dir.rglob("*.py")):
         if pf.name == "__init__.py":
@@ -84,7 +92,7 @@ def _read_sources(server_dir: Path) -> dict[str, str]:
 
 
 # ─────────────────────────────────────────────────────────────
-# Main conversion
+# Main conversion / 主转换逻辑
 # ─────────────────────────────────────────────────────────────
 
 def _convert(
@@ -99,7 +107,7 @@ def _convert(
     base_url = _find_base_url(sources)
     auth_mod = _find_auth_module(sources)
 
-    # Extract route handlers from API modules
+    # Extract route handlers from API modules / 从 API 模块提取路由处理函数
     handlers: list[dict[str, Any]] = []
     for mod_name, src in sources.items():
         if mod_name == auth_mod or mod_name == "main":
@@ -113,7 +121,7 @@ def _convert(
 
 
 # ─────────────────────────────────────────────────────────────
-# Metadata extraction
+# Metadata extraction / 元数据提取
 # ─────────────────────────────────────────────────────────────
 
 def _extract_env_requires(metadata: dict[str, Any]) -> list[str]:
@@ -149,11 +157,11 @@ def _find_auth_module(sources: dict[str, str]) -> str | None:
 
 
 # ─────────────────────────────────────────────────────────────
-# AST-based handler extraction
+# AST-based handler extraction / 基于 AST 的处理函数提取
 # ─────────────────────────────────────────────────────────────
 
 def _parse_handlers(source: str, module_name: str) -> list[dict[str, Any]]:
-    """Extract FastAPI route handlers from a module source."""
+    """Extract FastAPI route handlers from a module source. / 从模块源码提取 FastAPI 路由处理函数。"""
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -177,7 +185,7 @@ def _parse_handlers(source: str, module_name: str) -> list[dict[str, Any]]:
         if not http_method:
             continue
 
-        # Extract path parameters like {event_id}
+        # Extract path parameters like {event_id} / 提取路径参数如 {event_id}
         path_params = re.findall(r"\{(\w+)\}", url_path)
 
         params = _extract_params(node, models, path_params)
@@ -208,7 +216,7 @@ def _parse_route_decorator(dec: ast.expr) -> tuple[str, str]:
 
 
 def _find_pydantic_models(tree: ast.Module) -> dict[str, list[dict[str, Any]]]:
-    """Find Pydantic BaseModel classes and extract their fields."""
+    """Find Pydantic BaseModel classes and extract their fields. / 查找 Pydantic BaseModel 类并提取其字段。"""
     models: dict[str, list[dict[str, Any]]] = {}
     for node in ast.iter_child_nodes(tree):
         if not isinstance(node, ast.ClassDef):
@@ -266,11 +274,11 @@ def _extract_params(
     models: dict[str, list[dict[str, Any]]],
     path_params: list[str],
 ) -> list[dict[str, Any]]:
-    """Extract parameters, flattening Pydantic models into individual params."""
+    """Extract parameters, flattening Pydantic models into individual params. / 提取参数，将 Pydantic 模型展平为单独参数。"""
     params: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    # Path params first (always required str)
+    # Path params first (always required str) / 先处理路径参数（始终必填 str）
     for pp in path_params:
         params.append({
             "name": pp, "type": "str",
@@ -291,7 +299,7 @@ def _extract_params(
 
         type_str = ast.unparse(arg.annotation) if arg.annotation else ""
 
-        # If type is a Pydantic model → flatten its fields
+        # If type is a Pydantic model → flatten its fields / 如果类型是 Pydantic 模型 → 展平其字段
         if type_str in models:
             for field in models[type_str]:
                 if field["name"] not in seen:
@@ -352,7 +360,7 @@ def _simplify_type(type_str: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
-# Code generation
+# Code generation / 代码生成
 # ─────────────────────────────────────────────────────────────
 
 def _generate(
@@ -365,7 +373,7 @@ def _generate(
 ) -> str:
     L: list[str] = []
 
-    # Module docstring
+    # Module docstring / 模块文档字符串
     L.append(f'"""\ntitle: {name}\ndescription: {desc}\n'
              f'version: 1.0.0\n"""')
     L.append("")
@@ -382,6 +390,7 @@ def _generate(
         L.append("")
 
     # Valves — use env_schema for rich descriptions/defaults if available
+    # Valves — 使用 env_schema 提供丰富描述和默认值（如可用）
     L.append("")
     L.append("class Valves(BaseModel):")
     L.append('    """Configuration"""')
@@ -390,7 +399,8 @@ def _generate(
     env_props = (env_schema or {}).get("properties", {}) if env_schema else {}
 
     if env_requires or env_props:
-        # Merge: env_requires 列表 + env_schema properties（统一 lowercase）
+        # Merge: env_requires list + env_schema properties (unified lowercase)
+        # 合并：env_requires 列表 + env_schema properties（统一 lowercase）
         all_vars = list(dict.fromkeys(
             list(env_props.keys()) + [v.lower() for v in env_requires]
         ))
@@ -398,7 +408,7 @@ def _generate(
             prop = env_props.get(var, {})
             field_desc = prop.get("description", var)
             field_default = prop.get("default", "")
-            # Escape quotes in description
+            # Escape quotes in description / 转义描述中的引号
             field_desc = str(field_desc).replace('"', '\\"')
             field_default_str = str(field_default).replace('"', '\\"')
             L.append(
@@ -411,7 +421,7 @@ def _generate(
     L.append("")
     L.append("")
 
-    # class Tools
+    # class Tools / Tools 类
     L.append("class Tools:")
     L.append(f'    """{desc}"""')
     L.append("")
@@ -423,11 +433,11 @@ def _generate(
     L.append("        self._token_expires = 0.0")
     L.append("")
 
-    # _get_token
+    # _get_token / 获取访问令牌
     _gen_token_method(L, base_url, env_requires)
     L.append("")
 
-    # _headers
+    # _headers / 请求头
     L.append("    async def _headers(self) -> dict[str, str]:")
     L.append("        token = await self._get_token()")
     L.append("        return {")
@@ -436,11 +446,11 @@ def _generate(
     L.append("        }")
     L.append("")
 
-    # _request
+    # _request / HTTP 请求方法
     _gen_request_method(L, base_url)
     L.append("")
 
-    # Tool methods
+    # Tool methods / 工具方法
     for h in handlers:
         _gen_tool_method(L, h)
 
@@ -549,7 +559,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
     path = handler["path"]
     path_params = handler.get("path_params", [])
 
-    # Signature
+    # Signature / 函数签名
     sig_parts = ["self"]
     for p in params:
         ptype = p.get("type", "str")
@@ -574,7 +584,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
             L.append(f"        {sp},")
         L.append("    ) -> str:")
 
-    # Docstring
+    # Docstring / 文档字符串
     if docstring:
         L.append('        """')
         for dl in docstring.splitlines():
@@ -590,7 +600,8 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
         L.append(f'        """{name}"""')
 
     # Body: build params/body and call self._request()
-    # Handle path formatting with path params
+    # 构建参数/请求体并调用 self._request()
+    # Handle path formatting with path params / 处理带路径参数的路径格式化
     path_expr = f'f"{path}"' if path_params else f'"{path}"'
 
     non_path_params = [p for p in params if p["name"] not in path_params]
@@ -633,7 +644,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────
-# Credential sanitisation
+# Credential sanitisation / 凭据脱敏
 # ─────────────────────────────────────────────────────────────
 
 _CREDENTIAL_PATTERN = re.compile(
@@ -652,7 +663,7 @@ _CREDENTIAL_PATTERN = re.compile(
 
 
 def _sanitize_source(source: str) -> str:
-    """Redact credential-like assignments from source code."""
+    """Redact credential-like assignments from source code. / 从源码中脱敏凭据类赋值。"""
     lines: list[str] = []
     for line in source.splitlines():
         if _CREDENTIAL_PATTERN.match(line):
@@ -664,7 +675,7 @@ def _sanitize_source(source: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
-# Fallback: combine all source files with template
+# Fallback: combine all source files with template / 回退：合并所有源文件与模板
 # ─────────────────────────────────────────────────────────────
 
 def _fallback_combine(

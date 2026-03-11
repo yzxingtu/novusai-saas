@@ -1,7 +1,8 @@
 """
-ACME 客户端封装
+ACME 客户端封装 / ACME Client Wrapper
 
 对接 Let's Encrypt，使用 DNS-01 验证方式签发 SSL 证书。
+Integrates with Let's Encrypt using DNS-01 validation to issue SSL certificates.
 域名通过 CNAME 指向平台，HTTP-01 不适用，因此采用 DNS-01。
 
 使用方式：

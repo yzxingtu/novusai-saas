@@ -1,7 +1,8 @@
 """
-智能体版本相关 Schema
+智能体版本相关 Schema / Agent Version Schema
 
 定义版本发布、回滚、列表、对比等请求和响应数据结构
+Defines version publish, rollback, list, diff request and response data structures.
 """
 
 

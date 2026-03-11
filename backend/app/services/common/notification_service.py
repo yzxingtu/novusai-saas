@@ -1,8 +1,10 @@
 """
-通知投递服务
+通知投递服务 / Notification Delivery Service
 
 统一入口：send() 查询用户偏好，分发到三个渠道（WS / 收件箱 / 邮件）。
+Unified entry: send() queries user preferences and dispatches to three channels (WS / inbox / email).
 提供通知查询、已读、删除等操作。
+Provides notification query, read, delete operations.
 """
 
 from __future__ import annotations

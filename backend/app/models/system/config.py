@@ -1,7 +1,8 @@
 """
-系统配置模型
+系统配置模型 / System Configuration Model
 
 定义配置分组和配置项的数据模型，支持平台级和租户级配置
+Defines config group and config item data models, supports platform-level and tenant-level configs.
 """
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text

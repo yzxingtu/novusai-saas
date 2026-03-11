@@ -1,6 +1,7 @@
 /**
+ * Organization Node Dialog Component
  * 组织节点弹窗组件
- * @description 用于创建和编辑组织架构节点（部门/岗位/角色）
+ * @description For creating and editing organization structure nodes (department/position/role) / 用于创建和编辑组织架构节点（部门/岗位/角色）
  */
 
 export { default as OrgNodeDialog } from './OrgNodeDialog.vue';

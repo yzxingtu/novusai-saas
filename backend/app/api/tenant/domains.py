@@ -1,7 +1,8 @@
 """
-租户域名管理 API
+租户域名管理 API / Tenant Domain Management API
 
 提供租户端域名管理 CRUD、验证、主域名设置等接口
+Provides tenant domain management CRUD, verification, primary domain setting endpoints
 """
 
 from fastapi import HTTPException, Request, status
@@ -45,15 +46,16 @@ from app.services.system.tenant_domain_service import TenantDomainTenantService
         icon="lucide:globe",
         path="/system-mgmt/domains",
         component="tenant/system-mgmt/domains/index",
-        parent="system_mgmt",  # 父菜单: 系统管理
+        parent="system_mgmt",  # 父菜单: 系统管理 / Parent menu: system management
         sort_order=10,
     ),
 )
 class TenantDomainController(TenantController):
     """
-    租户域名管理控制器
+    租户域名管理控制器 / Tenant Domain Management Controller
 
     提供租户域名 CRUD、验证、主域名设置等接口
+    Provides tenant domain CRUD, verification, primary domain setting endpoints
     """
 
     prefix = "/domains"
@@ -61,10 +63,10 @@ class TenantDomainController(TenantController):
     service_class = TenantDomainTenantService
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
-        # 域名列表接口
+        # 域名列表接口 / Domain list endpoint
         @router.get("", summary="获取域名列表")
         @action_read("action.tenant_domain.list")
         async def list_domains(
@@ -74,26 +76,26 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户域名列表
+            获取租户域名列表 / Get tenant domain list
 
-            - 支持通用筛选: filter[field][op]=value
-            - 支持排序: sort=-created_at,domain
-            - 支持分页: page[number]=1&page[size]=20
+            - 支持通用筛选 / Supports filtering: filter[field][op]=value
+            - 支持排序 / Supports sorting: sort=-created_at,domain
+            - 支持分页 / Supports pagination: page[number]=1&page[size]=20
 
-            权限: tenant_domain:list
+            权限 / Permission: tenant_domain:list
             """
             service = self.get_service(db, current_admin.tenant_id)
             items, total = await service.query_list(spec, scope="tenant")
 
-            # 计算 CNAME 目标（一次查询，复用）
+            # 计算 CNAME 目标（一次查询，复用） / Calculate CNAME target (single query, reuse)
             cname_target = await service.get_cname_target(current_admin.tenant_id)
 
-            # 为每个域名添加验证信息
+            # 为每个域名添加验证信息 / Add verification info for each domain
             domain_responses = []
             for item in items:
                 resp = TenantDomainResponse.model_validate(item, from_attributes=True)
                 resp.cname_target = cname_target
-                # 未验证的域名添加验证 DNS 信息
+                # 未验证的域名添加验证 DNS 信息 / Add verification DNS info for unverified domains
                 if not item.is_verified and item.verification_token:
                     verification_record = await service.get_verification_record(item)
                     resp.verification_info = TenantDomainVerificationInfo(
@@ -113,7 +115,7 @@ class TenantDomainController(TenantController):
                 message=_("common.success"),
             )
 
-        # 域名详情接口
+        # 域名详情接口 / Domain detail endpoint
         @router.get("/{domain_id}", summary="获取域名详情")
         @action_read("action.tenant_domain.detail")
         async def get_domain(
@@ -123,9 +125,9 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取域名详情
+            获取域名详情 / Get domain details
 
-            权限: tenant_domain:detail
+            权限 / Permission: tenant_domain:detail
             """
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
@@ -136,7 +138,7 @@ class TenantDomainController(TenantController):
                     detail=_("tenant_domain.not_found"),
                 )
 
-            # 添加验证 DNS 信息 + CNAME 目标
+            # 添加验证 DNS 信息 + CNAME 目标 / Add verification DNS info + CNAME target
             resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
             resp.cname_target = await service.get_cname_target(current_admin.tenant_id)
             if not domain.is_verified and domain.verification_token:
@@ -152,7 +154,7 @@ class TenantDomainController(TenantController):
                 message=_("common.success"),
             )
 
-        # 添加域名接口
+        # 添加域名接口 / Add domain endpoint
         @router.post("", summary="添加域名")
         @action_create("action.tenant_domain.create")
         async def create_domain(
@@ -162,11 +164,11 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            添加自定义域名
+            添加自定义域名 / Add custom domain
 
-            - 新域名需要 DNS 验证后才能使用
+            - 新域名需要 DNS 验证后才能使用 / New domains require DNS verification before use
 
-            权限: tenant_domain:create
+            权限 / Permission: tenant_domain:create
             """
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.add_custom_domain(
@@ -175,13 +177,13 @@ class TenantDomainController(TenantController):
                 remark=data.remark,
             )
 
-            # 如果请求设为主域名，且域名已验证
+            # 如果请求设为主域名，且域名已验证 / If requested as primary and domain is verified
             if data.is_primary and domain.is_verified:
                 domain = await service.set_primary_domain(current_admin.tenant_id, domain.id)
 
             await db.commit()
 
-            # 添加验证 DNS 信息 + CNAME 目标
+            # 添加验证 DNS 信息 + CNAME 目标 / Add verification DNS info + CNAME target
             resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
             resp.cname_target = await service.get_cname_target(current_admin.tenant_id)
             if not domain.is_verified and domain.verification_token:
@@ -197,7 +199,7 @@ class TenantDomainController(TenantController):
                 message=_("tenant_domain.created"),
             )
 
-        # 更新域名接口
+        # 更新域名接口 / Update domain endpoint
         @router.put("/{domain_id}", summary="更新域名")
         @action_update("action.tenant_domain.update")
         async def update_domain(
@@ -208,16 +210,16 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            更新域名信息
+            更新域名信息 / Update domain info
 
-            - 仅可更新备注
-            - 设置主域名请使用专用接口
+            - 仅可更新备注 / Only remark can be updated
+            - 设置主域名请使用专用接口 / Use dedicated endpoint to set primary domain
 
-            权限: tenant_domain:update
+            权限 / Permission: tenant_domain:update
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -225,13 +227,13 @@ class TenantDomainController(TenantController):
                     detail=_("tenant_domain.not_found"),
                 )
 
-            # 更新备注
+            # 更新备注 / Update remark
             domain = await service.update_domain(
                 domain_id=domain_id,
                 remark=data.remark,
             )
 
-            # 如果请求设为主域名
+            # 如果请求设为主域名 / If requested as primary
             if data.is_primary is True:
                 domain = await service.set_primary_domain(current_admin.tenant_id, domain_id)
 
@@ -242,7 +244,7 @@ class TenantDomainController(TenantController):
                 message=_("tenant_domain.updated"),
             )
 
-        # 删除域名接口
+        # 删除域名接口 / Delete domain endpoint
         @router.delete("/{domain_id}", summary="删除域名")
         @action_delete("action.tenant_domain.delete")
         async def delete_domain(
@@ -252,17 +254,17 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            删除域名
+            删除域名 / Delete domain
 
-            **注意**:
-            - 不能删除主域名
-            - 不能删除默认域名
+            **注意 / Note**:
+            - 不能删除主域名 / Cannot delete primary domain
+            - 不能删除默认域名 / Cannot delete default domain
 
-            权限: tenant_domain:delete
+            权限 / Permission: tenant_domain:delete
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -275,7 +277,7 @@ class TenantDomainController(TenantController):
 
             return success(message=_("tenant_domain.deleted"))
 
-        # 验证域名接口
+        # 验证域名接口 / Verify domain endpoint
         @router.post("/{domain_id}/verify", summary="验证域名")
         @permission_action("verify", "action.tenant_domain.verify")
         async def verify_domain(
@@ -285,16 +287,16 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            验证域名
+            验证域名 / Verify domain
 
-            - 检查 DNS TXT 记录是否正确配置
-            - 验证成功后域名可设为主域名
+            - 检查 DNS TXT 记录是否正确配置 / Checks if DNS TXT record is correctly configured
+            - 验证成功后域名可设为主域名 / After verification, domain can be set as primary
 
-            权限: tenant_domain:verify
+            权限 / Permission: tenant_domain:verify
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -302,7 +304,7 @@ class TenantDomainController(TenantController):
                     detail=_("tenant_domain.not_found"),
                 )
 
-            # 执行 DNS TXT 记录验证
+            # 执行 DNS TXT 记录验证 / Execute DNS TXT record verification
             domain = await service.verify_domain(domain_id)
             await db.commit()
 
@@ -311,7 +313,7 @@ class TenantDomainController(TenantController):
                 message=_("tenant_domain.verified"),
             )
 
-        # 设置主域名接口
+        # 设置主域名接口 / Set primary domain endpoint
         @router.put("/{domain_id}/primary", summary="设置为主域名")
         @permission_action("set_primary", "action.tenant_domain.set_primary")
         async def set_primary_domain(
@@ -321,12 +323,12 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            设置为主域名
+            设置为主域名 / Set as primary domain
 
-            - 每个租户只能有一个主域名
-            - 域名必须已验证
+            - 每个租户只能有一个主域名 / Each tenant can only have one primary domain
+            - 域名必须已验证 / Domain must be verified
 
-            权限: tenant_domain:set_primary
+            权限 / Permission: tenant_domain:set_primary
             """
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.set_primary_domain(current_admin.tenant_id, domain_id)
@@ -337,7 +339,7 @@ class TenantDomainController(TenantController):
                 message=_("tenant_domain.primary_set"),
             )
 
-        # ==================== SSL 证书管理端点 ====================
+        # ==================== SSL 证书管理端点 / SSL Certificate Management Endpoints ====================
 
         @router.get("/{domain_id}/ssl", summary="获取域名 SSL 证书详情")
         @permission_action("ssl_detail", "action.tenant_domain.ssl_detail")
@@ -347,7 +349,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """获取域名 SSL 证书详情（租户隔离）"""
+            """获取域名 SSL 证书详情（租户隔离） / Get domain SSL certificate details (tenant-isolated)"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -367,7 +369,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """手动触发 ACME SSL 证书签发（Celery 队列异步执行）"""
+            """手动触发 ACME SSL 证书签发（Celery 队列异步执行） / Manually trigger ACME SSL certificate provisioning (Celery queue async)"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -392,7 +394,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """手动续期平台证书（Celery 队列异步执行），仅 platform 类型"""
+            """手动续期平台证书（Celery 队列异步执行），仅 platform 类型 / Manually renew platform certificate (Celery queue async), platform type only"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -422,8 +424,8 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            上传自定义证书（需套餐 allow_custom_ssl）
-            自动设置 cert_type=custom, auto_renew=False
+            上传自定义证书（需套餐 allow_custom_ssl） / Upload custom certificate (requires plan allow_custom_ssl)
+            自动设置 cert_type=custom, auto_renew=False / Auto-sets cert_type=custom, auto_renew=False
             """
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
@@ -454,7 +456,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """删除域名 SSL 证书，ssl_status 重置为 none"""
+            """删除域名 SSL 证书，ssl_status 重置为 none / Delete domain SSL certificate, reset ssl_status to none"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -475,7 +477,7 @@ class TenantDomainController(TenantController):
             data: SslAutoRenewRequest,
             current_admin: ActiveTenantAdmin,
         ):
-            """开启/关闭 SSL 自动续期（仅 platform 类型可开启）"""
+            """开启/关闭 SSL 自动续期（仅 platform 类型可开启） / Toggle SSL auto-renew (only platform type can enable)"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -491,7 +493,7 @@ class TenantDomainController(TenantController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantDomainController.get_router()
 
 __all__ = ["router", "TenantDomainController"]

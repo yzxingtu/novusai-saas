@@ -1,7 +1,9 @@
 """
-插件版本管理
+Plugin version management.
+/ 插件版本管理
 
-提供版本备份、升级、回滚、历史查询功能。
+Provides version backup, upgrade, rollback, and history query functionality.
+/ 提供版本备份、升级、回滚、历史查询功能。
 """
 
 from __future__ import annotations
@@ -26,17 +28,18 @@ VERSIONS_DIR = PLUGINS_DIR / ".versions"
 
 
 class VersionManager:
-    """插件版本管理器"""
+    """Plugin version manager / 插件版本管理器"""
 
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
     def archive_version(self, plugin_name: str, version: str) -> Path:
         """
-        备份插件当前版本到 .versions/{name}/{version}/
+        Archive current plugin version to .versions/{name}/{version}/
+        / 备份插件当前版本
 
         Returns:
-            备份目录路径
+            Backup directory path / 备份目录路径
         """
         source = PLUGINS_DIR / plugin_name
         if not source.is_dir():
@@ -57,7 +60,8 @@ class VersionManager:
         plugin_id: int,
         new_source: Path,
     ) -> None:
-        """升级插件（全流程加锁，避免并发竞态）。"""
+        """Upgrade plugin (full flow locked, avoid concurrent race conditions).
+        / 升级插件（全流程加锁）"""
         from app.plugins.lifecycle import _plugin_lock
 
         async with _plugin_lock(plugin_id):
@@ -69,9 +73,11 @@ class VersionManager:
         new_source: Path,
     ) -> None:
         """
-        升级插件：禁用旧版 → 备份 → 替换 → 迁移 → 启用新版
+        Upgrade plugin: disable old → backup → replace → migrate → enable new.
+        / 升级插件：禁用旧版 → 备份 → 替换 → 迁移 → 启用新版
 
-        失败时自动回滚到旧版本。
+        Auto-rollback to old version on failure.
+        / 失败时自动回滚。
         """
         from sqlalchemy import select
 
@@ -96,7 +102,7 @@ class VersionManager:
         lifecycle = PluginLifecycle(self._db)
         loader = PluginLoader()
 
-        # 解析新版本 manifest
+        # Parse new version manifest / 解析新版本 manifest
         new_manifest = loader.load_manifest_from_path(new_source)
         new_version = new_manifest.version
 
@@ -108,7 +114,7 @@ class VersionManager:
                 ),
             )
 
-        # 升级前安全扫描（高风险 fail-close）
+        # Pre-upgrade security scan (high risk fail-close) / 升级前安全扫描
         from app.plugins.security_scan import scan_plugin_directory
 
         scan_result = scan_plugin_directory(new_source)
@@ -126,15 +132,16 @@ class VersionManager:
                 message=f"New version ({new_version}) is the same as current ({old_version})",
             )
 
-        # 1. 禁用旧版（调用 _disable_impl，因为外层 upgrade() 已持锁）
+        # 1. Disable old version (call _disable_impl since outer upgrade() already holds lock)
+        # / 禁用旧版
         was_enabled = plugin.status == PluginStatusEnum.ENABLED.value
         if was_enabled:
             await lifecycle._disable_impl(plugin_id)
 
-        # 2. 备份旧版
+        # 2. Backup old version / 备份旧版
         self.archive_version(plugin_name, old_version)
 
-        # 3. 替换文件
+        # 3. Replace files / 替换文件
         target_dir = PLUGINS_DIR / plugin_name
         old_backup = VERSIONS_DIR / plugin_name / old_version
 
@@ -142,18 +149,20 @@ class VersionManager:
             shutil.rmtree(target_dir)
             shutil.copytree(new_source, target_dir)
 
-            # 清理模块缓存，确保后续 on_upgrade/enable 使用新版代码
+            # Clear module cache, ensure subsequent on_upgrade/enable uses new code
+            # / 清理模块缓存
             unload_plugin_modules(plugin_name)
 
-            # 4. 安装新版本 Python 依赖（npm 由 re-enable 时安装）
-            # pip 需要在迁移之前装好，因为迁移脚本可能 import 新依赖
+            # 4. Install new version Python deps (npm installed during re-enable)
+            # pip must be installed before migration since migration scripts may import new deps
+            # / 安装新版 Python 依赖
             if new_manifest.dependencies.python:
                 await lifecycle._install_python_deps(plugin_name, new_manifest.dependencies.python)
 
-            # 5. 执行迁移（通过 lifecycle 公共接口）
+            # 5. Run migration (via lifecycle public interface) / 执行迁移
             await lifecycle.run_alembic_upgrade(plugin_name)
 
-            # 6. 更新 DB 记录
+            # 6. Update DB record / 更新 DB 记录
             plugin.version = new_version
             plugin.manifest = new_manifest.model_dump()
             from app.plugins.preview import resolve_i18n
@@ -161,7 +170,7 @@ class VersionManager:
             new_py_deps = getattr(getattr(new_manifest, "dependencies", None), "python", None) or []
             plugin.installed_packages = new_py_deps
 
-            # 旧版本归档
+            # Archive old version / 旧版本归档
             from sqlalchemy import update
             await self._db.execute(
                 update(PluginVersion)
@@ -172,7 +181,7 @@ class VersionManager:
                 .values(status=PluginVersionStatusEnum.ARCHIVED.value)
             )
 
-            # 新版本记录
+            # New version record / 新版本记录
             version_record = PluginVersion(
                 plugin_id=plugin_id,
                 version=new_version,
@@ -183,7 +192,7 @@ class VersionManager:
             self._db.add(version_record)
             await self._db.flush()
 
-            # 7. 调用 on_upgrade
+            # 7. Call on_upgrade / 调用 on_upgrade
             try:
                 plugin_cls = loader.load_plugin_class(plugin_name)
                 from app.plugins.context_factory import create_plugin_context
@@ -198,7 +207,8 @@ class VersionManager:
             except Exception as exc:
                 logger.warning("on_upgrade failed for %s: %s", plugin_name, exc)
 
-            # 8. 重新启用（如果之前是启用状态，调用 _enable_impl 避免嵌套锁）
+            # 8. Re-enable (if previously enabled, call _enable_impl to avoid nested locks)
+            # / 重新启用
             if was_enabled:
                 await lifecycle._enable_impl(plugin_id)
 
@@ -207,7 +217,7 @@ class VersionManager:
             )
 
         except Exception as exc:
-            # 回滚：恢复旧版本文件
+            # Rollback: restore old version files / 回滚
             logger.error("Upgrade failed for %s, rolling back: %s", plugin_name, exc)
             if old_backup.exists():
                 if target_dir.exists():
@@ -223,14 +233,15 @@ class VersionManager:
             )
 
     async def rollback(self, plugin_id: int, target_version: str) -> None:
-        """回滚到指定版本（全流程加锁，避免并发竞态）。"""
+        """Rollback to specified version (full flow locked, avoid concurrent race conditions).
+        / 回滚到指定版本（全流程加锁）"""
         from app.plugins.lifecycle import _plugin_lock
 
         async with _plugin_lock(plugin_id):
             await self._rollback_unlocked(plugin_id, target_version)
 
     async def _rollback_unlocked(self, plugin_id: int, target_version: str) -> None:
-        """回滚到指定版本。"""
+        """Rollback to specified version. / 回滚到指定版本。"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
@@ -256,17 +267,19 @@ class VersionManager:
 
         lifecycle = PluginLifecycle(self._db)
 
-        # 禁用当前（调用 _disable_impl，因为外层 rollback() 已持锁）
+        # Disable current (call _disable_impl since outer rollback() already holds lock)
+        # / 禁用当前
         was_enabled = plugin.status == PluginStatusEnum.ENABLED.value
         if was_enabled:
             await lifecycle._disable_impl(plugin_id)
 
-        # 备份当前版本
+        # Backup current version / 备份当前版本
         self.archive_version(plugin_name, plugin.version)
 
-        # 回滚 alembic 迁移（必须在文件替换前，使用当前版本的迁移脚本）
-        # 若不先 downgrade，当前版本的额外迁移 stamp 会被 _purge_orphaned_alembic_stamps
-        # 清除，导致 upgrade 重建已存在的表而报错。
+        # Rollback alembic migration (must be done before file replacement, using current version's migration scripts)
+        # If downgrade is not done first, current version's extra migration stamps will be purged by
+        # _purge_orphaned_alembic_stamps, causing upgrade to rebuild existing tables and error out.
+        # / 回滚 alembic 迁移（必须在文件替换前）
         try:
             await lifecycle.run_alembic_downgrade(plugin_name)
         except Exception as exc:
@@ -275,13 +288,13 @@ class VersionManager:
                 plugin_name, exc,
             )
 
-        # 恢复目标版本
+        # Restore target version / 恢复目标版本
         target_dir = PLUGINS_DIR / plugin_name
         shutil.rmtree(target_dir)
         shutil.copytree(backup_dir, target_dir)
         unload_plugin_modules(plugin_name)
 
-        # 更新 DB
+        # Update DB / 更新 DB
         from app.plugins.loader import PluginLoader
 
         loader = PluginLoader()
@@ -293,14 +306,14 @@ class VersionManager:
         plugin.installed_packages = restored_py_deps
         await self._db.flush()
 
-        # 重新启用（调用 _enable_impl 避免嵌套锁）
+        # Re-enable (call _enable_impl to avoid nested locks) / 重新启用
         if was_enabled:
             await lifecycle._enable_impl(plugin_id)
 
         logger.info("Plugin %s rolled back to v%s", plugin_name, target_version)
 
     async def list_versions(self, plugin_id: int) -> list[dict]:
-        """查询插件版本历史"""
+        """Query plugin version history / 查询插件版本历史"""
         from sqlalchemy import select
 
         from app.models.system.plugin_version import PluginVersion

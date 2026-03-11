@@ -1,7 +1,8 @@
 """
-平台端技能管理 API
+平台端技能管理 API / Platform Skill Management API
 
 提供跨租户技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
+Provides cross-tenant skill listing, details, CRUD, supports admin + tenant scope skill management
 """
 
 from typing import Any
@@ -36,7 +37,7 @@ logger = LogManager.get_logger("ai")
 
 
 def _build_admin_skill_item(skill) -> dict:
-    """从 ORM 对象构建管理端列表项字典"""
+    """从 ORM 对象构建管理端列表项字典 / Build admin list item dict from ORM object"""
     return {
         "id": skill.id,
         "tenant_id": skill.tenant_id,
@@ -63,16 +64,17 @@ def _build_admin_skill_item(skill) -> dict:
 )
 class AdminSkillController(GlobalController):
     """
-    平台端技能管理控制器
+    平台端技能管理控制器 / Platform Skill Management Controller
 
     跨租户查看 + admin/tenant scope 技能 CRUD + 状态管理
+    Cross-tenant viewing + admin/tenant scope skill CRUD + status management
     """
 
     prefix = "/ai/skills"
     tags = ["Skill Management (Platform)"]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/skill-types", summary="获取可用技能类型列表")
@@ -84,6 +86,7 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取所有可用的技能类型（内置 + 插件注册）
+            Get all available skill types (built-in + plugin-registered)
             """
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
@@ -98,12 +101,14 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取全租户技能列表
+            Get cross-tenant skill list
 
             支持 JSON:API 风格筛选、排序、分页
-            - filter[tenant_id][eq]=1  按租户筛选
-            - filter[scope][eq]=admin  筛选管理技能
-            - filter[type][eq]=http  按类型筛选
-            - filter[name][ilike]=xxx  按名称模糊搜索
+            Supports JSON:API style filtering, sorting, pagination
+            - filter[tenant_id][eq]=1  按租户筛选 / Filter by tenant
+            - filter[scope][eq]=admin  筛选管理技能 / Filter admin skills
+            - filter[type][eq]=http  按类型筛选 / Filter by type
+            - filter[name][ilike]=xxx  按名称模糊搜索 / Fuzzy search by name
             """
             service = AdminSkillService(db)
             items, total = await service.query_list(query)
@@ -127,8 +132,10 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取技能详情（跨租户）
+            Get skill details (cross-tenant)
 
             插件注册的技能额外返回 source_plugin 和 plugin_tools 字段
+            Plugin-registered skills additionally return source_plugin and plugin_tools fields
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -138,7 +145,7 @@ class AdminSkillController(GlobalController):
 
             data = SkillResponse.model_validate(skill, from_attributes=True)
 
-            # 补充插件来源信息
+            # 补充插件来源信息 / Enrich plugin source info
             await _enrich_plugin_skill_info(db, skill, data)
 
             return success(data=data)
@@ -152,15 +159,16 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建技能
+            创建技能 / Create skill
 
             tenant_id 自动从所属技能包继承
+            tenant_id is automatically inherited from the parent skill package
             """
             from app.models.ai.skill_package import SkillPackage
 
             skill_data = data.model_dump(exclude_unset=True)
 
-            # 从所属技能包继承 tenant_id
+            # 从所属技能包继承 tenant_id / Inherit tenant_id from parent skill package
             package_id = skill_data.get("package_id")
             if package_id:
                 pkg = await db.get(SkillPackage, package_id)
@@ -187,7 +195,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新技能
+            更新技能 / Update skill
             """
             service = AdminSkillService(db)
             update_data = data.model_dump(exclude_unset=True)
@@ -208,7 +216,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除技能（软删除）
+            删除技能（软删除） / Delete skill (soft delete)
             """
             service = AdminSkillService(db)
             await service.delete(skill_id)
@@ -226,6 +234,7 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取单个技能的调用统计：调用次数、成功率、平均耗时、最近调用时间
+            Get single skill call stats: call count, success rate, avg duration, last called time
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -245,6 +254,7 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取所有技能的汇总统计（调用次数、成功率、平均耗时）
+            Get aggregated stats for all skills (call count, success rate, avg duration)
             """
             from app.api.admin._skill_stats import get_all_skills_stats
             stats = await get_all_skills_stats(db)
@@ -260,7 +270,9 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取技能关联的工具定义列表。
+            Get tool definition list associated with the skill.
             对于插件创建的技能，通过插件实例的 resolve() 获取运行时工具定义。
+            For plugin-created skills, runtime tool definitions are obtained via plugin instance's resolve().
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -269,7 +281,7 @@ class AdminSkillController(GlobalController):
 
             tools_data: list[dict] = []
 
-            # 尝试通过 SkillResolver 解析出工具定义
+            # 尝试通过 SkillResolver 解析出工具定义 / Try resolving tool definitions via SkillResolver
             try:
                 from app.ai.skills.resolver import SkillResolver
                 resolver = SkillResolver(db=db)
@@ -306,6 +318,7 @@ class AdminSkillController(GlobalController):
         ):
             """
             测试技能配置是否正确（按类型执行不同的验证逻辑）
+            Test if skill config is correct (executes different validation logic by type)
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -325,7 +338,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            切换技能 is_active 状态
+            切换技能 is_active 状态 / Toggle skill is_active status
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -351,7 +364,8 @@ class AdminSkillController(GlobalController):
         ):
             """
             批量导出指定技能为 JSON，自动脱敏敏感配置。
-            skill_ids 为空时导出全部。
+            Batch export specified skills as JSON, auto-sanitize sensitive config.
+            skill_ids 为空时导出全部。 / Exports all when skill_ids is empty.
             """
             service = AdminSkillService(db)
             if skill_ids:
@@ -378,10 +392,11 @@ class AdminSkillController(GlobalController):
             package_id: int | None = Body(None),
         ):
             """
-            从 JSON 批量导入技能
+            从 JSON 批量导入技能 / Batch import skills from JSON
 
             conflict_mode: skip(跳过同名) / overwrite(覆盖) / rename(自动重命名)
-            package_id: 导入到指定技能包
+            conflict_mode: skip(skip same-name) / overwrite / rename(auto-rename)
+            package_id: 导入到指定技能包 / Import to specified skill package
             """
             from app.api.admin._skill_io import import_skills
             result = await import_skills(
@@ -399,7 +414,9 @@ class AdminSkillController(GlobalController):
         ):
             """
             解析 Toolkit Python 源码，返回元数据（tools 列表、Valves schema 等）。
+            Parse Toolkit Python source code, return metadata (tools list, Valves schema, etc.).
             供前端编辑器实时预览使用。
+            For frontend editor real-time preview.
 
             Body: { "source": "..." }
             """
@@ -441,7 +458,7 @@ class AdminSkillController(GlobalController):
                 return success(data={"tools": [], "valves_schema": {}, "errors": [str(exc)]})
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminSkillController.get_router()
 
 __all__ = ["router", "AdminSkillController"]

@@ -1,4 +1,5 @@
 """
+Storage Driver Manager
 存储驱动管理器
 """
 
@@ -13,13 +14,13 @@ logger = LogManager.get_logger("storage")
 
 class StorageManager:
     """
-    存储驱动注册与获取入口
+    Storage Driver Registry and Entry Point / 存储驱动注册与获取入口
     """
     _instance: "StorageManager | None" = None
 
     def __new__(cls) -> "StorageManager":
         """
-        单例构造
+        Singleton constructor / 单例构造
         """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -29,7 +30,7 @@ class StorageManager:
 
     def __init__(self) -> None:
         """
-        初始化默认驱动
+        Initialize default driver / 初始化默认驱动
         """
         if self._initialized:
             return
@@ -39,7 +40,7 @@ class StorageManager:
 
     def register_driver(self, driver_cls: type[StorageDriver]) -> None:
         """
-        注册驱动
+        Register driver / 注册驱动
         """
         if not driver_cls.name:
             raise StorageConfigError()
@@ -49,7 +50,7 @@ class StorageManager:
 
     def unregister_driver(self, driver_name: str) -> None:
         """
-        注销驱动（插件禁用时调用）
+        Unregister driver (called when plugin is disabled) / 注销驱动（插件禁用时调用）
         """
         removed = self._drivers.pop(driver_name, None)
         if removed:
@@ -59,7 +60,7 @@ class StorageManager:
 
     def get_driver(self, config: StorageConfig) -> StorageDriver:
         """
-        根据配置获取驱动实例
+        Get driver instance by config / 根据配置获取驱动实例
         """
         driver_cls = self._drivers.get(config.driver)
         if not driver_cls:
@@ -68,25 +69,25 @@ class StorageManager:
 
     def get_available_drivers(self) -> list[str]:
         """
-        获取所有已注册的驱动名称列表（供前端存储配置下拉使用）
+        Get all registered driver names (for frontend storage config dropdown) / 获取所有已注册的驱动名称列表（供前端存储配置下拉使用）
         """
         return list(self._drivers.keys())
 
     def has_driver(self, driver_name: str) -> bool:
         """
-        判断指定驱动是否已注册
+        Check if specified driver is registered / 判断指定驱动是否已注册
         """
         return driver_name in self._drivers
 
     def get_driver_class(self, driver_name: str) -> type[StorageDriver] | None:
         """
-        获取驱动类（供连接测试等场景使用）
+        Get driver class (for connection test etc.) / 获取驱动类（供连接测试等场景使用）
         """
         return self._drivers.get(driver_name)
 
     def get_driver_info_list(self) -> list[dict]:
         """
-        获取所有已注册驱动的详细信息（含 display_name + config_schema + is_available）
+        Get all registered driver details (with display_name + config_schema + is_available) / 获取所有已注册驱动的详细信息（含 display_name + config_schema + is_available）
         """
         result = []
         for name, cls in self._drivers.items():
@@ -104,27 +105,30 @@ class StorageManager:
         known_plugin_drivers: list[dict] | None = None,
     ) -> list[dict]:
         """
-        获取所有驱动的详细信息，包含未注册（插件未启用）的驱动
+        Get all driver details including unregistered (plugin disabled) drivers.
+        获取所有驱动的详细信息，包含未注册（插件未启用）的驱动。
 
         Args:
-            known_plugin_drivers: 从 DB 插件表获取的已知存储驱动列表，
+            known_plugin_drivers: Known storage driver list from DB plugin table,
+                each with name/display_name/plugin_name/plugin_status /
+                从 DB 插件表获取的已知存储驱动列表，
                 每项含 name/display_name/plugin_name/plugin_status
 
         Returns:
-            包含 is_available 字段的驱动列表
+            Driver list with is_available field / 包含 is_available 字段的驱动列表
         """
         registered = self.get_driver_info_list()
         registered_names = {d["name"] for d in registered}
 
         if known_plugin_drivers:
-            # 为已注册的插件驱动补充 plugin_name/plugin_status
+            # Add plugin_name/plugin_status to registered plugin drivers / 为已注册的插件驱动补充 plugin_name/plugin_status
             plugin_map = {pd["name"]: pd for pd in known_plugin_drivers}
             for d in registered:
                 if d["name"] in plugin_map:
                     d["plugin_name"] = plugin_map[d["name"]].get("plugin_name")
                     d["plugin_status"] = plugin_map[d["name"]].get("plugin_status")
 
-            # 补充未注册（插件未启用）的驱动
+            # Add unregistered (plugin disabled) drivers / 补充未注册（插件未启用）的驱动
             for pd in known_plugin_drivers:
                 if pd["name"] not in registered_names:
                     registered.append({

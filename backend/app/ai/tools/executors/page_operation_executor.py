@@ -1,7 +1,10 @@
 """
+Page Operation Executor
 页面操作执行器
 
+Sends page operation commands to the frontend via WebSocket, waits for result callback, and returns ToolResult.
 通过 WebSocket 向前端下发页面操作指令，等待结果回传，返回 ToolResult。
+Depends on ExecutionContext.page_session_id to locate the frontend page instance.
 依赖 ExecutionContext.page_session_id 定位前端页面实例。
 """
 
@@ -22,16 +25,20 @@ logger = LogManager.get_logger("ai.tool.page_operation")
 
 class PageOperationExecutor(BaseToolExecutor):
     """
-    页面操作执行器
+    Page operation executor.
+    页面操作执行器。
 
+    Sends page_operation_invoke event to the page_session:{id} room via Socket.IO,
+    waits for the frontend to execute the operation and return results via page_operation_result.
     通过 Socket.IO 向 page_session:{id} 房间下发 page_operation_invoke 事件，
     等待前端执行操作并通过 page_operation_result 回传结果。
 
-    LLM 调用参数:
-        - page_key: str — 页面标识（pageContextKey）
-        - operation_name: str — 操作名称
-        - params: dict — 操作参数（可选）
-        - requires_confirmation: bool — 是否需要用户确认（可选，默认 false）
+    LLM call arguments / LLM 调用参数:
+        - page_key: str — Page identifier (pageContextKey) / 页面标识
+        - operation_name: str — Operation name / 操作名称
+        - params: dict — Operation parameters (optional) / 操作参数（可选）
+        - requires_confirmation: bool — Whether user confirmation is needed (optional, default false)
+          是否需要用户确认（可选，默认 false）
     """
 
     async def execute(
@@ -41,10 +48,10 @@ class PageOperationExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        """通过 WebSocket 下发操作并等待结果"""
+        """Send operation via WebSocket and wait for result / 通过 WebSocket 下发操作并等待结果"""
         start = time.perf_counter()
 
-        # 检查 page_session_id
+        # Check page_session_id / 检查 page_session_id
         if not context or not context.page_session_id:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -68,7 +75,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # 通过 WebSocket 下发操作
+        # Send operation via WebSocket / 通过 WebSocket 下发操作
         from app.sio.page_session import invoke_page_operation
 
         logger.info(
@@ -105,7 +112,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 duration_ms=duration_ms,
             )
 
-        # 失败情况
+        # Failure case / 失败情况
         logger.warning(
             "Page operation failed: page_key=%s op=%s error_type=%s message=%s duration=%dms",
             page_key, operation_name, error_type, message, duration_ms,
@@ -131,7 +138,8 @@ class PageOperationExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """校验参数：page_key 和 operation_name 必填"""
+        """Validate parameters: page_key and operation_name are required
+        校验参数：page_key 和 operation_name 必填"""
         return bool(arguments.get("page_key")) and bool(arguments.get("operation_name"))
 
 

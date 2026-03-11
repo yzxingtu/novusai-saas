@@ -1,7 +1,8 @@
 """
-租户级仓储模块
+租户级仓储模块 / Tenant Repository Module
 
 导出租户级别的仓储类
+Exports tenant-level repository classes.
 """
 
 from app.repositories.tenant.attachment_repository import AttachmentRepository

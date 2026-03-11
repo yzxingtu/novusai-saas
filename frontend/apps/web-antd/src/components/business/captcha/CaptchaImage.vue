@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 /**
+ * Captcha Image Component
+ * Standalone captcha image display component, can be used with any input field
  * 验证码图片组件
  * 独立的验证码图片展示组件，可配合任意输入框使用
  */
@@ -35,17 +37,17 @@ const emit = defineEmits<{
 // ============================================================
 
 interface Props {
-  /** 端点标识: admin | tenant | user */
+  /** Endpoint identifier: admin | tenant | user / 端点标识: admin | tenant | user */
   endpoint: 'admin' | 'tenant' | 'user';
-  /** 难度等级 */
+  /** Difficulty level / 难度等级 */
   difficulty?: CaptchaDifficulty;
-  /** 操作类型，默认 login */
+  /** Action type, defaults to login / 操作类型，默认 login */
   action?: string;
-  /** 是否禁用 */
+  /** Whether disabled / 是否禁用 */
   disabled?: boolean;
-  /** 图片宽度 */
+  /** Image width / 图片宽度 */
   width?: number;
-  /** 图片高度 */
+  /** Image height / 图片高度 */
   height?: number;
 }
 
@@ -53,13 +55,13 @@ interface Props {
 // State
 // ============================================================
 
-/** 挑战 ID */
+/** Challenge ID / 挑战 ID */
 const challengeId = ref('');
-/** 验证码图片 Base64 */
+/** Captcha image Base64 / 验证码图片 Base64 */
 const captchaImage = ref('');
-/** 加载中状态 */
+/** Loading state / 加载中状态 */
 const loading = ref(false);
-/** 错误信息 */
+/** Error message / 错误信息 */
 const errorMsg = ref('');
 
 // ============================================================
@@ -69,12 +71,13 @@ const errorMsg = ref('');
 let _fetchPromise: Promise<void> | null = null;
 
 /**
+ * Fetch captcha challenge (with deduplication: rapid consecutive calls reuse the same request)
  * 获取验证码挑战（含去重：快速连续调用复用同一请求）
  */
 async function fetchChallenge() {
   if (props.disabled) return;
 
-  // 去重：如果有正在进行的请求，等待其完成后再发新请求
+  // Deduplication: if there's an ongoing request, wait for it to complete before sending a new one / 去重：如果有正在进行的请求，等待其完成后再发新请求
   if (_fetchPromise) {
     await _fetchPromise.catch(() => {});
   }
@@ -119,14 +122,14 @@ async function _doFetchChallenge() {
 }
 
 /**
- * 刷新验证码
+ * Refresh captcha / 刷新验证码
  */
 function refresh() {
   fetchChallenge();
 }
 
 /**
- * 获取当前挑战 ID
+ * Get current challenge ID / 获取当前挑战 ID
  */
 function getChallengeId() {
   return challengeId.value;
@@ -136,12 +139,12 @@ function getChallengeId() {
 // Lifecycle
 // ============================================================
 
-// 挂载时自动获取验证码
+// Auto-fetch captcha on mount / 挂载时自动获取验证码
 onMounted(() => {
   fetchChallenge();
 });
 
-// 监听 endpoint 变化重新获取
+// Re-fetch on endpoint change / 监听 endpoint 变化重新获取
 watch(
   () => props.endpoint,
   () => {
@@ -149,7 +152,7 @@ watch(
   },
 );
 
-// 暴露方法给父组件
+// Expose methods to parent component / 暴露方法给父组件
 defineExpose({
   getChallengeId,
   refresh,
@@ -158,7 +161,7 @@ defineExpose({
 
 <template>
   <div class="captcha-image-container">
-    <!-- 验证码图片 -->
+    <!-- Captcha image / 验证码图片 -->
     <Tooltip :title="$t('shared.auth.captcha.clickToRefresh')">
       <div
         class="captcha-image-wrapper"
@@ -186,7 +189,7 @@ defineExpose({
       </div>
     </Tooltip>
 
-    <!-- 刷新按钮 -->
+    <!-- Refresh button / 刷新按钮 -->
     <Tooltip :title="$t('shared.auth.captcha.refresh')">
       <button
         type="button"

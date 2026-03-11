@@ -1,18 +1,22 @@
 """
-跨插件事件总线（Plugin EventBus）
+Cross-plugin event bus (Plugin EventBus) / 跨插件事件总线
 
+For async inter-plugin notifications (fire-and-forget), complementary to HookRegistry:
+- HookRegistry: sync interception, can modify context data, supports BEFORE_*/AFTER_* pattern
+- PluginEventBus: async notification, read-only, handler errors don't affect publisher
+/
 用于插件间异步通知（fire-and-forget），与 HookRegistry 互补：
 - HookRegistry: 同步拦截，可修改上下文数据，支持 BEFORE_*/AFTER_* 模式
 - PluginEventBus: 异步通知，只读，handler 异常不影响发布方
 
-命名规范：plugin.{source_plugin}.{event_name}
-Payload 字段：source_plugin, event_name, tenant_id, timestamp + 自定义 data
+Naming convention / 命名规范：plugin.{source_plugin}.{event_name}
+Payload fields / Payload 字段：source_plugin, event_name, tenant_id, timestamp + custom data
 
-设计原则：
-- 单 handler 异常隔离，不影响其他 handler 和发布方
-- 单 handler 超时保护（默认 30s）
-- 最大 payload 大小限制（默认 1MB）
-- 结构化日志记录每次事件分发
+Design principles / 设计原则：
+- Single handler error isolation / 单 handler 异常隔离
+- Single handler timeout protection (default 30s) / 单 handler 超时保护
+- Max payload size limit (default 1MB) / 最大 payload 大小限制
+- Structured logging for each event dispatch / 结构化日志记录
 """
 
 from __future__ import annotations
@@ -29,30 +33,32 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# 默认单 handler 超时（秒）
+# Default single handler timeout (seconds) / 默认单 handler 超时（秒）
 _DEFAULT_HANDLER_TIMEOUT = 30.0
 
-# 最大 payload 大小（字节，粗略估算）
+# Max payload size (bytes, rough estimate) / 最大 payload 大小（字节，粗略估算）
 _MAX_PAYLOAD_SIZE = 1_048_576  # 1 MB
 
 
 class PluginEventBus:
     """
-    跨插件事件总线（单例）
+    Cross-plugin event bus (singleton) / 跨插件事件总线（单例）
 
-    与 HookRegistry 的区别：
-    - Hook: 同步拦截链，handler 可修改 context dict，按 priority 串行执行
-    - PluginEvent: 异步通知，handler 只读，并行执行，异常隔离
+    Difference from HookRegistry / 与 HookRegistry 的区别：
+    - Hook: sync interception chain, handler can modify context dict, serial by priority
+      / 同步拦截链，handler 可修改 context dict，按 priority 串行执行
+    - PluginEvent: async notification, handler read-only, parallel execution, error isolation
+      / 异步通知，handler 只读，并行执行，异常隔离
 
-    用法：
-    - 发布: await bus.publish("plugin.novusdoc.document_saved", {...})
-    - 订阅: bus.subscribe("plugin.novusdoc.document_saved", handler)
-    - 取消: bus.unsubscribe("plugin.novusdoc.document_saved", handler)
+    Usage / 用法：
+    - Publish / 发布: await bus.publish("plugin.novusdoc.document_saved", {...})
+    - Subscribe / 订阅: bus.subscribe("plugin.novusdoc.document_saved", handler)
+    - Unsubscribe / 取消: bus.unsubscribe("plugin.novusdoc.document_saved", handler)
     """
 
     _instance: PluginEventBus | None = None
 
-    # 死信队列最大容量（内存环形缓冲）
+    # Dead letter queue max capacity (in-memory ring buffer) / 死信队列最大容量（内存环形缓冲）
     _MAX_DEAD_LETTERS = 100
 
     def __init__(self) -> None:
@@ -78,14 +84,15 @@ class PluginEventBus:
         timeout: float = _DEFAULT_HANDLER_TIMEOUT,
     ) -> None:
         """
-        订阅事件
+        Subscribe to event / 订阅事件
 
         Args:
-            event_name: 完整事件名（如 "plugin.novusdoc.document_saved"）
-            handler: 异步或同步处理函数，签名 (event_name, payload) -> None
-            plugin_name: 订阅方插件名（用于日志和反注册）
-            priority: 执行优先级（数字越小越优先）
-            timeout: 单 handler 超时（秒）
+            event_name: Full event name (e.g. "plugin.novusdoc.document_saved") / 完整事件名
+            handler: Async or sync handler function, signature (event_name, payload) -> None
+                     / 异步或同步处理函数
+            plugin_name: Subscriber plugin name (for logging and unregistration) / 订阅方插件名
+            priority: Execution priority (lower number = higher priority) / 执行优先级
+            timeout: Single handler timeout (seconds) / 单 handler 超时（秒）
         """
         sub = _Subscription(
             handler=handler,
@@ -95,7 +102,7 @@ class PluginEventBus:
         )
         subs = self._subscribers[event_name]
 
-        # 去重：同 handler + plugin_name 不重复订阅
+        # Dedup: same handler + plugin_name won't subscribe again / 去重：同 handler + plugin_name 不重复订阅
         for existing in subs:
             if existing.handler is handler and existing.plugin_name == plugin_name:
                 return
@@ -114,15 +121,15 @@ class PluginEventBus:
         plugin_name: str = "",
     ) -> int:
         """
-        取消订阅
+        Unsubscribe / 取消订阅
 
         Args:
-            event_name: 事件名
-            handler: 具体 handler（None 则按 plugin_name 全部移除）
-            plugin_name: 插件名
+            event_name: Event name / 事件名
+            handler: Specific handler (None removes all by plugin_name) / 具体 handler（None 则按 plugin_name 全部移除）
+            plugin_name: Plugin name / 插件名
 
         Returns:
-            移除的订阅数
+            Number of subscriptions removed / 移除的订阅数
         """
         subs = self._subscribers.get(event_name, [])
         before = len(subs)
@@ -141,7 +148,7 @@ class PluginEventBus:
         return removed
 
     def unsubscribe_all(self, plugin_name: str) -> int:
-        """移除某插件的所有事件订阅"""
+        """Remove all event subscriptions for a plugin / 移除某插件的所有事件订阅"""
         total_removed = 0
         for _event_name, subs in self._subscribers.items():
             before = len(subs)
@@ -162,12 +169,12 @@ class PluginEventBus:
         source_plugin: str = "",
     ) -> dict[str, Any]:
         """
-        发布事件（异步通知所有订阅者）
+        Publish event (async notify all subscribers) / 发布事件（异步通知所有订阅者）
 
         Args:
-            event_name: 完整事件名
-            payload: 事件数据（只读，handler 不应修改）
-            source_plugin: 发布方插件名
+            event_name: Full event name / 完整事件名
+            payload: Event data (read-only, handlers should not modify) / 事件数据（只读）
+            source_plugin: Publisher plugin name / 发布方插件名
 
         Returns:
             {"delivered": N, "failed": N, "errors": [...]}
@@ -179,7 +186,7 @@ class PluginEventBus:
             )
             return {"delivered": 0, "failed": 0, "errors": []}
 
-        # Payload 大小检查
+        # Payload size check / Payload 大小检查
         safe_payload = dict(payload or {})
         safe_payload["_event_name"] = event_name
         safe_payload["_source_plugin"] = source_plugin
@@ -205,7 +212,7 @@ class PluginEventBus:
         failed = 0
         errors: list[str] = []
 
-        # 并行执行所有 handler（异常隔离）
+        # Execute all handlers in parallel (error isolation) / 并行执行所有 handler（异常隔离）
         tasks = [
             self._invoke_handler(sub, event_name, safe_payload)
             for sub in subs
@@ -221,7 +228,7 @@ class PluginEventBus:
                     "PluginEventBus: handler failed for '%s' (plugin=%s): %s",
                     event_name, subs[i].plugin_name, result,
                 )
-                # 记入死信队列
+                # Record to dead letter queue / 记入死信队列
                 self._record_dead_letter(
                     event_name, source_plugin, subs[i].plugin_name, str(result),
                 )
@@ -244,7 +251,7 @@ class PluginEventBus:
         event_name: str,
         payload: dict[str, Any],
     ) -> None:
-        """执行单个 handler，带超时保护"""
+        """Execute single handler with timeout protection / 执行单个 handler，带超时保护"""
         if asyncio.iscoroutinefunction(sub.handler):
             await asyncio.wait_for(
                 sub.handler(event_name, payload),
@@ -260,7 +267,7 @@ class PluginEventBus:
         handler_plugin: str,
         error: str,
     ) -> None:
-        """记录失败事件到死信队列（内存环形缓冲，超容量丢弃最旧的）"""
+        """Record failed event to dead letter queue (in-memory ring buffer, discards oldest on overflow) / 记录失败事件到死信队列"""
         entry = {
             "event": event_name,
             "source": source_plugin,
@@ -273,11 +280,11 @@ class PluginEventBus:
             self._dead_letters = self._dead_letters[-self._MAX_DEAD_LETTERS:]
 
     def get_dead_letters(self, limit: int = 50) -> list[dict[str, Any]]:
-        """获取最近的死信记录（供管理员健康页查看）"""
+        """Get recent dead letter records (for admin health page) / 获取最近的死信记录（供管理员健康页查看）"""
         return list(reversed(self._dead_letters[-limit:]))
 
     def clear_dead_letters(self) -> int:
-        """清空死信队列，返回清除的数量"""
+        """Clear dead letter queue, return count of cleared items / 清空死信队列，返回清除的数量"""
         count = len(self._dead_letters)
         self._dead_letters.clear()
         return count
@@ -290,7 +297,7 @@ class PluginEventBus:
 
 
 class _Subscription:
-    """内部订阅记录"""
+    """Internal subscription record / 内部订阅记录"""
 
     __slots__ = ("handler", "plugin_name", "priority", "timeout")
 
@@ -308,7 +315,7 @@ class _Subscription:
 
 
 def get_plugin_event_bus() -> PluginEventBus:
-    """获取全局 PluginEventBus 实例"""
+    """Get global PluginEventBus instance / 获取全局 PluginEventBus 实例"""
     return PluginEventBus.get_instance()
 
 

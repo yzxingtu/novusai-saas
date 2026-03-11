@@ -1,5 +1,5 @@
 /**
- * 管理端通知模板管理 API
+ * Admin notification template management API / 管理端通知模板管理 API
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
@@ -7,7 +7,7 @@ import { requestClient } from '#/utils/request';
 
 const PREFIX = '/admin/notification-templates';
 
-/** 通知模板信息 */
+/** Notification template info / 通知模板信息 */
 export interface NotificationTemplateInfo {
   id: number;
   code: string;
@@ -21,7 +21,7 @@ export interface NotificationTemplateInfo {
   updated_at: string;
 }
 
-/** 通知模板更新参数 */
+/** Update notification template params / 通知模板更新参数 */
 export interface UpdateNotificationTemplateParams {
   channels?: string[];
   priority?: string;
@@ -29,7 +29,7 @@ export interface UpdateNotificationTemplateParams {
   body_template?: string;
 }
 
-/** 分页响应 */
+/** Paginated response / 分页响应 */
 interface PageResponse {
   items: NotificationTemplateInfo[];
   page: number;
@@ -37,7 +37,7 @@ interface PageResponse {
   total: number;
 }
 
-/** 获取通知模板列表 */
+/** Get notification template list / 获取通知模板列表 */
 export async function getNotificationTemplateListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -45,7 +45,7 @@ export async function getNotificationTemplateListApi(
   return requestClient.get<PageResponse>(PREFIX, { params, ...options });
 }
 
-/** 更新通知模板 */
+/** Update notification template / 更新通知模板 */
 export async function updateNotificationTemplateApi(
   id: number,
   data: UpdateNotificationTemplateParams,
@@ -54,7 +54,7 @@ export async function updateNotificationTemplateApi(
   return requestClient.put(`${PREFIX}/${id}`, data, options);
 }
 
-/** 测试通知模板 */
+/** Test notification template / 测试通知模板 */
 export async function testNotificationTemplateApi(
   id: number,
   options?: ApiRequestOptions,

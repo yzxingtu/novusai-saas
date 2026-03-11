@@ -1,7 +1,8 @@
 """
-Webhook 通知渠道（预留骨架）
+Webhook 通知渠道（预留骨架） / Webhook Notification Channel (skeleton)
 
 用于对接企业微信、钉钉、Slack 等外部 Webhook 通知。
+For integrating with WeCom, DingTalk, Slack and other external Webhook notifications.
 当前为空实现，is_enabled() 返回 False。
 后续启用时需：
 1. 添加系统配置项 webhook_enabled / webhook_url

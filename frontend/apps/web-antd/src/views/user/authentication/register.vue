@@ -137,7 +137,7 @@ async function handleSubmit() {
     if (captchaRequired) {
       showCaptcha.value = true;
     }
-    // 显示后端返回的错误信息
+    // Show backend error message / 显示后端返回的错误信息
     if (responseData?.message) {
       message.error(responseData.message);
     }

@@ -1,7 +1,8 @@
 """
-仓储基类模块
+仓储基类模块 / Repository Base Module
 
 提供数据访问层的基类，封装通用的 CRUD 操作
+Provides base classes for the data access layer, encapsulating common CRUD operations.
 """
 
 from typing import Any, Generic, TypeVar
@@ -16,36 +17,38 @@ from app.enums.common import DeleteLevelEnum
 from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 from app.schemas.common.select import SelectOption
 
-# 泛型类型变量
+# 泛型类型变量 / Generic type variable
 ModelType = TypeVar("ModelType", bound=BaseModel)
 
 
 class BaseRepository(Generic[ModelType]):
     """
-    仓储基类
+    仓储基类 / Repository Base Class
 
     封装数据访问层的通用 CRUD 操作
+    Encapsulates common CRUD operations for the data access layer.
 
-    使用示例:
+    使用示例 / Usage:
         class UserRepository(BaseRepository[User]):
             model = User
 
-    通用筛选支持:
+    通用筛选支持 / Generic filter support:
         子类可通过 _scope_fields 配置不同 scope 下允许过滤的字段
+        Subclasses can configure _scope_fields for allowed filter fields per scope.
     """
 
     model: type[ModelType]
 
-    # 按 scope 限制可过滤字段，子类可覆盖
-    # 示例: {"admin": {"id", "username", "email"}, "tenant": {"id", "username"}}
+    # 按 scope 限制可过滤字段，子类可覆盖 / Per-scope filter field restrictions, overridable by subclasses
+    # 示例 / Example: {"admin": {"id", "username", "email"}, "tenant": {"id", "username"}}
     _scope_fields: dict[str, set[str]] = {}
 
     def __init__(self, db: AsyncSession):
         """
-        初始化仓储
+        初始化仓储 / Initialize repository
 
         Args:
-            db: 异步数据库会话
+            db: 异步数据库会话 / Async database session
         """
         self.db = db
 
@@ -55,14 +58,14 @@ class BaseRepository(Generic[ModelType]):
         include_deleted: bool = False,
     ) -> ModelType | None:
         """
-        根据 ID 获取单条记录
+        根据 ID 获取单条记录 / Get a single record by ID
 
         Args:
-            id: 记录 ID
-            include_deleted: 是否包含已删除记录
+            id: 记录 ID / Record ID
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
 
         Returns:
-            模型实例或 None
+            模型实例或 None / Model instance or None
         """
         query = select(self.model).where(self.model.id == id)
 
@@ -78,14 +81,14 @@ class BaseRepository(Generic[ModelType]):
         include_deleted: bool = False,
     ) -> list[ModelType]:
         """
-        根据 ID 列表获取多条记录
+        根据 ID 列表获取多条记录 / Get multiple records by ID list
 
         Args:
-            ids: ID 列表
-            include_deleted: 是否包含已删除记录
+            ids: ID 列表 / List of IDs
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
 
         Returns:
-            模型实例列表
+            模型实例列表 / List of model instances
         """
         if not ids:
             return []
@@ -107,35 +110,35 @@ class BaseRepository(Generic[ModelType]):
         **filters: Any,
     ) -> list[ModelType]:
         """
-        获取记录列表
+        获取记录列表 / Get a list of records
 
         Args:
-            skip: 跳过的记录数
-            limit: 返回的最大记录数
-            order_by: 排序字段
-            include_deleted: 是否包含已删除记录
-            **filters: 过滤条件
+            skip: 跳过的记录数 / Number of records to skip
+            limit: 返回的最大记录数 / Max number of records to return
+            order_by: 排序字段 / Sort field
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
+            **filters: 过滤条件 / Filter conditions
 
         Returns:
-            模型实例列表
+            模型实例列表 / List of model instances
         """
         query = select(self.model)
 
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 应用过滤条件
+        # 应用过滤条件 / Apply filter conditions
         for key, value in filters.items():
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
 
-        # 排序
+        # 排序 / Sort
         if order_by is not None:
             query = query.order_by(order_by)
         else:
             query = query.order_by(self.model.id.desc())
 
-        # 分页
+        # 分页 / Pagination
         query = query.offset(skip).limit(limit)
 
         result = await self.db.execute(query)
@@ -147,21 +150,21 @@ class BaseRepository(Generic[ModelType]):
         **filters: Any,
     ) -> int:
         """
-        统计记录数量
+        统计记录数量 / Count records
 
         Args:
-            include_deleted: 是否包含已删除记录
-            **filters: 过滤条件
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
+            **filters: 过滤条件 / Filter conditions
 
         Returns:
-            记录数量
+            记录数量 / Record count
         """
         query = select(func.count(self.model.id))
 
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 应用过滤条件
+        # 应用过滤条件 / Apply filter conditions
         for key, value in filters.items():
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
@@ -171,13 +174,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def create(self, data: dict[str, Any]) -> ModelType:
         """
-        创建记录
+        创建记录 / Create a record
 
         Args:
-            data: 创建数据字典
+            data: 创建数据字典 / Creation data dictionary
 
         Returns:
-            创建的模型实例
+            创建的模型实例 / Created model instance
         """
         instance = self.model(**data)
         self.db.add(instance)
@@ -187,13 +190,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def create_many(self, data_list: list[dict[str, Any]]) -> list[ModelType]:
         """
-        批量创建记录
+        批量创建记录 / Batch create records
 
         Args:
-            data_list: 创建数据字典列表
+            data_list: 创建数据字典列表 / List of creation data dictionaries
 
         Returns:
-            创建的模型实例列表
+            创建的模型实例列表 / List of created model instances
         """
         instances = [self.model(**data) for data in data_list]
         self.db.add_all(instances)
@@ -208,14 +211,14 @@ class BaseRepository(Generic[ModelType]):
         data: dict[str, Any],
     ) -> ModelType | None:
         """
-        更新记录
+        更新记录 / Update a record
 
         Args:
-            id: 记录 ID
-            data: 更新数据字典
+            id: 记录 ID / Record ID
+            data: 更新数据字典 / Update data dictionary
 
         Returns:
-            更新后的模型实例或 None
+            更新后的模型实例或 None / Updated model instance or None
         """
         instance = await self.get_by_id(id)
         if instance is None:
@@ -232,14 +235,14 @@ class BaseRepository(Generic[ModelType]):
         data: dict[str, Any],
     ) -> int:
         """
-        批量更新记录
+        批量更新记录 / Batch update records
 
         Args:
-            ids: ID 列表
-            data: 更新数据字典
+            ids: ID 列表 / List of IDs
+            data: 更新数据字典 / Update data dictionary
 
         Returns:
-            更新的记录数量
+            更新的记录数量 / Number of updated records
         """
         if not ids:
             return 0
@@ -259,14 +262,14 @@ class BaseRepository(Generic[ModelType]):
         soft: bool = True,
     ) -> bool:
         """
-        删除记录
+        删除记录 / Delete a record
 
         Args:
-            id: 记录 ID
-            soft: 是否软删除（默认 True）
+            id: 记录 ID / Record ID
+            soft: 是否软删除（默认 True） / Whether to soft-delete (default True)
 
         Returns:
-            是否删除成功
+            是否删除成功 / Whether deletion was successful
         """
         instance = await self.get_by_id(id)
         if instance is None:
@@ -286,14 +289,14 @@ class BaseRepository(Generic[ModelType]):
         soft: bool = True,
     ) -> int:
         """
-        批量删除记录
+        批量删除记录 / Batch delete records
 
         Args:
-            ids: ID 列表
-            soft: 是否软删除（默认 True）
+            ids: ID 列表 / List of IDs
+            soft: 是否软删除（默认 True） / Whether to soft-delete (default True)
 
         Returns:
-            删除的记录数量
+            删除的记录数量 / Number of deleted records
         """
         if not ids:
             return 0
@@ -317,14 +320,14 @@ class BaseRepository(Generic[ModelType]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查记录是否存在
+        检查记录是否存在 / Check if a record exists
 
         Args:
-            id: 记录 ID
-            include_deleted: 是否包含已删除记录
+            id: 记录 ID / Record ID
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
 
         Returns:
-            是否存在
+            是否存在 / Whether the record exists
         """
         query = select(func.count(self.model.id)).where(self.model.id == id)
 
@@ -341,14 +344,14 @@ class BaseRepository(Generic[ModelType]):
         **filters: Any,
     ) -> ModelType | None:
         """
-        根据条件获取单条记录
+        根据条件获取单条记录 / Get a single record by conditions
 
         Args:
-            include_deleted: 是否包含已删除记录
-            **filters: 过滤条件
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
+            **filters: 过滤条件 / Filter conditions
 
         Returns:
-            模型实例或 None
+            模型实例或 None / Model instance or None
         """
         query = select(self.model)
 
@@ -362,30 +365,31 @@ class BaseRepository(Generic[ModelType]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    # ==================== 通用筛选方法 ====================
+    # ==================== 通用筛选方法 / Generic Filter Methods ====================
 
     def get_allowed_fields(self, scope: str | None = None) -> dict[str, InstrumentedAttribute]:
         """
-        获取允许过滤的字段
+        获取允许过滤的字段 / Get allowed filter fields
 
         从模型的 __filterable__ 属性获取可过滤字段，并根据 scope 进行裁剪
+        Gets filterable fields from the model's __filterable__ attribute, trimmed by scope.
 
         Args:
-            scope: API 端标识（如 'admin', 'tenant'），用于按端限制可过滤字段
+            scope: API 端标识 / API endpoint identifier (e.g. 'admin', 'tenant')
 
         Returns:
-            字段名到 SQLAlchemy 列的映射
+            字段名到 SQLAlchemy 列的映射 / Field name to SQLAlchemy column mapping
         """
-        # 从模型获取 __filterable__ 属性
+        # 从模型获取 __filterable__ 属性 / Get __filterable__ from model
         filterable = getattr(self.model, "__filterable__", {})
 
-        # 构建字段映射
+        # 构建字段映射 / Build field mapping
         base: dict[str, InstrumentedAttribute] = {}
         for field_name, attr_name in filterable.items():
             if hasattr(self.model, attr_name):
                 base[field_name] = getattr(self.model, attr_name)
 
-        # 按 scope 裁剪
+        # 按 scope 裁剪 / Trim by scope
         if scope and scope in self._scope_fields:
             allowed = self._scope_fields[scope]
             return {k: v for k, v in base.items() if k in allowed}
@@ -394,24 +398,24 @@ class BaseRepository(Generic[ModelType]):
 
     def get_sortable_fields(self) -> dict[str, InstrumentedAttribute]:
         """
-        获取允许排序的字段
+        获取允许排序的字段 / Get allowed sort fields
 
-        优先级: __sortable_fields__ > __sortable__ (dict format) > __filterable__
+        优先级 / Priority: __sortable_fields__ > __sortable__ (dict format) > __filterable__
 
         Returns:
-            字段名到 SQLAlchemy 列的映射
+            字段名到 SQLAlchemy 列的映射 / Field name to SQLAlchemy column mapping
         """
-        # 优先使用 __sortable_fields__（向后兼容）
+        # 优先使用 __sortable_fields__（向后兼容） / Prefer __sortable_fields__ (backward compat)
         sortable = getattr(self.model, "__sortable_fields__", None)
 
         if sortable is None:
-            # 检查 __sortable__（如果是字段映射字典而非排序配置）
+            # 检查 __sortable__（如果是字段映射字典而非排序配置） / Check __sortable__ (if it's a field mapping dict, not sort config)
             sortable_attr = getattr(self.model, "__sortable__", None)
             if isinstance(sortable_attr, dict) and "field" not in sortable_attr:
                 sortable = sortable_attr
 
         if sortable is None:
-            # 回退到 __filterable__
+            # 回退到 __filterable__ / Fallback to __filterable__
             sortable = getattr(self.model, "__filterable__", {})
 
         result: dict[str, InstrumentedAttribute] = {}
@@ -423,46 +427,46 @@ class BaseRepository(Generic[ModelType]):
 
     def _cast_value(self, col: InstrumentedAttribute, value: Any) -> Any:
         """
-        根据列类型转换值
+        根据列类型转换值 / Cast value based on column type
 
         Args:
-            col: SQLAlchemy 列对象
-            value: 原始值
+            col: SQLAlchemy 列对象 / SQLAlchemy column object
+            value: 原始值 / Raw value
 
         Returns:
-            转换后的值
+            转换后的值 / Casted value
         """
         from datetime import date, datetime
 
         if value is None:
             return None
 
-        # 列表类型不进行转换（用于 IN 操作符）
+        # 列表类型不进行转换（用于 IN 操作符） / Skip conversion for lists (used in IN operator)
         if isinstance(value, list):
             return value
 
         try:
-            # 获取列的 Python 类型
+            # 获取列的 Python 类型 / Get column's Python type
             col_type = col.type.python_type
 
-            # 如果已经是正确类型，直接返回
+            # 如果已经是正确类型，直接返回 / Already correct type, return directly
             if isinstance(value, col_type):
                 return value
 
-            # 处理布尔类型
+            # 处理布尔类型 / Handle boolean type
             if col_type is bool:
                 if isinstance(value, str):
                     return value.lower() in ("true", "1", "yes")
                 return bool(value)
 
-            # 处理整数类型
+            # 处理整数类型 / Handle integer type
             if col_type is int:
                 return int(value)
 
-            # 处理日期时间类型
+            # 处理日期时间类型 / Handle datetime type
             if col_type is datetime:
                 if isinstance(value, str):
-                    # 尝试多种日期时间格式
+                    # 尝试多种日期时间格式 / Try multiple datetime formats
                     for fmt in (
                         "%Y-%m-%d %H:%M:%S",
                         "%Y-%m-%dT%H:%M:%S",
@@ -475,11 +479,11 @@ class BaseRepository(Generic[ModelType]):
                             return datetime.strptime(value, fmt)
                         except ValueError:
                             continue
-                    # 如果所有格式都失败，返回原值
+                    # 如果所有格式都失败，返回原值 / If all formats fail, return raw value
                     return value
                 return value
 
-            # 处理日期类型
+            # 处理日期类型 / Handle date type
             if col_type is date:
                 if isinstance(value, str):
                     try:
@@ -488,10 +492,10 @@ class BaseRepository(Generic[ModelType]):
                         return value
                 return value
 
-            # 其他类型尝试直接转换
+            # 其他类型尝试直接转换 / Other types, try direct conversion
             return col_type(value)
         except (ValueError, TypeError, AttributeError):
-            # 转换失败，返回原值
+            # 转换失败，返回原值 / Conversion failed, return raw value
             return value
 
     def _apply_filters(
@@ -501,32 +505,32 @@ class BaseRepository(Generic[ModelType]):
         allowed_fields: dict[str, InstrumentedAttribute],
     ) -> Select:
         """
-        应用筛选条件
+        应用筛选条件 / Apply filter conditions
 
         Args:
-            query: SQLAlchemy 查询对象
-            rules: 筛选规则列表
-            allowed_fields: 允许的字段映射
+            query: SQLAlchemy 查询对象 / SQLAlchemy query object
+            rules: 筛选规则列表 / List of filter rules
+            allowed_fields: 允许的字段映射 / Allowed field mapping
 
         Returns:
-            应用筛选后的查询对象
+            应用筛选后的查询对象 / Query with filters applied
 
         Raises:
-            ValueError: 字段不在允许列表中
+            ValueError: 字段不在允许列表中 / Field not in allowed list
         """
         predicates = []
 
         for rule in rules:
-            # 验证字段是否允许
+            # 验证字段是否允许 / Validate field is allowed
             if rule.field not in allowed_fields:
                 raise ValueError("errors.filters.unknown_field")
 
             col = allowed_fields[rule.field]
-            # 根据列类型转换值
+            # 根据列类型转换值 / Cast value based on column type
             v1 = self._cast_value(col, rule.value)
             v2 = self._cast_value(col, rule.value2)
 
-            # 根据操作符构建条件
+            # 根据操作符构建条件 / Build condition based on operator
             match rule.op:
                 case FilterOp.eq:
                     predicates.append(col == v1)
@@ -547,7 +551,7 @@ class BaseRepository(Generic[ModelType]):
                     escaped = str(v1).replace("%", r"\%").replace("_", r"\_")
                     predicates.append(col.ilike(f"%{escaped}%", escape="\\"))
                 case FilterOp.in_:
-                    # 支持逗号分隔的字符串或列表
+                    # 支持逗号分隔的字符串或列表 / Support comma-separated strings or lists
                     if isinstance(v1, str):
                         vals = [x.strip() for x in v1.split(",") if x.strip()]
                     else:
@@ -576,21 +580,21 @@ class BaseRepository(Generic[ModelType]):
         allowed_fields: dict[str, InstrumentedAttribute],
     ) -> Select:
         """
-        应用排序
+        应用排序 / Apply sorting
 
         Args:
-            query: SQLAlchemy 查询对象
-            sorts: 排序字段列表，前缀 - 表示降序
-            allowed_fields: 允许的字段映射
+            query: SQLAlchemy 查询对象 / SQLAlchemy query object
+            sorts: 排序字段列表，前缀 - 表示降序 / Sort fields, prefix - for descending
+            allowed_fields: 允许的字段映射 / Allowed field mapping
 
         Returns:
-            应用排序后的查询对象
+            应用排序后的查询对象 / Query with sorting applied
 
         Raises:
-            ValueError: 排序字段不在允许列表中
+            ValueError: 排序字段不在允许列表中 / Sort field not in allowed list
         """
         if not sorts:
-            # 默认按 created_at 或 id 降序
+            # 默认按 created_at 或 id 降序 / Default sort by created_at or id descending
             if hasattr(self.model, "created_at"):
                 return query.order_by(desc(self.model.created_at))
             return query.order_by(desc(self.model.id))
@@ -616,20 +620,21 @@ class BaseRepository(Generic[ModelType]):
         include_deleted: bool = False,
     ) -> tuple[list[ModelType], int]:
         """
-        通用列表查询
+        通用列表查询 / Generic list query
 
         支持筛选、排序、分页，并返回总数
+        Supports filtering, sorting, pagination and returns total count.
 
         Args:
-            spec: 查询规格（包含 filters/sort/page/size）
-            scope: 作用域，用于按端限制可过滤字段
-            forced_filters: 强制过滤条件（如多租户隔离），不可被用户覆盖
-            include_deleted: 是否包含已删除记录
+            spec: 查询规格 / Query specification (contains filters/sort/page/size)
+            scope: 作用域 / Scope for restricting filterable fields per endpoint
+            forced_filters: 强制过滤条件 / Forced filters (e.g. tenant isolation), cannot be overridden
+            include_deleted: 是否包含已删除记录 / Whether to include soft-deleted records
 
         Returns:
-            (数据列表, 总数)
+            (数据列表, 总数) / (data list, total count)
 
-        示例:
+        示例 / Example:
             spec = QuerySpec(
                 filters=[FilterRule(field="status", value="active")],
                 sort=["-created_at"],
@@ -638,23 +643,23 @@ class BaseRepository(Generic[ModelType]):
             )
             items, total = await repo.query_list(spec, scope="admin")
         """
-        # 获取允许的字段（受 scope 限制）
+        # 获取允许的字段（受 scope 限制） / Get allowed fields (scope-restricted)
         allowed_fields = self.get_allowed_fields(scope)
-        # 获取所有字段（不受 scope 限制，用于强制过滤条件）
+        # 获取所有字段（不受 scope 限制，用于强制过滤条件） / Get all fields (unrestricted, for forced filters)
         all_fields = self.get_allowed_fields(None)
 
-        # 构建基础查询
+        # 构建基础查询 / Build base query
         query = select(self.model)
 
-        # 应用软删除过滤
+        # 应用软删除过滤 / Apply soft-delete filter
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 先应用强制过滤条件（不受 scope 限制）
+        # 先应用强制过滤条件（不受 scope 限制） / Apply forced filters first (unrestricted)
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)
 
-        # 再应用用户过滤条件（受 scope 限制）
+        # 再应用用户过滤条件（受 scope 限制） / Then apply user filters (scope-restricted)
         if spec.filters:
             query = self._apply_filters(query, spec.filters, allowed_fields)
 
@@ -663,14 +668,14 @@ class BaseRepository(Generic[ModelType]):
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
 
-        # 应用排序（使用 __sortable__ 白名单）
+        # 应用排序（使用 __sortable__ 白名单） / Apply sorting (using __sortable__ whitelist)
         sortable_fields = self.get_sortable_fields()
         query = self._apply_sort(query, spec.sort, sortable_fields)
 
-        # 应用分页
+        # 应用分页 / Apply pagination
         query = query.offset(spec.offset).limit(spec.limit)
 
-        # 执行查询
+        # 执行查询 / Execute query
         result = await self.db.execute(query)
         items = list(result.scalars().all())
 
@@ -1015,39 +1020,39 @@ class BaseRepository(Generic[ModelType]):
         return root_options
 
     # ========================================
-    # 通用排序方法
+    # 通用排序方法 / Generic Sort Methods
     # ========================================
 
     def _get_sortable_config(self) -> dict[str, Any] | None:
         """
-        获取模型的排序配置
+        获取模型的排序配置 / Get model's sort configuration
 
         Returns:
-            排序配置字典或 None
+            排序配置字典或 None / Sort config dict or None
 
-        __sortable__ 配置示例:
+        __sortable__ 配置示例 / Config example:
             __sortable__ = {
-                "field": "sort_order",      # 排序字段名
-                "step": 1000,               # 排序步长
-                "scope_fields": [],         # 作用域字段，如 ["tenant_id", "parent_id"]
+                "field": "sort_order",      # 排序字段名 / Sort field name
+                "step": 1000,               # 排序步长 / Sort step
+                "scope_fields": [],         # 作用域字段 / Scope fields, e.g. ["tenant_id", "parent_id"]
             }
         """
         return getattr(self.model, "__sortable__", None)
 
     async def get_next_sort_order(self, **scope_filters: Any) -> int:
         """
-        获取下一个排序值
+        获取下一个排序值 / Get next sort order value
 
-        计算方式: 当前最大值 + 步长
+        计算方式 / Calculation: current max + step
 
         Args:
-            **scope_filters: 作用域过滤条件（如 tenant_id, parent_id）
+            **scope_filters: 作用域过滤条件 / Scope filters (e.g. tenant_id, parent_id)
 
         Returns:
-            下一个排序值
+            下一个排序值 / Next sort order value
 
         Raises:
-            ValueError: 模型未配置 __sortable__
+            ValueError: 模型未配置 __sortable__ / Model has no __sortable__ config
         """
         sortable = self._get_sortable_config()
         if not sortable:
@@ -1059,19 +1064,19 @@ class BaseRepository(Generic[ModelType]):
         step = sortable.get("step", 1000)
         scope_fields = sortable.get("scope_fields", [])
 
-        # 检查排序字段是否存在
+        # 检查排序字段是否存在 / Check if sort field exists
         if not hasattr(self.model, sort_field):
             raise ValueError(
                 f"Model {self.model.__name__} does not have field '{sort_field}'"
             )
 
-        # 构建查询
+        # 构建查询 / Build query
         sort_column = getattr(self.model, sort_field)
         query = select(func.coalesce(func.max(sort_column), 0)).where(
             self.model.is_deleted.is_(False)
         )
 
-        # 应用作用域过滤
+        # 应用作用域过滤 / Apply scope filters
         for field in scope_fields:
             if field in scope_filters and hasattr(self.model, field):
                 query = query.where(
@@ -1089,19 +1094,19 @@ class BaseRepository(Generic[ModelType]):
         **scope_filters: Any,
     ) -> int:
         """
-        批量更新排序值
+        批量更新排序值 / Batch update sort order
 
-        按 ordered_ids 顺序分配排序值: step*1, step*2, step*3, ...
+        按 ordered_ids 顺序分配排序值 / Assign sort values by ordered_ids: step*1, step*2, step*3, ...
 
         Args:
-            ordered_ids: 有序的 ID 列表
-            **scope_filters: 作用域过滤条件（用于校验）
+            ordered_ids: 有序的 ID 列表 / Ordered list of IDs
+            **scope_filters: 作用域过滤条件 / Scope filters (for validation)
 
         Returns:
-            更新的记录数
+            更新的记录数 / Number of updated records
 
         Raises:
-            ValueError: 模型未配置 __sortable__
+            ValueError: 模型未配置 __sortable__ / Model has no __sortable__ config
         """
         _ = scope_filters
         if not ordered_ids:
@@ -1122,7 +1127,7 @@ class BaseRepository(Generic[ModelType]):
                 f"Model {self.model.__name__} does not have field '{sort_field}'"
             )
 
-        # 批量更新：使用 CASE WHEN 一次性更新所有记录（单条 SQL）
+        # 批量更新：使用 CASE WHEN 一次性更新所有记录 / Batch update: use CASE WHEN for single SQL
         from sqlalchemy import case
 
         cases = {
@@ -1141,7 +1146,7 @@ class BaseRepository(Generic[ModelType]):
         return result.rowcount
 
 
-    # ==================== 回收站方法 ====================
+    # ==================== 回收站方法 / Recycle Bin Methods ====================
 
     async def query_deleted(
         self,
@@ -1151,16 +1156,16 @@ class BaseRepository(Generic[ModelType]):
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
         """
-        查询回收站（已删除记录）
+        查询回收站（已删除记录） / Query recycle bin (deleted records)
 
         Args:
-            spec: 查询规格（筛选/排序/分页）
-            delete_level: 删除层级过滤 ('tenant' 或 'admin')，为 None 则查全部
-            scope: 作用域
-            forced_filters: 强制过滤条件
+            spec: 查询规格 / Query specification (filters/sort/pagination)
+            delete_level: 删除层级过滤 / Delete level filter ('tenant' or 'admin'), None for all
+            scope: 作用域 / Scope
+            forced_filters: 强制过滤条件 / Forced filter conditions
 
         Returns:
-            (数据列表, 总数)
+            (数据列表, 总数) / (data list, total count)
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -1181,10 +1186,10 @@ class BaseRepository(Generic[ModelType]):
         total = count_result.scalar() or 0
 
         sortable_fields = dict(self.get_sortable_fields())
-        # 回收站自动允许 deleted_at 排序
+        # 回收站自动允许 deleted_at 排序 / Auto-allow deleted_at sorting in recycle bin
         if hasattr(self.model, "deleted_at") and "deleted_at" not in sortable_fields:
             sortable_fields["deleted_at"] = self.model.deleted_at
-        # 回收站默认按删除时间倒序
+        # 回收站默认按删除时间倒序 / Default sort by deleted_at descending in recycle bin
         if not spec.sort and hasattr(self.model, "deleted_at"):
             query = query.order_by(desc(self.model.deleted_at))
         else:
@@ -1202,13 +1207,13 @@ class BaseRepository(Generic[ModelType]):
         delete_level: str | None = None,
     ) -> int:
         """
-        统计回收站记录数量
+        统计回收站记录数量 / Count recycle bin records
 
         Args:
-            delete_level: 删除层级过滤
+            delete_level: 删除层级过滤 / Delete level filter
 
         Returns:
-            已删除记录数量
+            已删除记录数量 / Count of deleted records
         """
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True)
@@ -1221,13 +1226,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def restore_by_id(self, id: int) -> ModelType | None:
         """
-        恢复已删除记录
+        恢复已删除记录 / Restore a deleted record
 
         Args:
-            id: 记录 ID
+            id: 记录 ID / Record ID
 
         Returns:
-            恢复后的模型实例或 None
+            恢复后的模型实例或 None / Restored model instance or None
         """
         instance = await self.get_by_id(id, include_deleted=True)
         if instance is None or not instance.is_deleted:
@@ -1240,18 +1245,18 @@ class BaseRepository(Generic[ModelType]):
 
     async def escalate_delete_by_id(self, id: int) -> ModelType | None:
         """
-        升级删除层级（tenant → admin），重置删除时间
+        升级删除层级 / Escalate delete level (tenant → admin), reset deleted_at
 
         Args:
-            id: 记录 ID
+            id: 记录 ID / Record ID
 
         Returns:
-            更新后的模型实例或 None
+            更新后的模型实例或 None / Updated model instance or None
         """
         instance = await self.get_by_id(id, include_deleted=True)
         if instance is None or not instance.is_deleted:
             return None
-        # 仅 tenant 级别才可升级，已在 admin 级别则无需重复操作
+        # 仅 tenant 级别才可升级，已在 admin 级别则无需重复操作 / Only tenant level can escalate; already admin level = no-op
         if getattr(instance, "delete_level", None) == DeleteLevelEnum.ADMIN.value:
             return instance
 
@@ -1262,13 +1267,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def permanent_delete(self, id: int) -> bool:
         """
-        物理删除记录
+        物理删除记录 / Permanently delete a record
 
         Args:
-            id: 记录 ID
+            id: 记录 ID / Record ID
 
         Returns:
-            是否删除成功
+            是否删除成功 / Whether deletion was successful
         """
         instance = await self.get_by_id(id, include_deleted=True)
         if instance is None:
@@ -1280,13 +1285,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def batch_restore(self, ids: list[int]) -> int:
         """
-        批量恢复已删除记录
+        批量恢复已删除记录 / Batch restore deleted records
 
         Args:
-            ids: ID 列表
+            ids: ID 列表 / List of IDs
 
         Returns:
-            恢复的记录数量
+            恢复的记录数量 / Number of restored records
         """
         if not ids:
             return 0
@@ -1309,13 +1314,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def batch_permanent_delete(self, ids: list[int]) -> int:
         """
-        批量物理删除记录
+        批量物理删除记录 / Batch permanently delete records
 
         Args:
-            ids: ID 列表
+            ids: ID 列表 / List of IDs
 
         Returns:
-            删除的记录数量
+            删除的记录数量 / Number of deleted records
         """
         if not ids:
             return 0
@@ -1329,13 +1334,13 @@ class BaseRepository(Generic[ModelType]):
 
     async def cleanup_expired(self, days: int = 30) -> int:
         """
-        清理超过指定天数的已删除记录（物理删除）
+        清理超过指定天数的已删除记录 / Clean up deleted records older than specified days
 
         Args:
-            days: 保留天数，默认 30
+            days: 保留天数，默认 30 / Retention days, default 30
 
         Returns:
-            清理的记录数量
+            清理的记录数量 / Number of cleaned records
         """
         from datetime import timedelta
 
@@ -1351,18 +1356,19 @@ class BaseRepository(Generic[ModelType]):
 
 class TenantRepository(BaseRepository[ModelType]):
     """
-    租户级仓储基类
+    租户级仓储基类 / Tenant Repository Base Class
 
     自动在查询中添加 tenant_id 过滤
+    Automatically adds tenant_id filtering to queries.
     """
 
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
-        初始化租户仓储
+        初始化租户仓储 / Initialize tenant repository
 
         Args:
-            db: 异步数据库会话
-            tenant_id: 租户 ID（全局/管理端资源传 None）
+            db: 异步数据库会话 / Async database session
+            tenant_id: 租户 ID / Tenant ID (None for global/admin resources)
         """
         super().__init__(db)
         self.tenant_id = tenant_id
@@ -1375,7 +1381,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> list[ModelType]:
-        """获取租户级记录列表"""
+        """获取租户级记录列表 / Get tenant-scoped record list"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_list(
             skip=skip,
@@ -1390,12 +1396,12 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> int:
-        """统计租户级记录数量"""
+        """统计租户级记录数量 / Count tenant-scoped records"""
         filters["tenant_id"] = self.tenant_id
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建租户级记录"""
+        """创建租户级记录 / Create tenant-scoped record"""
         data["tenant_id"] = self.tenant_id
         return await super().create(data)
 
@@ -1404,9 +1410,9 @@ class TenantRepository(BaseRepository[ModelType]):
         id: int,
         include_deleted: bool = False,
     ) -> ModelType | None:
-        """根据 ID 获取租户级记录"""
+        """根据 ID 获取租户级记录 / Get tenant-scoped record by ID"""
         instance = await super().get_by_id(id, include_deleted)
-        # 验证租户归属
+        # 验证租户归属 / Verify tenant ownership
         if instance and hasattr(instance, "tenant_id") and instance.tenant_id != self.tenant_id:
             return None
         return instance
@@ -1416,7 +1422,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         include_deleted: bool = False,
     ) -> list[ModelType]:
-        """根据 ID 列表获取租户级记录，自动过滤非本租户数据"""
+        """根据 ID 列表获取租户级记录，自动过滤非本租户数据 / Get tenant records by IDs, auto-filter non-tenant data"""
         instances = await super().get_by_ids(ids, include_deleted)
         return [
             inst for inst in instances
@@ -1428,7 +1434,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> ModelType | None:
-        """根据条件获取租户级单条记录，自动注入 tenant_id"""
+        """根据条件获取租户级单条记录，自动注入 tenant_id / Get single tenant record by conditions, auto-inject tenant_id"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_one_by(include_deleted=include_deleted, **filters)
 
@@ -1440,11 +1446,12 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
     ) -> tuple[list[ModelType], int]:
         """
-        租户级通用列表查询
+        租户级通用列表查询 / Tenant-scoped generic list query
 
         自动注入 tenant_id 过滤条件
+        Automatically injects tenant_id filter condition.
         """
-        # 强制添加租户过滤
+        # 强制添加租户过滤 / Force add tenant filter
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
 
@@ -1503,7 +1510,7 @@ class TenantRepository(BaseRepository[ModelType]):
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
-        """租户级回收站查询，自动注入 tenant_id"""
+        """租户级回收站查询，自动注入 tenant_id / Tenant recycle bin query, auto-inject tenant_id"""
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
         return await super().query_deleted(
@@ -1517,7 +1524,7 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         delete_level: str | None = None,
     ) -> int:
-        """租户级回收站计数，自动注入 tenant_id"""
+        """租户级回收站计数，自动注入 tenant_id / Tenant recycle bin count, auto-inject tenant_id"""
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True),
             self.model.tenant_id == self.tenant_id,
@@ -1533,7 +1540,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         data: dict[str, Any],
     ) -> int:
-        """租户级批量更新，自动注入 tenant_id 防止跨租户操作"""
+        """租户级批量更新，自动注入 tenant_id 防止跨租户操作 / Tenant batch update, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1554,7 +1561,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         soft: bool = True,
     ) -> int:
-        """租户级批量删除，自动注入 tenant_id 防止跨租户操作"""
+        """租户级批量删除，自动注入 tenant_id 防止跨租户操作 / Tenant batch delete, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1578,7 +1585,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_restore(self, ids: list[int]) -> int:
-        """租户级批量恢复，自动注入 tenant_id 防止跨租户操作"""
+        """租户级批量恢复，自动注入 tenant_id 防止跨租户操作 / Tenant batch restore, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1600,7 +1607,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_permanent_delete(self, ids: list[int]) -> int:
-        """租户级批量物理删除，自动注入 tenant_id 防止跨租户操作"""
+        """租户级批量物理删除，自动注入 tenant_id 防止跨租户操作 / Tenant batch permanent delete, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1613,5 +1620,5 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
 
-# 导出
+# 导出 / Exports
 __all__ = ["BaseRepository", "TenantRepository"]

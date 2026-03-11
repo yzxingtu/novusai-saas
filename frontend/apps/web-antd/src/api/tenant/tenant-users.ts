@@ -1,19 +1,19 @@
 /**
- * 租户用户管理 API
- * 对接后端 /tenant/users/* 接口
+ * Tenant user management API / 租户用户管理 API
+ * Backend: /tenant/users/* / 对接后端 /tenant/users/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 用户列表查询参数 */
+/** User list query params / 用户列表查询参数 */
 export type TenantUserListParams = Record<string, unknown>;
 
-/** 创建用户请求 */
+/** Create user request / 创建用户请求 */
 export interface TenantUserCreateRequest {
   username: string;
   email: string;
@@ -24,7 +24,7 @@ export interface TenantUserCreateRequest {
   role_id?: null | number;
 }
 
-/** 更新用户请求 */
+/** Update user request / 更新用户请求 */
 export interface TenantUserUpdateRequest {
   email?: null | string;
   phone?: null | string;
@@ -35,12 +35,12 @@ export interface TenantUserUpdateRequest {
   gender?: null | number;
 }
 
-/** 重置密码请求 */
+/** Reset password request / 重置密码请求 */
 export interface TenantUserResetPasswordRequest {
   new_password: string;
 }
 
-/** 用户信息（后端原始格式 snake_case） */
+/** User info (backend raw format snake_case) / 用户信息（后端原始格式） */
 export interface TenantUserInfoRaw {
   id: number;
   tenant_id: number;
@@ -59,7 +59,7 @@ export interface TenantUserInfoRaw {
   updated_at?: null | string;
 }
 
-/** 用户信息（前端格式 camelCase） */
+/** User info (frontend format camelCase) / 用户信息（前端格式） */
 export interface TenantUserInfo {
   id: number;
   tenantId: number;
@@ -78,7 +78,7 @@ export interface TenantUserInfo {
   updatedAt?: null | string;
 }
 
-/** 分页列表响应 */
+/** Paginated list response / 分页列表响应 */
 export interface TenantUserListResponse {
   items: TenantUserInfo[];
   total: number;
@@ -87,10 +87,10 @@ export interface TenantUserListResponse {
 }
 
 // ============================================================
-// 转换函数
+// Transform functions / 转换函数
 // ============================================================
 
-/** 将后端 snake_case 转换为前端 camelCase */
+/** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
 function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
   return {
     id: raw.id,
@@ -112,13 +112,13 @@ function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const API_PREFIX = '/tenant/users';
 
 /**
- * 获取用户列表
+ * Get user list / 获取用户列表
  * GET /tenant/users
  */
 export async function getTenantUserListApi(
@@ -141,7 +141,7 @@ export async function getTenantUserListApi(
 }
 
 /**
- * 获取用户详情
+ * Get user detail / 获取用户详情
  * GET /tenant/users/{user_id}
  */
 export async function getTenantUserDetailApi(
@@ -156,7 +156,7 @@ export async function getTenantUserDetailApi(
 }
 
 /**
- * 创建用户
+ * Create user / 创建用户
  * POST /tenant/users
  */
 export async function createTenantUserApi(
@@ -172,7 +172,7 @@ export async function createTenantUserApi(
 }
 
 /**
- * 更新用户
+ * Update user / 更新用户
  * PUT /tenant/users/{user_id}
  */
 export async function updateTenantUserApi(
@@ -189,7 +189,7 @@ export async function updateTenantUserApi(
 }
 
 /**
- * 删除用户
+ * Delete user / 删除用户
  * DELETE /tenant/users/{user_id}
  */
 export async function deleteTenantUserApi(
@@ -200,7 +200,7 @@ export async function deleteTenantUserApi(
 }
 
 /**
- * 重置用户密码
+ * Reset user password / 重置用户密码
  * PUT /tenant/users/{user_id}/reset-password
  */
 export async function resetTenantUserPasswordApi(
@@ -216,7 +216,7 @@ export async function resetTenantUserPasswordApi(
 }
 
 /**
- * 切换用户状态
+ * Toggle user status / 切换用户状态
  * PUT /tenant/users/{user_id}/status?is_active=true/false
  */
 export async function toggleTenantUserStatusApi(
@@ -233,7 +233,7 @@ export async function toggleTenantUserStatusApi(
 }
 
 /**
- * 审批通过用户
+ * Approve user / 审批通过用户
  * PUT /tenant/users/{user_id}/approve
  */
 export async function approveTenantUserApi(
@@ -249,7 +249,7 @@ export async function approveTenantUserApi(
 }
 
 /**
- * 审批拒绝用户
+ * Reject user / 审批拒绝用户
  * PUT /tenant/users/{user_id}/reject
  */
 export async function rejectTenantUserApi(
@@ -265,7 +265,7 @@ export async function rejectTenantUserApi(
 }
 
 /**
- * 批量审批通过用户
+ * Batch approve users / 批量审批通过用户
  * PUT /tenant/users/batch/approve
  */
 export async function batchApproveTenantUserApi(
@@ -281,7 +281,7 @@ export async function batchApproveTenantUserApi(
 }
 
 /**
- * 批量审批拒绝用户
+ * Batch reject users / 批量审批拒绝用户
  * PUT /tenant/users/batch/reject
  */
 export async function batchRejectTenantUserApi(

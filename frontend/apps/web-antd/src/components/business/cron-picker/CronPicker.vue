@@ -290,7 +290,7 @@ const dayOfWeekOptions = computed(() => {
 
 <template>
   <div class="cron-picker w-full">
-    <!-- 模式切换 -->
+    <!-- Mode switch / 模式切换 -->
     <Segmented
       :value="mode"
       :disabled="disabled"
@@ -303,7 +303,7 @@ const dayOfWeekOptions = computed(() => {
       @change="onModeChange"
     />
 
-    <!-- 预设模式 -->
+    <!-- Preset mode / 预设模式 -->
     <div v-if="mode === 'preset'" class="grid grid-cols-3 gap-2">
       <div
         v-for="preset in presets"
@@ -343,9 +343,9 @@ const dayOfWeekOptions = computed(() => {
       </div>
     </div>
 
-    <!-- 自定义模式 -->
+    <!-- Custom mode / 自定义模式 -->
     <div v-else>
-      <!-- 可视化字段选择器 -->
+      <!-- Visual field selectors / 可视化字段选择器 -->
       <div class="mb-3 grid grid-cols-5 gap-2">
         <div
           v-for="field in [
@@ -407,7 +407,7 @@ const dayOfWeekOptions = computed(() => {
         </div>
       </div>
 
-      <!-- 手动输入 -->
+      <!-- Manual input / 手动输入 -->
       <div class="flex items-center gap-2">
         <span class="shrink-0 text-xs text-muted-foreground">
           {{ $t('common.cronPicker.expression') }}:
@@ -425,7 +425,7 @@ const dayOfWeekOptions = computed(() => {
       </div>
     </div>
 
-    <!-- 底部信息栏：当前表达式 + 描述 + 下次执行 -->
+    <!-- Bottom info bar: current expression + description + next executions / 底部信息栏：当前表达式 + 描述 + 下次执行 -->
     <div
       v-if="cronValue"
       class="mt-3 rounded-lg border border-border bg-accent/30 p-2.5"

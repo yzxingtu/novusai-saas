@@ -1,8 +1,9 @@
 /**
+ * Role Tree Component Type Definitions
  * 角色树组件类型定义
  */
 
-/** 角色树节点数据 */
+/** Role tree node data / 角色树节点数据 */
 export interface RoleTreeNodeData {
   id: number;
   code: string;
@@ -16,23 +17,23 @@ export interface RoleTreeNodeData {
   children: RoleTreeNodeData[];
 }
 
-/** 层级颜色配置 */
+/** Level color configuration / 层级颜色配置 */
 export interface LevelColorConfig {
   bar: string;
   badge: string;
 }
 
-/** 角色树组件 Props */
+/** Role tree component Props / 角色树组件 Props */
 export interface RoleTreeProps {
-  /** 树形数据 */
+  /** Tree data / 树形数据 */
   data: RoleTreeNodeData[];
-  /** 加载状态 */
+  /** Loading state / 加载状态 */
   loading?: boolean;
-  /** i18n 前缀 */
+  /** i18n prefix / i18n 前缀 */
   i18nPrefix?: 'admin' | 'tenant';
 }
 
-/** 角色树组件 Emits */
+/** Role tree component Emits / 角色树组件 Emits */
 /* eslint-disable @typescript-eslint/unified-signatures */
 export interface RoleTreeEmits {
   (e: 'edit', row: RoleTreeNodeData): void;

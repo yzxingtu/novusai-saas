@@ -1,7 +1,8 @@
 """
-邮件发送日志模型
+邮件发送日志模型 / Email Log Model
 
 记录每封邮件的发送状态，用于审计追溯和问题排查
+Records each email's sending status for audit tracing and troubleshooting.
 """
 
 from datetime import datetime

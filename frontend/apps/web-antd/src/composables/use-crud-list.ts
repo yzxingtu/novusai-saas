@@ -1,11 +1,13 @@
 /**
+ * Declarative CRUD list composable — renderless data layer
  * 声明式 CRUD 列表 Composable — 无渲染数据层
  *
- * 提供完整的列表数据管理能力（加载、搜索、分页、CRUD、回收站），
- * 但不绑定任何渲染组件（VxeTable / Card / 等），
- * 页面可自由选择渲染方式（卡片网格、配置面板、Master-Detail 等）。
+ * Provides full list data management (loading, search, pagination, CRUD, recycle bin)
+ * without binding to any rendering component (VxeTable / Card / etc.).
+ * Pages can freely choose rendering (card grid, config panel, Master-Detail, etc.).
+ * 提供完整的列表数据管理能力，不绑定渲染组件。
  *
- * @example 卡片网格
+ * @example Card grid / 卡片网格
  * ```ts
  * const {
  *   list, total, loading, currentPage,
@@ -20,7 +22,7 @@
  * });
  * ```
  *
- * @example Master-Detail（配合 selectable）
+ * @example Master-Detail (with selectable) / Master-Detail（配合 selectable）
  * ```ts
  * const {
  *   list, selectedId, selectedItem, onSelect,
@@ -54,6 +56,7 @@ import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
+// Dependency block types & imperative modal
 // 依赖阻止类型 & 命令式弹窗
 // ============================================================
 
@@ -70,7 +73,7 @@ interface DependencyGroup {
 
 const DEP_MAX_PREVIEW = 5;
 
-/** 命令式显示依赖阻止弹窗（无需组件 ref） */
+/** Imperatively show dependency block modal (no component ref needed) / 命令式显示依赖阻止弹窗 */
 function showDependencyBlock(deps: DependencyGroup[], name: string) {
   const title = name
     ? `${$t('common.dependency.title')}「${name}」`
@@ -145,143 +148,147 @@ function showDependencyBlock(deps: DependencyGroup[], name: string) {
 }
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 切换状态 API 类型 */
+/** Toggle status API type / 切换状态 API 类型 */
 export type ToggleStatusApi = (
   id: number | string,
   data: Record<string, unknown>,
 ) => Promise<unknown>;
 
-/** 切换状态配置 */
+/** Toggle status config / 切换状态配置 */
 export type ToggleStatusConfig = Record<string, ToggleStatusApi>;
 
-/** API 配置 */
+/** API config / API 配置 */
 export interface CrudListApiConfig<T = unknown> {
-  /** 列表查询 API（必填） */
+  /** List query API (required) / 列表查询 API（必填） */
   list: (
     params: Record<string, unknown>,
   ) => Promise<T[] | { items: T[]; total: number }>;
 
   /**
-   * 资源基础路径（必填）
-   * 用于自动构造 DELETE 请求：DELETE {resource}/{id}
+   * Resource base path (required) / 资源基础路径（必填）
+   * Used to auto-construct DELETE request: DELETE {resource}/{id}
+   * 用于自动构造 DELETE 请求
    */
   resource: string;
 
   /**
-   * 自定义删除 API（可选）
-   * 如不提供，将使用 resource 路径自动构造 DELETE 请求
+   * Custom delete API (optional) / 自定义删除 API（可选）
+   * If not provided, auto-constructs DELETE using resource path
+   * 如不提供，使用 resource 路径自动构造
    */
   delete?: (id: number) => Promise<void>;
 
   /**
-   * 快捷开关配置（支持多个）
+   * Toggle switch config (supports multiple) / 快捷开关配置（支持多个）
    * @example { is_active: toggleStatusApi }
    */
   toggles?: ToggleStatusConfig;
 }
 
-/** 回收站配置 */
+/** Recycle bin config / 回收站配置 */
 export interface RecycleBinConfig {
   nameField?: string;
   columns?: Array<{ dataIndex: string; title: string; width?: number }>;
 }
 
-/** useCrudList 配置选项 */
+/** useCrudList configuration options / useCrudList 配置选项 */
 export interface UseCrudListOptions<
   T extends object = Record<string, unknown>,
 > {
   /**
-   * 主键字段名
+   * Primary key field name / 主键字段名
    * @default 'id'
    * @example 'feature_code' | 'provider_id'
    */
   keyField?: string;
-  /** API 配置（必填） */
+  /** API config (required) / API 配置（必填） */
   api: CrudListApiConfig<T>;
 
   /**
-   * API 响应适配器
-   * 用于处理非标准 API 响应（如返回数组而非 {items, total}）
-   * @default 自动检测：数组包装为 { items: data, total: data.length }
+   * API response adapter / API 响应适配器
+   * For non-standard API responses (e.g. array instead of {items, total})
+   * 用于处理非标准 API 响应
+   * @default Auto-detect: wraps array as { items: data, total: data.length }
    */
   responseAdapter?: (data: unknown) => { items: T[]; total: number };
 
-  /** 表单组件 */
+  /** Form component / 表单组件 */
   formComponent?: Component;
 
-  /** 表单类型：drawer 或 modal，默认 drawer */
+  /** Form type: drawer or modal, default drawer / 表单类型 */
   formType?: 'drawer' | 'modal';
 
   /**
-   * 新建模式的表单默认值
+   * Default form values for create mode / 新建模式的表单默认值
    */
   formDefaults?: (() => Record<string, unknown>) | Record<string, unknown>;
 
   /**
-   * 客户端过滤函数
-   * 启用后，列表一次加载全量数据，搜索在前端过滤
+   * Client-side filter function / 客户端过滤函数
+   * When enabled, list loads all data at once, search filters on frontend
+   * 启用后列表一次加载全量数据，搜索在前端过滤
    */
   clientFilter?: (item: T, keyword: string) => boolean;
 
-  /** 固定过滤条件（每次请求都会附带） */
+  /** Fixed filter conditions (attached to every request) / 固定过滤条件 */
   defaultFilters?: Record<string, unknown>;
 
-  /** 默认排序字段，默认 '-created_at' */
+  /** Default sort field, default '-created_at' / 默认排序字段 */
   defaultSort?: string;
 
-  /** 每页条数，默认 20 */
+  /** Items per page, default 20 / 每页条数 */
   pageSize?: number;
 
-  /** 是否启用分页，默认 true */
+  /** Whether pagination is enabled, default true / 是否启用分页 */
   pager?: boolean;
 
   /**
-   * 自动刷新间隔（毫秒）
-   * 0 或不设置 = 不自动刷新
+   * Auto-refresh interval (ms) / 自动刷新间隔（毫秒）
+   * 0 or unset = no auto-refresh / 0 或不设置 = 不自动刷新
    */
   autoRefreshInterval?: number;
 
   /**
-   * 是否启用选中状态（Master-Detail 模式）
+   * Whether to enable selection state (Master-Detail mode) / 是否启用选中状态
    * @default false
    */
   selectable?: boolean;
 
   /**
-   * 默认选中策略
-   * - 'first': 加载后自动选中第一条
-   * - 'none': 不自动选中
+   * Default selection strategy / 默认选中策略
+   * - 'first': auto-select first item after load / 加载后自动选中第一条
+   * - 'none': no auto-selection / 不自动选中
    * @default 'first'
    */
   defaultSelect?: 'first' | 'none';
 
-  /** i18n 前缀（必填） */
+  /** i18n prefix (required) / i18n 前缀（必填） */
   i18nPrefix: string;
 
-  /** 用于显示的名称字段，默认 'name' */
+  /** Display name field, default 'name' / 用于显示的名称字段 */
   nameField?: keyof T & string;
 
-  /** 创建按钮权限码 */
+  /** Create button permission code / 创建按钮权限码 */
   createPermission?: string;
 
   /**
-   * 回收站配置
-   * - true: 启用回收站，使用默认配置
-   * - RecycleBinConfig: 启用并自定义
-   * - false/undefined: 不启用
+   * Recycle bin config / 回收站配置
+   * - true: enable with default config / 启用默认配置
+   * - RecycleBinConfig: enable with custom config / 启用并自定义
+   * - false/undefined: disabled / 不启用
    */
   recycleBin?: boolean | RecycleBinConfig;
 
-  /** 自定义操作处理器 */
+  /** Custom action handlers / 自定义操作处理器 */
   customActions?: Record<string, (row: T) => void>;
 }
 
-/** useCrudList 返回值 */
+/** useCrudList return value / useCrudList 返回值 */
 export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
-  // === 响应式数据 ===
+  // === Reactive data / 响应式数据 ===
   list: Ref<T[]>;
   filteredList: ComputedRef<T[]>;
   total: Ref<number>;
@@ -291,17 +298,17 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   searchKeyword: Ref<string>;
   searchParams: Ref<Record<string, unknown>>;
 
-  // === 选中状态 ===
+  // === Selection state / 选中状态 ===
   selectedId: Ref<null | number | string>;
   selectedItem: ComputedRef<null | T>;
 
-  // === 组件 ===
+  // === Components / 组件 ===
   FormDrawer: Component | null;
   formApi:
     | null
     | ReturnType<typeof useVbenDrawer>[1]
     | ReturnType<typeof useVbenModal>[1];
-  // === CRUD 操作 ===
+  // === CRUD operations / CRUD 操作 ===
   loadList: () => Promise<void>;
   reload: () => Promise<void>;
   onCreate: () => void;
@@ -315,30 +322,31 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   ) => Promise<boolean>;
   onSelect: (row: T) => void;
 
-  // === 搜索/分页 ===
+  // === Search/pagination / 搜索/分页 ===
   onSearch: (params?: Record<string, unknown>) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 
-  // === 回收站 ===
+  // === Recycle bin / 回收站 ===
   openRecycleBin: () => void;
   recycleBinCount: Ref<number>;
 
-  // === 辅助 ===
+  // === Utilities / 辅助 ===
   isProcessing: (id: number | string) => boolean;
   handleMenuAction: (code: string, row: T) => void;
 
-  // === 生命周期 ===
+  // === Lifecycle / 生命周期 ===
   startAutoRefresh: () => void;
   stopAutoRefresh: () => void;
 }
 
 // ============================================================
-// 依赖阻止错误码
+// Dependency block error code / 依赖阻止错误码
 // ============================================================
 const DEPENDENCY_BLOCKED_CODE = 4221;
 
 // ============================================================
+// Default response adapter: auto-detect array/paginated format
 // 默认响应适配器：自动检测数组/分页格式
 // ============================================================
 function defaultResponseAdapter<T>(data: unknown): {
@@ -359,6 +367,7 @@ function defaultResponseAdapter<T>(data: unknown): {
 }
 
 // ============================================================
+// Date range processing (reused from useCrudPage)
 // 日期范围处理（复用自 useCrudPage）
 // ============================================================
 function processFormValues(
@@ -386,7 +395,7 @@ function processFormValues(
 }
 
 // ============================================================
-// useCrudList 实现
+// useCrudList implementation / useCrudList 实现
 // ============================================================
 
 export function useCrudList<T extends object = Record<string, unknown>>(
@@ -412,12 +421,12 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     customActions = {},
   } = options;
 
-  /** 获取行主键值 */
+  /** Get row primary key value / 获取行主键值 */
   function getRowKey(row: T): number | string {
     return (row as Record<string, unknown>)[keyField] as number | string;
   }
 
-  // ==================== 响应式状态 ====================
+  // ==================== Reactive state / 响应式状态 ====================
   const list = ref<T[]>([]) as Ref<T[]>;
   const total = ref(0);
   const loading = ref(false);
@@ -426,7 +435,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   const searchKeyword = ref('');
   const searchParams = ref<Record<string, unknown>>({});
 
-  // ==================== 选中状态 ====================
+  // ==================== Selection state / 选中状态 ====================
   const selectedId = ref<null | number | string>(null);
   const selectedItem = computed<null | T>(() => {
     if (!selectable || selectedId.value === null) return null;
@@ -439,7 +448,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     selectedId.value = getRowKey(row);
   }
 
-  // ==================== 客户端过滤 ====================
+  // ==================== Client-side filter / 客户端过滤 ====================
   const filteredList = computed<T[]>(() => {
     if (!clientFilter || !searchKeyword.value.trim()) {
       return list.value;
@@ -448,14 +457,14 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     return list.value.filter((item) => clientFilter(item, kw));
   });
 
-  // ==================== 列表加载 ====================
+  // ==================== List loading / 列表加载 ====================
   async function loadList() {
     loading.value = true;
     try {
       let result: { items: T[]; total: number };
 
       if (clientFilter) {
-        // 客户端过滤模式：加载全量数据
+        // Client filter mode: load all data / 客户端过滤模式：加载全量数据
         const rawData = await api.list({
           'page[size]': 9999,
           sort: defaultSort,
@@ -463,7 +472,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         });
         result = responseAdapter(rawData);
       } else {
-        // 服务端分页模式
+        // Server-side pagination mode / 服务端分页模式
         const processedParams = processFormValues(searchParams.value);
         const params: Record<string, unknown> = {
           ...processedParams,
@@ -483,7 +492,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       list.value = result.items;
       total.value = result.total;
 
-      // 选中状态处理
+      // Selection state handling / 选中状态处理
       if (
         selectable &&
         list.value.length > 0 &&
@@ -509,7 +518,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     await loadList();
   }
 
-  // ==================== 搜索 ====================
+  // ==================== Search / 搜索 ====================
   function onSearch(params?: Record<string, unknown>) {
     if (params) {
       searchParams.value = params;
@@ -529,7 +538,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     loadList();
   }
 
-  // ==================== 表单弹窗 ====================
+  // ==================== Form popup / 表单弹窗 ====================
   let FormPopup:
     | null
     | ReturnType<typeof useVbenDrawer>[0]
@@ -575,7 +584,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       .open();
   }
 
-  // ==================== 防抖状态 ====================
+  // ==================== Debounce state / 防抖状态 ====================
   const processingIds = ref<Set<number | string>>(new Set());
 
   function isProcessing(id: number | string): boolean {
@@ -590,7 +599,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   }
 
-  // ==================== 删除 ====================
+  // ==================== Delete / 删除 ====================
   async function onDelete(row: T) {
     const rowId = getRowKey(row);
     if (isProcessing(rowId)) return;
@@ -625,7 +634,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   }
 
-  // ==================== Toggle 状态 ====================
+  // ==================== Toggle status / Toggle 状态 ====================
   async function onToggleField(
     fieldName: string,
     newStatus: boolean,
@@ -673,14 +682,14 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     return onToggleField('is_active', newStatus, row);
   }
 
-  // ==================== 回收站 ====================
+  // ==================== Recycle bin / 回收站 ====================
   const recycleBinCount = ref(0);
 
   function openRecycleBin() {
-    // noop — 页面自行管理 RecycleBinDrawer ref 和 open()
+    // noop — page manages RecycleBinDrawer ref and open() / 页面自行管理
   }
 
-  // ==================== 操作分发 ====================
+  // ==================== Action dispatch / 操作分发 ====================
   function handleMenuAction(code: string, row: T) {
     const customAction = customActions[code];
     if (customAction) {
@@ -700,14 +709,14 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   }
 
-  // ==================== 自动刷新 ====================
+  // ==================== Auto-refresh / 自动刷新 ====================
   let refreshTimer: null | ReturnType<typeof setInterval> = null;
 
   function startAutoRefresh() {
     stopAutoRefresh();
     if (autoRefreshInterval > 0) {
       refreshTimer = setInterval(() => {
-        // 避免隐藏页面或慢请求场景下叠加请求，导致主线程与网络风暴
+        // Avoid stacking requests on hidden pages or slow requests / 避免隐藏页面或慢请求场景下叠加请求
         if (document.hidden || loading.value) return;
         loadList();
       }, autoRefreshInterval);
@@ -721,7 +730,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   }
 
-  // ==================== 生命周期 ====================
+  // ==================== Lifecycle / 生命周期 ====================
   onMounted(() => {
     loadList();
     if (autoRefreshInterval > 0) {
@@ -729,12 +738,12 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   });
 
-  // KeepAlive 页面切走时停止自动刷新，避免后台持续轮询
+  // Stop auto-refresh when KeepAlive page deactivates / KeepAlive 页面切走时停止自动刷新
   onDeactivated(() => {
     stopAutoRefresh();
   });
 
-  // KeepAlive 页面恢复时再启动自动刷新
+  // Resume auto-refresh when KeepAlive page reactivates / KeepAlive 页面恢复时再启动
   onActivated(() => {
     if (autoRefreshInterval > 0) {
       startAutoRefresh();
@@ -745,9 +754,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     stopAutoRefresh();
   });
 
-  // ==================== 返回 ====================
+  // ==================== Return / 返回 ====================
   return {
-    // 响应式数据
+    // Reactive data / 响应式数据
     list,
     filteredList,
     total,
@@ -757,15 +766,15 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     searchKeyword,
     searchParams,
 
-    // 选中状态
+    // Selection state / 选中状态
     selectedId,
     selectedItem,
 
-    // 组件
+    // Components / 组件
     FormDrawer: FormPopup,
     formApi: formPopupApi,
 
-    // CRUD 操作
+    // CRUD operations / CRUD 操作
     loadList,
     reload,
     onCreate,
@@ -775,20 +784,20 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     onToggleField,
     onSelect,
 
-    // 搜索/分页
+    // Search/pagination / 搜索/分页
     onSearch,
     onPageChange,
     onPageSizeChange,
 
-    // 回收站
+    // Recycle bin / 回收站
     openRecycleBin,
     recycleBinCount,
 
-    // 辅助
+    // Utilities / 辅助
     isProcessing,
     handleMenuAction,
 
-    // 生命周期
+    // Lifecycle / 生命周期
     startAutoRefresh,
     stopAutoRefresh,
   };

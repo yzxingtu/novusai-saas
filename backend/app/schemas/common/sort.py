@@ -1,7 +1,8 @@
 """
-通用排序 Schema
+通用排序 Schema / Common Sort Schema
 
 提供批量重排序相关的请求/响应模型
+Provides batch reorder request/response models.
 """
 
 from pydantic import BaseModel, Field

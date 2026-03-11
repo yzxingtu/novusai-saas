@@ -1,8 +1,12 @@
 """
+Vision Image Description Service
 Vision 图片描述服务
 
+Internal LLM call within RAG pipeline (exempt from AI architecture rules:
+LLM calls inside RAG pipeline are part of Agent skill internal implementation,
+not subject to Agent→Skill restrictions).
 RAG 管道内部 LLM 调用（符合 AI 架构规则豁免：
-RAG 管道内部的 LLM 调用属于 Agent 技能内部实现，不受 Agent→Skill 限制）
+RAG 管道内部的 LLM 调用属于 Agent 技能内部实现，不受 Agent→Skill 限制）。
 """
 
 from __future__ import annotations
@@ -27,25 +31,30 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.rag")
 
-# 单张图片最大限制（20 MB）
+# Max single image size (20 MB) / 单张图片最大限制（20 MB）
 _MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
-# Vision 调用超时（秒）
+# Vision call timeout (seconds) / Vision 调用超时（秒）
 _VISION_TIMEOUT_SECONDS = 30.0
 
 
 class VisionDescriber:
     """
+    Image Description Service (within RAG pipeline)
     图片描述服务（RAG 管道内部）
 
+    Calls Vision model to generate text descriptions for images, used for subsequent text embedding.
+    All exceptions are silently handled (returns ""), without interrupting document processing.
     调用 Vision 模型为图片生成文字描述，供后续 text embedding 使用。
     任何异常均静默处理（返回 ""），不中断文档处理流程。
 
-    Vision 模型选取优先级：
-    1. knowledge_base.vision_model_id（管理员显式配置）
-    2. 平台第一个 is_active=True & supports_vision=True & type='chat' 的模型
-    3. 无可用模型 → 返回 ""，记录 warning
+    Vision model selection priority / Vision 模型选取优先级：
+    1. knowledge_base.vision_model_id (admin explicit config) / 管理员显式配置
+    2. First platform model with is_active=True & supports_vision=True & type='chat'
+       平台第一个 is_active=True & supports_vision=True & type='chat' 的模型
+    3. No available model → return "", log warning / 无可用模型 → 返回 ""，记录 warning
 
+    tenant_id must be provided to ensure Vision API costs are attributed to the correct tenant.
     tenant_id 必须传入以确保 Vision API 成本归入对应租户。
     """
 
@@ -61,14 +70,16 @@ class VisionDescriber:
         knowledge_base: KnowledgeBase,
     ) -> str:
         """
+        Generate text description for an image
         生成图片的文字描述
 
         Args:
-            image_bytes: 图片二进制内容
-            mime_type: MIME 类型（如 image/jpeg）
-            knowledge_base: 知识库对象（含可选 vision_model_id 属性）
+            image_bytes: Image binary content / 图片二进制内容
+            mime_type: MIME type (e.g. image/jpeg) / MIME 类型
+            knowledge_base: KB object (with optional vision_model_id) / 知识库对象（含可选 vision_model_id 属性）
 
         Returns:
+            Image text description string, returns "" on failure
             图片文字描述字符串，失败返回 ""
         """
         if not image_bytes:
@@ -148,11 +159,11 @@ class VisionDescriber:
         knowledge_base: KnowledgeBase,
     ) -> AIModel | None:
         """
-        获取 Vision 模型
+        Get Vision model / 获取 Vision 模型
 
-        优先级：
-        1. knowledge_base.vision_model_id（T3 迁移后存在）
-        2. 平台第一个启用的 vision chat 模型
+        Priority / 优先级：
+        1. knowledge_base.vision_model_id (exists after T3 migration) / T3 迁移后存在
+        2. First enabled platform vision chat model / 平台第一个启用的 vision chat 模型
         """
         from app.models.ai.model import AIModel
 

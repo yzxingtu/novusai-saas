@@ -1,8 +1,9 @@
 /**
- * AI Chat API（共享）
+ * AI Chat API (shared) / AI Chat API（共享）
  *
+ * Wraps all requestClient calls from use-ai-chat.ts.
+ * Differentiates admin/tenant via apiPrefix parameter.
  * 封装 use-ai-chat.ts 中的所有 requestClient 调用。
- * 通过 apiPrefix 参数区分 admin/tenant。
  */
 import type { ChatAttachment } from '#/components/business/ai-chat-panel/types';
 
@@ -59,11 +60,11 @@ function chatBaseUrl(apiPrefix: string): string {
 }
 
 /**
- * 获取已发布智能体列表
+ * Get published agent list / 获取已发布智能体列表
  *
- * 管理端：仅返回管理端可见的作用域（admin_only / admin_and_all / admin_and_assigned），
- * 排除仅租户端作用域（all_tenants / assigned_tenants）。
- * 租户端：后端已自动按 tenant_id + scope 过滤，无需额外传参。
+ * Admin: returns only admin-visible scopes (admin_only / admin_and_all / admin_and_assigned).
+ * Tenant: backend auto-filters by tenant_id + scope.
+ * 管理端：仅返回管理端可见作用域；租户端：后端自动过滤。
  */
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,
@@ -81,7 +82,7 @@ export async function getChatAgentsApi<T = Record<string, unknown>>(
 }
 
 /**
- * 获取全局对话列表（跨智能体）
+ * Get global conversation list (cross-agent) / 获取全局对话列表（跨智能体）
  */
 export async function getGlobalConversationsApi<T = Record<string, unknown>>(
   apiPrefix: string,
@@ -94,7 +95,7 @@ export async function getGlobalConversationsApi<T = Record<string, unknown>>(
 }
 
 /**
- * 删除对话
+ * Delete conversation / 删除对话
  */
 export async function deleteChatConversationApi(
   apiPrefix: string,
@@ -106,7 +107,7 @@ export async function deleteChatConversationApi(
 }
 
 /**
- * 清空会话记忆状态（不删除对话消息）
+ * Clear conversation memory state (without deleting messages) / 清空会话记忆状态
  */
 export async function clearChatConversationMemoryApi(
   apiPrefix: string,
@@ -118,7 +119,7 @@ export async function clearChatConversationMemoryApi(
 }
 
 /**
- * 获取会话记忆状态（偏好/约束/任务/事实）
+ * Get conversation memory state (preferences/constraints/tasks/facts) / 获取会话记忆状态
  */
 export interface MemoryState {
   preferences: string[];
@@ -139,7 +140,7 @@ export async function getChatConversationMemoryApi(
 }
 
 /**
- * 获取对话消息列表
+ * Get conversation message list / 获取对话消息列表
  */
 export async function getChatConversationMessagesApi(
   apiPrefix: string,
@@ -151,7 +152,7 @@ export async function getChatConversationMessagesApi(
 }
 
 /**
- * 上传聊天附件
+ * Upload chat attachment / 上传聊天附件
  *
  * @param uploadUrl - Upload endpoint URL
  * @param file - File to upload
@@ -207,7 +208,7 @@ export interface AgentRouteResponse {
 }
 
 /**
- * 智能路由 — 根据消息和上下文选择目标智能体
+ * Smart routing — select target agent based on message and context / 智能路由
  */
 export async function routeMessageApi(
   apiPrefix: string,
@@ -238,7 +239,7 @@ export interface ChatKBBindingInfo {
 }
 
 /**
- * 获取智能体已绑定的知识库列表（仅返回 enabled 的）
+ * Get agent's bound knowledge base list (enabled only) / 获取智能体已绑定的知识库列表
  */
 export async function getChatAgentKBBindingsApi(
   apiPrefix: string,
@@ -271,7 +272,7 @@ export interface ChatSkillInfo {
 }
 
 /**
- * 获取智能体的技能绑定列表（共享，按 apiPrefix 自动走 admin/tenant）
+ * Get agent's skill binding list (shared, auto routes by apiPrefix) / 获取智能体的技能绑定列表
  */
 export async function getChatAgentSkillsApi(
   apiPrefix: string,
@@ -283,7 +284,7 @@ export async function getChatAgentSkillsApi(
 }
 
 /**
- * 获取技能包内的技能列表（共享）
+ * Get skills in a skill package (shared) / 获取技能包内的技能列表
  */
 export async function getChatPackageSkillsApi(
   apiPrefix: string,
@@ -296,7 +297,7 @@ export async function getChatPackageSkillsApi(
 }
 
 /**
- * 发送 SSE 流式聊天消息
+ * Send SSE streaming chat message / 发送 SSE 流式聊天消息
  */
 export async function sendChatStreamApi(
   apiPrefix: string,

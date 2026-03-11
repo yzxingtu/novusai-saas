@@ -1,8 +1,13 @@
 """
-智能体批处理 Celery 任务
+Agent batch processing Celery task / 智能体批处理 Celery 任务
 
+Asynchronously executes batch requests, processing items one by one
+and updating BatchRun progress in real time.
 异步执行批量请求，逐项处理并实时更新 BatchRun 进度
 
+Note: In Celery Worker (Windows --pool=solo), asyncio.new_event_loop()
+between retries invalidates the module-level async_session_factory's event loop.
+Therefore, an independent async engine + session must be created on each task call.
 注意：Celery Worker (Windows --pool=solo) 中，asyncio.new_event_loop() 在 retries 之间
 会导致模块级 async_session_factory 绑定的 event loop 失效。
 因此必须在每次任务调用时创建独立的 async engine + session。
@@ -20,24 +25,24 @@ logger = LogManager.get_logger("task")
 
 @register_task(
     queue="ai_gateway",
-    description="执行智能体批处理",
+    description="Execute agent batch processing / 执行智能体批处理",
     max_retries=1,
 )
 def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict:
     """
-    Celery 异步执行批处理
+    Celery async batch execution / Celery 异步执行批处理
 
-    1. 从 DB 加载 BatchRun + Agent
-    2. 遍历 items，逐项调用 TaskEngine.execute()
-    3. 实时更新 BatchRun.completed_items / failed_items
-    4. 全部完成后更新 status 和 completed_at
+    1. Load BatchRun + Agent from DB / 从 DB 加载 BatchRun + Agent
+    2. Iterate items, call TaskEngine.execute() for each / 遍历 items，逐项调用 TaskEngine.execute()
+    3. Update BatchRun.completed_items / failed_items in real time / 实时更新 BatchRun.completed_items / failed_items
+    4. Update status and completed_at after all done / 全部完成后更新 status 和 completed_at
 
     Args:
-        batch_run_id: 批量运行 ID
-        tenant_id: 租户 ID
+        batch_run_id: Batch run ID / 批量运行 ID
+        tenant_id: Tenant ID / 租户 ID
 
     Returns:
-        执行摘要
+        Execution summary / 执行摘要
     """
 
     async def _execute() -> dict:
@@ -51,7 +56,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
 
         async with _task_async_session() as db:
             try:
-                # 1. 加载 BatchRun
+                # 1. Load BatchRun / 加载 BatchRun
                 from sqlalchemy import select
                 stmt = select(BatchRun).where(BatchRun.id == batch_run_id)
                 result = await db.execute(stmt)
@@ -61,11 +66,11 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     logger.error("BatchRun %d not found", batch_run_id)
                     return {"error": "BatchRun not found"}
 
-                # 检查是否已取消
+                # Check if already cancelled / 检查是否已取消
                 if batch_run.status == BatchRunStatusEnum.CANCELLED.value:
                     return {"status": "cancelled"}
 
-                # 2. 加载 Agent
+                # 2. Load Agent / 加载 Agent
                 agent_repo = AgentRepository(db, tenant_id)
                 agent = await agent_repo.get_by_id(batch_run.agent_id)
                 if not agent:
@@ -74,15 +79,16 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     await db.commit()
                     return {"error": "Agent not found"}
 
-                # 3. 标记为运行中
+                # 3. Mark as running / 标记为运行中
                 batch_run.status = BatchRunStatusEnum.RUNNING.value
                 batch_run.started_at = utc_now()
                 await db.commit()
 
-                # 4. 解析技能绑定 + 读取平台安全配置
+                # 4. Resolve skill bindings + read platform security config / 解析技能绑定 + 读取平台安全配置
                 gateway = AIGateway(db)
 
-                # 解析 Agent 绑定的技能
+                # Resolve skills bound to Agent / 解析 Agent 绑定的技能
+                # Batch task initiated by tenant admin, default tenant_admin role for target_audience filtering
                 # batch 任务由租户管理员发起，默认 tenant_admin 角色进行 target_audience 过滤
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
@@ -98,7 +104,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                         batch_run_id, str(skill_exc),
                     )
 
-                # 读取平台 Toolkit 安全配置
+                # Read platform Toolkit security config / 读取平台 Toolkit 安全配置
                 from app.configs.service import ConfigService
                 _cfg = ConfigService(db)
                 _toolkit_security_level = str(
@@ -124,7 +130,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     sandbox=sandbox,
                 )
 
-                # 5. 逐项执行
+                # 5. Execute items one by one / 逐项执行
                 items = batch_run.input_items or []
                 succeeded = 0
                 failed = 0
@@ -132,7 +138,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 all_errors: list[dict] = []
 
                 for idx, item_data in enumerate(items):
-                    # 检查取消标志
+                    # Check cancellation flag / 检查取消标志
                     await db.refresh(batch_run, ["status"])
                     if batch_run.status == BatchRunStatusEnum.CANCELLED.value:
                         logger.info(
@@ -185,12 +191,12 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                             exc_info=True,
                         )
 
-                    # 实时更新进度
+                    # Update progress in real time / 实时更新进度
                     batch_run.completed_items = succeeded
                     batch_run.failed_items = failed
                     await db.commit()
 
-                    # Socket.IO 实时进度推送
+                    # Socket.IO real-time progress push / Socket.IO 实时进度推送
                     try:
                         from app.core.sio_bridge import notify_user_sync
                         if batch_run.created_by:
@@ -212,7 +218,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     except Exception:
                         pass
 
-                # 6. 最终状态更新
+                # 6. Final status update / 最终状态更新
                 if batch_run.status != BatchRunStatusEnum.CANCELLED.value:
                     if failed == 0:
                         batch_run.status = BatchRunStatusEnum.COMPLETED.value
@@ -230,7 +236,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 batch_run.completed_at = utc_now()
                 await db.commit()
 
-                # Socket.IO 完成/失败通知
+                # Socket.IO completion/failure notification / Socket.IO 完成/失败通知
                 try:
                     from app.core.sio_bridge import notify_user_sync
                     if batch_run.created_by:
@@ -271,7 +277,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     batch_run_id, str(exc),
                     exc_info=True,
                 )
-                # 更新为失败
+                # Update to failed / 更新为失败
                 try:
                     batch_run.status = BatchRunStatusEnum.FAILED.value
                     batch_run.completed_at = utc_now()

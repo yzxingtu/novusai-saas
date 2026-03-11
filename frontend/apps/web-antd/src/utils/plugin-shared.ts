@@ -1,9 +1,13 @@
 /**
+ * Plugin shared dependency exposure
  * 插件共享依赖暴露
  *
+ * Mounts host dependencies commonly used by plugins onto window for UMD external references.
+ * Must call exposePluginShared() early in bootstrap.
  * 将插件常用的宿主依赖挂载到 window，供插件 UMD 包作为 external 引用。
  * 必须在 bootstrap 早期调用 exposePluginShared()。
  *
+ * Plugin vite.config rollupOptions.external mapping:
  * 插件 vite.config 中 rollupOptions.external 映射:
  *   'vue'                -> window.Vue
  *   'vue-router'         -> window.VueRouter
@@ -51,6 +55,8 @@ export {
 };
 
 /**
+ * Get current endpoint (admin/tenant/user) JWT Access Token
+ * For plugin Socket.IO and other non-HTTP channel authentication
  * 获取当前端（admin/tenant/user）的 JWT Access Token
  * 供插件 Socket.IO 等非 HTTP 通道鉴权使用
  */
@@ -60,6 +66,7 @@ function getAuthToken(): null | string {
 }
 
 /**
+ * Get current logged-in user info (for plugin collaboration, comments, etc.)
  * 获取当前登录用户信息（供插件协作、评论等场景使用）
  */
 function getCurrentUser(): {
@@ -84,31 +91,32 @@ function getCurrentUser(): {
 }
 
 export interface NovusPluginSharedAPI {
-  /** HTTP 请求客户端 */
+  /** HTTP request client / HTTP 请求客户端 */
   requestClient: typeof requestClient;
-  /** i18n 翻译函数 */
+  /** i18n translation function / i18n 翻译函数 */
   $t: typeof $t;
-  /** 图标组件 */
+  /** Icon component / 图标组件 */
   IconifyIcon: typeof IconifyIcon;
-  /** 插件槽位 Store（UI 插槽：headerWidgets / floatingPanels 等） */
+  /** Plugin slots store (UI slots: headerWidgets / floatingPanels, etc.) / 插件槽位 Store（UI 插槽：headerWidgets / floatingPanels 等） */
   usePluginSlotsStore: typeof usePluginSlotsStore;
-  /** 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
+  /** Plugin extensions store (editor extensions / panels / commands) / 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
   usePluginExtensionsStore: typeof usePluginExtensionsStore;
-  /** 注册插件国际化消息 */
+  /** Register plugin i18n messages / 注册插件国际化消息 */
   registerLocale: (
     locale: string,
     prefix: string,
     messages: Record<string, unknown>,
   ) => void;
-  /** 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
+  /** Get current endpoint JWT Access Token (for Socket.IO and other non-HTTP auth) / 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
   getAuthToken: () => null | string;
-  /** 获取当前登录用户信息（供协作、评论等场景） */
+  /** Get current logged-in user info (for collaboration, comments, etc.) / 获取当前登录用户信息（供协作、评论等场景） */
   getCurrentUser: () => { id: null | number; name: string; username: string };
-  /** Vue Router 实例（供插件页面内导航使用） */
+  /** Vue Router instance (for plugin in-page navigation) / Vue Router 实例（供插件页面内导航使用） */
   router: typeof router;
 }
 
 /**
+ * Mount shared dependencies to window (call once)
  * 将共享依赖挂载到 window（调用一次即可）
  */
 export function exposePluginShared(): void {
@@ -145,6 +153,7 @@ export function exposePluginShared(): void {
 }
 
 /**
+ * Merge plugin-provided translation messages into global i18n instance
  * 将插件提供的翻译消息合并到全局 i18n 实例
  */
 function _registerPluginLocale(

@@ -1,17 +1,22 @@
 """
+Generic CRUD Executor
 通用 CRUD 执行器
 
+Dynamically executes create/update/delete operations based on ai_table_policies.
 基于 ai_table_policies 动态执行 create/update/delete 操作。
+All write operations use a two-step confirmation flow:
 所有写操作采用两步确认流程：
-  Step 1: 返回预览 JSON（requires_confirmation=true）
-  Step 2: LLM 重新调用并带 confirmed=true，执行实际操作
+  Step 1: Return preview JSON (requires_confirmation=true)
+          返回预览 JSON（requires_confirmation=true）
+  Step 2: LLM re-calls with confirmed=true, executing the actual operation
+          LLM 重新调用并带 confirmed=true，执行实际操作
 
-安全策略：
-- 基于 ai_table_policies 检查 CRUD 权限
-- blocked_columns / readonly_columns 不允许写入
-- 租户隔离：tenant-scoped 表自动注入 tenant_id
-- 仅软删除（set is_deleted=True），不允许硬删除
-- 所有操作审计到 ai_action_logs
+Security policies / 安全策略：
+- CRUD permission checks based on ai_table_policies / 基于 ai_table_policies 检查 CRUD 权限
+- blocked_columns / readonly_columns are not writable / 不允许写入
+- Tenant isolation: tenant-scoped tables auto-inject tenant_id / 租户隔离：自动注入 tenant_id
+- Soft delete only (set is_deleted=True), no hard deletes / 仅软删除，不允许硬删除
+- All operations are audited to ai_action_logs / 所有操作审计到 ai_action_logs
 """
 
 from __future__ import annotations
@@ -33,22 +38,28 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.crud")
 
+# Table name whitelist regex: only lowercase letters, digits, underscores (prevent SQL injection)
 # 表名白名单正则：仅允许小写字母、数字、下划线（防 SQL 注入）
 _SAFE_TABLE_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+# Column name whitelist regex: same rules as table names (prevent SQL injection)
 # 列名白名单正则：与表名规则一致（防 SQL 注入）
 _SAFE_COLUMN_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 def _validate_table_name(table_name: str) -> str | None:
-    """校验表名是否安全，返回错误消息或 None"""
+    """Validate table name is safe, return error message or None
+    校验表名是否安全，返回错误消息或 None"""
     if not _SAFE_TABLE_NAME_RE.match(table_name):
         return _("data_intelligence.crud.invalid_table_name").format(table=table_name)
     return None
 
 
 def _validate_column_names(data: dict[str, Any]) -> str | None:
-    """校验所有列名是否安全，返回错误消息或 None
+    """Validate all column names are safe, return error message or None.
+    校验所有列名是否安全，返回错误消息或 None。
 
+    Prevents LLM from passing malicious column names that could cause SQL injection.
+    Column names only allow lowercase letters, digits, and underscores, and must start with a letter or underscore.
     防止 LLM 传入恶意列名导致 SQL 注入。
     列名仅允许小写字母、数字和下划线，且必须以字母或下划线开头。
     """
@@ -60,7 +71,7 @@ def _validate_column_names(data: dict[str, Any]) -> str | None:
     return None
 
 
-# 全局安全：永远不允许写入的列
+# Global safety: columns that are never writable / 全局安全：永远不允许写入的列
 _NEVER_WRITABLE_COLUMNS: set[str] = {
     "id", "created_at", "updated_at", "is_deleted", "deleted_at",
     "password", "password_hash", "hashed_password",
@@ -73,8 +84,11 @@ async def _load_policy(
     context: ExecutionContext,
     table_name: str,
 ) -> AITablePolicy | None:
-    """从数据库加载表策略（含租户覆盖合并）
+    """Load table policy from database (with tenant override merging).
+    从数据库加载表策略（含租户覆盖合并）。
 
+    Loads the global policy, then finds and merges the corresponding tenant override.
+    Overrides can only tighten, not loosen. Merged values are written directly to policy object attributes.
     加载全局策略后，查找对应的租户覆盖并合并。
     覆盖只能收紧，不能放开。合并后的值直接写入策略对象属性。
     """
@@ -86,7 +100,7 @@ async def _load_policy(
     if not policy:
         return None
 
-    # 加载租户覆盖并合并（收紧规则）
+    # Load tenant override and merge (tighten-only rules) / 加载租户覆盖并合并（收紧规则）
     if context.tenant_id:
         from app.repositories.ai.table_policy_override_repository import (
             AITablePolicyOverrideRepository,
@@ -94,6 +108,7 @@ async def _load_policy(
         override_repo = AITablePolicyOverrideRepository(context.db)
         ov = await override_repo.get_by_policy_and_tenant(policy.id, context.tenant_id)
         if ov:
+            # Overrides can only tighten: True -> False OK, False -> True not allowed
             # 覆盖只能收紧：True -> False 可以，False -> True 不行
             if ov.allow_read is not None and not ov.allow_read:
                 policy.allow_read = False
@@ -105,16 +120,16 @@ async def _load_policy(
                 policy.allow_delete = False
             if ov.is_active is not None and not ov.is_active:
                 policy.is_active = False
-            # max_rows 只能更小
+            # max_rows can only be smaller / max_rows 只能更小
             if ov.max_rows is not None and ov.max_rows < policy.max_rows:
                 policy.max_rows = ov.max_rows
-            # blocked_columns 只能追加
+            # blocked_columns can only be appended / blocked_columns 只能追加
             if ov.blocked_columns:
                 existing = set(policy.blocked_columns or [])
                 existing.update(ov.blocked_columns)
                 policy.blocked_columns = list(existing)
 
-    # 合并后如果被禁用则视为不存在
+    # If disabled after merging, treat as non-existent / 合并后如果被禁用则视为不存在
     if not policy.is_active:
         return None
 
@@ -122,7 +137,7 @@ async def _load_policy(
 
 
 def _get_blocked_columns(policy: AITablePolicy) -> set[str]:
-    """获取禁止写入的列集合"""
+    """Get the set of columns that are forbidden to write / 获取禁止写入的列集合"""
     blocked = set(_NEVER_WRITABLE_COLUMNS)
     if policy.blocked_columns:
         blocked.update(policy.blocked_columns)
@@ -135,7 +150,8 @@ def _validate_write_data(
     data: dict[str, Any],
     blocked: set[str],
 ) -> str | None:
-    """校验写入数据中是否包含禁止写入的列，返回错误消息或 None"""
+    """Validate if write data contains forbidden columns, return error message or None
+    校验写入数据中是否包含禁止写入的列，返回错误消息或 None"""
     violations = set(data.keys()) & blocked
     if violations:
         return _("data_intelligence.crud.blocked_columns_violation").format(
@@ -145,11 +161,12 @@ def _validate_write_data(
 
 
 def _derive_permission(permission_code: str, action: str) -> str | None:
-    """从策略的 permission_code 推导写操作所需的权限码
+    """Derive required permission code for write operations from policy's permission_code.
+    从策略的 permission_code 推导写操作所需的权限码。
 
-    例如: 'agent:read' + 'create' -> 'agent:create'
-          '*' -> None（不需要额外权限）
-          'platform_only' -> 'platform_only'（仅平台管理员）
+    Examples / 例如: 'agent:read' + 'create' -> 'agent:create'
+          '*' -> None (no extra permission needed / 不需要额外权限)
+          'platform_only' -> 'platform_only' (platform admin only / 仅平台管理员)
     """
     if permission_code == "*":
         return None
@@ -166,19 +183,22 @@ def _check_rbac(
     policy: AITablePolicy,
     action: str,
 ) -> str | None:
-    """检查用户 RBAC 权限，返回错误消息或 None
+    """Check user RBAC permissions, return error message or None.
+    检查用户 RBAC 权限，返回错误消息或 None。
 
+    CRUD switches (allow_create/update/delete) are already checked by the caller;
+    this only validates user identity + permission code.
     CRUD 开关（allow_create/update/delete）已在调用方检查过，
     此处只做用户身份 + 权限码校验。
 
     Args:
-        context: 执行上下文
-        policy: 表策略
-        action: 操作类型 (create/update/delete/read)
+        context: Execution context / 执行上下文
+        policy: Table policy / 表策略
+        action: Operation type (create/update/delete/read) / 操作类型
     """
     perm_code = policy.permission_code or "*"
 
-    # platform_only: 仅平台管理员
+    # platform_only: platform admin only / 仅平台管理员
     if perm_code == "platform_only":
         if not context.is_platform_admin:
             return _("data_intelligence.crud.permission_denied").format(
@@ -186,15 +206,16 @@ def _check_rbac(
             )
         return None
 
-    # '*' 权限码: 任何登录用户可执行
+    # '*' permission code: any logged-in user can execute / 任何登录用户可执行
     if perm_code == "*":
         return None
 
+    # Platform admins skip permission code derivation check (they have all RBAC permissions)
     # 平台管理员跳过权限码推导检查（他们有所有 RBAC 权限）
     if context.is_platform_admin:
         return None
 
-    # 推导所需权限码并检查
+    # Derive required permission code and check / 推导所需权限码并检查
     required = _derive_permission(perm_code, action)
     if required and context.permissions and required not in context.permissions:
         return _("data_intelligence.crud.permission_denied").format(
@@ -208,9 +229,12 @@ async def _check_tenant_column(
     context: ExecutionContext,
     table_name: str,
 ) -> str | None:
-    """检查表是否有 tenant_id 列，非平台用户禁止操作无隔离列的表
+    """Check if table has tenant_id column; non-platform users are forbidden from operating on tables without isolation.
+    检查表是否有 tenant_id 列，非平台用户禁止操作无隔离列的表。
 
+    Returns error message or None (pass).
     返回错误消息或 None（通过）。
+    Platform admins can operate on any table (including platform-level tables without tenant_id).
     平台管理员可操作任何表（含无 tenant_id 的平台级表）。
     """
     if context.is_platform_admin:
@@ -219,7 +243,7 @@ async def _check_tenant_column(
     if not context.db:
         return None
 
-    # 查询目标表是否存在 tenant_id 列
+    # Query whether the target table has a tenant_id column / 查询目标表是否存在 tenant_id 列
     check_sql = text(
         "SELECT 1 FROM information_schema.columns "
         "WHERE table_schema = 'public' AND table_name = :tbl AND column_name = 'tenant_id' "
@@ -237,14 +261,17 @@ def _enforce_tenant_isolation(
     policy: AITablePolicy,
     data: dict[str, Any],
 ) -> None:
-    """强制注入 tenant_id 到写入数据（从上下文获取，永不信任 LLM 输入）"""
+    """Force inject tenant_id into write data (from context, never trust LLM input)
+    强制注入 tenant_id 到写入数据（从上下文获取，永不信任 LLM 输入）"""
     if context.tenant_id:
         data["tenant_id"] = context.tenant_id
     elif "tenant_id" in data:
+        # Platform admin doesn't need tenant_id, remove value possibly passed by LLM
         # 平台管理员无需 tenant_id，移除 LLM 可能传入的值
         data.pop("tenant_id", None)
 
 
+# System-managed columns: silently stripped when passed by LLM, auto-injected by system
 # 系统管理列：LLM 传入时静默剥离，由系统自动注入
 _SYSTEM_MANAGED_COLUMNS: set[str] = {
     "tenant_id", "is_deleted", "deleted_at", "delete_level",
@@ -253,8 +280,12 @@ _SYSTEM_MANAGED_COLUMNS: set[str] = {
 
 
 def _strip_system_columns(data: dict[str, Any]) -> None:
-    """剥离 LLM 可能传入的所有系统管理列（静默删除，不报错）
+    """Strip all system-managed columns that LLM may have passed (silent removal, no error).
+    剥离 LLM 可能传入的所有系统管理列（静默删除，不报错）。
 
+    These columns are auto-injected by the system (e.g. tenant_id, is_deleted),
+    or auto-handled by DB/raw SQL (e.g. created_at, updated_at).
+    Called before validation to avoid triggering blocked_columns check failures.
     这些列由系统自动注入（如 tenant_id、is_deleted），
     或由数据库/raw SQL 自动处理（如 created_at、updated_at）。
     在验证之前调用，避免触发 blocked_columns 校验失败。
@@ -264,8 +295,11 @@ def _strip_system_columns(data: dict[str, Any]) -> None:
 
 
 def _serialize_for_sql(data: dict[str, Any]) -> None:
-    """将 dict/list 值序列化为 JSON 字符串，供 asyncpg raw SQL 绑定
+    """Serialize dict/list values to JSON strings for asyncpg raw SQL binding.
+    将 dict/list 值序列化为 JSON 字符串，供 asyncpg raw SQL 绑定。
 
+    asyncpg cannot directly bind Python dict/list to JSONB columns;
+    they must be converted to JSON strings first.
     asyncpg 不能直接绑定 Python dict/list 到 JSONB 列，
     必须先转换为 JSON 字符串。
     """
@@ -283,7 +317,7 @@ async def _audit_log(
     success: bool,
     error: str | None = None,
 ) -> None:
-    """写入 AI 操作审计日志"""
+    """Write AI operation audit log / 写入 AI 操作审计日志"""
     if not context.db:
         return
     try:
@@ -312,9 +346,10 @@ async def _audit_log(
 
 class CreateRecordExecutor(BaseToolExecutor):
     """
-    通用记录创建执行器
+    Generic record creation executor.
+    通用记录创建执行器。
 
-    LLM 调用参数: {table_name, data: {field: value, ...}, confirmed?: bool}
+    LLM call arguments / LLM 调用参数: {table_name, data: {field: value, ...}, confirmed?: bool}
     """
 
     async def validate(
@@ -342,12 +377,12 @@ class CreateRecordExecutor(BaseToolExecutor):
         data = arguments.get("data", {})
         confirmed = arguments.get("confirmed", False)
 
-        # 表名安全校验
+        # Table name safety validation / 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
             return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
-        # 加载策略
+        # Load policy / 加载策略
         policy = await _load_policy(context, table_name)
         if not policy:
             return ToolResult.error_result(
@@ -365,35 +400,39 @@ class CreateRecordExecutor(BaseToolExecutor):
                 name=_name,
             )
 
-        # RBAC: 检查用户是否有 create 权限
+        # RBAC: check if user has create permission / 检查用户是否有 create 权限
         rbac_error = _check_rbac(context, policy, "create")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
+        # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
         # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
+        # Strip system-managed columns (tenant_id/is_deleted etc., injected by system)
         # 剥离系统管理列（tenant_id/is_deleted 等，由系统注入）
         _strip_system_columns(data)
 
+        # Column name safety validation (prevent SQL injection)
         # 列名安全校验（防 SQL 注入）
         col_err = _validate_column_names(data)
         if col_err:
             return ToolResult.error_result(tool_call_id, col_err, name=_name)
 
-        # 校验写入数据
+        # Validate write data / 校验写入数据
         blocked = _get_blocked_columns(policy)
         violation = _validate_write_data(data, blocked)
         if violation:
             return ToolResult.error_result(tool_call_id, violation, name=_name)
 
+        # Inject system defaults (after validation, ensure raw SQL doesn't miss NOT NULL columns)
         # 注入系统默认值（验证后，确保 raw SQL 不缺少 NOT NULL 列）
         _enforce_tenant_isolation(context, policy, data)
         data["is_deleted"] = False
 
-        # 确认流程
+        # Confirmation flow / 确认流程
         if not confirmed:
             preview = {
                 "action": "create",
@@ -408,9 +447,11 @@ class CreateRecordExecutor(BaseToolExecutor):
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
 
+        # Serialize JSON values (dict/list -> JSON strings, for asyncpg binding)
         # 序列化 JSON 值（dict/list → JSON 字符串，供 asyncpg 绑定）
         _serialize_for_sql(data)
 
+        # Execute creation (using savepoint isolation, doesn't affect outer transaction)
         # 执行创建（使用 savepoint 隔离，不影响外层事务）
         try:
             async with context.db.begin_nested():
@@ -454,9 +495,10 @@ class CreateRecordExecutor(BaseToolExecutor):
 
 class UpdateRecordExecutor(BaseToolExecutor):
     """
-    通用记录更新执行器
+    Generic record update executor.
+    通用记录更新执行器。
 
-    LLM 调用参数: {table_name, id, data: {field: value, ...}, confirmed?: bool}
+    LLM call arguments / LLM 调用参数: {table_name, id, data: {field: value, ...}, confirmed?: bool}
     """
 
     async def validate(
@@ -489,12 +531,12 @@ class UpdateRecordExecutor(BaseToolExecutor):
         data = arguments.get("data", {})
         confirmed = arguments.get("confirmed", False)
 
-        # 表名安全校验
+        # Table name safety validation / 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
             return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
-        # 加载策略
+        # Load policy / 加载策略
         policy = await _load_policy(context, table_name)
         if not policy:
             return ToolResult.error_result(
@@ -512,34 +554,37 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 name=_name,
             )
 
-        # RBAC: 检查用户是否有 update 权限
+        # RBAC: check if user has update permission / 检查用户是否有 update 权限
         rbac_error = _check_rbac(context, policy, "update")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
+        # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
         # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
-        # 剥离系统管理列
+        # Strip system-managed columns / 剥离系统管理列
         _strip_system_columns(data)
 
+        # Column name safety validation (prevent SQL injection)
         # 列名安全校验（防 SQL 注入）
         col_err = _validate_column_names(data)
         if col_err:
             return ToolResult.error_result(tool_call_id, col_err, name=_name)
 
-        # 校验写入数据
+        # Validate write data / 校验写入数据
         blocked = _get_blocked_columns(policy)
         violation = _validate_write_data(data, blocked)
         if violation:
             return ToolResult.error_result(tool_call_id, violation, name=_name)
 
+        # Force tenant isolation (inject from context, never trust LLM input)
         # 强制租户隔离（从 context 注入，不信任 LLM 输入）
         _enforce_tenant_isolation(context, policy, data)
 
-        # 查询当前记录用于 diff 预览
+        # Query current record for diff preview / 查询当前记录用于 diff 预览
         try:
             tenant_filter = ""
             params: dict[str, Any] = {"record_id": record_id}
@@ -565,9 +610,9 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 name=_name,
             )
 
-        # 确认流程
+        # Confirmation flow / 确认流程
         if not confirmed:
-            # 构建 diff 预览
+            # Build diff preview / 构建 diff 预览
             diff = {}
             for key, new_val in data.items():
                 old_val = current_row.get(key)
@@ -587,9 +632,11 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
 
+        # Serialize JSON values (dict/list -> JSON strings, for asyncpg binding)
         # 序列化 JSON 值（dict/list → JSON 字符串，供 asyncpg 绑定）
         _serialize_for_sql(data)
 
+        # Execute update (using savepoint isolation, doesn't affect outer transaction)
         # 执行更新（使用 savepoint 隔离，不影响外层事务）
         try:
             async with context.db.begin_nested():
@@ -637,9 +684,10 @@ class UpdateRecordExecutor(BaseToolExecutor):
 
 class DeleteRecordExecutor(BaseToolExecutor):
     """
-    通用记录删除执行器（仅软删除）
+    Generic record deletion executor (soft delete only).
+    通用记录删除执行器（仅软删除）。
 
-    LLM 调用参数: {table_name, id, confirmed?: bool}
+    LLM call arguments / LLM 调用参数: {table_name, id, confirmed?: bool}
     """
 
     async def validate(
@@ -667,12 +715,12 @@ class DeleteRecordExecutor(BaseToolExecutor):
         record_id = arguments["id"]
         confirmed = arguments.get("confirmed", False)
 
-        # 表名安全校验
+        # Table name safety validation / 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
             return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
-        # 加载策略
+        # Load policy / 加载策略
         policy = await _load_policy(context, table_name)
         if not policy:
             return ToolResult.error_result(
@@ -690,17 +738,18 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 name=_name,
             )
 
-        # RBAC: 检查用户是否有 delete 权限
+        # RBAC: check if user has delete permission / 检查用户是否有 delete 权限
         rbac_error = _check_rbac(context, policy, "delete")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
+        # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
         # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
-        # 查询记录详情用于确认预览
+        # Query record details for confirmation preview / 查询记录详情用于确认预览
         try:
             tenant_filter = ""
             params: dict[str, Any] = {"record_id": record_id}
@@ -708,7 +757,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 tenant_filter = " AND tenant_id = :tenant_id"
                 params["tenant_id"] = context.tenant_id
 
-            # 只查询非屏蔽列
+            # Only query non-blocked columns / 只查询非屏蔽列
             blocked = _get_blocked_columns(policy)
             current_sql = text(
                 f"SELECT * FROM {table_name} WHERE id = :record_id"
@@ -728,9 +777,10 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 name=_name,
             )
 
+        # Confirmation flow (delete always requires confirmation)
         # 确认流程（删除始终需要确认）
         if not confirmed:
-            # 过滤敏感列后展示
+            # Filter out sensitive columns before display / 过滤敏感列后展示
             safe_data = {
                 k: v for k, v in dict(current_row).items()
                 if k not in blocked
@@ -750,6 +800,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
 
+        # Execute soft delete (using savepoint isolation, doesn't affect outer transaction)
         # 执行软删除（使用 savepoint 隔离，不影响外层事务）
         try:
             async with context.db.begin_nested():

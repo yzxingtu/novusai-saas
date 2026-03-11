@@ -1,6 +1,9 @@
 """
+Notification Template Seed Data
 通知模板种子数据
 
+Idempotently inserts/updates preset notification templates on system startup.
+Each template contains readable Chinese titles and bodies (supports {variable} placeholders).
 系统启动时幂等插入/更新预置通知模板。
 每个模板包含可读的中文标题和正文（支持 {variable} 占位符）。
 """
@@ -15,7 +18,8 @@ from app.models.common.notification_template import NotificationTemplate
 
 logger = LogManager.get_logger("app")
 
-# 所有预置模板定义
+# All preset template definitions / 所有预置模板定义
+# title_template / body_template support {variable} placeholders, rendered by NotificationService._render_template
 # title_template / body_template 支持 {variable} 占位符，由 NotificationService._render_template 渲染
 SEED_TEMPLATES: list[dict] = [
     # ===== system (9) =====
@@ -349,10 +353,12 @@ SEED_TEMPLATES: list[dict] = [
 
 async def seed_notification_templates(db: AsyncSession) -> dict[str, int]:
     """
-    幂等插入/更新通知模板种子数据
+    Idempotently insert/update notification template seed data.
+    幂等插入/更新通知模板种子数据。
 
-    - 不存在 → 插入
-    - 已存在但标题/正文仍为旧 i18n key 格式 → 更新为可读文本
+    - Not exists → insert / 不存在 → 插入
+    - Exists but title/body still in old i18n key format → update to readable text /
+      已存在但标题/正文仍为旧 i18n key 格式 → 更新为可读文本
 
     Returns:
         {"created": N, "existing": M, "updated": U}
@@ -374,7 +380,7 @@ async def seed_notification_templates(db: AsyncSession) -> dict[str, int]:
         if code in existing_map:
             existing += 1
             tpl = existing_map[code]
-            # 更新旧的 i18n key 格式为可读文本
+            # Update old i18n key format to readable text / 更新旧的 i18n key 格式为可读文本
             need_update = False
             if tpl.title_template and tpl.title_template.startswith("notification."):
                 tpl.title_template = tpl_data["title_template"]

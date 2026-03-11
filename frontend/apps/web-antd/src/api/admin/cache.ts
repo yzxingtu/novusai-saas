@@ -1,13 +1,14 @@
 /**
- * 缓存管理 API
- * 对接后端 /admin/cache/* 接口
+ * Cache management API / 缓存管理 API
+ * Backend: /admin/cache/*
  */
 import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/admin/cache';
 
-// ── Types ──
+// ── Types / 类型定义 ──
 
+/** Cache category summary / 缓存分类摘要 */
 export interface CacheCategorySummary {
   category: string;
   label: string;
@@ -16,16 +17,19 @@ export interface CacheCategorySummary {
   size_human: string;
 }
 
+/** Cache summary response / 缓存统计响应 */
 export interface CacheSummaryResponse {
   categories: CacheCategorySummary[];
   total_size_bytes: number;
   total_size_human: string;
 }
 
+/** Cache clear request / 缓存清理请求 */
 export interface CacheClearRequest {
   categories: string[];
 }
 
+/** Cache clear response / 缓存清理响应 */
 export interface CacheClearResponse {
   cleared_categories: string[];
   cleared_keys: number;
@@ -34,14 +38,14 @@ export interface CacheClearResponse {
   duration_ms: number;
 }
 
-// ── API Functions ──
+// ── API Functions / API 接口 ──
 
-/** 获取缓存统计摘要 */
+/** Get cache summary / 获取缓存统计摘要 */
 export function getCacheSummaryApi() {
   return requestClient.get<CacheSummaryResponse>(`${API_PREFIX}/summary`);
 }
 
-/** 清理指定分类缓存 */
+/** Clear specified category cache / 清理指定分类缓存 */
 export function clearCacheApi(data: CacheClearRequest) {
   return requestClient.post<CacheClearResponse>(`${API_PREFIX}/clear`, data);
 }

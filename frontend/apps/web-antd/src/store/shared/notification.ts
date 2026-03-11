@@ -1,6 +1,7 @@
 /**
- * 通知 Store
+ * Notification store / 通知 Store
  *
+ * Manages notification data, unread count, and integrates Socket.IO real-time push.
  * 管理通知数据、未读计数，集成 Socket.IO 实时推送。
  */
 
@@ -13,7 +14,7 @@ import { requestClient } from '#/utils/request';
 
 import { useSocketIOStore } from './socketio';
 
-/** 通知项 */
+/** Notification item / 通知项 */
 export interface NotificationItem {
   id: number;
   template_code?: null | string;
@@ -28,7 +29,7 @@ export interface NotificationItem {
   created_at?: null | string;
 }
 
-/** 通知列表 API 响应 */
+/** Notification list API response / 通知列表 API 响应 */
 interface NotificationListResponse {
   items: NotificationItem[];
   total: number;
@@ -36,7 +37,7 @@ interface NotificationListResponse {
   page_size: number;
 }
 
-/** Socket.IO 推送的通知数据 */
+/** Socket.IO pushed notification data / Socket.IO 推送的通知数据 */
 interface NotificationPushData {
   type: string;
   category: string;
@@ -49,7 +50,7 @@ interface NotificationPushData {
 
 const LOCAL_NOTIF_KEY = 'novus_local_notifications';
 
-/** 从 localStorage 恢复本地通知 */
+/** Load local notifications from localStorage / 从 localStorage 恢复本地通知 */
 function _loadLocalNotifications(): NotificationItem[] {
   try {
     const raw = localStorage.getItem(LOCAL_NOTIF_KEY);
@@ -59,7 +60,7 @@ function _loadLocalNotifications(): NotificationItem[] {
   }
 }
 
-/** 保存本地通知到 localStorage */
+/** Save local notifications to localStorage / 保存本地通知到 localStorage */
 function _saveLocalNotifications(items: NotificationItem[]) {
   try {
     const local = items.filter((n) => n.id < 0);
@@ -69,13 +70,13 @@ function _saveLocalNotifications(items: NotificationItem[]) {
       localStorage.removeItem(LOCAL_NOTIF_KEY);
     }
   } catch {
-    // 静默
+    // Silent failure / 静默失败 (Silent failure)
   }
 }
 
 export const useNotificationStore = defineStore('notification', () => {
   // ============================================================
-  // 状态
+  // State / 状态
   // ============================================================
 
   const notifications = ref<NotificationItem[]>(_loadLocalNotifications());
@@ -83,17 +84,17 @@ export const useNotificationStore = defineStore('notification', () => {
   const loading = ref(false);
   const initialized = ref(false);
 
-  /** 当前端类型（决定 API 前缀） */
+  /** Current endpoint type (determines API prefix) / 当前端类型 */
   let currentEndpoint: 'admin' | 'tenant' = 'admin';
-  /** 固定引用，便于 unregister，避免 handler 泄漏 */
+  /** Fixed reference for unregister, avoiding handler leak / 固定引用避免泄漏 */
   const handleSocketNotification = (raw: unknown) => {
     const data = raw as NotificationPushData;
     if (!data?.title) return;
 
-    // 增加未读计数
+    // Increment unread count / 增加未读计数
     unreadCount.value++;
 
-    // 添加到列表顶部（临时 ID，刷新后会更新）
+    // Add to top of list (temp ID, will be updated on refresh) / 添加到列表顶部
     notifications.value.unshift({
       id: -Date.now(),
       template_code: data.type,
@@ -109,7 +110,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     _saveLocalNotifications(notifications.value);
 
-    // 触发 Toast 弹窗
+    // Trigger toast popup / 触发 Toast 弹窗
     try {
       const { pushToast } = useNotificationToast();
       pushToast({
@@ -122,12 +123,12 @@ export const useNotificationStore = defineStore('notification', () => {
         priority: data.priority,
       });
     } catch {
-      // toast 未初始化时静默
+      // Silent if toast not initialized / toast 未初始化时静默
     }
   };
 
   // ============================================================
-  // API 前缀
+  // API prefix / API 前缀
   // ============================================================
 
   function getApiPrefix(): string {
@@ -139,7 +140,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // ============================================================
-  // 加载
+  // Loading / 加载
   // ============================================================
 
   async function loadUnreadCount(): Promise<void> {
@@ -151,7 +152,7 @@ export const useNotificationStore = defineStore('notification', () => {
         unreadCount.value = data.count;
       }
     } catch {
-      // 静默失败
+      // Silent failure / 静默失败
     }
   }
 
@@ -172,7 +173,7 @@ export const useNotificationStore = defineStore('notification', () => {
       );
       if (data?.items) {
         if (page === 1) {
-          // 保留本地临时通知（负 ID = 实时推送的未持久化通知）
+          // Keep local temp notifications (negative ID = real-time pushed, not persisted) / 保留本地临时通知
           const localOnly = notifications.value.filter((n) => n.id < 0);
           notifications.value = [...localOnly, ...data.items];
         } else {
@@ -187,10 +188,10 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // ============================================================
-  // 本地通知
+  // Local notifications / 本地通知
   // ============================================================
 
-  /** 添加本地临时通知（不走后端，持久化到 localStorage） */
+  /** Add local temp notification (no backend, persisted to localStorage) / 添加本地临时通知 */
   function addLocalNotification(
     item: Omit<NotificationItem, 'created_at' | 'id' | 'is_read'>,
   ) {
@@ -204,7 +205,7 @@ export const useNotificationStore = defineStore('notification', () => {
     unreadCount.value++;
     _saveLocalNotifications(notifications.value);
 
-    // 触发 Toast 弹窗
+    // Trigger toast popup / 触发 Toast 弹窗
     try {
       const { pushToast } = useNotificationToast();
       pushToast({
@@ -217,12 +218,12 @@ export const useNotificationStore = defineStore('notification', () => {
         priority: item.priority,
       });
     } catch {
-      // 静默
+      // Silent / 静默
     }
   }
 
   // ============================================================
-  // 操作
+  // Operations / 操作
   // ============================================================
 
   async function markRead(id: number): Promise<void> {
@@ -233,7 +234,7 @@ export const useNotificationStore = defineStore('notification', () => {
     if (unreadCount.value > 0) {
       unreadCount.value--;
     }
-    // 本地临时通知（负 ID）不调用后端 API
+    // Local temp notifications (negative ID) don't call backend API / 本地临时通知不调后端
     if (id < 0) {
       _saveLocalNotifications(notifications.value);
       return;
@@ -241,7 +242,7 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       await requestClient.put(`${getApiPrefix()}/notifications/${id}/read`);
     } catch {
-      // 静默
+      // Silent / 静默
     }
   }
 
@@ -258,7 +259,7 @@ export const useNotificationStore = defineStore('notification', () => {
       }
       unreadCount.value = 0;
     } catch {
-      // 静默
+      // Silent / 静默
     }
   }
 
@@ -271,7 +272,7 @@ export const useNotificationStore = defineStore('notification', () => {
         unreadCount.value--;
       }
     }
-    // 本地临时通知（负 ID）不调用后端 API
+    // Local temp notifications (negative ID) don't call backend API / 本地临时通知不调后端
     if (id < 0) {
       _saveLocalNotifications(notifications.value);
       return;
@@ -279,12 +280,12 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       await requestClient.delete(`${getApiPrefix()}/notifications/${id}`);
     } catch {
-      // 静默
+      // Silent / 静默
     }
   }
 
   // ============================================================
-  // Socket.IO 实时推送
+  // Socket.IO real-time push / Socket.IO 实时推送
   // ============================================================
 
   function initSocketHandlers(): void {
@@ -297,7 +298,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // ============================================================
-  // 重置
+  // Reset / 重置
   // ============================================================
 
   function $reset() {
@@ -307,7 +308,7 @@ export const useNotificationStore = defineStore('notification', () => {
         handleSocketNotification,
       );
     } catch {
-      // 静默
+      // Silent / 静默
     }
     notifications.value = [];
     unreadCount.value = 0;

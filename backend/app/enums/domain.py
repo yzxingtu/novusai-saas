@@ -1,14 +1,15 @@
 """
-域名相关枚举
+域名相关枚举 / Domain Enum Module
 
 定义域名 SSL 状态、域名类型等枚举
+Defines domain SSL status, domain type enums.
 """
 
 from app.enums.base import LabeledStrEnum
 
 
 class DomainSslStatus(LabeledStrEnum):
-    """域名 SSL 证书状态枚举"""
+    """Domain SSL Certificate Status Enum / 域名 SSL 证书状态枚举"""
 
     NONE = ("none", "enum.domain_ssl_status.none")
     PENDING = ("pending", "enum.domain_ssl_status.pending")
@@ -19,21 +20,21 @@ class DomainSslStatus(LabeledStrEnum):
 
 
 class DomainType(LabeledStrEnum):
-    """域名类型枚举"""
+    """Domain Type Enum / 域名类型枚举"""
 
     DEFAULT = ("default", "enum.domain_type.default")
     CUSTOM = ("custom", "enum.domain_type.custom")
 
 
 class SslCertType(LabeledStrEnum):
-    """SSL 证书类型枚举"""
+    """SSL Certificate Type Enum / SSL 证书类型枚举"""
 
     PLATFORM = ("platform", "enum.ssl_cert_type.platform")
     CUSTOM = ("custom", "enum.ssl_cert_type.custom")
 
 
 class SslCertStatus(LabeledStrEnum):
-    """SSL 证书记录状态枚举"""
+    """SSL Certificate Record Status Enum / SSL 证书记录状态枚举"""
 
     PENDING = ("pending", "enum.ssl_cert_status.pending")
     ACTIVE = ("active", "enum.ssl_cert_status.active")

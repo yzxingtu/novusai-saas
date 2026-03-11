@@ -1,7 +1,8 @@
 """
-文件类型验证服务
+文件类型验证服务 / File Validator Service
 
 提供文件扩展名和大小的验证功能
+Provides file extension and size validation.
 """
 
 from pathlib import Path

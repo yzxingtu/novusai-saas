@@ -39,7 +39,7 @@ function panelStyle(position: string | undefined) {
     :key="`${panel.pluginName}-${panel.name}`"
   >
     <div class="plugin-floating-panel" :style="panelStyle(panel.position)">
-      <!-- 触发按钮 -->
+      <!-- Trigger button / 触发按钮 -->
       <div
         class="plugin-floating-trigger flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary/80 text-white shadow-lg transition-all hover:bg-primary"
         :title="panel.title ?? panel.name"
@@ -50,7 +50,7 @@ function panelStyle(position: string | undefined) {
           (panel.name ?? '?')[0]?.toUpperCase()
         }}</span>
       </div>
-      <!-- 面板内容 -->
+      <!-- Panel content / 面板内容 -->
       <div
         v-if="openPanels[panelKey(panel.pluginName, panel.name)]"
         class="plugin-floating-content absolute bottom-12 right-0 z-50 min-w-64 rounded-lg border border-border bg-background shadow-xl"

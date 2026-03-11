@@ -1,14 +1,14 @@
 /**
- * 租户端 AI 操作审计日志 API
- * 对接后端 /tenant/ai/action-logs/* 接口
+ * Tenant AI action audit log API / 租户端 AI 操作审计日志 API
+ * Backend: /tenant/ai/action-logs/* / 对接后端 /tenant/ai/action-logs/* 接口
  */
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 操作日志列表项 */
+/** Action log list item / 操作日志列表项 */
 export interface ActionLogItem {
   id: number;
   action_name: string;
@@ -21,7 +21,7 @@ export interface ActionLogItem {
   created_at: string;
 }
 
-/** 操作日志统计（后端实际返回结构） */
+/** Action log statistics (actual backend response) / 操作日志统计 */
 export interface ActionLogStats {
   total: number;
   success_count: number;
@@ -34,7 +34,7 @@ export interface ActionLogStats {
   avg_duration_ms: null | number;
 }
 
-/** 操作日志列表分页响应 */
+/** Action log paginated response / 操作日志列表分页响应 */
 interface ActionLogPageResponse {
   items: ActionLogItem[];
   page: number;
@@ -43,19 +43,19 @@ interface ActionLogPageResponse {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const PREFIX = '/tenant/ai/action-logs';
 
-/** 获取操作日志列表 */
+/** Get action log list / 获取操作日志列表 */
 export async function getActionLogListApi(
   params?: Record<string, unknown>,
 ): Promise<ActionLogPageResponse> {
   return requestClient.get<ActionLogPageResponse>(PREFIX, { params });
 }
 
-/** 获取操作日志统计 */
+/** Get action log statistics / 获取操作日志统计 */
 export async function getActionLogStatsApi(): Promise<ActionLogStats> {
   const res = await requestClient.get<{ stats: ActionLogStats }>(
     `${PREFIX}/stats`,

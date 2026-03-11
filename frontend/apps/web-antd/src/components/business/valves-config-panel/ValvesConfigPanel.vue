@@ -1,10 +1,14 @@
 <script lang="ts" setup>
 /**
+ * Valves Config Panel (shared component)
  * Valves 配置面板（共享组件）
  *
+ * Dynamically renders env config form based on valves_schema (JSON Schema),
  * 根据 valves_schema（JSON Schema）动态渲染环境变量配置表单，
+ * supports loading saved valves_config and submitting updates.
  * 支持加载已保存的 valves_config 并提交更新。
  *
+ * Injects API functions and i18n prefix via props, adapts to admin/tenant.
  * 通过 props 注入 API 函数和 i18n 前缀，适配 admin/tenant 两端。
  */
 import { computed, ref } from 'vue';
@@ -46,13 +50,13 @@ interface ValvesInfo {
 }
 
 const props = defineProps<{
-  /** 获取 Valves 配置的 API 函数 */
+  /** API function to get Valves config / 获取 Valves 配置的 API 函数 */
   getValvesApi: (packageId: number) => Promise<ValvesInfo>;
-  /** i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
+  /** i18n prefix, e.g. 'admin.ai.skillPackage' or 'tenant.ai.skillPackage' / i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
   i18nPrefix: string;
   packageId: null | number;
   packageName?: string;
-  /** 更新 Valves 配置的 API 函数 */
+  /** API function to update Valves config / 更新 Valves 配置的 API 函数 */
   updateValvesApi: (
     packageId: number,
     data: { valves_config: Record<string, unknown> },

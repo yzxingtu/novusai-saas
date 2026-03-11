@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Agent management list page (platform) — useCrudList + card grid
  * 智能体管理列表页面（平台端）— useCrudList + 卡片网格
  *
+ * Uses useCrudList for core CRUD (list/pagination/search/delete/recycle bin),
  * 使用 useCrudList 管理核心 CRUD（列表/分页/搜索/删除/回收站），
+ * retains custom logic: publish, version history, status toggle, AgentForm ref mode.
  * 保留自定义逻辑：发布、版本历史、状态切换、AgentForm ref 模式。
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
@@ -60,7 +63,7 @@ import VersionHistoryDrawer from './modules/VersionHistory.vue';
 defineOptions({ name: 'AIAgentList' });
 
 // ============================================================
-// 声明式 CRUD（列表/分页/搜索/删除/回收站）
+// Declarative CRUD (list/pagination/search/delete/recycle bin) / 声明式 CRUD（列表/分页/搜索/删除/回收站）
 // ============================================================
 
 const {
@@ -90,7 +93,7 @@ const {
   },
 });
 
-// ========== 回收站 ==========
+// ========== Recycle bin / 回收站 ==========
 const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
   null,
 );
@@ -100,13 +103,13 @@ function openRecycleBin() {
 }
 
 // ============================================================
-// AgentForm（ref 模式，非标准 FormDrawer）
+// AgentForm (ref mode, non-standard FormDrawer) / AgentForm（ref 模式，非标准 FormDrawer）
 // ============================================================
 
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
 
 // ============================================================
-// 版本历史
+// Version history / 版本历史
 // ============================================================
 
 const [VersionDrawer, versionDrawerApi] = useVbenDrawer({
@@ -122,7 +125,7 @@ function onVersions(agent: AIAgentInfo) {
 }
 
 // ============================================================
-// 发布弹窗
+// Publish modal / 发布弹窗
 // ============================================================
 
 const publishModalOpen = ref(false);
@@ -153,7 +156,7 @@ async function onPublishConfirm() {
 }
 
 // ============================================================
-// 状态切换（非标准 toggle，智能体有 published/disabled/draft）
+// Status toggle (non-standard toggle, agents have published/disabled/draft) / 状态切换（非标准 toggle，智能体有 published/disabled/draft）
 // ============================================================
 
 async function onToggleStatus(agent: AIAgentInfo) {
@@ -169,7 +172,7 @@ async function onToggleStatus(agent: AIAgentInfo) {
 }
 
 // ============================================================
-// 搜索过滤
+// Search filters / 搜索过滤
 // ============================================================
 
 const filterScope = ref<string>();
@@ -201,7 +204,7 @@ const hasActiveFilters = computed(
 );
 
 // ============================================================
-// 辅助函数
+// Helper functions / 辅助函数
 // ============================================================
 
 function getStatusDotClass(status: string): string {

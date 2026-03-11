@@ -1,10 +1,11 @@
 /**
- * 多端认证 Store
- * 支持平台管理端、租户后台、租户用户端三种认证模式
+ * Multi-endpoint authentication store / 多端认证 Store
+ * Supports admin, tenant, and user authentication modes.
+ * 支持平台管理端、租户后台、租户用户端三种认证模式。
  *
- * Token 存储策略：
- * - 使用 TokenStorage 按端分离存储，各端 Token 互不干扰
- * - 登出仅清除当前端的 Token，不影响其他端
+ * Token storage strategy / Token 存储策略：
+ * - Uses TokenStorage for endpoint-separated storage; tokens don't interfere across endpoints.
+ * - Logout only clears the current endpoint's token, not others.
  */
 import type { Recordable, UserInfo } from '@vben/types';
 
@@ -40,23 +41,23 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
   const loginLoading = ref(false);
 
-  /** 当前 API 端类型 */
+  /** Current API endpoint type / 当前 API 端类型 */
   const currentEndpoint = computed<ApiEndpoint>(() => {
     return getApiEndpoint(route.path);
   });
 
-  /** 当前端的登录路径 */
+  /** Current endpoint login path / 当前端的登录路径 */
   const currentLoginPath = computed(() => {
     return LOGIN_PATHS[currentEndpoint.value];
   });
 
-  /** 当前端的默认首页路径 */
+  /** Current endpoint default home path / 当前端的默认首页路径 */
   const currentHomePath = computed(() => {
     return HOME_PATHS[currentEndpoint.value];
   });
 
   /**
-   * 获取当前端对应的 API
+   * Get auth API for the current endpoint / 获取当前端对应的 API
    */
   function getAuthApi(endpoint?: ApiEndpoint) {
     const ep = endpoint || currentEndpoint.value;
@@ -92,11 +93,11 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 登录
-   * @param params 登录参数（包含 username, password, 可选 captchaChallengeId, captchaSolution）
-   * @param endpoint 指定端类型（可选，默认根据当前路由判断）
-   * @param onSuccess 登录成功回调
-   * @returns { userInfo, captchaRequired } - userInfo 为 null 表示登录失败，captchaRequired 表示是否需要验证码
+   * Login / 登录
+   * @param params Login parameters (username, password, optional captcha fields) / 登录参数
+   * @param endpoint Endpoint type (optional, defaults to current route) / 指定端类型
+   * @param onSuccess Login success callback / 登录成功回调
+   * @returns { userInfo, captchaRequired } - null userInfo = login failed / captchaRequired = needs captcha
    */
   async function authLogin(
     params: Recordable<any>,
@@ -113,7 +114,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     try {
       loginLoading.value = true;
 
-      // 传递完整的登录参数（包括验证码参数）
+      // Pass full login params (including captcha params) / 传递完整的登录参数
       const { accessToken, refreshToken } = await api.login({
         captchaChallengeId: params.captchaChallengeId,
         captchaProviderCode: params.captchaProviderCode,
@@ -125,22 +126,22 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       });
 
       if (accessToken) {
-        // 使用 TokenStorage 按端存储 Token（多端分离存储）
+        // Store token per endpoint via TokenStorage (multi-endpoint separated) / 按端存储 Token
         TokenStorage.setToken(ep, accessToken);
         if (refreshToken) {
           TokenStorage.setRefreshToken(ep, refreshToken);
         }
 
-        // 同时设置到 accessStore（兼容 vben 框架组件）
+        // Also set in accessStore (Vben framework compat) / 同时设置到 accessStore
         accessStore.setAccessToken(accessToken);
         if (refreshToken) {
           accessStore.setRefreshToken(refreshToken);
         }
 
-        // 获取用户信息
+        // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo(ep);
 
-        // 转换为 vben 需要的 UserInfo 格式
+        // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: '',
@@ -171,7 +172,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         }
       }
     } catch (error: unknown) {
-      // 检查错误响应中是否包含 captcha_required 字段
+      // Check if error response contains captcha_required field / 检查错误响应中是否包含 captcha_required
       const err = error as {
         response?: {
           data?: {
@@ -185,7 +186,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       if (responseData?.data?.captcha_required) {
         captchaRequired = true;
       }
-      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
+      // Error handled by axios interceptor; catch to prevent bubbling / 错误已由拦截器处理
     } finally {
       loginLoading.value = false;
     }
@@ -194,9 +195,9 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 登出
-   * @param redirect 是否重定向到登录页
-   * @param endpoint 指定端类型（可选）
+   * Logout / 登出
+   * @param redirect Whether to redirect to login page / 是否重定向到登录页
+   * @param endpoint Endpoint type (optional) / 指定端类型
    */
   async function logout(redirect: boolean = true, endpoint?: ApiEndpoint) {
     const ep = endpoint || currentEndpoint.value;
@@ -207,10 +208,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     try {
       await api.logout();
     } catch {
-      // 忽略错误
+      // Ignore errors / 忽略错误
     }
 
-    // 先断开 Socket.IO（必须在清除 Token 之前，确保 disconnect 事件正确处理）
+    // Disconnect Socket.IO first (must happen before clearing token) / 先断开 Socket.IO
     try {
       const { useSocketIOStore } = await import('./socketio');
       const { useNotificationStore } = await import('./notification');
@@ -220,23 +221,23 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       useNotificationStore().$reset();
       usePresenceStore().$reset();
     } catch {
-      // 静默
+      // Silent / 静默
     }
 
-    // 清除所有标签页（重置为空数组）
+    // Clear all tabs (reset to empty) / 清除所有标签页
     tabbarStore.$patch({ tabs: [], cachedTabs: new Set() });
-    // 清除 sessionStorage 中所有 namespace 的 tabbar 持久化数据
+    // Clear all tabbar persisted data from sessionStorage / 清除 tabbar 持久化数据
     clearPersistedTabbarStorage();
 
-    // 仅清除当前端的 Token（不影响其他端的登录状态）
+    // Clear only current endpoint's token (doesn't affect others) / 仅清除当前端 Token
     TokenStorage.clearToken(ep);
 
-    // 清除 accessStore 中的 Token（当前端）
+    // Clear accessStore token (current endpoint) / 清除 accessStore Token
     accessStore.setAccessToken(null);
     accessStore.setRefreshToken(null);
     accessStore.setLoginExpired(false);
 
-    // 重置用户信息和权限相关状态
+    // Reset user info and permission state / 重置用户信息和权限状态
     accessStore.setAccessMenus([]);
     accessStore.setAccessRoutes([]);
     accessStore.setAccessCodes([]);
@@ -254,14 +255,14 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 获取用户信息
-   * @param endpoint 指定端类型（可选）
+   * Fetch user info / 获取用户信息
+   * @param endpoint Endpoint type (optional) / 指定端类型
    */
   async function fetchUserInfo(endpoint?: ApiEndpoint) {
     const api = getAuthApi(endpoint);
     const userInfo = await api.getUserInfo();
 
-    // 租户端：检查套餐状态，无套餐时提示
+    // Tenant: check plan status, warn if no plan / 租户端：检查套餐状态
     const ep = endpoint || currentEndpoint.value;
     if (
       ep === 'tenant' &&
@@ -276,7 +277,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       });
     }
 
-    // 转换为 vben 需要的 UserInfo 格式
+    // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
     const vbenUserInfo: UserInfo = {
       avatar: toAvatarDisplayUrl(userInfo?.avatar),
       desc: '',
@@ -290,7 +291,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     userStore.setUserInfo(vbenUserInfo);
 
-    // 设置权限码到 accessStore，用于按钮级权限控制
+    // Set permission codes in accessStore for button-level access control / 设置权限码
     const permissions = userInfo?.permissions || [];
     accessStore.setAccessCodes(permissions);
 
@@ -298,14 +299,14 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 刷新 Token
-   * @param endpoint 指定端类型（可选）
+   * Refresh token / 刷新 Token
+   * @param endpoint Endpoint type (optional) / 指定端类型
    */
   async function refreshToken(endpoint?: ApiEndpoint) {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
 
-    // 从 TokenStorage 获取当前端的 Refresh Token
+    // Get current endpoint's refresh token from TokenStorage / 获取当前端 Refresh Token
     const currentRefreshToken = TokenStorage.getRefreshToken(ep);
 
     if (!currentRefreshToken) {
@@ -314,13 +315,13 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     const result = await api.refreshToken(currentRefreshToken);
 
-    // 更新 TokenStorage
+    // Update TokenStorage / 更新 TokenStorage
     TokenStorage.setToken(ep, result.accessToken);
     if (result.refreshToken) {
       TokenStorage.setRefreshToken(ep, result.refreshToken);
     }
 
-    // 同时更新 accessStore（兼容 vben 框架）
+    // Also update accessStore (Vben compat) / 同时更新 accessStore
     accessStore.setAccessToken(result.accessToken);
     if (result.refreshToken) {
       accessStore.setRefreshToken(result.refreshToken);
@@ -330,12 +331,13 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   // ============================================================
+  // Token state queries (for route guard & impersonate login)
   // Token 状态查询（供路由守卫和一键登录使用）
   // ============================================================
 
   /**
-   * 获取指定端的 Access Token
-   * @param endpoint 端类型
+   * Get access token for specified endpoint / 获取指定端的 Access Token
+   * @param endpoint Endpoint type / 端类型
    */
   function getToken(endpoint?: ApiEndpoint): null | string {
     const ep = endpoint || currentEndpoint.value;
@@ -343,8 +345,8 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 检查指定端是否已认证（有有效 Token）
-   * @param endpoint 端类型
+   * Check if endpoint is authenticated (has valid token) / 检查指定端是否已认证
+   * @param endpoint Endpoint type / 端类型
    */
   function isAuthenticated(endpoint?: ApiEndpoint): boolean {
     const ep = endpoint || currentEndpoint.value;
@@ -352,7 +354,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   }
 
   /**
-   * 获取所有已认证的端
+   * Get all authenticated endpoints / 获取所有已认证的端
    */
   function getAuthenticatedEndpoints(): ApiEndpoint[] {
     return TokenStorage.getAuthenticatedEndpoints();

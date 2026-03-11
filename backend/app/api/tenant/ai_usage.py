@@ -1,7 +1,8 @@
 """
-AI 使用量统计 API (Tenant)
+AI 使用量统计 API (Tenant) / AI Usage Statistics API (Tenant)
 
 提供租户级使用量统计查询接口
+Provides tenant-level usage statistics query endpoints
 """
 
 from datetime import date
@@ -36,16 +37,17 @@ from app.services.ai import MeteringService
 )
 class TenantAIUsageController(TenantController):
     """
-    租户 AI 使用量控制器
+    租户 AI 使用量控制器 / Tenant AI Usage Controller
 
     提供租户级使用量统计查询
+    Provides tenant-level usage statistics query
     """
 
     prefix = "/ai/usage"
     tags = [_("menu.tags.tenant_ai_usage")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/summary", summary="获取当前租户使用量汇总")
@@ -58,9 +60,9 @@ class TenantAIUsageController(TenantController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取当前租户使用量汇总
+            获取当前租户使用量汇总 / Get current tenant usage summary
 
-            权限: ai_tenant_usage:summary
+            权限 / Permission: ai_tenant_usage:summary
             """
             metering = MeteringService(db)
             summary = await metering.get_tenant_usage(
@@ -82,9 +84,9 @@ class TenantAIUsageController(TenantController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取租户下指定用户的使用量汇总
+            获取租户下指定用户的使用量汇总 / Get usage summary for specified user under tenant
 
-            权限: ai_tenant_usage:user_summary
+            权限 / Permission: ai_tenant_usage:user_summary
             """
             metering = MeteringService(db)
             summary = await metering.get_user_usage(
@@ -97,7 +99,7 @@ class TenantAIUsageController(TenantController):
             return success(data=summary, message=_("common.success"))
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = TenantAIUsageController.get_router()
 
 __all__ = ["router", "TenantAIUsageController"]

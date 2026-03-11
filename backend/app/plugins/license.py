@@ -1,11 +1,15 @@
 """
-插件 License Key 生成与验证
+Plugin License Key generation and verification / 插件 License Key 生成与验证
 
+Offline verification scheme based on Ed25519 signatures.
+Public key embedded in code, private key retained only on the generation side.
+No network required to verify License Key authenticity.
+/
 基于 Ed25519 签名的离线验证方案。
 公钥嵌入代码中，私钥仅在生成端保留。
 无需联网即可验证 License Key 的真实性。
 
-Key 格式: NOVUS-{base64_payload}.{base64_signature}
+Key format / Key 格式: NOVUS-{base64_payload}.{base64_signature}
 Payload: JSON { plugin, scope, buyer, issued_at }
 """
 
@@ -25,14 +29,17 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# NovusAI 平台 Ed25519 公钥（Base64 编码）
+# NovusAI platform Ed25519 public key (Base64 encoded)
+# Private key only retained in License generation tool, not in codebase
+# Override via NOVUSAI_LICENSE_PUBLIC_KEY env var if replacement needed
+# / NovusAI 平台 Ed25519 公钥（Base64 编码）
 # 私钥仅在 License 生成工具中保留，不入代码库
 # 如需替换，通过环境变量 NOVUSAI_LICENSE_PUBLIC_KEY 覆盖
 _DEFAULT_PUBLIC_KEY_B64 = ""  # 部署时配置
 
 
 def _get_public_key_bytes() -> bytes | None:
-    """获取 Ed25519 公钥字节"""
+    """Get Ed25519 public key bytes / 获取 Ed25519 公钥字节"""
     import os
 
     key_b64 = os.environ.get("NOVUSAI_LICENSE_PUBLIC_KEY", _DEFAULT_PUBLIC_KEY_B64)
@@ -52,17 +59,18 @@ def generate_license_key(
     expires_days: int | None = None,
 ) -> str:
     """
-    生成 License Key（仅内部工具使用，不暴露在平台 API）。
+    Generate License Key (internal tool only, not exposed in platform API).
+    / 生成 License Key（仅内部工具使用，不暴露在平台 API）。
 
     Args:
-        plugin_name: 插件名
-        version_scope: 版本范围（如 ">=1.0.0" 或 "*"）
-        buyer_email: 购买者邮箱
-        private_key_b64: Ed25519 私钥（Base64 编码）
-        expires_days: 有效天数（None 表示永久）
+        plugin_name: Plugin name / 插件名
+        version_scope: Version range (e.g. ">=1.0.0" or "*") / 版本范围
+        buyer_email: Buyer email / 购买者邮箱
+        private_key_b64: Ed25519 private key (Base64 encoded) / Ed25519 私钥
+        expires_days: Valid days (None = permanent) / 有效天数（None 表示永久）
 
     Returns:
-        格式化的 License Key: NOVUS-{payload_b64}.{signature_b64}
+        Formatted License Key: NOVUS-{payload_b64}.{signature_b64}
     """
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -97,14 +105,15 @@ def verify_license_key(
     plugin_name: str,
 ) -> dict | None:
     """
-    验证 License Key（本地验证，无需联网）。
+    Verify License Key (local verification, no network required).
+    / 验证 License Key（本地验证，无需联网）。
 
     Args:
-        license_key: 格式 NOVUS-{payload_b64}.{signature_b64}
-        plugin_name: 要验证的插件名
+        license_key: Format NOVUS-{payload_b64}.{signature_b64}
+        plugin_name: Plugin name to verify / 要验证的插件名
 
     Returns:
-        验证通过返回 payload dict，失败返回 None
+        Payload dict on success, None on failure / 验证通过返回 payload dict，失败返回 None
     """
     if not license_key or not license_key.startswith("NOVUS-"):
         return None
@@ -115,10 +124,10 @@ def verify_license_key(
 
         if settings.DEBUG:
             logger.warning("License verification skipped: no public key configured (DEBUG mode)")
-            # 开发模式允许无公钥兼容
+            # Dev mode allows no-public-key compatibility / 开发模式允许无公钥兼容
             return _parse_payload_without_verify(license_key)
 
-        # 生产模式 fail-close
+        # Production mode fail-close / 生产模式 fail-close
         logger.error("License verification failed: no public key configured")
         return None
 
@@ -138,7 +147,7 @@ def verify_license_key(
 
         payload = json.loads(payload_bytes)
 
-        # 检查插件名匹配
+        # Check plugin name match / 检查插件名匹配
         if payload.get("plugin") != plugin_name:
             logger.warning(
                 "License plugin mismatch: key=%s, expected=%s",
@@ -154,7 +163,7 @@ def verify_license_key(
 
 
 def _parse_payload_without_verify(license_key: str) -> dict | None:
-    """解析 payload 但不验证签名（开发模式/无公钥时使用）"""
+    """Parse payload without verifying signature (used in dev mode / no public key) / 解析 payload 但不验证签名（开发模式/无公钥时使用）"""
     try:
         body = license_key[6:]
         if "." not in body:
@@ -172,9 +181,11 @@ async def activate_license(
     db: AsyncSession,
 ) -> dict:
     """
-    激活 License Key。
+    Activate License Key.
+    / 激活 License Key。
 
-    验证 Key → 写入 PluginLicense 表 → 更新 license_type。
+    Verify Key → write to PluginLicense table → update license_type.
+    / 验证 Key → 写入 PluginLicense 表 → 更新 license_type。
 
     Returns:
         {"success": True/False, "message": "...", "license_info": {...}}
@@ -185,7 +196,7 @@ async def activate_license(
     from app.models.system.plugin import Plugin
     from app.models.system.plugin_license import PluginLicense
 
-    # 查找插件
+    # Find plugin / 查找插件
     result = await db.execute(
         select(Plugin).where(
             Plugin.id == plugin_id,
@@ -196,12 +207,12 @@ async def activate_license(
     if not plugin:
         return {"success": False, "message": _("plugin.error.not_found")}
 
-    # 验证 License Key
+    # Verify License Key / 验证 License Key
     license_info = verify_license_key(license_key, plugin.name)
     if not license_info:
         return {"success": False, "message": _("plugin.error.license_invalid")}
 
-    # 检查 License Key 是否已被激活（防止重放）
+    # Check if License Key already activated (prevent replay) / 检查 License Key 是否已被激活（防止重放）
     existing_license = await db.execute(
         select(PluginLicense).where(
             PluginLicense.license_key == license_key,
@@ -211,7 +222,7 @@ async def activate_license(
     if existing_license.scalar_one_or_none():
         return {"success": False, "message": _("plugin.error.license_already_activated")}
 
-    # 解析有效期
+    # Parse validity period / 解析有效期
     from datetime import datetime, timezone
 
     expires_at_ts = license_info.get("expires_at")
@@ -222,11 +233,11 @@ async def activate_license(
 
     now = utc_now()
 
-    # 检查 Key 是否已过期
+    # Check if Key has expired / 检查 Key 是否已过期
     if expires_at_dt and now >= expires_at_dt:
         return {"success": False, "message": _("plugin.error.license_expired")}
 
-    # 使旧 license 失效
+    # Invalidate old licenses / 使旧 license 失效
     from sqlalchemy import update
 
     await db.execute(
@@ -236,7 +247,7 @@ async def activate_license(
         ).values(is_valid=False)
     )
 
-    # 写入 PluginLicense 表
+    # Write to PluginLicense table / 写入 PluginLicense 表
     license_record = PluginLicense(
         plugin_id=plugin_id,
         license_key=license_key,
@@ -276,10 +287,12 @@ async def get_license_status_by_name(
     db: AsyncSession,
 ) -> dict:
     """
-    通过插件名获取 License 状态（供插件 license_gate 的 AsyncSession 路径使用）。
+    Get License status by plugin name (for plugin license_gate AsyncSession path).
+    / 通过插件名获取 License 状态（供插件 license_gate 的 AsyncSession 路径使用）。
 
     Returns:
-        与 PluginContext.get_own_license_status() 返回格式一致的 dict
+        Dict consistent with PluginContext.get_own_license_status() format
+        / 与 PluginContext.get_own_license_status() 返回格式一致的 dict
     """
     from sqlalchemy import select
 
@@ -380,7 +393,7 @@ async def create_trial_license(
     trial_days: int,
     db: AsyncSession,
 ) -> None:
-    """创建试用 License（安装付费插件无 Key 时自动调用）"""
+    """Create trial License (auto-called when installing paid plugin without Key) / 创建试用 License（安装付费插件无 Key 时自动调用）"""
     from datetime import timedelta
 
     from app.core.base_model import utc_now
@@ -407,7 +420,8 @@ async def get_license_status_by_id(
     db: AsyncSession,
 ) -> dict:
     """
-    通过插件 ID 获取 License 状态（供 Admin API 使用）。
+    Get License status by plugin ID (for Admin API use).
+    / 通过插件 ID 获取 License 状态（供 Admin API 使用）。
     """
     from sqlalchemy import select
 
@@ -484,7 +498,7 @@ async def revoke_license(
     plugin_id: int,
     db: AsyncSession,
 ) -> None:
-    """撤销插件的所有有效 License"""
+    """Revoke all valid Licenses for a plugin / 撤销插件的所有有效 License"""
     from sqlalchemy import update
 
     from app.models.system.plugin_license import PluginLicense
@@ -501,10 +515,11 @@ async def revoke_license(
 
 async def check_trial_expirations(db: AsyncSession) -> list[dict]:
     """
-    检查试用期到期情况（定时任务调用）。
+    Check trial expiration status (called by scheduled task).
+    / 检查试用期到期情况（定时任务调用）。
 
     Returns:
-        到期/即将到期的插件列表
+        List of expired / about-to-expire plugins / 到期/即将到期的插件列表
     """
     from datetime import timedelta
 
@@ -518,7 +533,8 @@ async def check_trial_expirations(db: AsyncSession) -> list[dict]:
     now = utc_now()
     warn_threshold = now + timedelta(days=3)
 
-    # 查询即将到期和已到期的试用 License
+    # Query soon-to-expire and already-expired trial Licenses
+    # / 查询即将到期和已到期的试用 License
     result = await db.execute(
         select(PluginLicense, Plugin.name, Plugin.status).join(
             Plugin, Plugin.id == PluginLicense.plugin_id,
@@ -534,7 +550,7 @@ async def check_trial_expirations(db: AsyncSession) -> list[dict]:
     actions: list[dict] = []
     for license_rec, plugin_name, plugin_status in rows:
         if license_rec.trial_expires_at <= now:
-            # 已到期 → 禁用插件
+            # Already expired → disable plugin / 已到期 → 禁用插件
             if plugin_status == PluginStatusEnum.ENABLED.value:
                 from app.plugins.lifecycle import PluginLifecycle
 
@@ -552,7 +568,7 @@ async def check_trial_expirations(db: AsyncSession) -> list[dict]:
             await db.flush()
 
         elif license_rec.trial_expires_at <= warn_threshold:
-            # 即将到期 → 发提醒
+            # About to expire → send reminder / 即将到期 → 发提醒
             days_left = (license_rec.trial_expires_at - now).days
             actions.append({
                 "plugin": plugin_name,

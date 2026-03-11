@@ -1,7 +1,8 @@
 """
-对话消息模型
+对话消息模型 / Conversation Message Model
 
 独立存储每条对话消息，支持结构化查询、索引和 function calling
+Stores each conversation message independently, supports structured queries, indexing and function calling.
 """
 
 from typing import TYPE_CHECKING

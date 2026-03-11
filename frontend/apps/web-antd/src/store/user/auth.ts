@@ -1,6 +1,7 @@
 /**
- * 用户端认证 Store
- * 专用于租户普通用户的登录、登出、用户信息管理
+ * User endpoint authentication store / 用户端认证 Store
+ * Handles tenant user login, logout, and user info management.
+ * 专用于租户普通用户的登录、登出、用户信息管理。
  */
 import type { Recordable, UserInfo } from '@vben/types';
 
@@ -31,9 +32,9 @@ export const useUserAuthStore = defineStore('user-auth', () => {
   const userInfo = ref<null | TenantUserInfo>(null);
 
   /**
-   * 用户登录
-   * @param params 登录参数
-   * @param onSuccess 登录成功回调
+   * User login / 用户登录
+   * @param params Login parameters / 登录参数
+   * @param onSuccess Login success callback / 登录成功回调
    */
   async function login(
     params: Recordable<any>,
@@ -50,22 +51,22 @@ export const useUserAuthStore = defineStore('user-auth', () => {
       });
 
       if (accessToken) {
-        // 存储Token到user端专用存储
+        // Store token in user-specific storage / 存储 Token 到 user 端专用存储
         TokenStorage.setToken(EndpointType.USER, accessToken);
         if (refreshToken) {
           TokenStorage.setRefreshToken(EndpointType.USER, refreshToken);
         }
 
-        // 同时设置到accessStore（兼容vben框架）
+        // Also set in accessStore (vben framework compat) / 同时设置到 accessStore
         accessStore.setAccessToken(accessToken);
         if (refreshToken) {
           accessStore.setRefreshToken(refreshToken);
         }
 
-        // 获取用户信息
+        // Fetch user info / 获取用户信息
         info = await fetchUserInfo();
 
-        // 转换为vben UserInfo格式
+        // Convert to vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(info?.avatar),
           desc: '',
@@ -96,7 +97,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         }
       }
     } catch {
-      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
+      // Error handled by axios interceptor; catch here to prevent bubbling to Vue event handler / 错误已由拦截器处理
     } finally {
       loginLoading.value = false;
     }
@@ -105,20 +106,20 @@ export const useUserAuthStore = defineStore('user-auth', () => {
   }
 
   /**
-   * 用户登出
-   * @param redirect 是否重定向到登录页
+   * User logout / 用户登出
+   * @param redirect Whether to redirect to login page / 是否重定向到登录页
    */
   async function logout(redirect: boolean = true) {
     try {
       await userApi.userLogoutApi();
     } catch {
-      // 忽略错误
+      // Ignore error / 忽略错误
     }
 
-    // 仅清除user端Token
+    // Only clear user endpoint token / 仅清除 user 端 Token
     TokenStorage.clearToken(EndpointType.USER);
 
-    // 清除accessStore
+    // Clear accessStore / 清除 accessStore
     accessStore.setAccessToken(null);
     accessStore.setRefreshToken(null);
     accessStore.setLoginExpired(false);
@@ -137,13 +138,13 @@ export const useUserAuthStore = defineStore('user-auth', () => {
   }
 
   /**
-   * 获取用户信息
+   * Fetch user info / 获取用户信息
    */
   async function fetchUserInfo() {
     const info = await userApi.getUserInfoApi();
     userInfo.value = info;
 
-    // 设置权限码
+    // Set permission codes / 设置权限码
     const permissions = info?.permissions || [];
     accessStore.setAccessCodes(permissions);
 
@@ -151,14 +152,14 @@ export const useUserAuthStore = defineStore('user-auth', () => {
   }
 
   /**
-   * 检查是否已认证
+   * Check if authenticated / 检查是否已认证
    */
   function isAuthenticated(): boolean {
     return TokenStorage.hasToken(EndpointType.USER);
   }
 
   /**
-   * 获取当前Token
+   * Get current token / 获取当前 Token
    */
   function getToken(): null | string {
     return TokenStorage.getToken(EndpointType.USER);

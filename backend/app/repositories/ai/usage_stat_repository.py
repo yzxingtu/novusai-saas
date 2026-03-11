@@ -1,7 +1,7 @@
 """
-使用量统计 Repository
+AI 使用量统计 Repository / AI Usage Statistics Repository
 
-提供使用量统计的查询和聚合功能
+提供使用量统计的查询和聚合功能 / Provides query and aggregation functionality for usage statistics
 """
 
 from datetime import date

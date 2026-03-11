@@ -1,7 +1,8 @@
 """
-AI 模型 Service
+AI 模型 Service / AI Model Service
 
 处理 AI 模型业务逻辑
+Handles AI model business logic.
 """
 
 from app.core.base_service import BaseService

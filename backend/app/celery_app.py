@@ -1,6 +1,8 @@
 """
+Celery Application Configuration Module
 Celery 应用配置模块
 
+Configures Celery Worker, Broker (Redis), Result Backend with multi-queue routing and priority support.
 配置 Celery Worker、Broker(Redis)、Result Backend，支持多队列路由和优先级
 """
 
@@ -22,20 +24,20 @@ celery_app.conf.broker_url = settings.celery_broker_url
 celery_app.conf.result_backend = settings.celery_result_backend
 
 # ========================================
-# 序列化
+# Serialization / 序列化
 # ========================================
 celery_app.conf.task_serializer = settings.CELERY_TASK_SERIALIZER
 celery_app.conf.result_serializer = settings.CELERY_RESULT_SERIALIZER
 celery_app.conf.accept_content = settings.CELERY_ACCEPT_CONTENT
 
 # ========================================
-# 时区
+# Timezone / 时区
 # ========================================
 celery_app.conf.timezone = settings.TIMEZONE
 celery_app.conf.enable_utc = True
 
 # ========================================
-# 任务执行
+# Task Execution / 任务执行
 # ========================================
 celery_app.conf.task_track_started = settings.CELERY_TASK_TRACK_STARTED
 celery_app.conf.task_time_limit = settings.CELERY_TASK_TIME_LIMIT
@@ -44,7 +46,7 @@ celery_app.conf.worker_prefetch_multiplier = settings.CELERY_WORKER_PREFETCH_MUL
 celery_app.conf.worker_concurrency = settings.CELERY_WORKER_CONCURRENCY
 
 # ========================================
-# 多队列路由
+# Multi-queue Routing / 多队列路由
 # ========================================
 default_exchange = Exchange("default", type="direct")
 high_priority_exchange = Exchange("high_priority", type="direct")
@@ -69,7 +71,7 @@ celery_app.conf.task_routes = {
 }
 
 # ========================================
-# 任务自动发现
+# Task Auto-discovery / 任务自动发现
 # ========================================
 celery_app.conf.include = [
     "app.tasks.scheduled",
@@ -85,6 +87,7 @@ celery_app.conf.include = [
     "app.ai.rag.processor",
 ]
 
+# Force import task modules (ensure registration even in Windows --pool=solo mode)
 # 强制导入任务模块（确保 Windows --pool=solo 模式下也能注册）
 def _import_task_modules():
     for module in celery_app.conf.include:
@@ -94,26 +97,35 @@ def _import_task_modules():
 _import_task_modules()
 
 # ========================================
+# AI Adapter Registration (Worker process doesn't go through main.py lifespan)
 # AI 适配器注册（Worker 进程不走 main.py lifespan）
 # ========================================
 AdapterRegistry.register("openai_compatible", OpenAIAdapter)
 
 # ========================================
-# 结果配置
+# Result Configuration / 结果配置
 # ========================================
 celery_app.conf.result_expires = 3600
 celery_app.conf.task_ignore_result = False
 
 # ========================================
+# Beat Scheduling (driven by database periodic_tasks table)
 # Beat 调度（由数据库 periodic_tasks 表驱动）
 # ========================================
+# All scheduled tasks are managed via the periodic_tasks table, no hardcoded schedule entries.
 # 所有定时任务通过 periodic_tasks 表管理，不再硬编码任何调度条目。
 #
+# Important: Schedule must be loaded at module level, cannot use beat_init signal.
 # 重要：必须在模块级别加载调度，不能用 beat_init 信号。
+# Reason: In Celery 5.x beat.Service.start(), self.scheduler is accessed
+# before beat_init.send() (debug log line), triggering PersistentScheduler
+# initialization which reads conf.beat_schedule.
 # 原因：Celery 5.x beat.Service.start() 中，self.scheduler 在
 # beat_init.send() 之前就被访问（debug 日志行），触发
 # PersistentScheduler 初始化并读取 conf.beat_schedule。
+# If beat_schedule is empty at that point, the scheduler won't install any entries.
 # 如果此时 beat_schedule 为空，调度器不会安装任何条目。
+# Updating conf.beat_schedule in beat_init signal is already too late.
 # beat_init 信号中再更新 conf.beat_schedule 已经太晚。
 try:
     from app.tasks.scheduler import load_periodic_tasks_from_db

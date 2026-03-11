@@ -1,6 +1,9 @@
 """
+SSE Streaming Execution Handler
 SSE 流式执行处理器
 
+Extracted from ConversationEngine._sse_generator, encapsulates the SSE event generation main loop.
+Includes real-time tool call push, confirmation interception, DSML tag cleanup, error handling.
 从 ConversationEngine._sse_generator 提取，封装 SSE 事件生成主循环。
 包括工具调用实时推送、确认拦截、DSML 标签清理、错误处理。
 """
@@ -33,20 +36,21 @@ logger = LogManager.get_logger("ai.engine.stream_handler")
 
 class StreamExecutionHandler:
     """
-    SSE 流式执行处理器
+    SSE Streaming Execution Handler / SSE 流式执行处理器
 
+    Encapsulates ConversationEngine._sse_generator logic as an independent class.
+    Accesses _stream_llm_chunks / _messages_to_dicts via engine reference.
     将 ConversationEngine._sse_generator 的完整逻辑封装为独立类。
-    通过 engine 引用访问 _stream_llm_chunks / _messages_to_dicts。
 
-    事件类型：
-    - message: 内容增量
-    - tool_call: 工具调用结果
-    - thinking: AI 正在执行工具
-    - optimizing_tools: 工具优化事件
-    - rag_sources: RAG 引用来源
-    - confirmation_request: 需要用户确认
-    - done: 完成
-    - [DONE]: SSE 结束标记
+    Event types / 事件类型：
+    - message: Content delta / 内容增量
+    - tool_call: Tool call result / 工具调用结果
+    - thinking: AI executing tool / AI 正在执行工具
+    - optimizing_tools: Tool optimization event / 工具优化事件
+    - rag_sources: RAG reference sources / RAG 引用来源
+    - confirmation_request: User confirmation needed / 需要用户确认
+    - done: Completion / 完成
+    - [DONE]: SSE end marker / SSE 结束标记
     """
 
     def __init__(
@@ -66,7 +70,7 @@ class StreamExecutionHandler:
         self.on_complete = on_complete
 
     async def generate(self) -> AsyncIterator[str]:
-        """SSE 事件生成器主循环"""
+        """SSE event generator main loop / SSE 事件生成器主循环"""
         from .conversation import _strip_model_fc_tokens
         from .tool_processor import ToolCallProcessor
 
@@ -87,7 +91,7 @@ class StreamExecutionHandler:
                 consent_modes=_tool_consent_modes,
             )
 
-            # 推送工具优化事件
+            # Push tool optimization event / 推送工具优化事件
             if _optimize_event is not None:
                 yield SSEChunkEncoder.encode(
                     {"event": "optimizing_tools", **_optimize_event}
@@ -96,19 +100,20 @@ class StreamExecutionHandler:
                 )
 
             if tools:
-                # ---- 有工具：工具调用循环 + 最终回复流式推送 ----
+                # ---- With tools: tool call loop + final reply streaming ---- / 有工具：工具调用循环 + 最终回复流式推送
                 async for event in self._generate_with_tools(
                     messages, tools, processor, all_tool_results,
                     _strip_model_fc_tokens,
                 ):
                     yield event
+                    # Extract output and total_tokens from events
+                    # (shared state via self._output / self._total_tokens)
                     # 从事件中提取 output 和 total_tokens
-                    # (通过 self._output / self._total_tokens 共享状态)
 
                 output = self._output
                 total_tokens = self._total_tokens
             else:
-                # ---- 无工具：真实流式推送 ----
+                # ---- Without tools: real streaming push ---- / 无工具：真实流式推送
                 async for chunk in self.engine._stream_llm_chunks(
                     agent=self.agent,
                     messages=messages,
@@ -130,7 +135,7 @@ class StreamExecutionHandler:
 
                 messages.append(ChatMessage(role="assistant", content=output))
 
-            # ---- 解析并发送 Action Buttons ----
+            # ---- Parse and send Action Buttons ---- / 解析并发送 Action Buttons
             cleaned_output, action_buttons = self._extract_action_buttons(output)
             if action_buttons:
                 output = cleaned_output
@@ -139,14 +144,14 @@ class StreamExecutionHandler:
                     "buttons": action_buttons,
                 })
 
-            # ---- 发送 RAG 引用来源事件 ----
+            # ---- Send RAG reference source event ---- / 发送 RAG 引用来源事件
             if rag_sources:
                 yield SSEChunkEncoder.encode({
                     "event": "rag_sources",
                     "sources": rag_sources,
                 })
 
-            # ---- 构建结果并调用回调（在 done 事件之前） ----
+            # ---- Build result and call callback (before done event) ---- / 构建结果并调用回调（在 done 事件之前）
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
 
             result = ExecutionResult(
@@ -168,7 +173,7 @@ class StreamExecutionHandler:
                 except Exception as cb_exc:
                     logger.error("on_complete callback error: %s", str(cb_exc))
 
-            # ---- 发送完成事件（含回调返回的额外数据） ----
+            # ---- Send done event (with extra data from callback) ---- / 发送完成事件（含回调返回的额外数据）
             yield SSEChunkEncoder.encode({
                 "event": "done",
                 "conversation_id": self.request.conversation_id,
@@ -192,9 +197,9 @@ class StreamExecutionHandler:
                 })
                 yield SSEChunkEncoder.done()
             except Exception:
-                pass  # 连接已断开时忽略 yield 错误
+                pass  # Ignore yield error when connection is broken / 连接已断开时忽略 yield 错误
 
-            # 异常路径也触发回调
+            # Trigger callback on error path too / 异常路径也触发回调
             if self.on_complete:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 failed_result = ExecutionResult(
@@ -212,7 +217,7 @@ class StreamExecutionHandler:
                     )
 
         except BaseException as exc:
-            # 捕获 CancelledError / GeneratorExit 等非 Exception 异常
+            # Catch CancelledError / GeneratorExit and other non-Exception exceptions / 捕获 CancelledError / GeneratorExit 等非 Exception 异常
             logger.error(
                 "Stream BaseException: agent=%d type=%s error=%s",
                 self.agent.id, type(exc).__name__, str(exc),
@@ -227,7 +232,7 @@ class StreamExecutionHandler:
                         duration_ms=duration_ms,
                         conversation_id=self.request.conversation_id,
                     ))
-            raise  # 必须重新抛出 BaseException
+            raise  # Must re-raise BaseException / 必须重新抛出 BaseException
 
     async def _generate_with_tools(
         self,
@@ -238,17 +243,18 @@ class StreamExecutionHandler:
         strip_fc_tokens: Callable[[str], str],
     ) -> AsyncIterator[str]:
         """
+        Real streaming execution with tools:
         有工具场景的真实流式执行：
 
-        1. 每轮先走模型原生 stream_chat（携带 tools）
-        2. 流式增量实时转发 message 事件
-        3. 若检测到 tool_calls，则执行工具并进入下一轮
-        4. 若无 tool_calls，则该轮即最终回复
+        1. Each round uses model native stream_chat (with tools) / 每轮先走模型原生 stream_chat
+        2. Forward streaming delta as message events in real-time / 流式增量实时转发 message 事件
+        3. If tool_calls detected, execute tools and enter next round / 若检测到 tool_calls，执行工具并进入下一轮
+        4. If no tool_calls, this round is the final reply / 若无 tool_calls，则该轮即最终回复
         """
         self._total_tokens = 0
         self._output = ""
 
-        # ---- 确认拦截：检测用户确认/拒绝文本 ----
+        # ---- Confirmation interception: detect user confirm/reject text ---- / 确认拦截：检测用户确认/拒绝文本
         _last_user_text = ""
         if self.request.messages:
             _last = self.request.messages[-1]
@@ -260,7 +266,7 @@ class StreamExecutionHandler:
             _pending = processor.find_pending_confirmation(messages)
 
         if _pending:
-            # 直接执行已确认的工具调用，不经过 LLM
+            # Directly execute confirmed tool call, bypassing LLM / 直接执行已确认的工具调用，不经过 LLM
             _tc_id = _pending["tool_call_id"]
             _func_name = _pending["name"]
             _arguments = _pending["arguments"]
@@ -284,7 +290,7 @@ class StreamExecutionHandler:
                 )
             )
 
-            # 将确认后的工具调用追加到消息中
+            # Append confirmed tool call to messages / 将确认后的工具调用追加到消息中
             messages.append(processor.build_assistant_tool_call_message(
                 content="",
                 tool_calls=[{
@@ -307,7 +313,7 @@ class StreamExecutionHandler:
             round_tokens = 0
             streamed_tool_calls: list[dict[str, Any]] = []
 
-            # 真实流式调用（携带 tools），增量立即透传给前端
+            # Real streaming call (with tools), forward delta to frontend immediately / 真实流式调用（携带 tools），增量立即透传给前端
             async for chunk in self.engine._stream_llm_chunks(
                 agent=self.agent,
                 messages=messages,
@@ -338,13 +344,13 @@ class StreamExecutionHandler:
 
             self._total_tokens += round_tokens
 
-            # 本轮无工具调用 => 已拿到最终文本回复
+            # No tool calls this round => final text reply obtained / 本轮无工具调用 => 已拿到最终文本回复
             tc_list = self._finalize_stream_tool_calls(streamed_tool_calls)
             if not tc_list:
                 self._output = round_output.strip()
                 break
 
-            # 本轮出现工具调用 => 执行工具后进入下一轮
+            # Tool calls this round => execute tools then enter next round / 本轮出现工具调用 => 执行工具后进入下一轮
             yield SSEChunkEncoder.encode({"event": "thinking"})
 
             messages.append(
@@ -356,7 +362,7 @@ class StreamExecutionHandler:
 
             round_has_confirmation = False
 
-            # 逐个执行工具并立即推送 SSE 事件
+            # Execute tools one by one and push SSE events immediately / 逐个执行工具并立即推送 SSE 事件
             for tc in tc_list:
                 tc_id = tc.get("id", "")
                 func = tc.get("function", {})
@@ -366,7 +372,7 @@ class StreamExecutionHandler:
 
                 _skill_info = processor.get_skill_info(func_name)
 
-                # ---- consent_mode 前置检查 ----
+                # ---- consent_mode pre-check ---- / consent_mode 前置检查
                 _consent = processor.check_consent(func_name)
 
                 if _consent == "reject":
@@ -392,7 +398,7 @@ class StreamExecutionHandler:
                     round_has_confirmation = True
                     continue
 
-                # ---- auto: 正常执行 ----
+                # ---- auto: normal execution ---- / auto: 正常执行
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_start_event(
                         func_name, arguments, _skill_info,
@@ -405,14 +411,14 @@ class StreamExecutionHandler:
                 )
                 all_tool_results.append(result)
 
-                # 推送 tool_result 事件
+                # Push tool_result event / 推送 tool_result 事件
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_call_event(
                         result, tc_duration, _skill_info,
                     )
                 )
 
-                # 检测 confirmation_request（CRUD 预览确认）
+                # Detect confirmation_request (CRUD preview confirmation) / 检测 confirmation_request（CRUD 预览确认）
                 _conf_data = processor.check_confirmation_output(result)
                 if _conf_data:
                     round_has_confirmation = True
@@ -420,7 +426,7 @@ class StreamExecutionHandler:
                         processor.build_confirmation_event(_conf_data)
                     )
 
-                # 追加 tool 消息
+                # Append tool message / 追加 tool 消息
                 messages.append(processor.build_tool_message(result, tc_id))
 
             if round_has_confirmation:
@@ -436,12 +442,13 @@ class StreamExecutionHandler:
         messages.append(ChatMessage(role="assistant", content=self._output))
 
     # ========================================
-    # 工具调用增量聚合
+    # Tool Call Incremental Aggregation / 工具调用增量聚合
     # ========================================
 
     @staticmethod
     def _normalize_stream_tool_call(tool_call: Any) -> dict[str, Any] | None:
         """
+        Normalize streaming tool_call delta, compatible with both dict and SDK object formats.
         归一化流式 tool_call 增量，兼容 dict 与 SDK 对象两种格式。
         """
         if not tool_call:
@@ -490,6 +497,7 @@ class StreamExecutionHandler:
         incoming: list[Any],
     ) -> list[dict[str, Any]]:
         """
+        Merge streaming tool_call deltas, supports OpenAI-style index incremental concatenation.
         合并流式 tool_call 增量，支持 OpenAI 风格 index 增量拼接。
         """
         merged = existing[:]
@@ -548,6 +556,7 @@ class StreamExecutionHandler:
         calls: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """
+        Clean internal fields and fill defaults, output executable tool_call list.
         清理内部字段并补齐默认值，输出可执行的 tool_call 列表。
         """
         finalized: list[dict[str, Any]] = []
@@ -578,7 +587,7 @@ class StreamExecutionHandler:
         return finalized
 
     # ========================================
-    # Action Buttons 解析
+    # Action Buttons Parsing / Action Buttons 解析
     # ========================================
 
     _ACTION_BUTTONS_RE = re.compile(
@@ -591,15 +600,17 @@ class StreamExecutionHandler:
         output: str,
     ) -> tuple[str, list[dict[str, str]] | None]:
         """
+        Extract button definitions from [ACTIONS]...[/ACTIONS] markers in LLM output.
         从 LLM 输出中提取 [ACTIONS]...[/ACTIONS] 标记中的按钮定义。
 
-        支持格式:
+        Supported format / 支持格式:
             [ACTIONS]
             [{"label": "方案A", "value": "选择方案A", "style": "primary"}]
             [/ACTIONS]
 
         Returns:
-            (cleaned_output, buttons) — 清理后的输出和按钮列表（无按钮时为 None）
+            (cleaned_output, buttons) — Cleaned output and button list (None if no buttons)
+            清理后的输出和按钮列表（无按钮时为 None）
         """
         match = StreamExecutionHandler._ACTION_BUTTONS_RE.search(output)
         if not match:
@@ -610,7 +621,7 @@ class StreamExecutionHandler:
             buttons = json.loads(raw)
             if not isinstance(buttons, list):
                 return output, None
-            # 校验每个按钮至少有 label 和 value
+            # Validate each button has at least label and value / 校验每个按钮至少有 label 和 value
             valid_buttons: list[dict[str, str]] = []
             for btn in buttons:
                 if isinstance(btn, dict) and "label" in btn and "value" in btn:
@@ -625,7 +636,7 @@ class StreamExecutionHandler:
                     valid_buttons.append(item)
             if not valid_buttons:
                 return output, None
-            # 从输出中移除标记
+            # Remove markers from output / 从输出中移除标记
             cleaned = StreamExecutionHandler._ACTION_BUTTONS_RE.sub(
                 "", output,
             ).strip()

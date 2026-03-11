@@ -1,8 +1,11 @@
 <script setup lang="ts">
 /**
+ * Markdown Render Component
  * Markdown 渲染组件
  *
+ * Based on markdown-it + highlight.js, supports code highlighting, copy, and streaming render.
  * 基于 markdown-it + highlight.js，支持代码高亮、复制、流式渲染。
+ * Reusable business component for chat UI, version details, etc.
  * 作为通用业务组件供对话界面、版本详情等场景复用。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -30,16 +33,16 @@ defineOptions({ name: 'MarkdownRender' });
 
 const props = withDefaults(
   defineProps<{
-    /** Markdown 文本内容 */
+    /** Markdown text content / Markdown 文本内容 */
     content: string;
-    /** 流式模式（正在接收中，跳过某些后处理） */
+    /** Streaming mode (receiving data, skip some post-processing) / 流式模式 */
     streaming?: boolean;
   }>(),
   {
     streaming: false,
   },
 );
-// 注册常用语言
+// Register common languages / 注册常用语言
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('typescript', typescript);
@@ -62,7 +65,7 @@ hljs.registerLanguage('xml', xml);
 hljs.registerLanguage('markdown', markdown);
 hljs.registerLanguage('md', markdown);
 
-// 初始化 markdown-it
+// Initialize markdown-it / 初始化 markdown-it
 const md = new MarkdownIt({
   html: false,
   linkify: true,
@@ -77,7 +80,7 @@ const md = new MarkdownIt({
         // fallback
       }
     }
-    // 自动检测
+    // Auto-detect / 自动检测
     try {
       const result = hljs.highlightAuto(str);
       return buildCodeBlock(result.value, result.language || langLabel);
@@ -87,7 +90,7 @@ const md = new MarkdownIt({
   },
 });
 
-// 链接在新窗口打开
+// Open links in new window / 链接在新窗口打开
 const defaultRender =
   md.renderer.rules.link_open ||
   function (tokens, idx, options, _env, self) {
@@ -99,7 +102,7 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
   return defaultRender(tokens, idx, options, env, self);
 };
 
-/** 构建带语言标签和复制按钮的代码块 HTML */
+/** Build code block HTML with language label and copy button / 构建带语言标签和复制按钮的代码块 HTML */
 function buildCodeBlock(highlighted: string, lang: string): string {
   const id = `code-${Math.random().toString(36).slice(2, 10)}`;
   return (
@@ -202,7 +205,7 @@ const renderedHtml = computed(() => {
   text-decoration: underline;
 }
 
-/* 代码块 */
+/* Code blocks / 代码块 */
 .md-code-block {
   margin: 0.5em 0;
   overflow: hidden;
@@ -253,7 +256,7 @@ const renderedHtml = computed(() => {
   font-family: 'Fira Code', Consolas, Monaco, monospace;
 }
 
-/* 行内代码 */
+/* Inline code / 行内代码 */
 .markdown-render code:not(.hljs code) {
   padding: 1px 5px;
   font-family: 'Fira Code', Consolas, Monaco, monospace;
@@ -262,7 +265,7 @@ const renderedHtml = computed(() => {
   border-radius: 4px;
 }
 
-/* highlight.js 基础色 */
+/* highlight.js base colors / highlight.js 基础色 */
 .hljs-keyword {
   color: #c678dd;
 }

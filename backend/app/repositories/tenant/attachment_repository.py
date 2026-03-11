@@ -1,7 +1,8 @@
 """
-附件仓储
+附件仓储 / Attachment Repository
 
 提供附件数据访问能力（租户隔离）
+Provides attachment data access (tenant-isolated).
 """
 
 from sqlalchemy import func, select

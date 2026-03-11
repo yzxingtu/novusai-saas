@@ -1,4 +1,5 @@
 """
+Storage Backend Base Types and Abstract Interface
 存储后端基础类型与抽象接口
 """
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 class StorageVisibility(StrEnum):
     """
-    文件可见性枚举
+    File Visibility Enum / 文件可见性枚举
     """
     PUBLIC = ("public", "enum.attachment_visibility.public")
     PRIVATE = ("private", "enum.attachment_visibility.private")
@@ -26,7 +27,7 @@ class StorageVisibility(StrEnum):
 @dataclass
 class StorageConfig:
     """
-    存储配置对象
+    Storage Config Object / 存储配置对象
     """
     driver: str
     root_path: str
@@ -37,7 +38,7 @@ class StorageConfig:
 @dataclass
 class UploadResult:
     """
-    上传结果对象
+    Upload Result Object / 上传结果对象
     """
     path: str
     url: str
@@ -50,7 +51,7 @@ class UploadResult:
 @dataclass
 class FileInfo:
     """
-    文件信息对象
+    File Info Object / 文件信息对象
     """
     path: str
     size: int
@@ -62,9 +63,10 @@ class FileInfo:
 
 class StorageDriver(StorageLoggerMixin):
     """
-    存储驱动抽象基类
+    Storage Driver Abstract Base Class / 存储驱动抽象基类
 
-    通过 StorageLoggerMixin 提供 self.logger 属性，日志记录到 logs/storage.log
+    Provides self.logger via StorageLoggerMixin, logs to logs/storage.log.
+    通过 StorageLoggerMixin 提供 self.logger 属性，日志记录到 logs/storage.log。
     """
     name: str = "base"
     display_name: str = "Base Storage"
@@ -72,7 +74,7 @@ class StorageDriver(StorageLoggerMixin):
 
     def __init__(self, config: StorageConfig):
         """
-        初始化驱动
+        Initialize driver / 初始化驱动
         """
         self.config = config
 
@@ -85,25 +87,25 @@ class StorageDriver(StorageLoggerMixin):
         metadata: dict | None = None,
     ) -> UploadResult:
         """
-        上传文件
+        Upload file / 上传文件
         """
         raise NotImplementedError()
 
     async def get(self, path: str) -> BinaryIO:
         """
-        获取文件内容
+        Get file content / 获取文件内容
         """
         raise NotImplementedError()
 
     async def delete(self, path: str) -> bool:
         """
-        删除文件
+        Delete file / 删除文件
         """
         raise NotImplementedError()
 
     async def exists(self, path: str) -> bool:
         """
-        判断文件是否存在
+        Check if file exists / 判断文件是否存在
         """
         raise NotImplementedError()
 
@@ -114,31 +116,31 @@ class StorageDriver(StorageLoggerMixin):
         visibility: StorageVisibility | None = None,
     ) -> str:
         """
-        获取文件访问 URL
+        Get file access URL / 获取文件访问 URL
         """
         raise NotImplementedError()
 
     async def get_info(self, path: str) -> FileInfo | None:
         """
-        获取文件信息
+        Get file info / 获取文件信息
         """
         raise NotImplementedError()
 
     async def copy(self, source: str, destination: str) -> bool:
         """
-        复制文件
+        Copy file / 复制文件
         """
         raise NotImplementedError()
 
     async def move(self, source: str, destination: str) -> bool:
         """
-        移动或重命名文件
+        Move or rename file / 移动或重命名文件
         """
         raise NotImplementedError()
 
     async def get_download_response(self, path: str, filename: str | None = None):
         """
-        获取下载响应
+        Get download response / 获取下载响应
         """
         from fastapi.responses import StreamingResponse
 
@@ -161,24 +163,24 @@ class StorageDriver(StorageLoggerMixin):
         visibility: StorageVisibility | None = None,
     ) -> str:
         """
-        获取处理后的图片 URL
+        Get processed image URL / 获取处理后的图片 URL
 
-        各驱动根据服务商规范实现：
-        - LocalDriver: 本地处理 + 缓存
-        - S3Driver: 返回带参数的 URL
-        - OSSDriver: 返回 OSS 图片处理 URL
+        Each driver implements per provider spec / 各驱动根据服务商规范实现：
+        - LocalDriver: Local processing + cache / 本地处理 + 缓存
+        - S3Driver: Return URL with params / 返回带参数的 URL
+        - OSSDriver: Return OSS image processing URL / 返回 OSS 图片处理 URL
 
         Args:
-            path: 文件路径
-            params: 图片处理参数
-            expires: URL 有效期（秒）
-            visibility: 可见性
+            path: File path / 文件路径
+            params: Image processing params / 图片处理参数
+            expires: URL expiry (seconds) / URL 有效期（秒）
+            visibility: Visibility / 可见性
 
         Returns:
-            处理后的图片 URL
+            Processed image URL / 处理后的图片 URL
         """
         _ = params
-        # 默认实现：返回原始 URL（不处理）
+        # Default impl: return original URL (no processing) / 默认实现：返回原始 URL（不处理）
         return await self.get_url(path, expires=expires, visibility=visibility)
 
     async def get_processed_image(
@@ -187,42 +189,43 @@ class StorageDriver(StorageLoggerMixin):
         params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         """
-        获取处理后的图片数据
+        Get processed image data / 获取处理后的图片数据
 
-        仅用于本地存储和无原生图片处理能力的存储驱动
+        Only for local storage and drivers without native image processing / 仅用于本地存储和无原生图片处理能力的存储驱动
 
         Args:
-            path: 文件路径
-            params: 图片处理参数
+            path: File path / 文件路径
+            params: Image processing params / 图片处理参数
 
         Returns:
-            (处理后的字节数据, MIME 类型) 或 None
+            (processed bytes, MIME type) or None / (处理后的字节数据, MIME 类型) 或 None
         """
         _ = (path, params)
-        # 默认实现：返回 None（表示不支持本地处理）
+        # Default impl: return None (not supported locally) / 默认实现：返回 None（表示不支持本地处理）
         return None
 
     def supports_native_image_processing(self) -> bool:
         """
-        是否支持原生图片处理
+        Whether native image processing is supported / 是否支持原生图片处理
 
-        云存储返回 True（使用云服务处理）
-        本地存储返回 False（需要本地 Pillow 处理）
+        Cloud storage returns True (uses cloud service processing) / 云存储返回 True（使用云服务处理）
+        Local storage returns False (requires local Pillow processing) / 本地存储返回 False（需要本地 Pillow 处理）
 
         Returns:
-            是否支持原生图片处理
+            Whether native image processing is supported / 是否支持原生图片处理
         """
         return False
 
     def get_base_url(self) -> str:
         """
-        获取存储的基础访问 URL（含 prefix）
+        Get storage base access URL (with prefix) / 获取存储的基础访问 URL（含 prefix）
 
-        将 config.base_url 与驱动的 prefix 拼接，确保存入
-        附件记录的 base_url 可直接与 path 拼出完整 URL。
+        Joins config.base_url with driver prefix, ensuring the base_url
+        stored in attachment records can be concatenated with path for a full URL / 将 config.base_url 与驱动的 prefix 拼接，确保存入
+        附件记录的 base_url 可直接与 path 拼出完整 URL
 
         Returns:
-            基础 URL，不带尾部斜杠
+            Base URL without trailing slash / 基础 URL，不带尾部斜杠
         """
         base_url = (self.config.base_url or "").rstrip("/")
         prefix = getattr(self, "prefix", "").strip("/")

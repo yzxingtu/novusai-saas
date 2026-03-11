@@ -1,5 +1,5 @@
 """
-AI 表策略租户覆盖 Repository
+AI 表策略租户覆盖 Repository / AI Table Policy Override Repository
 """
 
 from __future__ import annotations

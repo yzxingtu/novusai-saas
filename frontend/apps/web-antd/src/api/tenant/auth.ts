@@ -1,6 +1,6 @@
 /**
- * 租户后台认证 API
- * 对接后端 /tenant/auth/* 接口
+ * Tenant backend auth API / 租户后台认证 API
+ * Backend: /tenant/auth/* / 对接后端 /tenant/auth/* 接口
  */
 import type {
   ChangePasswordParams,
@@ -19,30 +19,30 @@ import { useAccessStore } from '@vben/stores';
 import { $t } from '#/locales';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
-// Logout 使用 baseRequestClient 避免 401 时循环调用
+// Logout uses baseRequestClient to avoid circular calls on 401 / 登出使用 baseRequestClient 避免循环调用
 
 const API_PREFIX = '/tenant/auth';
 
 /**
- * 租户管理员登录
- * 后端返回 snake_case，转换为 camelCase
+ * Tenant admin login / 租户管理员登录
+ * Backend returns snake_case, converted to camelCase / 后端返回 snake_case，转换为 camelCase
  */
 export async function tenantLoginApi(
   data: LoginParams,
   options?: ApiRequestOptions,
 ): Promise<LoginResult> {
-  // 构建请求体，转换为 snake_case
+  // Build request body, convert to snake_case / 构建请求体
   const requestBody: Record<string, unknown> = {
     password: data.password,
     username: data.username,
   };
 
-  // 添加租户编码（如果有）
+  // Add tenant code (if present) / 添加租户编码
   if (data.tenantCode) {
     requestBody.tenant_code = data.tenantCode;
   }
 
-  // 添加验证码参数（如果有）
+  // Add captcha params (if present) / 添加验证码参数
   if (data.captchaChallengeId) {
     requestBody.captcha_challenge_id = data.captchaChallengeId;
   }
@@ -65,8 +65,8 @@ export async function tenantLoginApi(
 }
 
 /**
- * 刷新 Token
- * 后端返回 snake_case，转换为 camelCase
+ * Refresh token / 刷新 Token
+ * Backend returns snake_case, converted to camelCase / 后端返回 snake_case，转换为 camelCase
  */
 export async function tenantRefreshTokenApi(
   refreshToken: string,
@@ -90,8 +90,8 @@ export async function tenantRefreshTokenApi(
 }
 
 /**
- * 租户管理员登出
- * 使用 baseRequestClient 避免 401 时触发循环调用
+ * Tenant admin logout / 租户管理员登出
+ * Uses baseRequestClient to avoid circular calls on 401 / 使用 baseRequestClient 避免循环调用
  */
 export async function tenantLogoutApi() {
   try {
@@ -103,12 +103,12 @@ export async function tenantLogoutApi() {
       headers,
     });
   } catch {
-    // 登出失败不影响主流程
+    // Logout failure won't affect main flow / 登出失败不影响主流程
   }
 }
 
 /**
- * 后端返回的租户管理员信息原始格式
+ * Tenant admin info raw format from backend / 后端返回的租户管理员信息原始格式
  */
 interface TenantAdminInfoRaw {
   id: number;
@@ -123,17 +123,17 @@ interface TenantAdminInfoRaw {
   role_id?: number;
   last_login_at?: string;
   created_at?: string;
-  /** 权限码列表 */
+  /** Permission code list / 权限码列表 */
   permissions?: string[];
-  /** 租户是否已分配套餐 */
+  /** Whether tenant has assigned plan / 租户是否已分配套餐 */
   has_plan?: boolean;
-  /** 套餐名称 */
+  /** Plan name / 套餐名称 */
   plan_name?: string;
 }
 
 /**
- * 获取当前租户管理员信息
- * 将后端 snake_case 转换为前端 camelCase
+ * Get current tenant admin info / 获取当前租户管理员信息
+ * Convert backend snake_case to frontend camelCase / 将后端格式转换为前端格式
  */
 export async function getTenantAdminInfoApi(
   options?: ApiRequestOptions,
@@ -158,7 +158,7 @@ export async function getTenantAdminInfoApi(
 }
 
 /**
- * 修改密码
+ * Change password / 修改密码
  */
 export async function tenantChangePasswordApi(
   data: ChangePasswordParams,
@@ -176,10 +176,10 @@ export async function tenantChangePasswordApi(
 }
 
 // ============================================================
-// 个人信息修改
+// Profile update / 个人信息修改
 // ============================================================
 
-/** 修改个人信息参数 */
+/** Update profile params / 修改个人信息参数 */
 export interface UpdateProfileParams {
   nickname?: null | string;
   avatar?: null | string;
@@ -188,7 +188,7 @@ export interface UpdateProfileParams {
 }
 
 /**
- * 修改当前租户管理员个人信息
+ * Update current tenant admin profile / 修改当前租户管理员个人信息
  * PUT /tenant/auth/profile
  */
 export async function updateTenantProfileApi(
@@ -199,18 +199,18 @@ export async function updateTenantProfileApi(
 }
 
 // ============================================================
-// 平台管理员一键登录
+// Admin impersonate login / 平台管理员一键登录
 // ============================================================
 
-/** 一键登录 Token 验证请求 */
+/** Impersonate token verification request / 一键登录 Token 验证请求 */
 export interface ImpersonateTokenRequest {
   impersonate_token: string;
 }
 
 /**
- * 平台管理员一键登录
+ * Admin impersonate login / 平台管理员一键登录
  * POST /tenant/auth/impersonate
- * 验证 impersonate token 并换取正式 Token
+ * Verify impersonate token and exchange for formal token / 验证 impersonate token 并换取正式 Token
  */
 export async function impersonateLoginApi(
   impersonateToken: string,

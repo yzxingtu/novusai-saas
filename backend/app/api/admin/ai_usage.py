@@ -1,7 +1,8 @@
 """
-AI 使用量统计管理 API (Admin)
+AI 使用量统计管理 API (Admin) / AI Usage Statistics API (Admin)
 
 提供平台级使用量统计查询接口（平台管理员专用）
+Provides platform-level usage statistics query endpoints (platform admin only).
 """
 
 from datetime import date
@@ -37,16 +38,16 @@ from app.services.ai import MeteringService
 )
 class AdminAIUsageController(GlobalController):
     """
-    AI 使用量统计控制器
+    AI 使用量统计控制器 / AI Usage Statistics Controller
 
-    提供平台级使用量统计查询接口
+    提供平台级使用量统计查询接口 / Provides platform-level usage statistics query endpoints
     """
 
     prefix = "/ai/usage"
     tags = [_("menu.tags.admin_ai_usage")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由 / Register routes"""
         router = self.router
 
         @router.get("/summary/tenant/{tenant_id}", summary="获取租户使用量汇总")
@@ -60,9 +61,9 @@ class AdminAIUsageController(GlobalController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取指定租户的使用量汇总
+            获取指定租户的使用量汇总 / Get usage summary for specified tenant
 
-            权限: ai_usage:tenant_summary
+            权限 / Permission: ai_usage:tenant_summary
             """
             metering = MeteringService(db)
             summary = await metering.get_tenant_usage(
@@ -84,9 +85,9 @@ class AdminAIUsageController(GlobalController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取指定模型的使用量汇总
+            获取指定模型的使用量汇总 / Get usage summary for specified model
 
-            权限: ai_usage:model_summary
+            权限 / Permission: ai_usage:model_summary
             """
             metering = MeteringService(db)
             summary = await metering.get_model_usage(
@@ -106,11 +107,11 @@ class AdminAIUsageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            查询使用量统计列表
+            查询使用量统计列表 / Query usage statistics list
 
-            支持 JSON:API 风格筛选和分页
+            支持 JSON:API 风格筛选和分页 / Supports JSON:API style filtering and pagination
 
-            权限: ai_usage:stats
+            权限 / Permission: ai_usage:stats
             """
             from app.repositories.ai.usage_stat_repository import UsageStatRepository
 
@@ -128,7 +129,7 @@ class AdminAIUsageController(GlobalController):
             )
 
 
-# 导出路由器
+# 导出路由器 / Export router
 router = AdminAIUsageController.get_router()
 
 __all__ = ["router", "AdminAIUsageController"]

@@ -1,7 +1,8 @@
 """
-通知模型
+通知模型 / Notification Model
 
 存储所有持久化通知（收件箱），支持已读/未读、分类筛选、过期清理。
+Stores all persistent notifications (inbox), supports read/unread, category filtering, expiry cleanup.
 """
 
 from datetime import datetime

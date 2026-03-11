@@ -38,7 +38,7 @@ const siteName = computed(() => {
 const refreshInterval = ref<ReturnType<typeof setInterval>>();
 
 onMounted(() => {
-  // 每 30 秒静默检查维护状态
+  // Silently check maintenance status every 30 seconds / 每 30 秒静默检查维护状态
   refreshInterval.value = setInterval(async () => {
     publicConfigStore.resetPlatformConfig();
     const config = await publicConfigStore.loadPlatformConfig();

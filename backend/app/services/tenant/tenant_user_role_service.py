@@ -1,7 +1,8 @@
 """
-租户用户角色服务
+租户用户角色服务 / Tenant User Role Service
 
 提供租户用户角色的业务逻辑（租户隔离），扁平结构无层级
+Provides tenant user role business logic (tenant-isolated), flat structure without hierarchy.
 """
 
 from __future__ import annotations

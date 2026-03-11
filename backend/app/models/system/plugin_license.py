@@ -1,5 +1,5 @@
 """
-插件许可证模型
+插件许可证模型 / Plugin License Model
 """
 
 from datetime import datetime

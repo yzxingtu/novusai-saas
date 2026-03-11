@@ -113,7 +113,7 @@ async function open(
   try {
     optionsData.value = await getMenuParentOptionsApi();
 
-    // 默认选中第一个选项（无已保存配置或 manifest 未指定 parent 时）
+    // Default select first option (when no saved config or manifest doesn't specify parent) / 默认选中第一个选项（无已保存配置或 manifest 未指定 parent 时）
     const firstAdmin = optionsData.value.admin[0]?.value ?? '';
     const firstTenant = optionsData.value.tenant[0]?.value ?? '';
     for (const row of rows.value) {

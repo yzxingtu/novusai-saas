@@ -1,7 +1,8 @@
 """
-租户角色仓储
+租户角色仓储 / Tenant Role Repository
 
 提供租户角色的数据访问操作（租户隔离），支持层级查询
+Provides tenant role data access (tenant-isolated) with hierarchy queries.
 """
 
 from sqlalchemy import func, select

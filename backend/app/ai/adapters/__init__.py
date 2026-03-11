@@ -1,7 +1,9 @@
 """
+AI Adapter Registry
 AI 适配器注册中心
 
-管理所有供应商适配器的注册和实例化
+Manages registration and instantiation of all provider adapters.
+管理所有供应商适配器的注册和实例化。
 """
 
 from app.ai.adapters.base import BaseAdapter
@@ -13,9 +15,10 @@ logger = LogManager.get_logger("ai")
 
 class AdapterRegistry:
     """
-    适配器注册中心
+    Adapter Registry / 适配器注册中心
 
-    管理所有供应商适配器的注册和实例化
+    Manages registration and instantiation of all provider adapters.
+    管理所有供应商适配器的注册和实例化。
     """
 
     _adapters: dict[str, type[BaseAdapter]] = {}
@@ -23,11 +26,11 @@ class AdapterRegistry:
     @classmethod
     def register(cls, provider_type: str, adapter_class: type[BaseAdapter]) -> None:
         """
-        注册适配器
+        Register adapter / 注册适配器
 
         Args:
-            provider_type: 供应商类型（如 openai_compatible）
-            adapter_class: 适配器类
+            provider_type: Provider type (e.g. openai_compatible) / 供应商类型
+            adapter_class: Adapter class / 适配器类
         """
         cls._adapters[provider_type] = adapter_class
         logger.info(_("ai.log.adapter_registered"), extra={"provider_type": provider_type})
@@ -35,13 +38,13 @@ class AdapterRegistry:
     @classmethod
     def get_adapter(cls, provider_type: str) -> type[BaseAdapter] | None:
         """
-        获取适配器类
+        Get adapter class / 获取适配器类
 
         Args:
-            provider_type: 供应商类型
+            provider_type: Provider type / 供应商类型
 
         Returns:
-            适配器类或 None
+            Adapter class or None / 适配器类或 None
         """
         return cls._adapters.get(provider_type)
 
@@ -54,19 +57,19 @@ class AdapterRegistry:
         **kwargs
     ) -> BaseAdapter:
         """
-        创建适配器实例
+        Create adapter instance / 创建适配器实例
 
         Args:
-            provider_type: 供应商类型
-            api_key: API 密钥
-            base_url: API 基础 URL（可选）
-            **kwargs: 其他配置
+            provider_type: Provider type / 供应商类型
+            api_key: API key / API 密钥
+            base_url: API base URL (optional) / API 基础 URL（可选）
+            **kwargs: Other configuration / 其他配置
 
         Returns:
-            适配器实例
+            Adapter instance / 适配器实例
 
         Raises:
-            ValueError: 适配器类型不存在
+            ValueError: Adapter type not found / 适配器类型不存在
         """
         from app.exceptions import BusinessException
 
@@ -79,13 +82,13 @@ class AdapterRegistry:
     @classmethod
     def unregister(cls, provider_type: str) -> bool:
         """
-        注销适配器
+        Unregister adapter / 注销适配器
 
         Args:
-            provider_type: 供应商类型
+            provider_type: Provider type / 供应商类型
 
         Returns:
-            是否成功注销
+            Whether unregistration succeeded / 是否成功注销
         """
         removed = cls._adapters.pop(provider_type, None)
         if removed:
@@ -95,10 +98,10 @@ class AdapterRegistry:
     @classmethod
     def list_adapters(cls) -> list[str]:
         """
-        列出所有已注册的适配器类型
+        List all registered adapter types / 列出所有已注册的适配器类型
 
         Returns:
-            适配器类型列表
+            Adapter type list / 适配器类型列表
         """
         return list(cls._adapters.keys())
 

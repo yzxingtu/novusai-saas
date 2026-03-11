@@ -1,10 +1,12 @@
 """
-插件 Webhook 分发器
+Plugin Webhook dispatcher.
+/ 插件 Webhook 分发器
 
-接收外部系统的 Webhook 回调，分发到插件注册的 handler。
-此路由不走认证中间件（外部系统无 Token）。
+Receives webhook callbacks from external systems and dispatches to plugin-registered handlers.
+This route bypasses auth middleware (external systems have no Token).
+/ 接收外部系统的 Webhook 回调，分发到插件注册的 handler。
 
-路径约定: /webhooks/plugins/{plugin_name}/{path}
+Path convention / 路径约定: /webhooks/plugins/{plugin_name}/{path}
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from app.rbac.decorators import public
 
 logger = get_logger(__name__)
 
-webhook_router = APIRouter(tags=["插件 Webhook"])
+webhook_router = APIRouter(tags=["Plugin Webhook / 插件 Webhook"])
 
 
 @webhook_router.api_route(
@@ -37,13 +39,15 @@ async def webhook_dispatcher(
     request: Request,
 ):
     """
-    插件 Webhook 统一分发器（不走认证中间件）
+    Plugin Webhook unified dispatcher (bypasses auth middleware).
+    / 插件 Webhook 统一分发器
 
-    流程：查找插件 → 匹配 webhook → 验证来源 → 调用 handler → 记录日志
+    Flow: find plugin → match webhook → verify origin → call handler → log
+    / 流程：查找插件 → 匹配 → 验证 → 调用 → 日志
     """
     start = time.perf_counter()
 
-    # 1. 查找已启用插件
+    # 1. Find enabled plugin / 查找已启用插件
     from app.core.database import async_session_factory
 
     async with async_session_factory() as db:
@@ -68,7 +72,7 @@ async def webhook_dispatcher(
         plugin_config = row[1] or {}
         manifest_data = row[2] or {}
 
-    # 2. 匹配 webhook 定义
+    # 2. Match webhook definition / 匹配 webhook 定义
     extensions = manifest_data.get("extensions", {})
     webhooks = extensions.get("webhooks", [])
     method = request.method.upper()
@@ -93,7 +97,7 @@ async def webhook_dispatcher(
             content={"error": f"Webhook {method} /{path} not found"},
         )
 
-    # 3. 来源验证
+    # 3. Origin verification / 来源验证
     auth_config = matched_webhook.get("auth", {})
     auth_type = auth_config.get("type", "none")
 
@@ -114,7 +118,7 @@ async def webhook_dispatcher(
     else:
         body = await request.body()
 
-    # 4. 查找并调用 handler
+    # 4. Find and call handler / 查找并调用 handler
     from app.plugins.registry import ExtensionRegistry
 
     registry = ExtensionRegistry.get_instance()
@@ -123,7 +127,7 @@ async def webhook_dispatcher(
 
     handler_info = plugin_webhooks.get(full_path)
     if not handler_info:
-        # 尝试从 manifest 直接加载 handler
+        # Try loading handler directly from manifest / 尝试从 manifest 加载
         handler_path = matched_webhook.get("handler", "")
         handler = _load_webhook_handler(plugin_name, handler_path)
     else:
@@ -136,7 +140,7 @@ async def webhook_dispatcher(
         )
 
     try:
-        # 传递解析后的请求数据给 handler
+        # Pass parsed request data to handler / 传递解析后的数据给 handler
         import json
         try:
             payload = json.loads(body) if body else {}
@@ -191,7 +195,7 @@ async def _verify_webhook_auth(
     request: Request,
     body: bytes,
 ) -> bool:
-    """验证 Webhook 来源"""
+    """Verify Webhook origin / 验证 Webhook 来源"""
     def _decrypt_if_needed(secret_value: str) -> str | None:
         from app.plugins.crypto import _FERNET_PREFIX
 
@@ -215,7 +219,7 @@ async def _verify_webhook_auth(
         if not signature:
             return False
 
-        # 解密密钥（如果是加密存储的）
+        # Decrypt secret (if encrypted stored) / 解密密钥
         decrypted = _decrypt_if_needed(secret)
         if decrypted is None:
             return False
@@ -225,7 +229,7 @@ async def _verify_webhook_auth(
             secret.encode(), body, hashlib.sha256,
         ).hexdigest()
 
-        # 支持 sha256=xxx 格式
+        # Support sha256=xxx format / 支持 sha256=xxx 格式
         if signature.startswith("sha256="):
             signature = signature[7:]
 
@@ -250,7 +254,7 @@ async def _verify_webhook_auth(
         return hmac.compare_digest(expected_token, actual_token)
 
     elif auth_type == "signature":
-        # 与 hmac 相同处理
+        # Same handling as hmac / 与 hmac 相同处理
         return await _verify_webhook_auth("hmac", auth_config, plugin_config, request, body)
 
     # unknown auth type → fail-close
@@ -262,7 +266,8 @@ async def _verify_webhook_auth(
 
 
 def _load_webhook_handler(plugin_name: str, handler_path: str):
-    """加载 Webhook handler — 委托给统一模块加载器"""
+    """Load Webhook handler — delegate to unified module loader
+    / 加载 Webhook handler"""
     from app.plugins.module_loader import load_plugin_handler
 
     return load_plugin_handler(plugin_name, handler_path)

@@ -1,7 +1,8 @@
 """
-智能体对话相关 Schema
+智能体对话相关 Schema / Agent Chat Schema
 
 定义对话请求和响应数据结构
+Defines chat request and response data structures.
 """
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 /**
+ * User architecture page - role form & user member table config
  * 用户架构页面 - 角色表单 & 用户成员表格配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -17,7 +18,7 @@ import { checkboxColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
 // ============================================================
-// 角色表单 Schema（创建/编辑角色用）
+// Role form Schema (for create/edit role) / 角色表单 Schema（创建/编辑角色用）
 // ============================================================
 
 function getStatusOptions() {
@@ -72,7 +73,7 @@ export function getRoleFormDefaults(): Record<string, unknown> {
 }
 
 // ============================================================
-// 用户成员表格列定义（右侧面板）
+// User member table column definitions (right panel) / 用户成员表格列定义（右侧面板）
 // ============================================================
 
 export function useMemberColumns<T = TenantUserInfo>(
@@ -176,7 +177,7 @@ export function useMemberSearchSchema(): VbenFormSchema[] {
 }
 
 // ============================================================
-// 用户表单 Schema（创建/编辑用户用）
+// User form Schema (for create/edit user) / 用户表单 Schema（创建/编辑用户用）
 // ============================================================
 
 export function useUserFormSchema(isEdit: boolean): VbenFormSchema[] {

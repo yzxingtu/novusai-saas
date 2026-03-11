@@ -1,7 +1,8 @@
 """
-AI 相关 Schema 模块
+AI 相关 Schema 模块 / AI Schema Module
 
 包含 AI 供应商、模型、API Key、调用日志等 Schema
+Contains AI provider, model, API key, call log schemas.
 """
 
 from app.schemas.ai.agent import (

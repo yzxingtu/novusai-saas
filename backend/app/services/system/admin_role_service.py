@@ -1,7 +1,8 @@
 """
-平台管理员角色服务
+平台管理员角色服务 / Admin Role Service
 
 提供平台角色的业务逻辑，支持层级结构和权限继承
+Provides platform role business logic with hierarchy and permission inheritance.
 """
 
 import uuid

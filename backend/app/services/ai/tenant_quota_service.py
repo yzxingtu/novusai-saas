@@ -1,5 +1,5 @@
 """
-租户 AI 配额配置 Service
+租户 AI 配额配置 Service / Tenant AI Quota Service
 """
 
 from datetime import date

@@ -1,6 +1,9 @@
 """
-扩展点批量注册
+Batch extension point registration / 扩展点批量注册
 
+Shared function used by lifecycle.enable() and startup.restore_enabled_plugins().
+Eliminates ~80 lines of duplicated registration loops.
+/
 公共函数，供 lifecycle.enable() 和 startup.restore_enabled_plugins() 共用。
 消除两处 ~80 行的重复注册循环。
 """
@@ -21,14 +24,14 @@ logger = get_logger(__name__)
 
 
 def _load_handler(plugin_name: str, handler_path: str) -> Callable | None:
-    """加载插件处理函数 — 委托给统一加载器"""
+    """Load plugin handler function — delegates to unified loader / 加载插件处理函数 — 委托给统一加载器"""
     from app.plugins.module_loader import load_plugin_handler
 
     return load_plugin_handler(plugin_name, handler_path)
 
 
 def _load_executor(plugin_name: str, skill_type: str) -> type | None:
-    """加载插件 executor 类 — 委托给统一加载器"""
+    """Load plugin executor class — delegates to unified loader / 加载插件 executor 类 — 委托给统一加载器"""
     from app.plugins.module_loader import load_plugin_executor
 
     return load_plugin_executor(plugin_name, skill_type)
@@ -41,23 +44,29 @@ def register_all_extensions(
     menu_overrides: dict[str, dict] | None = None,
 ) -> int:
     """
-    将 manifest 中声明的所有扩展点注册到 ExtensionRegistry。
+    Register all extension points declared in manifest to ExtensionRegistry.
+    / 将 manifest 中声明的所有扩展点注册到 ExtensionRegistry。
 
-    加载失败的扩展会记入 failed_extensions 列表并输出警告日志。
+    Failed extensions are recorded in failed_extensions list with warning logs.
+    Callers can use get_failed_extensions() for fail-close decisions.
+    / 加载失败的扩展会记入 failed_extensions 列表并输出警告日志。
     调用方可通过 get_failed_extensions() 获取失败列表进行 fail-close 决策。
 
     Args:
-        registry: 扩展点注册中心实例
-        manifest: 插件清单（已解析的 PluginManifest）
-        plugin_name: 插件名称
-        menu_overrides: 管理员自定义的菜单位置覆盖
-            格式: {"menu_name": {"parent": "system_maintenance"}}
+        registry: Extension registry instance / 扩展点注册中心实例
+        manifest: Plugin manifest (parsed PluginManifest) / 插件清单（已解析的 PluginManifest）
+        plugin_name: Plugin name / 插件名称
+        menu_overrides: Admin-customized menu position overrides / 管理员自定义的菜单位置覆盖
+            Format / 格式: {"menu_name": {"parent": "system_maintenance"}}
 
     Returns:
-        注册成功的扩展点数量（registry.get_registered_count）
+        Number of successfully registered extension points / 注册成功的扩展点数量（registry.get_registered_count）
     """
-    # ── T13: 幂等性保证（clean-slate 策略）──
-    # 先清除旧注册，再重新注册所有扩展点。
+    # ── T13: Idempotency guarantee (clean-slate strategy) / 幂等性保证（clean-slate 策略）──
+    # Clear old registrations first, then re-register all extension points.
+    # Ensures no duplicate injections when enable/restore is executed repeatedly.
+    # unregister_all is a no-op when plugin_name has no registrations, safely idempotent.
+    # / 先清除旧注册，再重新注册所有扩展点。
     # 确保 enable/restore 重复执行时不会产生重复注入。
     # unregister_all 在 plugin_name 无注册时为 no-op，安全幂等。
     registry.unregister_all(plugin_name)
@@ -173,10 +182,12 @@ def register_all_extensions(
         scope = menu_ext.scope or "admin_only"
 
         if scope == "admin_and_all":
-            # admin_and_all → 始终拆分为两条独立权限（管理端 + 租户端），
+            # admin_and_all → Always split into two independent permissions (admin + tenant),
+            # each can be configured with different parent menu directories
+            # / admin_and_all → 始终拆分为两条独立权限（管理端 + 租户端），
             # 分别可配置不同的父级菜单目录
             admin_parent = override.get("parent", menu_ext.parent)
-            # tenant_parent 未配置时沿用 admin parent（降级）
+            # tenant_parent falls back to admin parent if not configured / tenant_parent 未配置时沿用 admin parent（降级）
             tenant_parent = override.get("tenant_parent", admin_parent)
             registry.register_menu(
                 plugin_name,
@@ -203,7 +214,7 @@ def register_all_extensions(
                 hidden=menu_ext.hidden,
             )
         else:
-            # admin_only / all_tenants — 单端菜单
+            # admin_only / all_tenants — Single-endpoint menu / 单端菜单
             effective_parent = override.get("parent", menu_ext.parent)
             registry.register_menu(
                 plugin_name,
@@ -218,9 +229,9 @@ def register_all_extensions(
                 hidden=menu_ext.hidden,
             )
 
-    # ── T9: Frontend Slots（6 种前端插槽，按 slot_type 分类注册）──
+    # ── T9: Frontend Slots (6 types, registered by slot_type) / （6 种前端插槽，按 slot_type 分类注册）──
 
-    # header_widgets — 右上角导航栏组件
+    # header_widgets — Top-right navigation bar components / 右上角导航栏组件
     for widget in ext.frontend.header_widgets:
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.HEADER_WIDGET.value,
@@ -230,7 +241,7 @@ def register_all_extensions(
             scope=widget.scope,
         )
 
-    # floating_panels — 页面浮动面板（右下角等）
+    # floating_panels — Page floating panels (bottom-right, etc.) / 页面浮动面板（右下角等）
     for panel in ext.frontend.floating_panels:
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.FLOATING_PANEL.value,
@@ -240,7 +251,7 @@ def register_all_extensions(
             position=panel.position,
         )
 
-    # standalone_pages — 独立页面路由（/admin/plugins/* 或 /tenant/plugins/*）
+    # standalone_pages — Standalone page routes (/admin/plugins/* or /tenant/plugins/*) / 独立页面路由
     for page in ext.frontend.standalone_pages:
         slot_kwargs: dict[str, object] = dict(
             name=page.name,
@@ -255,7 +266,7 @@ def register_all_extensions(
             **slot_kwargs,
         )
 
-    # notification_ui — 通知中心自定义 UI 组件
+    # notification_ui — Notification center custom UI components / 通知中心自定义 UI 组件
     for notif_ui in ext.frontend.notification_ui:
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.NOTIFICATION_UI.value,
@@ -264,7 +275,7 @@ def register_all_extensions(
             component=notif_ui.component,
         )
 
-    # dashboard_widgets — 仪表板卡片
+    # dashboard_widgets — Dashboard widget cards / 仪表板卡片
     for widget in ext.frontend.dashboard_widgets:
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.DASHBOARD_WIDGET.value,
@@ -275,7 +286,7 @@ def register_all_extensions(
             scope=widget.scope,
         )
 
-    # settings_tabs — 系统设置页签
+    # settings_tabs — System settings tabs / 系统设置页签
     for tab in ext.frontend.settings_tabs:
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.SETTINGS_TAB.value,
@@ -285,7 +296,7 @@ def register_all_extensions(
             scope=tab.scope,
         )
 
-    # Middleware — ASGI 中间件（注入请求链）
+    # Middleware — ASGI middleware (injected into request chain) / ASGI 中间件（注入请求链）
     for mw_ext in ext.middleware:
         mw_cls = _load_handler(plugin_name, mw_ext.handler)
         if mw_cls:
@@ -296,7 +307,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "middleware", mw_ext.handler)
 
-    # Custom Extensions — 通用自定义扩展点（元数据注入）
+    # Custom Extensions — Generic custom extension points (metadata injection) / 通用自定义扩展点（元数据注入）
     for custom_ext in ext.custom:
         registry.register_custom(
             plugin_name, custom_ext.type, custom_ext.name,
@@ -304,7 +315,7 @@ def register_all_extensions(
             description=custom_ext.description,
         )
 
-    # Consumers — 消息队列消费者（无调度，由队列消息触发）
+    # Consumers — Message queue consumers (no scheduling, triggered by queue messages) / 消息队列消费者（无调度，由队列消息触发）
     for consumer_ext in ext.consumers:
         handler = _load_handler(plugin_name, consumer_ext.handler)
         if handler:
@@ -317,7 +328,7 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "consumer", consumer_ext.handler)
 
-    # 清理空失败列表
+    # Clean up empty failure list / 清理空失败列表
     if not _failed_extensions[plugin_name]:
         del _failed_extensions[plugin_name]
 
@@ -325,12 +336,12 @@ def register_all_extensions(
 
 
 def get_failed_extensions(plugin_name: str) -> list[dict[str, str]]:
-    """获取指定插件最近一次注册中失败的扩展列表。"""
+    """Get the list of failed extensions from the latest registration for a plugin. / 获取指定插件最近一次注册中失败的扩展列表。"""
     return list(_failed_extensions.get(plugin_name, []))
 
 
 def _record_failure(plugin_name: str, ext_type: str, entry_point: str) -> None:
-    """记录扩展加载失败并输出警告。"""
+    """Record extension load failure and output warning. / 记录扩展加载失败并输出警告。"""
     _failed_extensions.setdefault(plugin_name, []).append(
         {"type": ext_type, "entry_point": entry_point},
     )
@@ -340,5 +351,5 @@ def _record_failure(plugin_name: str, ext_type: str, entry_point: str) -> None:
     )
 
 
-# 插件名 → 最近一次注册中失败的扩展列表
+# Plugin name → list of failed extensions from the latest registration / 插件名 → 最近一次注册中失败的扩展列表
 _failed_extensions: dict[str, list[dict[str, str]]] = {}

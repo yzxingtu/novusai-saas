@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 /**
+ * Knowledge base detail drawer
  * 知识库详情抽屉
  *
+ * Tab 1: Document management (list + upload + delete + retry + progress)
  * Tab 1: 文档管理（列表+上传+删除+重试+进度）
- * Tab 2: 检索测试
+ * Tab 2: Search test / 检索测试
  */
 import type {
   KnowledgeDocumentItem,
@@ -88,7 +90,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
 });
 
-// ========== 基础状态 ==========
+// ========== Base state / 基础状态 ==========
 const kbId = ref(0);
 const kbName = ref('');
 const kbScope = ref('all_tenants');
@@ -97,7 +99,7 @@ const isTenantOwned = computed(() => kbScope.value === 'all_tenants');
 const activeTab = ref('documents');
 const loading = ref(false);
 
-// ========== 文档管理 ==========
+// ========== Document management / 文档管理 ==========
 const documents = ref<KnowledgeDocumentItem[]>([]);
 const docTotal = ref(0);
 const docPage = ref(1);
@@ -120,7 +122,7 @@ async function loadDocuments() {
   }
 }
 
-// 文档录入回调（传给 KnowledgeDocumentPicker）
+// Document input callbacks (passed to KnowledgeDocumentPicker) / 文档录入回调（传给 KnowledgeDocumentPicker）
 async function handleUploadFile(file: File) {
   await uploadDocumentApi(kbId.value, file);
 }
@@ -146,7 +148,7 @@ function handleDocPickerSuccess() {
   emit('success');
 }
 
-// 删除文档
+// Delete document / 删除文档
 function handleDeleteDoc(doc: KnowledgeDocumentItem) {
   Modal.confirm({
     title: $t('tenant.knowledgeBase.document.delete'),
@@ -160,7 +162,7 @@ function handleDeleteDoc(doc: KnowledgeDocumentItem) {
   });
 }
 
-// 重试文档
+// Retry document / 重试文档
 async function handleRetryDoc(doc: KnowledgeDocumentItem) {
   try {
     await retryDocumentApi(kbId.value, doc.id);
@@ -171,7 +173,7 @@ async function handleRetryDoc(doc: KnowledgeDocumentItem) {
   }
 }
 
-// 重新向量化
+// Reindex / 重新向量化
 function handleReindex() {
   Modal.confirm({
     title: $t('tenant.knowledgeBase.reindex.title'),
@@ -187,7 +189,7 @@ function handleReindex() {
   });
 }
 
-// ========== WS 实时进度 ==========
+// ========== WS real-time progress / WS 实时进度 ==========
 interface DocProgressInfo {
   stage: string;
   progress: number;
@@ -264,7 +266,7 @@ onActivated(() => {
   }
 });
 
-// ========== 分块预览 ==========
+// ========== Chunk preview / 分块预览 ==========
 const chunkPreviewVisible = ref(false);
 const chunkPreviewDoc = ref<KnowledgeDocumentItem | null>(null);
 const chunkList = ref<
@@ -304,7 +306,7 @@ async function loadChunks() {
   }
 }
 
-// ========== 检索测试 ==========
+// ========== Search test / 检索测试 ==========
 const searchQuery = ref('');
 const searchLoading = ref(false);
 const searchResults = ref<SearchResultItem[]>([]);
@@ -388,7 +390,7 @@ watch(activeTab, (tab) => {
     </div>
 
     <Tabs v-model:active-key="activeTab">
-      <!-- ==================== 文档管理 ==================== -->
+      <!-- ==================== Document management / 文档管理 ==================== -->
       <Tabs.TabPane
         key="documents"
         :tab="$t('tenant.knowledgeBase.document.title')"
@@ -582,7 +584,7 @@ watch(activeTab, (tab) => {
         </Spin>
       </Tabs.TabPane>
 
-      <!-- ==================== 检索测试 ==================== -->
+      <!-- ==================== Search test / 检索测试 ==================== -->
       <Tabs.TabPane
         key="search"
         :tab="$t('tenant.knowledgeBase.searchTest.title')"
@@ -713,7 +715,7 @@ watch(activeTab, (tab) => {
       </Tabs.TabPane>
     </Tabs>
 
-    <!-- ==================== 分块预览 Modal ==================== -->
+    <!-- ==================== Chunk preview Modal / 分块预览 Modal ==================== -->
     <Modal
       v-model:open="chunkPreviewVisible"
       :title="`${$t('tenant.knowledgeBase.document.viewChunks')} - ${chunkPreviewDoc?.file_name ?? ''}`"

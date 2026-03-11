@@ -5,7 +5,7 @@ import { usePluginSlotsStore } from '#/stores/plugin-slots';
 
 const props = withDefaults(
   defineProps<{
-    /** 过滤特定插件（空=全部） */
+    /** Filter specific plugin (empty=all) / 过滤特定插件 */
     pluginName?: string;
   }>(),
   {

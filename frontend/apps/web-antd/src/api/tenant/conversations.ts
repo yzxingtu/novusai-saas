@@ -1,16 +1,16 @@
 /**
- * 租户端对话管理 API
- * 对接后端 /tenant/ai/conversations/* 接口
+ * Tenant conversation management API / 租户端对话管理 API
+ * Backend: /tenant/ai/conversations/* / 对接后端 /tenant/ai/conversations/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// Type definitions / 类型定义
 // ============================================================
 
-/** 用户简要信息 */
+/** User brief info / 用户简要信息 */
 export interface ConversationUserInfo {
   id: number;
   username: string;
@@ -18,7 +18,7 @@ export interface ConversationUserInfo {
   avatar: null | string;
 }
 
-/** 对话列表项 */
+/** Conversation list item / 对话列表项 */
 export interface ConversationInfo {
   id: number;
   tenant_id: number;
@@ -35,7 +35,7 @@ export interface ConversationInfo {
   updated_at: string;
 }
 
-/** 对话消息 */
+/** Conversation message / 对话消息 */
 export interface ConversationMessageInfo {
   id: number;
   conversation_id: number;
@@ -49,14 +49,14 @@ export interface ConversationMessageInfo {
   created_at: string;
 }
 
-/** 对话详情 */
+/** Conversation detail / 对话详情 */
 export interface ConversationDetailInfo extends ConversationInfo {
   message_list: ConversationMessageInfo[];
   message_count: number;
   metadata: null | Record<string, unknown>;
 }
 
-/** 消息搜索结果 */
+/** Message search result / 消息搜索结果 */
 export interface MessageSearchResult {
   items: ConversationMessageInfo[];
   total: number;
@@ -64,7 +64,7 @@ export interface MessageSearchResult {
   page_size: number;
 }
 
-/** 对话列表分页响应 */
+/** Conversation paginated response / 对话列表分页响应 */
 interface ConversationPageResponse {
   items: ConversationInfo[];
   page: number;
@@ -72,13 +72,13 @@ interface ConversationPageResponse {
   total: number;
 }
 
-/** 批量归档请求 */
+/** Batch archive request / 批量归档请求 */
 export interface BatchArchiveRequest {
   agent_id?: null | number;
   before_days?: number;
 }
 
-/** 导出响应 */
+/** Export result / 导出响应 */
 export interface ConversationExportResult {
   content: string;
   filename: string;
@@ -86,12 +86,12 @@ export interface ConversationExportResult {
 }
 
 // ============================================================
-// API 接口
+// API functions / API 接口
 // ============================================================
 
 const PREFIX = '/tenant/ai/conversations';
 
-/** 获取对话列表 */
+/** Get conversation list / 获取对话列表 */
 export async function getConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -102,7 +102,7 @@ export async function getConversationListApi(
   });
 }
 
-/** 获取对话详情 */
+/** Get conversation detail / 获取对话详情 */
 export async function getConversationDetailApi(
   id: number,
   params?: Record<string, unknown>,
@@ -114,7 +114,7 @@ export async function getConversationDetailApi(
   });
 }
 
-/** 搜索消息 */
+/** Search messages / 搜索消息 */
 export async function searchConversationMessagesApi(
   params: { keyword: string; page?: number; page_size?: number },
   options?: ApiRequestOptions,
@@ -125,7 +125,7 @@ export async function searchConversationMessagesApi(
   });
 }
 
-/** 归档对话 */
+/** Archive conversation / 归档对话 */
 export async function archiveConversationApi(
   id: number,
   options?: ApiRequestOptions,
@@ -137,7 +137,7 @@ export async function archiveConversationApi(
   );
 }
 
-/** 批量归档 */
+/** Batch archive / 批量归档 */
 export async function batchArchiveConversationsApi(
   data: BatchArchiveRequest,
   options?: ApiRequestOptions,
@@ -149,7 +149,7 @@ export async function batchArchiveConversationsApi(
   );
 }
 
-/** 删除对话 */
+/** Delete conversation / 删除对话 */
 export async function deleteConversationApi(
   id: number,
   options?: ApiRequestOptions,
@@ -157,7 +157,7 @@ export async function deleteConversationApi(
   await requestClient.delete(`${PREFIX}/${id}`, options);
 }
 
-/** 导出对话 */
+/** Export conversation / 导出对话 */
 export async function exportConversationApi(
   id: number,
   format: 'json' | 'markdown' = 'json',

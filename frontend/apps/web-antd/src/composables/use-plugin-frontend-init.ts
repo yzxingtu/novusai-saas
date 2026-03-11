@@ -1,15 +1,16 @@
 /**
+ * Plugin frontend initialization composable
  * 插件前端初始化 Composable
  *
- * 注入式加载：
- *   通过 API 获取可见插件插槽，再按需 UMD 动态加载插件组件
+ * Injection-based loading: fetches visible plugin slots via API, then dynamically loads UMD plugin components.
+ * 注入式加载：通过 API 获取可见插件插槽，再按需 UMD 动态加载插件组件
  *
- * Scope 过滤规则：
- *   - admin_only         → 仅 admin 端加载前端
- *   - all_tenants        → 仅 tenant 端加载前端
- *   - assigned_tenants   → 仅被分配的 tenant 端加载前端
- *   - admin_and_all      → admin + 所有 tenant 端加载前端
- *   - admin_and_assigned → admin + 被分配的 tenant 端加载前端
+ * Scope filter rules / Scope 过滤规则:
+ *   - admin_only         → load frontend only on admin side / 仅 admin 端加载
+ *   - all_tenants        → load frontend only on tenant side / 仅 tenant 端加载
+ *   - assigned_tenants   → load only on assigned tenant side / 仅被分配的 tenant 端加载
+ *   - admin_and_all      → admin + all tenants / admin + 所有 tenant 端
+ *   - admin_and_assigned → admin + assigned tenants / admin + 被分配的 tenant 端
  */
 
 import type { Component } from 'vue';
@@ -30,11 +31,13 @@ function isValidPluginRoutePath(path: string): boolean {
 }
 
 /**
+ * Registered plugin route names (for uninstall cleanup)
  * 已注册的插件路由名称（用于卸载清理）
  */
 const registeredPluginRouteNames: Set<string> = new Set();
 
 /**
+ * Remove all dynamically registered plugin routes
  * 移除所有插件注册的动态路由
  */
 function removeAllPluginPageRoutes(router: Router) {
@@ -46,15 +49,17 @@ function removeAllPluginPageRoutes(router: Router) {
   registeredPluginRouteNames.clear();
 }
 
-// 标记插件路由是否已注册（防止重复注册）
+// Flag whether plugin routes are registered (prevent duplicate registration) / 标记插件路由是否已注册
 let _pluginRoutesReady = false;
 let _pluginRoutesReadySide: EndpointSide | null = null;
 
 /**
+ * Ensure plugin routes are registered (can be called in guard for seamless refresh)
  * 确保插件路由已注册（可在 guard 中调用，实现刷新无感）
+ * Idempotent: multiple calls execute only once.
  * 幂等：多次调用只执行一次。
  *
- * M51-T9: 与 usePluginFrontendInit 保持一致，使用 store.fetchSlots() 统一入口。
+ * M51-T9: Consistent with usePluginFrontendInit, uses store.fetchSlots() unified entry.
  */
 export async function ensurePluginRoutes(
   router: Router,
@@ -71,10 +76,10 @@ export async function ensurePluginRoutes(
   extensionsStore.clearAll();
 
   try {
-    // 统一通过 /plugins/slots API 获取插槽数据（与 usePluginFrontendInit 同路径）
+    // Fetch slot data via unified /plugins/slots API / 统一通过 /plugins/slots API 获取插槽数据
     await slotsStore.fetchSlots(side);
 
-    // 注册 standalonePages 动态路由
+    // Register standalonePages dynamic routes / 注册 standalonePages 动态路由
     _registerStandalonePageRoutes(router, slotsStore);
 
     _pluginRoutesReady = true;
@@ -84,7 +89,7 @@ export async function ensurePluginRoutes(
   }
 }
 
-/** 重置插件路由就绪标志（端切换时调用） */
+/** Reset plugin routes ready flag (called on endpoint switch) / 重置插件路由就绪标志（端切换时调用） */
 export function resetPluginRoutesReady(router?: Router) {
   _pluginRoutesReady = false;
   _pluginRoutesReadySide = null;
@@ -100,10 +105,11 @@ export function resetPluginRoutesReady(router?: Router) {
 }
 
 /**
+ * Independently refresh plugin frontend slots (call after enable/disable/uninstall, no F5 needed)
  * 独立刷新插件前端插槽（可在启用/禁用/卸载后调用，无需 F5）
  *
- * M51-T9: 统一使用 store.fetchSlots() 调用后端 /plugins/slots API，
- *         再根据 standalonePages 注册 Vue Router 动态路由。
+ * M51-T9: Uses store.fetchSlots() to call backend /plugins/slots API,
+ * then registers Vue Router dynamic routes based on standalonePages.
  */
 export async function refreshPluginSlots(
   endpoint: string = '/admin',
@@ -118,7 +124,7 @@ export async function refreshPluginSlots(
   }
 
   extensionsStore.clearAll();
-  // fetchSlots 内部已调用 clearAll
+  // fetchSlots internally calls clearAll / fetchSlots 内部已调用 clearAll
   await slotsStore.fetchSlots(side);
 
   if (router) {
@@ -129,7 +135,9 @@ export async function refreshPluginSlots(
 }
 
 /**
- * M51-T9: 将 standalonePages 中的插件页面注册为 Vue Router 动态路由
+ * M51-T9: Register plugin pages from standalonePages as Vue Router dynamic routes
+ * 将 standalonePages 中的插件页面注册为 Vue Router 动态路由
+ * (Does not add sidebar menus, menus are managed by RBAC permission system)
  * （不添加侧边栏菜单，菜单由 RBAC 权限系统管理）
  */
 function _registerStandalonePageRoutes(
@@ -186,11 +194,11 @@ export function usePluginFrontendInit(endpoint: string = '/admin') {
   const router = useRouter();
 
   async function initPluginSlots() {
-    // Phase 1: 通过统一 /plugins/slots API 获取插槽数据（M51-T9）
-    // 后端已按 scope + tenant 分配过滤，前端无需再过滤
+    // Phase 1: Fetch slot data via unified /plugins/slots API (M51-T9)
+    // Backend already filters by scope + tenant assignment, no frontend filtering needed
     await slotsStore.fetchSlots(side);
 
-    // Phase 2: 注册 standalone_pages 动态路由
+    // Phase 2: Register standalone_pages dynamic routes / 注册 standalone_pages 动态路由
     _registerStandalonePageRoutes(router, slotsStore);
   }
 

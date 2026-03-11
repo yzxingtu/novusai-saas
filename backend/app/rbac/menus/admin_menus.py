@@ -1,33 +1,36 @@
 """
+Platform Admin Menu Definitions
 平台管理端菜单定义
 
+Defines directory menu structure for platform admin backend; leaf menus declared via controller decorators.
 定义平台管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
-菜单层级示例:
-- 仪表板 (dashboard)
-- 权限管理 (system)
-  ├── 用户管理 (admin_user) - 由控制器声明
-  └── 角色管理 (role) - 由控制器声明
-- 租户管理 (tenant_mgmt)
-  └── 租户列表 (tenant) - 由控制器声明
+Menu hierarchy example / 菜单层级示例:
+- Dashboard / 仪表板 (dashboard)
+- Permission Management / 权限管理 (system)
+  ├── User Management / 用户管理 (admin_user) - declared by controller / 由控制器声明
+  └── Role Management / 角色管理 (role) - declared by controller / 由控制器声明
+- Tenant Management / 租户管理 (tenant_mgmt)
+  └── Tenant List / 租户列表 (tenant) - declared by controller / 由控制器声明
 
+The name field uses i18n keys, translated during frontend rendering.
 name 字段使用 i18n key，前端渲染时翻译。
-格式: menu.{scope}.{resource}
+Format / 格式: menu.{scope}.{resource}
 
-图标规范:
-使用 Lucide 图标库: https://lucide.dev/icons
-格式: "lucide:{icon-name}"
-示例: "lucide:settings", "lucide:users", "lucide:layout-dashboard"
-图标名称使用 kebab-case（小写字母，单词间用连字符分隔）
+Icon spec / 图标规范:
+Uses Lucide icon library / 使用 Lucide 图标库: https://lucide.dev/icons
+Format / 格式: "lucide:{icon-name}"
+Examples / 示例: "lucide:settings", "lucide:users", "lucide:layout-dashboard"
+Icon names use kebab-case / 图标名称使用 kebab-case
 """
 
 from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
 
-# 平台管理端目录菜单
+# Platform admin directory menus / 平台管理端目录菜单
 ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
-    # 仪表板（首页，叶子菜单）
+    # Dashboard (homepage, leaf menu) / 仪表板（首页，叶子菜单）
     # ========================================
     PermissionMeta(
         code="menu:admin.dashboard",
@@ -43,7 +46,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
 
     # ========================================
-    # 权限管理（目录）
+    # Permission Management (directory) / 权限管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.system",
@@ -56,13 +59,13 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/system",
         sort_order=10,
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.admin_user (用户管理)
-    # - menu:admin.permission (权限管理) - 可选，一般隐藏
-    # - menu:admin.organization (组织架构) - 由 roles.py 控制器声明
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.admin_user (User Management / 用户管理)
+    # - menu:admin.permission (Permission Management / 权限管理) - optional, usually hidden / 可选，一般隐藏
+    # - menu:admin.organization (Organization / 组织架构) - declared by roles.py / 由 roles.py 声明
 
     # ========================================
-    # 租户管理（目录）
+    # Tenant Management (directory) / 租户管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.tenant_mgmt",
@@ -75,11 +78,11 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/tenant",
         sort_order=20,
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.tenant (租户列表)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.tenant (Tenant List / 租户列表)
 
     # ========================================
-    # 系统管理（目录）
+    # System Management (directory) / 系统管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.system_mgmt",
@@ -92,11 +95,11 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/system-mgmt",
         sort_order=80,
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.platform_config (平台配置)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.platform_config (Platform Config / 平台配置)
 
     # ========================================
-    # AI 管理（目录）
+    # AI Management (directory) / AI 管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.ai_mgmt",
@@ -110,7 +113,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=30,
     ),
 
-    # ---- 基础设施（子目录） ----
+    # ---- Infrastructure (sub-directory) / 基础设施（子目录） ----
     PermissionMeta(
         code="menu:admin.ai_infra",
         name="menu.admin.ai_infra",  # i18n key
@@ -123,13 +126,13 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
         parent_code="menu:admin.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.ai_provider (供应商管理)
-    # - menu:admin.ai_model (模型管理)
-    # - menu:admin.ai_api_key (API Key 管理)
-    # - menu:admin.ai_health (健康状态)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.ai_provider (Provider Management / 供应商管理)
+    # - menu:admin.ai_model (Model Management / 模型管理)
+    # - menu:admin.ai_api_key (API Key Management / API Key 管理)
+    # - menu:admin.ai_health (Health Status / 健康状态)
 
-    # ---- 智能应用（子目录，与租户端统一名称） ----
+    # ---- AI Apps (sub-directory, unified name with tenant) / 智能应用（子目录，与租户端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_app",
         name="menu.admin.ai_app",  # i18n key
@@ -142,13 +145,13 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
         parent_code="menu:admin.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.ai_agent (智能体管理)
-    # - menu:admin.ai_tool (工具管理)
-    # - menu:admin.ai_knowledge_base (知识库)
-    # - menu:admin.admin_agent_chat (AI 对话)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.ai_agent (Agent Management / 智能体管理)
+    # - menu:admin.ai_tool (Tool Management / 工具管理)
+    # - menu:admin.ai_knowledge_base (Knowledge Base / 知识库)
+    # - menu:admin.admin_agent_chat (AI Chat / AI 对话)
 
-    # ---- 数据分析（子目录，与租户端统一名称） ----
+    # ---- Data Analytics (sub-directory, unified name with tenant) / 数据分析（子目录，与租户端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_ops",
         name="menu.admin.ai_ops",  # i18n key
@@ -161,16 +164,16 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=30,
         parent_code="menu:admin.ai_mgmt",
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.ai_quota (配额管理)
-    # - menu:admin.ai_usage (用量统计)
-    # - menu:admin.ai_call_log (调用日志)
-    # - menu:admin.ai_conversation (对话管理)
-    # - menu:admin.ai_action_log (操作审计)
-    # - menu:admin.ai_platform_tool (平台工具)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.ai_quota (Quota Management / 配额管理)
+    # - menu:admin.ai_usage (Usage Statistics / 用量统计)
+    # - menu:admin.ai_call_log (Call Log / 调用日志)
+    # - menu:admin.ai_conversation (Conversation Management / 对话管理)
+    # - menu:admin.ai_action_log (Action Audit / 操作审计)
+    # - menu:admin.ai_platform_tool (Platform Tools / 平台工具)
 
     # ========================================
-    # 系统维护（目录）
+    # System Maintenance (directory) / 系统维护（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.system_maintenance",
@@ -184,7 +187,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=90,
     ),
 
-    # ---- 日志中心（子目录） ----
+    # ---- Log Center (sub-directory) / 日志中心（子目录） ----
     PermissionMeta(
         code="menu:admin.logs",
         name="menu.admin.logs",
@@ -197,16 +200,16 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
         parent_code="menu:admin.system_maintenance",
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.operation_log (操作日志)
-    # - menu:admin.system_log (系统日志)
-    # - menu:admin.task_log (任务日志)
-    # - menu:admin.email_log (邮件日志)
+    # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:admin.operation_log (Operation Log / 操作日志)
+    # - menu:admin.system_log (System Log / 系统日志)
+    # - menu:admin.task_log (Task Log / 任务日志)
+    # - menu:admin.email_log (Email Log / 邮件日志)
 
-    # 其他子菜单由控制器声明:
-    # - menu:admin.periodic_task (定时任务)
-    # - menu:admin.plugin (插件管理)
-    # - menu:admin.recycle_bin (回收站)
+    # Other child menus declared by controllers / 其他子菜单由控制器声明:
+    # - menu:admin.periodic_task (Periodic Task / 定时任务)
+    # - menu:admin.plugin (Plugin Management / 插件管理)
+    # - menu:admin.recycle_bin (Recycle Bin / 回收站)
 
 ]
 

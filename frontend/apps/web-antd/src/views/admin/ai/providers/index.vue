@@ -82,7 +82,7 @@ function onFormSuccess() {
   onRefresh();
 }
 
-// 拖拽排序
+// Drag sort / 拖拽排序
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => reorderAIProvidersApi(ids as number[]),
   keyField: 'id',
