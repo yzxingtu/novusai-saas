@@ -146,29 +146,6 @@ watch(
               {{ getVisibilityText(detail.visibility) }}
             </Tag>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.driver')">
-            <Tag color="blue">{{ detail.driver }}</Tag>
-          </DescriptionsItem>
-        </Descriptions>
-
-        <!-- 存储信息 -->
-        <Descriptions
-          :title="$t('tenant.system.attachment.storageInfo')"
-          :column="1"
-          bordered
-          size="small"
-          class="mt-4"
-        >
-          <DescriptionsItem :label="$t('tenant.system.attachment.path')">
-            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
-              {{ detail.path }}
-            </code>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.hash')">
-            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
-              {{ detail.hash }}
-            </code>
-          </DescriptionsItem>
         </Descriptions>
 
         <!-- 时间信息 -->

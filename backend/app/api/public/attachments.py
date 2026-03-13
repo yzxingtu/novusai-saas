@@ -45,7 +45,11 @@ async def access_attachment(
     db: DbSession,
     token: str | None = None,
     preview: bool = Query(False),
+    exp: str | None = Query(None, description="签名过期时间戳"),
+    sign: str | None = Query(None, description="HMAC 签名"),
 ):
+    if sign or exp:
+        AttachmentDownloadService.verify_access_sign(attachment_id, exp, sign)
     service = AttachmentDownloadService(db)
     attachment = await service.get_attachment(attachment_id)
     await service.validate_access(attachment, token)
@@ -77,6 +81,8 @@ async def get_processed_image(
     attachment_id: int,
     db: DbSession,
     token: str | None = None,
+    exp: str | None = Query(None, description="签名过期时间戳"),
+    sign: str | None = Query(None, description="HMAC 签名"),
     # 图片处理参数 / Image processing parameters
     w: int | None = Query(None, ge=1, le=4096, description="宽度 / Width"),
     h: int | None = Query(None, ge=1, le=4096, description="高度 / Height"),
@@ -112,6 +118,9 @@ async def get_processed_image(
     - `medium`: 640px 宽 / wide fit
     - `large`: 1024px 宽 / wide fit
     """
+    if sign or exp:
+        AttachmentDownloadService.verify_access_sign(attachment_id, exp, sign)
+
     # IP rate limiting (read configurable limit)
     from app.configs.service import ConfigService
     config_svc = ConfigService(db)

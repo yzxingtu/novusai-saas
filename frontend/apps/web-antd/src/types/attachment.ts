@@ -40,29 +40,33 @@ export function inferCategory(mimeType?: null | string): AttachmentCategory {
 
 /**
  * Attachment info (backend raw format snake_case)
- * Corresponds to backend AttachmentResponse / AttachmentListItem
+ * Corresponds to backend AttachmentResponse (admin) / AttachmentSafeResponse (tenant/user)
  * 附件信息（后端原始格式 snake_case）
- * 对应后端 AttachmentResponse / AttachmentListItem
+ * 对应后端 AttachmentResponse（管理端）/ AttachmentSafeResponse（租户端/用户端）
+ *
+ * Fields marked optional with `?` are only present in admin (full) responses.
+ * Tenant/user Safe responses omit: tenant_id, path, hash, driver, base_url
  */
 export interface AttachmentInfoRaw {
   id: number;
-  tenant_id: number;
+  tenant_id?: number;
   name: string;
   original_name?: null | string;
-  path: string;
+  path?: string;
   size: number;
   hash?: null | string;
   mime_type?: null | string;
   extension?: null | string;
   visibility: StorageVisibility;
-  driver: string;
-  base_url: string;
+  driver?: string;
+  base_url?: string;
   status: string;
   source?: null | string;
   uploader_id?: null | number;
   business_type?: null | string;
   business_id?: null | number;
   meta?: null | Record<string, unknown>;
+  preview_url?: null | string;
   created_at: string;
   updated_at?: string;
 }
@@ -70,26 +74,31 @@ export interface AttachmentInfoRaw {
 /**
  * Attachment info (frontend format camelCase)
  * 附件信息（前端格式 camelCase）
+ *
+ * Fields marked optional with `?` are only present in admin (full) responses.
+ * Tenant/user Safe responses omit: tenantId, path, hash, driver, baseUrl
  */
 export interface AttachmentInfo {
   id: number;
-  tenantId: number;
+  tenantId?: number;
   name: string;
   originalName?: null | string;
-  path: string;
+  path?: string;
   size: number;
   hash?: null | string;
   mimeType?: null | string;
   extension?: null | string;
   visibility: StorageVisibility;
-  driver: string;
-  baseUrl: string;
+  driver?: string;
+  baseUrl?: string;
   status: string;
   source?: null | string;
   uploaderId?: null | number;
   businessType?: null | string;
   businessId?: null | number;
   meta?: null | Record<string, unknown>;
+  /** Signed preview URL from backend / 后端生成的带签名预览 URL */
+  previewUrl?: null | string;
   /** Inferred category (not returned by backend, computed from mimeType by frontend) / 推算分类（后端不返回，前端通过 mimeType 推算） */
   category?: AttachmentCategory | null;
   createdAt: string;

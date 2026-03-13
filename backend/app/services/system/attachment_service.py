@@ -100,14 +100,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         )
         if existing:
             await self._remove_temp_file(temp_path)
-            driver = storage_manager.get_driver(storage_config)
-            url = await driver.get_url(
-                existing.path,
-                visibility=StorageVisibility(existing.visibility),
-            )
             return {
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
             }
 
         storage_path = self._build_storage_path(tenant_id, filename)
@@ -132,7 +127,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             metadata=metadata,
             storage_config=storage_config,
         )
-        return {"attachment": attachment, "url": upload_result.url}
+        return {"attachment": attachment, "url": f"/api/public/attachments/{attachment.id}/access"}
 
     async def preflight_check(
         self,
@@ -163,15 +158,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             file_hash, tenant_id=tenant_id, driver=storage_config.driver
         )
         if existing:
-            driver = storage_manager.get_driver(storage_config)
-            url = await driver.get_url(
-                existing.path,
-                visibility=StorageVisibility(existing.visibility),
-            )
             return {
                 "exists": True,
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
             }
         return {
             "exists": False,
@@ -276,14 +266,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
-            driver = storage_manager.get_driver(storage_config)
-            url = await driver.get_url(
-                existing.path,
-                visibility=StorageVisibility(existing.visibility),
-            )
             return {
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
             }
 
         storage_path = self._build_storage_path(tenant_id, session["filename"])
@@ -309,7 +294,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             storage_config=storage_config,
         )
         await self._remove_session(upload_id)
-        return {"attachment": attachment, "url": upload_result.url}
+        return {"attachment": attachment, "url": f"/api/public/attachments/{attachment.id}/access"}
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """

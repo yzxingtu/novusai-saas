@@ -57,6 +57,8 @@ const props = withDefaults(
     maxFileSize?: number;
     maxRetries?: number;
     multiple?: boolean;
+    /** File visibility for uploaded files / 上传文件的可见性 */
+    visibility?: 'private' | 'public';
   }>(),
   {
     multiple: false,
@@ -67,6 +69,7 @@ const props = withDefaults(
     maxFileSize: 100 * 1024 * 1024,
     maxConcurrency: 3,
     maxRetries: 2,
+    visibility: 'private',
   },
 );
 
@@ -357,7 +360,7 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
             )
         : tenantSmartUploadFile;
     const result = await uploadFn(
-      { file: task.file, visibility: 'private' },
+      { file: task.file, visibility: props.visibility },
       (progress) => {
         task.percent = progress.percent;
       },
@@ -448,7 +451,7 @@ async function executeBatchUpload(batchFiles: File[]): Promise<void> {
 
     const result = await batchApi({
       files: batchFiles,
-      visibility: 'private',
+      visibility: props.visibility,
     });
 
     for (let i = 0; i < result.items.length; i++) {

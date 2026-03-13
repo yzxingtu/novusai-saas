@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import time
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -141,12 +145,9 @@ class AttachmentDownloadService:
         """
         校验访问权限
         - 公开文件：直接放行
-        - 本地私有文件：放行（本地文件通过 API 端点提供，无法直接访问磁盘路径）
-        - 远程私有文件（S3 等）：需有效签名 Token
+        - 私有文件（所有驱动）：需有效签名 Token
         """
         if attachment.visibility == AttachmentVisibility.PUBLIC.value:
-            return
-        if attachment.driver == "local":
             return
         if not token:
             raise BusinessException(
@@ -184,7 +185,9 @@ class AttachmentDownloadService:
             token = None
             if attachment.visibility == AttachmentVisibility.PRIVATE.value:
                 token = self.create_access_token(attachment, expires, preview)
-            return self._build_public_access_url(attachment.id, token, preview)
+            return self._build_public_access_url(
+                attachment.id, token, preview, expires=expires,
+            )
 
         # Cloud: try to resolve a matching config for proper signed URL
         try:
@@ -202,7 +205,9 @@ class AttachmentDownloadService:
             return direct_url
 
         # Last resort: API proxy (private file with no matching config)
-        return self._build_public_access_url(attachment.id, None, preview)
+        return self._build_public_access_url(
+            attachment.id, None, preview, expires=expires,
+        )
 
     async def _resolve_storage_config_for_attachment(
         self, attachment: Attachment
@@ -248,18 +253,84 @@ class AttachmentDownloadService:
         await repo.update(attachment.id, {"meta": meta})
 
     def _build_public_access_url(
-        self, attachment_id: int, token: str | None, preview: bool
+        self, attachment_id: int, token: str | None, preview: bool,
+        expires: int = 3600,
     ) -> str:
-        """拼装公开访问 URL（本地私有文件附带 token）"""
-        url = f"/api/public/attachments/{attachment_id}/access"
-        params = []
+        """拼装公开访问 URL（附带 HMAC 签名防枚举 + 可选私有 token）"""
+        exp = int(time.time()) + expires
+        sign = self.create_access_sign(attachment_id, exp)
+        params: dict[str, str] = {"exp": str(exp), "sign": sign}
         if token:
-            params.append(f"token={token}")
+            params["token"] = token
         if preview:
-            params.append("preview=1")
-        if params:
-            url = f"{url}?{'&'.join(params)}"
-        return url
+            params["preview"] = "1"
+        return f"/api/public/attachments/{attachment_id}/access?{urlencode(params)}"
+
+    @staticmethod
+    def build_preview_url(
+        attachment_id: int,
+        tenant_id: int,
+        visibility: str,
+        expires: int = 3600,
+    ) -> str:
+        """为前端 <img> 标签生成带完整签名的预览 URL（无需 DB）
+
+        公开文件：仅 HMAC 签名
+        私有文件：HMAC 签名 + JWT access token
+        """
+        exp_ts = int(time.time()) + expires
+        sign = AttachmentDownloadService.create_access_sign(attachment_id, exp_ts)
+        params: dict[str, str] = {"exp": str(exp_ts), "sign": sign}
+        if visibility != AttachmentVisibility.PUBLIC.value:
+            expire_at = utc_now() + timedelta(seconds=expires)
+            token_payload = {
+                "type": "attachment_download",
+                "attachment_id": attachment_id,
+                "tenant_id": tenant_id,
+                "preview": True,
+                "exp": expire_at,
+            }
+            params["token"] = jwt.encode(
+                token_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+            )
+        return f"/api/public/attachments/{attachment_id}/image?{urlencode(params)}"
+
+    @staticmethod
+    def create_access_sign(attachment_id: int, exp: int) -> str:
+        """HMAC-SHA256 签名：防止公开端点 ID 枚举"""
+        msg = f"{attachment_id}:{exp}".encode()
+        return hmac.new(
+            settings.SECRET_KEY.encode(), msg, hashlib.sha256,
+        ).hexdigest()[:32]
+
+    @staticmethod
+    def verify_access_sign(
+        attachment_id: int, exp: int | str | None, sign: str | None,
+    ) -> None:
+        """校验 HMAC 签名和过期时间，无效则抛出 BusinessException"""
+        if not exp or not sign:
+            raise BusinessException(
+                message=_("error.auth.unauthorized"),
+                code=ErrorCode.UNAUTHORIZED,
+            )
+        try:
+            exp_int = int(exp)
+        except (ValueError, TypeError) as exc:
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            ) from exc
+        if exp_int < time.time():
+            raise BusinessException(
+                message=_("error.auth.token_expired"),
+                code=ErrorCode.TOKEN_EXPIRED,
+            )
+        expected = AttachmentDownloadService.create_access_sign(attachment_id, exp_int)
+        if not hmac.compare_digest(expected, sign):
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            )
 
     def _normalize_expires(self, expires: int) -> int:
         """限制签名有效期范围（60s~86400s）"""

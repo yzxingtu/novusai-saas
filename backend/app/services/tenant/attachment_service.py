@@ -90,10 +90,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
         if existing:
             await self._remove_temp_file(temp_path)
-            url = await self._get_existing_url(storage_config, existing)
             return {
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -119,7 +118,8 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             storage_config=storage_config,
         )
         used_bytes = await self.repo.sum_size()
-        return {"attachment": attachment, "url": upload_result.url, "used_bytes": used_bytes}
+        url = f"/api/public/attachments/{attachment.id}/access"
+        return {"attachment": attachment, "url": url, "used_bytes": used_bytes}
 
     async def preflight_check(
         self,
@@ -153,11 +153,10 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         _storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
         existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
         if existing:
-            url = await self._get_existing_url(storage_config, existing)
             return {
                 "exists": True,
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -279,10 +278,9 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
-            url = await self._get_existing_url(storage_config, existing)
             return {
                 "attachment": existing,
-                "url": url,
+                "url": f"/api/public/attachments/{existing.id}/access",
                 "used_bytes": await self.repo.sum_size(),
             }
 
@@ -309,7 +307,8 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         await self._remove_session(upload_id)
         used_bytes = await self.repo.sum_size()
-        return {"attachment": attachment, "url": upload_result.url, "used_bytes": used_bytes}
+        url = f"/api/public/attachments/{attachment.id}/access"
+        return {"attachment": attachment, "url": url, "used_bytes": used_bytes}
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
@@ -453,18 +452,6 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             )
         await self._remove_temp_file(temp_path)
         return upload_result
-
-    async def _get_existing_url(
-        self,
-        storage_config: StorageConfig,
-        attachment: Attachment,
-    ) -> str:
-        """
-        获取已存在附件的访问 URL
-        """
-        driver = storage_manager.get_driver(storage_config)
-        visibility = StorageVisibility(attachment.visibility)
-        return await driver.get_url(attachment.path, visibility=visibility)
 
     async def _create_attachment(
         self,

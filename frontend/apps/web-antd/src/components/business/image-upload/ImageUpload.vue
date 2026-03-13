@@ -30,11 +30,14 @@ const props = withDefaults(
     endpoint?: 'admin' | 'tenant' | 'user';
     /** Current value: attachment ID (string) or legacy URL format / 当前值：附件 ID（字符串）或旧格式 URL */
     modelValue?: string;
+    /** File visibility: 'public' for display images (avatars/logos), 'private' for sensitive files / 文件可见性：展示图片用 public，敏感文件用 private */
+    visibility?: 'private' | 'public';
   }>(),
   {
     accept: 'image/*',
     endpoint: undefined,
     modelValue: '',
+    visibility: 'public',
   },
 );
 
@@ -77,19 +80,19 @@ async function handleCustomRequest(options: {
 
     if (resolvedEndpoint.value === 'admin') {
       const result = await adminUploadApi(
-        { file: uploadFile, tenant_id: 0, visibility: 'private' },
+        { file: uploadFile, tenant_id: 0, visibility: props.visibility },
         (progress) => onProgress?.({ percent: progress.percent }),
       );
       attachmentId = result.attachment?.id;
     } else if (resolvedEndpoint.value === 'user') {
       const result = await userUploadApi(
-        { file: uploadFile, visibility: 'private' },
+        { file: uploadFile, visibility: props.visibility },
         (progress) => onProgress?.({ percent: progress.percent }),
       );
       attachmentId = result.attachment?.id;
     } else {
       const result = await tenantUploadApi(
-        { file: uploadFile, visibility: 'private' },
+        { file: uploadFile, visibility: props.visibility },
         (progress) => onProgress?.({ percent: progress.percent }),
       );
       attachmentId = result.attachment?.id;

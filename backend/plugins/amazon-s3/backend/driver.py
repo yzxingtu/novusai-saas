@@ -382,4 +382,4 @@ class S3StorageDriver(StorageDriver):
     def supports_native_image_processing(self) -> bool:
         provider = self._get_image_process_provider()
         process_url = self._get_image_process_url()
-        return provider is not None and process_url is not None
+        return bool(provider) and bool(process_url)

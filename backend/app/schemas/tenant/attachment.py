@@ -14,7 +14,7 @@ class AttachmentAccessUrlResponse(BaseSchema):
 
 
 class AttachmentResponse(BaseSchema):
-    """附件详情响应"""
+    """附件详情响应（管理端完整版，含内部存储字段）"""
     id: int = Field(..., description="附件 ID")
     tenant_id: int = Field(..., description="租户 ID")
     name: str = Field(..., description="文件名")
@@ -33,12 +33,32 @@ class AttachmentResponse(BaseSchema):
     business_type: str | None = Field(None, description="业务类型")
     business_id: int | None = Field(None, description="业务 ID")
     meta: dict | None = Field(None, description="扩展元数据")
+    preview_url: str | None = Field(None, description="带签名的预览 URL")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
+
+
+class AttachmentSafeResponse(BaseSchema):
+    """附件安全响应（租户端/用户端，隐藏内部存储细节）"""
+    id: int = Field(..., description="附件 ID")
+    name: str = Field(..., description="文件名")
+    original_name: str | None = Field(None, description="原始文件名")
+    size: int = Field(..., description="文件大小(字节)")
+    mime_type: str | None = Field(None, description="MIME 类型")
+    extension: str | None = Field(None, description="文件扩展名")
+    visibility: str = Field(..., description="可见性")
+    status: str = Field(..., description="状态")
+    source: str | None = Field(None, description="上传来源")
+    uploader_id: int | None = Field(None, description="上传者 ID")
+    business_type: str | None = Field(None, description="业务类型")
+    business_id: int | None = Field(None, description="业务 ID")
+    preview_url: str | None = Field(None, description="带签名的预览 URL")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
 
 class AttachmentListItem(BaseSchema):
-    """附件列表项响应（精简字段）"""
+    """附件列表项响应（管理端完整版）"""
     id: int = Field(..., description="附件 ID")
     tenant_id: int | None = Field(None, description="租户 ID")
     name: str = Field(..., description="文件名")
@@ -52,6 +72,22 @@ class AttachmentListItem(BaseSchema):
     base_url: str = Field(..., description="文件访问基础URL")
     status: str = Field(..., description="状态")
     source: str | None = Field(None, description="上传来源")
+    preview_url: str | None = Field(None, description="带签名的预览 URL")
+    created_at: datetime = Field(..., description="创建时间")
+
+
+class AttachmentSafeListItem(BaseSchema):
+    """附件列表项安全响应（租户端/用户端，隐藏内部存储细节）"""
+    id: int = Field(..., description="附件 ID")
+    name: str = Field(..., description="文件名")
+    original_name: str | None = Field(None, description="原始文件名")
+    size: int = Field(..., description="文件大小(字节)")
+    mime_type: str | None = Field(None, description="MIME 类型")
+    extension: str | None = Field(None, description="文件扩展名")
+    visibility: str = Field(..., description="可见性")
+    status: str = Field(..., description="状态")
+    source: str | None = Field(None, description="上传来源")
+    preview_url: str | None = Field(None, description="带签名的预览 URL")
     created_at: datetime = Field(..., description="创建时间")
 
 
@@ -70,8 +106,15 @@ class TenantStorageQuotaResponse(BaseSchema):
 # ==================== 上传相关 Schema ====================
 
 class AttachmentUploadResponse(BaseSchema):
-    """附件上传响应"""
+    """附件上传响应（管理端完整版）"""
     attachment: AttachmentResponse = Field(..., description="附件信息")
+    url: str = Field(..., description="访问 URL")
+    used_bytes: int = Field(..., description="已使用存储空间（字节）")
+
+
+class AttachmentSafeUploadResponse(BaseSchema):
+    """附件上传响应（租户端安全版，隐藏内部存储细节）"""
+    attachment: AttachmentSafeResponse = Field(..., description="附件信息")
     url: str = Field(..., description="访问 URL")
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
 
@@ -132,15 +175,23 @@ class AttachmentPreflightRequest(BaseSchema):
 
 
 class AttachmentPreflightResponse(BaseSchema):
-    """附件预检响应"""
+    """附件预检响应（管理端完整版）"""
     exists: bool = Field(..., description="文件是否已存在")
     attachment: AttachmentResponse | None = Field(None, description="已存在的附件信息")
     url: str | None = Field(None, description="已存在附件的访问 URL")
     used_bytes: int | None = Field(None, description="已使用存储空间（字节）")
 
 
+class AttachmentSafePreflightResponse(BaseSchema):
+    """附件预检响应（租户端安全版）"""
+    exists: bool = Field(..., description="文件是否已存在")
+    attachment: AttachmentSafeResponse | None = Field(None, description="已存在的附件信息")
+    url: str | None = Field(None, description="已存在附件的访问 URL")
+    used_bytes: int | None = Field(None, description="已使用存储空间（字节）")
+
+
 class BatchUploadItem(BaseSchema):
-    """批量上传单文件结果"""
+    """批量上传单文件结果（管理端完整版）"""
     filename: str = Field(..., description="原始文件名")
     success: bool = Field(..., description="是否上传成功")
     attachment: AttachmentResponse | None = Field(None, description="附件信息（成功时）")
@@ -148,25 +199,48 @@ class BatchUploadItem(BaseSchema):
     error: str | None = Field(None, description="错误信息（失败时）")
 
 
+class BatchSafeUploadItem(BaseSchema):
+    """批量上传单文件结果（租户端安全版）"""
+    filename: str = Field(..., description="原始文件名")
+    success: bool = Field(..., description="是否上传成功")
+    attachment: AttachmentSafeResponse | None = Field(None, description="附件信息（成功时）")
+    url: str | None = Field(None, description="访问 URL（成功时）")
+    error: str | None = Field(None, description="错误信息（失败时）")
+
+
 class BatchUploadResponse(BaseSchema):
-    """批量上传响应"""
+    """批量上传响应（管理端完整版）"""
     items: list[BatchUploadItem] = Field(..., description="每个文件的上传结果")
     success_count: int = Field(..., description="成功数量")
     failure_count: int = Field(..., description="失败数量")
     used_bytes: int = Field(0, description="已使用存储空间（字节），租户端有效")
 
 
+class BatchSafeUploadResponse(BaseSchema):
+    """批量上传响应（租户端安全版）"""
+    items: list[BatchSafeUploadItem] = Field(..., description="每个文件的上传结果")
+    success_count: int = Field(..., description="成功数量")
+    failure_count: int = Field(..., description="失败数量")
+    used_bytes: int = Field(0, description="已使用存储空间（字节）")
+
+
 __all__ = [
     "AttachmentAccessUrlResponse",
     "AttachmentResponse",
+    "AttachmentSafeResponse",
     "AttachmentListItem",
+    "AttachmentSafeListItem",
     "TenantStorageQuotaResponse",
     # 上传相关
     "AttachmentPreflightRequest",
     "AttachmentPreflightResponse",
+    "AttachmentSafePreflightResponse",
     "AttachmentUploadResponse",
+    "AttachmentSafeUploadResponse",
     "BatchUploadItem",
+    "BatchSafeUploadItem",
     "BatchUploadResponse",
+    "BatchSafeUploadResponse",
     "ChunkUploadInitRequest",
     "ChunkUploadInitResponse",
     "ChunkUploadProgressResponse",

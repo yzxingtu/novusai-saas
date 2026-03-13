@@ -44,6 +44,10 @@ export interface ImageProcessOptions {
   mode?: ImageMode;
   /** Private file access token / 私有文件访问令牌 */
   token?: string;
+  /** HMAC signature expiry timestamp / HMAC 签名过期时间戳 */
+  exp?: number | string;
+  /** HMAC signature / HMAC 签名 */
+  sign?: string;
 }
 
 /**
@@ -66,6 +70,8 @@ export function getProcessedImageUrl(
   if (options.format) params.set('f', options.format);
   if (options.mode) params.set('m', options.mode);
   if (options.token) params.set('token', options.token);
+  if (options.exp) params.set('exp', String(options.exp));
+  if (options.sign) params.set('sign', options.sign);
 
   const query = params.toString();
   const base = getApiBaseUrl();
@@ -74,10 +80,8 @@ export function getProcessedImageUrl(
 
 interface AttachmentLike {
   id: number;
-  driver: string;
-  baseUrl?: string;
-  base_url?: string;
-  path: string;
+  previewUrl?: null | string;
+  preview_url?: null | string;
 }
 
 /**
@@ -125,5 +129,22 @@ export function getAttachmentUrl(
   attachment: AttachmentLike,
   options?: ImageProcessOptions,
 ): string {
+  const signed = attachment.previewUrl || attachment.preview_url;
+  if (signed) {
+    const base = getApiBaseUrl();
+    const url = signed.startsWith('http') ? signed : `${base}${signed}`;
+    const extra = new URLSearchParams();
+    if (options?.preset) extra.set('p', options.preset);
+    if (options?.width) extra.set('w', String(options.width));
+    if (options?.height) extra.set('h', String(options.height));
+    if (options?.quality) extra.set('q', String(options.quality));
+    if (options?.format) extra.set('f', options.format);
+    if (options?.mode) extra.set('m', options.mode);
+    const extraStr = extra.toString();
+    if (extraStr) {
+      return url.includes('?') ? `${url}&${extraStr}` : `${url}?${extraStr}`;
+    }
+    return url;
+  }
   return getProcessedImageUrl(attachment.id, options);
 }

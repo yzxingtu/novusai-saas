@@ -152,6 +152,7 @@ function handleRemove() {
         ref="filePickerRef"
         :accept="accept"
         :image-only="imageOnly"
+        visibility="public"
         @select="handleSelect"
       />
 

@@ -283,13 +283,24 @@ class KodoStorageDriver(StorageDriver):
     # ========== Image Processing ==========
 
     def _build_kodo_process_params(self, params: ImageProcessParams) -> str:
-        """Build Kodo imageView2 URL suffix"""
-        mode_map = {
-            "fit": 2,
-            "fill": 1,
-            "crop": 1,
-            "pad": 2,
-        }
+        """Build Kodo image processing URL suffix.
+
+        Uses imageView2 for fit/fill/pad; imageMogr2 for crop (center crop).
+        """
+        w = params.width or ""
+        h = params.height or ""
+
+        if params.mode == "crop":
+            parts: list[str] = ["imageMogr2"]
+            if w or h:
+                parts.append(f"crop/{w}x{h}/gravity/Center")
+            if params.quality and params.quality < 100:
+                parts.append(f"quality/{params.quality}")
+            if params.format:
+                parts.append(f"format/{params.format}")
+            return "/".join(parts)
+
+        mode_map = {"fit": 2, "fill": 1, "pad": 2}
         mode = mode_map.get(params.mode, 2)
         parts = [f"imageView2/{mode}"]
         if params.width:

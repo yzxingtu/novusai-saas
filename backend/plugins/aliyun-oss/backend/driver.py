@@ -327,7 +327,7 @@ class OssStorageDriver(StorageDriver):
             mode_map = {
                 "fit": "m_lfit",
                 "fill": "m_fill",
-                "crop": "m_mfit",
+                "crop": "m_fill",
                 "pad": "m_pad",
             }
             mode = mode_map.get(params.mode, "m_lfit")

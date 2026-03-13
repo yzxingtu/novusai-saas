@@ -19,13 +19,13 @@ from app.rbac.decorators import (
 )
 from app.schemas.tenant.attachment import (
     AttachmentAccessUrlResponse,
-    AttachmentListItem,
     AttachmentPreflightRequest,
-    AttachmentPreflightResponse,
-    AttachmentResponse,
-    AttachmentUploadResponse,
-    BatchUploadItem,
-    BatchUploadResponse,
+    AttachmentSafeListItem,
+    AttachmentSafePreflightResponse,
+    AttachmentSafeResponse,
+    AttachmentSafeUploadResponse,
+    BatchSafeUploadItem,
+    BatchSafeUploadResponse,
     ChunkUploadInitRequest,
     ChunkUploadInitResponse,
     ChunkUploadProgressResponse,
@@ -34,6 +34,16 @@ from app.schemas.tenant.attachment import (
 from app.services.common import StorageQuotaService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 from app.services.tenant.attachment_service import AttachmentService
+
+
+def _with_preview_url(data: dict, tenant_id: int) -> dict:
+    """为序列化后的附件字典注入 preview_url"""
+    data["preview_url"] = AttachmentDownloadService.build_preview_url(
+        attachment_id=data["id"],
+        tenant_id=tenant_id,
+        visibility=data.get("visibility", "private"),
+    )
+    return data
 
 
 @permission_resource(
@@ -136,10 +146,10 @@ class TenantAttachmentController(TenantController):
                 size=body.size,
                 visibility=AttachmentVisibility(body.visibility) if body.visibility else AttachmentVisibility.PRIVATE,
             )
-            resp = AttachmentPreflightResponse(
+            resp = AttachmentSafePreflightResponse(
                 exists=result["exists"],
                 attachment=(
-                    AttachmentResponse.model_validate(result["attachment"], from_attributes=True)
+                    AttachmentSafeResponse.model_validate(result["attachment"], from_attributes=True)
                     if result["attachment"]
                     else None
                 ),
@@ -188,8 +198,8 @@ class TenantAttachmentController(TenantController):
                 business_id=business_id,
             )
             return success(
-                data=AttachmentUploadResponse(
-                    attachment=AttachmentResponse.model_validate(
+                data=AttachmentSafeUploadResponse(
+                    attachment=AttachmentSafeResponse.model_validate(
                         result["attachment"], from_attributes=True
                     ),
                     url=result["url"],
@@ -226,7 +236,7 @@ class TenantAttachmentController(TenantController):
                     "platform_storage_default_visibility", default="private"
                 )
             service = AttachmentService(db, current_admin.tenant_id)
-            items: list[BatchUploadItem] = []
+            items: list[BatchSafeUploadItem] = []
             for f in files:
                 try:
                     result = await service.upload_file(
@@ -240,16 +250,16 @@ class TenantAttachmentController(TenantController):
                         business_type=business_type,
                         business_id=business_id,
                     )
-                    items.append(BatchUploadItem(
+                    items.append(BatchSafeUploadItem(
                         filename=f.filename or "unnamed",
                         success=True,
-                        attachment=AttachmentResponse.model_validate(
+                        attachment=AttachmentSafeResponse.model_validate(
                             result["attachment"], from_attributes=True
                         ),
                         url=result["url"],
                     ))
                 except Exception as exc:
-                    items.append(BatchUploadItem(
+                    items.append(BatchSafeUploadItem(
                         filename=f.filename or "unnamed",
                         success=False,
                         error=str(exc),
@@ -257,7 +267,7 @@ class TenantAttachmentController(TenantController):
             success_count = sum(1 for i in items if i.success)
             used_bytes = await service.repo.sum_size()
             return success(
-                data=BatchUploadResponse(
+                data=BatchSafeUploadResponse(
                     items=items,
                     success_count=success_count,
                     failure_count=len(items) - success_count,
@@ -348,8 +358,8 @@ class TenantAttachmentController(TenantController):
             service = AttachmentService(db, current_admin.tenant_id)
             result = await service.complete_chunk_upload(upload_id)
             return success(
-                data=AttachmentUploadResponse(
-                    attachment=AttachmentResponse.model_validate(
+                data=AttachmentSafeUploadResponse(
+                    attachment=AttachmentSafeResponse.model_validate(
                         result["attachment"], from_attributes=True
                     ),
                     url=result["url"],
@@ -475,9 +485,16 @@ class TenantAttachmentController(TenantController):
             """
             service = AttachmentService(db, current_admin.tenant_id)
             items, total = await service.query_list(spec, scope="tenant")
+            serialized = [
+                _with_preview_url(
+                    AttachmentSafeListItem.model_validate(item, from_attributes=True).model_dump(),
+                    tenant_id=current_admin.tenant_id,
+                )
+                for item in items
+            ]
             return success(
                 data=PageResponse.create(
-                    items=[AttachmentListItem.model_validate(item, from_attributes=True) for item in items],
+                    items=serialized,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -502,8 +519,12 @@ class TenantAttachmentController(TenantController):
             attachment = await service.get_by_id(attachment_id)
             if not attachment:
                 raise NotFoundException(message=_("error.common.not_found"))
+            data = _with_preview_url(
+                AttachmentSafeResponse.model_validate(attachment, from_attributes=True).model_dump(),
+                tenant_id=current_admin.tenant_id,
+            )
             return success(
-                data=AttachmentResponse.model_validate(attachment, from_attributes=True),
+                data=data,
                 message=_("common.success"),
             )
 

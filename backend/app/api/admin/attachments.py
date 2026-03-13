@@ -41,6 +41,16 @@ from app.services.system.attachment_service import AdminAttachmentService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 
+def _with_preview_url(data: dict) -> dict:
+    """为序列化后的附件字典注入 preview_url"""
+    data["preview_url"] = AttachmentDownloadService.build_preview_url(
+        attachment_id=data["id"],
+        tenant_id=data.get("tenant_id", 0),
+        visibility=data.get("visibility", "private"),
+    )
+    return data
+
+
 @permission_resource(
     resource="attachment",
     name="menu.admin.attachment",
@@ -491,9 +501,15 @@ class AdminAttachmentController(GlobalController):
             """
             service = AdminAttachmentService(db)
             items, total = await service.query_list(spec, scope="admin")
+            serialized = [
+                _with_preview_url(
+                    AttachmentListItem.model_validate(item, from_attributes=True).model_dump()
+                )
+                for item in items
+            ]
             return success(
                 data=PageResponse.create(
-                    items=[AttachmentListItem.model_validate(item, from_attributes=True) for item in items],
+                    items=serialized,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -518,8 +534,11 @@ class AdminAttachmentController(GlobalController):
             attachment = await service.get_by_id(attachment_id)
             if not attachment:
                 raise NotFoundException(message=_("error.common.not_found"))
+            data = _with_preview_url(
+                AttachmentResponse.model_validate(attachment, from_attributes=True).model_dump()
+            )
             return success(
-                data=AttachmentResponse.model_validate(attachment, from_attributes=True),
+                data=data,
                 message=_("common.success"),
             )
 

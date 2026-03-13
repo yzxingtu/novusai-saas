@@ -250,11 +250,6 @@ onUnmounted(() => {
           </Tag>
         </template>
 
-        <!-- 存储驱动列 -->
-        <template #driver_cell="{ row }">
-          <Tag color="blue">{{ row.driver }}</Tag>
-        </template>
-
         <!-- 上传时间列 -->
         <template #uploadedAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">

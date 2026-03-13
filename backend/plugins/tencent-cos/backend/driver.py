@@ -11,6 +11,7 @@ import hashlib
 import mimetypes
 import tempfile
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
@@ -267,11 +268,18 @@ class CosStorageDriver(StorageDriver):
                 if lk.startswith("x-cos-meta-"):
                     metadata[lk[len("x-cos-meta-"):]] = v
             visibility_value = metadata.get("visibility", "private")
+            last_modified = datetime.now(timezone.utc)
+            raw_lm = response.get("Last-Modified")
+            if raw_lm:
+                try:
+                    last_modified = parsedate_to_datetime(raw_lm)
+                except (ValueError, TypeError):
+                    pass
             return FileInfo(
                 path=path,
                 size=int(response.get("Content-Length", 0)),
                 mime_type=response.get("Content-Type", "application/octet-stream"),
-                last_modified=datetime.now(timezone.utc),
+                last_modified=last_modified,
                 visibility=StorageVisibility(visibility_value),
                 metadata=metadata,
             )
@@ -310,19 +318,26 @@ class CosStorageDriver(StorageDriver):
     # ========== Image Processing ==========
 
     def _build_cos_process_params(self, params: ImageProcessParams) -> str:
-        """Build COS imageMogr2 URL suffix"""
+        """Build COS imageMogr2 URL suffix.
+
+        COS imageMogr2 reference:
+        - thumbnail/WxH   → fit (proportional, within bounds)
+        - thumbnail/!WxHr  → cover (proportional, covering bounds)
+        - crop/WxH/gravity/center → center crop
+        """
         parts: list[str] = ["imageMogr2"]
         if params.width or params.height:
             w = params.width or ""
             h = params.height or ""
             mode = params.mode or "fit"
             if mode == "fill":
-                parts.append(f"thumbnail/{w}x{h}")
+                parts.append(f"thumbnail/!{w}x{h}r")
                 parts.append(f"crop/{w}x{h}/gravity/center")
             elif mode == "crop":
-                parts.append(f"cut/{w}x{h}")
+                parts.append(f"crop/{w}x{h}/gravity/center")
             elif mode == "pad":
-                parts.append(f"thumbnail/{w}x{h}/pad/1")
+                parts.append(f"thumbnail/{w}x{h}")
+                parts.append(f"extent/{w}x{h}/gravity/center/color/FFFFFF")
             else:
                 parts.append(f"thumbnail/{w}x{h}")
         if params.quality and params.quality < 100:

@@ -37,6 +37,10 @@ import {
   uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
+import {
+  handleDisableError as _handleDisableError,
+  refreshAdminMenusAndPluginRoutes as _refreshRoutes,
+} from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
 
@@ -193,10 +197,6 @@ async function loadPlugins() {
   }
 }
 
-const {
-  refreshAdminMenusAndPluginRoutes: _refreshRoutes,
-  handleDisableError: _handleDisableError,
-} = await import('#/composables/use-plugin-admin-refresh');
 async function refreshAdminMenusAndPluginRoutes() {
   await _refreshRoutes(router);
 }

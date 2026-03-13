@@ -65,6 +65,10 @@ import {
 import { getTenantListApi } from '#/api/admin/tenant';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { scopeNeedsAssignment } from '#/components/business/scope-select';
+import {
+  handleDisableError,
+  refreshAdminMenusAndPluginRoutes as _refreshAdminRoutes,
+} from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
 import { formatDate } from '#/utils/common';
@@ -123,10 +127,7 @@ const availableTenants = computed(() =>
 );
 
 async function refreshAdminMenusAndPluginRoutes() {
-  const { refreshAdminMenusAndPluginRoutes: _refresh } = await import(
-    '#/composables/use-plugin-admin-refresh'
-  );
-  await _refresh(router);
+  await _refreshAdminRoutes(router);
 }
 
 interface ConfigField {
@@ -330,9 +331,6 @@ function onDisable() {
           await refreshAdminMenusAndPluginRoutes();
         })
         .catch(async (error: unknown) => {
-          const { handleDisableError } = await import(
-            '#/composables/use-plugin-admin-refresh'
-          );
           handleDisableError(error, pluginVal.display_name, async () => {
             await disablePluginApi(pluginVal.id, true);
             message.success($t('admin.plugin.messages.disableSuccess'));

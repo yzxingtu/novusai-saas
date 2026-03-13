@@ -143,15 +143,6 @@ export function useColumns(
       },
     },
     {
-      field: 'driver',
-      title: $t('tenant.system.attachment.driver'),
-      width: 100,
-      align: 'center',
-      slots: {
-        default: 'driver_cell',
-      },
-    },
-    {
       field: 'createdAt',
       title: $t('tenant.system.attachment.uploadedAt'),
       width: 140,

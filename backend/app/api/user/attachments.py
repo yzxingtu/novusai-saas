@@ -16,9 +16,9 @@ from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.rbac.decorators import auth_only
 from app.schemas.tenant.attachment import (
     AttachmentPreflightRequest,
-    AttachmentPreflightResponse,
-    AttachmentResponse,
-    AttachmentUploadResponse,
+    AttachmentSafePreflightResponse,
+    AttachmentSafeResponse,
+    AttachmentSafeUploadResponse,
 )
 from app.services.tenant.attachment_service import AttachmentService
 
@@ -48,10 +48,10 @@ async def preflight_check(
         size=body.size,
         visibility=AttachmentVisibility(body.visibility) if body.visibility else AttachmentVisibility.PRIVATE,
     )
-    resp = AttachmentPreflightResponse(
+    resp = AttachmentSafePreflightResponse(
         exists=result["exists"],
         attachment=(
-            AttachmentResponse.model_validate(result["attachment"], from_attributes=True)
+            AttachmentSafeResponse.model_validate(result["attachment"], from_attributes=True)
             if result["attachment"]
             else None
         ),
@@ -90,8 +90,8 @@ async def upload_attachment(
         uploader_id=current_user.id,
     )
     return success(
-        data=AttachmentUploadResponse(
-            attachment=AttachmentResponse.model_validate(
+        data=AttachmentSafeUploadResponse(
+            attachment=AttachmentSafeResponse.model_validate(
                 result["attachment"], from_attributes=True
             ),
             url=result["url"],

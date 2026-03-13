@@ -44,6 +44,7 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
     businessType: raw.business_type,
     businessId: raw.business_id,
     meta: raw.meta,
+    previewUrl: raw.preview_url,
     category: inferCategory(raw.mime_type),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
