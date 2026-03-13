@@ -611,6 +611,23 @@
       "fetch_remote_models_failed": "Failed to fetch models from provider",
       "quota_exceeded_default": "AI quota exceeded, please try again later"
     },
+    "provider": {
+      "created": "Provider created successfully",
+      "updated": "Provider updated successfully",
+      "deleted": "Provider deleted successfully",
+      "status_updated": "Provider status updated"
+    },
+    "model": {
+      "created": "Model created successfully",
+      "updated": "Model updated successfully",
+      "deleted": "Model deleted successfully"
+    },
+    "api_key": {
+      "created": "API Key created successfully",
+      "updated": "API Key updated successfully",
+      "deleted": "API Key deleted successfully",
+      "status_updated": "API Key status updated"
+    },
     "quota": {
       "created": "Quota configuration created",
       "updated": "Quota configuration updated",

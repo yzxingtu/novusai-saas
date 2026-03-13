@@ -167,25 +167,31 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         id: int
     ) -> None:
         """
-        删除供应商（软删除）
+        删除供应商（软删除） / Delete provider (soft delete)
 
-        删除后同步清除 Redis 健康状态键，防止已删除供应商继续
-        出现在健康检查页面（Redis 键 TTL 未到期时会残留）。
+        通过 BaseService.delete() 统一处理，自动执行 __delete_deps__ 依赖检查：
+        Uses BaseService.delete() for unified handling, auto-checks __delete_deps__:
+        - BLOCK: AIModel 有依赖时拒绝删除 / Blocks when AIModel dependencies exist
+        - CASCADE_SOFT: ProviderApiKey 跟随软删除 / Cascades soft-delete to ProviderApiKey
+
+        删除后同步清除 Redis 健康状态键。
+        Clears Redis health keys after deletion.
 
         Args:
-            id: 供应商 ID
+            id: 供应商 ID / Provider ID
 
         Raises:
-            NotFoundException: 供应商不存在
+            NotFoundException: 供应商不存在 / Provider not found
+            DependencyBlockedException: 存在 BLOCK 依赖 / BLOCK dependencies exist
         """
-        provider = await self.get_by_id(id)
-        if not provider:
+        result = await self.delete(id, soft=True)
+        if not result:
             raise NotFoundException(message=_("ai.error.provider_not_found"))
 
-        provider.soft_delete()
-        await self.db.flush()
-
-        # 清除 Redis 健康状态键（BUG-A2 修复）
+    async def _after_delete(self, id: int) -> None:
+        """
+        删除后清除 Redis 健康状态键 / Clear Redis health keys after deletion
+        """
         try:
             from app.ai.failover import HEALTH_HISTORY_PREFIX, HEALTH_KEY_PREFIX
             from app.core.redis import get_redis
@@ -194,7 +200,6 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             history_key = HEALTH_HISTORY_PREFIX.format(provider_id=id)
             await redis.delete(health_key, history_key)
         except Exception:
-            # Redis 清理失败不阻断删除操作
             pass
 
     async def toggle_status(

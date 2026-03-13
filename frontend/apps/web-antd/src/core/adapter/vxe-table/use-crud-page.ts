@@ -35,13 +35,16 @@ import type {
   UseCrudPageOptions,
 } from './types';
 
-import { defineComponent, h, ref } from 'vue';
+import { defineComponent, h, onBeforeUnmount, ref } from 'vue';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
+import { createFormOperations } from '#/composables/use-ai-operations';
+import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
@@ -81,7 +84,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     createPermission,
     recycleBin,
     gridOptions: extraGridOptions = {},
+    ai,
   } = options;
+
+  const aiPageKey = ai?.pageKey;
 
   // ==================== Recycle bin config / 回收站配置 ====================
   const recycleBinEnabled = !!recycleBin;
@@ -150,6 +156,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         mode: 'add' as FormMode,
         _resource: api.resource,
         _defaults: defaults,
+        ...(aiPageKey ? { _aiPageKey: aiPageKey } : {}),
       })
       .open();
   }
@@ -157,7 +164,12 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   /** Edit / 编辑 */
   function onEdit(row: T) {
     formPopupApi
-      ?.setData({ ...row, mode: 'edit' as FormMode, _resource: api.resource })
+      ?.setData({
+        ...row,
+        mode: 'edit' as FormMode,
+        _resource: api.resource,
+        ...(aiPageKey ? { _aiPageKey: aiPageKey } : {}),
+      })
       .open();
   }
 
@@ -456,6 +468,20 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     },
   });
 
+  // AI form operations / AI 表单操作
+  const formAiOperations: PageOperation[] =
+    ai?.formSchema && aiPageKey
+      ? createFormOperations({
+          pageKey: aiPageKey,
+          formSchema: ai.formSchema,
+          resource: api.resource,
+        })
+      : [];
+
+  onBeforeUnmount(() => {
+    if (aiPageKey) formStateTracker.close(aiPageKey);
+  });
+
   return {
     // Components / 组件
     Grid,
@@ -484,5 +510,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     // Recycle bin / 回收站
     openRecycleBin,
     recycleBinRef,
+
+    // AI form operations (spread into registerPageOperations) / AI 表单操作（展开到 registerPageOperations）
+    formAiOperations,
   };
 }

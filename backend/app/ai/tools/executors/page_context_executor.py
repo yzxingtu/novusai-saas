@@ -80,7 +80,8 @@ class PageContextExecutor(BaseToolExecutor):
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # Build structured output / 构建结构化输出
+        # Build structured output with enhanced semantic information
+        # 构建含增强语义信息的结构化输出
         parts: list[str] = []
 
         page_key = page_ctx.get("page_key", "")
@@ -91,16 +92,131 @@ class PageContextExecutor(BaseToolExecutor):
             parts.append(f"Page: {page_key}")
         if page_title:
             parts.append(f"Title: {page_title}")
+
         if page_data and isinstance(page_data, dict):
-            data_str = json.dumps(page_data, ensure_ascii=False, default=str)
-            if len(data_str) > MAX_OUTPUT_CHARS:
-                data_str = data_str[:MAX_OUTPUT_CHARS] + "... [truncated]"
-                logger.warning(
-                    "page_data truncated: original %d chars, limit %d",
-                    len(json.dumps(page_data, ensure_ascii=False, default=str)),
-                    MAX_OUTPUT_CHARS,
+            # Extract and present semantic fields prominently
+            # 将语义字段突出展示
+            entity_name = page_data.get("entity_name")
+            entity_desc = page_data.get("entity_description")
+            form_purpose = page_data.get("form_purpose")
+            form_is_open = page_data.get("form_is_open")
+
+            if entity_name:
+                parts.append(f"Entity: {entity_name}")
+            if entity_desc:
+                parts.append(f"Description: {entity_desc}")
+            if form_purpose and isinstance(form_purpose, dict):
+                purpose_parts = []
+                if form_purpose.get("create"):
+                    purpose_parts.append(f"Create: {form_purpose['create']}")
+                if form_purpose.get("edit"):
+                    purpose_parts.append(f"Edit: {form_purpose['edit']}")
+                if purpose_parts:
+                    parts.append(f"Form Purpose: {'; '.join(purpose_parts)}")
+            if form_is_open:
+                parts.append("Form Status: OPEN (use get_form_state to inspect current values)")
+
+            # Present visual_state concisely
+            visual = page_data.get("visual_state")
+            if visual and isinstance(visual, dict):
+                vs_parts = [f"URL: {visual.get('url', '')}"]
+                if visual.get("has_modal") or visual.get("has_drawer"):
+                    overlays = visual.get("open_overlays", [])
+                    if overlays and isinstance(overlays, list):
+                        overlay_desc = ", ".join(
+                            f"{o.get('type', '?')}({o.get('title', '?')})"
+                            for o in overlays[:5] if isinstance(o, dict)
+                        )
+                        vs_parts.append(f"Overlays: {overlay_desc}")
+                    else:
+                        if visual.get("has_modal"):
+                            vs_parts.append("Modal: open")
+                        if visual.get("has_drawer"):
+                            vs_parts.append("Drawer: open")
+                parts.append(f"Visual: {' | '.join(vs_parts)}")
+
+            # Present list_summary if available
+            list_summary = page_data.get("list_summary")
+            if list_summary and isinstance(list_summary, dict):
+                total_rows = list_summary.get("total_rows", 0)
+                sample_rows = list_summary.get("sample_rows", [])
+                parts.append(f"List: {total_rows} total rows, {len(sample_rows)} sample rows shown")
+                if sample_rows and isinstance(sample_rows, list):
+                    for i, row in enumerate(sample_rows[:3]):
+                        if isinstance(row, dict):
+                            row_str = ", ".join(f"{k}={v}" for k, v in list(row.items())[:4])
+                            parts.append(f"  [{i + 1}] {row_str}")
+
+            # Build guidance for form operations
+            # 构建表单操作指引
+            form_fields = page_data.get("form_fields")
+            ops = page_data.get("available_operations")
+            if form_fields and isinstance(form_fields, dict):
+                parts.append(f"Form Fields ({len(form_fields)}):")
+                for field_name, desc in form_fields.items():
+                    if not isinstance(desc, dict):
+                        continue
+                    comp = desc.get("component", "input")
+                    required = " [REQUIRED]" if desc.get("required") else ""
+                    opts_info = ""
+                    options = desc.get("options")
+                    if options and isinstance(options, list):
+                        opt_labels = [str(o.get("label", o.get("value", ""))) for o in options[:8]]
+                        opts_info = f" options=[{', '.join(opt_labels)}]"
+                        if len(options) > 8:
+                            opts_info = opts_info[:-1] + f", ... +{len(options) - 8} more]"
+                    elif desc.get("optionsSource") == "remote":
+                        opts_info = " (remote options, use get_form_options to fetch)"
+                    constraints_info = ""
+                    constraints = desc.get("constraints")
+                    if constraints and isinstance(constraints, dict):
+                        c_parts = []
+                        for ck, cv in constraints.items():
+                            c_parts.append(f"{ck}={cv}")
+                        if c_parts:
+                            constraints_info = f" ({', '.join(c_parts)})"
+                    parts.append(
+                        f"  - {field_name}: {desc.get('description', '')} "
+                        f"[{comp}:{desc.get('type', 'string')}]{required}{opts_info}{constraints_info}"
+                    )
+
+            # Add operation workflow guidance if operations are available
+            # 如果有可用操作，添加操作流程指引
+            if ops and isinstance(ops, list):
+                op_names = [o.get("name", "") for o in ops if isinstance(o, dict)]
+                has_form_ops = any(
+                    n in op_names
+                    for n in ("create_record", "edit_record", "fill_form")
                 )
-            parts.append(f"Data: {data_str}")
+                if has_form_ops:
+                    parts.append("")
+                    parts.append("## Agent Loop — Form Operation Workflow:")
+                    parts.append("Execute ALL steps in sequence WITHOUT waiting for user input between steps:")
+                    parts.append("1. Call create_record/edit_record to open the form")
+                    parts.append("2. Immediately call get_form_state to inspect current field values and schema")
+                    parts.append("3. Immediately call fill_form to fill ALL fields with intelligent values")
+                    parts.append("4. Check fill_form result field_feedback for mismatches, retry if needed")
+                    parts.append("5. User reviews the pre-filled form and submits manually")
+                    parts.append("IMPORTANT: Do NOT stop after step 1. Continue all steps in this single turn.")
+
+            # Serialize remaining page_data (exclude already-presented fields)
+            # 序列化剩余 page_data（排除已展示的字段）
+            presented_keys = {
+                "entity_name", "entity_description", "form_purpose",
+                "form_is_open", "form_fields", "available_operations",
+                "visual_state", "list_summary", "source",
+            }
+            remaining = {k: v for k, v in page_data.items() if k not in presented_keys}
+            if remaining:
+                data_str = json.dumps(remaining, ensure_ascii=False, default=str)
+                if len(data_str) > MAX_OUTPUT_CHARS:
+                    data_str = data_str[:MAX_OUTPUT_CHARS] + "... [truncated]"
+                    logger.warning(
+                        "page_data truncated: original %d chars, limit %d",
+                        len(json.dumps(remaining, ensure_ascii=False, default=str)),
+                        MAX_OUTPUT_CHARS,
+                    )
+                parts.append(f"Data: {data_str}")
 
         output = "\n".join(parts) if parts else "No page context available."
         duration_ms = int((time.perf_counter() - start) * 1000)

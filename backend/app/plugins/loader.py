@@ -79,6 +79,13 @@ class PluginLoader:
                 message=f"Plugin '{plugin_name}' not found: {yaml_path} does not exist",
             )
 
+        _MAX_MANIFEST_SIZE = 1 * 1024 * 1024  # 1 MB
+        file_size = yaml_path.stat().st_size
+        if file_size > _MAX_MANIFEST_SIZE:
+            raise PluginManifestError(
+                message=f"plugin.yaml for '{plugin_name}' too large: {file_size} bytes (limit {_MAX_MANIFEST_SIZE})",
+            )
+
         try:
             with open(yaml_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)

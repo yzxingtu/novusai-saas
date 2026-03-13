@@ -10,11 +10,8 @@
  */
 import type { AgentListItem } from '#/api/tenant/agents';
 
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -53,7 +50,10 @@ import {
   getAudienceText,
   getExecutionModeText,
   getStatusText,
+  useFormSchema,
 } from './data';
+
+const AI_PAGE_KEY = 'tenant.ai.agents';
 import AgentForm from './modules/AgentForm.vue';
 import VersionHistory from './modules/VersionHistory.vue';
 
@@ -86,7 +86,44 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(row),
+    edit: (row) => agentFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+  },
+  ai: {
+    pageKey: AI_PAGE_KEY,
+    formSchema: (isEdit?: boolean) => useFormSchema(!(isEdit ?? false)),
+    entityName: $t('tenant.ai.agent.name'),
+    entityDescription: '管理 AI 智能体的配置和发布状态',
+    openRecycleBin: () => recycleBinRef.value?.open(),
+    contextExtras: () => ({
+      published: stats.value.published,
+      system: stats.value.system,
+    }),
+    extra: [
+      {
+        name: 'create_record',
+        label: $t('shared.pageOperation.createRecord'),
+        description: 'Open the create agent form / 打开新建智能体表单',
+        readonly: false,
+        handler: async (): Promise<{ success: boolean; message: string }> => {
+          agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+          return { success: true, message: 'Create agent form opened / 新建表单已打开' };
+        },
+      },
+      {
+        name: 'search',
+        label: $t('shared.pageOperation.searchByKeyword'),
+        description: 'Search agents by keyword / 按关键词搜索智能体',
+        readonly: true,
+        params: {
+          keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+        },
+        handler: async (params): Promise<{ success: boolean; message: string }> => {
+          searchKeyword.value = (params?.keyword as string) || '';
+          onSearch({ 'filter[name][ilike]': searchKeyword.value || undefined });
+          return { success: true, message: `Searched for: ${searchKeyword.value} / 已搜索：${searchKeyword.value}` };
+        },
+      },
+    ],
   },
 });
 
@@ -105,6 +142,14 @@ function openRecycleBin() {
 
 const router = useRouter();
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
+
+function onCreateAgent() {
+  agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+}
+
+function onEditAgent(agent: AgentListItem) {
+  agentFormRef.value?.openEdit(agent, { _aiPageKey: AI_PAGE_KEY });
+}
 
 // ============================================================
 // Version history / 版本历史
@@ -224,67 +269,6 @@ const stats = computed(() => ({
   system: list.value.filter((a) => a.is_system).length,
 }));
 
-const cleanupPageContext = registerPageContext('tenant/ai/agents', () => ({
-  page_key: 'tenant.ai.agents',
-  page_title: $t('tenant.ai.agent.name'),
-  page_data: {
-    resource: '/tenant/ai/agents',
-    total: stats.value.total,
-    published: stats.value.published,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.agents', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the agent list',
-    readonly: true,
-    handler: async () => {
-      await loadList();
-      return { success: true, message: 'Agent list refreshed' };
-    },
-  },
-  {
-    name: 'create_agent',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create agent form',
-    readonly: false,
-    handler: async () => {
-      agentFormRef.value?.openNew();
-      return { success: true, message: 'Create agent form opened' };
-    },
-  },
-  {
-    name: 'search_agents',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search agents by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      searchKeyword.value = (params?.keyword as string) || '';
-      onSearch({ 'filter[name][ilike]': searchKeyword.value || undefined });
-      return { success: true, message: `Searched for: ${searchKeyword.value}` };
-    },
-  },
-  {
-    name: 'view_recycle_bin',
-    label: $t('shared.pageOperation.restoreRecord'),
-    description: 'Open the recycle bin drawer',
-    readonly: true,
-    handler: async () => {
-      openRecycleBin();
-      return { success: true, message: 'Recycle bin opened' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>
@@ -392,7 +376,7 @@ onUnmounted(() => {
       <Button
         v-access:code="['agent:create']"
         type="primary"
-        @click="agentFormRef?.openNew()"
+        @click="onCreateAgent"
       >
         <template #icon>
           <IconifyIcon icon="lucide:plus" class="size-4" />
@@ -488,7 +472,7 @@ onUnmounted(() => {
                       <span>{{ $t('tenant.ai.agent.detail.title') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem key="edit" @click="agentFormRef?.openEdit(agent)">
+                  <MenuItem key="edit" @click="onEditAgent(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
                       <span>{{ $t('common.edit') }}</span>
@@ -648,7 +632,7 @@ onUnmounted(() => {
               </button>
               <button
                 class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                @click="agentFormRef?.openEdit(agent)"
+                @click="onEditAgent(agent)"
               >
                 <IconifyIcon icon="lucide:pencil" class="size-3" />
                 <span>{{ $t('common.edit') }}</span>
@@ -667,7 +651,7 @@ onUnmounted(() => {
           <Button
             v-access:code="['agent:create']"
             type="primary"
-            @click="agentFormRef?.openNew()"
+            @click="onCreateAgent"
           >
             <template #icon>
               <IconifyIcon icon="lucide:plus" class="size-4" />

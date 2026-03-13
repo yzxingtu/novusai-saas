@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
-import boto3
-from botocore.exceptions import ClientError
 
 from app.exceptions import StorageConfigError, StorageError, StorageNotFoundError
 from app.storage.base import (
@@ -29,6 +27,25 @@ from app.storage.base import (
 
 if TYPE_CHECKING:
     from app.utils.image import ImageProcessParams
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+except ModuleNotFoundError:
+    boto3 = None  # type: ignore[assignment]
+    ClientError = Exception  # type: ignore[assignment,misc]
+
+
+def _require_boto3():
+    """Ensure optional boto3 SDK is available before runtime use."""
+    if boto3 is None:
+        raise StorageConfigError(
+            message=(
+                "boto3 SDK is not installed. "
+                "Install dependency: pip install boto3>=1.35"
+            ),
+        )
+    return boto3
 
 
 class S3StorageDriver(StorageDriver):
@@ -95,6 +112,7 @@ class S3StorageDriver(StorageDriver):
             )
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
+        _require_boto3()
         self.client = boto3.client(
             "s3",
             aws_access_key_id=options.get("access_key_id"),

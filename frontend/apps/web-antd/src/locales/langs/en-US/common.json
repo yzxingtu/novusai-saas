@@ -226,7 +226,7 @@
     "quickPageAnalysis": "Analyze this page",
     "quickDataQuery": "Data query",
     "quickHelp": "Help",
-    "welcomeFirstTime": "Press Ctrl+J to open quickly, drag left edge to resize",
+    "welcomeFirstTime": "Press Ctrl+K to open quickly, drag left edge to resize",
     "routingAgent": "Finding the best agent...",
     "tokens": "tokens",
     "regenerate": "Regenerate",
@@ -252,7 +252,7 @@
   },
   "commandBar": {
     "placeholder": "Type to send, or press Enter to open panel...",
-    "shortcut": "Ctrl+J",
+    "shortcut": "Ctrl+K",
     "mentionHint": "Select an agent",
     "noAgents": "No agents available",
     "recentConversations": "Recent Conversations",
@@ -265,7 +265,11 @@
     "justNow": "Just now",
     "minutesAgo": "{n}m ago",
     "hoursAgo": "{n}h ago",
-    "daysAgo": "{n}d ago"
+    "daysAgo": "{n}d ago",
+    "searchResults": "Search Results",
+    "resultsCount": "{count} results",
+    "sendToAI": "Send to AI",
+    "navigateTo": "Navigate"
   },
   "aiPanel": {
     "title": "AI Assistant",

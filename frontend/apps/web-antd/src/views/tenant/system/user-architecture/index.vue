@@ -48,7 +48,7 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import { useMemberColumns, useMemberSearchSchema } from './data';
+import { useMemberColumns, useMemberSearchSchema, useUserFormSchema } from './data';
 import PermissionDrawer from './modules/PermissionDrawer.vue';
 import UserForm from './modules/UserForm.vue';
 import UserRoleFormComponent from './modules/UserRoleForm.vue';
@@ -307,6 +307,7 @@ const {
   FormDrawer: MemberFormDrawer,
   onRefresh: onMemberRefresh,
   handleToggleStatus: handleMemberToggleStatus,
+  formAiOperations,
 } = useCrudPage<TenantUserInfo>({
   api: {
     list: getUserListForRole,
@@ -323,6 +324,7 @@ const {
   customActions: {
     resetPassword: onResetPassword,
   },
+  ai: { pageKey: 'tenant.system.userArchitecture', formSchema: useUserFormSchema },
 });
 
 /** Reload member table on role selection change (nextTick waits for Grid mount) / 角色选择变化时重新加载成员表 */
@@ -396,7 +398,7 @@ const cleanupPageOps = registerPageOperations(
       },
     },
     {
-      name: 'create_role',
+      name: 'create_record',
       label: $t('shared.pageOperation.createRecord'),
       description: 'Open the create role form',
       readonly: false,
@@ -406,7 +408,7 @@ const cleanupPageOps = registerPageOperations(
       },
     },
     {
-      name: 'search_roles',
+      name: 'search',
       label: $t('shared.pageOperation.searchByKeyword'),
       description: 'Search roles by name keyword',
       readonly: true,
@@ -432,6 +434,7 @@ const cleanupPageOps = registerPageOperations(
         return { success: true, message: 'Add member form opened' };
       },
     },
+    ...formAiOperations,
   ],
 );
 

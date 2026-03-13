@@ -25,8 +25,10 @@ _GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 # ── 请求超时 ──
 _TIMEOUT = 10.0
 
-# ── SSL 验证（公共天气 API，非敏感数据；部分网络环境代理/防火墙导致 SSL 握手失败）──
-_VERIFY_SSL = False
+# ── SSL 验证（可通过环境变量 WEATHER_VERIFY_SSL=1 启用）──
+# 默认关闭：公共天气 API 非敏感数据，部分网络环境代理/防火墙导致 SSL 握手失败
+import os as _os
+_VERIFY_SSL = _os.environ.get("WEATHER_VERIFY_SSL", "0") in ("1", "true", "yes")
 
 
 def _make_client() -> httpx.AsyncClient:

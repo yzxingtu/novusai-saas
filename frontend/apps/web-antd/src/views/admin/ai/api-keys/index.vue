@@ -18,8 +18,9 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { getAIApiKeyListApi, toggleAIApiKeyStatusApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import { getProcessedImageUrl } from '#/utils/image';
 
-import { getFormDefaults, useColumns, useGridFormSchema } from './data';
+import { getFormDefaults, useColumns, useFormSchema, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AIApiKeyList' });
@@ -52,7 +53,7 @@ function onToggleActive(row: AIApiKeyInfo) {
   });
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIApiKeyInfo>({
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = useCrudPage<AIApiKeyInfo>({
   api: {
     list: getAIApiKeyListApi,
     resource: '/admin/ai/api-keys',
@@ -65,6 +66,7 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIApiKeyI
   nameField: 'name',
   defaultSort: '-created_at',
   createPermission: 'ai_api_key:create',
+  ai: { pageKey: 'admin.ai.api-keys', formSchema: useFormSchema },
 });
 
 const cleanupPageContext = registerPageContext('admin/ai/api-keys', () => ({
@@ -87,7 +89,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
     },
   },
   {
-    name: 'create_api_key',
+    name: 'create_record',
     label: $t('shared.pageOperation.createApiKey'),
     description: 'Open the create API key form',
     readonly: false,
@@ -97,7 +99,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
     },
   },
   {
-    name: 'search_keys',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search API keys by keyword',
     readonly: true,
@@ -111,6 +113,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
       return { success: true, message: `Searched for: ${keyword}` };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {
@@ -172,6 +175,28 @@ onUnmounted(() => {
               <IconifyIcon icon="lucide:copy" class="size-3" />
             </button>
           </Tooltip>
+        </div>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
+
+      <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+      <template #providerName_cell="{ row }">
+        <div
+          v-if="row.provider_name"
+          class="flex items-center justify-center gap-1.5"
+        >
+          <img
+            v-if="row.provider_icon && Number(row.provider_icon) > 0"
+            :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+            class="size-4 shrink-0 rounded object-contain"
+            alt=""
+          />
+          <IconifyIcon
+            v-else
+            icon="lucide:cpu"
+            class="size-3.5 text-muted-foreground"
+          />
+          <span class="text-foreground">{{ row.provider_name }}</span>
         </div>
         <span v-else class="text-muted-foreground">-</span>
       </template>

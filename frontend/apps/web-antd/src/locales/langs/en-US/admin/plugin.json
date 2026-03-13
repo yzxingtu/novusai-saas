@@ -193,8 +193,21 @@
     "sourceAuto": "Auto Select",
     "sourceAutoDesc": "Auto ping and select the faster source",
     "cacheTtl": "Cache TTL",
-    "testConnection": "Test Connection"
+    "testConnection": "Test Connection",
+    "category": {
+      "ai": "AI",
+      "integration": "Integration",
+      "storage": "Storage",
+      "business": "Business",
+      "tools": "Tools",
+      "communication": "Communication",
+      "analytics": "Analytics",
+      "security": "Security"
+    }
   },
+  "emptyList": "No plugins installed. Install from marketplace or upload a plugin.",
+  "assignFailed": "Failed to assign tenants",
+  "unassignFailed": "Failed to unassign tenant",
   "license": {
     "title": "License Management",
     "type": "License Type",
@@ -254,8 +267,10 @@
     "disableBeforeUninstallDeps": "Disable the plugin before uninstalling dependencies",
     "fileTooLarge": "File too large. Please upload a ZIP file under 50MB",
     "assignSuccess": "Tenants assigned",
-    "forceCleanupSuccess": "Orphan records cleaned up"
+    "forceCleanupSuccess": "Orphan records cleaned up",
+    "installFailed": "Plugin installation failed"
   },
+  "invalidJson": "Config content is not valid JSON",
   "progress": {
     "installTitle": "Installation Progress",
     "enableTitle": "Enable Progress",

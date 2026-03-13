@@ -52,8 +52,9 @@ export function useColumns<T = AIApiKeyInfo>(
     {
       field: 'provider_name',
       title: $t('admin.ai.apiKey.providerName'),
-      width: 140,
+      width: 160,
       align: 'center',
+      slots: { default: 'providerName_cell' },
     },
     {
       field: 'tenant_name',

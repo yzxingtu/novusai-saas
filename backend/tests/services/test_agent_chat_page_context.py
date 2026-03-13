@@ -735,10 +735,10 @@ class TestPageContextDataSizeLimit:
         assert ctx.page_data == {"metric": "users", "count": 42}
 
     def test_oversized_page_data_rejected(self):
-        """超过 4KB 的 page_data 被拒绝"""
+        """超过 8KB 的 page_data 被拒绝 / page_data exceeding 8KB is rejected"""
         from app.schemas.ai.agent_chat import PageContext
 
-        large_data = {"key": "x" * 5000}
+        large_data = {"key": "x" * 10000}
 
         with pytest.raises(Exception) as exc_info:
             PageContext(

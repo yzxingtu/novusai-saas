@@ -69,7 +69,7 @@ async def get_license_status(db: Any, plugin_id: int) -> dict[str, Any]:
                 "license_type": license_type,
                 "is_valid": True,
                 "trial_days_remaining": (trial_expires_at - now).days,
-                "expires_at": str(trial_expires_at),
+                "expires_at": trial_expires_at.isoformat() if trial_expires_at else None,
             }
         return {
             "status": LicenseStatus.EXPIRED,
@@ -85,7 +85,7 @@ async def get_license_status(db: Any, plugin_id: int) -> dict[str, Any]:
                 "license_type": license_type,
                 "is_valid": False,
                 "message": "License expired",
-                "expires_at": str(expires_at),
+                "expires_at": expires_at.isoformat() if expires_at else None,
             }
         remaining_days = (expires_at - now).days if expires_at else None
         return {
@@ -93,8 +93,8 @@ async def get_license_status(db: Any, plugin_id: int) -> dict[str, Any]:
             "license_type": license_type,
             "is_valid": True,
             "license_key": _mask_key(license_key),
-            "activated_at": str(activated_at) if activated_at else None,
-            "expires_at": str(expires_at) if expires_at else None,
+            "activated_at": activated_at.isoformat() if activated_at else None,
+            "expires_at": expires_at.isoformat() if expires_at else None,
             "remaining_days": remaining_days,
         }
 

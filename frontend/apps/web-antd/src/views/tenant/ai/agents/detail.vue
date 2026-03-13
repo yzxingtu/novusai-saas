@@ -11,11 +11,11 @@ import type {
   AgentSkillBindingInfo,
 } from '#/api/tenant/agents';
 
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { useDetailPageAi } from '#/composables/use-detail-page-ai';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -651,32 +651,26 @@ const cleanupPageContext = registerPageContext('tenant/ai/agents/detail', () => 
   },
 }));
 
-const cleanupPageOps = registerPageOperations('tenant.ai.agents.detail', [
-  {
-    name: 'refresh_detail',
-    label: $t('shared.pageOperation.refreshDetail'),
-    description: 'Reload the agent detail',
-    readonly: true,
-    handler: async () => {
-      await loadAgent();
-      return { success: true, message: 'Agent detail refreshed' };
+useDetailPageAi({
+  pageKey: 'tenant.ai.agents.detail',
+  refreshFn: () => loadAgent(),
+  backRoute: '/tenant/ai/agents',
+  extra: [
+    {
+      name: 'save_model_params',
+      label: $t('shared.pageOperation.saveModelParams'),
+      description: 'Save the current model parameters (temperature, max_tokens, top_p) / 保存当前模型参数',
+      readonly: false,
+      handler: async () => {
+        await saveModelParams();
+        return { success: true, message: 'Model params saved / 模型参数已保存' };
+      },
     },
-  },
-  {
-    name: 'save_model_params',
-    label: $t('shared.pageOperation.saveModelParams'),
-    description: 'Save the current model parameters (temperature, max_tokens, top_p)',
-    readonly: false,
-    handler: async () => {
-      await saveModelParams();
-      return { success: true, message: 'Model params saved' };
-    },
-  },
-]);
+  ],
+});
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

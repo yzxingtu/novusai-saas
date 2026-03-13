@@ -242,8 +242,8 @@ def _doc_to_dict(doc: NovusdocDocument, *, include_content: bool = False) -> dic
         "creator_type": doc.creator_type,
         "last_edited_by": doc.last_edited_by,
         "last_edited_at": doc.last_edited_at,
-        "created_at": str(doc.created_at) if doc.created_at else None,
-        "updated_at": str(doc.updated_at) if doc.updated_at else None,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
     }
     if include_content:
         result["content"] = doc.content

@@ -5,8 +5,7 @@
 多租户 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
 ## 全局禁令
--当你准备结束当前任务或认为工作已完成时，必须调用 zhi 工具与用户确认。
-不要擅自结束对话，让用户决定是否继续。 具体请参考 E:\git_clone\novusai-saas-yudi\cz\README.md
+
 - 禁止硬编码中文字符串，前端用 `$t()`，后端用 `_()`
 - 禁止 `console.log`，使用 `console.warn` / `console.error`
 - 禁止 `any` 类型，使用 `unknown` 或具体类型
@@ -198,11 +197,26 @@ if obj.tenant_id != self.tenant_id:
 继承 `LabeledStrEnum`，支持 i18n。禁止 `status = "draft"`，用 `status = NoticeStatus.DRAFT`。
 比较也必须用枚举：禁止 `scope == "all_tenants"`，用 `scope == ResourceScopeEnum.ALL_TENANTS.value`。
 
-### 时间存储
+### 时间存储与显示
 
-- 后端必须用 `utc_now()`（`app.core.base_model`），禁止 `datetime.now()` / `datetime.utcnow()`
-- 序列化输出为 ISO 8601 + `+00:00` 后缀
-- 前端用 `formatDate()` / `formatRelativeTime()` 自动转成本地时间
+**后端**：
+- 必须用 `utc_now()`（`app.core.base_model`），禁止 `datetime.now()` / `datetime.utcnow()`
+- 序列化输出为 ISO 8601 + `+00:00` 后缀（由 Pydantic 自动处理）
+- 禁止 `str(datetime)` 手动序列化，应由 Pydantic schema 统一处理
+- 手动构造 dict 时必须用 `dt.isoformat()`；若 datetime 无时区信息（naive），先 `dt.replace(tzinfo=timezone.utc)` 再 `.isoformat()`
+- `app.core.response._serialize()` 已统一处理 `paginated()` / `success()` 中的 naive datetime
+
+**前端**：
+- 禁止使用原生 `toLocaleString` / `toLocaleDateString` / `toLocaleTimeString`
+- 必须使用 `#/utils/common` 中的工具函数：
+  - `formatDate(date, options?)` — 默认 `YYYY-MM-DD HH:mm:ss`
+  - `formatDateOnly(date)` — `YYYY-MM-DD`
+  - `formatTimeOnly(date)` — `HH:mm:ss`
+  - `formatRelativeTime(date)` — 相对时间（刚刚、X 分钟前...）
+- 列表页时间列标准模式：`formatRelativeTime` 为主显示 + `formatDate` 为 Tooltip
+- 详情页/抽屉：使用 `formatDate` 显示完整时间
+- 仅日期场景（如过期日期）：`formatDateOnly`
+- 仅时间场景（如消息时间戳）：`formatTimeOnly`
 
 ### 日志
 

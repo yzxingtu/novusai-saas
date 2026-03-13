@@ -3,6 +3,28 @@
   "monitor": {
     "title": "Monitoring & Analytics"
   },
+  "guide": {
+    "title": "Quick Start",
+    "subtitle": "Follow these steps to configure AI Gateway",
+    "totalTime": "~10 min",
+    "showGuide": "Show Guide",
+    "step1": {
+      "title": "Add Provider",
+      "time": "~2 min"
+    },
+    "step2": {
+      "title": "Configure API Key",
+      "time": "~2 min"
+    },
+    "step3": {
+      "title": "Add Model",
+      "time": "~3 min"
+    },
+    "step4": {
+      "title": "Health Check",
+      "time": "~1 min"
+    }
+  },
   "provider": {
     "title": "Provider Management",
     "pageDesc": "Manage AI provider connections including API endpoints and status. Drag to adjust priority.",

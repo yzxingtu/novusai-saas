@@ -1,0 +1,1286 @@
+/**
+ * AI Page Operation Utilities
+ * AI 页面操作工具函数
+ *
+ * Provides automatic schema extraction and standard CRUD operation generation
+ * for CRUD pages using the page-operation-registry mechanism.
+ * 为 CRUD 页面提供自动 schema 提取和标准操作生成能力，
+ * 底层复用 page-operation-registry 机制。
+ *
+ * Usage (in useCrudList/useCrudPage):
+ * ```ts
+ * const ops = createStandardOperations({
+ *   resource: '/admin/ai/agents',
+ *   loadList, onSearch, list, formPopupApi,
+ *   searchSchema: useGridFormSchema,
+ *   formSchema: useFormSchema,
+ *   detailRoute: '/admin/ai/agents/:id',
+ *   disabled: ['delete'],
+ * });
+ * registerPageOperations(pageKey, ops);
+ * ```
+ */
+
+import type { Ref } from 'vue';
+
+import { useRouter } from 'vue-router';
+
+import type { VbenFormSchema } from '#/core/adapter/form/setup';
+
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { $t } from '#/locales';
+import { formStateTracker } from './use-form-state-tracker';
+
+// ============ Types / 类型定义 ============
+
+/**
+ * Internal search param entry with JSON:API filter field mapping
+ * 内部搜索参数条目，含 JSON:API filter 字段名映射
+ */
+interface SearchParamEntry {
+  type: 'boolean' | 'number' | 'string';
+  description: string;
+  /** Original JSON:API filter fieldName (e.g. 'filter[name][ilike]') / 原始 JSON:API filter 字段名 */
+  filterFieldName: string;
+}
+
+/**
+ * Option item for select/checkbox/radio fields
+ * 选择器/多选框/单选框的选项条目
+ */
+export interface AiFieldOption {
+  label: string;
+  value: unknown;
+}
+
+/** Component type enum for AI field descriptors / AI 字段描述的组件类型枚举 */
+export type AiFieldComponent =
+  | 'custom'
+  | 'date'
+  | 'icon'
+  | 'input'
+  | 'number'
+  | 'remote_select'
+  | 'select'
+  | 'switch'
+  | 'textarea'
+  | 'tree_select';
+
+/**
+ * Enhanced form field descriptor — provides complete metadata for AI
+ * 增强的表单字段描述 — 为 AI 提供完整元数据
+ */
+export interface EnhancedFormFieldDescriptor {
+  type: 'array' | 'boolean' | 'number' | 'string';
+  description: string;
+  required?: boolean;
+  /** UI component kind / UI 组件种类 */
+  component: AiFieldComponent;
+  /** Field constraints / 字段约束 */
+  constraints?: {
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    precision?: number;
+  };
+  /** Static options (for select/checkbox/radio) / 静态可选项 */
+  options?: AiFieldOption[];
+  /** Options source type / 选项来源 */
+  optionsSource?: 'remote' | 'static';
+  /** Default value / 默认值 */
+  defaultValue?: unknown;
+  /** Placeholder hint / 占位提示 */
+  placeholder?: string;
+}
+
+// FormParamEntry is now EnhancedFormFieldDescriptor (used throughout this module)
+// FormParamEntry 现在是 EnhancedFormFieldDescriptor（在本模块中使用）
+
+/**
+ * Form popup API interface (compatible with useVbenDrawer / useVbenModal result)
+ * 表单弹窗 API 接口（兼容 useVbenDrawer / useVbenModal 返回值）
+ */
+export interface FormPopupApi {
+  setData: (data: Record<string, unknown>) => { open: () => void };
+}
+
+/**
+ * Options for createStandardOperations
+ * createStandardOperations 配置选项
+ */
+export interface CrudAiOperationsOptions {
+  /** API resource base path / 资源基础路径 */
+  resource: string;
+  /** Reload list callback / 刷新列表回调 */
+  loadList: () => Promise<void>;
+  /** Apply search params callback / 应用搜索参数回调 */
+  onSearch: (params?: Record<string, unknown>) => void;
+  /** Current list data ref / 当前列表数据 ref */
+  list: Ref<unknown[]>;
+  /** Form popup API (from useVbenDrawer or useVbenModal) / 表单弹窗 API */
+  formPopupApi?: FormPopupApi | null;
+  /** Form default values / 表单默认值 */
+  formDefaults?: (() => Record<string, unknown>) | Record<string, unknown>;
+  /** Search schema factory (returns searchFormSchema array) / 搜索 schema 工厂函数 */
+  searchSchema?: () => VbenFormSchema[];
+  /** Form schema factory (isEdit=false for create mode) / 表单 schema 工厂函数 */
+  formSchema?: (isEdit?: boolean) => VbenFormSchema[];
+  /** Detail page route template, e.g. '/admin/ai/agents/:id' / 详情页路由模板 */
+  detailRoute?: string;
+  /** Whether recycle bin is enabled / 是否启用回收站 */
+  hasRecycleBin?: boolean;
+  /** Open recycle bin callback / 打开回收站回调 */
+  openRecycleBin?: () => void;
+  /** Operations to disable (default: 'delete' is always excluded) / 禁用的操作名称列表 */
+  disabled?: string[];
+  /** Extra custom operations merged with standard ops (extra overrides same-named standard) / 额外自定义操作 */
+  extra?: PageOperation[];
+  /** Page key (for form state tracking via formStateTracker) / 页面标识（用于表单状态追踪） */
+  pageKey?: string;
+}
+
+// ============ Schema Extraction / schema 字段提取 ============
+
+/**
+ * Extract search params from searchFormSchema
+ * 从搜索表单 schema 中提取搜索参数（含 JSON:API 字段名映射）
+ *
+ * Handles field name patterns:
+ * - searchInput('code', '...')     → fieldName: 'filter[code][ilike]' → key: 'code'
+ * - statusSelect()                 → fieldName: 'filter[is_active]'   → key: 'is_active'
+ * - searchDateRange({ field: 'x'}) → fieldName: '_dateRange_x'        → keys: 'x_gte', 'x_lte'
+ */
+export function extractSearchParams(
+  schema: VbenFormSchema[],
+): Record<string, SearchParamEntry> {
+  const params: Record<string, SearchParamEntry> = {};
+
+  for (const item of schema) {
+    const fieldName = item.fieldName as string | undefined;
+    const label = item.label as string | undefined;
+    if (!fieldName || !label) continue;
+
+    // Date range: _dateRange_{field} → {field}_gte + {field}_lte
+    // 日期范围：_dateRange_{field} → {field}_gte + {field}_lte
+    if (fieldName.startsWith('_dateRange_')) {
+      const field = fieldName.slice('_dateRange_'.length);
+      params[`${field}_gte`] = {
+        type: 'string',
+        description: `${label} (start / 开始, YYYY-MM-DD)`,
+        filterFieldName: `filter[${field}][gte]`,
+      };
+      params[`${field}_lte`] = {
+        type: 'string',
+        description: `${label} (end / 结束, YYYY-MM-DD)`,
+        filterFieldName: `filter[${field}][lte]`,
+      };
+      continue;
+    }
+
+    // Filter field: filter[field] or filter[field][op]
+    // JSON:API 过滤字段
+    const filterMatch = fieldName.match(/^filter\[([^\]]+)\](?:\[[^\]]+\])?$/);
+    if (filterMatch) {
+      const field = filterMatch[1]!;
+      const component = item.component as string;
+      let type: 'boolean' | 'number' | 'string' = 'string';
+
+      // Detect boolean type for statusSelect / 检测 statusSelect 的 boolean 类型
+      if (component === 'Select') {
+        const opts = (
+          item.componentProps as Record<string, unknown> | undefined
+        )?.options;
+        if (
+          Array.isArray(opts) &&
+          opts.some(
+            (o: unknown) =>
+              typeof (o as { value: unknown }).value === 'boolean',
+          )
+        ) {
+          type = 'boolean';
+        }
+      }
+
+      params[field] = {
+        type,
+        description: label,
+        filterFieldName: fieldName,
+      };
+    }
+  }
+
+  return params;
+}
+
+/**
+ * Map VbenFormSchema component name to AiFieldComponent
+ * 将 VbenFormSchema 组件名映射为 AiFieldComponent
+ */
+function resolveAiComponent(component: string): AiFieldComponent {
+  const map: Record<string, AiFieldComponent> = {
+    Input: 'input',
+    Textarea: 'textarea',
+    InputNumber: 'number',
+    Select: 'select',
+    ApiSelect: 'remote_select',
+    TreeSelect: 'tree_select',
+    ApiTreeSelect: 'tree_select',
+    Switch: 'switch',
+    DatePicker: 'date',
+    IconSelector: 'icon',
+    Checkbox: 'select',
+    CheckboxGroup: 'select',
+    Radio: 'select',
+    RadioGroup: 'select',
+  };
+  return map[component] ?? 'custom';
+}
+
+/**
+ * Extract static options from componentProps
+ * 从 componentProps 提取静态选项
+ */
+function extractStaticOptions(
+  componentProps: Record<string, unknown> | undefined,
+): AiFieldOption[] | undefined {
+  if (!componentProps) return undefined;
+  const opts = componentProps.options;
+  if (!Array.isArray(opts) || opts.length === 0) return undefined;
+  return opts.map((o: any) => ({
+    label: String(o.label ?? o.title ?? o.value),
+    value: o.value,
+  }));
+}
+
+/**
+ * Extract form field params from formSchema (for create/edit operations)
+ * 从表单 schema 中提取完整字段元数据（用于 AI 感知表单结构）
+ *
+ * Enhanced: includes component type, options, constraints, defaultValue, placeholder
+ * 增强版：包含组件类型、选项列表、约束、默认值、占位提示
+ *
+ * Excludes: Dividers, RangePickers, fields starting with '_', filter fields
+ * 排除：分隔线、日期范围选择器、以 '_' 开头的字段、filter 字段
+ */
+export function extractFormParams(
+  schema: VbenFormSchema[],
+): Record<string, EnhancedFormFieldDescriptor> {
+  const params: Record<string, EnhancedFormFieldDescriptor> = {};
+
+  for (const item of schema) {
+    const fieldName = item.fieldName as string | undefined;
+    const label = item.label as string | undefined;
+    const component = item.component as string;
+    if (!fieldName || !label) continue;
+
+    if (
+      fieldName.startsWith('_') ||
+      fieldName.startsWith('filter[') ||
+      component === 'Divider' ||
+      component === 'RangePicker'
+    ) {
+      continue;
+    }
+
+    const aiComponent = resolveAiComponent(component);
+    const props = item.componentProps as Record<string, unknown> | undefined;
+
+    // Infer value type from component / 根据组件推断值类型
+    let type: 'array' | 'boolean' | 'number' | 'string' = 'string';
+    if (component === 'InputNumber') type = 'number';
+    if (component === 'Switch') type = 'boolean';
+    if (component === 'DatePicker') type = 'string';
+    if (
+      component === 'ApiSelect' ||
+      component === 'Select' ||
+      component === 'TreeSelect' ||
+      component === 'ApiTreeSelect'
+    ) {
+      const staticOpts = extractStaticOptions(props);
+      if (
+        staticOpts &&
+        staticOpts.length > 0 &&
+        typeof staticOpts[0]!.value === 'number'
+      ) {
+        type = 'number';
+      }
+      if (
+        staticOpts &&
+        staticOpts.length > 0 &&
+        typeof staticOpts[0]!.value === 'boolean'
+      ) {
+        type = 'boolean';
+      }
+      if (props?.mode === 'multiple' || props?.mode === 'tags') {
+        type = 'array';
+      }
+    }
+
+    const required =
+      item.rules === 'required' || item.rules === 'selectRequired';
+
+    // Build constraints / 构建约束
+    const constraints: EnhancedFormFieldDescriptor['constraints'] = {};
+    if (props?.maxLength !== undefined)
+      constraints.maxLength = Number(props.maxLength);
+    if (props?.min !== undefined) constraints.min = Number(props.min);
+    if (props?.max !== undefined) constraints.max = Number(props.max);
+    if (props?.precision !== undefined)
+      constraints.precision = Number(props.precision);
+    const hasConstraints = Object.keys(constraints).length > 0;
+
+    // Resolve options / 解析选项
+    const staticOptions = extractStaticOptions(props);
+    const isRemote =
+      component === 'ApiSelect' || component === 'ApiTreeSelect';
+    const optionsSource: EnhancedFormFieldDescriptor['optionsSource'] =
+      isRemote ? 'remote' : staticOptions ? 'static' : undefined;
+
+    // Resolve placeholder / 解析占位提示
+    const placeholder = props?.placeholder as string | undefined;
+
+    const descriptor: EnhancedFormFieldDescriptor = {
+      type,
+      description: label,
+      component: aiComponent,
+      ...(required ? { required: true } : {}),
+      ...(hasConstraints ? { constraints } : {}),
+      ...(staticOptions ? { options: staticOptions } : {}),
+      ...(optionsSource ? { optionsSource } : {}),
+      ...(item.defaultValue !== undefined
+        ? { defaultValue: item.defaultValue }
+        : {}),
+      ...(placeholder ? { placeholder } : {}),
+    };
+
+    params[fieldName] = descriptor;
+  }
+
+  return params;
+}
+
+// ============ Remote Options Resolver / 远程选项解析 ============
+
+/** Cache for resolved remote options / 远程选项缓存 */
+const _remoteOptionsCache = new Map<string, AiFieldOption[]>();
+const _remoteOptionsPending = new Map<string, Promise<AiFieldOption[]>>();
+
+/**
+ * Build a stable cache key from resource + field + api function
+ * 从 resource + field + api 函数构建稳定的缓存 key
+ */
+function buildOptionsCacheKey(resource: string, fieldName: string): string {
+  return `${resource}::${fieldName}`;
+}
+
+/**
+ * Resolve remote options for all ApiSelect fields in a schema.
+ * Returns a Map<fieldName, options[]>. Uses cache to avoid duplicate requests.
+ * 解析 schema 中所有 ApiSelect 字段的远程选项。
+ * 返回 Map<字段名, 选项列表>，使用缓存避免重复请求。
+ */
+export async function resolveRemoteOptions(
+  schema: VbenFormSchema[],
+  resource: string,
+): Promise<Map<string, AiFieldOption[]>> {
+  const result = new Map<string, AiFieldOption[]>();
+  const tasks: Array<{
+    fieldName: string;
+    promise: Promise<AiFieldOption[]>;
+  }> = [];
+
+  for (const item of schema) {
+    const fieldName = item.fieldName as string | undefined;
+    const component = item.component as string;
+    if (!fieldName) continue;
+    if (component !== 'ApiSelect' && component !== 'ApiTreeSelect') continue;
+
+    const props = item.componentProps as Record<string, unknown> | undefined;
+    const apiFn = props?.api as ((...args: any[]) => Promise<any>) | undefined;
+    if (!apiFn) continue;
+
+    const cacheKey = buildOptionsCacheKey(resource, fieldName);
+
+    // Return cached / 直接用缓存
+    if (_remoteOptionsCache.has(cacheKey)) {
+      result.set(fieldName, _remoteOptionsCache.get(cacheKey)!);
+      continue;
+    }
+
+    // Deduplicate in-flight requests / 去重正在进行的请求
+    if (_remoteOptionsPending.has(cacheKey)) {
+      tasks.push({ fieldName, promise: _remoteOptionsPending.get(cacheKey)! });
+      continue;
+    }
+
+    const apiParams = { ...(props?.params as Record<string, unknown> ?? {}), 'page[size]': 50 };
+    const resultField = (props?.resultField as string) || 'items';
+
+    const promise = apiFn(apiParams)
+      .then((response: any) => {
+        let items: any[] = [];
+        if (Array.isArray(response)) {
+          items = response;
+        } else if (response && Array.isArray(response[resultField])) {
+          items = response[resultField];
+        } else if (response && Array.isArray(response.items)) {
+          items = response.items;
+        }
+        const options: AiFieldOption[] = items.map((item: any) => ({
+          label: String(item.label ?? item.name ?? item.title ?? item.id),
+          value: item.value ?? item.id,
+        }));
+        _remoteOptionsCache.set(cacheKey, options);
+        _remoteOptionsPending.delete(cacheKey);
+        return options;
+      })
+      .catch(() => {
+        _remoteOptionsPending.delete(cacheKey);
+        return [] as AiFieldOption[];
+      });
+
+    _remoteOptionsPending.set(cacheKey, promise);
+    tasks.push({ fieldName, promise });
+  }
+
+  // Wait for all in-flight / 等待所有进行中的请求
+  const settled = await Promise.allSettled(tasks.map((t) => t.promise));
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i]!;
+    const s = settled[i]!;
+    if (s.status === 'fulfilled' && s.value.length > 0) {
+      result.set(task.fieldName, s.value);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Clear remote options cache for a resource (or all)
+ * 清除某资源（或全部）的远程选项缓存
+ */
+export function clearRemoteOptionsCache(resource?: string): void {
+  if (!resource) {
+    _remoteOptionsCache.clear();
+    return;
+  }
+  for (const key of _remoteOptionsCache.keys()) {
+    if (key.startsWith(`${resource}::`)) {
+      _remoteOptionsCache.delete(key);
+    }
+  }
+}
+
+// ============ Fill-form read-back verification / fill_form 读回验证 ============
+
+interface FieldFeedback {
+  requested: unknown;
+  actual: unknown;
+  match: boolean;
+}
+
+/**
+ * After setValues, read back actual form values and compare with the
+ * requested values. Returns per-field feedback so the LLM can detect
+ * mismatches (e.g. passed a label instead of a value for Select fields).
+ */
+async function buildFillFormFeedback(
+  trackedApi: { getValues: () => Record<string, unknown> | Promise<Record<string, unknown>> },
+  requestedValues: Record<string, unknown>,
+): Promise<{
+  feedback: Record<string, FieldFeedback>;
+  mismatchCount: number;
+}> {
+  let actualValues: Record<string, unknown> = {};
+  try {
+    actualValues = await trackedApi.getValues();
+  } catch {
+    // Form may not be ready — return optimistic feedback
+    const feedback: Record<string, FieldFeedback> = {};
+    for (const [k, v] of Object.entries(requestedValues)) {
+      feedback[k] = { requested: v, actual: v, match: true };
+    }
+    return { feedback, mismatchCount: 0 };
+  }
+
+  const feedback: Record<string, FieldFeedback> = {};
+  let mismatchCount = 0;
+  for (const [key, requested] of Object.entries(requestedValues)) {
+    const actual = actualValues[key];
+    const match = actual === requested
+      || (actual == null && requested == null)
+      || JSON.stringify(actual) === JSON.stringify(requested);
+    feedback[key] = { requested, actual, match };
+    if (!match) mismatchCount++;
+  }
+  return { feedback, mismatchCount };
+}
+
+// ============ Param Schema Builder / 参数 schema 构建 ============
+
+/**
+ * Build a JSON-Schema-like param descriptor from EnhancedFormFieldDescriptor
+ * 从 EnhancedFormFieldDescriptor 构建 JSON Schema 风格的参数描述
+ */
+function buildFieldParamSchema(
+  entry: EnhancedFormFieldDescriptor,
+): Record<string, unknown> {
+  const schema: Record<string, unknown> = {
+    type: entry.type,
+    description: entry.description,
+  };
+  if (entry.required) schema.required = true;
+  if (entry.component) schema.component = entry.component;
+  if (entry.constraints) schema.constraints = entry.constraints;
+  if (entry.options && entry.options.length > 0) {
+    schema.options = entry.options;
+  }
+  if (entry.optionsSource) schema.optionsSource = entry.optionsSource;
+  if (entry.defaultValue !== undefined) schema.defaultValue = entry.defaultValue;
+  if (entry.placeholder) schema.placeholder = entry.placeholder;
+  return schema;
+}
+
+// ============ Standard Operations / 标准操作生成 ============
+
+/**
+ * Create standard CRUD AI operations for a list page
+ * 为列表页创建标准 CRUD AI 操作集
+ *
+ * Generates up to 7 standard operations based on provided options:
+ * 根据配置生成最多 7 种标准操作：
+ * 1. refresh_list       — always registered / 始终注册
+ * 2. search             — registered if searchSchema provided / 有 searchSchema 时注册
+ * 3. clear_search       — registered if searchSchema provided / 有 searchSchema 时注册
+ * 4. create_record      — registered if formSchema + formPopupApi provided / 有表单时注册
+ * 5. edit_record        — registered if formSchema + formPopupApi provided / 有表单时注册
+ * 6. navigate_to_detail — registered if detailRoute provided / 有 detailRoute 时注册
+ * 7. view_recycle_bin   — registered if hasRecycleBin=true / hasRecycleBin=true 时注册
+ *
+ * Extra operations can override same-named standard operations.
+ * extra 中的操作可以覆盖同名的标准操作。
+ */
+export function createStandardOperations(
+  opts: CrudAiOperationsOptions,
+): PageOperation[] {
+  const {
+    resource,
+    loadList,
+    onSearch,
+    list,
+    formPopupApi,
+    formDefaults,
+    searchSchema,
+    formSchema,
+    detailRoute,
+    hasRecycleBin,
+    openRecycleBin,
+    disabled = [],
+    extra = [],
+    pageKey: optsPageKey,
+  } = opts;
+
+  const isDisabled = (name: string) => disabled.includes(name);
+
+  // Extract internal param maps with filter field mappings
+  // 提取含 filter 字段映射的内部参数 map
+  const searchParamsMap: Record<string, SearchParamEntry> = searchSchema
+    ? extractSearchParams(searchSchema())
+    : {};
+  const rawFormSchema = formSchema ? formSchema(false) : [];
+  const formParamsMap: Record<string, EnhancedFormFieldDescriptor> = formSchema
+    ? extractFormParams(rawFormSchema)
+    : {};
+
+  // Lazy-load remote options once and merge into formParamsMap
+  // 惰性加载远程选项并合并到 formParamsMap
+  let _remoteResolved = false;
+  async function ensureRemoteOptions(): Promise<void> {
+    if (_remoteResolved || rawFormSchema.length === 0) return;
+    _remoteResolved = true;
+    const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
+    for (const [field, options] of remoteOpts) {
+      const existing = formParamsMap[field];
+      if (existing && !existing.options) {
+        existing.options = options;
+      }
+    }
+  }
+  // Fire-and-forget preload / 触发后台预加载
+  if (rawFormSchema.some((s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect')) {
+    ensureRemoteOptions();
+  }
+
+  // Get form defaults / 获取表单默认值
+  function getFormDefaults(): Record<string, unknown> {
+    return typeof formDefaults === 'function'
+      ? formDefaults()
+      : (formDefaults ?? {});
+  }
+
+  // Convert internal maps to PageOperation params schema (JSON Schema subset)
+  // 将内部 map 转换为 PageOperation.params schema（JSON Schema 子集）
+  const searchOpParams: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(searchParamsMap)) {
+    searchOpParams[key] = { type: entry.type, description: entry.description };
+  }
+
+  const createOpParams: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(formParamsMap)) {
+    createOpParams[key] = buildFieldParamSchema(entry);
+  }
+
+  // Router for navigation operations / 导航操作用的 router
+  const router = useRouter();
+
+  const operations: PageOperation[] = [];
+
+  // ── 1. refresh_list ──
+  if (!isDisabled('refresh_list')) {
+    operations.push({
+      name: 'refresh_list',
+      label: $t('shared.pageOperation.refreshList'),
+      description:
+        'Reload the current list data / 重新加载当前列表数据',
+      readonly: true,
+      handler: async () => {
+        await loadList();
+        return { success: true, message: 'List refreshed / 列表已刷新' };
+      },
+    });
+  }
+
+  // ── 2. search (only if searchSchema provides fields) ──
+  if (!isDisabled('search') && Object.keys(searchParamsMap).length > 0) {
+    operations.push({
+      name: 'search',
+      label: $t('shared.pageOperation.search'),
+      description:
+        'Search by specific field conditions / 按指定字段条件搜索',
+      readonly: true,
+      params: searchOpParams,
+      handler: async (params) => {
+        const filterParams: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(params)) {
+          if (value === undefined || value === null || value === '') continue;
+          const entry = searchParamsMap[key];
+          if (entry) {
+            // Map AI param key back to JSON:API filter fieldName
+            // 将 AI 参数 key 映射回 JSON:API filter 字段名
+            filterParams[entry.filterFieldName] = value;
+          }
+        }
+
+        onSearch(filterParams);
+
+        const applied = Object.keys(params).filter(
+          (k) => params[k] != null && params[k] !== '',
+        );
+        return {
+          success: true,
+          message:
+            applied.length > 0
+              ? `Search applied: ${applied.join(', ')} / 搜索已应用：${applied.join(', ')}`
+              : 'Search cleared / 搜索已清空',
+        };
+      },
+    });
+  }
+
+  // ── 3. clear_search (only if searchSchema provides fields) ──
+  if (!isDisabled('clear_search') && Object.keys(searchParamsMap).length > 0) {
+    operations.push({
+      name: 'clear_search',
+      label: $t('shared.pageOperation.clearSearch'),
+      description:
+        'Clear all search conditions and reload / 清空所有搜索条件并重新加载',
+      readonly: true,
+      handler: async () => {
+        onSearch({});
+        return {
+          success: true,
+          message:
+            'Search cleared, showing all data / 搜索条件已清空，显示全部数据',
+        };
+      },
+    });
+  }
+
+  // ── 4. create_record (only if formSchema + formPopupApi are available) ──
+  if (!isDisabled('create_record') && formPopupApi && formSchema) {
+    operations.push({
+      name: 'create_record',
+      label: $t('shared.pageOperation.createRecord'),
+      description:
+        'Open create form with optional pre-filled fields. User must confirm submit. / 打开新建表单，可选预填字段，用户手动确认提交。',
+      readonly: false,
+      params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+      handler: async (params) => {
+        // Only accept fields defined in formSchema, ignore unknown fields
+        // 只接受 formSchema 中定义的字段，忽略未知字段
+        const overrides: Record<string, unknown> = {};
+        for (const key of Object.keys(formParamsMap)) {
+          if (params[key] !== undefined) overrides[key] = params[key];
+        }
+
+        const defaults = getFormDefaults();
+        formPopupApi
+          .setData({
+            mode: 'add',
+            _resource: resource,
+            _defaults: { ...defaults, ...overrides },
+            ...(optsPageKey ? { _aiPageKey: optsPageKey } : {}),
+          })
+          .open();
+
+        // Wait for Drawer to open and render / 等待 Drawer 打开并渲染完成
+        await new Promise<void>((resolve) => setTimeout(resolve, 200));
+
+        const filled = Object.keys(overrides);
+        return {
+          success: true,
+          message:
+            filled.length > 0
+              ? `Create form opened with pre-filled: ${filled.join(', ')}. Please review and submit. / 表单已打开并预填了 ${filled.join(', ')}，请确认后提交。`
+              : 'Create form opened. Please fill in and submit. / 新建表单已打开，请填写并提交。',
+        };
+      },
+    });
+  }
+
+  // ── 5. edit_record (only if formSchema + formPopupApi are available) ──
+  if (!isDisabled('edit_record') && formPopupApi && formSchema) {
+    const editOpParams: Record<string, unknown> = {
+      id: {
+        type: 'number',
+        description: 'Record ID to edit / 要编辑的记录 ID',
+        required: true,
+      },
+      ...createOpParams,
+    };
+
+    operations.push({
+      name: 'edit_record',
+      label: $t('shared.pageOperation.editRecord'),
+      description:
+        'Open edit form for a record, optionally override specific fields. User must confirm submit. / 打开编辑表单，可选预填修改字段，用户手动确认提交。',
+      readonly: false,
+      params: editOpParams,
+      handler: async (params) => {
+        const id = params.id;
+        if (id == null) {
+          return {
+            success: false,
+            message: 'id is required / 请提供要编辑的记录 id',
+          };
+        }
+
+        // Find record in current list (try exact match then Number coercion)
+        // 在当前列表中查找记录（先精确匹配，再数字转换匹配）
+        const rows = list.value as Record<string, unknown>[];
+        const record =
+          rows.find((r) => r['id'] === id) ??
+          rows.find((r) => r['id'] === Number(id));
+
+        if (!record) {
+          return {
+            success: false,
+            message: `Record id=${id} not found in current list. Try refreshing first. / 当前列表中未找到 id=${id} 的记录，请先刷新列表。`,
+          };
+        }
+
+        // Apply overrides (only fields defined in formSchema)
+        // 应用覆盖值（只接受 formSchema 中定义的字段）
+        const overrides: Record<string, unknown> = {};
+        for (const key of Object.keys(formParamsMap)) {
+          if (params[key] !== undefined) overrides[key] = params[key];
+        }
+
+        formPopupApi
+          .setData({
+            ...record,
+            ...overrides,
+            mode: 'edit',
+            _resource: resource,
+            ...(optsPageKey ? { _aiPageKey: optsPageKey } : {}),
+          })
+          .open();
+
+        // Wait for Drawer to open and render / 等待 Drawer 打开并渲染完成
+        await new Promise<void>((resolve) => setTimeout(resolve, 200));
+
+        const changed = Object.keys(overrides);
+        return {
+          success: true,
+          message:
+            changed.length > 0
+              ? `Edit form opened for id=${id}, pre-filled: ${changed.join(', ')}. Please review and submit. / 编辑表单已打开 (id=${id})，已预填：${changed.join(', ')}，请确认后提交。`
+              : `Edit form opened for id=${id}. / 编辑表单已打开 (id=${id})。`,
+        };
+      },
+    });
+  }
+
+  // ── 6. navigate_to_detail (only if detailRoute is provided) ──
+  if (!isDisabled('navigate_to_detail') && detailRoute) {
+    operations.push({
+      name: 'navigate_to_detail',
+      label: $t('shared.pageOperation.navigateToDetail'),
+      description: `Navigate to record detail page / 跳转到记录详情页`,
+      readonly: true,
+      params: {
+        id: {
+          type: 'number',
+          description: 'Record ID / 记录 ID',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const id = params.id;
+        if (id == null) {
+          return {
+            success: false,
+            message: 'id is required / 请提供记录 id',
+          };
+        }
+        const path = detailRoute.replace(':id', String(id));
+        router.push(path);
+        return {
+          success: true,
+          message: `Navigated to ${path} / 已跳转到 ${path}`,
+        };
+      },
+    });
+  }
+
+  // ── 7. view_recycle_bin (only if hasRecycleBin=true) ──
+  if (!isDisabled('view_recycle_bin') && hasRecycleBin && openRecycleBin) {
+    operations.push({
+      name: 'view_recycle_bin',
+      label: $t('shared.pageOperation.viewRecycleBin'),
+      description: 'Open the recycle bin to view deleted records / 打开回收站查看已删除记录',
+      readonly: true,
+      handler: async () => {
+        openRecycleBin();
+        return {
+          success: true,
+          message: 'Recycle bin opened / 回收站已打开',
+        };
+      },
+    });
+  }
+
+  // ── 8. get_form_state (if formSchema + formApi are available) ──
+  if (!isDisabled('get_form_state') && formSchema && optsPageKey) {
+    operations.push({
+      name: 'get_form_state',
+      label: $t('shared.pageOperation.getFormState'),
+      description:
+        'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
+      readonly: true,
+      handler: async () => {
+        const state = await formStateTracker.getStateWithFallback(optsPageKey);
+        return {
+          success: true,
+          message: state.isOpen
+            ? `Form is open in ${state.mode} mode / 表单已打开，模式：${state.mode}`
+            : 'Form is not open / 表单未打开',
+          data: {
+            isOpen: state.isOpen,
+            mode: state.mode,
+            currentValues: state.currentValues,
+            dirtyFields: state.dirtyFields,
+            validationErrors: state.validationErrors,
+            fieldDescriptors: state.fieldDescriptors,
+          },
+        };
+      },
+    });
+  }
+
+  // ── 9. fill_form (if formSchema + formApi are available) ──
+  if (!isDisabled('fill_form') && formSchema && optsPageKey) {
+    operations.push({
+      name: 'fill_form',
+      label: $t('shared.pageOperation.fillForm'),
+      description:
+        'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
+      readonly: false,
+      params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+      handler: async (params) => {
+        if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
+          return {
+            success: false,
+            message: 'Form is not open. Use create_record or edit_record first. / 表单未打开，请先使用 create_record 或 edit_record。',
+          };
+        }
+
+        const trackedApi = formStateTracker.getFormApi(optsPageKey);
+        if (!trackedApi) {
+          return {
+            success: false,
+            message: 'Form API not available / 表单 API 不可用',
+          };
+        }
+
+        // Filter to known fields / 过滤为已知字段
+        const validFields: Record<string, unknown> = {};
+        const skippedFields: string[] = [];
+        for (const [key, value] of Object.entries(params)) {
+          if (formParamsMap[key]) {
+            validFields[key] = value;
+          } else {
+            skippedFields.push(key);
+          }
+        }
+
+        if (Object.keys(validFields).length === 0) {
+          return {
+            success: false,
+            message: `No valid fields to fill. Known fields: ${Object.keys(formParamsMap).join(', ')} / 没有有效字段。已知字段：${Object.keys(formParamsMap).join(', ')}`,
+          };
+        }
+
+        try {
+          trackedApi.setValues(validFields);
+          await new Promise<void>((r) => setTimeout(r, 100));
+        } catch {
+          return { success: false, message: 'Failed to set form values / 设置表单值失败' };
+        }
+
+        const filledKeys = Object.keys(validFields);
+        const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
+        const skippedInfo = skippedFields.length > 0 ? `. Skipped unknown: ${skippedFields.join(', ')}` : '';
+        return {
+          success: true,
+          message: mismatchCount > 0
+            ? `Filled ${filledKeys.length} field(s), ${mismatchCount} may need attention${skippedInfo}`
+            : `All ${filledKeys.length} field(s) filled successfully${skippedInfo}`,
+          data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
+        };
+      },
+    });
+  }
+
+  // ── 10. validate_form ──
+  if (!isDisabled('validate_form') && formSchema && optsPageKey) {
+    operations.push({
+      name: 'validate_form',
+      label: $t('shared.pageOperation.validateForm'),
+      description:
+        'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
+      readonly: true,
+      handler: async () => {
+        if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
+          return {
+            success: false,
+            message: 'Form is not open / 表单未打开',
+          };
+        }
+        const trackedApi = formStateTracker.getFormApi(optsPageKey);
+        if (!trackedApi) {
+          return { success: false, message: 'Form API not available / 表单 API 不可用' };
+        }
+        try {
+          const { valid } = await trackedApi.validate();
+          return {
+            success: true,
+            message: valid
+              ? 'All fields are valid / 所有字段校验通过'
+              : 'Form has validation errors / 表单存在校验错误',
+            data: { valid },
+          };
+        } catch {
+          return { success: false, message: 'Validation failed / 校验执行失败' };
+        }
+      },
+    });
+  }
+
+  // ── 11. get_form_options (for remote select fields) ──
+  if (!isDisabled('get_form_options') && formSchema && optsPageKey) {
+    const remoteFields = Object.entries(formParamsMap)
+      .filter(([_, desc]) => desc.optionsSource === 'remote')
+      .map(([key]) => key);
+
+    if (remoteFields.length > 0) {
+      operations.push({
+        name: 'get_form_options',
+        label: $t('shared.pageOperation.getFormOptions'),
+        description:
+          `Get available options for remote select fields. Available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。可用字段：${remoteFields.join(', ')}`,
+        readonly: true,
+        params: {
+          field_name: {
+            type: 'string',
+            description: `Field name to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的字段名`,
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const fieldName = params.field_name as string;
+          if (!fieldName || !formParamsMap[fieldName]) {
+            return {
+              success: false,
+              message: `Unknown field: ${fieldName}. Available: ${remoteFields.join(', ')}`,
+            };
+          }
+
+          await ensureRemoteOptions();
+          const desc = formParamsMap[fieldName];
+          if (desc?.options && desc.options.length > 0) {
+            return {
+              success: true,
+              message: `Found ${desc.options.length} options for "${fieldName}"`,
+              data: { field: fieldName, options: desc.options },
+            };
+          }
+
+          return {
+            success: true,
+            message: `No options loaded for "${fieldName}" / 未加载到 "${fieldName}" 的选项`,
+            data: { field: fieldName, options: [] },
+          };
+        },
+      });
+    }
+  }
+
+  // Merge extra operations — extra overrides same-named standard operations
+  // 合并额外操作 — extra 中的操作可覆盖同名标准操作
+  for (const op of extra) {
+    const existingIdx = operations.findIndex((o) => o.name === op.name);
+    if (existingIdx >= 0) {
+      operations[existingIdx] = op;
+    } else {
+      operations.push(op);
+    }
+  }
+
+  return operations;
+}
+
+// ============ Form-only Operations / 仅表单操作 ============
+
+/**
+ * Options for createFormOperations
+ * createFormOperations 配置选项
+ */
+export interface FormAiOperationsOptions {
+  /** Page key (for formStateTracker) / 页面标识 */
+  pageKey: string;
+  /** Form schema factory / 表单 schema 工厂函数 */
+  formSchema: (isEdit?: boolean) => VbenFormSchema[];
+  /** API resource path (for remote options cache) / API 资源路径（用于远程选项缓存） */
+  resource: string;
+}
+
+/**
+ * Create form-only AI operations (get_form_state, fill_form, validate_form, get_form_options)
+ * 创建仅表单相关的 AI 操作
+ *
+ * For useCrudPage pages that manually register other operations but need form support.
+ * 供 useCrudPage 页面使用：手动注册其他操作，但需要表单支持。
+ */
+export function createFormOperations(
+  opts: FormAiOperationsOptions,
+): PageOperation[] {
+  const { pageKey, formSchema, resource } = opts;
+
+  const rawFormSchema = formSchema(false);
+  const formParamsMap = extractFormParams(rawFormSchema);
+
+  const createOpParams: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(formParamsMap)) {
+    createOpParams[key] = buildFieldParamSchema(entry);
+  }
+
+  let _remoteResolved = false;
+  async function ensureRemoteOptions(): Promise<void> {
+    if (_remoteResolved || rawFormSchema.length === 0) return;
+    _remoteResolved = true;
+    const remoteOpts = await resolveRemoteOptions(rawFormSchema, resource);
+    for (const [field, options] of remoteOpts) {
+      const existing = formParamsMap[field];
+      if (existing && !existing.options) {
+        existing.options = options;
+      }
+    }
+  }
+  if (rawFormSchema.some((s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect')) {
+    ensureRemoteOptions();
+  }
+
+  const operations: PageOperation[] = [];
+
+  // get_form_state
+  operations.push({
+    name: 'get_form_state',
+    label: $t('shared.pageOperation.getFormState'),
+    description:
+      'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
+    readonly: true,
+    handler: async () => {
+      const state = await formStateTracker.getStateWithFallback(pageKey);
+      return {
+        success: true,
+        message: state.isOpen
+          ? `Form is open in ${state.mode} mode / 表单已打开，模式：${state.mode}`
+          : 'Form is not open / 表单未打开',
+        data: {
+          isOpen: state.isOpen,
+          mode: state.mode,
+          currentValues: state.currentValues,
+          dirtyFields: state.dirtyFields,
+          validationErrors: state.validationErrors,
+          fieldDescriptors: state.fieldDescriptors,
+        },
+      };
+    },
+  });
+
+  // fill_form
+  operations.push({
+    name: 'fill_form',
+    label: $t('shared.pageOperation.fillForm'),
+    description:
+      'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
+    readonly: false,
+    params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+    handler: async (params) => {
+      if (!formStateTracker.isOpenWithFallback(pageKey)) {
+        return {
+          success: false,
+          message: 'Form is not open. Use create_record or edit_record first. / 表单未打开，请先使用 create_record 或 edit_record。',
+        };
+      }
+
+      const trackedApi = formStateTracker.getFormApi(pageKey);
+      if (!trackedApi) {
+        return {
+          success: false,
+          message: 'Form API not available / 表单 API 不可用',
+        };
+      }
+
+      const validFields: Record<string, unknown> = {};
+      const skippedFields: string[] = [];
+      for (const [key, value] of Object.entries(params)) {
+        if (formParamsMap[key]) {
+          validFields[key] = value;
+        } else {
+          skippedFields.push(key);
+        }
+      }
+
+      if (Object.keys(validFields).length === 0) {
+        return {
+          success: false,
+          message: `No valid fields to fill. Known fields: ${Object.keys(formParamsMap).join(', ')} / 没有有效字段。已知字段：${Object.keys(formParamsMap).join(', ')}`,
+        };
+      }
+
+      try {
+        trackedApi.setValues(validFields);
+        await new Promise<void>((r) => setTimeout(r, 100));
+      } catch {
+        return { success: false, message: 'Failed to set form values / 设置表单值失败' };
+      }
+
+      const filledKeys = Object.keys(validFields);
+      const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
+      const skippedInfo = skippedFields.length > 0 ? `. Skipped unknown: ${skippedFields.join(', ')}` : '';
+      return {
+        success: true,
+        message: mismatchCount > 0
+          ? `Filled ${filledKeys.length} field(s), ${mismatchCount} may need attention${skippedInfo}`
+          : `All ${filledKeys.length} field(s) filled successfully${skippedInfo}`,
+        data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
+      };
+    },
+  });
+
+  // validate_form
+  operations.push({
+    name: 'validate_form',
+    label: $t('shared.pageOperation.validateForm'),
+    description:
+      'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
+    readonly: true,
+    handler: async () => {
+      if (!formStateTracker.isOpenWithFallback(pageKey)) {
+        return {
+          success: false,
+          message: 'Form is not open / 表单未打开',
+        };
+      }
+      const trackedApi = formStateTracker.getFormApi(pageKey);
+      if (!trackedApi) {
+        return { success: false, message: 'Form API not available / 表单 API 不可用' };
+      }
+      try {
+        const { valid } = await trackedApi.validate();
+        return {
+          success: true,
+          message: valid
+            ? 'All fields are valid / 所有字段校验通过'
+            : 'Form has validation errors / 表单存在校验错误',
+          data: { valid },
+        };
+      } catch {
+        return { success: false, message: 'Validation failed / 校验执行失败' };
+      }
+    },
+  });
+
+  // get_form_options (for remote select fields)
+  const remoteFields = Object.entries(formParamsMap)
+    .filter(([_, desc]) => desc.optionsSource === 'remote')
+    .map(([key]) => key);
+
+  if (remoteFields.length > 0) {
+    operations.push({
+      name: 'get_form_options',
+      label: $t('shared.pageOperation.getFormOptions'),
+      description:
+        `Get available options for remote select fields. Available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。可用字段：${remoteFields.join(', ')}`,
+      readonly: true,
+      params: {
+        field_name: {
+          type: 'string',
+          description: `Field name to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的字段名`,
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const fieldName = params.field_name as string;
+        if (!fieldName || !formParamsMap[fieldName]) {
+          return {
+            success: false,
+            message: `Unknown field: ${fieldName}. Available: ${remoteFields.join(', ')}`,
+          };
+        }
+
+        await ensureRemoteOptions();
+        const desc = formParamsMap[fieldName];
+        if (desc?.options && desc.options.length > 0) {
+          return {
+            success: true,
+            message: `Found ${desc.options.length} options for "${fieldName}"`,
+            data: { field: fieldName, options: desc.options },
+          };
+        }
+
+        return {
+          success: true,
+          message: `No options loaded for "${fieldName}" / 未加载到 "${fieldName}" 的选项`,
+          data: { field: fieldName, options: [] },
+        };
+      },
+    });
+  }
+
+  return operations;
+}

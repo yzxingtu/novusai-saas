@@ -48,12 +48,22 @@ import {
   ref,
 } from 'vue';
 
+import { useRoute } from 'vue-router';
+
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+import type { FormPopupApi } from './use-ai-operations';
+import { createStandardOperations, extractFormParams } from './use-ai-operations';
+import { formStateTracker } from './use-form-state-tracker';
 
 // ============================================================
 // Dependency block types & imperative modal
@@ -284,6 +294,79 @@ export interface UseCrudListOptions<
 
   /** Custom action handlers / 自定义操作处理器 */
   customActions?: Record<string, (row: T) => void>;
+
+  /**
+   * AI page operation config (auto-registers standard CRUD operations)
+   * AI 页面操作配置（自动注册标准 CRUD 操作）
+   *
+   * - Not provided / 不提供: AI operations not registered / 不注册 AI 操作
+   * - false: Explicitly disable AI operations / 显式禁用 AI 操作
+   * - CrudListAiOptions: Enable with config / 启用并配置
+   */
+  ai?: CrudListAiOptions | false;
+}
+
+/**
+ * AI page operation options for useCrudList
+ * useCrudList 的 AI 页面操作配置选项
+ */
+export interface CrudListAiOptions {
+  /**
+   * Page key override (defaults to normalizePageKey of route.meta.ai?.pageContextKey or route.path)
+   * 页面标识覆盖（默认通过 normalizePageKey 从 route.meta.ai?.pageContextKey 或 route.path 推导为点号格式）
+   */
+  pageKey?: string;
+  /** Operations to disable / 禁用的操作名称列表 */
+  disabled?: string[];
+  /**
+   * Search schema factory — used to derive search params for 'search' operation
+   * 搜索 schema 工厂函数 — 用于推导 search 操作的参数
+   */
+  searchSchema?: () => VbenFormSchema[];
+  /**
+   * Form schema factory — used to derive create/edit params
+   * 表单 schema 工厂函数 — 用于推导 create/edit 操作的参数
+   */
+  formSchema?: (isEdit?: boolean) => VbenFormSchema[];
+  /**
+   * Detail route template (e.g. '/admin/ai/agents/:id') — enables navigate_to_detail
+   * 详情页路由模板 — 启用 navigate_to_detail 操作
+   */
+  detailRoute?: string;
+  /**
+   * Open recycle bin callback — enables view_recycle_bin operation
+   * 打开回收站回调 — 启用 view_recycle_bin 操作
+   */
+  openRecycleBin?: () => void;
+  /**
+   * Extra custom operations merged with standard ops (extra overrides same-named standard)
+   * 额外自定义操作，与标准操作合并（extra 可覆盖同名标准操作）
+   */
+  extra?: PageOperation[];
+  /**
+   * Entity display name (for AI context) / 业务实体名称（供 AI 上下文理解）
+   * @example "智能体" / "知识库"
+   */
+  entityName?: string;
+  /**
+   * Entity description (for AI context) / 业务描述（供 AI 上下文理解）
+   * @example "管理 AI 智能体的配置、技能绑定和发布状态"
+   */
+  entityDescription?: string;
+  /**
+   * Form purpose descriptions (for AI context) / 表单用途描述（供 AI 上下文理解）
+   */
+  formPurpose?: {
+    create?: string;
+    edit?: string;
+  };
+  /**
+   * Extra page_data to merge into auto-registered page context.
+   * Use this instead of manual registerPageContext() to avoid key conflicts.
+   * 合并到自动注册的页面上下文的额外 page_data。
+   * 使用此选项替代手动 registerPageContext()，避免 key 冲突。
+   */
+  contextExtras?: () => Record<string, unknown>;
 }
 
 /** useCrudList return value / useCrudList 返回值 */
@@ -330,6 +413,10 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   // === Recycle bin / 回收站 ===
   openRecycleBin: () => void;
   recycleBinCount: Ref<number>;
+
+  // === AI ===
+  /** Resolved AI page key (for ref-mode form integration) / 解析后的 AI 页面标识 */
+  aiPageKey: string | undefined;
 
   // === Utilities / 辅助 ===
   isProcessing: (id: number | string) => boolean;
@@ -419,6 +506,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     keyField = 'id',
     nameField = 'name' as keyof T & string,
     customActions = {},
+    ai,
   } = options;
 
   /** Get row primary key value / 获取行主键值 */
@@ -574,14 +662,121 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         mode: 'add',
         _resource: api.resource,
         _defaults: defaults,
+        ...(resolvedAiPageKey ? { _aiPageKey: resolvedAiPageKey } : {}),
       })
       .open();
   }
 
   function onEdit(row: T) {
     formPopupApi
-      ?.setData({ ...row, mode: 'edit', _resource: api.resource })
+      ?.setData({
+        ...row,
+        mode: 'edit',
+        _resource: api.resource,
+        ...(resolvedAiPageKey ? { _aiPageKey: resolvedAiPageKey } : {}),
+      })
       .open();
+  }
+
+  // ==================== AI page operations / AI 页面操作自动注册 ====================
+  // Auto-register standard CRUD operations if ai config is provided
+  // 如果提供了 ai 配置，自动注册标准 CRUD 操作
+  let cleanupAiOps: (() => void) | null = null;
+
+  // Resolved AI page key (shared between operations and form tracking)
+  // 解析后的 AI 页面标识（在操作注册和表单追踪间共享）
+  let resolvedAiPageKey: string | undefined;
+  let cleanupAiContext: (() => void) | null = null;
+
+  if (ai !== false && ai !== undefined) {
+    const route = useRoute();
+    const pageKey = normalizePageKey(
+      ai.pageKey ??
+      ((route.meta?.ai as Record<string, unknown> | undefined)
+        ?.pageContextKey as string | undefined) ??
+      route.path,
+    );
+    resolvedAiPageKey = pageKey;
+
+    const standardOps = createStandardOperations({
+      resource: api.resource,
+      loadList,
+      onSearch,
+      list: list as Ref<unknown[]>,
+      formPopupApi: formPopupApi as FormPopupApi | null,
+      formDefaults,
+      searchSchema: ai.searchSchema,
+      formSchema: ai.formSchema,
+      detailRoute: ai.detailRoute,
+      hasRecycleBin: !!options.recycleBin && !!ai.openRecycleBin,
+      openRecycleBin: ai.openRecycleBin,
+      disabled: ai.disabled,
+      extra: ai.extra,
+      pageKey,
+    });
+
+    cleanupAiOps = registerPageOperations(pageKey, standardOps);
+
+    // Auto-register enhanced page context with semantic info
+    // 自动注册含语义信息的增强页面上下文
+    const routeTitle = route.meta?.title as string | undefined;
+    const entityName = ai.entityName ?? routeTitle ?? '';
+    const entityDescription = ai.entityDescription;
+    const formPurpose = ai.formPurpose;
+    const contextExtras = ai.contextExtras;
+    const formFieldDescriptors = ai.formSchema
+      ? extractFormParams(ai.formSchema(false))
+      : undefined;
+
+    cleanupAiContext = registerPageContext(pageKey, () => {
+      // Build list_summary: top-5 rows with up to 6 fields each
+      let listSummary: Record<string, unknown> | undefined;
+      const rows = list.value;
+      if (rows.length > 0) {
+        const allKeys = Object.keys(rows[0] as Record<string, unknown>);
+        const displayKeys = allKeys
+          .filter((k) => !k.startsWith('_') && k !== 'id')
+          .slice(0, 6);
+        const sampleRows = rows.slice(0, 5).map((row) => {
+          const summary: Record<string, unknown> = {};
+          for (const k of displayKeys) {
+            const val = (row as Record<string, unknown>)[k];
+            if (val !== undefined && val !== null) {
+              summary[k] = String(val).slice(0, 50);
+            }
+          }
+          return summary;
+        });
+        listSummary = {
+          total_rows: total.value,
+          page_size: pageSize.value,
+          current_page: currentPage.value,
+          sample_rows: sampleRows,
+        };
+      }
+
+      return {
+        page_key: pageKey,
+        page_title: entityName || routeTitle || pageKey,
+        page_data: {
+          total: total.value,
+          current_page: currentPage.value,
+          list_count: rows.length,
+          resource: api.resource,
+          ...(entityName ? { entity_name: entityName } : {}),
+          ...(entityDescription ? { entity_description: entityDescription } : {}),
+          ...(formPurpose ? { form_purpose: formPurpose } : {}),
+          ...(formFieldDescriptors && Object.keys(formFieldDescriptors).length > 0
+            ? { form_fields: formFieldDescriptors }
+            : {}),
+          ...(formStateTracker.isOpen(pageKey)
+            ? { form_is_open: true }
+            : {}),
+          ...(listSummary ? { list_summary: listSummary } : {}),
+          ...(contextExtras ? contextExtras() : {}),
+        },
+      };
+    });
   }
 
   // ==================== Debounce state / 防抖状态 ====================
@@ -752,6 +947,10 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
   onBeforeUnmount(() => {
     stopAutoRefresh();
+    // Cleanup AI page operations and context on unmount / 组件卸载时清理 AI 页面操作和上下文注册
+    cleanupAiOps?.();
+    cleanupAiContext?.();
+    if (resolvedAiPageKey) formStateTracker.close(resolvedAiPageKey);
   });
 
   // ==================== Return / 返回 ====================
@@ -792,6 +991,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     // Recycle bin / 回收站
     openRecycleBin,
     recycleBinCount,
+
+    // AI
+    aiPageKey: resolvedAiPageKey,
 
     // Utilities / 辅助
     isProcessing,

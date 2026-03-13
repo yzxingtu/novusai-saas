@@ -1081,36 +1081,26 @@ async def resolve_for_agent(
         )
 
     # ── Phase 1: Load explicit binding data (DB errors re-raised directly) ──
-    # 加载显式绑定数据（DB 错误直接上抛）
-    if agent_tenant_id:
-        binding_stmt = (
-            select(AgentSkillBinding)
-            .where(
-                and_(
-                    AgentSkillBinding.agent_id == agent.id,
-                    or_(
-                        AgentSkillBinding.tenant_id == agent_tenant_id,
-                        AgentSkillBinding.tenant_id.is_(None),
-                    ),
-                    AgentSkillBinding.enabled.is_(True),
-                    AgentSkillBinding.is_deleted.is_(False),
-                )
-            )
-            .order_by(AgentSkillBinding.sort_order)
-        )
+    # 绑定记录的 tenant_id 跟随 agent.tenant_id，而非调用方的 tenant_id
+    # Binding tenant_id follows agent.tenant_id, not the caller's tenant_id
+    binding_owner_tid = getattr(agent, "tenant_id", None)
+    if binding_owner_tid is not None:
+        binding_tenant_condition = AgentSkillBinding.tenant_id == binding_owner_tid
     else:
-        binding_stmt = (
-            select(AgentSkillBinding)
-            .where(
-                and_(
-                    AgentSkillBinding.agent_id == agent.id,
-                    AgentSkillBinding.tenant_id.is_(None),
-                    AgentSkillBinding.enabled.is_(True),
-                    AgentSkillBinding.is_deleted.is_(False),
-                )
+        binding_tenant_condition = AgentSkillBinding.tenant_id.is_(None)
+
+    binding_stmt = (
+        select(AgentSkillBinding)
+        .where(
+            and_(
+                AgentSkillBinding.agent_id == agent.id,
+                binding_tenant_condition,
+                AgentSkillBinding.enabled.is_(True),
+                AgentSkillBinding.is_deleted.is_(False),
             )
-            .order_by(AgentSkillBinding.sort_order)
         )
+        .order_by(AgentSkillBinding.sort_order)
+    )
 
     try:
         binding_result = await db.execute(binding_stmt)

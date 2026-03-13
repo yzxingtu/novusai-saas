@@ -43,7 +43,7 @@ async def list_comments(request, db, ctx):
             "creator_id": c.creator_id, "creator_name": c.creator_name,
             "is_resolved": c.is_resolved, "anchor_from": c.anchor_from,
             "anchor_to": c.anchor_to, "quoted_text": c.quoted_text,
-            "created_at": str(c.created_at) if c.created_at else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in rows
     ]

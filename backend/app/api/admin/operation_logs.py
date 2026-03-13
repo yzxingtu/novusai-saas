@@ -181,7 +181,7 @@ class AdminOperationLogController(GlobalController):
                     "action": getattr(item, "action", ""),
                     "ip": getattr(item, "ip", ""),
                     "response_code": getattr(item, "response_code", ""),
-                    "created_at": str(getattr(item, "created_at", "")),
+                    "created_at": getattr(item, "created_at", "").isoformat() if hasattr(getattr(item, "created_at", ""), "isoformat") else str(getattr(item, "created_at", "")),
                 }
                 for item in items
             ]

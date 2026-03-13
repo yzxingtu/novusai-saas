@@ -8,7 +8,6 @@ import type { AdapterTypeInfo, AIProviderInfo } from '#/api/admin/ai';
 import { ref } from 'vue';
 
 import {
-  iconField,
   inputField,
   searchInput,
   select,
@@ -188,9 +187,11 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),
-    iconField('icon', $t('admin.ai.provider.icon'), {
-      placeholder: 'lucide:cpu',
-    }),
+    {
+      component: 'ImageUpload' as const,
+      fieldName: 'icon',
+      label: $t('admin.ai.provider.icon'),
+    },
     {
       ...switchField('is_active', $t('admin.ai.provider.isActive'), {
         defaultValue: true,

@@ -611,6 +611,23 @@
       "fetch_remote_models_failed": "从供应商拉取模型列表失败",
       "quota_exceeded_default": "AI 配额已超出，请稍后重试"
     },
+    "provider": {
+      "created": "供应商创建成功",
+      "updated": "供应商更新成功",
+      "deleted": "供应商删除成功",
+      "status_updated": "供应商状态已更新"
+    },
+    "model": {
+      "created": "模型创建成功",
+      "updated": "模型更新成功",
+      "deleted": "模型删除成功"
+    },
+    "api_key": {
+      "created": "API Key 创建成功",
+      "updated": "API Key 更新成功",
+      "deleted": "API Key 删除成功",
+      "status_updated": "API Key 状态已更新"
+    },
     "quota": {
       "created": "配额配置创建成功",
       "updated": "配额配置更新成功",

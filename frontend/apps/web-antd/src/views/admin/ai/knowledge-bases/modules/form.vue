@@ -32,12 +32,14 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
       name: values.name,
       description: values.description || null,
       ...extractScopePayload(values),
+      vision_model_id: values.vision_model_id ?? null,
+      extract_images: values.extract_images ?? false,
     };
     if (!edit) {
       result.embedding_model_id = values.embedding_model_id;
+      result.chunk_size = values.chunk_size;
+      result.chunk_overlap = values.chunk_overlap;
     }
-    result.chunk_size = values.chunk_size;
-    result.chunk_overlap = values.chunk_overlap;
     return result;
   },
   toFormValues: (data) => ({
@@ -47,6 +49,8 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     tenant_id: data.tenant_id ?? null,
     tenant_ids: data.assigned_tenant_ids ?? [],
     embedding_model_id: data.embedding_model_id,
+    vision_model_id: (data as Record<string, unknown>).vision_model_id ?? null,
+    extract_images: (data as Record<string, unknown>).extract_images ?? false,
     chunk_size: data.chunk_size,
     chunk_overlap: data.chunk_overlap,
   }),

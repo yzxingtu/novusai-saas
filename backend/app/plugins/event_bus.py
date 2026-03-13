@@ -25,7 +25,7 @@ import asyncio
 import json
 import sys
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Callable
 from typing import Any
 
@@ -63,7 +63,7 @@ class PluginEventBus:
 
     def __init__(self) -> None:
         self._subscribers: dict[str, list[_Subscription]] = defaultdict(list)
-        self._dead_letters: list[dict[str, Any]] = []
+        self._dead_letters: deque[dict[str, Any]] = deque(maxlen=self._MAX_DEAD_LETTERS)
 
     @classmethod
     def get_instance(cls) -> PluginEventBus:
@@ -258,7 +258,10 @@ class PluginEventBus:
                 timeout=sub.timeout,
             )
         else:
-            sub.handler(event_name, payload)
+            await asyncio.wait_for(
+                asyncio.to_thread(sub.handler, event_name, payload),
+                timeout=sub.timeout,
+            )
 
     def _record_dead_letter(
         self,
@@ -276,8 +279,6 @@ class PluginEventBus:
             "timestamp": time.time(),
         }
         self._dead_letters.append(entry)
-        if len(self._dead_letters) > self._MAX_DEAD_LETTERS:
-            self._dead_letters = self._dead_letters[-self._MAX_DEAD_LETTERS:]
 
     def get_dead_letters(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent dead letter records (for admin health page) / 获取最近的死信记录（供管理员健康页查看）"""

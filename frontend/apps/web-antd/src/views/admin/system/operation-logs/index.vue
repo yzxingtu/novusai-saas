@@ -139,7 +139,7 @@ const cleanupPageContext = registerPageContext('admin/system/operation-logs', ()
 
 const cleanupPageOps = registerPageOperations('admin.system.operation-logs', [
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search operation logs by path',
     readonly: true,

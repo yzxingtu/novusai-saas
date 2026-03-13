@@ -50,6 +50,7 @@ import {
 } from '#/api/admin/dashboard';
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
 import { $t } from '#/locales';
+import { formatDate as formatDateUtil } from '#/utils/common';
 
 defineOptions({ name: 'Dashboard' });
 
@@ -231,16 +232,7 @@ function formatNumber(n: number): string {
 
 function formatDate(dateStr: null | string): string {
   if (!dateStr) return '';
-  try {
-    return new Date(dateStr).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateUtil(dateStr);
 }
 
 const methodColors: Record<string, string> = {
@@ -352,9 +344,9 @@ const currentTime = ref('');
 let timeInterval: null | ReturnType<typeof setInterval> = null;
 function startClock() {
   if (timeInterval) return;
-  currentTime.value = new Date().toLocaleString();
+  currentTime.value = formatDateUtil(new Date());
   timeInterval = setInterval(() => {
-    currentTime.value = new Date().toLocaleString();
+    currentTime.value = formatDateUtil(new Date());
   }, 1000);
 }
 

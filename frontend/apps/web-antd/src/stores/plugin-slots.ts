@@ -119,7 +119,11 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
           if (slot.component) {
             const mod = await getPluginMod(slot.plugin_name);
             comp = mod[slot.component] as Component | undefined;
-            if (comp) comp = markRaw(comp);
+            if (comp) {
+              comp = markRaw(comp);
+            } else if (storeKey !== 'standalonePages') {
+              continue;
+            }
           }
           registerSlot(storeKey, {
             pluginName: slot.plugin_name,

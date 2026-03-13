@@ -51,6 +51,7 @@ const { list: quotas, loading: quotaLoading } =
         : [],
       total: Array.isArray(data) ? (data as unknown[]).length : 0,
     }),
+    ai: false,
   });
 
 // ========== 速率限制 Tab — useCrudList（只读） ==========
@@ -66,6 +67,7 @@ const { list: rateLimits, loading: rateLimitLoading } =
       items: Array.isArray(data) ? (data as TenantRateLimitInfo[]) : [],
       total: Array.isArray(data) ? (data as unknown[]).length : 0,
     }),
+    ai: false,
   });
 
 /** 获取进度条颜色 */

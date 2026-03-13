@@ -19,7 +19,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 import { preferences } from '@vben/preferences';
-import { useAccessStore, useUserStore } from '@vben/stores';
+
 
 import {
   Button,
@@ -65,10 +65,7 @@ import {
 import { getTenantListApi } from '#/api/admin/tenant';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { scopeNeedsAssignment } from '#/components/business/scope-select';
-import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
 import { $t } from '#/locales';
-import { generateAccess } from '#/router/access';
-import { accessRoutes } from '#/router/routes';
 import { usePluginInstallProgressStore } from '#/store';
 import { formatDate } from '#/utils/common';
 
@@ -86,8 +83,6 @@ import {
 const emit = defineEmits<{ saved: [] }>();
 
 const router = useRouter();
-const accessStore = useAccessStore();
-const userStore = useUserStore();
 const progressStore = usePluginInstallProgressStore();
 
 const visible = ref(false);
@@ -128,34 +123,10 @@ const availableTenants = computed(() =>
 );
 
 async function refreshAdminMenusAndPluginRoutes() {
-  try {
-    await refreshPluginSlots('/admin', router);
-  } catch (error) {
-    console.warn(
-      '[PluginConfigDrawer] Failed to refresh plugin slots immediately:',
-      error,
-    );
-  }
-  try {
-    const userRoles = userStore.userInfo?.roles ?? [];
-    const { accessibleMenus, accessibleRoutes } = await generateAccess(
-      {
-        roles: userRoles,
-        router,
-        routes: accessRoutes,
-      },
-      'admin',
-    );
-    accessStore.setAccessMenus(accessibleMenus);
-    accessStore.setAccessRoutes(accessibleRoutes);
-    accessStore.setIsAccessChecked(true);
-  } catch (error) {
-    console.warn(
-      '[PluginConfigDrawer] Failed to refresh admin menu/routes immediately:',
-      error,
-    );
-    accessStore.setIsAccessChecked(false);
-  }
+  const { refreshAdminMenusAndPluginRoutes: _refresh } = await import(
+    '#/composables/use-plugin-admin-refresh'
+  );
+  await _refresh(router);
 }
 
 interface ConfigField {
@@ -301,7 +272,7 @@ async function onAssignTenants() {
     showTenantSelect.value = false;
     await loadTenantAssignments(plugin.value.id);
   } catch {
-    message.error('Failed to assign tenants');
+    message.error($t('admin.plugin.assignFailed'));
   }
 }
 
@@ -311,7 +282,7 @@ async function onUnassignTenant(tenantId: number) {
     await unassignPluginTenantApi(plugin.value.id, tenantId);
     await loadTenantAssignments(plugin.value.id);
   } catch {
-    message.error('Failed to unassign tenant');
+    message.error($t('admin.plugin.unassignFailed'));
   }
 }
 
@@ -324,11 +295,25 @@ function getTenantName(tenantId: number): string {
 
 async function onEnable() {
   if (!plugin.value) return;
-  await enablePluginApi(plugin.value.id);
-  message.success($t('admin.plugin.messages.enableSuccess'));
-  await reload();
-  emit('saved');
-  await refreshAdminMenusAndPluginRoutes();
+  const pluginVal = plugin.value;
+  const progressStore = usePluginInstallProgressStore();
+
+  try {
+    progressStore.reset();
+    progressStore.startOperation(pluginVal.display_name, 'enable');
+    await enablePluginApi(pluginVal.id);
+    progressStore.markComplete();
+    message.success($t('admin.plugin.messages.enableSuccess'));
+    await reload();
+    emit('saved');
+    await refreshAdminMenusAndPluginRoutes();
+  } catch (error: unknown) {
+    const msg =
+      (error as { message?: string })?.message ||
+      $t('admin.plugin.messages.enableFailed');
+    progressStore.markError(msg);
+    message.error(msg);
+  }
 }
 
 function onDisable() {
@@ -337,7 +322,6 @@ function onDisable() {
   Modal.confirm({
     title: $t('admin.plugin.confirm.disable', { name: pluginVal.display_name }),
     onOk() {
-      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
       disablePluginApi(pluginVal.id)
         .then(async () => {
           message.success($t('admin.plugin.messages.disableSuccess'));
@@ -345,54 +329,17 @@ function onDisable() {
           emit('saved');
           await refreshAdminMenusAndPluginRoutes();
         })
-        .catch((error: unknown) => {
-          type AxiosLike = {
-            message?: string;
-            response?: { data?: { message?: string } };
-          };
-          const apiMsg =
-            (error as AxiosLike)?.response?.data?.message ??
-            (error as AxiosLike)?.message ??
-            '';
-          // Dependent plugin error / 依赖插件错误
-          if (apiMsg.includes('depend on it') || apiMsg.includes('plugins [')) {
-            const match = apiMsg.match(/plugins \[([^\]]+)\]/);
-            const deps = match ? match[1] : apiMsg;
-            Modal.warning({
-              title: $t('admin.plugin.confirm.dependency_error_title', {
-                name: pluginVal.display_name,
-              }),
-              content: $t('admin.plugin.confirm.dependency_error_content', {
-                deps,
-              }),
-            });
-            return;
-          }
-          // Storage driver error — pop force-disable confirmation / 存储驱动错误 —— 弹出强制禁用确认
-          if (
-            apiMsg.includes('storage driver') ||
-            apiMsg.includes('used by tenant')
-          ) {
-            Modal.confirm({
-              title: $t('admin.plugin.confirm.force_disable_title', {
-                name: pluginVal.display_name,
-              }),
-              content: $t('admin.plugin.confirm.force_disable_content'),
-              okType: 'danger',
-              okText: $t('admin.plugin.confirm.force_disable_ok'),
-              onOk() {
-                disablePluginApi(pluginVal.id, true).then(async () => {
-                  message.success($t('admin.plugin.messages.disableSuccess'));
-                  await reload();
-                  emit('saved');
-                  await refreshAdminMenusAndPluginRoutes();
-                });
-              },
-            });
-            return;
-          }
-          // Other unexpected error — fallback hint / 其他意外错误 — 兜底提示
-          message.error(apiMsg || $t('admin.common.operationFailed'));
+        .catch(async (error: unknown) => {
+          const { handleDisableError } = await import(
+            '#/composables/use-plugin-admin-refresh'
+          );
+          handleDisableError(error, pluginVal.display_name, async () => {
+            await disablePluginApi(pluginVal.id, true);
+            message.success($t('admin.plugin.messages.disableSuccess'));
+            await reload();
+            emit('saved');
+            await refreshAdminMenusAndPluginRoutes();
+          });
         });
     },
   });
@@ -462,7 +409,7 @@ async function onSaveConfig() {
     emit('saved');
   } catch (error) {
     if (error instanceof SyntaxError) {
-      message.error('Invalid JSON');
+      message.error($t('admin.plugin.invalidJson'));
     }
   } finally {
     configSaving.value = false;

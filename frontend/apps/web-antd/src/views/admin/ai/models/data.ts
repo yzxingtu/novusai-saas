@@ -120,8 +120,9 @@ export function useColumns<T = AIModelInfo>(
     {
       field: 'provider_name',
       title: $t('admin.ai.model.providerName'),
-      width: 140,
+      width: 160,
       align: 'center',
+      slots: { default: 'providerName_cell' },
     },
     {
       field: 'context_window',

@@ -4,10 +4,7 @@ import type { AIHealthStatus } from '#/api/admin/ai';
 /**
  * AI 供应商健康状态监控页面 — useCrudList + autoRefresh
  */
-import { computed, onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -18,6 +15,7 @@ import { getAIHealthStatusApi } from '#/api/admin/ai';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { getProcessedImageUrl } from '#/utils/image';
 
 defineOptions({ name: 'AIHealthMonitor' });
 
@@ -39,6 +37,15 @@ const {
   i18nPrefix: 'admin.ai.health',
   pager: false,
   autoRefreshInterval: 30_000,
+  ai: {
+    entityName: $t('admin.ai.health.name'),
+    entityDescription: 'AI 供应商健康状态监控',
+    contextExtras: () => ({
+      healthy: healthyCount.value,
+      degraded: degradedCount.value,
+      unavailable: unavailableCount.value,
+    }),
+  },
 });
 
 // ========== 概览计数 ==========
@@ -73,34 +80,6 @@ function getBadgeStatus(
   return getStatusColor(status) as 'error' | 'success' | 'warning';
 }
 
-const cleanupPageContext = registerPageContext('admin/ai/health', () => ({
-  page_key: 'admin.ai.health',
-  page_title: $t('admin.ai.health.name'),
-  page_data: {
-    resource: '/admin/ai/health',
-    healthy: healthyCount.value,
-    degraded: degradedCount.value,
-    unavailable: unavailableCount.value,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.health', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Refresh health status of all providers',
-    readonly: true,
-    handler: async () => {
-      await loadHealth();
-      return { success: true, message: 'Health status refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>
@@ -173,12 +152,19 @@ onUnmounted(() => {
           <div class="mb-4 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div
-                class="flex size-10 items-center justify-center rounded-lg"
+                class="flex size-10 items-center justify-center overflow-hidden rounded-lg"
                 :class="
                   status.is_available ? 'bg-success/10' : 'bg-destructive/10'
                 "
               >
+                <img
+                  v-if="status.provider_icon && Number(status.provider_icon) > 0"
+                  :src="getProcessedImageUrl(Number(status.provider_icon), { preset: 'small' })"
+                  class="size-full object-contain"
+                  alt=""
+                />
                 <IconifyIcon
+                  v-else
                   icon="lucide:cpu"
                   class="size-5"
                   :class="

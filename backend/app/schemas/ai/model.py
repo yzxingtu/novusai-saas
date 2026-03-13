@@ -82,6 +82,7 @@ class AIModelResponse(BaseResponseSchema):
     fallback_model_id: int | None = Field(None, description=_("enum.ai_model.fallback_model_id"))
     fallback_model_name: str | None = Field(None, description=_("enum.ai_model.fallback_model_name"))
     provider_name: str | None = Field(None, description=_("enum.ai_model.provider_name"))
+    provider_icon: str | None = Field(None, description=_("enum.ai_model.provider_icon"))
     tier: str | None = Field(None, description=_("enum.ai_model.tier"))
 
 

@@ -53,7 +53,7 @@ def extract_plugin_zip_safely(zip_path: Path, extract_dir: Path) -> Path:
             total_written = 0
             for info, normalized in entries:
                 target_path = (extract_root / Path(*normalized.parts)).resolve()
-                if extract_root != target_path and extract_root not in target_path.parents:
+                if not target_path.is_relative_to(extract_root):
                     raise PluginInstallError(
                         message=f"Illegal archive entry path: {info.filename}",
                     )

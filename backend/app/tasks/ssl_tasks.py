@@ -120,7 +120,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                     "domain_id": domain_id,
                     "domain": domain.domain,
                     "cert_id": cert.id,
-                    "expires_at": str(cert.expires_at),
+                    "expires_at": cert.expires_at.isoformat() if cert.expires_at else None,
                     "status": "active",
                 }
 
@@ -374,7 +374,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                     "cert_id": cert_id,
                     "new_cert_id": new_cert.id,
                     "domain": domain.domain,
-                    "expires_at": str(new_cert.expires_at),
+                    "expires_at": new_cert.expires_at.isoformat() if new_cert.expires_at else None,
                     "status": "renewed",
                 }
 

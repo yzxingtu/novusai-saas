@@ -3,6 +3,28 @@
   "monitor": {
     "title": "监控与分析"
   },
+  "guide": {
+    "title": "快速开始",
+    "subtitle": "按以下步骤完成 AI 网关配置",
+    "totalTime": "约 10 分钟",
+    "showGuide": "显示引导",
+    "step1": {
+      "title": "添加供应商",
+      "time": "约 2 分钟"
+    },
+    "step2": {
+      "title": "配置 API Key",
+      "time": "约 2 分钟"
+    },
+    "step3": {
+      "title": "添加模型",
+      "time": "约 3 分钟"
+    },
+    "step4": {
+      "title": "健康检查",
+      "time": "约 1 分钟"
+    }
+  },
   "provider": {
     "title": "供应商管理",
     "pageDesc": "管理 AI 供应商接入配置，包括 API 地址和启用状态。拖拽可调整优先级。",

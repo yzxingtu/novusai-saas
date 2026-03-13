@@ -82,7 +82,7 @@ const cleanupPageOps = registerPageOperations('admin.system.email-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search email logs by subject',
     readonly: true,

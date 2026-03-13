@@ -193,8 +193,21 @@
     "sourceAuto": "自动选择",
     "sourceAutoDesc": "自动 ping 选择更快的源",
     "cacheTtl": "缓存时间",
-    "testConnection": "测试连接"
+    "testConnection": "测试连接",
+    "category": {
+      "ai": "AI",
+      "integration": "集成",
+      "storage": "存储",
+      "business": "业务",
+      "tools": "工具",
+      "communication": "通讯",
+      "analytics": "分析",
+      "security": "安全"
+    }
   },
+  "emptyList": "暂无插件，请安装或从市场获取插件",
+  "assignFailed": "分配租户失败",
+  "unassignFailed": "取消分配租户失败",
   "license": {
     "title": "许可证管理",
     "type": "许可类型",
@@ -254,8 +267,10 @@
     "disableBeforeUninstallDeps": "请先禁用插件后再卸载依赖",
     "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
     "assignSuccess": "租户分配成功",
-    "forceCleanupSuccess": "残留记录已清理"
+    "forceCleanupSuccess": "残留记录已清理",
+    "installFailed": "插件安装失败"
   },
+  "invalidJson": "配置内容不是有效的 JSON 格式",
   "progress": {
     "installTitle": "安装进度",
     "enableTitle": "启用进度",

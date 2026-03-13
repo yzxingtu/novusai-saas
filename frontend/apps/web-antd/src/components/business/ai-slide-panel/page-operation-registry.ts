@@ -41,6 +41,10 @@
 
 import { ref } from 'vue';
 
+import { formStateTracker } from '#/composables/use-form-state-tracker';
+
+import { normalizePageKey } from './page-key-utils';
+
 /** Operation execution result / 操作执行结果 */
 export interface PageOperationResult {
   /** Whether execution succeeded / 是否执行成功 */
@@ -81,10 +85,10 @@ export interface PageOperation {
 }
 
 /**
- * Registry: pageContextKey → operations[]
- * Key should match the registerPageContext key.
- * 注册表：pageContextKey → operations[]
- * key 建议与 registerPageContext 的 key 保持一致。
+ * Registry: normalized page key (dot-notation) → operations[]
+ * Keys are automatically normalized via normalizePageKey().
+ * 注册表：规范化的页面标识（点号格式） → operations[]
+ * key 通过 normalizePageKey() 自动规范化。
  */
 const registry = new Map<string, PageOperation[]>();
 
@@ -100,7 +104,7 @@ export const pageOperationVersion = ref(0);
  * Register page operation list
  * 注册页面操作列表
  *
- * @param key - Page identifier (recommended: same as pageContextKey) / 页面标识
+ * @param key - Page identifier (any format, auto-normalized to dot-notation) / 页面标识（任意格式，自动规范化为点号格式）
  * @param operations - Available operations for this page / 该页面可用的操作列表
  * @returns Cleanup function / cleanup 函数
  */
@@ -108,11 +112,12 @@ export function registerPageOperations(
   key: string,
   operations: PageOperation[],
 ): () => void {
-  registry.set(key, operations);
+  const nk = normalizePageKey(key);
+  registry.set(nk, operations);
   pageOperationVersion.value++;
   return () => {
-    if (registry.get(key) === operations) {
-      registry.delete(key);
+    if (registry.get(nk) === operations) {
+      registry.delete(nk);
       pageOperationVersion.value++;
     }
   };
@@ -126,14 +131,14 @@ export function registerPageOperations(
  * @returns Operation list, empty array if not registered / 操作列表，未注册时返回空数组
  */
 export function listPageOperations(key: string): readonly PageOperation[] {
-  return registry.get(key) ?? [];
+  return registry.get(normalizePageKey(key)) ?? [];
 }
 
 /**
  * Execute a page operation
  * 执行页面操作
  *
- * @param key - Page identifier (pageContextKey) / 页面标识
+ * @param key - Page identifier (any format, auto-normalized) / 页面标识（任意格式，自动规范化）
  * @param operationName - Operation name / 操作名称
  * @param params - Operation parameters / 操作参数
  * @returns Execution result / 执行结果
@@ -143,11 +148,12 @@ export async function executePageOperation(
   operationName: string,
   params: Record<string, unknown> = {},
 ): Promise<PageOperationResult> {
-  const operations = registry.get(key);
+  const nk = normalizePageKey(key);
+  const operations = registry.get(nk);
   if (!operations) {
     return {
       success: false,
-      message: `Page "${key}" has no registered operations`,
+      message: `Page "${nk}" has no registered operations`,
     };
   }
 
@@ -156,7 +162,7 @@ export async function executePageOperation(
     const available = operations.map((op) => op.name).join(', ');
     return {
       success: false,
-      message: `Operation "${operationName}" not found on page "${key}". Available: ${available || 'none'}`,
+      message: `Operation "${operationName}" not found on page "${nk}". Available: ${available || 'none'}`,
     };
   }
 
@@ -167,13 +173,39 @@ export async function executePageOperation(
     };
   }
 
+  // Snapshot form state before execution for context_diff
+  const beforeFormOpen = formStateTracker.isOpen(nk);
+  const beforeHasModal = !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)');
+  const beforeHasDrawer = !!document.querySelector('.ant-drawer-open');
+
   try {
-    return await operation.handler(params);
+    const result = await operation.handler(params);
+
+    // Brief delay to let DOM settle after the operation
+    await new Promise<void>((r) => setTimeout(r, 120));
+
+    const afterFormOpen = formStateTracker.isOpen(nk);
+    const afterHasModal = !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)');
+    const afterHasDrawer = !!document.querySelector('.ant-drawer-open');
+
+    result.data = {
+      ...result.data,
+      context_diff: {
+        form_opened: !beforeFormOpen && afterFormOpen,
+        form_closed: beforeFormOpen && !afterFormOpen,
+        modal_opened: !beforeHasModal && afterHasModal,
+        modal_closed: beforeHasModal && !afterHasModal,
+        drawer_opened: !beforeHasDrawer && afterHasDrawer,
+        drawer_closed: beforeHasDrawer && !afterHasDrawer,
+      },
+    };
+
+    return result;
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
     console.error(
-      `[PageOperation] Failed to execute "${operationName}" on "${key}":`,
+      `[PageOperation] Failed to execute "${operationName}" on "${nk}":`,
       error,
     );
     return {
@@ -195,7 +227,7 @@ export function findPageOperation(
   key: string,
   operationName: string,
 ): PageOperation | undefined {
-  const operations = registry.get(key);
+  const operations = registry.get(normalizePageKey(key));
   return operations?.find((op) => op.name === operationName);
 }
 

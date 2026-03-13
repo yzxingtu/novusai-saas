@@ -15,15 +15,13 @@
 
 import { watch } from 'vue';
 
-import { Modal } from 'ant-design-vue';
-
 import {
   executePageOperation,
   findPageOperation,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { getActivePageSessionId } from '#/composables/use-page-session';
-import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
+import { useAIPanelStore } from '#/store/shared/ai-panel';
 
 /** Operation invoke event from backend / 后端下发的操作调用事件 */
 export interface PageOperationInvokeEvent {
@@ -58,6 +56,31 @@ let currentJoinedRoom = '';
 
 /** Prevent duplicate handler registration on layout remount / 防止 layout 重新挂载时重复注册 */
 let _initialized = false;
+
+/**
+ * Agent Loop: track recently confirmed mutation operations per page key.
+ * When user confirms create_record/edit_record, subsequent fill_form
+ * operations on the same page within CHAIN_CONFIRM_TTL_MS are auto-approved.
+ */
+const CHAIN_CONFIRM_TTL_MS = 30_000;
+const _chainConfirmed = new Map<string, number>();
+
+function markChainConfirmed(pageKey: string): void {
+  _chainConfirmed.set(pageKey, Date.now());
+}
+
+function isChainConfirmed(pageKey: string): boolean {
+  const ts = _chainConfirmed.get(pageKey);
+  if (!ts) return false;
+  if (Date.now() - ts > CHAIN_CONFIRM_TTL_MS) {
+    _chainConfirmed.delete(pageKey);
+    return false;
+  }
+  return true;
+}
+
+const CHAIN_TRIGGER_OPS = new Set(['create_record', 'edit_record']);
+const CHAIN_AUTO_OPS = new Set(['fill_form']);
 
 /**
  * Execute operation and send result back via WebSocket
@@ -115,37 +138,58 @@ export function usePageOperationChannel(): void {
     );
   }
 
+  const aiPanelStore = useAIPanelStore();
+
+  const CONFIRM_TIMEOUT_MS = 60_000;
+
   /**
-   * Show confirmation dialog, execute operation after user confirms
-   * 弹出确认对话框，用户确认后执行操作
+   * Request confirmation in AI chat panel, execute after user allows.
+   * Forces the panel open and races against a timeout so the promise
+   * never hangs indefinitely if the panel fails to render.
+   * 在 AI 聊天面板中请求确认，用户允许后执行操作。
+   * 强制打开面板并与超时竞争，避免面板无法渲染时 Promise 永久挂起。
    */
-  function confirmAndExecute(
+  async function confirmAndExecute(
     event: PageOperationInvokeEvent,
     operationLabel: string,
     operationDescription: string,
-  ): void {
-    Modal.confirm({
-      title: $t('shared.pageOperation.confirmTitle'),
-      content: operationDescription
-        ? $t('shared.pageOperation.confirmContentWithDesc', {
-            operation: operationLabel,
-            description: operationDescription,
-          })
-        : $t('shared.pageOperation.confirmContent', {
-            operation: operationLabel,
-          }),
-      okText: $t('shared.pageOperation.confirmOk'),
-      cancelText: $t('shared.pageOperation.confirmCancel'),
-      onOk: async () => {
-        await executeAndEmit(event);
-      },
-      onCancel: () => {
-        emitResult(socketIOStore, event.invoke_id, {
-          success: false,
-          message: 'User cancelled the operation',
-        }, 'user_cancelled');
-      },
+  ): Promise<void> {
+    aiPanelStore.open();
+
+    const confirmPromise = aiPanelStore.requestPageOpConfirmation({
+      invokeId: event.invoke_id,
+      pageKey: event.page_key,
+      operationName: event.operation_name,
+      operationLabel,
+      operationDescription,
+      params: event.params || {},
     });
+
+    // null sentinel distinguishes timeout from user-cancel (false) / null 哨兵区分超时与用户取消(false)
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), CONFIRM_TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([confirmPromise, timeoutPromise]);
+
+    if (result === null) {
+      // Timeout: dismiss the lingering confirmation card in the panel / 超时：清理面板中残留的确认卡片
+      aiPanelStore.resolvePageOp(event.invoke_id, false);
+      emitResult(socketIOStore, event.invoke_id, {
+        success: false,
+        message: 'Confirmation timed out',
+      }, 'timeout');
+    } else if (result) {
+      if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
+        markChainConfirmed(event.page_key);
+      }
+      await executeAndEmit(event);
+    } else {
+      emitResult(socketIOStore, event.invoke_id, {
+        success: false,
+        message: 'User cancelled the operation',
+      }, 'user_cancelled');
+    }
   }
 
   // Operation invoke handler / 操作调用处理器
@@ -172,6 +216,15 @@ export function usePageOperationChannel(): void {
 
     // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
     if (operation.readonly) {
+      await executeAndEmit(event);
+      return;
+    }
+
+    // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record)
+    if (
+      CHAIN_AUTO_OPS.has(event.operation_name) &&
+      isChainConfirmed(event.page_key)
+    ) {
       await executeAndEmit(event);
       return;
     }

@@ -218,6 +218,10 @@ class AIModel(BaseModel):
         return self.provider.name if self.provider else None
 
     @property
+    def provider_icon(self) -> str | None:
+        return self.provider.icon if self.provider else None
+
+    @property
     def fallback_model_name(self) -> str | None:
         return self.fallback_model.name if self.fallback_model else None
 

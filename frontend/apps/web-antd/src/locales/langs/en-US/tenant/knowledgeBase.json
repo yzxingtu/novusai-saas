@@ -1,5 +1,6 @@
 {
   "title": "Knowledge Base",
+  "name": "Knowledge Base Name",
   "pageDesc": "Create and manage knowledge bases. Upload documents for auto-chunking and vectorization, bind to agents for RAG retrieval.",
   "create": "Create Knowledge Base",
   "edit": "Edit Knowledge Base",

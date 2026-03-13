@@ -276,7 +276,7 @@ async def activate_license(
         "message": _("plugin.license_activated"),
         "license_info": {
             **license_info,
-            "expires_at": str(expires_at_dt) if expires_at_dt else None,
+            "expires_at": expires_at_dt.isoformat() if expires_at_dt else None,
             "remaining_days": remaining_days,
         },
     }
@@ -341,7 +341,7 @@ async def get_license_status_by_name(
                 "license_type": "trial",
                 "is_valid": True,
                 "trial_days_remaining": remaining,
-                "expires_at": str(record.trial_expires_at),
+                "expires_at": _fmt_dt(record.trial_expires_at),
             }
         return {
             "status": "expired",
@@ -358,7 +358,7 @@ async def get_license_status_by_name(
                 "license_type": record.license_type,
                 "is_valid": False,
                 "message": "License expired",
-                "expires_at": str(record.expires_at),
+                "expires_at": _fmt_dt(record.expires_at),
             }
         remaining_days = None
         if record.expires_at:
@@ -368,8 +368,8 @@ async def get_license_status_by_name(
             "license_type": record.license_type,
             "is_valid": True,
             "license_key": _mask_key(record.license_key),
-            "activated_at": str(record.activated_at) if record.activated_at else None,
-            "expires_at": str(record.expires_at) if record.expires_at else None,
+            "activated_at": _fmt_dt(record.activated_at),
+            "expires_at": _fmt_dt(record.expires_at),
             "remaining_days": remaining_days,
         }
 
@@ -379,6 +379,12 @@ async def get_license_status_by_name(
         "is_valid": False,
         "message": "License expired or revoked",
     }
+
+
+def _fmt_dt(dt) -> str | None:
+    if dt is None:
+        return None
+    return dt.isoformat() if hasattr(dt, 'isoformat') else str(dt)
 
 
 def _mask_key(key: str | None) -> str:
@@ -453,8 +459,8 @@ async def get_license_status_by_id(
                 "license_type": "trial",
                 "is_valid": True,
                 "trial_days_remaining": remaining,
-                "expires_at": str(record.trial_expires_at),
-                "activated_at": str(record.activated_at) if record.activated_at else None,
+                "expires_at": _fmt_dt(record.trial_expires_at),
+                "activated_at": _fmt_dt(record.activated_at),
             }
         return {
             "status": "expired",
@@ -470,7 +476,7 @@ async def get_license_status_by_id(
                 "license_type": record.license_type,
                 "is_valid": False,
                 "message": "License expired",
-                "expires_at": str(record.expires_at),
+                "expires_at": _fmt_dt(record.expires_at),
             }
         remaining_days = None
         if record.expires_at:
@@ -480,8 +486,8 @@ async def get_license_status_by_id(
             "license_type": record.license_type,
             "is_valid": True,
             "license_key": _mask_key(record.license_key),
-            "activated_at": str(record.activated_at) if record.activated_at else None,
-            "expires_at": str(record.expires_at) if record.expires_at else None,
+            "activated_at": _fmt_dt(record.activated_at),
+            "expires_at": _fmt_dt(record.expires_at),
             "remaining_days": remaining_days,
             "buyer_email": record.buyer_email,
         }

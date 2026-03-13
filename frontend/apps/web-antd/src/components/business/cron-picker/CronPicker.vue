@@ -6,6 +6,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Input, Segmented, Select, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { formatDate } from '#/utils/common';
 
 defineOptions({ name: 'CronPicker' });
 
@@ -191,8 +192,7 @@ function matchField(
 }
 
 function formatDateTime(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return formatDate(d, { format: 'YYYY-MM-DD HH:mm' });
 }
 
 function selectPreset(preset: Preset) {

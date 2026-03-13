@@ -94,7 +94,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.action-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search action logs by keyword',
     readonly: true,

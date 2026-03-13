@@ -5,6 +5,7 @@
 Provides standardized API response formats and wrapper methods.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Generic, TypeVar
 
 from fastapi.responses import JSONResponse
@@ -15,16 +16,21 @@ from app.core.i18n import _
 
 def _serialize(data: Any) -> Any:
     """
-    将 Pydantic 模型实例转为 dict，触发 model_serializer。
-    Convert Pydantic model instances to dict, triggering model_serializer.
+    将 Pydantic 模型实例转为 dict，触发 model_serializer；
+    同时将 naive datetime 标记为 UTC 后输出 ISO 8601。
+    Convert Pydantic model instances to dict (triggering model_serializer)
+    and ensure naive datetimes are serialized with UTC timezone indicator.
 
-    解决 FastAPI 的 jsonable_encoder 绕过自定义 model_serializer 的问题。
-    Fixes FastAPI's jsonable_encoder bypassing custom model_serializer:
-    when Pydantic models are passed into dict response, jsonable_encoder uses
-    internal serialization, skipping our model_serializer, losing datetime +00:00.
+    解决两个问题 / Fixes two issues:
+    1. FastAPI 的 jsonable_encoder 绕过自定义 model_serializer，丢失 +00:00
+    2. to_dict() 返回的 naive datetime 被前端误判为本地时间
     """
     if isinstance(data, BaseModel):
         return data.model_dump()
+    if isinstance(data, datetime):
+        if data.tzinfo is None:
+            data = data.replace(tzinfo=timezone.utc)
+        return data.isoformat()
     if isinstance(data, list):
         return [_serialize(item) for item in data]
     if isinstance(data, dict):

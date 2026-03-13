@@ -76,9 +76,12 @@ export const overridesPreferences = defineOverridesPreferences({
     name: 'fade-slide',
     progress: true,
   },
+  shortcutKeys: {
+    globalSearch: false,
+  },
   widget: {
     fullscreen: true,
-    globalSearch: true,
+    globalSearch: false,
     languageToggle: true,
     lockScreen: false,
     notification: true,

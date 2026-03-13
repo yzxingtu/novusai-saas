@@ -441,7 +441,7 @@ watch(activeTab, (tab) => {
               />
             </div>
             <p class="text-sm text-muted-foreground">
-              {{ $t('admin.knowledgeBase.searchTest.noResults') }}
+              {{ $t('admin.knowledgeBase.emptyDocuments') }}
             </p>
           </div>
           <div v-else class="space-y-2">
@@ -737,7 +737,7 @@ watch(activeTab, (tab) => {
             class="mb-2 size-8 text-muted-foreground"
           />
           <p class="text-sm text-muted-foreground">
-            {{ $t('admin.knowledgeBase.searchTest.noResults') }}
+            {{ $t('admin.knowledgeBase.emptyChunks') }}
           </p>
         </div>
         <div v-else class="max-h-[60vh] space-y-3 overflow-y-auto pr-1">

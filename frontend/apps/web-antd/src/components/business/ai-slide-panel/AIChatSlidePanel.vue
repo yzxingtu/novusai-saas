@@ -19,6 +19,8 @@ import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
+import { formStateTracker } from '#/composables/use-form-state-tracker';
+import { useModalDetector } from '#/composables/use-modal-detector';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { usePageScreenshot } from '#/composables/use-page-screenshot';
 import { $t } from '#/locales';
@@ -64,6 +66,7 @@ const emit = defineEmits<{
 
 const aiPanelStore = useAIPanelStore();
 const publicConfigStore = usePublicConfigStore();
+const { modalState } = useModalDetector();
 
 /** Panel title: "{SiteName} AI" */
 const panelTitle = computed(() => {
@@ -75,7 +78,7 @@ const panelTitle = computed(() => {
   return `${siteName} AI`;
 });
 
-/** Whether an agent is pinned (via Ctrl+J) */
+/** Whether an agent is pinned (via Ctrl+K CommandBar) / 智能体是否被固定（通过 Ctrl+K CommandBar） */
 const isPinned = computed(
   () => !!aiPanelStore.pinnedAgentId && !!aiPanelStore.pinnedAgentName,
 );
@@ -303,28 +306,112 @@ const hasPageAI = computed(() => !!currentPageContext.value);
 // ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
 /**
- * Enrich page_context with available_operations so LLM can discover
- * what operations are available on the current page.
+ * Collect lightweight visual state from the current page DOM/window.
+ * Uses useModalDetector for structured modal/drawer info.
+ */
+function collectVisualState() {
+  const modals = modalState.value;
+  return {
+    url: window.location.pathname,
+    viewport: { w: window.innerWidth, h: window.innerHeight },
+    scroll_y: Math.round(window.scrollY),
+    has_modal: modals.some((m) => m.type === 'modal'),
+    has_drawer: modals.some((m) => m.type === 'drawer'),
+    ...(modals.length > 0 ? { open_overlays: modals } : {}),
+  };
+}
+
+/**
+ * Limit form_fields to MAX_FORM_FIELDS entries; append truncation note.
+ * Return value is safe to spread into page_data.
+ */
+const MAX_FORM_FIELDS = 20;
+const MAX_PAGE_DATA_BYTES = 7168; // 7KB budget (backend limit is 8KB)
+
+function truncateFormFields(
+  pageData: Record<string, unknown>,
+): Record<string, unknown> {
+  const ff = pageData.form_fields;
+  if (!ff || typeof ff !== 'object') return pageData;
+  const entries = Object.entries(ff as Record<string, unknown>);
+  if (entries.length <= MAX_FORM_FIELDS) return pageData;
+  const truncated = Object.fromEntries(entries.slice(0, MAX_FORM_FIELDS));
+  (truncated as Record<string, unknown>)._truncated = `Showing ${MAX_FORM_FIELDS} of ${entries.length} fields`;
+  return { ...pageData, form_fields: truncated };
+}
+
+/**
+ * Ensure total page_data stays under MAX_PAGE_DATA_BYTES.
+ * Progressively drops list_summary.sample_rows and form_fields if needed.
+ */
+function guardPageDataSize(pageData: Record<string, unknown>): Record<string, unknown> {
+  let data = { ...pageData };
+  let size = new TextEncoder().encode(JSON.stringify(data)).length;
+  if (size <= MAX_PAGE_DATA_BYTES) return data;
+
+  // Step 1: reduce list_summary sample_rows
+  const ls = data.list_summary as Record<string, unknown> | undefined;
+  if (ls?.sample_rows && Array.isArray(ls.sample_rows) && ls.sample_rows.length > 0) {
+    data = { ...data, list_summary: { ...ls, sample_rows: (ls.sample_rows as unknown[]).slice(0, 2) } };
+    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    if (size <= MAX_PAGE_DATA_BYTES) return data;
+    data = { ...data, list_summary: { ...ls, sample_rows: [] } };
+    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    if (size <= MAX_PAGE_DATA_BYTES) return data;
+  }
+
+  // Step 2: drop form_fields entirely
+  if (data.form_fields) {
+    const { form_fields: _ff, ...rest } = data;
+    data = rest;
+  }
+
+  return data;
+}
+
+/**
+ * Enrich page_context with available_operations and visual_state
+ * so LLM can discover what operations are available on the current page
+ * and understand the current visual state (modals, drawers, scroll position).
+ * Also enforces size guards (form_fields cap, total page_data budget).
  */
 function enrichPageContextWithOperations(
   ctx: ReturnType<typeof resolvePageContext>,
 ): ReturnType<typeof resolvePageContext> {
   if (!ctx) return ctx;
   const ops = listPageOperations(ctx.page_key);
-  if (ops.length === 0) return ctx;
-  return {
-    ...ctx,
-    page_data: {
-      ...ctx.page_data,
-      available_operations: ops.map((op) => ({
-        name: op.name,
-        label: op.label,
-        description: op.description,
-        readonly: op.readonly,
-        ...(op.params ? { params: op.params } : {}),
-      })),
-    },
+
+  // When form is open, prefer live fieldDescriptors from formStateTracker
+  // (refreshed each time the drawer opens) over the static version registered
+  // at page mount. This handles dynamic schemas (conditional fields, permissions).
+  // 表单打开时，优先使用 formStateTracker 的实时字段描述（每次 drawer 打开时刷新），
+  // 而非页面挂载时注册的静态版本，以支持动态 schema（条件字段、权限变化）。
+  let liveFormFields = ctx.page_data?.form_fields;
+  if (formStateTracker.isOpenWithFallback(ctx.page_key)) {
+    const descriptors = formStateTracker.getFieldDescriptors(ctx.page_key);
+    if (descriptors && Object.keys(descriptors).length > 0) {
+      liveFormFields = descriptors;
+    }
+  }
+
+  let pageData: Record<string, unknown> = {
+    ...ctx.page_data,
+    ...(liveFormFields ? { form_fields: liveFormFields } : {}),
+    visual_state: collectVisualState(),
+    ...(ops.length > 0
+      ? {
+          available_operations: ops.map((op) => ({
+            name: op.name,
+            label: op.label,
+            description: op.description,
+            readonly: op.readonly,
+          })),
+        }
+      : {}),
   };
+  pageData = truncateFormFields(pageData);
+  pageData = guardPageDataSize(pageData);
+  return { ...ctx, page_data: pageData };
 }
 
 async function handleSendMessage() {
@@ -1446,6 +1533,83 @@ onUnmounted(() => {
                 @edit="editAndResend"
               />
             </div>
+
+            <!-- Pending page operation confirmations (inline cards) -->
+            <div
+              v-for="op in aiPanelStore.pendingPageOps"
+              :key="op.invokeId"
+              class="overflow-hidden rounded-lg border"
+              :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
+            >
+              <!-- Resolved state -->
+              <div
+                v-if="op.resolved"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px]"
+              >
+                <IconifyIcon
+                  :icon="op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'"
+                  class="size-3 shrink-0"
+                  :class="op.allowed ? 'text-green-600' : 'text-red-500'"
+                />
+                <span class="truncate text-muted-foreground">
+                  <span class="font-medium text-foreground/60">{{ op.operationLabel }}</span>
+                  <span v-if="op.operationDescription" class="ml-1 text-muted-foreground/60">{{ op.operationDescription }}</span>
+                </span>
+                <span
+                  class="ml-auto shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
+                  :class="op.allowed ? 'bg-green-50 text-green-600 dark:bg-green-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'"
+                >
+                  {{ op.allowed ? $t('shared.pageOperation.confirmOk') : $t('shared.pageOperation.confirmCancel') }}
+                </span>
+              </div>
+
+              <!-- Pending state -->
+              <template v-else>
+                <div class="flex items-center gap-1.5 px-2.5 py-1.5">
+                  <IconifyIcon icon="lucide:shield-alert" class="size-3.5 shrink-0 text-warning" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-[11px] font-medium text-foreground/80">
+                      {{ op.operationLabel }}
+                    </div>
+                    <div v-if="op.operationDescription" class="truncate text-[10px] text-muted-foreground/60">
+                      {{ op.operationDescription }}
+                    </div>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <button
+                      class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                      @click="aiPanelStore.resolvePageOp(op.invokeId, true)"
+                    >
+                      <IconifyIcon icon="lucide:check" class="size-3" />
+                      {{ $t('shared.pageOperation.confirmOk') }}
+                    </button>
+                    <button
+                      class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                      @click="aiPanelStore.resolvePageOp(op.invokeId, false)"
+                    >
+                      <IconifyIcon icon="lucide:x" class="size-3" />
+                      {{ $t('shared.pageOperation.confirmCancel') }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Collapsible params -->
+                <details
+                  v-if="op.params && Object.keys(op.params).length > 0"
+                  class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
+                >
+                  <summary class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+                    <IconifyIcon icon="lucide:code" class="size-2.5" />
+                    {{ $t('common.globalAiChat.args') }}
+                    <IconifyIcon icon="lucide:chevron-down" class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180" />
+                  </summary>
+                  <div class="border-t border-border/20 px-2.5 py-1">
+                    <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(op.params, null, 2) }}</pre>
+                  </div>
+                </details>
+              </template>
+            </div>
+
             <!-- Routing loading indicator -->
             <Transition name="fade">
               <div

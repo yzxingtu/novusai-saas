@@ -1,0 +1,141 @@
+/**
+ * Detail Page AI Operations Composable
+ * 详情页 AI 操作 composable
+ *
+ * Provides automatic registration of standard detail page operations:
+ * 为详情页提供标准操作自动注册：
+ * - refresh_detail: reload detail data / 刷新详情数据
+ * - navigate_back: go back to list page / 返回列表页
+ *
+ * Usage:
+ * ```ts
+ * useDetailPageAi({
+ *   refreshFn: () => loadAgent(),
+ *   backRoute: '/admin/ai/agents',
+ *   extra: [{ name: 'save_model_params', ... }],
+ * });
+ * ```
+ */
+
+import { onBeforeUnmount } from 'vue';
+
+import { useRoute, useRouter } from 'vue-router';
+
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { $t } from '#/locales';
+
+/**
+ * Options for useDetailPageAi
+ * useDetailPageAi 配置选项
+ */
+export interface DetailPageAiOptions {
+  /**
+   * Page key override (defaults to normalizePageKey of route.meta.ai?.pageContextKey or route.path)
+   * 页面标识覆盖（默认通过 normalizePageKey 推导为点号格式）
+   */
+  pageKey?: string;
+  /**
+   * Refresh detail data callback (required)
+   * 刷新详情数据回调（必填）
+   */
+  refreshFn: () => Promise<unknown>;
+  /**
+   * Back route path (e.g. '/admin/ai/agents') — enables navigate_back
+   * 返回路由路径 — 启用 navigate_back 操作
+   */
+  backRoute?: string;
+  /**
+   * Operations to disable / 禁用的操作名称列表
+   */
+  disabled?: string[];
+  /**
+   * Extra custom operations (overrides same-named standard ops)
+   * 额外自定义操作（可覆盖同名标准操作）
+   */
+  extra?: PageOperation[];
+}
+
+/**
+ * Register standard AI operations for a detail page
+ * 为详情页注册标准 AI 操作
+ *
+ * Auto-registers: refresh_detail, navigate_back (if backRoute provided)
+ * 自动注册：refresh_detail、navigate_back（有 backRoute 时）
+ *
+ * Cleanup is handled automatically via onBeforeUnmount.
+ * 通过 onBeforeUnmount 自动清理。
+ */
+export function useDetailPageAi(opts: DetailPageAiOptions): void {
+  const {
+    refreshFn,
+    backRoute,
+    disabled = [],
+    extra = [],
+  } = opts;
+
+  const route = useRoute();
+  const router = useRouter();
+
+  const pageKey = normalizePageKey(
+    opts.pageKey ??
+    ((route.meta?.ai as Record<string, unknown> | undefined)
+      ?.pageContextKey as string | undefined) ??
+    route.path,
+  );
+
+  const isDisabled = (name: string) => disabled.includes(name);
+
+  const operations: PageOperation[] = [];
+
+  // ── 1. refresh_detail ──
+  if (!isDisabled('refresh_detail')) {
+    operations.push({
+      name: 'refresh_detail',
+      label: $t('shared.pageOperation.refreshDetail'),
+      description:
+        'Reload the current detail data / 刷新当前详情数据',
+      readonly: true,
+      handler: async () => {
+        await refreshFn();
+        return { success: true, message: 'Detail refreshed / 详情已刷新' };
+      },
+    });
+  }
+
+  // ── 2. navigate_back ──
+  if (!isDisabled('navigate_back') && backRoute) {
+    operations.push({
+      name: 'navigate_back',
+      label: $t('shared.pageOperation.navigateTo'),
+      description:
+        'Navigate back to the list page / 返回列表页',
+      readonly: true,
+      handler: async () => {
+        router.push(backRoute);
+        return {
+          success: true,
+          message: `Navigated to ${backRoute} / 已返回 ${backRoute}`,
+        };
+      },
+    });
+  }
+
+  // Merge extra operations (extra overrides same-named standard ops)
+  // 合并额外操作（extra 可覆盖同名标准操作）
+  for (const op of extra) {
+    const existingIdx = operations.findIndex((o) => o.name === op.name);
+    if (existingIdx >= 0) {
+      operations[existingIdx] = op;
+    } else {
+      operations.push(op);
+    }
+  }
+
+  const cleanup = registerPageOperations(pageKey, operations);
+
+  onBeforeUnmount(() => {
+    cleanup();
+  });
+}

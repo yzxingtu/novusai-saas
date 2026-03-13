@@ -8,14 +8,21 @@
  * - @mention agent selection
  * - AI Panel linkage
  * - Recent conversation list
+ * - Menu search (smart detection)
  * 管理 Command Bar 的逻辑状态：
  * - 开关控制（Ctrl+K 快捷键）
  * - 输入内容管理
  * - @mention 智能体选择
  * - AI Panel 联动
  * - 最近对话列表
+ * - 菜单搜索（智能判断）
  */
-import { type Ref, computed, onMounted, onUnmounted, ref, unref } from 'vue';
+import type { MenuRecordRaw } from '@vben/types';
+
+import { type Ref, computed, onMounted, onUnmounted, ref, shallowRef, unref, watch } from 'vue';
+
+import { $t } from '@vben/locales';
+import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 
 import type {
   AgentItem,
@@ -36,6 +43,8 @@ export interface UseCommandBarOptions {
   apiPrefix: Ref<string> | string;
   /** Whether user has AI chat permission / 是否有 AI 聊天权限 */
   canChat: Ref<boolean>;
+  /** Menu tree for search / 搜索用菜单树 */
+  menus: Ref<MenuRecordRaw[]>;
 }
 
 export function useCommandBar(options: UseCommandBarOptions) {
@@ -66,6 +75,62 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   /** Recent conversations loading state / 最近对话加载中 */
   const recentLoading = ref(false);
+
+  // ==================== Menu search / 菜单搜索 ====================
+
+  const searchItems = shallowRef<MenuRecordRaw[]>([]);
+  const pathToNameMap = new Map<string, string>();
+
+  function _buildSearchItems(menus: MenuRecordRaw[]) {
+    const items = mapTree(menus, (item) => ({
+      ...item,
+      name: $t(item?.name),
+    }));
+    searchItems.value = items;
+    pathToNameMap.clear();
+    traverseTreeValues(items, (item) => {
+      pathToNameMap.set(item.path, item.name);
+    });
+  }
+
+  watch(
+    () => unref(options.menus),
+    (menus) => {
+      if (menus && menus.length > 0) {
+        _buildSearchItems(menus);
+      }
+    },
+    { immediate: true },
+  );
+
+  const SEARCH_SPECIAL_CHARS = new Set([
+    '$', '(', ')', '*', '+', '.', '?', '[', '\\', ']', '^', '{', '|', '}',
+  ]);
+
+  function _createSearchReg(key: string): RegExp {
+    const keys = [...key].map((c) => SEARCH_SPECIAL_CHARS.has(c) ? `\\${c}` : c).join('.*');
+    return new RegExp(`.*${keys}.*`);
+  }
+
+  const menuSearchResults = computed(() => {
+    const text = inputText.value.trim();
+    if (!text || text.startsWith('@') || mode.value === 'mention') return [];
+    const reg = _createSearchReg(text);
+    const results: MenuRecordRaw[] = [];
+    traverseTreeValues(searchItems.value, (item) => {
+      if (reg.test(item.name?.toLowerCase())) {
+        results.push(item);
+      }
+    });
+    return uniqueByField(results, 'path');
+  });
+
+  function getMenuBreadcrumb(item: MenuRecordRaw): string {
+    if (item.parents && item.parents.length > 0) {
+      return item.parents.map((p: string) => pathToNameMap.get(p)).filter(Boolean).join(' / ');
+    }
+    return item.parent ? (pathToNameMap.get(item.parent) || '') : '';
+  }
 
   // ==================== 计算属性 ====================
 
@@ -299,6 +364,8 @@ export function useCommandBar(options: UseCommandBarOptions) {
     filteredAgents,
     recentConversations,
     recentLoading,
+    menuSearchResults,
+    getMenuBreadcrumb,
 
     // Actions
     show,

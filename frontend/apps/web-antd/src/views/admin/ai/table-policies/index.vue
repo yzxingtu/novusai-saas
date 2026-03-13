@@ -24,7 +24,7 @@ import {
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data';
+import { useColumns, useFormSchema, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AITablePolicyList' });
@@ -95,18 +95,20 @@ async function onSync() {
   });
 }
 
-const { Grid, FormDrawer, onRefresh, gridApi } = useCrudPage<AITablePolicyInfo>({
-  api: {
-    list: getAITablePolicyListApi,
-    resource: '/admin/ai/table-policies',
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  i18nPrefix: 'admin.ai.tablePolicy',
-  nameField: 'table_name',
-  defaultSort: 'sort_order',
-});
+const { Grid, FormDrawer, onRefresh, gridApi, formAiOperations } =
+  useCrudPage<AITablePolicyInfo>({
+    api: {
+      list: getAITablePolicyListApi,
+      resource: '/admin/ai/table-policies',
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    i18nPrefix: 'admin.ai.tablePolicy',
+    nameField: 'table_name',
+    defaultSort: 'sort_order',
+    ai: { pageKey: 'admin.ai.table-policies', formSchema: useFormSchema },
+  });
 
 const cleanupPageContext = registerPageContext('admin/ai/table-policies', () => ({
   page_key: 'admin.ai.table-policies',
@@ -138,7 +140,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
     },
   },
   {
-    name: 'search_policies',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search table policies by table name',
     readonly: true,
@@ -152,6 +154,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
       return { success: true, message: `Searched for: ${keyword}` };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {

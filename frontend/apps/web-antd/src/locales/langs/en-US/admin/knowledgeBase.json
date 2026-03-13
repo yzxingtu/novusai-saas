@@ -1,5 +1,6 @@
 {
   "title": "Knowledge Base Management",
+  "name": "Knowledge Base Name",
   "pageDesc": "Manage all knowledge bases. Create global, tenant-specific, or admin-only knowledge bases. View documents, chunks, and storage.",
   "create": "Create Knowledge Base",
   "stats": {
@@ -52,6 +53,10 @@
     "active": "Active",
     "disabled": "Disabled"
   },
+  "emptyList": "No knowledge bases yet. Click the button below to create one.",
+  "emptyDocuments": "No documents yet. Upload files to start building the knowledge base.",
+  "emptyChunks": "No chunks found",
+  "noDescription": "No description",
   "detail": "Knowledge Base Detail",
   "forceDelete": "Force Delete",
   "forceDeleteConfirm": "Force delete this knowledge base? This action cannot be undone.",

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 /**
+ * Knowledge base management page (platform admin) — useCrudList + card grid
  * 平台管理端知识库管理页面 — useCrudList + 卡片网格
  */
 import type {
@@ -7,10 +8,7 @@ import type {
   KnowledgeBaseGlobalStats,
 } from '#/api/admin/knowledge-bases';
 
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -19,6 +17,7 @@ import {
   Badge,
   Button,
   Dropdown,
+  Empty,
   Input,
   Menu,
   MenuItem,
@@ -37,7 +36,7 @@ import {
 } from '#/api/admin/knowledge-bases';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 
 import {
@@ -45,13 +44,15 @@ import {
   getScopeColor,
   getScopeOptions,
   getScopeText,
+  useFormSchema,
+  useGridFormSchema,
 } from './data';
 import Detail from './modules/detail.vue';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AdminKnowledgeBaseList' });
 
-// ========== 统计卡片 ==========
+// ========== Stats cards / 统计卡片 ==========
 const stats = ref<KnowledgeBaseGlobalStats | null>(null);
 
 async function loadStats() {
@@ -64,7 +65,7 @@ async function loadStats() {
 
 onMounted(loadStats);
 
-// ========== 声明式 CRUD ==========
+// ========== Declarative CRUD / 声明式 CRUD ==========
 const {
   list,
   total,
@@ -90,10 +91,77 @@ const {
   nameField: 'name',
   defaultSort: '-created_at',
   pageSize: 12,
+  recycleBin: true,
   createPermission: 'ai_knowledge_base:create',
+  ai: {
+    formSchema: useFormSchema,
+    searchSchema: useGridFormSchema,
+    entityName: $t('admin.knowledgeBase.name'),
+    entityDescription:
+      'Manage AI knowledge base configs, documents, and vector indexes / 管理 AI 知识库的配置、文档和向量索引',
+    openRecycleBin: () => recycleBinRef.value?.open(),
+    contextExtras: () => ({
+      total_knowledge_bases: stats.value?.total_knowledge_bases ?? 0,
+      total_documents: stats.value?.total_documents ?? 0,
+      total_size_bytes: stats.value?.total_size_bytes ?? 0,
+    }),
+    extra: [
+      {
+        name: 'search',
+        label: $t('shared.pageOperation.searchByKeyword'),
+        description:
+          'Search knowledge bases by keyword and optional scope filter / 按关键词和可选作用域搜索知识库',
+        readonly: true,
+        params: {
+          keyword: {
+            type: 'string',
+            description: 'Search keyword / 搜索关键词',
+          },
+          scope: {
+            type: 'string',
+            description:
+              'Scope filter: admin_only / admin_and_all / all_tenants / assigned_tenants / 作用域过滤',
+          },
+        },
+        handler: async (
+          params,
+        ): Promise<{ message: string; success: boolean }> => {
+          const keyword = (params?.keyword as string) || '';
+          const scope = (params?.scope as string) || '';
+          searchKeyword.value = keyword;
+          scopeFilter.value = scope || undefined;
+          doSearch();
+          const parts: string[] = [];
+          if (keyword) parts.push(`keyword="${keyword}"`);
+          if (scope) parts.push(`scope="${scope}"`);
+          return {
+            success: true,
+            message: parts.length > 0
+              ? `Searched: ${parts.join(', ')} / 已搜索：${parts.join(', ')}`
+              : 'Filters cleared / 已清除过滤条件',
+          };
+        },
+      },
+      {
+        name: 'create_record',
+        label: $t('shared.pageOperation.createRecord'),
+        description:
+          'Open the create knowledge base form / 打开新建知识库表单',
+        readonly: false,
+        params: {},
+        handler: async (): Promise<{ message: string; success: boolean }> => {
+          onCreate();
+          return {
+            success: true,
+            message: 'Create form opened / 新建表单已打开',
+          };
+        },
+      },
+    ],
+  },
 });
 
-// ========== 详情抽屉 ==========
+// ========== Detail drawer / 详情抽屉 ==========
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
   connectedComponent: Detail,
 });
@@ -103,7 +171,7 @@ function onDetailClick(row: AdminKnowledgeBaseItem) {
   detailDrawerApi.open();
 }
 
-// ========== 回收站 ==========
+// ========== Recycle bin / 回收站 ==========
 const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
   null,
 );
@@ -112,7 +180,7 @@ function openRecycleBin() {
   recycleBinRef.value?.open();
 }
 
-// ========== 搜索过滤 ==========
+// ========== Search filters / 搜索过滤 ==========
 const scopeFilter = ref<string | undefined>(undefined);
 
 function doSearch() {
@@ -126,7 +194,7 @@ function doSearch() {
   onSearch(params);
 }
 
-// ========== 辅助 ==========
+// ========== Helpers / 辅助 ==========
 
 function onMenuClick(key: number | string, row: AdminKnowledgeBaseItem) {
   if (String(key) === 'detail') {
@@ -145,71 +213,6 @@ function onDetailSuccess() {
   loadList();
   loadStats();
 }
-
-const cleanupPageContext = registerPageContext('admin/ai/knowledge-bases', () => ({
-  page_key: 'admin.ai.knowledge-bases',
-  page_title: $t('admin.knowledgeBase.name'),
-  page_data: {
-    resource: '/admin/ai/knowledge-bases',
-    total_knowledge_bases: stats.value?.total_knowledge_bases ?? 0,
-    total_documents: stats.value?.total_documents ?? 0,
-    total_size_bytes: stats.value?.total_size_bytes ?? 0,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.knowledge-bases', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the knowledge base list and stats',
-    readonly: true,
-    handler: async () => {
-      await loadList();
-      await loadStats();
-      return { success: true, message: 'Knowledge base list refreshed' };
-    },
-  },
-  {
-    name: 'create_knowledge_base',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create knowledge base form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create knowledge base form opened' };
-    },
-  },
-  {
-    name: 'search_knowledge_bases',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search knowledge bases by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      searchKeyword.value = keyword;
-      doSearch();
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'view_recycle_bin',
-    label: $t('shared.pageOperation.restoreRecord'),
-    description: 'Open the recycle bin drawer',
-    readonly: true,
-    handler: async () => {
-      openRecycleBin();
-      return { success: true, message: 'Recycle bin opened' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>
@@ -348,32 +351,32 @@ onUnmounted(() => {
       </Button>
     </div>
 
-    <!-- 卡片网格 -->
+    <!-- Card grid / 卡片网格 -->
     <Spin :spinning="loading">
       <div
         v-if="list.length === 0 && !loading"
-        class="flex flex-col items-center justify-center py-20"
+        class="flex min-h-[300px] items-center justify-center"
       >
-        <div
-          class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted"
-        >
-          <IconifyIcon
-            icon="lucide:book-open"
-            class="size-8 text-muted-foreground"
-          />
-        </div>
-        <p class="text-sm text-muted-foreground">
-          {{ $t('admin.knowledgeBase.searchTest.noResults') }}
-        </p>
+        <Empty :description="$t('admin.knowledgeBase.emptyList')">
+          <Button
+            v-access:code="['ai_knowledge_base:create']"
+            type="primary"
+            @click="onCreate"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:plus" class="size-4" />
+            </template>
+            {{ $t('admin.knowledgeBase.create') }}
+          </Button>
+        </Empty>
       </div>
       <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div
           v-for="item in list"
           :key="item.id"
-          class="group cursor-pointer rounded-xl border border-border/60 bg-card transition-all hover:border-primary/30 hover:shadow-md"
-          @click="onDetailClick(item)"
+          class="group relative rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md"
         >
-          <!-- 卡片头部 -->
+          <!-- Card header / 卡片头部 -->
           <div class="flex items-start gap-3 p-4 pb-2">
             <div
               class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
@@ -384,47 +387,44 @@ onUnmounted(() => {
               />
             </div>
             <div class="min-w-0 flex-1">
-              <h4 class="truncate text-sm font-semibold text-foreground">
+              <h4
+                class="cursor-pointer truncate text-sm font-semibold text-foreground hover:text-primary"
+                @click="onDetailClick(item)"
+              >
                 {{ item.name }}
               </h4>
               <div class="mt-1 flex flex-wrap items-center gap-1.5">
                 <Tag
                   :color="getScopeColor(item.scope)"
-                  style="
-                    padding: 0 5px;
-                    margin: 0;
-                    font-size: 10px;
-                    line-height: 16px;
-                  "
+                  class="!mr-0 !text-[10px] !leading-4"
+                  style="padding: 0 5px"
                 >
                   {{ getScopeText(item.scope) }}
                 </Tag>
                 <Tag
                   :color="item.status === 'active' ? 'success' : 'error'"
-                  style="
-                    padding: 0 5px;
-                    margin: 0;
-                    font-size: 10px;
-                    line-height: 16px;
-                  "
+                  class="!mr-0 !text-[10px] !leading-4"
+                  style="padding: 0 5px"
                 >
                   {{ $t(`admin.knowledgeBase.status.${item.status}`) }}
                 </Tag>
               </div>
             </div>
-            <!-- 操作菜单 -->
-            <Dropdown :trigger="['click']" placement="bottomRight" @click.stop>
-              <Button
-                type="text"
-                size="small"
-                class="!size-7 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
+            <!-- Action menu / 操作菜单 -->
+            <Dropdown
+              :trigger="['click']"
+              placement="bottomRight"
+              class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              <button
+                class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 @click.stop
               >
                 <IconifyIcon
-                  icon="lucide:ellipsis-vertical"
-                  class="size-4 text-muted-foreground"
+                  icon="lucide:more-vertical"
+                  class="size-4"
                 />
-              </Button>
+              </button>
               <template #overlay>
                 <Menu
                   @click="
@@ -434,19 +434,19 @@ onUnmounted(() => {
                 >
                   <MenuItem key="detail">
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:eye" class="size-3.5" />
+                      <IconifyIcon icon="lucide:eye" class="size-4" />
                       <span>{{ $t('admin.knowledgeBase.detail') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem key="edit">
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:pencil" class="size-3.5" />
+                      <IconifyIcon icon="lucide:pencil" class="size-4" />
                       <span>{{ $t('admin.common.edit') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem key="delete" class="!text-destructive">
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+                      <IconifyIcon icon="lucide:trash-2" class="size-4" />
                       <span>{{ $t('admin.common.delete') }}</span>
                     </div>
                   </MenuItem>
@@ -455,54 +455,75 @@ onUnmounted(() => {
             </Dropdown>
           </div>
 
-          <!-- 描述 -->
-          <div class="px-4 pb-2">
-            <p
-              v-if="item.description"
-              class="line-clamp-2 text-xs leading-relaxed text-muted-foreground"
-            >
-              {{ item.description }}
-            </p>
-            <p v-else class="text-xs text-muted-foreground/50">—</p>
-          </div>
+          <!-- Description / 描述 -->
+          <p
+            v-if="item.description"
+            class="mx-4 mb-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground"
+          >
+            {{ item.description }}
+          </p>
+          <p v-else class="mx-4 mb-2 text-xs italic text-muted-foreground/50">
+            {{ $t('admin.knowledgeBase.noDescription') }}
+          </p>
 
-          <!-- Embedding 模型 -->
+          <!-- Embedding model chip / Embedding 模型芯片 -->
           <div
             v-if="item.embedding_model_name"
-            class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+            class="mx-4 mb-3 flex items-center gap-1.5"
           >
-            <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
-            <span class="truncate">{{ item.embedding_model_name }}</span>
+            <div
+              class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
+            >
+              <IconifyIcon icon="lucide:cpu" class="size-3" />
+              <span class="truncate">{{ item.embedding_model_name }}</span>
+            </div>
           </div>
 
-          <!-- 统计数据 -->
+          <!-- Footer: stats + time + quick actions / 底栏：统计+时间+快捷操作 -->
           <div
-            class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground"
+            class="flex items-center justify-between border-t border-border/50 px-4 py-3 text-[11px] text-muted-foreground"
           >
-            <div
-              class="flex items-center gap-1"
-              :title="$t('admin.knowledgeBase.field.documentCount')"
-            >
-              <IconifyIcon icon="lucide:file-text" class="size-3.5" />
-              <span class="tabular-nums">{{ item.document_count }}</span>
+            <div class="flex items-center gap-3">
+              <Tooltip :title="$t('admin.knowledgeBase.field.documentCount')">
+                <span class="flex items-center gap-1">
+                  <IconifyIcon icon="lucide:file-text" class="size-3.5" />
+                  <span class="tabular-nums">{{ item.document_count }}</span>
+                </span>
+              </Tooltip>
+              <Tooltip :title="$t('admin.knowledgeBase.field.totalChunks')">
+                <span class="flex items-center gap-1">
+                  <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
+                  <span class="tabular-nums">{{ item.total_chunks }}</span>
+                </span>
+              </Tooltip>
+              <Tooltip :title="$t('admin.knowledgeBase.field.totalSizeBytes')">
+                <span class="flex items-center gap-1">
+                  <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
+                  <span>{{ formatFileSize(item.total_size_bytes) }}</span>
+                </span>
+              </Tooltip>
+              <Tooltip :title="formatDate(item.created_at)">
+                <span class="flex items-center gap-1">
+                  <IconifyIcon icon="lucide:clock" class="size-3.5" />
+                  <span>{{ formatRelativeTime(item.created_at) }}</span>
+                </span>
+              </Tooltip>
             </div>
-            <div
-              class="flex items-center gap-1"
-              :title="$t('admin.knowledgeBase.field.totalChunks')"
-            >
-              <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
-              <span class="tabular-nums">{{ item.total_chunks }}</span>
-            </div>
-            <div
-              class="flex items-center gap-1"
-              :title="$t('admin.knowledgeBase.field.totalSizeBytes')"
-            >
-              <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
-              <span>{{ formatFileSize(item.total_size_bytes) }}</span>
-            </div>
-            <div class="ml-auto flex items-center gap-1">
-              <IconifyIcon icon="lucide:clock" class="size-3.5" />
-              <span>{{ formatDate(item.created_at) }}</span>
+            <div class="flex items-center gap-2">
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10"
+                @click="onDetailClick(item)"
+              >
+                <IconifyIcon icon="lucide:eye" class="size-3" />
+                <span>{{ $t('admin.knowledgeBase.detail') }}</span>
+              </button>
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                @click="handleMenuAction('edit', item)"
+              >
+                <IconifyIcon icon="lucide:pencil" class="size-3" />
+                <span>{{ $t('admin.common.edit') }}</span>
+              </button>
             </div>
           </div>
         </div>

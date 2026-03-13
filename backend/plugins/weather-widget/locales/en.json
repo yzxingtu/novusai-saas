@@ -46,5 +46,8 @@
   "plugin.weather-widget.error.fetch_failed": "Failed to fetch weather for \"{city}\": {error}",
   "plugin.weather-widget.error.city_not_found_with_name": "City not found: {city}",
   "plugin.weather-widget.error.api_timeout": "Weather service timed out",
-  "plugin.weather-widget.error.network": "Network error, please try again"
+  "plugin.weather-widget.error.network": "Network error, please try again",
+  "plugin.weather-widget.error.lat_lon_required": "lat and lon are required",
+  "plugin.weather-widget.error.lat_lon_invalid": "lat and lon must be valid numbers",
+  "plugin.weather-widget.error.name_or_coords_required": "name or lat/lon is required"
 }

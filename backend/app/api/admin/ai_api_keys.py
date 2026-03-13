@@ -64,10 +64,12 @@ def _build_api_key_response(key) -> dict:
             pass
 
     # 尝试访问 provider 关系 / Try to access provider relationship
+    provider_icon = None
     try:
         provider = getattr(key, 'provider', None)
         if provider is not None:
             provider_name = provider.name
+            provider_icon = provider.icon
     except AttributeError:
         pass
 
@@ -84,9 +86,10 @@ def _build_api_key_response(key) -> dict:
         "created_at": key.created_at,
         "updated_at": key.updated_at,
         "is_deleted": key.is_deleted,
-        "is_available": key.is_available(),  # 调用方法
+        "is_available": key.is_available(),
         "key_preview": _make_key_preview(key),
         "provider_name": provider_name,
+        "provider_icon": provider_icon,
         "tenant_name": tenant_name,
     }
 

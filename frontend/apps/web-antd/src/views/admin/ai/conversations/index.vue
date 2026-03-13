@@ -75,7 +75,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.conversations', [
     },
   },
   {
-    name: 'search_conversations',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search conversations by keyword',
     readonly: true,

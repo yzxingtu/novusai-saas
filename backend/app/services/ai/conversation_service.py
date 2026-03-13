@@ -6,7 +6,7 @@ Provides conversation list, detail, search, archive, batch archive, delete and e
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +44,15 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     model = AgentConversation
     repository_class = AgentConversationRepository
+
+    @staticmethod
+    def _format_dt(dt: datetime | None) -> str | None:
+        """Serialize naive UTC datetime to ISO 8601 with +00:00 suffix."""
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
 
     @property
     def message_repo(self) -> ConversationMessageRepository:
@@ -491,7 +500,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             "title": conversation.title,
             "status": conversation.status,
             "token_count": conversation.token_count,
-            "created_at": str(conversation.created_at) if conversation.created_at else None,
+            "created_at": self._format_dt(conversation.created_at),
             "messages": [
                 {
                     "role": msg.role,
@@ -502,7 +511,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                     "agent_id": msg.agent_id,
                     "agent_name": getattr(getattr(msg, "agent", None), "name", None),
                     "agent_avatar": getattr(getattr(msg, "agent", None), "avatar", None),
-                    "created_at": str(msg.created_at) if msg.created_at else None,
+                    "created_at": self._format_dt(msg.created_at),
                 }
                 for msg in messages
             ],

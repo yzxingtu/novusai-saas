@@ -15,7 +15,6 @@ import { registerPageOperations } from '#/components/business/ai-slide-panel/pag
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
-import { useAccessStore, useUserStore } from '@vben/stores';
 
 import {
   Button,
@@ -38,10 +37,7 @@ import {
   uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
-import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
 import { $t } from '#/locales';
-import { generateAccess } from '#/router/access';
-import { accessRoutes } from '#/router/routes';
 import { usePluginInstallProgressStore } from '#/store';
 
 import {
@@ -60,8 +56,6 @@ import PluginMenuConfigModal from './modules/PluginMenuConfigModal.vue';
 defineOptions({ name: 'AdminPluginList' });
 
 const router = useRouter();
-const accessStore = useAccessStore();
-const userStore = useUserStore();
 const progressStore = usePluginInstallProgressStore();
 const plugins = ref<PluginInfo[]>([]);
 const loading = ref(false);
@@ -199,33 +193,12 @@ async function loadPlugins() {
   }
 }
 
+const {
+  refreshAdminMenusAndPluginRoutes: _refreshRoutes,
+  handleDisableError: _handleDisableError,
+} = await import('#/composables/use-plugin-admin-refresh');
 async function refreshAdminMenusAndPluginRoutes() {
-  try {
-    await refreshPluginSlots('/admin', router);
-  } catch (error) {
-    console.warn('[PluginAdmin] Failed to refresh plugin slots:', error);
-  }
-  try {
-    const userRoles = userStore.userInfo?.roles ?? [];
-    const { accessibleMenus, accessibleRoutes } = await generateAccess(
-      {
-        roles: userRoles,
-        router,
-        routes: accessRoutes,
-      },
-      'admin',
-    );
-    accessStore.setAccessMenus(accessibleMenus);
-    accessStore.setAccessRoutes(accessibleRoutes);
-    accessStore.setIsAccessChecked(true);
-  } catch (error) {
-    console.warn(
-      '[PluginAdmin] Failed to refresh admin menu/routes immediately:',
-      error,
-    );
-    // fallback: router guard will rebuild on next navigation
-    accessStore.setIsAccessChecked(false);
-  }
+  await _refreshRoutes(router);
 }
 
 onMounted(() => {
@@ -344,51 +317,14 @@ function onDisable(plugin: PluginInfo) {
         try {
           await disablePluginApi(plugin.id);
         } catch (error: unknown) {
-          type AxiosLike = {
-            message?: string;
-            response?: { data?: { message?: string } };
-          };
-          const apiMsg =
-            (error as AxiosLike)?.response?.data?.message ??
-            (error as AxiosLike)?.message ??
-            '';
-          // Dependent plugin error — pop friendly hint / 依赖插件错误 — 弹出友好提示
-          if (apiMsg.includes('depend on it') || apiMsg.includes('plugins [')) {
-            const match = apiMsg.match(/plugins \[([^\]]+)\]/);
-            const deps = match ? match[1] : apiMsg;
-            Modal.warning({
-              title: $t('admin.plugin.confirm.dependency_error_title', {
-                name: plugin.display_name,
-              }),
-              content: $t('admin.plugin.confirm.dependency_error_content', {
-                deps,
-              }),
-            });
-            return;
-          }
-          if (
-            apiMsg.includes('storage driver') ||
-            apiMsg.includes('used by tenant')
-          ) {
-            Modal.confirm({
-              title: $t('admin.plugin.confirm.force_disable_title', {
-                name: plugin.display_name,
-              }),
-              content: $t('admin.plugin.confirm.force_disable_content'),
-              okType: 'danger',
-              okText: $t('admin.plugin.confirm.force_disable_ok'),
-              onOk: () =>
-                withProcessing(plugin.id, async () => {
-                  await disablePluginApi(plugin.id, true);
-                  message.success($t('admin.plugin.messages.disableSuccess'));
-                  await loadPlugins();
-                  await refreshAdminMenusAndPluginRoutes();
-                }),
-            });
-            return;
-          }
-          // Other unexpected error — fallback hint / 其他意外错误 — 兜底提示
-          message.error(apiMsg || $t('admin.common.operationFailed'));
+          _handleDisableError(error, plugin.display_name, () =>
+            withProcessing(plugin.id, async () => {
+              await disablePluginApi(plugin.id, true);
+              message.success($t('admin.plugin.messages.disableSuccess'));
+              await loadPlugins();
+              await refreshAdminMenusAndPluginRoutes();
+            }),
+          );
           return;
         }
         progressStore.markComplete();
@@ -575,7 +511,7 @@ const cleanupPageOps = registerPageOperations('admin.plugins', [
     },
   },
   {
-    name: 'search_plugins',
+    name: 'search',
     label: $t('shared.pageOperation.searchPlugins'),
     description: 'Search plugins by keyword',
     readonly: true,
@@ -988,7 +924,7 @@ onUnmounted(() => {
       </div>
       <div class="text-center">
         <p class="text-sm font-medium text-foreground">
-          {{ $t('admin.plugin.marketplace.empty') }}
+          {{ $t('admin.plugin.emptyList') }}
         </p>
       </div>
     </div>

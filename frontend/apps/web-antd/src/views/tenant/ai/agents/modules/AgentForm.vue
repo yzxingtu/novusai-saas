@@ -120,7 +120,6 @@ const {
     return {
       name: data.name,
       avatar: data.avatar || '',
-      target_audience: data.target_audience ?? 'admin_tenant',
       model_id: data.model_id,
       execution_mode: data.execution_mode,
       system_prompt: data.system_prompt,

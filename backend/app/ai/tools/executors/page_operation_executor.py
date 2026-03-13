@@ -104,6 +104,25 @@ class PageOperationExecutor(BaseToolExecutor):
             output = f"Operation '{operation_name}' executed successfully on page '{page_key}'."
             if message:
                 output += f" Result: {message}"
+            result_data = result.get("data")
+            if result_data and isinstance(result_data, dict):
+                import json
+                data_str = json.dumps(result_data, ensure_ascii=False, default=str)
+                if len(data_str) <= 4000:
+                    output += f"\nData: {data_str}"
+                # Agent Loop guidance: suggest next step based on context_diff
+                context_diff = result_data.get("context_diff", {})
+                if context_diff.get("form_opened"):
+                    output += (
+                        "\n\n[Agent Loop] Form opened. "
+                        "Next: call get_form_state to inspect current values, "
+                        "then call fill_form with intelligent values."
+                    )
+                elif context_diff.get("form_closed"):
+                    output += (
+                        "\n\n[Agent Loop] Form closed. "
+                        "Call refresh_list to see updated data."
+                    )
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

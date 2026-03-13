@@ -18,6 +18,7 @@ import {
   Input,
   message,
   Modal,
+  Pagination,
   Select,
   SelectOption,
   Spin,
@@ -51,18 +52,18 @@ const CATEGORIES = [
     icon: 'lucide:grid-2x2',
     label: () => $t('admin.plugin.type_options.all'),
   },
-  { value: 'ai', icon: 'lucide:brain', label: () => 'AI' },
-  { value: 'integration', icon: 'lucide:link', label: () => 'Integration' },
-  { value: 'storage', icon: 'lucide:database', label: () => 'Storage' },
-  { value: 'business', icon: 'lucide:briefcase', label: () => 'Business' },
-  { value: 'tools', icon: 'lucide:wrench', label: () => 'Tools' },
+  { value: 'ai', icon: 'lucide:brain', label: () => $t('admin.plugin.marketplace.category.ai') },
+  { value: 'integration', icon: 'lucide:link', label: () => $t('admin.plugin.marketplace.category.integration') },
+  { value: 'storage', icon: 'lucide:database', label: () => $t('admin.plugin.marketplace.category.storage') },
+  { value: 'business', icon: 'lucide:briefcase', label: () => $t('admin.plugin.marketplace.category.business') },
+  { value: 'tools', icon: 'lucide:wrench', label: () => $t('admin.plugin.marketplace.category.tools') },
   {
     value: 'communication',
     icon: 'lucide:message-circle',
-    label: () => 'Communication',
+    label: () => $t('admin.plugin.marketplace.category.communication'),
   },
-  { value: 'analytics', icon: 'lucide:bar-chart-3', label: () => 'Analytics' },
-  { value: 'security', icon: 'lucide:shield', label: () => 'Security' },
+  { value: 'analytics', icon: 'lucide:bar-chart-3', label: () => $t('admin.plugin.marketplace.category.analytics') },
+  { value: 'security', icon: 'lucide:shield', label: () => $t('admin.plugin.marketplace.category.security') },
 ] as const;
 
 async function loadMarketplace() {
@@ -102,7 +103,7 @@ async function handleInstall(plugin: MarketplacePluginItem) {
         message.success($t('admin.plugin.messages.installSuccess'));
         await loadMarketplace();
       } catch {
-        //
+        message.error($t('admin.plugin.messages.installFailed'));
       }
     },
   });
@@ -129,7 +130,7 @@ const cleanupPageOps = registerPageOperations('admin.plugins.marketplace', [
     },
   },
   {
-    name: 'search_plugins',
+    name: 'search',
     label: $t('shared.pageOperation.searchPlugins'),
     description: 'Search plugins in the marketplace',
     readonly: true,
@@ -375,9 +376,23 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- 分页 -->
+      <div
+        v-if="plugins.length > 0 && total > 24"
+        class="mt-6 flex justify-center"
+      >
+        <Pagination
+          v-model:current="currentPage"
+          :total="total"
+          :page-size="24"
+          show-size-changer
+          @change="loadMarketplace"
+        />
+      </div>
+
       <!-- 空状态 -->
       <div
-        v-else-if="!loading"
+        v-else-if="plugins.length === 0 && !loading"
         class="flex flex-col items-center justify-center gap-4 py-24"
       >
         <div

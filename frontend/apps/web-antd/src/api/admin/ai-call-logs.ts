@@ -30,6 +30,7 @@ export interface AICallLogInfo {
   // Related names / 关联名称
   model_name?: null | string;
   provider_name?: null | string;
+  provider_icon?: null | string;
   tenant_name?: null | string;
   // Routing fields (multi-model routing) / 路由字段（多模型路由）
   routed_model_id?: null | number;

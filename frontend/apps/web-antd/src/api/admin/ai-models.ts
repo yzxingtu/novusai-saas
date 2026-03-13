@@ -34,6 +34,7 @@ export interface AIModelInfo {
   is_active: boolean;
   config: null | Record<string, unknown>;
   provider_name: null | string;
+  provider_icon?: null | string;
   created_at: string;
   updated_at: string;
 }

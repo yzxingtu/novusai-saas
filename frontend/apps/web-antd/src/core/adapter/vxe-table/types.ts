@@ -185,6 +185,18 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
    * @example { expandConfig: { lazy: true, accordion: true } }
    */
   gridOptions?: Record<string, unknown>;
+
+  /**
+   * AI page awareness config. When provided, enables form state tracking
+   * and generates form AI operations (get_form_state, fill_form, etc.)
+   * AI 页面感知配置。提供后启用表单状态追踪并生成表单 AI 操作
+   */
+  ai?: {
+    /** Page key matching registerPageOperations / 匹配 registerPageOperations 的页面标识 */
+    pageKey: string;
+    /** Form schema factory for AI field extraction / 表单 schema 工厂函数，用于 AI 字段提取 */
+    formSchema: (isEdit?: boolean) => VbenFormSchema[];
+  };
 }
 
 /**

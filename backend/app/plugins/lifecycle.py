@@ -240,6 +240,8 @@ class PluginLifecycle:
         # Prevent concurrent installation of same-named plugin (Redis name lock) / 防止并发安装同名插件（基于 Redis 名称锁）
         from app.core.redis import get_redis_client
         _install_lock_key = f"plugin:install:lock:{plugin_name}"
+        _redis = None
+        _install_owner = None
         _redis = get_redis_client()
         _install_owner = str(uuid.uuid4())
         _install_locked = await _redis.set(
@@ -543,8 +545,9 @@ class PluginLifecycle:
             )
         finally:
             # Release install lock / 释放安装锁
-            with suppress(Exception):
-                await _redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _install_lock_key, _install_owner)
+            if _redis is not None and _install_owner is not None:
+                with suppress(Exception):
+                    await _redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _install_lock_key, _install_owner)
 
     # ================================================================
     # enable

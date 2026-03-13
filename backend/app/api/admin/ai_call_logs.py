@@ -181,7 +181,7 @@ class AdminAICallLogController(GlobalController):
                         "total_tokens": getattr(item, "total_tokens", ""),
                         "cost": getattr(item, "cost", ""),
                         "latency_ms": getattr(item, "latency_ms", ""),
-                        "created_at": str(getattr(item, "created_at", "")),
+                        "created_at": getattr(item, "created_at", "").isoformat() if hasattr(getattr(item, "created_at", ""), "isoformat") else str(getattr(item, "created_at", "")),
                     })
 
             columns = [

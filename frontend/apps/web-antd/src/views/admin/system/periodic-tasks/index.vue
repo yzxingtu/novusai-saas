@@ -29,6 +29,7 @@ import {
   getTaskIconBg,
   getTaskIconColor,
   useColumns,
+  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/PeriodicTaskForm.vue';
@@ -68,26 +69,28 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<PeriodicTaskInfo>({
-  api: {
-    list: admin.getPeriodicTaskListApi,
-    resource: '/admin/periodic-tasks',
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  formDefaults: getFormDefaults,
-  i18nPrefix: 'admin.system.periodicTask',
-  nameField: 'name',
-  defaultSort: 'name',
-  rowHeight: 72,
-  recycleBin: true,
-  createPermission: 'periodic_task:create',
-  customActions: {
-    trigger: onTriggerTask,
-    logs: onViewLogs,
-  },
-});
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
+  useCrudPage<PeriodicTaskInfo>({
+    api: {
+      list: admin.getPeriodicTaskListApi,
+      resource: '/admin/periodic-tasks',
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    formDefaults: getFormDefaults,
+    i18nPrefix: 'admin.system.periodicTask',
+    nameField: 'name',
+    defaultSort: 'name',
+    rowHeight: 72,
+    recycleBin: true,
+    createPermission: 'periodic_task:create',
+    customActions: {
+      trigger: onTriggerTask,
+      logs: onViewLogs,
+    },
+    ai: { pageKey: 'admin.system.periodic-tasks', formSchema: useFormSchema },
+  });
 
 const cleanupPageContext = registerPageContext('admin/system/periodic-tasks', () => ({
   page_key: 'admin.system.periodic-tasks',
@@ -109,7 +112,7 @@ const cleanupPageOps = registerPageOperations('admin.system.periodic-tasks', [
     },
   },
   {
-    name: 'create_task',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open the create periodic task form',
     readonly: false,
@@ -119,7 +122,7 @@ const cleanupPageOps = registerPageOperations('admin.system.periodic-tasks', [
     },
   },
   {
-    name: 'search_tasks',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search periodic tasks by name',
     readonly: true,
@@ -133,6 +136,7 @@ const cleanupPageOps = registerPageOperations('admin.system.periodic-tasks', [
       return { success: true, message: `Searched for: ${keyword}` };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {

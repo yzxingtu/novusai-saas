@@ -76,7 +76,7 @@ const cleanupPageOps = registerPageOperations('tenant.ai.conversations', [
     },
   },
   {
-    name: 'search_conversations',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search conversations by title',
     readonly: true,

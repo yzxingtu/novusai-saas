@@ -29,6 +29,7 @@ import { smartUploadFile } from '#/api/user/attachment';
 import { getUserProfileApi, updateUserProfileApi } from '#/api/user/auth';
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store/shared/public-config';
+import { formatDate, formatDateOnly } from '#/utils/common';
 import { getProcessedImageUrl, toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'UserProfile' });
@@ -77,12 +78,12 @@ const displayName = computed(() => {
 
 const formattedCreatedAt = computed(() => {
   if (!profile.value?.createdAt) return '-';
-  return new Date(profile.value.createdAt).toLocaleDateString();
+  return formatDateOnly(profile.value.createdAt);
 });
 
 const formattedLastLogin = computed(() => {
   if (!profile.value?.lastLoginAt) return '-';
-  return new Date(profile.value.lastLoginAt).toLocaleString();
+  return formatDate(profile.value.lastLoginAt);
 });
 
 function syncFormFromProfile(data: UserProfileInfo) {

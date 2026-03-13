@@ -55,7 +55,7 @@ async def search_documents(
             "status": doc.status,
             "word_count": doc.word_count,
             "folder_id": doc.folder_id,
-            "updated_at": str(doc.updated_at) if doc.updated_at else None,
+            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
         }
         for doc in rows
     ]

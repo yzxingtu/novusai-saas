@@ -414,7 +414,7 @@ class PluginContext:
                     "license_type": _TRIAL,
                     "is_valid": True,
                     "trial_days_remaining": remaining,
-                    "expires_at": str(trial_expires_at),
+                    "expires_at": trial_expires_at.isoformat() if trial_expires_at else None,
                 }
             return {
                 "status": "expired",
@@ -431,7 +431,7 @@ class PluginContext:
                     "license_type": license_type,
                     "is_valid": False,
                     "message": "License expired",
-                    "expires_at": str(expires_at),
+                    "expires_at": expires_at.isoformat() if expires_at else None,
                 }
             remaining_days = None
             if expires_at:
@@ -441,8 +441,8 @@ class PluginContext:
                 "license_type": license_type,
                 "is_valid": True,
                 "license_key": "****",
-                "activated_at": str(activated_at) if activated_at else None,
-                "expires_at": str(expires_at) if expires_at else None,
+                "activated_at": activated_at.isoformat() if activated_at else None,
+                "expires_at": expires_at.isoformat() if expires_at else None,
                 "remaining_days": remaining_days,
             }
 
@@ -1093,12 +1093,11 @@ class _NamespacedStorageProxy:
         """Normalize path and ensure it doesn't escape namespace (prevent ../ path traversal) / 规范化路径并确保不逃逸命名空间（防止 ../ 路径遍历）"""
         import posixpath
 
-        # Strip leading slashes then normalize (posixpath.normpath collapses ../ and ./)
-        # / 去除前导斜杠后规范化
-        normalized = posixpath.normpath(path.lstrip("/"))
-        # If normalized path starts with .., namespace escape attempt detected
-        # / 若规范化后路径以 .. 开头，说明尝试逃逸命名空间
-        if normalized.startswith(".."):
+        stripped = path.lstrip("/")
+        if not stripped:
+            return self._namespace
+        normalized = posixpath.normpath(stripped)
+        if normalized.startswith("..") or normalized == ".":
             from app.plugins.exceptions import PluginSecurityError
             raise PluginSecurityError(
                 message=f"Path traversal attempt detected in storage access: '{path}'",

@@ -429,7 +429,7 @@ const cleanupPageOps = registerPageOperations('admin.system.system-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search within current log content',
     readonly: true,

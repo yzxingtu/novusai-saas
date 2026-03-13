@@ -29,6 +29,8 @@ import { useVbenDrawer } from '@vben/common-ui';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+import { extractFormParams } from './use-ai-operations';
+import { formStateTracker } from './use-form-state-tracker';
 
 // ============ 字段映射工具函数 ============
 
@@ -178,6 +180,12 @@ export interface UseCrudDrawerOptions<T = any> {
    * @default 'id'
    */
   idField?: string;
+
+  /**
+   * AI page key (enables form state tracking for AI operations)
+   * AI 页面标识（启用表单状态追踪供 AI 操作使用）
+   */
+  aiPageKey?: string;
 }
 
 /**
@@ -199,7 +207,10 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     apiPath,
     detailApi,
     idField = 'id',
+    aiPageKey: staticAiPageKey,
   } = options;
+
+  let aiPageKey = staticAiPageKey;
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues
   const transform =
@@ -252,6 +263,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         if (afterSave) {
           await afterSave(response, values, isEdit.value);
         }
+        if (aiPageKey) formStateTracker.close(aiPageKey);
         await onSuccess?.();
         drawerApi.close();
       } catch {
@@ -262,7 +274,10 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     },
 
     async onOpenChange(isOpen) {
-      if (!isOpen) return;
+      if (!isOpen) {
+        if (aiPageKey) formStateTracker.close(aiPageKey);
+        return;
+      }
 
       // 从 drawerApi 获取数据
       const data = drawerApi.getData() as
@@ -276,6 +291,10 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         | undefined;
       mode.value = data?.mode ?? 'add';
       recordId.value = data?.[idField];
+
+      if (!aiPageKey && data?._aiPageKey) {
+        aiPageKey = data._aiPageKey as string;
+      }
       {
         const p = unref(apiPath) as (() => string) | string | undefined;
         const resolved = typeof p === 'function' ? p() : p;
@@ -325,6 +344,25 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         if (defaultValues && formApi) {
           formApi.setValues(defaultValues);
         }
+      }
+
+      // Register form state for AI tracking / 注册表单状态供 AI 追踪
+      if (aiPageKey && formApi) {
+        const fieldDescriptors = schema
+          ? extractFormParams(schema(isEdit.value))
+          : {};
+        let initialValues: Record<string, unknown> = {};
+        try {
+          initialValues = await formApi.getValues();
+        } catch {
+          // Form may not be fully ready
+        }
+        formStateTracker.open(aiPageKey, {
+          mode: mode.value as 'add' | 'edit' | 'view',
+          formApi: formApi as any,
+          fieldDescriptors,
+          initialValues,
+        });
       }
     },
   });

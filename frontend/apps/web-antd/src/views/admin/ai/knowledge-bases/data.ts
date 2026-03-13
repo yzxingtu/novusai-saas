@@ -1,10 +1,9 @@
 /**
- * 平台管理端知识库管理 - 表格列、搜索配置、表单 Schema
+ * Knowledge base management — search config, form schema
+ * 平台管理端知识库管理 — 搜索配置、表单 Schema
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AIModelInfo } from '#/api/admin/ai';
-import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
 
 import {
   inputField,
@@ -25,21 +24,10 @@ import {
 
 export { getScopeColor, getScopeText };
 
-// ============ Scope 辅助 ============
+// ============ Scope helpers / Scope 辅助 ============
 
 export function getScopeOptions() {
   return _getScopeOptions();
-}
-
-export function getVisibilityOptions() {
-  return [
-    { label: $t('admin.knowledgeBase.visibility.private'), value: 'private' },
-    {
-      label: $t('admin.knowledgeBase.visibility.all_tenants'),
-      value: 'all_tenants',
-    },
-    { label: $t('admin.knowledgeBase.visibility.assigned'), value: 'assigned' },
-  ];
 }
 
 // ============ Embedding / Vision 模型下拉 ============
@@ -96,91 +84,7 @@ export function getFormDefaults() {
     extract_images: false,
     chunk_size: 512,
     chunk_overlap: 50,
-    chunk_strategy: 'recursive',
   };
-}
-
-// ============ 表格列 ============
-
-export function useColumns<T = AdminKnowledgeBaseItem>(
-  onActionClick: OnActionClickFn<T>,
-): VxeTableGridOptions['columns'] {
-  return [
-    {
-      field: 'scope',
-      title: $t('admin.knowledgeBase.field.scope'),
-      width: 110,
-      align: 'center',
-      slots: { default: 'scope_cell' },
-    },
-    {
-      field: 'tenant_id',
-      title: $t('admin.knowledgeBase.field.tenantName'),
-      width: 100,
-      align: 'center',
-    },
-    {
-      field: 'name',
-      title: $t('admin.knowledgeBase.field.name'),
-      minWidth: 180,
-      slots: { default: 'name_cell' },
-    },
-    {
-      field: 'embedding_model_name',
-      title: $t('admin.knowledgeBase.field.embeddingModel'),
-      width: 180,
-    },
-    {
-      field: 'document_count',
-      title: $t('admin.knowledgeBase.field.documentCount'),
-      width: 100,
-      align: 'center',
-    },
-    {
-      field: 'total_chunks',
-      title: $t('admin.knowledgeBase.field.totalChunks'),
-      width: 100,
-      align: 'center',
-    },
-    {
-      field: 'total_size_bytes',
-      title: $t('admin.knowledgeBase.field.totalSizeBytes'),
-      width: 120,
-      align: 'center',
-      slots: { default: 'size_cell' },
-    },
-    {
-      field: 'status',
-      title: $t('admin.knowledgeBase.field.status'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'status_cell' },
-    },
-    {
-      field: 'created_at',
-      title: $t('admin.knowledgeBase.field.createdAt'),
-      width: 170,
-      sortable: true,
-      slots: { default: 'createdAt_cell' },
-    },
-    {
-      align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'ai_knowledge_base',
-          nameField: 'name',
-          nameTitle: $t('admin.knowledgeBase.field.name'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: [{ code: 'detail', accessCodes: [] }, 'edit', 'delete'],
-      },
-      field: 'operation',
-      fixed: 'right',
-      title: $t('admin.common.operation'),
-      width: 160,
-    },
-  ];
 }
 
 // ============ 搜索表单 ============

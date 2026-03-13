@@ -175,38 +175,33 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
 
     async def delete_role(self, role_id: int) -> bool:
         """
-        删除用户角色（租户内）
+        删除用户角色（租户内） / Delete user role (tenant-scoped)
+
+        通过 BaseService.delete() 统一处理 __delete_deps__ 依赖检查。
+        Uses BaseService.delete() for unified __delete_deps__ checking.
 
         Args:
-            role_id: 角色 ID
+            role_id: 角色 ID / Role ID
 
         Returns:
-            是否删除成功
+            是否删除成功 / Whether deletion was successful
 
         Raises:
-            NotFoundException: 角色不存在
-            BusinessException: 系统角色不可删除/有关联用户
+            NotFoundException: 角色不存在 / Role not found
+            BusinessException: 系统角色不可删除 / System role cannot be deleted
+            DependencyBlockedException: 有关联用户 / Has associated users
         """
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise NotFoundException(message=_("tenant_user_role.not_found"))
 
-        # 系统角色不可删除
         if role.is_system:
             raise BusinessException(
                 message=_("tenant_user_role.system_cannot_delete"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        # 检查是否有关联用户
-        user_count = await self.repo.count_users(role_id)
-        if user_count > 0:
-            raise BusinessException(
-                message=_("tenant_user_role.has_users"),
-                code=ErrorCode.VALIDATION_ERROR,
-            )
-
-        return await self.repo.delete(role_id)
+        return await self.delete(role_id)
 
     async def assign_permissions(
         self,

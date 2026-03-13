@@ -21,6 +21,7 @@ import { computed } from 'vue';
 
 import { useRoute } from 'vue-router';
 
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { useAIPermission } from './use-ai-permission';
 
 /** Default AI mode: global assistant (sidebar panel, page-unaware) / 默认 AI 模式：全局助手（侧边栏浮窗，不感知页面） */
@@ -36,13 +37,18 @@ export function useCurrentPageAIPolicy() {
   );
 
   /**
-   * Current page context key (prefer meta config, fallback to route name) / 页面上下文标识
+   * Current page context key in canonical dot-notation (e.g. 'admin.ai.agents')
+   * 当前页面上下文标识（规范点号格式，如 'admin.ai.agents'）
+   *
+   * Priority: route.meta.ai.pageContextKey > normalizePageKey(route.path)
    * Used for precise matching with registered page contexts / 用于精确匹配注册表
    */
   const pageContextKey = computed<string | undefined>(
     () =>
-      route.meta?.ai?.pageContextKey ??
-      (route.path ? route.path.replace(/^\//, '') : undefined),
+      (route.meta?.ai?.pageContextKey
+        ? normalizePageKey(route.meta.ai.pageContextKey as string)
+        : undefined) ??
+      (route.path ? normalizePageKey(route.path) : undefined),
   );
 
   /** Page AI disabled flag / 页面 AI 禁用标志 */

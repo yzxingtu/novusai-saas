@@ -156,6 +156,8 @@ export function exposePluginShared(): void {
  * Merge plugin-provided translation messages into global i18n instance
  * 将插件提供的翻译消息合并到全局 i18n 实例
  */
+const _DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function _registerPluginLocale(
   locale: string,
   prefix: string,
@@ -163,32 +165,29 @@ function _registerPluginLocale(
 ): void {
   try {
     if (i18n?.global) {
-      // 将扁平点分 key（如 'folder.all': '全部文档'）转为嵌套对象
-      // 再包裹 prefix（如 "plugin.novusdoc"）→ { plugin: { novusdoc: { folder: { all: '全部文档' } } } }
-      const nestedMessages: Record<string, unknown> = {};
+      const nestedMessages: Record<string, unknown> = Object.create(null);
       for (const [key, value] of Object.entries(messages)) {
         const keyParts = key.split('.');
         if (keyParts.length === 0) continue;
         let current: Record<string, unknown> = nestedMessages;
         for (let i = 0; i < keyParts.length - 1; i++) {
           const part = keyParts[i];
-          if (!part) continue;
+          if (!part || _DANGEROUS_KEYS.has(part)) continue;
           if (!(part in current) || typeof current[part] !== 'object') {
-            current[part] = {};
+            current[part] = Object.create(null);
           }
           current = current[part] as Record<string, unknown>;
         }
-        const lastPart = keyParts[keyParts.length - 1];
-        if (!lastPart) continue;
+        const lastPart = keyParts.at(-1);
+        if (!lastPart || _DANGEROUS_KEYS.has(lastPart)) continue;
         current[lastPart] = value;
       }
 
-      // 包裹 prefix 路径
       const prefixParts = prefix.split('.');
       let wrapped: Record<string, unknown> = nestedMessages;
       for (let i = prefixParts.length - 1; i >= 0; i--) {
         const part = prefixParts[i];
-        if (!part) continue;
+        if (!part || _DANGEROUS_KEYS.has(part)) continue;
         wrapped = { [part]: wrapped };
       }
       i18n.global.mergeLocaleMessage(locale, wrapped);

@@ -123,20 +123,24 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
     async def delete_model(self, id: int) -> None:
         """
-        删除模型（软删除）
+        删除模型（软删除） / Delete model (soft delete)
+
+        通过 BaseService.delete() 统一处理，自动执行 __delete_deps__ 依赖检查：
+        Uses BaseService.delete() for unified handling, auto-checks __delete_deps__:
+        - BLOCK: Agent/KnowledgeBase 有依赖时拒绝删除 / Blocks when deps exist
+        - CASCADE_SOFT: TenantQuota/TenantModelRateLimit 跟随软删除 / Cascades
+        - NULLIFY: fallback_model_id/embedding_model_id 置 NULL / Nullifies FKs
 
         Args:
-            id: 模型 ID
+            id: 模型 ID / Model ID
 
         Raises:
-            NotFoundException: 模型不存在
+            NotFoundException: 模型不存在 / Model not found
+            DependencyBlockedException: 存在 BLOCK 依赖 / BLOCK deps exist
         """
-        model_obj = await self.get_by_id(id)
-        if not model_obj:
+        result = await self.delete(id, soft=True)
+        if not result:
             raise NotFoundException(message=_("ai.error.model_not_found"))
-
-        model_obj.soft_delete()
-        await self.db.flush()
 
 
     async def fetch_remote_models(self, provider_id: int) -> list:

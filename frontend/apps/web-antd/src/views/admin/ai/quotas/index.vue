@@ -4,10 +4,7 @@
  */
 import type { AIQuotaInfo, AIRateLimitInfo } from '#/api/admin/ai';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -41,6 +38,7 @@ import {
   getQuotaTypeOptions,
   getQuotaTypeText,
   getRateLimitFormDefaults,
+  useFormSchema,
 } from './data';
 import Form from './modules/form.vue';
 import RateLimitForm from './modules/RateLimitForm.vue';
@@ -78,6 +76,37 @@ const {
   pageSize: 12,
   defaultSort: '-created_at',
   createPermission: 'ai_quota:create',
+  ai: {
+    formSchema: useFormSchema,
+    entityName: $t('admin.ai.quota.name'),
+    entityDescription: 'AI 配额与速率限制管理',
+    contextExtras: () => ({
+      total_quotas: quotaTotal.value,
+    }),
+    extra: [
+      {
+        name: 'refresh_list',
+        label: $t('shared.pageOperation.refreshList'),
+        description: 'Reload quotas and rate limits / 刷新配额和速率限制列表',
+        readonly: true,
+        handler: async () => {
+          await loadQuotas();
+          await loadRateLimits();
+          return { success: true, message: 'Quota list refreshed / 配额列表已刷新' };
+        },
+      },
+      {
+        name: 'create_record',
+        label: $t('shared.pageOperation.createRecord'),
+        description: 'Open the create quota form / 打开新建配额表单',
+        readonly: false,
+        handler: async () => {
+          onCreateQuota();
+          return { success: true, message: 'Create quota form opened / 新建配额表单已打开' };
+        },
+      },
+    ],
+  },
 });
 
 // ========== 速率限制 Tab — useCrudList + ref 模式 ==========
@@ -107,43 +136,6 @@ const {
   },
 });
 
-const cleanupPageContext = registerPageContext('admin/ai/quotas', () => ({
-  page_key: 'admin.ai.quotas',
-  page_title: $t('admin.ai.quota.name'),
-  page_data: {
-    resource: '/admin/ai/quotas',
-    total_quotas: quotaTotal.value,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.quotas', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the quota list',
-    readonly: true,
-    handler: async () => {
-      await loadQuotas();
-      await loadRateLimits();
-      return { success: true, message: 'Quota list refreshed' };
-    },
-  },
-  {
-    name: 'create_quota',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create quota form',
-    readonly: false,
-    handler: async () => {
-      onCreateQuota();
-      return { success: true, message: 'Create quota form opened' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>

@@ -131,16 +131,18 @@ class PluginHealthMonitor:
 
             lifecycle = PluginLifecycle(self._db)
             await lifecycle.disable(plugin.id)
+            plugin.error_message = f"Auto-disabled after {plugin.error_count} consecutive errors"
+            plugin.updated_at = utc_now()
+            await self._db.flush()
         except Exception as exc:
             logger.warning(
                 "Plugin %s auto-disable via lifecycle failed: %s, forcing error status",
                 plugin_name, exc,
             )
-
-        plugin.status = PluginStatusEnum.ERROR.value
-        plugin.error_message = f"Auto-disabled after {plugin.error_count} consecutive errors"
-        plugin.updated_at = utc_now()
-        await self._db.flush()
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = f"Auto-disabled after {plugin.error_count} consecutive errors (lifecycle disable failed: {exc})"
+            plugin.updated_at = utc_now()
+            await self._db.flush()
 
         logger.error(
             "Plugin %s auto-disabled after %d consecutive errors",

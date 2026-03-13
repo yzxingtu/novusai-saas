@@ -18,6 +18,7 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { getProcessedImageUrl } from '#/utils/image';
 
 import {
   formatCost,
@@ -85,7 +86,7 @@ const cleanupPageOps = registerPageOperations('tenant.ai.call-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search call logs by model name',
     readonly: true,
@@ -171,6 +172,28 @@ onUnmounted(() => {
               {{ row.model_name || '-' }}
             </code>
           </div>
+        </template>
+
+        <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+        <template #providerName_cell="{ row }">
+          <div
+            v-if="row.provider_name"
+            class="flex items-center justify-center gap-1.5"
+          >
+            <img
+              v-if="row.provider_icon && Number(row.provider_icon) > 0"
+              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              class="size-4 shrink-0 rounded object-contain"
+              alt=""
+            />
+            <IconifyIcon
+              v-else
+              icon="lucide:cpu"
+              class="size-3.5 text-muted-foreground"
+            />
+            <span class="text-foreground">{{ row.provider_name }}</span>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 状态列 -->

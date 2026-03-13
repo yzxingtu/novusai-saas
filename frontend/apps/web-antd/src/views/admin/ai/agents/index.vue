@@ -10,10 +10,7 @@
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-import { computed, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -57,7 +54,10 @@ import {
   getScopeColor,
   getScopeOptions,
   getStatusText,
+  useFormSchema,
 } from './data';
+
+const AI_PAGE_KEY = 'admin.ai.agents';
 import AgentForm from './modules/form.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
@@ -90,7 +90,70 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(row),
+    edit: (row) => agentFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+  },
+  ai: {
+    pageKey: AI_PAGE_KEY,
+    formSchema: (isEdit?: boolean) => useFormSchema(isEdit ?? false, false, !(isEdit ?? false)),
+    entityName: $t('admin.ai.agent.name'),
+    entityDescription: '管理 AI 智能体的配置、技能绑定和发布状态',
+    openRecycleBin: () => recycleBinRef.value?.open(),
+    contextExtras: () => ({
+      published: stats.value.published,
+      system: stats.value.system,
+    }),
+    extra: [
+      {
+        name: 'create_record',
+        label: $t('shared.pageOperation.createRecord'),
+        description: 'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
+        readonly: false,
+        params: {
+          name: { type: 'string', description: 'Agent name / 智能体名称' },
+          description: { type: 'string', description: 'Agent description / 简介' },
+          model_id: { type: 'number', description: 'AI model ID / AI 模型 ID' },
+          system_prompt: { type: 'string', description: 'System prompt / 系统提示词' },
+          welcome_message: { type: 'string', description: 'Welcome message / 欢迎语' },
+        },
+        handler: async (params): Promise<{ success: boolean; message: string }> => {
+          const overrides: Record<string, unknown> = {};
+          if (params?.name) overrides.name = params.name;
+          if (params?.description) overrides.description = params.description;
+          if (params?.model_id) overrides.model_id = params.model_id;
+          if (params?.system_prompt) overrides.system_prompt = params.system_prompt;
+          if (params?.welcome_message) overrides.welcome_message = params.welcome_message;
+
+          const extraData: Record<string, unknown> = { _aiPageKey: AI_PAGE_KEY };
+          if (Object.keys(overrides).length > 0) {
+            extraData._defaults = { ...getFormDefaults(), ...overrides };
+          }
+          agentFormRef.value?.openNew(extraData);
+
+          const filled = Object.keys(overrides);
+          return {
+            success: true,
+            message: filled.length > 0
+              ? `Create agent form opened with pre-filled: ${filled.join(', ')} / 表单已打开，预填: ${filled.join(', ')}`
+              : 'Create agent form opened / 新建表单已打开',
+          };
+        },
+      },
+      {
+        name: 'search',
+        label: $t('shared.pageOperation.searchByKeyword'),
+        description: 'Search agents by keyword / 按关键词搜索智能体',
+        readonly: true,
+        params: {
+          keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+        },
+        handler: async (params): Promise<{ success: boolean; message: string }> => {
+          const keyword = (params?.keyword as string) || '';
+          searchKeyword.value = keyword;
+          doSearch();
+          return { success: true, message: `Searched for: ${keyword} / 已搜索：${keyword}` };
+        },
+      },
+    ],
   },
 });
 
@@ -108,6 +171,14 @@ function openRecycleBin() {
 // ============================================================
 
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
+
+function onCreateAgent() {
+  agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+}
+
+function onEditAgent(agent: AIAgentInfo) {
+  agentFormRef.value?.openEdit(agent, { _aiPageKey: AI_PAGE_KEY });
+}
 
 // ============================================================
 // Version history / 版本历史
@@ -251,96 +322,6 @@ const stats = computed(() => {
   };
 });
 
-const cleanupPageContext = registerPageContext('admin/ai/agents', () => ({
-  page_key: 'admin.ai.agents',
-  page_title: $t('admin.ai.agent.name'),
-  page_data: {
-    resource: '/admin/ai/agents',
-    total: stats.value.total,
-    published: stats.value.published,
-    system: stats.value.system,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.agents', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the agent list',
-    readonly: true,
-    handler: async () => {
-      await loadList();
-      return { success: true, message: 'Agent list refreshed' };
-    },
-  },
-  {
-    name: 'create_agent',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create agent form and optionally pre-fill fields. Pass params to auto-fill the form.',
-    readonly: false,
-    params: {
-      name: { type: 'string', description: 'Agent name' },
-      description: { type: 'string', description: 'Agent description' },
-      model_id: { type: 'number', description: 'AI model ID to use' },
-      system_prompt: { type: 'string', description: 'System prompt for the agent' },
-      welcome_message: { type: 'string', description: 'Welcome message shown to users' },
-      target_audience: { type: 'string', description: 'Target audience: all / admin_only / admin_tenant' },
-    },
-    handler: async (params) => {
-      const overrides: Record<string, unknown> = {};
-      if (params?.name) overrides.name = params.name;
-      if (params?.description) overrides.description = params.description;
-      if (params?.model_id) overrides.model_id = params.model_id;
-      if (params?.system_prompt) overrides.system_prompt = params.system_prompt;
-      if (params?.welcome_message) overrides.welcome_message = params.welcome_message;
-      if (params?.target_audience) overrides.target_audience = params.target_audience;
-
-      if (Object.keys(overrides).length > 0) {
-        agentFormRef.value?.openNew({
-          _defaults: { ...getFormDefaults(), ...overrides },
-        });
-      } else {
-        agentFormRef.value?.openNew();
-      }
-
-      const filled = Object.keys(overrides);
-      const msg = filled.length > 0
-        ? `Create agent form opened with pre-filled fields: ${filled.join(', ')}`
-        : 'Create agent form opened';
-      return { success: true, message: msg };
-    },
-  },
-  {
-    name: 'search_agents',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search agents by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      searchKeyword.value = keyword;
-      doSearch();
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'view_recycle_bin',
-    label: $t('shared.pageOperation.restoreRecord'),
-    description: 'Open the recycle bin drawer',
-    readonly: true,
-    handler: async () => {
-      openRecycleBin();
-      return { success: true, message: 'Recycle bin opened' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>
@@ -473,7 +454,7 @@ onUnmounted(() => {
       <Button
         v-access:code="['ai_agent:create']"
         type="primary"
-        @click="agentFormRef?.openNew()"
+        @click="onCreateAgent"
       >
         <template #icon>
           <IconifyIcon icon="lucide:plus" class="size-4" />
@@ -574,7 +555,7 @@ onUnmounted(() => {
                       <span>{{ $t('admin.ai.agent.detail.title') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem key="edit" @click="agentFormRef?.openEdit(agent)">
+                  <MenuItem key="edit" @click="onEditAgent(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
                       <span>{{ $t('admin.common.edit') }}</span>
@@ -797,7 +778,7 @@ onUnmounted(() => {
               <!-- Quick edit button -->
               <button
                 class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                @click="agentFormRef?.openEdit(agent)"
+                @click="onEditAgent(agent)"
               >
                 <IconifyIcon icon="lucide:pencil" class="size-3" />
                 <span>{{ $t('admin.common.edit') }}</span>
@@ -816,7 +797,7 @@ onUnmounted(() => {
           <Button
             v-access:code="['ai_agent:create']"
             type="primary"
-            @click="agentFormRef?.openNew()"
+            @click="onCreateAgent"
           >
             <template #icon>
               <IconifyIcon icon="lucide:plus" class="size-4" />

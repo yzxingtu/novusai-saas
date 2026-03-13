@@ -18,6 +18,7 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogListApi, getAICallLogStatisticsApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import { getProcessedImageUrl } from '#/utils/image';
 
 import {
   formatCost,
@@ -153,7 +154,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.call-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search call logs by model name',
     readonly: true,
@@ -244,7 +245,14 @@ onUnmounted(() => {
             v-if="row.provider_name"
             class="flex items-center justify-center gap-1.5"
           >
+            <img
+              v-if="row.provider_icon && Number(row.provider_icon) > 0"
+              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              class="size-4 shrink-0 rounded object-contain"
+              alt=""
+            />
             <IconifyIcon
+              v-else
               icon="lucide:cpu"
               class="size-3.5 text-muted-foreground"
             />

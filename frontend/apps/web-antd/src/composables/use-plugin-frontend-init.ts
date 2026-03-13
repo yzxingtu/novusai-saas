@@ -71,15 +71,14 @@ export async function ensurePluginRoutes(
   const slotsStore = usePluginSlotsStore();
   const extensionsStore = usePluginExtensionsStore();
 
-  removeAllPluginPageRoutes(router);
-  slotsStore.clearAll();
-  extensionsStore.clearAll();
-
   try {
-    // Fetch slot data via unified /plugins/slots API / 统一通过 /plugins/slots API 获取插槽数据
+    // Fetch first, only clear after success to avoid losing existing routes on failure
+    // / 先 fetch，成功后再清理，避免失败时丢失现有路由
     await slotsStore.fetchSlots(side);
 
-    // Register standalonePages dynamic routes / 注册 standalonePages 动态路由
+    removeAllPluginPageRoutes(router);
+    extensionsStore.clearAll();
+
     _registerStandalonePageRoutes(router, slotsStore);
 
     _pluginRoutesReady = true;

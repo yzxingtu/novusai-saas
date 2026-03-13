@@ -50,11 +50,13 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             model_map = {r.id: r.name for r in rows}
 
         provider_map: dict[int, str] = {}
+        provider_icon_map: dict[int, str | None] = {}
         if provider_ids:
             rows = (await self.db.execute(
-                select(AIProvider.id, AIProvider.name).where(AIProvider.id.in_(provider_ids))
+                select(AIProvider.id, AIProvider.name, AIProvider.icon).where(AIProvider.id.in_(provider_ids))
             )).all()
             provider_map = {r.id: r.name for r in rows}
+            provider_icon_map = {r.id: r.icon for r in rows}
 
         tenant_map: dict[int, str] = {}
         if tenant_ids:
@@ -85,6 +87,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             }
             d["model_name"] = model_map.get(item.model_id, "-")
             d["provider_name"] = provider_map.get(item.provider_id, "-")
+            d["provider_icon"] = provider_icon_map.get(item.provider_id)
             d["tenant_name"] = tenant_map.get(item.tenant_id, "-")
             result.append(d)
 

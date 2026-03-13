@@ -20,15 +20,13 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: ['vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared', '@vben/common-ui', '@vben/icons'],
+      external: ['vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared'],
       output: {
         globals: {
           vue: 'Vue',
           'vue-router': 'VueRouter',
           'ant-design-vue': 'AntDesignVue',
           '@novus/plugin-shared': 'NovusPluginShared',
-          '@vben/common-ui': 'VbenCommonUI',
-          '@vben/icons': 'VbenIcons',
         },
         assetFileNames: '[name][extname]',
       },

@@ -125,7 +125,7 @@ const cleanupPageContext = registerPageContext('tenant/system/attachments', () =
 
 const cleanupPageOps = registerPageOperations('tenant.system.attachments', [
   {
-    name: 'search_attachments',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search attachments by file name',
     readonly: true,

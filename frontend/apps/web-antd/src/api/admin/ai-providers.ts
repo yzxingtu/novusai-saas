@@ -83,6 +83,7 @@ export interface AIApiKeyInfo {
   last_used_at: null | string;
   expires_at: null | string;
   provider_name: null | string;
+  provider_icon?: null | string;
   tenant_name: null | string;
   is_available: boolean;
   key_preview: null | string;
@@ -118,6 +119,7 @@ export interface AIHealthStatus {
   provider_id: number;
   provider_code: string;
   provider_name: string;
+  provider_icon?: null | string;
   is_healthy: boolean;
   is_available: boolean;
   response_time_ms: number;

@@ -11,7 +11,7 @@ B1-B4: Tenant Dashboard 统计
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import case, func, select, text
@@ -309,10 +309,18 @@ class AdminDashboardService:
                 "status_code": log.status_code,
                 "ip": log.ip,
                 "duration_ms": log.duration_ms,
-                "created_at": str(log.created_at) if log.created_at else None,
+                "created_at": self._format_dt(log.created_at),
             }
             for log in items
         ]
+
+    @staticmethod
+    def _format_dt(dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
 
     # ── private helpers ──
 
@@ -505,7 +513,7 @@ class TenantDashboardService:
                 "method": log.method,
                 "status_code": log.status_code,
                 "duration_ms": log.duration_ms,
-                "created_at": str(log.created_at) if log.created_at else None,
+                "created_at": self._format_dt(log.created_at),
             }
             for log in items
         ]

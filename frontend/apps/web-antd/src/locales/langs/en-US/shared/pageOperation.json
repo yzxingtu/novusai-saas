@@ -19,6 +19,8 @@
   "restoreRecord": "Restore Record",
   "archiveRecord": "Archive Record",
 
+  "search": "Search",
+  "clearSearch": "Clear Search",
   "searchByKeyword": "Search by Keyword",
   "exportData": "Export Data",
   "uploadFile": "Upload File",
@@ -52,5 +54,13 @@
   "createSkillPackage": "Create Skill Package",
 
   "navigateTo": "Navigate To",
-  "refreshAnalytics": "Refresh Analytics"
+  "navigateToDetail": "View Detail Page",
+  "viewRecycleBin": "View Recycle Bin",
+  "refreshAnalytics": "Refresh Analytics",
+
+  "getFormState": "Get Form State",
+  "fillForm": "Fill Form",
+  "validateForm": "Validate Form",
+  "submitForm": "Submit Form",
+  "getFormOptions": "Get Field Options"
 }

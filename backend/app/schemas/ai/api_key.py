@@ -50,6 +50,7 @@ class ProviderApiKeyResponse(BaseResponseSchema):
     last_used_at: datetime | None = Field(None, description=_("enum.ai_api_key.last_used_at"))
     expires_at: datetime | None = Field(None, description=_("enum.ai_api_key.expires_at"))
     provider_name: str | None = Field(None, description=_("enum.ai_api_key.provider_name"))
+    provider_icon: str | None = Field(None, description=_("enum.ai_api_key.provider_icon"))
     tenant_name: str | None = Field(None, description=_("enum.ai_api_key.tenant_name"))
     is_available: bool = Field(..., description=_("enum.ai_api_key.is_available"))
     key_preview: str | None = Field(None, description=_("enum.ai_api_key.key_preview"))

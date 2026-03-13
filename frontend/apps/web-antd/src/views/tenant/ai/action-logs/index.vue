@@ -106,7 +106,7 @@ const cleanupPageOps = registerPageOperations('tenant.ai.action-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search action logs by action type',
     readonly: true,

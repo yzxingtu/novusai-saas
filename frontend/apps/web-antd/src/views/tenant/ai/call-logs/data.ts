@@ -80,8 +80,9 @@ export function useColumns<T = TenantAICallLogInfo>(
     {
       field: 'provider_name',
       title: $t('tenant.ai.callLog.providerName'),
-      width: 130,
+      width: 160,
       align: 'center',
+      slots: { default: 'providerName_cell' },
     },
     {
       field: 'status',

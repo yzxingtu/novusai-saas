@@ -335,6 +335,14 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
         domain.soft_delete()
         await self.db.flush()
+
+        # Execute cascade deletions (SSL certificates) / 执行级联删除（SSL 证书）
+        from app.core.dependency_checker import execute_cascade_deps
+        from app.enums.common import DeleteLevelEnum
+        await execute_cascade_deps(
+            self.db, domain, DeleteLevelEnum.TENANT.value, tenant_id=self.tenant_id
+        )
+
         return True
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:

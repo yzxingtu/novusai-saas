@@ -9,6 +9,7 @@ tracks registration records for unregistration.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -26,12 +27,8 @@ _bg_lock = None  # Lazy init to avoid creating thread objects at module import /
 
 def _get_bg_lock():
     """Get global lock (lazy init, thread-safe) / 获取全局锁（懒初始化，线程安全）"""
-    import threading
-
     global _bg_lock
     if _bg_lock is None:
-        # Module-level init — CPython GIL guarantees atomic assignment, no double-check needed
-        # / 模块级初始化
         _bg_lock = threading.Lock()
     return _bg_lock
 
@@ -40,7 +37,6 @@ def _run_async(coro):
     """Run coroutine in shared background event loop (avoid creating/destroying loop each time)
     / 在共享后台事件循环中运行协程"""
     import asyncio
-    import threading
 
     global _bg_loop, _bg_thread
     with _get_bg_lock():
@@ -52,7 +48,7 @@ def _run_async(coro):
             _bg_thread.start()
         loop = _bg_loop
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result()
+    return future.result(timeout=300)
 
 
 @dataclass
@@ -78,6 +74,25 @@ class ExtensionRegistry:
     """
 
     _instance: ExtensionRegistry | None = None
+    _instance_lock: threading.Lock = threading.Lock()
+
+    _DISPATCH: dict[str, str] = {
+        "adapter": "_unregister_adapter",
+        "hook": "_unregister_hook",
+        "storage": "_unregister_storage",
+        "skill": "_unregister_skill",
+        "event": "_unregister_event",
+        "webhook": "_unregister_webhook",
+        "task": "_unregister_task",
+        "notification": "_unregister_notification",
+        "permission": "_unregister_permission",
+        "socketio": "_unregister_socketio",
+        "frontend_slot": "_unregister_frontend_slot",
+        "consumer": "_unregister_consumer",
+        "middleware": "_unregister_middleware",
+        "custom": "_unregister_custom",
+        "menu": "_unregister_menu",
+    }
 
     def __init__(self) -> None:
         self._registry: dict[str, list[RegisteredExtension]] = {}
@@ -94,14 +109,19 @@ class ExtensionRegistry:
         self._plugin_custom_extensions: dict[str, list[dict[str, Any]]] = {}
         # middleware: plugin_name -> list of middleware class refs
         self._plugin_middlewares: dict[str, list[dict[str, Any]]] = {}
+        # menu: plugin_name -> list of menu registration dicts
+        self._plugin_menus: dict[str, list[dict[str, Any]]] = {}
         # menu i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}}
         self._plugin_menu_titles: dict[str, dict[str, dict[str, str]]] = {}
 
     @classmethod
     def get_instance(cls) -> ExtensionRegistry:
-        """Get singleton instance / 获取单例"""
-        if cls._instance is None:
-            cls._instance = cls()
+        """Get singleton instance (thread-safe, double-checked locking) / 获取单例（线程安全，双检锁）"""
+        if cls._instance is not None:
+            return cls._instance
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = cls()
         return cls._instance
 
     @classmethod
@@ -320,8 +340,7 @@ class ExtensionRegistry:
         )
 
     def _unregister_webhook(self, ext: RegisteredExtension) -> None:
-        for plugin_webhooks in self._plugin_webhooks.values():
-            plugin_webhooks.pop(ext.key, None)
+        self._plugin_webhooks.get(ext.plugin_name, {}).pop(ext.key, None)
 
     def get_plugin_webhooks(
         self, plugin_name: str | None = None
@@ -516,6 +535,79 @@ class ExtensionRegistry:
             ]
         return list(self._plugin_permissions.values())
 
+    # ── 10. Menu ──
+
+    def register_menu(
+        self,
+        plugin_name: str,
+        name: str,
+        path: str,
+        icon: str = "",
+        parent: str = "",
+        sort_order: int = 100,
+        scope: str = "admin_only",
+        component: str = "",
+        title: dict[str, str] | None = None,
+        hidden: bool = False,
+    ) -> None:
+        """
+        Register plugin menu entry (stored in-memory, synced to permission system on enable).
+        / 注册插件菜单条目（内存存储，enable 时同步到权限系统）。
+        """
+        menu_entry: dict[str, Any] = {
+            "plugin_name": plugin_name,
+            "name": name,
+            "path": path,
+            "icon": icon,
+            "parent": parent,
+            "sort_order": sort_order,
+            "scope": scope,
+            "component": component,
+            "title": title or {},
+            "hidden": hidden,
+        }
+        menus = self._plugin_menus.setdefault(plugin_name, [])
+        self._plugin_menus[plugin_name] = [
+            m for m in menus if m.get("name") != name
+        ]
+        self._plugin_menus[plugin_name].append(menu_entry)
+
+        if title:
+            titles = self._plugin_menu_titles.setdefault(plugin_name, {})
+            titles[name] = title
+
+        self._track(plugin_name, "menu", name, menu_entry)
+        logger.info(
+            "Plugin %s registered menu: %s (parent=%s, scope=%s)",
+            plugin_name, name, parent, scope,
+        )
+
+    def _unregister_menu(self, ext: RegisteredExtension) -> None:
+        """Remove plugin menu registration / 移除插件菜单注册"""
+        plugin_name = ext.plugin_name
+        name = ext.key
+        if plugin_name in self._plugin_menus:
+            self._plugin_menus[plugin_name] = [
+                m for m in self._plugin_menus[plugin_name]
+                if m.get("name") != name
+            ]
+        if plugin_name in self._plugin_menu_titles:
+            self._plugin_menu_titles[plugin_name].pop(name, None)
+
+    def get_plugin_menus(
+        self, plugin_name: str | None = None, scope: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get plugin menu list (for frontend navigation building) / 获取插件菜单列表"""
+        result: list[dict[str, Any]] = []
+        plugins_iter = [plugin_name] if plugin_name else list(self._plugin_menus.keys())
+        for pname in plugins_iter:
+            for menu in self._plugin_menus.get(pname, []):
+                if scope and menu.get("scope") != scope:
+                    continue
+                result.append(menu)
+        result.sort(key=lambda x: x.get("sort_order", 100))
+        return result
+
     # ── 11. Socket.IO Namespace ──
 
     def register_socketio(
@@ -708,6 +800,8 @@ class ExtensionRegistry:
         self._plugin_custom_extensions.pop(plugin_name, None)
         # Clean up middlewares / 清理中间件
         self._plugin_middlewares.pop(plugin_name, None)
+        # Clean up menus / 清理菜单
+        self._plugin_menus.pop(plugin_name, None)
         # Clean up menu i18n fallback cache / 清理菜单 i18n 回退缓存
         self._plugin_menu_titles.pop(plugin_name, None)
 

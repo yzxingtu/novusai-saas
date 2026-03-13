@@ -7,7 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from fastapi import File, UploadFile
+from fastapi import File, Response, UploadFile
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field
 
@@ -39,8 +39,12 @@ def _sanitize_slug(slug: str) -> None:
         )
 
 
+_MENU_CODE_PATTERN = re.compile(r"^[a-z0-9_]+$")
+_SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
+
+
 class PluginConfigBody(PydanticBaseModel):
-    config: dict = Field(default_factory=dict)
+    config: dict = Field(default_factory=dict, max_length=65536)
 
 
 class PluginCapabilitiesBody(PydanticBaseModel):
@@ -48,11 +52,11 @@ class PluginCapabilitiesBody(PydanticBaseModel):
 
 
 class PluginAssignTenantsBody(PydanticBaseModel):
-    tenant_ids: list[int] = Field(default_factory=list)
+    tenant_ids: list[int] = Field(default_factory=list, max_length=500)
 
 
 class PluginActivateLicenseBody(PydanticBaseModel):
-    license_key: str = ""
+    license_key: str = Field(default="", max_length=500)
 
 
 class PluginBindAiFeatureBody(PydanticBaseModel):
@@ -60,14 +64,14 @@ class PluginBindAiFeatureBody(PydanticBaseModel):
 
 
 class PluginRollbackBody(PydanticBaseModel):
-    target_version: str = ""
+    target_version: str = Field(default="", pattern=r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
 
 
 class MenuOverrideItem(PydanticBaseModel):
     """Single menu override: which parent to mount under"""
-    name: str = Field(..., description="Menu name from plugin.yaml")
-    parent: str = Field(..., description="Admin parent menu code (e.g. system_mgmt)")
-    tenant_parent: str | None = Field(None, description="Tenant parent menu code (for admin_and_all scope)")
+    name: str = Field(..., max_length=100, description="Menu name from plugin.yaml")
+    parent: str = Field(..., max_length=100, pattern=r"^[a-z0-9_]+$", description="Admin parent menu code (e.g. system_mgmt)")
+    tenant_parent: str | None = Field(None, max_length=100, description="Tenant parent menu code (for admin_and_all scope)")
 
 
 class PluginMenuConfigBody(PydanticBaseModel):
@@ -223,7 +227,8 @@ class AdminPluginController(GlobalController):
                     )
                     if frontend and frontend.admin:
                         styles = list(frontend.admin.styles or [])
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Failed to load styles for plugin %s: %s", plugin_name, exc)
                     styles = []
                 plugin_styles[plugin_name] = styles
 
@@ -255,13 +260,41 @@ class AdminPluginController(GlobalController):
             source_url: str = "",
         ):
             """测试市场镜像源连通性 / Test marketplace mirror source connectivity"""
+            import ipaddress
             import time as _time
+            from urllib.parse import urlparse
 
             import httpx as _httpx
 
             if not source_url:
                 from app.plugins.marketplace import _DEFAULT_GITHUB_URL
                 source_url = _DEFAULT_GITHUB_URL
+
+            _ALLOWED_SCHEMES = {"http", "https"}
+            _ALLOWED_HOSTS = {
+                "github.com", "raw.githubusercontent.com",
+                "gitee.com", "raw.gitee.com",
+                "api.github.com", "objects.githubusercontent.com",
+            }
+
+            parsed = urlparse(source_url)
+            if parsed.scheme not in _ALLOWED_SCHEMES:
+                from app.exceptions.base import ValidationException
+                raise ValidationException(message="Only http/https URLs are allowed")
+
+            hostname = (parsed.hostname or "").lower()
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    from app.exceptions.base import ValidationException
+                    raise ValidationException(message="Private/reserved IP addresses are not allowed")
+            except ValueError:
+                if hostname not in _ALLOWED_HOSTS:
+                    from app.exceptions.base import ValidationException
+                    raise ValidationException(
+                        message=f"Host '{hostname}' is not in the allowed list. "
+                                f"Allowed: {', '.join(sorted(_ALLOWED_HOSTS))}",
+                    )
 
             url = f"{source_url.rstrip('/')}/registry.json"
             try:
@@ -275,9 +308,10 @@ class AdminPluginController(GlobalController):
                     "latency_ms": latency_ms,
                 })
             except Exception as exc:
+                logger.warning("Marketplace connection test failed for %s: %s", source_url, exc)
                 return success(data={
                     "ok": False,
-                    "error": str(exc),
+                    "error": "Connection failed. Please check the URL and try again.",
                     "latency_ms": -1,
                 })
 
@@ -286,6 +320,7 @@ class AdminPluginController(GlobalController):
         async def marketplace_list(
             db: DbSession,
             admin: ActiveAdmin,
+            response: Response,
             category: str = "",
             sort: str = "-downloads",
             search: str = "",
@@ -293,6 +328,9 @@ class AdminPluginController(GlobalController):
             page_size: int = 20,
         ):
             """插件市场列表（搜索/分类/排序/分页） / Plugin marketplace list (search/category/sort/pagination)"""
+            page_size = max(1, min(page_size, 100))
+            page_number = max(1, page_number)
+
             from app.plugins.marketplace import MarketplaceClient
 
             client = MarketplaceClient(db)
@@ -306,11 +344,12 @@ class AdminPluginController(GlobalController):
             page_items = result["items"]
             total = result["total"]
 
+            response.headers["Cache-Control"] = "private, max-age=60"
             return paginated(items=page_items, total=total, page=page_number, page_size=page_size)
 
         @self.router.get("/marketplace/{slug}")
         @action_read("action.plugin.list")
-        async def marketplace_detail(slug: str, db: DbSession, admin: ActiveAdmin):
+        async def marketplace_detail(slug: str, db: DbSession, admin: ActiveAdmin, response: Response):
             """插件市场详情 / Plugin marketplace detail"""
             from app.plugins.marketplace import MarketplaceClient
 
@@ -323,13 +362,12 @@ class AdminPluginController(GlobalController):
             readme = await client.fetch_readme(slug)
             detail["readme"] = readme
 
-            # 兼容性检查 / Compatibility check
             compat = detail.get("compatibility", {})
             detail["compatibility_ok"] = True
             if compat.get("platform_version"):
-                # 简单字符串比较（后续可改为 semver） / Simple string comparison (can switch to semver later)
                 detail["platform_version_required"] = compat["platform_version"]
 
+            response.headers["Cache-Control"] = "private, max-age=120"
             return success(data=detail)
 
         @self.router.post("/marketplace/{slug}/install")
@@ -338,6 +376,8 @@ class AdminPluginController(GlobalController):
             slug: str, db: DbSession = None, admin: ActiveAdmin = None,
         ):
             """市场安装预览（下载+解压+生成预览，不执行安装） / Marketplace install preview (download+extract+generate preview, no actual install)"""
+            _sanitize_slug(slug)
+
             from app.plugins.marketplace import MarketplaceClient
 
             client = MarketplaceClient(db)
@@ -349,12 +389,9 @@ class AdminPluginController(GlobalController):
             version = detail.get("version", "1.0.0")
             zip_path = await client.download_plugin(slug, version)
 
-            # 解压并生成预览 / Extract and generate preview
             from app.plugins.loader import PluginLoader
             from app.plugins.package_security import extract_plugin_zip_safely
             from app.plugins.preview import generate_preview
-
-            _sanitize_slug(slug)
             try:
                 extract_dir = zip_path.parent / "extracted"
                 plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
@@ -373,6 +410,8 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin = None,
         ):
             """确认从市场安装（下载+安装，设置 install_source=marketplace） / Confirm marketplace install (download+install, set install_source=marketplace)"""
+            _sanitize_slug(slug)
+
             from app.enums.plugin import PluginInstallSourceEnum
             from app.plugins.marketplace import MarketplaceClient
 
@@ -387,8 +426,6 @@ class AdminPluginController(GlobalController):
 
             from app.plugins.loader import PluginLoader
             from app.plugins.package_security import extract_plugin_zip_safely
-
-            _sanitize_slug(slug)
             try:
                 extract_dir = zip_path.parent / "extracted"
                 plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
@@ -1159,7 +1196,10 @@ class AdminPluginController(GlobalController):
 
             from app.models.system.agent_assignment import SystemAgentAssignment
 
-            plugin = await self.get_service(db).get(plugin_id)
+            plugin = await self.get_service(db).get_by_id(plugin_id)
+            if not plugin:
+                from app.exceptions.base import NotFoundException
+                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
             result = await db.execute(
                 select(SystemAgentAssignment).where(
                     SystemAgentAssignment.feature_code.like(f"plugin.{plugin.name}.%"),
@@ -1216,8 +1256,14 @@ class AdminPluginController(GlobalController):
             """列出插件的所有备份记录 / List all backup records for the plugin"""
             from app.plugins.backup import list_backups as _list
 
+            import asyncio as _asyncio
+
+            from app.exceptions.base import NotFoundException
+
             plugin = await self.get_service(db).get_by_id(plugin_id)
-            backups = _list(plugin.name)
+            if not plugin:
+                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
+            backups = await _asyncio.to_thread(_list, plugin.name)
             return success(data=backups)
 
         @self.router.delete("/{plugin_id}/backups/{backup_name}")
@@ -1234,6 +1280,8 @@ class AdminPluginController(GlobalController):
                 raise ValidationException(message="Invalid backup name")
 
             plugin = await self.get_service(db).get_by_id(plugin_id)
+            if not plugin:
+                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
             backup_path = BACKUPS_DIR / plugin.name / backup_name
             if not backup_path.is_dir():
                 raise NotFoundException(message="Backup not found")
@@ -1255,7 +1303,10 @@ class AdminPluginController(GlobalController):
         async def get_health(plugin_id: int, db: DbSession, admin: ActiveAdmin):
             from app.plugins.health import PluginHealthMonitor
 
-            plugin = await self.get_service(db).get(plugin_id)
+            plugin = await self.get_service(db).get_by_id(plugin_id)
+            if not plugin:
+                from app.exceptions.base import NotFoundException
+                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
             monitor = PluginHealthMonitor(db)
             status = await monitor.get_health_status(plugin.name)
             return success(data=status)

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { MenuRecordRaw } from '@vben/types';
+
 import type {
   AgentItem,
   ConversationItem,
@@ -13,17 +15,20 @@ import type {
  * - Quick message input to send to AI / 快速输入消息发送给 AI
  * - @mention to select agents / @mention 选择智能体
  * - Quick restore recent conversations / 最近对话快速恢复
- * - Ctrl+J shortcut to invoke / Ctrl+J 快捷键唤起
+ * - Menu search (smart detection) / 菜单搜索（智能判断）
+ * - Ctrl+K shortcut to invoke / Ctrl+K 快捷键唤起
  */
 import { computed, nextTick, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Spin } from 'ant-design-vue';
+import { Skeleton, Spin, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
-import { toAvatarDisplayUrl } from '#/utils/image';
 import { useAIPanelStore } from '#/store';
+import { formatDate, formatRelativeTime } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { useCommandBar } from './use-command-bar';
 
@@ -35,10 +40,13 @@ const props = withDefaults(
     apiPrefix: string;
     /** Whether has AI chat permission / 是否有 AI 聊天权限 */
     canChat: boolean;
+    /** Menu tree for search / 搜索用菜单树 */
+    menus: MenuRecordRaw[];
   }>(),
   {
     apiPrefix: '/tenant',
     canChat: false,
+    menus: () => [],
   },
 );
 
@@ -49,10 +57,12 @@ const emit = defineEmits<{
   submit: [message: string];
 }>();
 
+const router = useRouter();
 const aiPanelStore = useAIPanelStore();
 
 const apiPrefixRef = computed(() => props.apiPrefix);
 const canChatRef = computed(() => props.canChat);
+const menusRef = computed(() => props.menus);
 
 const {
   open,
@@ -62,6 +72,8 @@ const {
   filteredAgents,
   recentConversations,
   recentLoading,
+  menuSearchResults,
+  getMenuBreadcrumb,
   show,
   hide,
   toggle,
@@ -73,12 +85,12 @@ const {
 } = useCommandBar({
   apiPrefix: apiPrefixRef,
   canChat: canChatRef,
+  menus: menusRef,
 });
 
 const inputRef = ref<HTMLInputElement | null>(null);
 const selectedIndex = ref(0);
 
-// Focus input when opened / 打开时聚焦输入框
 watch(open, async (isOpen) => {
   if (isOpen) {
     selectedIndex.value = 0;
@@ -87,8 +99,11 @@ watch(open, async (isOpen) => {
   }
 });
 
-// Reset selected index on mention mode switch / mention 模式切换时重置选中索引
 watch(mode, () => {
+  selectedIndex.value = 0;
+});
+
+watch(menuSearchResults, () => {
   selectedIndex.value = 0;
 });
 
@@ -96,6 +111,8 @@ function handleInput(e: Event) {
   const target = e.target as HTMLInputElement;
   onInputChange(target.value);
 }
+
+const hasMenuResults = computed(() => menuSearchResults.value.length > 0);
 
 function handleKeydown(e: KeyboardEvent) {
   if (mode.value === 'mention') {
@@ -120,9 +137,47 @@ function handleKeydown(e: KeyboardEvent) {
     return;
   }
 
+  if (hasMenuResults.value) {
+    const results = menuSearchResults.value;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex.value = (selectedIndex.value + 1) % results.length;
+      scrollSearchIntoView();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex.value = (selectedIndex.value - 1 + results.length) % results.length;
+      scrollSearchIntoView();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const item = results[selectedIndex.value];
+      if (item) {
+        handleMenuItemClick(item);
+      } else {
+        handleSubmit();
+      }
+    }
+    return;
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     handleSubmit();
+  }
+}
+
+function scrollSearchIntoView() {
+  nextTick(() => {
+    const el = document.querySelector(`[data-cmd-search="${selectedIndex.value}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function handleMenuItemClick(item: MenuRecordRaw) {
+  hide();
+  if (item.path.startsWith('http://') || item.path.startsWith('https://')) {
+    window.open(item.path, '_blank');
+  } else {
+    router.push({ path: item.path, replace: true });
   }
 }
 
@@ -153,19 +208,6 @@ function handleConversationClick(conv: ConversationItem) {
   emit('selectConversation', conv.id);
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const diff = now - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return $t('common.commandBar.justNow');
-  if (mins < 60) return $t('common.commandBar.minutesAgo', { n: mins });
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return $t('common.commandBar.hoursAgo', { n: hours });
-  const days = Math.floor(hours / 24);
-  return $t('common.commandBar.daysAgo', { n: days });
-}
-
-/** Pinned agent name (UI display) / 固定的智能体名称（UI 展示） */
 const pinnedName = computed(() => aiPanelStore.pinnedAgentName);
 
 defineExpose({
@@ -314,6 +356,74 @@ defineExpose({
             </Spin>
           </div>
 
+          <!-- Menu search results (smart detection) -->
+          <div v-else-if="hasMenuResults" class="max-h-[360px] flex flex-col">
+            <div class="max-h-[300px] overflow-y-auto p-2">
+              <div class="mb-2 flex items-center justify-between px-2">
+                <span class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                  {{ $t('common.commandBar.searchResults') }}
+                </span>
+                <span class="text-[10px] tabular-nums text-muted-foreground/50">
+                  {{ $t('common.commandBar.resultsCount', { count: menuSearchResults.length }) }}
+                </span>
+              </div>
+              <div class="space-y-0.5">
+                <div
+                  v-for="(item, idx) in menuSearchResults"
+                  :key="item.path"
+                  :data-cmd-search="idx"
+                  class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors"
+                  :class="
+                    idx === selectedIndex
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground hover:bg-muted'
+                  "
+                  @click="handleMenuItemClick(item)"
+                  @mouseenter="selectedIndex = idx"
+                >
+                  <div
+                    class="flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium"
+                    :class="
+                      idx === selectedIndex
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    "
+                  >
+                    <IconifyIcon v-if="item.icon" :icon="item.icon as string" class="size-4" />
+                    <IconifyIcon v-else icon="lucide:file-text" class="size-4" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-medium">
+                      {{ item.name }}
+                    </div>
+                    <div
+                      v-if="getMenuBreadcrumb(item)"
+                      class="truncate text-xs text-muted-foreground/70"
+                    >
+                      {{ getMenuBreadcrumb(item) }}
+                    </div>
+                  </div>
+                  <IconifyIcon
+                    v-if="idx === selectedIndex"
+                    icon="lucide:corner-down-left"
+                    class="size-3.5 shrink-0 text-primary"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Send to AI action -->
+            <div class="border-t border-border/30 px-3 py-2">
+              <button
+                class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                @click="handleSubmit"
+              >
+                <IconifyIcon icon="lucide:sparkles" class="size-3.5 text-primary" />
+                <span>{{ $t('common.commandBar.sendToAI') }}: "{{ inputText.trim() }}"</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Default: Quick Tips + Recent Conversations -->
           <div v-else-if="!inputText.trim()" class="px-4 py-3">
             <div
@@ -353,7 +463,22 @@ defineExpose({
                 <IconifyIcon icon="lucide:history" class="size-3" />
                 {{ $t('common.commandBar.recentChats') }}
               </div>
-              <Spin v-if="recentLoading" size="small" class="flex justify-center py-3" />
+
+              <!-- Skeleton loading -->
+              <div v-if="recentLoading" class="space-y-1">
+                <div
+                  v-for="i in 4"
+                  :key="i"
+                  class="flex items-center gap-2.5 px-2.5 py-1.5"
+                >
+                  <Skeleton.Avatar :active="true" :size="24" shape="square" />
+                  <div class="min-w-0 flex-1">
+                    <Skeleton.Input :active="true" :size="'small'" style="width: 60%; height: 16px;" />
+                  </div>
+                  <Skeleton.Input :active="true" :size="'small'" style="width: 50px; height: 12px;" />
+                </div>
+              </div>
+
               <div v-else class="space-y-0.5">
                 <div
                   v-for="conv in recentConversations"
@@ -378,11 +503,11 @@ defineExpose({
                       {{ conv.title || `#${conv.id}` }}
                     </div>
                   </div>
-                  <div class="shrink-0 text-right">
-                    <span class="text-[10px] tabular-nums text-muted-foreground/50">
+                  <Tooltip :title="formatDate(conv.created_at)" placement="left">
+                    <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
                       {{ formatRelativeTime(conv.created_at) }}
                     </span>
-                  </div>
+                  </Tooltip>
                 </div>
               </div>
             </div>

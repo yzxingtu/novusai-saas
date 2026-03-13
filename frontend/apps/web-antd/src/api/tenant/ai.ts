@@ -196,6 +196,7 @@ export interface TenantAICallLogInfo {
   created_at: string;
   model_name?: null | string;
   provider_name?: null | string;
+  provider_icon?: null | string;
 }
 
 interface TenantCallLogPageResponse {

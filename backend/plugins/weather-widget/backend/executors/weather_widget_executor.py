@@ -18,23 +18,21 @@ if TYPE_CHECKING:
 
 
 def _get_open_meteo():
-    """动态加载 open_meteo 模块（插件名含连字符，需 importlib）"""
+    """Load open_meteo module via shared loader / 通过共享加载器加载 open_meteo"""
     import importlib.util
     import sys
     from pathlib import Path
 
-    module_name = "plugins.weather-widget.backend.open_meteo"
-    if module_name in sys.modules:
-        return sys.modules[module_name]
-
-    module_file = Path(__file__).parent.parent / "open_meteo.py"
-    spec = importlib.util.spec_from_file_location(module_name, module_file)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {module_file}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    loader_name = "plugins.weather-widget.backend._loader"
+    if loader_name not in sys.modules:
+        loader_file = Path(__file__).parent.parent / "_loader.py"
+        spec = importlib.util.spec_from_file_location(loader_name, loader_file)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load {loader_file}")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[loader_name] = mod
+        spec.loader.exec_module(mod)
+    return sys.modules[loader_name].get_open_meteo()
 
 
 class WeatherWidgetExecutor(BaseToolExecutor):

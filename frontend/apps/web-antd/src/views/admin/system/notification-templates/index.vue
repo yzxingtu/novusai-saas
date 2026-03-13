@@ -166,7 +166,7 @@ const cleanupPageContext = registerPageContext('admin/system/notification-templa
 
 const cleanupPageOps = registerPageOperations('admin.system.notification-templates', [
   {
-    name: 'search_templates',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search notification templates by code',
     readonly: true,

@@ -199,7 +199,7 @@ const cleanupPageOps = registerPageOperations('admin.system.organization', [
     },
   },
   {
-    name: 'create_root_node',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open dialog to create a root organization node',
     readonly: false,

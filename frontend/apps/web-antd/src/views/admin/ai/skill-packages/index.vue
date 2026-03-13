@@ -65,9 +65,11 @@ import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesC
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+import { createFormOperations } from '#/composables/use-ai-operations';
+
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import SkillForm from '../skills/modules/form.vue';
-import { getAudienceColor } from './data';
+import { getAudienceColor, usePackageFormSchema } from './data';
 import PackageForm from './modules/form.vue';
 
 defineOptions({ name: 'AdminSkillPackageList' });
@@ -210,19 +212,27 @@ const [PackageFormDrawer, packageFormApi] = useVbenDrawer({
   destroyOnClose: true,
 });
 
+const PKG_PAGE_KEY = 'admin.ai.skill-packages';
+
 function onCreatePackage() {
   packageFormApi
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skill-packages',
       _defaults: { is_active: true, sort_order: 0 },
+      _aiPageKey: PKG_PAGE_KEY,
     })
     .open();
 }
 
 function onEditPackage(pkg: AdminSkillPackageInfo) {
   packageFormApi
-    .setData({ ...pkg, mode: 'edit', _resource: '/admin/ai/skill-packages' })
+    .setData({
+      ...pkg,
+      mode: 'edit',
+      _resource: '/admin/ai/skill-packages',
+      _aiPageKey: PKG_PAGE_KEY,
+    })
     .open();
 }
 
@@ -350,6 +360,7 @@ function onCreateSkill() {
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skills',
+      _aiPageKey: PKG_PAGE_KEY,
       _defaults: {
         package_id: selectedPackageId.value,
         type: 'toolkit',
@@ -374,7 +385,12 @@ function onCreateSkill() {
 
 function onEditSkill(row: AdminSkillInfo) {
   skillFormApi
-    .setData({ ...row, mode: 'edit', _resource: '/admin/ai/skills' })
+    .setData({
+      ...row,
+      mode: 'edit',
+      _resource: '/admin/ai/skills',
+      _aiPageKey: PKG_PAGE_KEY,
+    })
     .open();
 }
 
@@ -560,6 +576,12 @@ const cleanupPageContext = registerPageContext('admin/ai/skill-packages', () => 
   },
 }));
 
+const packageFormOps = createFormOperations({
+  pageKey: PKG_PAGE_KEY,
+  formSchema: usePackageFormSchema,
+  resource: '/admin/ai/skill-packages',
+});
+
 const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
   {
     name: 'refresh_list',
@@ -572,7 +594,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
     },
   },
   {
-    name: 'create_skill_package',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open the create skill package form',
     readonly: false,
@@ -582,7 +604,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
     },
   },
   {
-    name: 'search_packages',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search skill packages by keyword',
     readonly: true,
@@ -594,6 +616,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
       return { success: true, message: `Searched for: ${searchKeyword.value}` };
     },
   },
+  ...packageFormOps,
 ]);
 
 onUnmounted(() => {

@@ -46,5 +46,8 @@
   "plugin.weather-widget.error.fetch_failed": "获取城市“{city}”天气失败：{error}",
   "plugin.weather-widget.error.city_not_found_with_name": "未找到城市：{city}",
   "plugin.weather-widget.error.api_timeout": "天气服务请求超时",
-  "plugin.weather-widget.error.network": "网络错误，请稍后重试"
+  "plugin.weather-widget.error.network": "网络错误，请稍后重试",
+  "plugin.weather-widget.error.lat_lon_required": "纬度和经度参数不能为空",
+  "plugin.weather-widget.error.lat_lon_invalid": "纬度和经度必须为有效数字",
+  "plugin.weather-widget.error.name_or_coords_required": "请提供城市名或经纬度"
 }

@@ -28,6 +28,7 @@ import {
   getBillingCycleText,
   getFormDefaults,
   useColumns,
+  useFormSchema,
   useGridFormSchema,
 } from './data';
 import PermissionsModal from './modules/PermissionsModal.vue';
@@ -56,26 +57,32 @@ function handleSetPermissions(row: TenantPlanInfo) {
 }
 
 // Declarative CRUD page (export button auto-added) / 声明式 CRUD 页面（导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, openExportModal, gridApi, onRefresh } =
-  useCrudPage<TenantPlanInfo>({
-    api: {
-      list: admin.getTenantPlanListApi,
-      resource: '/admin/plans',
-      toggles: { is_active: admin.toggleTenantPlanStatusApi },
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'admin.tenant.plan',
-    nameField: 'name',
-    defaultSort: 'sort_order',
-    recycleBin: true,
-    createPermission: 'tenant_plan:create',
-    customActions: {
-      permissions: handleSetPermissions,
-    },
-  });
+const {
+  Grid, FormDrawer, ExportModal, openExportModal, gridApi,
+  onRefresh, onCreate, formAiOperations,
+} = useCrudPage<TenantPlanInfo>({
+  api: {
+    list: admin.getTenantPlanListApi,
+    resource: '/admin/plans',
+    toggles: { is_active: admin.toggleTenantPlanStatusApi },
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'admin.tenant.plan',
+  nameField: 'name',
+  defaultSort: 'sort_order',
+  recycleBin: true,
+  createPermission: 'tenant_plan:create',
+  customActions: {
+    permissions: handleSetPermissions,
+  },
+  ai: {
+    pageKey: 'admin.tenant.plans',
+    formSchema: useFormSchema,
+  },
+});
 
 // Drag sort (auto-initialized) / 拖拽排序（自动初始化）
 useAutoTableDragSort(() => gridApi.grid, {
@@ -103,7 +110,17 @@ const cleanupPageOps = registerPageOperations('admin.tenant.plans', [
     },
   },
   {
-    name: 'search_plans',
+    name: 'create_record',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create plan form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create plan form opened' };
+    },
+  },
+  {
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search tenant plans by name',
     readonly: true,
@@ -127,6 +144,7 @@ const cleanupPageOps = registerPageOperations('admin.tenant.plans', [
       return { success: true, message: 'Export dialog opened' };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {

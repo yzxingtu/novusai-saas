@@ -106,7 +106,6 @@ export function getFormDefaults() {
     name: '',
     description: '',
     scope: 'admin_and_all',
-    target_audience: 'admin_tenant',
     tenant_id: null,
     tenant_ids: [],
     model_id: undefined,
@@ -244,13 +243,6 @@ export function useFormSchema(
     ...useScopeFields({
       scopeDisabled: isSystem ? () => true : false,
     }),
-    {
-      ...select('target_audience', $t('admin.ai.agent.targetAudience'), {
-        options: getAudienceOptions(),
-        required: true,
-        ...(isSystem ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') } : {}),
-      }),
-    },
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {
         api: getChatModelOptions,

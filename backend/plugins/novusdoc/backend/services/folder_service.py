@@ -138,7 +138,7 @@ def _folder_to_dict(folder: NovusdocFolder) -> dict[str, Any]:
         "parent_id": folder.parent_id,
         "sort_order": folder.sort_order,
         "creator_id": folder.creator_id,
-        "created_at": str(folder.created_at) if folder.created_at else None,
+        "created_at": folder.created_at.isoformat() if folder.created_at else None,
         "children": [],
     }
 

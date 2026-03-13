@@ -26,6 +26,12 @@ const loadingPromises: Map<
 /** CSS loading Promise cache (prevent duplicate loading) / CSS 解析中的 Promise 缓存（防止重复加载） */
 const cssLoadingPromises: Map<string, Promise<void>> = new Map();
 
+/** Unloaded plugins (prevent race with in-flight loading) / 已卸载集合（防止与加载中 Promise 竞态） */
+const unloadedPlugins: Set<string> = new Set();
+
+const SAFE_PLUGIN_NAME_RE = /^[a-z][\da-z]*(?:-[\da-z]+)*$/;
+const SAFE_CSS_FILENAME_RE = /^[\w][\w.-]*\.css$/;
+
 /**
  * Convert plugin name to global variable name: crm-module → NovusPlugin_crm_module
  * 将插件名转为全局变量名: crm-module → NovusPlugin_crm_module
@@ -35,7 +41,15 @@ function toGlobalVarName(pluginName: string): string {
 }
 
 function _injectPluginCSS(pluginName: string, cssFileName: string): void {
-  const normalized = cssFileName.replaceAll(/[^\w-]/g, '_');
+  const basename = cssFileName.split('/').pop() || '';
+  if (!SAFE_CSS_FILENAME_RE.test(basename)) {
+    console.warn(
+      `[PluginLoader] Rejected invalid CSS filename: '${cssFileName}' for plugin '${pluginName}'`,
+    );
+    return;
+  }
+
+  const normalized = basename.replaceAll(/[^\w-]/g, '_');
   const cssId = `novus-plugin-css-${pluginName}-${normalized}`;
   if (document.querySelector(`#${CSS.escape(cssId)}`)) {
     return;
@@ -44,7 +58,7 @@ function _injectPluginCSS(pluginName: string, cssFileName: string): void {
   const link = document.createElement('link');
   link.id = cssId;
   link.rel = 'stylesheet';
-  link.href = `/plugin-assets/${pluginName}/${cssFileName.replace(/^\/+/, '')}`;
+  link.href = `/plugin-assets/${pluginName}/${basename}`;
   document.head.append(link);
 }
 
@@ -74,8 +88,11 @@ async function loadPluginCSS(
     for (const cssFile of uniqueCss) {
       try {
         _injectPluginCSS(pluginName, cssFile);
-      } catch {
-        // 静默：不因 CSS 加载失败影响插件 JS 组件加载
+      } catch (err) {
+        console.warn(
+          `[PluginLoader] CSS injection failed for '${pluginName}/${cssFile}':`,
+          err,
+        );
       }
     }
   })();
@@ -99,6 +116,13 @@ export async function loadPluginComponents(
   pluginName: string,
   cssFiles: string[] = [],
 ): Promise<Record<string, unknown>> {
+  if (!SAFE_PLUGIN_NAME_RE.test(pluginName)) {
+    console.warn(
+      `[PluginLoader] Rejected invalid plugin name: '${pluginName}'`,
+    );
+    return {};
+  }
+
   // 已缓存
   const cached = loadedPlugins.get(pluginName);
   if (cached) return cached;
@@ -107,26 +131,20 @@ export async function loadPluginComponents(
   const existing = loadingPromises.get(pluginName);
   if (existing) return existing;
 
+  unloadedPlugins.delete(pluginName);
+
   const promise = (async (): Promise<Record<string, unknown>> => {
-    // 先记录 loadingPromise，再进行 await，避免并发窗口重复注入 script
     await loadPluginCSS(pluginName, cssFiles);
 
     let mod: Record<string, unknown>;
 
     if (import.meta.env.DEV) {
-      // -------------------------------------------------
-      // Dev 模式：Vite 转译源码 → ESM import()
-      // 改插件代码后刷新浏览器即可，无需预先 build
-      // -------------------------------------------------
       const devUrl = `/plugin-assets/${pluginName}/index.js?t=${Date.now()}`;
       mod = (await import(/* @vite-ignore */ devUrl)) as Record<
         string,
         unknown
       >;
     } else {
-      // -------------------------------------------------
-      // Production：UMD <script> 注入
-      // -------------------------------------------------
       mod = await new Promise<Record<string, unknown>>((resolve, reject) => {
         const scriptUrl = `/plugin-assets/${pluginName}/index.js`;
         const script = document.createElement('script');
@@ -143,6 +161,7 @@ export async function loadPluginComponents(
             resolve(m);
             return;
           }
+          script.remove();
           reject(
             new Error(
               `Plugin '${pluginName}' loaded but window.${globalVar} not found`,
@@ -151,6 +170,7 @@ export async function loadPluginComponents(
         });
 
         script.addEventListener('error', () => {
+          script.remove();
           reject(new Error(`Failed to load plugin script: ${scriptUrl}`));
         });
 
@@ -158,7 +178,12 @@ export async function loadPluginComponents(
       });
     }
 
-    // 调用插件 setup() 注册 i18n 等
+    // Race guard: skip caching if plugin was unloaded during async load
+    // / 竞态保护：异步加载期间若插件已卸载则跳过缓存
+    if (unloadedPlugins.has(pluginName)) {
+      return mod;
+    }
+
     if (typeof mod.setup === 'function') {
       try {
         (mod.setup as () => void)();
@@ -216,9 +241,11 @@ export function isPluginLoaded(pluginName: string): boolean {
  * 卸载插件（清除缓存 + 移除 script 标签）
  */
 export function unloadPlugin(pluginName: string): void {
+  unloadedPlugins.add(pluginName);
   loadedPlugins.delete(pluginName);
   loadingPromises.delete(pluginName);
-  // 移除 script 标签 + 清除全局变量
+  cssLoadingPromises.delete(pluginName);
+
   const scripts = document.querySelectorAll(
     `script[src*="/plugin-assets/${pluginName}/"]`,
   );
@@ -228,7 +255,6 @@ export function unloadPlugin(pluginName: string): void {
   const globalVar = toGlobalVarName(pluginName);
   (window as unknown as Record<string, unknown>)[globalVar] = undefined;
 
-  // 移除 CSS
   const cssNodes = document.querySelectorAll(
     `[id^="novus-plugin-css-${pluginName}-"]`,
   );

@@ -1,5 +1,6 @@
 {
   "title": "知识库管理",
+  "name": "知识库名称",
   "pageDesc": "管理全平台知识库，支持创建全局/租户/管理端专属知识库，查看文档、分块和存储情况。",
   "create": "创建知识库",
   "stats": {
@@ -52,6 +53,10 @@
     "active": "启用",
     "disabled": "禁用"
   },
+  "emptyList": "暂无知识库，点击下方按钮创建",
+  "emptyDocuments": "暂无文档，上传文件即可开始构建知识库",
+  "emptyChunks": "暂无分块数据",
+  "noDescription": "暂无描述",
   "detail": "知识库详情",
   "forceDelete": "强制删除",
   "forceDeleteConfirm": "确认删除知识库「{name}」？所有文档和分块数据将被永久删除。",

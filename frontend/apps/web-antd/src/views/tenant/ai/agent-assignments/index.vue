@@ -47,6 +47,7 @@ const {
   i18nPrefix: 'tenant.ai.agentAssignment',
   nameField: 'feature_name',
   pager: false,
+  ai: {},
 });
 
 // ========== Agent 选项 ==========

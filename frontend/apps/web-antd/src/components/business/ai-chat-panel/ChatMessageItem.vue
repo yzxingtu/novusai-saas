@@ -12,11 +12,12 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Spin, Tooltip } from 'ant-design-vue';
+import { Button, Tooltip } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
+import { formatTimeOnly } from '#/utils/common';
 import { getFileIcon } from '#/utils/file';
 
 const props = withDefaults(
@@ -159,117 +160,6 @@ const emit = defineEmits<{
           }}</span>
         </div>
 
-        <!-- Tool calls -->
-        <div
-          v-if="msg.toolCalls?.length"
-          :class="compact ? 'mb-1 space-y-px' : 'mb-1.5 space-y-0.5'"
-        >
-          <details
-            v-for="(tc, tcIdx) in msg.toolCalls"
-            :key="tcIdx"
-            class="group/tc overflow-hidden border border-border/20 bg-accent/20 [&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
-            :class="compact ? 'rounded-md' : 'rounded-lg'"
-            :open="tc.status === 'error'"
-          >
-            <summary
-              class="flex cursor-pointer select-none items-center"
-              :class="
-                compact
-                  ? 'gap-1 px-2 py-0.5 text-[11px]'
-                  : 'gap-1.5 px-2.5 py-1 text-xs'
-              "
-            >
-              <Spin v-if="tc.status === 'running'" size="small" />
-              <IconifyIcon
-                v-else
-                :icon="
-                  tc.status === 'success'
-                    ? 'lucide:check-circle'
-                    : 'lucide:x-circle'
-                "
-                class="shrink-0"
-                :class="[
-                  compact ? 'size-3' : 'size-3.5',
-                  tc.status === 'success' ? 'text-green-600' : 'text-red-500',
-                ]"
-              />
-              <span class="flex-1 truncate text-muted-foreground">
-                <template v-if="tc.skillName">
-                  <span class="font-medium text-foreground/70">{{
-                    tc.skillName
-                  }}</span>
-                  <span class="mx-0.5 text-muted-foreground/40">›</span>
-                </template>
-                {{ tc.displayName || tc.name }}
-                <span
-                  v-if="tc.summary && tc.status === 'success'"
-                  class="ml-1 text-muted-foreground/60"
-                  >— {{ tc.summary }}</span
-                >
-              </span>
-              <span v-if="tc.durationMs" class="text-[10px] text-muted-foreground/50">
-                {{ (tc.durationMs / 1000).toFixed(1) }}s
-              </span>
-              <IconifyIcon
-                v-if="tc.status !== 'running'"
-                icon="lucide:chevron-down"
-                class="shrink-0 text-muted-foreground/40 transition-transform duration-200 group-open/tc:rotate-180"
-                :class="compact ? 'size-2.5' : 'size-3'"
-              />
-            </summary>
-            <div
-              v-if="tc.output || tc.error || tc.arguments"
-              class="border-t border-border/30"
-              :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'"
-            >
-              <div
-                v-if="tc.arguments && Object.keys(tc.arguments).length > 0"
-                class="mb-1"
-              >
-                <span class="font-medium text-muted-foreground/70">{{
-                  $t('common.globalAiChat.args')
-                }}</span>
-                <code
-                  class="ml-1 rounded bg-accent/60 px-1 py-px text-[10px] text-muted-foreground"
-                >
-                  {{ JSON.stringify(tc.arguments) }}
-                </code>
-              </div>
-              <div
-                v-if="tc.output"
-                class="overflow-y-auto whitespace-pre-wrap break-all rounded bg-accent/40 px-1.5 py-1 text-muted-foreground"
-                :class="compact ? 'max-h-32' : 'max-h-40'"
-              >
-                {{ tc.output }}
-              </div>
-              <div
-                v-if="tc.error"
-                class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
-              >
-                {{ tc.error }}
-              </div>
-              <a
-                v-if="tc.resultLink && tc.status === 'success'"
-                :href="tc.resultLink"
-                target="_blank"
-                class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
-              >
-                <IconifyIcon icon="lucide:external-link" class="size-2.5" />
-                {{ $t('common.globalAiChat.viewResult') }}
-              </a>
-            </div>
-          </details>
-          <!-- Generating indicator after tool calls -->
-          <div
-            v-if="msg.streaming && !msg.content"
-            class="flex items-center gap-1.5 px-2 py-0.5 text-muted-foreground"
-            :class="compact ? 'text-[11px]' : 'text-xs'"
-          >
-            <span class="typing-dots"><span /><span /><span /></span>
-            <span>{{ $t('common.globalAiChat.generating') }}</span>
-          </div>
-        </div>
-
         <!-- Markdown content -->
         <div
           v-if="msg.content"
@@ -278,6 +168,155 @@ const emit = defineEmits<{
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
           <span v-if="msg.streaming" class="streaming-cursor"></span>
+        </div>
+
+        <!-- Generating indicator (tool calls running but no content yet) -->
+        <div
+          v-if="msg.streaming && !msg.content && msg.toolCalls?.length"
+          class="flex items-center gap-1.5 px-2 py-0.5 text-muted-foreground"
+          :class="compact ? 'text-[11px]' : 'text-xs'"
+        >
+          <span class="typing-dots"><span /><span /><span /></span>
+          <span>{{ $t('common.globalAiChat.generating') }}</span>
+        </div>
+
+        <!-- Tool calls timeline (below content) -->
+        <div
+          v-if="msg.toolCalls?.length"
+          class="tc-timeline relative"
+          :class="compact ? 'mt-1 pl-3' : 'mt-1.5 pl-4'"
+        >
+          <!-- Timeline vertical line -->
+          <div
+            v-if="msg.toolCalls.length > 1"
+            class="absolute w-px bg-border/40"
+            :class="compact ? 'bottom-1 left-[4px] top-1' : 'bottom-1.5 left-[5px] top-1.5'"
+          />
+
+          <div
+            v-for="(tc, tcIdx) in msg.toolCalls"
+            :key="tcIdx"
+            class="relative"
+            :class="tcIdx > 0 ? (compact ? 'mt-0.5' : 'mt-1') : ''"
+          >
+            <!-- Timeline dot -->
+            <div
+              class="absolute z-[1]"
+              :class="compact ? '-left-3 top-[5px]' : '-left-4 top-[7px]'"
+            >
+              <span
+                v-if="tc.status === 'running'"
+                class="tc-dot-pulse block rounded-full bg-primary"
+                :class="compact ? 'size-[7px]' : 'size-2'"
+              />
+              <span
+                v-else-if="tc.status === 'success'"
+                class="block rounded-full bg-green-500"
+                :class="compact ? 'size-[7px]' : 'size-2'"
+              />
+              <span
+                v-else
+                class="block rounded-full bg-red-500"
+                :class="compact ? 'size-[7px]' : 'size-2'"
+              />
+            </div>
+
+            <!-- Tool call card -->
+            <details
+              class="group/tc overflow-hidden rounded-lg border border-border/20 bg-accent/15 backdrop-blur-sm transition-colors hover:bg-accent/25 [&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
+              :open="tc.status === 'error'"
+            >
+              <summary
+                class="flex cursor-pointer select-none items-center"
+                :class="compact ? 'gap-1 px-2 py-[3px] text-[11px]' : 'gap-1.5 px-2.5 py-1 text-xs'"
+              >
+                <!-- Status pill -->
+                <span
+                  class="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight"
+                  :class="
+                    tc.status === 'running'
+                      ? 'tc-pill-pulse bg-primary/10 text-primary'
+                      : tc.status === 'success'
+                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                        : 'bg-red-500/10 text-red-500'
+                  "
+                >
+                  <IconifyIcon
+                    v-if="tc.status !== 'running'"
+                    :icon="tc.status === 'success' ? 'lucide:check' : 'lucide:x'"
+                    class="size-2.5"
+                  />
+                  <span v-else class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current" />
+                  {{ tc.status === 'running' ? $t('common.globalAiChat.thinking') : tc.status === 'success' ? 'OK' : 'ERR' }}
+                </span>
+
+                <!-- Tool name -->
+                <span class="flex-1 truncate text-muted-foreground">
+                  <template v-if="tc.skillName">
+                    <span class="font-medium text-foreground/60">{{ tc.skillName }}</span>
+                    <span class="mx-0.5 text-muted-foreground/30">›</span>
+                  </template>
+                  <span class="text-foreground/70">{{ tc.displayName || tc.name }}</span>
+                  <span
+                    v-if="tc.summary && tc.status === 'success'"
+                    class="ml-1 text-muted-foreground/50"
+                  >— {{ tc.summary }}</span>
+                </span>
+
+                <!-- Duration -->
+                <span v-if="tc.durationMs" class="tabular-nums text-[10px] text-muted-foreground/40">
+                  {{ (tc.durationMs / 1000).toFixed(1) }}s
+                </span>
+
+                <!-- Expand chevron -->
+                <IconifyIcon
+                  v-if="tc.status !== 'running'"
+                  icon="lucide:chevron-down"
+                  class="shrink-0 text-muted-foreground/30 transition-transform duration-200 group-open/tc:rotate-180"
+                  :class="compact ? 'size-2.5' : 'size-3'"
+                />
+              </summary>
+
+              <!-- Expanded details -->
+              <div
+                v-if="tc.output || tc.error || tc.arguments"
+                class="border-t border-border/20"
+                :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'"
+              >
+                <div
+                  v-if="tc.arguments && Object.keys(tc.arguments).length > 0"
+                  class="mb-1"
+                >
+                  <span class="font-medium text-muted-foreground/60">{{ $t('common.globalAiChat.args') }}</span>
+                  <code class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground">
+                    {{ JSON.stringify(tc.arguments) }}
+                  </code>
+                </div>
+                <div
+                  v-if="tc.output"
+                  class="overflow-y-auto whitespace-pre-wrap break-all rounded bg-accent/30 px-1.5 py-1 text-muted-foreground"
+                  :class="compact ? 'max-h-32' : 'max-h-40'"
+                >
+                  {{ tc.output }}
+                </div>
+                <div
+                  v-if="tc.error"
+                  class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
+                >
+                  {{ tc.error }}
+                </div>
+                <a
+                  v-if="tc.resultLink && tc.status === 'success'"
+                  :href="tc.resultLink"
+                  target="_blank"
+                  class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                >
+                  <IconifyIcon icon="lucide:external-link" class="size-2.5" />
+                  {{ $t('common.globalAiChat.viewResult') }}
+                </a>
+              </div>
+            </details>
+          </div>
         </div>
 
         <!-- Generated images -->
@@ -682,7 +721,7 @@ const emit = defineEmits<{
       <!-- User message toolbar (timestamp + copy + edit) -->
       <div class="mt-0.5 flex items-center justify-end gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
         <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
-          {{ new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+          {{ formatTimeOnly(msg.created_at) }}
         </span>
         <Tooltip :title="$t('common.globalAiChat.copy')">
           <button
@@ -799,6 +838,41 @@ const emit = defineEmits<{
   30% {
     opacity: 1;
     transform: translateY(-3px);
+  }
+}
+
+/* Tool call timeline dot pulse (running state) */
+.tc-dot-pulse {
+  animation: tc-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+}
+
+@keyframes tc-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0);
+  }
+}
+
+/* Tool call pill pulse (running status badge) */
+.tc-pill-pulse {
+  animation: tc-pill-glow 2s ease-in-out infinite;
+}
+
+@keyframes tc-pill-glow {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
   }
 }
 </style>

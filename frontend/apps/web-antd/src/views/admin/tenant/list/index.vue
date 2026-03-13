@@ -36,7 +36,7 @@ import {
   formatRelativeTime,
 } from '#/utils/common';
 
-import { useColumns, useGridFormSchema } from './data';
+import { useColumns, useFormSchema, useGridFormSchema } from './data';
 import DomainsModal from './modules/DomainsModal.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import TenantAdminPanel from './modules/TenantAdminPanel.vue';
@@ -180,7 +180,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // Declarative CRUD page (plan dropdown auto-loaded by ApiSelect, export button auto-added) / 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActionClick, openExportModal } =
+const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActionClick, openExportModal, formAiOperations } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -209,6 +209,7 @@ const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActio
       resetPassword: onResetPassword,
       storageConfig: onStorageConfig,
     },
+    ai: { pageKey: 'admin.tenant.list', formSchema: useFormSchema },
   });
 
 const cleanupPageContext = registerPageContext('admin/tenant/list', () => ({
@@ -231,7 +232,7 @@ const cleanupPageOps = registerPageOperations('admin.tenant.list', [
     },
   },
   {
-    name: 'create_tenant',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open the create tenant form',
     readonly: false,
@@ -241,7 +242,7 @@ const cleanupPageOps = registerPageOperations('admin.tenant.list', [
     },
   },
   {
-    name: 'search_tenants',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search tenants by name',
     readonly: true,
@@ -265,6 +266,7 @@ const cleanupPageOps = registerPageOperations('admin.tenant.list', [
       return { success: true, message: 'Export dialog opened' };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {

@@ -14,6 +14,8 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Badge, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
+import { getProcessedImageUrl } from '#/utils/image';
+
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import {
   getAIProviderListApi,
@@ -28,6 +30,7 @@ import {
   getProviderTypeText,
   loadAdapterTypes,
   useColumns,
+  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
@@ -62,7 +65,7 @@ function onToggleActive(row: AIProviderInfo) {
 // CRUD Grid
 // ============================================================
 
-const { Grid, FormDrawer, gridApi, onRefresh, onCreate } = useCrudPage<AIProviderInfo>({
+const { Grid, FormDrawer, formAiOperations, gridApi, onRefresh, onCreate } = useCrudPage<AIProviderInfo>({
   api: {
     list: getAIProviderListApi,
     resource: '/admin/ai/providers',
@@ -76,6 +79,7 @@ const { Grid, FormDrawer, gridApi, onRefresh, onCreate } = useCrudPage<AIProvide
   defaultSort: 'sort_order',
   recycleBin: true,
   createPermission: 'ai_provider:create',
+  ai: { pageKey: 'admin.ai.providers', formSchema: useFormSchema },
 });
 
 function onFormSuccess() {
@@ -108,7 +112,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.providers', [
     },
   },
   {
-    name: 'create_provider',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open the create provider form',
     readonly: false,
@@ -118,7 +122,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.providers', [
     },
   },
   {
-    name: 'search_providers',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search providers by keyword',
     readonly: true,
@@ -132,6 +136,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.providers', [
       return { success: true, message: `Searched for: ${keyword}` };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {
@@ -184,15 +189,22 @@ onUnmounted(() => {
 
     <!-- Data table -->
     <Grid>
-      <!-- 名称列：图标 + 名称 + 代码 + base_url -->
+      <!-- Name column: Logo + name + code + base_url / 名称列：Logo + 名称 + 代码 + base_url -->
       <template #name_cell="{ row }">
         <div class="flex items-center gap-2.5">
           <div
-            class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
             :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
           >
+            <img
+              v-if="row.icon && Number(row.icon) > 0"
+              :src="getProcessedImageUrl(Number(row.icon), { preset: 'small' })"
+              class="size-full object-contain"
+              alt=""
+            />
             <IconifyIcon
-              :icon="row.icon || 'lucide:cpu'"
+              v-else
+              icon="lucide:cpu"
               class="size-4"
               :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
             />

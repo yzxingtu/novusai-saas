@@ -21,12 +21,14 @@ import {
   toggleAIModelStatusApi,
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
+import { getProcessedImageUrl } from '#/utils/image';
 
 import {
   getFormDefaults,
   getModelTierText,
   getModelTypeText,
   useColumns,
+  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
@@ -107,7 +109,7 @@ async function onTestModel(row: AIModelInfo) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIModelInfo>({
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = useCrudPage<AIModelInfo>({
   api: {
     list: getAIModelListApi,
     resource: '/admin/ai/models',
@@ -124,6 +126,7 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIModelIn
   customActions: {
     test: onTestModel,
   },
+  ai: { pageKey: 'admin.ai.models', formSchema: useFormSchema },
 });
 
 const cleanupPageContext = registerPageContext('admin/ai/models', () => ({
@@ -146,7 +149,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.models', [
     },
   },
   {
-    name: 'create_model',
+    name: 'create_record',
     label: $t('shared.pageOperation.createRecord'),
     description: 'Open the create model form',
     readonly: false,
@@ -156,7 +159,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.models', [
     },
   },
   {
-    name: 'search_models',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search models by keyword',
     readonly: true,
@@ -170,6 +173,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.models', [
       return { success: true, message: `Searched for: ${keyword}` };
     },
   },
+  ...formAiOperations,
 ]);
 
 onUnmounted(() => {
@@ -255,6 +259,28 @@ onUnmounted(() => {
           >
             {{ getModelTypeText(row.type) }}
           </Tag>
+        </template>
+
+        <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+        <template #providerName_cell="{ row }">
+          <div
+            v-if="row.provider_name"
+            class="flex items-center justify-center gap-1.5"
+          >
+            <img
+              v-if="row.provider_icon && Number(row.provider_icon) > 0"
+              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              class="size-4 shrink-0 rounded object-contain"
+              alt=""
+            />
+            <IconifyIcon
+              v-else
+              icon="lucide:cpu"
+              class="size-3.5 text-muted-foreground"
+            />
+            <span class="text-foreground">{{ row.provider_name }}</span>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 上下文窗口列 -->

@@ -407,15 +407,6 @@ def _handler_accepts_param(handler: Callable[..., object], param_name: str) -> b
         return False
 
 
-def _handler_accepts_ctx(handler: Callable[..., object]) -> bool:
-    """Backward-compatible helper: only checks explicit ctx parameter (does not match **kwargs). / 向后兼容 helper：仅检查显式 ctx 参数（不匹配 **kwargs）。"""
-    try:
-        sig = inspect.signature(handler)
-        return "ctx" in sig.parameters
-    except (ValueError, TypeError):
-        return False
-
-
 def _context_has_db_capability(ctx: object) -> bool:
     """Check if PluginContext has been granted db:own_tables capability. / 检查 PluginContext 是否被授予 db:own_tables 能力。"""
     checker = getattr(ctx, "has_capability", None)

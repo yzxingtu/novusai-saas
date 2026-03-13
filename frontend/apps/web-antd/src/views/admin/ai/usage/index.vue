@@ -274,7 +274,7 @@ const cleanupPageOps = registerPageOperations('admin.ai.usage', [
     },
   },
   {
-    name: 'search_usage',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search usage stats by model name',
     readonly: true,

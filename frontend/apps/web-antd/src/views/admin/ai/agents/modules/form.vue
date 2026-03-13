@@ -88,7 +88,6 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       if (!edit || !isSystemAgent.value) {
         result.name = values.name;
         result.execution_mode = values.execution_mode;
-        result.target_audience = values.target_audience ?? 'admin_tenant';
         Object.assign(result, extractScopePayload(values));
       }
       return result;
@@ -103,7 +102,6 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         tenant_ids:
           ((data as unknown as Record<string, unknown>)
             .assigned_tenant_ids as number[]) ?? [],
-        target_audience: data.target_audience ?? 'admin_tenant',
         model_id: data.model_id,
         execution_mode: data.execution_mode,
         system_prompt: data.system_prompt,

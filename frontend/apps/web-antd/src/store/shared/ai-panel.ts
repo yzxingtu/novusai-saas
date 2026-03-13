@@ -162,6 +162,51 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     }
   }
 
+  // ==================== Page Operation Confirmation / 页面操作确认 ====================
+
+  interface PendingPageOp {
+    invokeId: string;
+    pageKey: string;
+    operationName: string;
+    operationLabel: string;
+    operationDescription: string;
+    params: Record<string, unknown>;
+    resolved: boolean;
+    allowed?: boolean;
+    resolve: (allowed: boolean) => void;
+  }
+
+  const pendingPageOps = ref<PendingPageOp[]>([]);
+
+  function requestPageOpConfirmation(op: {
+    invokeId: string;
+    pageKey: string;
+    operationName: string;
+    operationLabel: string;
+    operationDescription: string;
+    params: Record<string, unknown>;
+  }): Promise<boolean> {
+    return new Promise<boolean>((resolvePromise) => {
+      pendingPageOps.value.push({
+        ...op,
+        resolved: false,
+        resolve: resolvePromise,
+      });
+    });
+  }
+
+  function resolvePageOp(invokeId: string, allowed: boolean) {
+    const op = pendingPageOps.value.find((o) => o.invokeId === invokeId);
+    if (!op || op.resolved) return;
+    op.resolved = true;
+    op.allowed = allowed;
+    op.resolve(allowed);
+  }
+
+  function clearResolvedPageOps() {
+    pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
+  }
+
   // ==================== Tool call dispatch / Tool Call 分发 ====================
 
   type ToolCallHandler = (toolName: string, output: string) => void;
@@ -200,6 +245,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pinnedAgentName.value = null;
     pendingAgentId.value = undefined;
     hasUnread.value = false;
+    pendingPageOps.value = [];
     toolCallHandlers.clear();
   }
 
@@ -241,6 +287,12 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     openWithAgent,
     consumePendingAgentId,
     markUnread,
+
+    // Page operation confirmation
+    pendingPageOps,
+    requestPageOpConfirmation,
+    resolvePageOp,
+    clearResolvedPageOps,
 
     // Tool calls
     registerToolCallHandler,

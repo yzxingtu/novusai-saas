@@ -55,10 +55,13 @@ class AgentSkillBindingService:
         Returns:
             绑定列表（含 SkillPackage 详情 + is_auto_bound 标记）
         """
-        # 获取 agent 信息用于 auto-bind scope 匹配
         agent = await self.agent_repo.get_by_id(agent_id)
 
-        # 加载自动绑定包
+        # 绑定记录的 tenant_id 跟随 agent.tenant_id，而非调用方的 tenant_id
+        # Binding tenant_id follows agent.tenant_id, not the caller's tenant_id
+        agent_owner_tid = agent.tenant_id if agent else self.tenant_id
+        effective_binding_repo = AgentSkillBindingRepository(self.db, agent_owner_tid)
+
         auto_items: list[dict[str, Any]] = []
         if agent:
             from app.ai.skills.resolver import _load_auto_bind_packages
@@ -87,8 +90,7 @@ class AgentSkillBindingService:
             except Exception as exc:
                 logger.warning("Failed to load auto-bind packages for agent %d: %s", agent_id, exc)
 
-        # 加载显式绑定
-        bindings = await self.binding_repo.get_by_agent_id(agent_id)
+        bindings = await effective_binding_repo.get_by_agent_id(agent_id)
         explicit_pkg_ids = set()
         explicit_items: list[dict[str, Any]] = []
         for binding in bindings:

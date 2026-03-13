@@ -4,10 +4,7 @@
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 
-import { computed, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -36,7 +33,9 @@ import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { getKBStatusColor, getKBStatusText } from './data';
+import { getKBStatusColor, getKBStatusText, useFormSchema } from './data';
+
+const AI_PAGE_KEY = 'tenant.ai.knowledge-bases';
 import KnowledgeBaseDetail from './modules/KnowledgeBaseDetail.vue';
 import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
@@ -66,7 +65,40 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => kbFormRef.value?.openEdit(row),
+    edit: (row) => kbFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+  },
+  ai: {
+    pageKey: AI_PAGE_KEY,
+    formSchema: useFormSchema,
+    entityName: $t('tenant.knowledgeBase.name'),
+    entityDescription: '管理知识库的配置和文档',
+    openRecycleBin: () => recycleBinRef.value?.open(),
+    extra: [
+      {
+        name: 'create_record',
+        label: $t('shared.pageOperation.createRecord'),
+        description: 'Open the create knowledge base form / 打开新建知识库表单',
+        readonly: false,
+        handler: async (): Promise<{ success: boolean; message: string }> => {
+          kbFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+          return { success: true, message: 'Create knowledge base form opened / 新建表单已打开' };
+        },
+      },
+      {
+        name: 'search',
+        label: $t('shared.pageOperation.searchByKeyword'),
+        description: 'Search knowledge bases by keyword / 按关键词搜索知识库',
+        readonly: true,
+        params: {
+          keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+        },
+        handler: async (params): Promise<{ success: boolean; message: string }> => {
+          searchKeyword.value = (params?.keyword as string) || '';
+          doSearch();
+          return { success: true, message: `Searched for: ${searchKeyword.value} / 已搜索：${searchKeyword.value}` };
+        },
+      },
+    ],
   },
 });
 
@@ -81,6 +113,10 @@ function openRecycleBin() {
 
 // ========== KnowledgeBaseForm (ref 模式) ==========
 const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
+
+function onCreateKB() {
+  kbFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+}
 
 // ========== 详情抽屉 ==========
 const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
@@ -111,56 +147,6 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
   }
 }
 
-const cleanupPageContext = registerPageContext('tenant/ai/knowledge-bases', () => ({
-  page_key: 'tenant.ai.knowledge-bases',
-  page_title: $t('tenant.knowledgeBase.name'),
-  page_data: {
-    resource: '/tenant/ai/knowledge-bases',
-    total: total.value,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.knowledge-bases', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the knowledge base list',
-    readonly: true,
-    handler: async () => {
-      await loadList();
-      return { success: true, message: 'Knowledge base list refreshed' };
-    },
-  },
-  {
-    name: 'create_knowledge_base',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create knowledge base form',
-    readonly: false,
-    handler: async () => {
-      kbFormRef.value?.openNew();
-      return { success: true, message: 'Create knowledge base form opened' };
-    },
-  },
-  {
-    name: 'search_knowledge_bases',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search knowledge bases by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      searchKeyword.value = (params?.keyword as string) || '';
-      doSearch();
-      return { success: true, message: `Searched for: ${searchKeyword.value}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>
@@ -207,7 +193,7 @@ onUnmounted(() => {
       <Button
         v-access:code="['knowledge_base:create']"
         type="primary"
-        @click="kbFormRef?.openNew()"
+        @click="onCreateKB"
       >
         <template #icon>
           <IconifyIcon icon="lucide:plus" class="size-4" />
@@ -236,7 +222,7 @@ onUnmounted(() => {
         <Button
           v-access:code="['knowledge_base:create']"
           type="primary"
-          @click="kbFormRef?.openNew()"
+          @click="onCreateKB"
         >
           <template #icon>
             <IconifyIcon icon="lucide:plus" class="size-4" />

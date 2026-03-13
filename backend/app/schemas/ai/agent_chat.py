@@ -16,8 +16,9 @@ from app.enums.agent import ConfirmActionEnum
 
 PAGE_CONTEXT_KEY = "page_context"
 
-# page_data 序列化后最大字节数（4KB）
-MAX_PAGE_DATA_BYTES = 4096
+# page_data 序列化后最大字节数（8KB — form_fields + operations 等增强数据需要更大空间）
+# Max serialized bytes for page_data (8KB — enhanced form_fields + operations need more space)
+MAX_PAGE_DATA_BYTES = 8192
 
 
 class ChatAttachment(BaseModel):

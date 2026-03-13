@@ -425,23 +425,34 @@ watch(
         <component :is="widget.component" />
       </template>
     </template>
+    <template #global-search>
+      <!-- Replaced by unified CommandBar (AI + search) / 由统一的 CommandBar（AI + 搜索）替代 -->
+    </template>
     <template #header-right-51>
-      <Tooltip
+      <div
         v-if="aiEnabled"
-        :title="`${$t('common.aiPanel.title')} (Ctrl+J)`"
-        placement="bottom"
+        class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-2xl bg-accent/50 px-3 py-0.5 transition-colors hover:bg-accent sm:mr-4"
+        @click="commandBarRef?.show()"
       >
-        <div
-          class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
-          @click="commandBarRef?.show()"
+        <IconifyIcon
+          icon="lucide:sparkles"
+          class="size-4 text-muted-foreground transition-colors group-hover:text-foreground"
+        />
+        <span
+          class="hidden text-xs text-muted-foreground transition-colors group-hover:text-foreground md:block"
         >
-          <IconifyIcon icon="lucide:sparkles" class="size-4" />
-          <span
-            v-if="aiPanelStore.hasUnread"
-            class="absolute right-0.5 top-0.5 size-2 rounded-full bg-destructive"
-          ></span>
-        </div>
-      </Tooltip>
+          {{ $t('common.aiPanel.title') }}
+        </span>
+        <kbd
+          class="hidden rounded-sm border border-foreground/15 bg-background px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground md:block"
+        >
+          Ctrl K
+        </kbd>
+        <span
+          v-if="aiPanelStore.hasUnread"
+          class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-destructive"
+        ></span>
+      </div>
     </template>
     <template #extra>
       <AuthenticationLoginExpiredModal
@@ -455,6 +466,7 @@ watch(
         ref="commandBarRef"
         :api-prefix="apiPrefix"
         :can-chat="aiEnabled"
+        :menus="accessStore.accessMenus"
         @submit="onCommandBarSubmit"
         @select-conversation="onCommandBarSelectConversation"
       />

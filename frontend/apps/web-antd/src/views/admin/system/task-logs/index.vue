@@ -87,7 +87,7 @@ const cleanupPageOps = registerPageOperations('admin.system.task-logs', [
     },
   },
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search task logs by task name',
     readonly: true,

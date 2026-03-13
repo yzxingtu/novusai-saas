@@ -107,7 +107,7 @@ const cleanupPageContext = registerPageContext('tenant/system/operation-logs', (
 
 const cleanupPageOps = registerPageOperations('tenant.system.operation-logs', [
   {
-    name: 'search_logs',
+    name: 'search',
     label: $t('shared.pageOperation.searchByKeyword'),
     description: 'Search operation logs by path',
     readonly: true,

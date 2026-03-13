@@ -226,7 +226,7 @@
     "quickPageAnalysis": "分析当前页面",
     "quickDataQuery": "数据查询",
     "quickHelp": "使用帮助",
-    "welcomeFirstTime": "按 Ctrl+J 快速打开，拖拽左边缘调整宽度",
+    "welcomeFirstTime": "按 Ctrl+K 快速打开，拖拽左边缘调整宽度",
     "routingAgent": "正在匹配最佳智能体...",
     "tokens": "tokens",
     "regenerate": "重新生成",
@@ -252,7 +252,7 @@
   },
   "commandBar": {
     "placeholder": "输入消息发送，或直接回车打开面板...",
-    "shortcut": "Ctrl+J",
+    "shortcut": "Ctrl+K",
     "mentionHint": "选择智能体",
     "noAgents": "暂无可用智能体",
     "recentConversations": "最近对话",
@@ -265,7 +265,11 @@
     "justNow": "刚刚",
     "minutesAgo": "{n} 分钟前",
     "hoursAgo": "{n} 小时前",
-    "daysAgo": "{n} 天前"
+    "daysAgo": "{n} 天前",
+    "searchResults": "搜索结果",
+    "resultsCount": "{count} 个结果",
+    "sendToAI": "发送给 AI",
+    "navigateTo": "跳转"
   },
   "aiPanel": {
     "title": "AI 助手",

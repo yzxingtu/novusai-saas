@@ -34,7 +34,7 @@ async def list_versions(request, db, ctx):
     items = [
         {"id": v.id, "title": v.title, "word_count": v.word_count,
          "creator_name": v.creator_name, "version_note": v.version_note,
-         "created_at": str(v.created_at) if v.created_at else None}
+         "created_at": v.created_at.isoformat() if v.created_at else None}
         for v in rows
     ]
     return {"items": items, "total": len(items)}
@@ -96,7 +96,7 @@ async def get_version(request, db, ctx):
         return {"error": "version not found", "code": 4040, "status_code": 404}
     return {"id": v.id, "title": v.title, "content": v.content,
             "word_count": v.word_count, "version_note": v.version_note,
-            "created_at": str(v.created_at) if v.created_at else None}
+            "created_at": v.created_at.isoformat() if v.created_at else None}
 
 
 async def restore_version(request, db, ctx):
