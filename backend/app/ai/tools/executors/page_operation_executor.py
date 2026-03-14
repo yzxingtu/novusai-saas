@@ -118,6 +118,13 @@ class PageOperationExecutor(BaseToolExecutor):
                 data_str = json.dumps(result_data, ensure_ascii=False, default=str)
                 if len(data_str) <= 4000:
                     output += f"\nData: {data_str}"
+                elif operation_name == "get_editor_html" and "html" in result_data:
+                    # Large document: still expose html so LLM can use it for replace_section old_html
+                    html_content = result_data.get("html", "") or ""
+                    max_html_chars = 12000
+                    if len(html_content) > max_html_chars:
+                        html_content = html_content[:max_html_chars] + "\n... (truncated)"
+                    output += f"\nHTML (copy exactly for replace_section old_html):\n{html_content}"
                 # Agent Loop guidance: suggest next step based on context_diff
                 context_diff = result_data.get("context_diff", {})
                 if context_diff.get("form_opened"):

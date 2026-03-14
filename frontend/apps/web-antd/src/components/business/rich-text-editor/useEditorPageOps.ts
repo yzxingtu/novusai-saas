@@ -24,6 +24,39 @@ const md = new MarkdownIt({ html: true, breaks: true });
 
 const MD_PATTERNS = /^#{1,6}\s|^\*\*|^\- |\*\*.*\*\*|^\d+\.\s|^>\s|```/m;
 
+/** Normalize HTML for reliable string matching (e.g. replace_section old_html from LLM may have different escaping) */
+function normalizeHtmlForMatch(html: string): string {
+  let s = html.trim();
+  // Decode common entities
+  s = s
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+  // Normalize JSON/backslash escaping that LLM may produce
+  s = s.replace(/\\"/g, '"').replace(/\\&quot;/g, '"').replace(/\\\\&quot;/g, '"');
+  return s;
+}
+
+/** Fix broken table style that TipTap or AI may output (width: 0px → 100%) */
+function fixTableWidthZero(html: string): string {
+  return html.replace(
+    /style="width:\s*0px;?"/gi,
+    'style="width: 100%;"',
+  );
+}
+
+/**
+ * Sanitize table attributes so TipTap TableMap does not throw "No cell with offset X found".
+ * Ensures colspan/rowspan are simple numeric attributes (e.g. colspan="1").
+ */
+function sanitizeTableAttributesForSetContent(html: string): string {
+  return html
+    .replace(/\bcolspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'colspan="$1"')
+    .replace(/\browspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'rowspan="$1"');
+}
+
 function ensureHtml(content: string): string {
   if (/<[a-z][\s\S]*>/i.test(content)) return content;
   if (MD_PATTERNS.test(content)) return md.render(content);
@@ -95,7 +128,8 @@ export function useEditorPageOps(
           'Get the current editor HTML content with formatting.',
         readonly: true,
         handler: async () => {
-          const html = editor.getHTML();
+          const raw = editor.getHTML();
+          const html = fixTableWidthZero(raw);
           return {
             success: true,
             message: `HTML content retrieved (${html.length} chars)`,
@@ -141,7 +175,7 @@ export function useEditorPageOps(
         },
         handler: async (params: Record<string, unknown>) => {
           const raw = String(params.content || '');
-          const html = ensureHtml(raw);
+          const html = fixTableWidthZero(ensureHtml(raw));
           editor.commands.setContent(html);
           return {
             success: true,
@@ -178,16 +212,36 @@ export function useEditorPageOps(
             return { success: false, message: 'new_html is required' };
 
           const currentHtml = editor.getHTML();
-          if (!currentHtml.includes(oldSnippet)) {
+          const normCurrent = normalizeHtmlForMatch(currentHtml);
+          const normOld = normalizeHtmlForMatch(oldSnippet);
+
+          if (!normCurrent.includes(normOld)) {
+            const snippetLen = 450;
+            const excerpt = currentHtml.slice(0, snippetLen);
             return {
               success: false,
               message:
-                'old_html not found in current content. Use get_editor_html to see the exact HTML, then copy a unique substring.',
+                'old_html not found in current content. Copy a unique substring from the current HTML below exactly (do not change quotes or escaping). '
+                + `First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
             };
           }
 
-          const updatedHtml = currentHtml.replace(oldSnippet, ensureHtml(newSnippet));
-          editor.commands.setContent(updatedHtml);
+          // Normalize new_html so table attributes (colspan/rowspan) parse correctly and don't break TipTap TableMap
+          const newHtmlClean = ensureHtml(normalizeHtmlForMatch(newSnippet));
+          const updatedNorm = normCurrent.replace(normOld, newHtmlClean);
+          const updatedHtml = sanitizeTableAttributesForSetContent(
+            fixTableWidthZero(updatedNorm),
+          );
+
+          try {
+            editor.commands.setContent(updatedHtml);
+          } catch (e) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            return {
+              success: false,
+              message: `Replacement produced invalid document structure (${errMsg}). Try a smaller or simpler replacement, or avoid changing table structure.`,
+            };
+          }
           return {
             success: true,
             message: `Section replaced (old ${oldSnippet.length} → new ${newSnippet.length} chars)`,
