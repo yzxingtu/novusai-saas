@@ -1,5 +1,5 @@
 /**
- * Tenant user management API / 租户用户管理 API
+ * Tenant user management API / 企业用户管理 API
  * Backend: /tenant/users/* / 对接后端 /tenant/users/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

@@ -102,7 +102,7 @@ export function getAdminScopeOptions(): ScopeOption[] {
   ]);
 }
 
-/** Get tenant-side visible scope options (tenant can only create all_tenants) / 获取租户端可见的 scope 列表（租户端只能创建 all_tenants） */
+/** Get tenant-side visible scope options (tenant can only create all_tenants) / 获取企业端可见的 scope 列表（企业端只能创建 all_tenants） */
 export function getTenantScopeOptions(): ScopeOption[] {
   return getScopeOptions(['all_tenants']);
 }

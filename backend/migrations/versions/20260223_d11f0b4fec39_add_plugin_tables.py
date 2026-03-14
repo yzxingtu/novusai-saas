@@ -41,7 +41,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -61,7 +61,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -78,7 +78,7 @@ def upgrade() -> None:
     op.drop_index(op.f('ix_plugin_migrations_plugin_name'), table_name='plugin_migrations')
     op.drop_table('plugin_migrations')
     op.add_column('plugin_tenant_assignments', sa.Column('is_active', sa.Boolean(), nullable=False, comment='是否启用'))
-    op.add_column('plugin_tenant_assignments', sa.Column('config', sa.JSON(), nullable=False, comment='租户级配置'))
+    op.add_column('plugin_tenant_assignments', sa.Column('config', sa.JSON(), nullable=False, comment='企业级配置'))
     op.alter_column('plugin_tenant_assignments', 'plugin_id',
                existing_type=sa.INTEGER(),
                comment='插件ID',
@@ -86,8 +86,8 @@ def upgrade() -> None:
                existing_nullable=False)
     op.alter_column('plugin_tenant_assignments', 'tenant_id',
                existing_type=sa.INTEGER(),
-               comment='租户ID',
-               existing_comment='租户 ID',
+               comment='企业ID',
+               existing_comment='企业 ID',
                existing_nullable=False)
     op.drop_constraint(op.f('uq_plugin_tenant_assignments_plugin_tenant'), 'plugin_tenant_assignments', type_='unique')
     op.create_unique_constraint('uq_plugin_tenant', 'plugin_tenant_assignments', ['plugin_id', 'tenant_id'])
@@ -303,8 +303,8 @@ def downgrade() -> None:
     op.create_unique_constraint(op.f('uq_plugin_tenant_assignments_plugin_tenant'), 'plugin_tenant_assignments', ['plugin_id', 'tenant_id'], postgresql_nulls_not_distinct=False)
     op.alter_column('plugin_tenant_assignments', 'tenant_id',
                existing_type=sa.INTEGER(),
-               comment='租户 ID',
-               existing_comment='租户ID',
+               comment='企业 ID',
+               existing_comment='企业ID',
                existing_nullable=False)
     op.alter_column('plugin_tenant_assignments', 'plugin_id',
                existing_type=sa.INTEGER(),
@@ -325,7 +325,7 @@ def downgrade() -> None:
     sa.Column('updated_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id', name=op.f('plugin_migrations_pkey')),
     sa.UniqueConstraint('plugin_name', 'version', name=op.f('uq_plugin_migrations_name_version'), postgresql_include=[], postgresql_nulls_not_distinct=False)
     )
@@ -333,16 +333,16 @@ def downgrade() -> None:
     op.create_index(op.f('ix_plugin_migrations_is_deleted'), 'plugin_migrations', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_plugin_migrations_id'), 'plugin_migrations', ['id'], unique=False)
     op.create_table('tenant_plugins',
-    sa.Column('tenant_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='租户 ID'),
+    sa.Column('tenant_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='企业 ID'),
     sa.Column('plugin_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='插件 ID'),
     sa.Column('is_active', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='是否启用'),
-    sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True, comment='租户自定义配置（覆盖插件默认配置）'),
+    sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True, comment='企业自定义配置（覆盖插件默认配置）'),
     sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
     sa.Column('created_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='创建时间'),
     sa.Column('updated_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], name=op.f('tenant_plugins_plugin_id_fkey'), ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], name=op.f('tenant_plugins_tenant_id_fkey'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('tenant_plugins_pkey')),

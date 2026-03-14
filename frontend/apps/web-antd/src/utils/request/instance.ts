@@ -47,7 +47,7 @@ const { apiURL: rawApiURL } = useAppConfig(import.meta.env, import.meta.env.PROD
  * ensuring API requests carry the correct Host header (tenant domain isolation relies on Host header).
  * Example: as.dakkii.cn:5666 → API sends to as.dakkii.cn:8000
  * Dev 模式下使用当前页面 hostname 替代 127.0.0.1，
- * 确保 API 请求携带正确的 Host header（租户域名隔离依赖 Host header）。
+ * 确保 API 请求携带正确的 Host header（企业域名隔离依赖 Host header）。
  * 例如：as.dakkii.cn:5666 → API 发送到 as.dakkii.cn:8000
  */
 const apiURL = (() => {

@@ -84,7 +84,7 @@ def upgrade() -> None:
             "tenant_role_ids",
             sa.JSON(),
             nullable=True,
-            comment="租户端角色 ID 列表",
+            comment="企业端角色 ID 列表",
         ),
     )
     op.add_column(

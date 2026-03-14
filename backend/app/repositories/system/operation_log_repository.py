@@ -22,7 +22,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
 
     提供操作日志的数据访问方法，支持：
     - admin 作用域：平台管理员可查看所有日志
-    - tenant 作用域：租户管理员仅可查看本租户日志
+    - tenant 作用域：企业管理员仅可查看本企业日志
     """
 
     model = OperationLog
@@ -35,7 +35,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
             "module", "action", "resource", "method", "path",
             "response_code", "ip", "created_at",
         },
-        # 租户管理员可过滤的字段（不包含 tenant_id）
+        # 企业管理员可过滤的字段（不包含 tenant_id）
         "tenant": {
             "id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
@@ -61,18 +61,18 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        查询租户操作日志
+        查询企业操作日志
 
-        自动添加租户隔离过滤
+        自动添加企业隔离过滤
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
 
         Returns:
             (日志列表, 总数)
         """
-        # 强制添加租户过滤
+        # 强制添加企业过滤
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
 
         return await self.query_list(
@@ -111,7 +111,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
 
         Args:
             before_date: 日期阈值
-            tenant_id: 租户 ID（可选，为空则删除所有租户）
+            tenant_id: 企业 ID（可选，为空则删除所有企业）
             hard_delete: 是否硬删除
 
         Returns:
@@ -149,7 +149,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         按模块统计日志数量
 
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期（可选）
             end_date: 结束日期（可选）
 
@@ -189,7 +189,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         按操作类型统计日志数量
 
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期（可选）
             end_date: 结束日期（可选）
 
@@ -267,22 +267,22 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         include_tenant_users: bool = True,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端带层级权限的日志查询
+        企业端带层级权限的日志查询
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
-            is_owner: 是否租户所有者
+            is_owner: 是否企业所有者
             subordinate_user_ids: 下属用户 ID 列表（非所有者时必须）
-            include_tenant_users: 是否包含租户普通用户日志
+            include_tenant_users: 是否包含企业普通用户日志
 
         Returns:
             (日志列表, 总数)
         """
-        # 强制租户隔离
+        # 强制企业隔离
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
 
-        # 限制只查看租户端日志（tenant_admin / tenant_user）
+        # 限制只查看企业端日志（tenant_admin / tenant_user）
         allowed_user_types = [UserTypeEnum.TENANT_ADMIN.value]
         if include_tenant_users:
             allowed_user_types.append(UserTypeEnum.TENANT_USER.value)

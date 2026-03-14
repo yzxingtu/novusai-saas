@@ -90,7 +90,7 @@ def require_any_admin_permission(*permissions: str) -> Callable:
 def require_tenant_admin_permissions(*permissions: str) -> Callable:
     """
     Require tenant admin to have specified permissions.
-    要求租户管理员拥有指定权限。
+    要求企业管理员拥有指定权限。
 
     Args:
         *permissions: Required permission codes / 需要的权限代码列表
@@ -126,7 +126,7 @@ def require_tenant_admin_permissions(*permissions: str) -> Callable:
 def require_any_tenant_admin_permission(*permissions: str) -> Callable:
     """
     Require tenant admin to have any one of the specified permissions.
-    要求租户管理员拥有任意一个指定权限。
+    要求企业管理员拥有任意一个指定权限。
 
     Args:
         *permissions: Required permission codes (any one suffices) / 需要的权限代码列表（满足任意一个即可）
@@ -160,7 +160,7 @@ __all__ = [
     # Platform admin / 平台管理员
     "require_admin_permissions",
     "require_any_admin_permission",
-    # Tenant admin / 租户管理员
+    # Tenant admin / 企业管理员
     "require_tenant_admin_permissions",
     "require_any_tenant_admin_permission",
     # Alias / 别名

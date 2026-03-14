@@ -73,7 +73,7 @@
     "acme_staging_url": "Let's Encrypt 测试环境 ACME 目录地址",
     "ssl_private_key_encryption_key": "用于加密存储 SSL 私钥的 Fernet 密钥",
     "ssl_auto_renew_days": "证书到期前多少天自动触发续期",
-    "ssl_allow_custom_cert": "是否允许租户上传自定义 SSL 证书",
+    "ssl_allow_custom_cert": "是否允许企业上传自定义 SSL 证书",
     "dns_provider": "用于 ACME DNS-01 验证的 DNS 提供商类型",
     "dns_cloudflare_api_token": "Cloudflare API Token（需要 Zone.DNS 编辑权限）",
     "dns_cloudflare_zone_id": "Cloudflare 域名区域 ID",
@@ -110,8 +110,8 @@
     "pattern": "格式不正确"
   },
   "tenant": {
-    "tenant_logo": "租户 Logo",
-    "tenant_favicon": "租户图标",
+    "tenant_logo": "企业 Logo",
+    "tenant_favicon": "企业图标",
     "tenant_login_bg": "登录页背景",
     "tenant_login_title": "登录页标题",
     "tenant_login_subtitle": "登录页副标题",
@@ -132,7 +132,7 @@
     "tenant_file_upload": "文件上传"
   },
   "tenant_desc": {
-    "tenant_logo": "租户管理后台显示的 Logo"
+    "tenant_logo": "企业管理后台显示的 Logo"
   },
   "tenant_options": {
     "tenant_login_methods": {

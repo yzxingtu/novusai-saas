@@ -171,11 +171,11 @@ async def import_skill_package(
             )
 
     # 创建技能包 / Create skill package
-    # 租户端导入时 target_audience 重置为 'all'（租户不能创建 admin_only 包） / Reset target_audience to 'all' for tenant import (tenants cannot create admin_only packages)
+    # 企业端导入时 target_audience 重置为 'all'（企业不能创建 admin_only 包） / Reset target_audience to 'all' for tenant import (tenants cannot create admin_only packages)
     from app.enums.common import AudienceEnum
     imported_target_audience = package_info.get("target_audience", AudienceEnum.ALL.value)
     if target_tenant_id is not None:
-        # 租户端操作：强制不能保留 admin_only / Tenant operation: force cannot retain admin_only
+        # 企业端操作：强制不能保留 admin_only / Tenant operation: force cannot retain admin_only
         if imported_target_audience == AudienceEnum.ADMIN_ONLY.value:
             imported_target_audience = AudienceEnum.ALL.value
 

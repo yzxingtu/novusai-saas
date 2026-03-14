@@ -1,7 +1,7 @@
 """
-租户 AI 模型速率限制配置模型 / Tenant AI Model Rate Limit Model
+企业 AI 模型速率限制配置模型 / Tenant AI Model Rate Limit Model
 
-存储每个租户对每个模型的速率限制配置
+存储每个企业对每个模型的速率限制配置
 Stores per-tenant per-model rate limit configuration.
 """
 
@@ -14,9 +14,9 @@ from app.core.i18n import _
 
 class TenantModelRateLimit(TenantModel):
     """
-    租户 AI 模型速率限制配置
+    企业 AI 模型速率限制配置
 
-    为每个租户配置对每个 AI 模型的速率限制
+    为每个企业配置对每个 AI 模型的速率限制
     如果未配置，则使用模型的默认限制
     """
 

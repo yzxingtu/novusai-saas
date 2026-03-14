@@ -4,7 +4,7 @@ Agent-level Quota & Concurrency Control
 
 Provides per-agent Token quota and concurrency limits on top of tenant-level quota.
 Redis-based for low latency and high concurrency safety.
-在租户级配额之上，提供按智能体粒度的 Token 配额和并发执行数限制。
+在企业级配额之上，提供按智能体粒度的 Token 配额和并发执行数限制。
 基于 Redis 实现，低延迟、高并发安全。
 """
 
@@ -73,7 +73,7 @@ class AgentQuotaConfig:
         user_conversations_per_day: Per-user daily conversation cap (0 = unlimited) / 每用户每日对话上限（0 = 不限制）
         user_tokens_per_day: Per-user daily token cap (0 = unlimited) / 每用户每日 Token 上限（0 = 不限制）
         max_concurrent: Max concurrent executions (0 = unlimited) / 最大并发执行数（0 = 不限制）
-        tenant_max_concurrent: Tenant-wide max concurrency (0 = unlimited) / 全租户最大并发（0 = 不限制）
+        tenant_max_concurrent: Tenant-wide max concurrency (0 = unlimited) / 全企业最大并发（0 = 不限制）
         warning_threshold: Warning threshold percentage (0-100) / 预警阈值百分比（0-100）
     """
 
@@ -202,7 +202,7 @@ class AgentQuotaManager:
         检查智能体配额。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             config: Quota config / 配额配置
             estimated_tokens: Estimated token count / 预估 Token 数量
@@ -368,7 +368,7 @@ class AgentQuotaManager:
         响应后调整配额用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
@@ -404,7 +404,7 @@ class AgentQuotaManager:
         记录智能体 Token 使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             tokens: Token count / Token 数量
             stat_date: Statistics date / 统计日期
@@ -683,10 +683,10 @@ class AgentConcurrencyLimiter:
         使用 Redis Lua 脚本确保 清理过期→检查计数→添加令牌 三步原子执行。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             max_concurrent: Per-agent max concurrency / 每智能体最大并发数
-            tenant_max_concurrent: Tenant-wide max concurrency / 全租户最大并发数
+            tenant_max_concurrent: Tenant-wide max concurrency / 全企业最大并发数
 
         Returns:
             lock_token for release / lock_token 用于释放
@@ -720,7 +720,7 @@ class AgentConcurrencyLimiter:
                     _("agent.error.concurrency_exceeded"), retry_after=5,
                 )
 
-        # Tenant-level concurrency check (atomic) / 租户级并发检查（原子操作）
+        # Tenant-level concurrency check (atomic) / 企业级并发检查（原子操作）
         if tenant_max_concurrent > 0:
             tenant_key = AgentConcurrencyLimiter._tenant_key(tenant_id)
             result = await redis.eval(
@@ -754,7 +754,7 @@ class AgentConcurrencyLimiter:
         释放并发许可。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             lock_token: Token returned by acquire() / acquire() 返回的令牌
         """

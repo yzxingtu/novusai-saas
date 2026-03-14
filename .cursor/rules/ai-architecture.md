@@ -30,7 +30,7 @@
 
 - **执行模式**：`conversation`（多轮对话）/ `task`（单次）/ `batch`（批量）/ `api`（外部集成）
 - **作用域**：使用 `ResourceScopeEnum`（5 值），判断可编辑时**必须同时检查 `scope + tenant_id`**
-- **`all_tenants` 双重语义**：`tenant_id=NULL` = 平台全局（只读），`tenant_id=X` = 租户自有（可编辑）
+- **`all_tenants` 双重语义**：`tenant_id=NULL` = 平台全局（只读），`tenant_id=X` = 企业自有（可编辑）
 - `is_system=True` → 不可删除/禁用
 - 工具绑定通过 `AgentSkillBinding`（M:N），禁止使用废弃的 `tool_bindings` JSON 字段
 - `routing_config`（JSON）：多模型路由 → 详见 `references/ai-routing.md`
@@ -46,7 +46,7 @@
 
 - Skill **必须**归属 SkillPackage（`package_id` 必填）
 - **绑定模式**：`auto`（按 scope 自动匹配）/ `manual`（需 AgentSkillBinding 显式绑定）
-- 系统包（`is_system=True`）默认 `auto`，租户只能创建 `manual`
+- 系统包（`is_system=True`）默认 `auto`，企业只能创建 `manual`
 - **前端入口**：仅 `/admin/ai/skill-packages` 和 `/tenant/ai/skill-packages`，**禁止独立技能路由**
 - **7 种技能类型**：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 - **SkillResolver** 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`

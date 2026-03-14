@@ -1,5 +1,5 @@
 """
-资源-租户分配 Repository / Resource Tenant Assignment Repository
+资源-企业分配 Repository / Resource Tenant Assignment Repository
 """
 
 from sqlalchemy import and_, delete, select
@@ -14,9 +14,9 @@ logger = LogManager.get_logger("app")
 
 class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment]):
     """
-    资源-租户分配 Repository
+    资源-企业分配 Repository
 
-    提供通用的资源→租户分配 CRUD，支持所有需要「部分租户」作用域的资源类型。
+    提供通用的资源→企业分配 CRUD，支持所有需要「部分企业」作用域的资源类型。
     """
 
     model = ResourceTenantAssignment
@@ -31,12 +31,12 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_id: int,
     ) -> bool:
         """
-        检查资源是否已分配给指定租户
+        检查资源是否已分配给指定企业
 
         Args:
             resource_type: 资源类型
             resource_id: 资源 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             是否已分配且启用
@@ -62,15 +62,15 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         config: dict | None = None,
     ) -> ResourceTenantAssignment:
         """
-        分配资源给租户
+        分配资源给企业
 
         如果已存在（包括已禁用的），则重新激活；否则创建新记录。
 
         Args:
             resource_type: 资源类型
             resource_id: 资源 ID
-            tenant_id: 租户 ID
-            config: 租户级配置（可选）
+            tenant_id: 企业 ID
+            config: 企业级配置（可选）
 
         Returns:
             分配记录
@@ -136,7 +136,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取资源已分配的租户 ID 列表
+        获取资源已分配的企业 ID 列表
 
         Args:
             resource_type: 资源类型
@@ -144,7 +144,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
             active_only: 是否仅返回启用的
 
         Returns:
-            租户 ID 列表
+            企业 ID 列表
         """
         conditions = [
             ResourceTenantAssignment.resource_type == resource_type,
@@ -166,11 +166,11 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取租户可访问的资源 ID 列表
+        获取企业可访问的资源 ID 列表
 
         Args:
             resource_type: 资源类型
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             active_only: 是否仅返回启用的
 
         Returns:
@@ -196,7 +196,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_ids: list[int],
     ) -> int:
         """
-        批量分配资源给多个租户
+        批量分配资源给多个企业
 
         Returns:
             新增分配数
@@ -294,10 +294,10 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
 
 def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
     """
-    构建「已分配给指定租户的资源 ID」子查询
+    构建「已分配给指定企业的资源 ID」子查询
 
-    用于租户端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
-    scope 的资源对被分配的租户可见。
+    用于企业端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
+    scope 的资源对被分配的企业可见。
 
     用法::
 

@@ -18,9 +18,9 @@ export const ADMIN_TOKEN_KEY = 'admin_token';
 /** Admin Refresh Token Key / 平台管理端 Refresh Token Key */
 export const ADMIN_REFRESH_TOKEN_KEY = 'admin_refresh_token';
 
-/** Tenant Access Token Key / 租户管理端 Access Token Key */
+/** Tenant Access Token Key / 企业管理端 Access Token Key */
 export const TENANT_TOKEN_KEY = 'tenant_admin_token';
-/** Tenant Refresh Token Key / 租户管理端 Refresh Token Key */
+/** Tenant Refresh Token Key / 企业管理端 Refresh Token Key */
 export const TENANT_REFRESH_TOKEN_KEY = 'tenant_admin_refresh_token';
 
 /** User Access Token Key / 用户端 Access Token Key */
@@ -35,7 +35,7 @@ export const USER_REFRESH_TOKEN_KEY = 'tenant_user_refresh_token';
 /** Admin user info Key / 平台管理端用户信息 Key */
 export const ADMIN_USER_INFO_KEY = 'admin_user_info';
 
-/** Tenant user info Key / 租户管理端用户信息 Key */
+/** Tenant user info Key / 企业管理端用户信息 Key */
 export const TENANT_USER_INFO_KEY = 'tenant_admin_user_info';
 
 /** User user info Key / 用户端用户信息 Key */
@@ -48,13 +48,13 @@ export const USER_USER_INFO_KEY = 'tenant_user_info';
 /** Admin permissions Key / 平台管理端权限码 Key */
 export const ADMIN_PERMISSIONS_KEY = 'admin_permissions';
 
-/** Tenant permissions Key / 租户管理端权限码 Key */
+/** Tenant permissions Key / 企业管理端权限码 Key */
 export const TENANT_PERMISSIONS_KEY = 'tenant_admin_permissions';
 
 /** User permissions Key / 用户端权限码 Key */
 export const USER_PERMISSIONS_KEY = 'tenant_user_permissions';
 
-/** Tenant info Key (shared between tenant and user endpoints) / 租户信息 Key（租户端和用户端共享） */
+/** Tenant info Key (shared between tenant and user endpoints) / 企业信息 Key（企业端和用户端共享） */
 export const TENANT_INFO_KEY = 'tenant_info';
 
 /** App settings Key / 应用设置 Key */

@@ -20,7 +20,7 @@ const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
 
-// Current tenant ID / 当前租户 ID
+// Current tenant ID / 当前企业 ID
 const tenantId = ref<number>();
 
 /** 表单 Schema */

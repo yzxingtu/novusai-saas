@@ -1,5 +1,5 @@
 """
-租户 AI 配额配置 Service / Tenant AI Quota Service
+企业 AI 配额配置 Service / Tenant AI Quota Service
 """
 
 from datetime import date
@@ -18,7 +18,7 @@ logger = LogManager.get_logger("ai.quota_service")
 
 class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     """
-    租户 AI 配额配置 Service
+    企业 AI 配额配置 Service
     """
 
     model = TenantQuota
@@ -30,7 +30,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> TenantQuota | None:
         """
-        获取租户配额配置
+        获取企业配额配置
 
         Args:
             model_id: 模型 ID（None 表示全局配额）
@@ -95,7 +95,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str | None = None
     ) -> list[dict[str, Any]]:
         """
-        获取租户所有配额配置及使用量
+        获取企业所有配额配置及使用量
 
         Args:
             period: 周期（None 表示全部）
@@ -148,7 +148,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str | None = None,
     ) -> list[TenantQuota]:
         """
-        获取租户活跃配额列表
+        获取企业活跃配额列表
 
         Args:
             period: 周期过滤（可选）

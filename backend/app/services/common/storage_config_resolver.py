@@ -34,15 +34,15 @@ class StorageConfigResolver:
 
     async def get_storage_mode(self, tenant_id: int) -> str:
         """
-        获取租户有效存储模式
+        获取企业有效存储模式
 
         解析规则：
-        1. tenant_storage_mode == 'custom' 且该租户的 self_config 开关打开 → 'custom'
-        2. tenant_storage_mode == 'admin_override' 且该租户有驱动配置 → 'admin_override'
+        1. tenant_storage_mode == 'custom' 且该企业的 self_config 开关打开 → 'custom'
+        2. tenant_storage_mode == 'admin_override' 且该企业有驱动配置 → 'admin_override'
         3. 其他情况 → 'platform'
 
-        注意：自主配置权限是逐租户控制的（tenant_storage_self_config_enabled），
-        不依赖全局开关，管理员可以为个别租户单独开启。
+        注意：自主配置权限是逐企业控制的（tenant_storage_self_config_enabled），
+        不依赖全局开关，管理员可以为个别企业单独开启。
 
         Returns:
             'platform' | 'admin_override' | 'custom'

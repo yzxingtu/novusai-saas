@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * Tenant domain management modal - main modal
- * 租户域名管理弹窗 - 主弹窗
+ * 企业域名管理弹窗 - 主弹窗
  * Shows domain list, provides add/detail/set primary/verify/delete entries
  * 展示域名列表，提供添加、详情、设为主域名、验证、删除等入口
  */

@@ -424,13 +424,13 @@ class AuditLogMiddleware:
         if not user_id:
             return user_info
 
-        # Admin impersonating tenant case / 平台管理员一键登录租户的情况：
+        # Admin impersonating tenant case / 平台管理员一键登录企业的情况：
         # token scope is tenant_admin, but has impersonated_by flag
         # Should be recorded as platform admin's operation / 记录为平台管理员的操作
         if impersonated_by is not None:
             user_info["user_type"] = UserTypeEnum.ADMIN.value
             user_info["user_id"] = int(impersonated_by)  # Use real platform admin ID / 使用真实的平台管理员 ID
-            user_info["tenant_id"] = None  # Platform logs not associated with tenant / 平台端日志不关联租户
+            user_info["tenant_id"] = None  # Platform logs not associated with tenant / 平台端日志不关联企业
             return user_info
 
         # Determine user type by scope / 根据 scope 判断用户类型

@@ -29,6 +29,7 @@ import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloat
 import { useCurrentPageAIPolicy } from '#/composables';
 import { usePageOperationChannel } from '#/composables/use-page-operation-channel';
 import { usePageSession } from '#/composables/use-page-session';
+import { usePreferenceSync } from '#/composables/use-preference-sync';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
@@ -44,6 +45,7 @@ import {
   usePresenceStore,
   useSocketIOStore,
 } from '#/store';
+import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import LoginForm from '#/views/user/authentication/login.vue';
 
@@ -57,9 +59,13 @@ const presenceStore = usePresenceStore();
 const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
 const pluginSlotsStore = usePluginSlotsStore();
+const preferenceStore = useUserPreferenceStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 const { refresh } = useRefresh();
 const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
+
+// ============ Preference Sync ============
+const { initSnapshot, skipSync } = usePreferenceSync();
 
 // ============ AI Panel ============
 
@@ -167,7 +173,7 @@ watch(
   },
 );
 
-onMounted(() => {
+onMounted(async () => {
   // Socket.IO: 登录后自动连接
   socketIOStore.connect();
   // 设置通知端类型后再加载未读数（避免默认 admin 端导致 401）
@@ -178,6 +184,11 @@ onMounted(() => {
   notificationStore.loadUnreadCount();
   notificationStore.initSocketHandlers();
   presenceStore.initSocketHandlers();
+
+  // 加载用户偏好并同步到框架 / Load preferences and sync to Vben
+  skipSync();
+  await preferenceStore.loadPreferences(ep as 'admin' | 'tenant');
+  initSnapshot();
 });
 
 onBeforeUnmount(() => {
@@ -192,6 +203,18 @@ const menus = computed(() => [
     },
     icon: 'lucide:user',
     text: $t('page.auth.profile'),
+  },
+  {
+    handler: async () => {
+      const result = await preferenceStore.resetMyPreferences();
+      if (result) {
+        skipSync();
+        initSnapshot();
+        message.success($t('common.preference.resetSuccess'));
+      }
+    },
+    icon: 'lucide:rotate-ccw',
+    text: $t('common.preference.resetToGlobal'),
   },
 ]);
 
@@ -266,25 +289,37 @@ function updateAllTabsTitles() {
   tabbarStore.setUpdateTime();
 }
 
+/**
+ * 解析水印模板变量 / Resolve watermark template variables
+ */
+function resolveWatermarkTemplate(template: string): string {
+  const info = userStore.userInfo;
+  const tenantName =
+    (info as Record<string, unknown>)?.tenantName as string ||
+    preferences.app.name || '';
+  return template
+    .replace(/\{tenant_name\}/g, tenantName)
+    .replace(/\{username\}/g, info?.username || '')
+    .replace(/\{real_name\}/g, info?.realName || '')
+    .replace(/\{user_id\}/g, String(info?.id || ''));
+}
+
 watch(
   () => ({
-    enable: preferences.app.watermark,
-    content: preferences.app.watermarkContent,
+    enable: preferenceStore.getPref('watermark_enable'),
+    content: preferenceStore.getPref('watermark_content'),
   }),
   async ({ enable, content }) => {
     if (enable) {
-      await updateWatermark({
-        content:
-          content ||
-          `${userStore.userInfo?.username} - ${userStore.userInfo?.realName}`,
-      });
+      const resolved = resolveWatermarkTemplate(
+        (content as string) || '{tenant_name} - {real_name}',
+      );
+      await updateWatermark({ content: resolved });
     } else {
       destroyWatermark();
     }
   },
-  {
-    immediate: true,
-  },
+  { immediate: true },
 );
 </script>
 

@@ -1,16 +1,16 @@
 <script lang="ts" setup>
 /**
  * Tenant storage configuration page
- * 租户端存储配置页面
+ * 企业端存储配置页面
  *
  * Displays tenant's current storage status, supports three modes:
- * 展示租户当前存储状态，支持三种模式：
+ * 展示企业当前存储状态，支持三种模式：
  * - Mode 1 (platform): use platform global storage (readonly)
  * - 模式 1 (platform): 使用平台全局存储（只读展示）
  * - Mode 2 (admin_override): admin-specified storage (readonly)
  * - 模式 2 (admin_override): 管理端指定存储（只读展示）
  * - Mode 3 (custom): tenant self-configured cloud storage (editable)
- * - 模式 3 (custom): 租户自主配置云存储（可编辑）
+ * - 模式 3 (custom): 企业自主配置云存储（可编辑）
  */
 import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
 
@@ -183,7 +183,7 @@ async function onSave() {
     // Build save data: skip empty options to avoid overwriting backend secrets
     // 构建保存数据：如果 options 为空对象则不发送，避免覆盖后端已有的密钥
     // (loadData doesn't backfill desensitized options, so don't overwrite if tenant didn't re-enter secrets)
-    // （因为 loadData 时不回填脱敏的 options，如果租户没重新填写密钥就不应覆盖）
+    // （因为 loadData 时不回填脱敏的 options，如果企业没重新填写密钥就不应覆盖）
     const saveData: Record<string, unknown> = {
       tenant_storage_mode: 'custom',
       tenant_storage_driver: selectedDriver.value,

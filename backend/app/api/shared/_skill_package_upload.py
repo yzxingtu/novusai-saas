@@ -48,7 +48,7 @@ async def process_skill_package_upload(
         package_service: 已实例化的 SkillPackageService（admin 或 tenant） / Instantiated SkillPackageService (admin or tenant)
         skill_service: 已实例化的 SkillService（admin 或 tenant） / Instantiated SkillService (admin or tenant)
         scope: 资源范围 / Resource scope ("admin" / "tenant")
-        tenant_id: 租户 ID（admin 端为 None） / Tenant ID (None for admin)
+        tenant_id: 企业 ID（admin 端为 None） / Tenant ID (None for admin)
         is_system: 是否系统包（仅 admin 端使用） / Whether system package (admin only)
         source_plugin: 是否设置 source_plugin 字段 / Whether to set source_plugin field
 

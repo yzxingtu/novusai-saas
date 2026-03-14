@@ -17,9 +17,9 @@ class UserTypeEnum(StrEnum):
 
     # Platform admin / 平台管理员
     ADMIN = ("admin", "enum.user_type.admin")
-    # Tenant admin / 租户管理员
+    # Tenant admin / 企业管理员
     TENANT_ADMIN = ("tenant_admin", "enum.user_type.tenant_admin")
-    # Tenant user / 租户用户
+    # Tenant user / 企业用户
     TENANT_USER = ("tenant_user", "enum.user_type.tenant_user")
     # Anonymous user (not logged in) / 匿名用户（未登录）
     ANONYMOUS = ("anonymous", "enum.user_type.anonymous")
@@ -40,11 +40,11 @@ class LogModuleEnum(StrEnum):
     ROLE = ("role", "enum.log_module.role")
     # Platform admin module / 平台管理员模块
     ADMIN_USER = ("admin_user", "enum.log_module.admin_user")
-    # Tenant module / 租户模块
+    # Tenant module / 企业模块
     TENANT = ("tenant", "enum.log_module.tenant")
-    # Tenant admin module / 租户管理员模块
+    # Tenant admin module / 企业管理员模块
     TENANT_ADMIN = ("tenant_admin", "enum.log_module.tenant_admin")
-    # Tenant user module / 租户用户模块
+    # Tenant user module / 企业用户模块
     TENANT_USER = ("tenant_user", "enum.log_module.tenant_user")
     # Config module / 配置模块
     CONFIG = ("config", "enum.log_module.config")

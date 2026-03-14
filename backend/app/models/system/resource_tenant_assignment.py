@@ -1,15 +1,15 @@
 """
-资源-租户分配模型 / Resource-Tenant Assignment Model
+资源-企业分配模型 / Resource-Tenant Assignment Model
 
-通用分配表，支持所有需要「部分租户」作用域的资源类型：
+通用分配表，支持所有需要「部分企业」作用域的资源类型：
 Generic assignment table for all resource types requiring "assigned tenants" scope:
-- skill_package: 技能包分配给指定租户
-- agent: 智能体分配给指定租户
-- knowledge_base: 知识库分配给指定租户
-- plugin: 插件分配给指定租户（替代旧 PluginTenantAssignment）
+- skill_package: 技能包分配给指定企业
+- agent: 智能体分配给指定企业
+- knowledge_base: 知识库分配给指定企业
+- plugin: 插件分配给指定企业（替代旧 PluginTenantAssignment）
 
 当资源的 scope 为 assigned_tenants 或 admin_and_assigned 时，
-通过本表记录哪些租户可以访问该资源。
+通过本表记录哪些企业可以访问该资源。
 """
 
 from sqlalchemy import (
@@ -28,9 +28,9 @@ from app.core.base_model import BaseModel
 
 class ResourceTenantAssignment(BaseModel):
     """
-    资源-租户分配表（通用）
+    资源-企业分配表（通用）
 
-    所有支持「部分租户」作用域的资源共用此表，
+    所有支持「部分企业」作用域的资源共用此表，
     通过 resource_type + resource_id 标识目标资源。
     """
 
@@ -70,7 +70,7 @@ class ResourceTenantAssignment(BaseModel):
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        comment="被分配的租户 ID",
+        comment="被分配的企业 ID",
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -82,7 +82,7 @@ class ResourceTenantAssignment(BaseModel):
         JSON,
         nullable=True,
         default=None,
-        comment="租户级配置（可选，如插件的租户级配置）",
+        comment="企业级配置（可选，如插件的企业级配置）",
     )
 
     tenant = relationship("Tenant", lazy="noload")

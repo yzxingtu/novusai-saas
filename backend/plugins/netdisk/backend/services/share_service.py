@@ -32,7 +32,7 @@ class ShareService(TenantService):
         from ..models.share import Share
         from ..repositories.node_repository import NodeRepository
 
-        # 校验节点存在且属于当前租户
+        # 校验节点存在且属于当前企业
         node_repo = NodeRepository(self.db, self.tenant_id)
         node = await node_repo.get(node_id)
         if node is None or node.tenant_id != self.tenant_id or node.is_deleted:
@@ -72,7 +72,7 @@ class ShareService(TenantService):
         await self.db.commit()
 
     async def list_my_shares(self, page: int = 1, size: int = 50) -> dict:
-        """当前租户的全部分享链接（分页），含文件名和类型"""
+        """当前企业的全部分享链接（分页），含文件名和类型"""
         from sqlalchemy import func, select
 
         from ..models.node import FileNode
@@ -148,7 +148,7 @@ class ShareService(TenantService):
 
     async def _get_active_share(self, token: str):
         from ..repositories.share_repository import ShareRepository
-        repo = ShareRepository(self.db, tenant_id=0)  # 公开访问，不限租户
+        repo = ShareRepository(self.db, tenant_id=0)  # 公开访问，不限企业
         share = await repo.get_by_token(token)
         if share is None or not share.is_active:
             raise NotFoundException(message=_("plugin.netdisk.error.share_not_found"))
@@ -162,7 +162,7 @@ class ShareService(TenantService):
     # ── 管理端操作（在 Service 层查询，Controller 不直接操作 DB）─────
 
     async def admin_list_shares(self, page: int = 1, size: int = 20) -> dict:
-        """管理端：分页列出全部租户分享记录"""
+        """管理端：分页列出全部企业分享记录"""
         from sqlalchemy import func, select
 
         from ..models.share import Share

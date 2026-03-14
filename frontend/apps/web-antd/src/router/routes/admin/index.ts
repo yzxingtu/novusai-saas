@@ -99,7 +99,7 @@ const mainRoutes: RouteRecordRaw = {
       },
     },
     // 插件详情改为抽屉形式，不再需要独立路由
-    // 个人中心：不在后端菜单中，必须静态注册
+    // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu
     {
       name: 'AdminProfile',
       path: '/admin/profile',
@@ -109,6 +109,8 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('page.auth.profile'),
       },
     },
+    // 全局偏好设置由后端动态菜单注册，无需静态路由
+    // Global preferences registered via backend dynamic menu
   ],
 };
 

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端任务日志列表页面
+ * 企业端任务日志列表页面
  */
 import type { tenantApi } from '#/api';
 

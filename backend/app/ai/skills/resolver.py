@@ -967,7 +967,7 @@ async def _load_auto_bind_packages(
     - Admin call (tenant_id=None): load all auto packages (any target_audience)
       管理端调用：加载所有 auto 包
     - Tenant call: exclude target_audience=admin_only packages
-      租户端调用：排除 admin_only 受众的包
+      企业端调用：排除 admin_only 受众的包
     - user_role filter: further filter by target_audience (three-endpoint isolation)
       user_role 过滤：按三端隔离进一步筛选
     """
@@ -1033,7 +1033,7 @@ async def resolve_for_agent(
         db: Database session / 数据库会话
         agent: Agent model instance / Agent 模型实例
         tenant_id: Tenant ID (can be None for admin-level Agent) /
-                   租户 ID（admin 级 Agent 可为 None）
+                   企业 ID（admin 级 Agent 可为 None）
         user_role: Caller role (UserRoleEnum value, for target_audience three-endpoint filtering).
                    Pass None to skip filtering (backward compatible, admin direct call).
                    调用方角色（UserRoleEnum 值，用于 target_audience 三端过滤）。

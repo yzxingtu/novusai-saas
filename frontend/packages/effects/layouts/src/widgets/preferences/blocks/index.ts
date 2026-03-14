@@ -1,3 +1,6 @@
+export type { SegmentedItem } from '@vben-core/shadcn-ui';
+export { VbenSegmented } from '@vben-core/shadcn-ui';
+
 export { default as Block } from './block.vue';
 export { default as Animation } from './general/animation.vue';
 export { default as General } from './general/general.vue';

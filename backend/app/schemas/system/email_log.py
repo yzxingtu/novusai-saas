@@ -24,7 +24,7 @@ class EmailLogResponse(BaseSchema):
     triggered_by: str = Field(..., description="触发来源")
     error_message: str | None = Field(None, description="错误信息")
     sent_at: datetime | None = Field(None, description="发送时间")
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     created_at: datetime = Field(..., description="创建时间")
 
 

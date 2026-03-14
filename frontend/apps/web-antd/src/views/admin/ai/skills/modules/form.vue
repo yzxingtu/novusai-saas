@@ -168,18 +168,11 @@ function useFormSchema() {
       },
     },
     {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: false,
+      ...select('package_id', $t('admin.ai.skillPackage.name'), {
         api: getSkillPackageSelectOptions,
-        class: 'w-full',
+        required: true,
         placeholder: $t('admin.ai.skillPackage.placeholder.searchName'),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'package_id',
-      label: $t('admin.ai.skillPackage.name'),
-      rules: 'required',
+      }),
     },
     inputField('name', $t('admin.ai.skill.name'), {
       required: true,

@@ -40,7 +40,7 @@ export interface ProviderPerformanceItem {
   total_cost: number;
 }
 
-/** Tenant ranking item / 租户排名项 */
+/** Tenant ranking item / 企业排名项 */
 export interface TenantRankingItem {
   tenant_id: null | number;
   tenant_name: string;
@@ -102,7 +102,7 @@ export async function getProviderPerformanceApi(
   );
 }
 
-/** Get tenant ranking / 获取租户排名 */
+/** Get tenant ranking / 获取企业排名 */
 export async function getTenantRankingApi(
   topN = 10,
   params?: Omit<DateRangeParams, 'tenant_id'>,

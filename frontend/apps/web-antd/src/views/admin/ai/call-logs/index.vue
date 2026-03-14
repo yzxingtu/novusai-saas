@@ -261,7 +261,7 @@ onUnmounted(() => {
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
-        <!-- 租户列 -->
+        <!-- 企业列 -->
         <template #tenantName_cell="{ row }">
           <span v-if="row.tenant_name" class="text-foreground">
             {{ row.tenant_name }}

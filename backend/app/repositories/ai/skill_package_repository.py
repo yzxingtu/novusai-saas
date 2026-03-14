@@ -114,10 +114,10 @@ class _SkillPackageCascadeMixin:
 
 class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPackage]):
     """
-    租户级技能包 Repository
+    企业级技能包 Repository
     Tenant-level Skill Package Repository
 
-    提供基于租户隔离的技能包数据访问，自动包含平台级包（tenant_id=NULL）。
+    提供基于企业隔离的技能包数据访问，自动包含平台级包（tenant_id=NULL）。
     Provides tenant-isolated data access, automatically includes platform-level packages (tenant_id=NULL).
     """
 
@@ -126,7 +126,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
-        """根据 ID 获取技能包（同租户包 + 平台级包均可访问）
+        """根据 ID 获取技能包（同企业包 + 平台级包均可访问）
         Get skill package by ID (same-tenant + platform-level packages are accessible)"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
@@ -145,7 +145,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         include_deleted: bool = False,
     ) -> tuple[list[SkillPackage], int]:
         """
-        租户级技能包列表查询
+        企业级技能包列表查询
         Tenant-level skill package list query
 
         自动注入条件：(tenant_id = X) OR (平台级包 tenant_id=NULL)
@@ -199,7 +199,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         exclude_id: int | None = None,
     ) -> SkillPackage | None:
         """
-        按名称查找技能包（同租户内唯一性检查）
+        按名称查找技能包（同企业内唯一性检查）
         """
         conditions = [
             SkillPackage.tenant_id == self.tenant_id,
@@ -215,7 +215,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_active_packages(self) -> list[SkillPackage]:
         """
-        获取当前租户所有已激活的技能包（含平台级包）
+        获取当前企业所有已激活的技能包（含平台级包）
         Get all active skill packages for the current tenant (including platform-level packages)
         """
         from app.enums.common import AudienceEnum
@@ -243,11 +243,11 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_available_for_binding(self) -> list[SkillPackage]:
         """
-        获取租户可绑定的所有技能包（用于智能体技能绑定下拉）
+        获取企业可绑定的所有技能包（用于智能体技能绑定下拉）
         Get all skill packages available for tenant binding (for agent skill binding dropdown)
 
         包括 / Includes:
-          - 同租户自有包 / Same tenant's own packages
+          - 同企业自有包 / Same tenant's own packages
           - 平台级包（tenant_id=NULL）且 target_audience != admin_only / Platform packages visible to tenants
 
         不包括 / Excludes:
@@ -279,7 +279,7 @@ class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[Skil
     """
     管理端技能包 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = SkillPackage

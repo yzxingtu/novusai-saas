@@ -1,7 +1,7 @@
-"""Tenant branding settings config items / 租户品牌设置配置项
+"""Tenant branding settings config items / 企业品牌设置配置项
 
 Includes tenant Logo, login page customization, etc.
-包含租户 Logo、登录页定制等配置
+包含企业 Logo、登录页定制等配置
 """
 
 from app.configs.definitions.groups import TENANT_APPEARANCE_GROUP
@@ -12,7 +12,7 @@ from app.enums.config import ConfigScope, ConfigValueType
 # Logo and icons / Logo 和图标
 # ==========================================
 
-# Tenant Logo / 租户 Logo
+# Tenant Logo / 企业 Logo
 TENANT_LOGO = ConfigMeta(
     key="tenant_logo",
     name_key="config.tenant.logo.name",
@@ -23,7 +23,7 @@ TENANT_LOGO = ConfigMeta(
     sort_order=10,
 )
 
-# Tenant Favicon / 租户 Favicon
+# Tenant Favicon / 企业 Favicon
 TENANT_FAVICON = ConfigMeta(
     key="tenant_favicon",
     name_key="config.tenant.favicon.name",

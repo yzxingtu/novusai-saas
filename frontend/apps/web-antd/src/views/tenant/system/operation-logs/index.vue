@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * Operation log list page (tenant)
- * 操作日志列表页面（租户端）
+ * 操作日志列表页面（企业端）
  */
 import type { tenantApi } from '#/api';
 

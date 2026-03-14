@@ -29,7 +29,7 @@ class AgentVersion(TenantModel):
 
     每次发布智能体时，将当前配置冻结为一条版本记录。
     支持版本历史查看、回滚、对比等操作。
-    属于租户级资源，通过 tenant_id 隔离。
+    属于企业级资源，通过 tenant_id 隔离。
     """
 
     __tablename__ = "agent_versions"

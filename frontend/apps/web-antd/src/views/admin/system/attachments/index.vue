@@ -243,7 +243,7 @@ onUnmounted(() => {
           </Tag>
         </template>
 
-        <!-- 租户列 -->
+        <!-- 企业列 -->
         <template #tenant_cell="{ row }">
           <span class="text-foreground">
             {{ getTenantName(row.tenantId) }}

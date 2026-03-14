@@ -234,7 +234,7 @@ export function useColumns<T = AttachmentInfo>(
 
 // ============ 搜索表单 ============
 
-/** 租户选择器（搜索） */
+/** 企业选择器（搜索） */
 export function tenantSelect(
   options: { search?: boolean } = {},
 ): VbenFormSchema {

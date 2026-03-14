@@ -1,9 +1,9 @@
 """
-租户管理端通知 API / Tenant Admin Notification API
+企业管理端通知 API / Tenant Admin Notification API
 
-提供租户管理员通知列表、未读计数、已读、全部已读、删除接口。
+提供企业管理员通知列表、未读计数、已读、全部已读、删除接口。
 Provides tenant admin notification list, unread count, mark read, mark all read, delete endpoints.
-严格租户隔离：只能查看本租户的通知。
+严格企业隔离：只能查看本企业的通知。
 Strict tenant isolation: can only view own tenant's notifications.
 """
 
@@ -29,7 +29,7 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    """获取当前租户管理员的通知列表（分页） / Get current tenant admin notification list (paginated)"""
+    """获取当前企业管理员的通知列表（分页） / Get current tenant admin notification list (paginated)"""
     service = NotificationService(db)
 
     read_filter = None
@@ -76,7 +76,7 @@ async def get_unread_count(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """获取当前租户管理员的未读通知数量 / Get current tenant admin unread notification count"""
+    """获取当前企业管理员的未读通知数量 / Get current tenant admin unread notification count"""
     service = NotificationService(db)
     count = await service.get_unread_count("tenant_admin", tenant_admin.id)
     return success(data={"count": count})

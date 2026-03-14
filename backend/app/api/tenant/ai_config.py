@@ -1,7 +1,7 @@
 """
-租户端 AI 配置 API / Tenant AI Config API
+企业端 AI 配置 API / Tenant AI Config API
 
-提供租户端 AI 模型查询、API Key 管理等接口
+提供企业端 AI 模型查询、API Key 管理等接口
 Provides tenant AI model query, API Key management endpoints
 """
 
@@ -43,9 +43,9 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
 )
 class TenantAIConfigController(TenantController):
     """
-    租户 AI 配置控制器 / Tenant AI Config Controller
+    企业 AI 配置控制器 / Tenant AI Config Controller
 
-    提供租户可用模型查询、API Key 管理等接口
+    提供企业可用模型查询、API Key 管理等接口
     Provides tenant available model query, API Key management endpoints
     """
 
@@ -65,7 +65,7 @@ class TenantAIConfigController(TenantController):
             provider_id: int | None = Query(None, description="供应商 ID"),
         ):
             """
-            获取租户可用的 AI 模型列表 / Get tenant available AI model list
+            获取企业可用的 AI 模型列表 / Get tenant available AI model list
 
             权限 / Permission: ai_config:models
             """
@@ -94,7 +94,7 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户自己的 AI API Keys / Get tenant's own AI API Keys
+            获取企业自己的 AI API Keys / Get tenant's own AI API Keys
 
             权限 / Permission: ai_config:keys
             """
@@ -118,11 +118,12 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            为租户创建 AI API Key / Create AI API Key for tenant
+            为企业创建 AI API Key / Create AI API Key for tenant
 
             权限 / Permission: ai_config:create_key
             """
-            # 强制设置 tenant_id 为当前认证租户，忽略前端传入值 / Force set tenant_id to current authenticated tenant, ignore frontend value
+            # 强制设置 scope 和 tenant_id，忽略前端传入值 / Force scope and tenant_id, ignore frontend values
+            data.scope = 'all_tenants'
             data.tenant_id = tenant_admin.tenant_id
 
             service = ProviderApiKeyService(db)
@@ -143,7 +144,7 @@ class TenantAIConfigController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            删除租户的 AI API Key / Delete tenant's AI API Key
+            删除企业的 AI API Key / Delete tenant's AI API Key
 
             权限 / Permission: ai_config:delete_key
             """
@@ -153,7 +154,7 @@ class TenantAIConfigController(TenantController):
             if not key or key.tenant_id != tenant_admin.tenant_id:
                 raise NotFoundException(message=_("ai.error.api_key_not_found"))
 
-            await service.delete_key(key_id)
+            await service.delete(key_id)
             await db.commit()
 
             return success(message=_("ai.api_key.deleted"))

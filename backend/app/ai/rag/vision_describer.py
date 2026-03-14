@@ -55,7 +55,7 @@ class VisionDescriber:
     3. No available model → return "", log warning / 无可用模型 → 返回 ""，记录 warning
 
     tenant_id must be provided to ensure Vision API costs are attributed to the correct tenant.
-    tenant_id 必须传入以确保 Vision API 成本归入对应租户。
+    tenant_id 必须传入以确保 Vision API 成本归入对应企业。
     """
 
     def __init__(self, db: AsyncSession, tenant_id: int | None) -> None:

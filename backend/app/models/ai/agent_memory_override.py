@@ -1,9 +1,9 @@
 """
-智能体记忆开关租户覆盖模型 / Agent Memory Override Model
+智能体记忆开关企业覆盖模型 / Agent Memory Override Model
 
-用于租户端对特定智能体执行"关闭记忆"覆盖。
+用于企业端对特定智能体执行"关闭记忆"覆盖。
 Allows tenants to override "disable memory" for specific agents.
-规则：仅记录 disabled=True 的覆盖项，不支持租户端强制开启。
+规则：仅记录 disabled=True 的覆盖项，不支持企业端强制开启。
 Rule: Only records disabled=True overrides; tenants cannot force-enable memory.
 """
 
@@ -16,9 +16,9 @@ from app.core.i18n import _
 
 class AgentMemoryOverride(TenantModel):
     """
-    智能体记忆开关租户覆盖
+    智能体记忆开关企业覆盖
 
-    unique(tenant_id, agent_id)：每个租户对同一智能体最多一条覆盖记录。
+    unique(tenant_id, agent_id)：每个企业对同一智能体最多一条覆盖记录。
     """
 
     __tablename__ = "agent_memory_overrides"

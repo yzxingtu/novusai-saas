@@ -1,7 +1,7 @@
 """
-租户管理员模型 / Tenant Admin Model
+企业管理员模型 / Tenant Admin Model
 
-租户后台管理人员，区别于租户业务用户
+企业后台管理人员，区别于企业业务用户
 Tenant backend administrators, distinct from tenant business users.
 """
 
@@ -17,11 +17,11 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class TenantAdmin(TenantModel):
     """
-    租户管理员模型
+    企业管理员模型
 
-    - 属于特定租户
-    - 管理租户后台
-    - 可管理租户内的用户、配置等
+    - 属于特定企业
+    - 管理企业后台
+    - 可管理企业内的用户、配置等
     - 独立于业务用户（TenantUser）
     """
 
@@ -83,7 +83,7 @@ class TenantAdmin(TenantModel):
         Boolean, default=True, comment="是否激活"
     )
     is_owner: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否租户所有者（最高权限）"
+        Boolean, default=False, comment="是否企业所有者（最高权限）"
     )
 
     # 个人资料
@@ -113,7 +113,7 @@ class TenantAdmin(TenantModel):
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
 
-    # 角色关联（租户内角色）
+    # 角色关联（企业内角色）
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tenant_admin_roles.id"), nullable=True, comment="角色 ID"
     )
@@ -131,7 +131,7 @@ class TenantAdmin(TenantModel):
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查租户管理员是否拥有指定权限
+        检查企业管理员是否拥有指定权限
 
         Args:
             permission_code: 权限代码
@@ -139,7 +139,7 @@ class TenantAdmin(TenantModel):
         Returns:
             是否拥有该权限
         """
-        # 租户所有者拥有所有权限
+        # 企业所有者拥有所有权限
         if self.is_owner:
             return True
         # 检查角色权限

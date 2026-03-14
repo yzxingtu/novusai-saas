@@ -61,7 +61,7 @@ class Permission(BaseModel):
         String(20), index=True, comment="权限类型: menu/operation"
     )
 
-    # 作用域: admin(平台) / tenant(租户) / both(两端)
+    # 作用域: admin(平台) / tenant(企业) / both(两端)
     scope: Mapped[str] = mapped_column(
         String(20), index=True, comment="作用域: admin/tenant/both"
     )

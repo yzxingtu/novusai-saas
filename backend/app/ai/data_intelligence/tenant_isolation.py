@@ -1,13 +1,13 @@
 """
 Tenant Isolation Injector (TenantIsolationInjector)
-租户隔离注入器（TenantIsolationInjector）
+企业隔离注入器（TenantIsolationInjector）
 
 Automatically injects tenant_id conditions for each queried table.
 This is the most critical security layer — even if the SQL is valid,
 without tenant_id filtering, other tenants' data would be leaked.
 自动为每个查询表注入 tenant_id 条件。
 这是最关键的安全层 —— 即使 SQL 本身合法，
-没有 tenant_id 过滤就会泄露其他租户数据。
+没有 tenant_id 过滤就会泄露其他企业数据。
 
 Security guarantees / 安全保证：
 - Does not rely on LLM to generate tenant_id conditions (LLM may omit or be injected) / 不依赖 LLM 生成 tenant_id 条件（LLM 可能遗漏或被注入）
@@ -33,7 +33,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # ============================================
 
 class TenantIsolationError(Exception):
-    """Tenant isolation injection exception / 租户隔离注入异常"""
+    """Tenant isolation injection exception / 企业隔离注入异常"""
     pass
 
 
@@ -46,7 +46,7 @@ class TableReference:
     """Table reference in SQL / SQL 中的表引用"""
     table_name: str        # Original table name / 原始表名
     alias: str | None      # Alias (AS) / 别名（AS）
-    tenant_column: str     # Tenant isolation column name / 租户隔离列名
+    tenant_column: str     # Tenant isolation column name / 企业隔离列名
 
     @property
     def qualified_tenant_column(self) -> str:
@@ -123,7 +123,7 @@ class TenantIsolationInjector:
     自动为 SQL 中每个 FROM/JOIN 的表注入隔离条件。
 
     Isolation strategy by user_role / 按 user_role 决定隔离策略：
-    - platform_admin: No injection for platform tables, inject tenant_id for tenant tables / 平台表不注入，租户表注入 tenant_id
+    - platform_admin: No injection for platform tables, inject tenant_id for tenant tables / 平台表不注入，企业表注入 tenant_id
     - tenant_admin: Force tenant_id isolation on all tables / 所有表强制 tenant_id 隔离
     - tenant_user: Force tenant_id + user_id isolation (own data only) / 强制 tenant_id + user_id 隔离（仅限自身数据）
 
@@ -154,7 +154,7 @@ class TenantIsolationInjector:
 
         Args:
             sql: Original SQL (already validated by SQLSafetyValidator) / 原始 SQL（已通过 SQLSafetyValidator 校验）
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             schema: Table schema info (to confirm tenant_column) / 表结构信息（用于确认 tenant_column）
             user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色（platform_admin / tenant_admin / tenant_user）
             user_id: User ID (for user-level isolation in tenant_user role) / 用户 ID（tenant_user 角色时用于用户级隔离）

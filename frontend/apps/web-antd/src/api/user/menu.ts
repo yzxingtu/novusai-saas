@@ -1,5 +1,5 @@
 /**
- * Tenant user menu API / 租户用户端菜单 API
+ * Tenant user menu API / 企业用户端菜单 API
  * Backend: /api/user/permissions/menus / 对接后端 /api/user/permissions/menus 接口
  */
 import type { RouteRecordStringComponent } from '@vben/types';

@@ -16,7 +16,7 @@ __all__ = [
     # 平台级
     "AdminRepository",
     "TenantRepository",
-    # 租户级
+    # 企业级
     "AttachmentRepository",
     "TenantAdminRepository",
     "TenantRoleRepository",

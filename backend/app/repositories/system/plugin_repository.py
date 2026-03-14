@@ -51,7 +51,7 @@ class PluginRepository(BaseRepository[Plugin]):
     async def get_tenant_assignments(
         self, plugin_id: int
     ) -> list[ResourceTenantAssignment]:
-        """查询插件的租户分配列表（仅返回未软删除的分配）"""
+        """查询插件的企业分配列表（仅返回未软删除的分配）"""
         result = await self.db.execute(
             select(ResourceTenantAssignment).where(
                 ResourceTenantAssignment.resource_type == "plugin",

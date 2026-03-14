@@ -1,7 +1,7 @@
 """
-租户端系统智能体绑定 API / Tenant Agent Assignment API
+企业端系统智能体绑定 API / Tenant Agent Assignment API
 
-提供功能代码到智能体的映射解析 + 租户级覆盖管理
+提供功能代码到智能体的映射解析 + 企业级覆盖管理
 Provides feature code to agent mapping resolution + tenant-level override management
 """
 
@@ -36,7 +36,7 @@ logger = LogManager.get_logger("app")
 
 
 class TenantOverrideRequest(PydanticBaseModel):
-    """租户覆盖绑定请求 / Tenant override binding request"""
+    """企业覆盖绑定请求 / Tenant override binding request"""
     agent_id: int | None = Field(None, description=_("system_agent_assignment.field.agent_id"))
     config: dict | None = Field(None, description=_("system_agent_assignment.field.config"))
 
@@ -83,7 +83,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
 )
 class TenantAgentAssignmentController(TenantController):
     """
-    租户端系统智能体绑定控制器 / Tenant Agent Assignment Controller
+    企业端系统智能体绑定控制器 / Tenant Agent Assignment Controller
     """
 
     prefix = "/ai/agent-assignments"
@@ -92,7 +92,7 @@ class TenantAgentAssignmentController(TenantController):
     def _register_routes(self) -> None:
         router = self.router
 
-        @router.get("", summary="租户智能体绑定列表")
+        @router.get("", summary="企业智能体绑定列表")
         @action_read("action.tenant_agent_assignment.list")
         async def list_assignments(
             request: Request,
@@ -100,7 +100,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
         ):
             """
-            获取所有绑定列表，含全局默认 + 租户覆盖对比 / Get all assignment list with global defaults + tenant override comparison
+            获取所有绑定列表，含全局默认 + 企业覆盖对比 / Get all assignment list with global defaults + tenant override comparison
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
@@ -133,14 +133,14 @@ class TenantAgentAssignmentController(TenantController):
             """
             按 feature_code 获取绑定的 agent_id / Get bound agent_id by feature_code
 
-            Resolve 顺序 / Resolve order：租户覆盖 → 全局默认 / Tenant override → Global default
+            Resolve 顺序 / Resolve order：企业覆盖 → 全局默认 / Tenant override → Global default
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             assignment = await service.resolve_for_tenant(feature_code, tenant_id)
             return success(data=_build_resolve_result(assignment, feature_code))
 
-        @router.put("/{feature_code}", summary="设置租户覆盖")
+        @router.put("/{feature_code}", summary="设置企业覆盖")
         @action_update("action.tenant_agent_assignment.update")
         async def set_override(
             request: Request,
@@ -149,7 +149,7 @@ class TenantAgentAssignmentController(TenantController):
             feature_code: str,
             body: TenantOverrideRequest,
         ):
-            """创建或更新租户覆盖绑定 / Create or update tenant override binding"""
+            """创建或更新企业覆盖绑定 / Create or update tenant override binding"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             assignment = await service.set_tenant_override(
@@ -158,7 +158,7 @@ class TenantAgentAssignmentController(TenantController):
             i18n_map = await _build_plugin_feature_i18n_map(db)
             return success(data=_build_assignment_item(assignment, i18n_map=i18n_map))
 
-        @router.delete("/{feature_code}", summary="删除租户覆盖")
+        @router.delete("/{feature_code}", summary="删除企业覆盖")
         @action_delete("action.tenant_agent_assignment.delete")
         async def delete_override(
             request: Request,
@@ -166,7 +166,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
             feature_code: str,
         ):
-            """删除租户覆盖（恢复全局默认） / Delete tenant override (restore global default)"""
+            """删除企业覆盖（恢复全局默认） / Delete tenant override (restore global default)"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             removed = await service.delete_tenant_override(feature_code, tenant_id)

@@ -1,7 +1,7 @@
 """
-租户用户角色模型 / Tenant User Role Model
+企业用户角色模型 / Tenant User Role Model
 
-租户级别的用户角色，用于租户业务用户的权限控制（扁平结构，无层级）
+企业级别的用户角色，用于企业业务用户的权限控制（扁平结构，无层级）
 Tenant-level user roles for tenant business user permission control (flat structure, no hierarchy).
 """
 
@@ -27,13 +27,13 @@ tenant_user_role_permissions = Table(
 
 class TenantUserRole(TenantModel):
     """
-    租户用户角色模型
+    企业用户角色模型
 
-    - 属于特定租户
-    - 用于租户业务用户的权限控制
+    - 属于特定企业
+    - 用于企业业务用户的权限控制
     - 与 Permission 多对多关联
     - 扁平结构，不支持层级
-    - 不同租户可以有同名角色
+    - 不同企业可以有同名角色
     """
 
     __tablename__ = "tenant_user_roles"
@@ -76,7 +76,7 @@ class TenantUserRole(TenantModel):
         String(50), comment="角色名称"
     )
 
-    # 角色代码（租户内唯一）
+    # 角色代码（企业内唯一）
     code: Mapped[str] = mapped_column(
         String(50), index=True, comment="角色代码"
     )
@@ -109,7 +109,7 @@ class TenantUserRole(TenantModel):
         lazy="selectin",
     )
 
-    # 关联租户用户（一对多）
+    # 关联企业用户（一对多）
     users: Mapped[list["TenantUser"]] = relationship(
         "TenantUser",
         back_populates="role",

@@ -70,7 +70,7 @@
   "plugin.netdisk.error.verify_rate_limited": "请求过于频繁，请稍后再试",
   "plugin.netdisk.error.unknown_batch_action": "未知批量操作",
   "plugin.netdisk.admin.title": "网盘管理",
-  "plugin.netdisk.admin.quotas": "租户配额",
+  "plugin.netdisk.admin.quotas": "企业配额",
   "plugin.netdisk.admin.shares": "分享审计",
   "plugin.netdisk.admin.stats": "统计概览",
   "plugin.netdisk.admin.totalFiles": "总文件数",

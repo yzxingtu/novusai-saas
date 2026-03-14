@@ -1,7 +1,7 @@
 """
 平台端技能管理 API / Platform Skill Management API
 
-提供跨租户技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
+提供跨企业技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
 Provides cross-tenant skill listing, details, CRUD, supports admin + tenant scope skill management
 """
 
@@ -66,7 +66,7 @@ class AdminSkillController(GlobalController):
     """
     平台端技能管理控制器 / Platform Skill Management Controller
 
-    跨租户查看 + admin/tenant scope 技能 CRUD + 状态管理
+    跨企业查看 + admin/tenant scope 技能 CRUD + 状态管理
     Cross-tenant viewing + admin/tenant scope skill CRUD + status management
     """
 
@@ -91,7 +91,7 @@ class AdminSkillController(GlobalController):
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
 
-        @router.get("", summary="全租户技能列表")
+        @router.get("", summary="全企业技能列表")
         @action_read("action.ai_skill.list")
         async def list_skills(
             request: Request,
@@ -100,12 +100,12 @@ class AdminSkillController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户技能列表
+            获取全企业技能列表
             Get cross-tenant skill list
 
             支持 JSON:API 风格筛选、排序、分页
             Supports JSON:API style filtering, sorting, pagination
-            - filter[tenant_id][eq]=1  按租户筛选 / Filter by tenant
+            - filter[tenant_id][eq]=1  按企业筛选 / Filter by tenant
             - filter[scope][eq]=admin  筛选管理技能 / Filter admin skills
             - filter[type][eq]=http  按类型筛选 / Filter by type
             - filter[name][ilike]=xxx  按名称模糊搜索 / Fuzzy search by name
@@ -131,7 +131,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能详情（跨租户）
+            获取技能详情（跨企业）
             Get skill details (cross-tenant)
 
             插件注册的技能额外返回 source_plugin 和 plugin_tools 字段

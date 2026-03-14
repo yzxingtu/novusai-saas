@@ -1,7 +1,7 @@
 """
 hosts 文件管理工具（仅开发环境） / Hosts File Manager (dev environment only)
 
-在 DEBUG 模式下，自动管理 hosts 文件中的租户域名映射。
+在 DEBUG 模式下，自动管理 hosts 文件中的企业域名映射。
 Automatically manages tenant domain mappings in hosts file under DEBUG mode.
 支持 Windows / macOS / Linux，生产环境（DEBUG=false）完全不触发。
 Supports Windows / macOS / Linux. Never triggered in production (DEBUG=false).

@@ -5,7 +5,7 @@
 Provides AI model CRUD endpoints (platform admin only).
 """
 
-from fastapi import Request
+from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -64,6 +64,32 @@ class AdminAIModelController(GlobalController):
             service_class=AIModelService,
             resource_name="ai_model",
         )
+
+        @router.get("/select", summary="获取 AI 模型下拉选项")
+        @action_read("action.ai_model.list")
+        async def select_models(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            search: str = Query("", description="搜索关键词"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+            type: str = Query("", description="模型类型过滤 (chat/embedding/image)"),
+            supports_vision: str = Query("", description="是否支持视觉 (true/false)"),
+        ):
+            service = AIModelService(db)
+            extra_filters: dict = {"is_active": True}
+            if type:
+                extra_filters["type"] = type
+            if supports_vision.lower() == "true":
+                extra_filters["supports_vision"] = True
+            response = await service.get_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+                **extra_filters,
+            )
+            return success(data=response, message=_("common.success"))
 
         @router.get("", summary="获取 AI 模型列表")
         @action_read("action.ai_model.list")

@@ -47,8 +47,8 @@ class ManualTestAdminAuth(BaseAPITest):
         # 7. 测试刷新 Token - 无效 Token
         self.run_test("刷新 Token - 无效 Token", self.test_refresh_token_invalid)
 
-        # 8. 测试 scope 隔离 - Admin Token 访问租户接口应 401
-        self.run_test("scope 隔离 - Admin Token 访问租户接口应 401", self.test_scope_isolation_admin_token_to_tenant)
+        # 8. 测试 scope 隔离 - Admin Token 访问企业接口应 401
+        self.run_test("scope 隔离 - Admin Token 访问企业接口应 401", self.test_scope_isolation_admin_token_to_tenant)
 
         # 9. 测试修改密码 - 正确旧密码
         self.run_test("修改密码 - 正确旧密码", self.test_change_password_success)
@@ -139,12 +139,12 @@ class ManualTestAdminAuth(BaseAPITest):
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_scope_isolation_admin_token_to_tenant(self) -> None:
-        """使用 Admin 的 Access Token 访问租户管理员受保护接口应返回 401"""
+        """使用 Admin 的 Access Token 访问企业管理员受保护接口应返回 401"""
         if not self.client.token:
             self._do_login()
-        # 使用 Admin token 请求租户管理员接口，应被 401 拒绝（scope 不匹配）
+        # 使用 Admin token 请求企业管理员接口，应被 401 拒绝（scope 不匹配）
         resp = self.client.get("/tenant/auth/me")
-        assert_error(resp, 401, "Admin token 不应访问租户接口")
+        assert_error(resp, 401, "Admin token 不应访问企业接口")
 
     def test_change_password_success(self) -> None:
         """测试正确旧密码修改密码"""

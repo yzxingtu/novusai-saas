@@ -1,5 +1,5 @@
 """
-租户 AI 模型速率限制配置 Service / Tenant AI Rate Limit Service
+企业 AI 模型速率限制配置 Service / Tenant AI Rate Limit Service
 """
 
 
@@ -16,7 +16,7 @@ logger = LogManager.get_logger("ai.rate_limit_service")
 
 class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRateLimitRepository]):
     """
-    租户 AI 模型速率限制配置 Service
+    企业 AI 模型速率限制配置 Service
     """
 
     model = TenantModelRateLimit
@@ -27,7 +27,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> TenantModelRateLimit | None:
         """
-        获取租户对指定模型的速率限制配置
+        获取企业对指定模型的速率限制配置
 
         Args:
             model_id: 模型 ID
@@ -42,7 +42,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> dict:
         """
-        获取有效的速率限制（优先使用租户配置，否则使用模型默认值）
+        获取有效的速率限制（优先使用企业配置，否则使用模型默认值）
 
         Args:
             model_id: 模型 ID
@@ -50,7 +50,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         Returns:
             包含 rpm_limit 和 tpm_limit 的字典
         """
-        # 先查租户配置
+        # 先查企业配置
         tenant_limit = await self.get_rate_limit(model_id)
 
         if tenant_limit and tenant_limit.is_active:
@@ -60,7 +60,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
                 "source": "tenant",
             }
 
-        # 如果租户没配置，查模型默认值
+        # 如果企业没配置，查模型默认值
         from app.repositories.ai.model_repository import AIModelRepository
         model_repo = AIModelRepository(self.db)
         model = await model_repo.get_by_id(model_id)
@@ -84,7 +84,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int | None = None,
     ) -> list[TenantModelRateLimit]:
         """
-        获取租户活跃速率限制列表
+        获取企业活跃速率限制列表
 
         Args:
             model_id: 模型 ID（可选）

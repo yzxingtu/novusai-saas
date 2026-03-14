@@ -1,6 +1,6 @@
 /**
  * Tenant domain management - type definitions
- * 租户域名管理 - 类型定义
+ * 企业域名管理 - 类型定义
  */
 import type {
   DomainType,

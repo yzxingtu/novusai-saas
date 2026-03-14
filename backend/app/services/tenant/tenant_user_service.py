@@ -1,7 +1,7 @@
 """
-租户用户服务 / Tenant User Service
+企业用户服务 / Tenant User Service
 
-提供租户业务用户的业务逻辑（租户隔离）
+提供企业业务用户的业务逻辑（企业隔离）
 Provides tenant business user logic (tenant-isolated).
 """
 
@@ -22,9 +22,9 @@ from app.services.common.notification_service import notify
 
 class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
     """
-    租户用户服务
+    企业用户服务
 
-    提供租户用户特有的业务方法，自动注入租户隔离
+    提供企业用户特有的业务方法，自动注入企业隔离
     """
 
     model = TenantUser
@@ -41,7 +41,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         role_id: int | None = None,
     ) -> TenantUser:
         """
-        创建租户用户（管理员操作）
+        创建企业用户（管理员操作）
 
         Args:
             username: 用户名
@@ -116,7 +116,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         data: dict[str, Any],
     ) -> TenantUser:
         """
-        更新租户用户
+        更新企业用户
 
         Args:
             user_id: 用户 ID
@@ -342,7 +342,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         return results
 
     async def _get_tenant_name(self) -> str:
-        """获取当前租户名称"""
+        """获取当前企业名称"""
         from sqlalchemy import select
 
         from app.models.tenant.tenant import Tenant

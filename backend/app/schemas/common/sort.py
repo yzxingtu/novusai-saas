@@ -36,7 +36,7 @@ class ReorderRequest(BaseModel):
 
     tenant_id: int | None = Field(
         None,
-        description="租户 ID（用于租户内排序，通常由系统自动注入）",
+        description="企业 ID（用于企业内排序，通常由系统自动注入）",
     )
 
 

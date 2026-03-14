@@ -3,7 +3,6 @@
  * 平台管理端知识库管理 — 搜索配置、表单 Schema
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { AIModelInfo } from '#/api/admin/ai';
 
 import {
   inputField,
@@ -13,7 +12,7 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
 import {
@@ -32,42 +31,26 @@ export function getScopeOptions() {
 
 // ============ Embedding / Vision 模型下拉 ============
 
-export async function getEmbeddingModelOptions() {
-  try {
-    const res = await getAIModelListApi({
-      'page[size]': 100,
-      'filter[type][eq]': 'embedding',
-      'filter[is_active][eq]': true,
-    });
-    return (res.items || []).map((m: AIModelInfo) => ({
-      label: `${m.name} (${m.provider_name || '-'})`,
-      value: m.id,
-    }));
-  } catch {
-    return [];
-  }
+export function getEmbeddingModelSelectApi(params?: Record<string, unknown>) {
+  return getAIModelSelectApi({ ...params, type: 'embedding' });
 }
 
-export async function getVisionModelOptions() {
-  try {
-    const res = await getAIModelListApi({
-      'page[size]': 100,
-      'filter[type][eq]': 'chat',
-      'filter[is_active][eq]': true,
-      'filter[supports_vision][eq]': true,
+export async function getVisionModelSelectApi(
+  params?: Record<string, unknown>,
+) {
+  const res = await getAIModelSelectApi({
+    ...params,
+    type: 'chat',
+    supports_vision: 'true',
+  });
+  if (res?.items && (!params?.page || Number(params.page) <= 1)) {
+    res.items.unshift({
+      label: $t('admin.knowledgeBase.field.visionModelAuto'),
+      value: null,
     });
-    return [
-      { label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null },
-      ...(res.items || []).map((m: AIModelInfo) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      })),
-    ];
-  } catch {
-    return [
-      { label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null },
-    ];
+    if (res.total !== undefined) res.total += 1;
   }
+  return res;
 }
 
 // ============ 表单默认值 ============
@@ -119,7 +102,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         'embedding_model_id',
         $t('admin.knowledgeBase.field.embeddingModel'),
         {
-          api: getEmbeddingModelOptions,
+          api: getEmbeddingModelSelectApi,
           required: !isEdit,
         },
       ),
@@ -130,7 +113,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         'vision_model_id',
         $t('admin.knowledgeBase.field.visionModel'),
         {
-          api: getVisionModelOptions,
+          api: getVisionModelSelectApi,
           required: false,
         },
       ),

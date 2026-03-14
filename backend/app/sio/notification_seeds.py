@@ -58,8 +58,8 @@ SEED_TEMPLATES: list[dict] = [
     {
         "code": "system.tenant_welcome",
         "category": "system",
-        "title_template": "租户创建成功",
-        "body_template": "租户 {tenant_name} 已创建成功，管理员 {admin_name} 可前往登录。",
+        "title_template": "企业创建成功",
+        "body_template": "企业 {tenant_name} 已创建成功，管理员 {admin_name} 可前往登录。",
         "channels": ["inbox", "email"],
         "priority": "normal",
     },

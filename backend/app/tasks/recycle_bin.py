@@ -57,7 +57,7 @@ def _import_model(model_path: str):
 
 @register_task(
     queue="scheduled",
-    description="Clean up expired recycle bin records (escalate tenant → admin, physically delete admin-level expired) / 清理回收站过期记录（租户级升级到管理级，管理级物理删除）",
+    description="Clean up expired recycle bin records (escalate tenant → admin, physically delete admin-level expired) / 清理回收站过期记录（企业级升级到管理级，管理级物理删除）",
     max_retries=1,
 )
 def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
@@ -66,7 +66,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
 
     Phase 1: Escalate tenant-level expired records to admin level (reset deleted_at).
     Phase 2: Physically delete admin-level expired records.
-    第一阶段：将租户级过期记录升级到管理级（重置 deleted_at）。
+    第一阶段：将企业级过期记录升级到管理级（重置 deleted_at）。
     第二阶段：物理删除管理级过期记录。
 
     Args:

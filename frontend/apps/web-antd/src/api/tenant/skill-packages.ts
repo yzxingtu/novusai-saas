@@ -1,5 +1,5 @@
 /**
- * Tenant skill package management API / 租户端技能包管理 API
+ * Tenant skill package management API / 企业端技能包管理 API
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 

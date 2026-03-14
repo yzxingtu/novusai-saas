@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-租户管理员管理 API 测试模块
+企业管理员管理 API 测试模块
 
 测试 /tenant/admins/* 接口
 
-注意：需要先配置租户管理员（所有者）账号才能运行此测试
+注意：需要先配置企业管理员（所有者）账号才能运行此测试
 """
 import os
 import sys
@@ -26,9 +26,9 @@ from tests.api.base import (
 
 
 class ManualTestTenantAdmins(BaseAPITest):
-    """租户管理员管理测试"""
+    """企业管理员管理测试"""
 
-    module_name = "租户管理员管理 (/tenant/admins)"
+    module_name = "企业管理员管理 (/tenant/admins)"
 
     def setup(self) -> None:
         """测试前登录"""
@@ -50,7 +50,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         """运行所有测试"""
         skip_reason = None
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
-            skip_reason = "未配置租户管理员账号"
+            skip_reason = "未配置企业管理员账号"
 
         # 1. 获取管理员列表
         self.run_test("获取管理员列表", self.test_list_admins, skip_reason)
@@ -101,7 +101,7 @@ class ManualTestTenantAdmins(BaseAPITest):
             "username": self._test_data["test_username"],
             "email": self._test_data["test_email"],
             "password": "test123456",
-            "nickname": "租户测试管理员",
+            "nickname": "企业测试管理员",
             "is_active": True,
             "is_owner": False,
         })

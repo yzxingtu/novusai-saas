@@ -1,7 +1,7 @@
 """
-租户管理员服务 / Tenant Admin Service
+企业管理员服务 / Tenant Admin Service
 
-提供租户管理员的业务逻辑（租户隔离）
+提供企业管理员的业务逻辑（企业隔离）
 Provides tenant admin business logic (tenant-isolated).
 """
 
@@ -21,9 +21,9 @@ from app.repositories.tenant.tenant_admin_repository import TenantAdminRepositor
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
     """
-    租户管理员服务
+    企业管理员服务
 
-    提供租户管理员特有的业务方法，自动注入租户隔离
+    提供企业管理员特有的业务方法，自动注入企业隔离
     """
 
     model = TenantAdmin
@@ -80,7 +80,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        创建租户管理员
+        创建企业管理员
 
         Args:
             username: 用户名
@@ -89,7 +89,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             phone: 手机号
             nickname: 昵称
             is_active: 是否激活
-            is_owner: 是否租户所有者
+            is_owner: 是否企业所有者
             role_id: 角色 ID
 
         Returns:
@@ -98,21 +98,21 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         Raises:
             BusinessException: 用户名/邮箱/手机号已存在
         """
-        # 检查用户名是否已存在（租户内唯一）
+        # 检查用户名是否已存在（企业内唯一）
         if await self.repo.username_exists(username):
             raise BusinessException(
                 message=_("tenant_admin.username_exists"),
                 code=ErrorCode.ADMIN_USERNAME_EXISTS,
             )
 
-        # 检查邮箱是否已存在（租户内唯一）
+        # 检查邮箱是否已存在（企业内唯一）
         if await self.repo.email_exists(email):
             raise BusinessException(
                 message=_("tenant_admin.email_exists"),
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
 
-        # 检查手机号是否已存在（租户内唯一）
+        # 检查手机号是否已存在（企业内唯一）
         if phone and await self.repo.phone_exists(phone):
             raise BusinessException(
                 message=_("tenant_admin.phone_exists"),
@@ -138,7 +138,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                     code=ErrorCode.CONFLICT,
                 )
 
-        # 如果是租户所有者，获取根节点
+        # 如果是企业所有者，获取根节点
         root_node = None
         if is_owner:
             root_node = await self._get_tenant_root_node()
@@ -160,7 +160,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
         admin = await self.create(data)
 
-        # 如果是租户所有者，设为根节点负责人
+        # 如果是企业所有者，设为根节点负责人
         if is_owner and root_node and root_node.leader_id is None:
             root_node.leader_id = admin.id
             await self.db.flush()
@@ -173,7 +173,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data: dict[str, Any],
     ) -> TenantAdmin:
         """
-        更新租户管理员
+        更新企业管理员
 
         Args:
             admin_id: 管理员 ID
@@ -218,7 +218,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data.pop("password", None)
         data.pop("password_hash", None)
         data.pop("username", None)  # 用户名不允许修改
-        data.pop("tenant_id", None)  # 租户 ID 不允许修改
+        data.pop("tenant_id", None)  # 企业 ID 不允许修改
 
         result = await self.update(admin_id, data)
         if not result:
@@ -272,7 +272,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        重置密码（租户所有者操作）
+        重置密码（企业所有者操作）
 
         Args:
             admin_id: 管理员 ID
@@ -324,7 +324,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
     async def _get_tenant_root_node(self) -> TenantAdminRole | None:
         """
-        获取租户的组织架构根节点
+        获取企业的组织架构根节点
 
         Returns:
             根节点实例或 None

@@ -144,7 +144,7 @@ export async function getAIUsageStatsApi(
   );
 }
 
-/** Get tenant usage summary / 获取租户使用量汇总 */
+/** Get tenant usage summary / 获取企业使用量汇总 */
 export async function getAITenantUsageSummaryApi(
   tenantId: number,
   params?: Record<string, unknown>,

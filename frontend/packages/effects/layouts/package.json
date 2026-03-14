@@ -17,6 +17,14 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./preference-blocks": {
+      "types": "./src/widgets/preferences/blocks/index.ts",
+      "default": "./src/widgets/preferences/blocks/index.ts"
+    },
+    "./preference-icons": {
+      "types": "./src/widgets/preferences/icons/index.ts",
+      "default": "./src/widgets/preferences/icons/index.ts"
     }
   },
   "dependencies": {

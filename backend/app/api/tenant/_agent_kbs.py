@@ -1,5 +1,5 @@
 """
-租户端智能体知识库绑定路由 / Tenant Agent Knowledge Base Binding Routes
+企业端智能体知识库绑定路由 / Tenant Agent Knowledge Base Binding Routes
 
 提供知识库绑定、解绑、批量绑定等接口
 Provides knowledge base bind, unbind, batch bind endpoints

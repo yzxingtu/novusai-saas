@@ -1,7 +1,7 @@
 """
 TenantService 单元测试
 
-覆盖：租户 CRUD、状态变更、配额检查、slug 唯一性。
+覆盖：企业 CRUD、状态变更、配额检查、slug 唯一性。
 """
 
 from __future__ import annotations

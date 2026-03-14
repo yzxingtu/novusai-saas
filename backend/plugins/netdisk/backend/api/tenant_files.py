@@ -1,5 +1,5 @@
 """
-租户端文件/文件夹操作 API
+企业端文件/文件夹操作 API
 
 Handler 签名：(request, db, ctx)
 - db   = PluginDbProxy（仅允许 px_netdisk_* 表）

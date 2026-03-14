@@ -4,7 +4,7 @@ Insert preset Skill seed data for out-of-the-box usage.
 
 Seed skills (scope=admin, globally available):
 1. 平台数据管理 (data_intelligence) - full CRUD for platform admins
-2. 租户数据查询 (data_intelligence) - read-only for tenants
+2. 企业数据查询 (data_intelligence) - read-only for tenants
 
 Revision ID: b2c3d4e5f6a7
 Revises: a1b2c3d4e5f6
@@ -40,8 +40,8 @@ SEED_SKILLS = [
         "sort_order": 1,
     },
     {
-        "name": "租户数据查询",
-        "description": "租户的只读数据查询技能，仅支持查询操作",
+        "name": "企业数据查询",
+        "description": "企业的只读数据查询技能，仅支持查询操作",
         "type": "data_intelligence",
         "scope": "admin",
         "config": {

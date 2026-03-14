@@ -121,10 +121,10 @@ def notify_tenant_sync(
     namespace: str = "/tenant",
 ) -> None:
     """
-    同步环境下广播通知给指定租户所有在线用户 / Broadcast notification to all online users of a tenant from sync environment
+    同步环境下广播通知给指定企业所有在线用户 / Broadcast notification to all online users of a tenant from sync environment
 
     Args:
-        tenant_id: 租户 ID / Tenant ID
+        tenant_id: 企业 ID / Tenant ID
         notification_data: 通知数据 / Notification data
         namespace: Socket.IO namespace
     """

@@ -1,7 +1,7 @@
-"""Tenant storage config items / 租户存储配置项
+"""Tenant storage config items / 企业存储配置项
 
 Includes tenant storage mode, driver, options, and file restrictions.
-包含租户存储模式、驱动、选项和文件限制等配置
+包含企业存储模式、驱动、选项和文件限制等配置
 """
 
 from app.configs.definitions.groups import TENANT_STORAGE_GROUP

@@ -84,5 +84,5 @@ class EmailLog(BaseModel):
     tenant_id: Mapped[int | None] = mapped_column(
         ForeignKey("tenants.id", ondelete="SET NULL"),
         default=None,
-        comment="关联租户ID（可选）",
+        comment="关联企业ID（可选）",
     )

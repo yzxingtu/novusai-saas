@@ -49,9 +49,9 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     async def _check_custom_ssl_quota(self, tenant_id: int) -> None:
         """
-        检查租户是否允许上传自定义 SSL 证书
+        检查企业是否允许上传自定义 SSL 证书
 
-        通过租户套餐的 allow_custom_ssl 配额判断。
+        通过企业套餐的 allow_custom_ssl 配额判断。
         不允许时抛出 BusinessException。
         """
         from sqlalchemy import select
@@ -88,9 +88,9 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         自动设置 cert_type=custom, auto_renew=False
 
         Args:
-            check_quota: 是否检查套餐 allow_custom_ssl 配额（租户端传 True，管理端传 False）
+            check_quota: 是否检查套餐 allow_custom_ssl 配额（企业端传 True，管理端传 False）
         """
-        # 套餐配额检查（仅租户端需要）
+        # 套餐配额检查（仅企业端需要）
         if check_quota:
             await self._check_custom_ssl_quota(tenant_id)
 

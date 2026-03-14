@@ -1,7 +1,7 @@
 """
-租户相关 Schema / Tenant Schema
+企业相关 Schema / Tenant Schema
 
-定义租户 API 的请求和响应数据结构
+定义企业 API 的请求和响应数据结构
 Defines tenant API request and response data structures.
 """
 
@@ -15,7 +15,7 @@ from app.schemas.tenant.domain import TenantDomainSimpleResponse
 
 
 class TenantPlanInfo(BaseSchema):
-    """租户套餐信息（简略）"""
+    """企业套餐信息（简略）"""
 
     id: int = Field(..., description="套餐 ID")
     code: str = Field(..., description="套餐代码")
@@ -23,7 +23,7 @@ class TenantPlanInfo(BaseSchema):
 
 
 class TenantStorageStats(BaseSchema):
-    """租户存储统计信息"""
+    """企业存储统计信息"""
 
     used_bytes: int = Field(0, description="已使用存储空间（字节）")
     limit_bytes: int = Field(0, description="存储限制（字节），0 表示无限制")
@@ -34,11 +34,11 @@ class TenantStorageStats(BaseSchema):
 
 
 class TenantResponse(BaseSchema):
-    """租户信息响应"""
+    """企业信息响应"""
 
-    id: int = Field(..., description="租户 ID")
-    code: str = Field(..., description="租户编码")
-    name: str = Field(..., description="租户名称")
+    id: int = Field(..., description="企业 ID")
+    code: str = Field(..., description="企业编码")
+    name: str = Field(..., description="企业名称")
     contact_name: str | None = Field(None, description="联系人姓名")
     contact_phone: str | None = Field(None, description="联系人电话")
     contact_email: str | None = Field(None, description="联系人邮箱")
@@ -118,9 +118,9 @@ class TenantResponse(BaseSchema):
 
 
 class TenantCreateRequest(BaseSchema):
-    """创建租户请求"""
+    """创建企业请求"""
 
-    name: str = Field(..., min_length=1, max_length=100, description="租户名称")
+    name: str = Field(..., min_length=1, max_length=100, description="企业名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
     contact_phone: str | None = Field(None, max_length=20, description="联系人电话")
     contact_email: str | None = Field(None, description="联系人邮箱")
@@ -129,16 +129,16 @@ class TenantCreateRequest(BaseSchema):
     quota: dict[str, Any] | None = Field(None, description="配额配置（可覆盖套餐默认值）")
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, max_length=500, description="备注")
-    # 租户超级管理员账号（必填）
+    # 企业超级管理员账号（必填）
     admin_username: str = Field(..., min_length=2, max_length=50, description="管理员用户名")
     admin_email: str = Field(..., description="管理员邮箱")
     admin_password: str = Field(..., min_length=6, max_length=100, description="管理员密码")
 
 
 class TenantUpdateRequest(BaseSchema):
-    """更新租户请求"""
+    """更新企业请求"""
 
-    name: str | None = Field(None, min_length=1, max_length=100, description="租户名称")
+    name: str | None = Field(None, min_length=1, max_length=100, description="企业名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
     contact_phone: str | None = Field(None, max_length=20, description="联系人电话")
     contact_email: str | None = Field(None, description="联系人邮箱")
@@ -152,28 +152,28 @@ class TenantUpdateRequest(BaseSchema):
 
 
 class TenantStatusRequest(BaseSchema):
-    """租户状态切换请求"""
+    """企业状态切换请求"""
 
     is_active: bool = Field(..., description="是否启用")
 
 
 class TenantImpersonateRequest(BaseSchema):
-    """一键登录租户后台请求"""
+    """一键登录企业后台请求"""
 
     role_id: int | None = Field(None, description="目标角色 ID（可选）")
 
 
 class TenantImpersonateResponse(BaseSchema):
-    """一键登录租户后台响应"""
+    """一键登录企业后台响应"""
 
     impersonate_token: str = Field(..., description="一键登录 Token（60秒有效，一次性）")
-    tenant_code: str = Field(..., description="租户编码")
-    tenant_name: str = Field(..., description="租户名称")
+    tenant_code: str = Field(..., description="企业编码")
+    tenant_name: str = Field(..., description="企业名称")
     expires_in: int = Field(60, description="Token 有效期（秒）")
 
 
 class TenantResetOwnerPasswordRequest(BaseSchema):
-    """重置租户超级管理员密码请求"""
+    """重置企业超级管理员密码请求"""
 
     new_password: str = Field(..., min_length=6, max_length=100, description="新密码")
 

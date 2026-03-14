@@ -1,5 +1,5 @@
 /**
- * Tenant backend menu API / 租户后台菜单 API
+ * Tenant backend menu API / 企业后台菜单 API
  * Backend: /tenant/permissions/menus / 对接后端 /tenant/permissions/menus 接口
  */
 import type { RouteRecordStringComponent } from '@vben/types';
@@ -23,7 +23,7 @@ export interface MenusWithPermissions {
 }
 
 /**
- * Get current tenant admin menu list (with permission codes) / 获取当前租户管理员菜单列表（含权限码）
+ * Get current tenant admin menu list (with permission codes) / 获取当前企业管理员菜单列表（含权限码）
  * Filtered by role permissions, used for frontend dynamic menu rendering / 根据角色权限过滤，用于前端动态渲染菜单
  * Auto-converts backend snake_case to frontend camelCase / 自动处理格式转换
  * @returns Menu list and permission codes / 菜单列表和权限码
@@ -48,7 +48,7 @@ export async function getTenantMenusWithPermissionsApi(
 }
 
 /**
- * Get current tenant admin menu list / 获取当前租户管理员菜单列表
+ * Get current tenant admin menu list / 获取当前企业管理员菜单列表
  * @deprecated Use getTenantMenusWithPermissionsApi to get permission codes as well / 请使用 getTenantMenusWithPermissionsApi
  */
 export async function getTenantMenusApi(

@@ -1,7 +1,7 @@
 """
-租户端 AI 表策略管理控制器 / Tenant AI Table Policy Management Controller
+企业端 AI 表策略管理控制器 / Tenant AI Table Policy Management Controller
 
-提供租户管理员查看和覆盖 AI 表策略的接口。
+提供企业管理员查看和覆盖 AI 表策略的接口。
 Provides endpoints for tenant admins to view and override AI table policies.
 覆盖只能收紧（限制更多），不能放开。
 Overrides can only tighten (more restrictive), not loosen.
@@ -32,7 +32,7 @@ from app.services.ai.table_policy_override_service import AITablePolicyOverrideS
     parent_resource="ai_settings",
 )
 class TenantAITablePolicyController(TenantController):
-    """租户端 AI 表策略管理 / Tenant AI Table Policy Management"""
+    """企业端 AI 表策略管理 / Tenant AI Table Policy Management"""
 
     prefix = "/ai/table-policies"
     tags = ["Tenant AI Table Policies"]
@@ -49,7 +49,7 @@ class TenantAITablePolicyController(TenantController):
             tenant_admin: ActiveTenantAdmin,
             params: QueryParams,
         ):
-            """获取当前租户的有效策略列表（全局 + 租户覆盖合并） / Get current tenant effective policy list (global + tenant override merged)"""
+            """获取当前企业的有效策略列表（全局 + 企业覆盖合并） / Get current tenant effective policy list (global + tenant override merged)"""
             service = self.get_service(db, tenant_admin.tenant_id)
             policies = await service.get_effective_policies()
             return success(data=policies)
@@ -63,7 +63,7 @@ class TenantAITablePolicyController(TenantController):
             data: AITablePolicyOverrideUpdate,
             tenant_admin: ActiveTenantAdmin,
         ):
-            """创建或更新租户策略覆盖（仅允许收紧） / Create or update tenant policy override (tighten only)"""
+            """创建或更新企业策略覆盖（仅允许收紧） / Create or update tenant policy override (tighten only)"""
             service = self.get_service(db, tenant_admin.tenant_id)
             override = await service.create_or_update_override(
                 policy_id=policy_id,
@@ -87,7 +87,7 @@ class TenantAITablePolicyController(TenantController):
             policy_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
-            """删除租户策略覆盖（恢复到全局策略） / Delete tenant policy override (restore to global policy)"""
+            """删除企业策略覆盖（恢复到全局策略） / Delete tenant policy override (restore to global policy)"""
             service = self.get_service(db, tenant_admin.tenant_id)
             await service.remove_override(policy_id)
             await db.commit()

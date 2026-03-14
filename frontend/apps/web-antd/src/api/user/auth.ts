@@ -1,5 +1,5 @@
 /**
- * Tenant user auth API / 租户用户端认证 API
+ * Tenant user auth API / 企业用户端认证 API
  * Backend: /api/user/auth/* / 对接后端 /api/user/auth/* 接口
  */
 import type {
@@ -36,7 +36,7 @@ export async function userLoginApi(
     username: data.username,
   };
 
-  // Add tenant code (if present) / 添加租户编码（如果有）
+  // Add tenant code (if present) / 添加企业编码（如果有）
   if (data.tenantCode) {
     requestBody.tenant_code = data.tenantCode;
   }

@@ -23,7 +23,7 @@ NovusDoc 商业扩展插件，为 NovusDoc 编辑器增加实时协作、评论�
 1. 确保 `novusdoc` 插件已安装并启用（依赖）
 2. 管理后台 → 插件 → 上传 `novusdoc-pro.zip`
 3. 点击 **启用**
-4. 分配给租户（scope: `assigned_tenants`）
+4. 分配给企业（scope: `assigned_tenants`）
 
 ## Architecture
 

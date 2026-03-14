@@ -161,7 +161,7 @@ class TextToSQLGenerator:
 
         Args:
             question: User's natural language question / 用户的自然语言问题
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent: Agent (contains model config) / 智能体
             conversation_history: Multi-turn conversation history (last N rounds) / 多轮对话历史
             permissions: User RBAC permission code set (for table-level filtering) / RBAC 权限码集合

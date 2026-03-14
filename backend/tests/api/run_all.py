@@ -22,8 +22,8 @@ API 测试运行入口
     TEST_API_BASE_URL=http://localhost:8000  # API 基础地址
     TEST_ADMIN_USERNAME=admin                # 平台管理员用户名
     TEST_ADMIN_PASSWORD=admin123456          # 平台管理员密码
-    TEST_TENANT_ADMIN_USERNAME=              # 租户管理员用户名
-    TEST_TENANT_ADMIN_PASSWORD=              # 租户管理员密码
+    TEST_TENANT_ADMIN_USERNAME=              # 企业管理员用户名
+    TEST_TENANT_ADMIN_PASSWORD=              # 企业管理员密码
     TEST_LANGUAGE=zh-cn                      # 语言设置
 """
 import argparse
@@ -68,7 +68,7 @@ def run_admin_tests() -> list[TestReport]:
 
 
 def run_tenant_tests() -> list[TestReport]:
-    """运行租户管理端测试"""
+    """运行企业管理端测试"""
     reports = []
 
     # Tenant Auth
@@ -158,7 +158,7 @@ def main():
     if args.module in ("tenant", "all"):
         print("\n")
         print("=" * 70)
-        print("🏢 租户管理端测试")
+        print("🏢 企业管理端测试")
         print("=" * 70)
         tenant_reports = run_tenant_tests()
         for report in tenant_reports:

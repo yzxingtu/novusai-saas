@@ -29,7 +29,7 @@ class TaskLogResponse(BaseSchema):
     finished_at: datetime | None = Field(None, description="完成时间")
     duration_ms: int | None = Field(None, description="耗时(毫秒)")
     retry_count: int = Field(0, description="重试次数")
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     created_at: datetime = Field(..., description="创建时间")
 
 

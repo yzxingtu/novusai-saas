@@ -36,7 +36,7 @@ class OperationLogResponse(BaseSchema):
     """操作日志响应"""
 
     id: int = Field(..., description="日志 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")
@@ -91,7 +91,7 @@ class OperationLogListResponse(BaseSchema):
     """操作日志列表项响应（简化版）"""
 
     id: int = Field(..., description="日志 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")

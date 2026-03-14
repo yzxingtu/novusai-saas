@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 智能体访问权限配置抽屉（租户端）
+ * 智能体访问权限配置抽屉（企业端）
  *
- * 仅配置 tenant_role_ids 和 user_role_ids（租户端/用户端角色权限控制）。
- * 租户端不显示 Admin 端角色选择（租户无权控制管理端角色）。
+ * 仅配置 tenant_role_ids 和 user_role_ids（企业端/用户端角色权限控制）。
+ * 企业端不显示 Admin 端角色选择（企业无权控制管理端角色）。
  * 根据 target_audience 动态显隐 User 端区块。
  */
 import { computed, onMounted, ref, watch } from 'vue';

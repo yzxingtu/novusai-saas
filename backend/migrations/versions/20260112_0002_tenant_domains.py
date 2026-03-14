@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Add tenant settings field and tenant_domains table
 
 Revision ID: 0002
@@ -25,7 +25,7 @@ def upgrade() -> None:
     """Add tenant settings and tenant_domains table."""
     
     # ========================================
-    # 1. 给租户表添加 settings 字段
+    # 1. 给企业表添加 settings 字段
     # ========================================
     op.add_column(
         'tenants',
@@ -33,17 +33,17 @@ def upgrade() -> None:
             'settings',
             postgresql.JSON(astext_type=sa.Text()),
             nullable=True,
-            comment='租户设置'
+            comment='企业设置'
         )
     )
     
     # ========================================
-    # 2. 创建租户域名表 (tenant_domains)
+    # 2. 创建企业域名表 (tenant_domains)
     # ========================================
     op.create_table(
         'tenant_domains',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('domain', sa.String(length=255), nullable=False, comment='域名'),
         sa.Column('is_verified', sa.Boolean(), nullable=False, default=False, comment='是否已验证'),
         sa.Column('verified_at', sa.DateTime(timezone=True), nullable=True, comment='验证时间'),
@@ -66,7 +66,7 @@ def upgrade() -> None:
     op.create_index('ix_tenant_domains_domain', 'tenant_domains', ['domain'])
     op.create_index('ix_tenant_domains_is_verified', 'tenant_domains', ['is_verified'])
     op.create_index('ix_tenant_domains_is_deleted', 'tenant_domains', ['is_deleted'])
-    # 复合索引：租户ID + 是否主域名
+    # 复合索引：企业ID + 是否主域名
     op.create_index('ix_tenant_domains_tenant_primary', 'tenant_domains', ['tenant_id', 'is_primary'])
 
 

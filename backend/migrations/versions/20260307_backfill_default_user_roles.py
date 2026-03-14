@@ -24,10 +24,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """为缺少 default_user 角色的现有租户创建角色并设置配置."""
+    """为缺少 default_user 角色的现有企业创建角色并设置配置."""
     bind = op.get_bind()
 
-    # 1. 找到所有活跃租户
+    # 1. 找到所有活跃企业
     tenants = bind.execute(
         text("SELECT id FROM tenants WHERE is_deleted = false")
     ).fetchall()
@@ -36,7 +36,7 @@ def upgrade() -> None:
         print("No tenants found, skipping")
         return
 
-    # 2. 找到已有 default_user 角色的租户
+    # 2. 找到已有 default_user 角色的企业
     existing = bind.execute(
         text(
             "SELECT tenant_id FROM tenant_user_roles "
@@ -45,7 +45,7 @@ def upgrade() -> None:
     ).fetchall()
     existing_tenant_ids = {row[0] for row in existing}
 
-    # 3. 找到缺失的租户
+    # 3. 找到缺失的企业
     missing_tenant_ids = [t[0] for t in tenants if t[0] not in existing_tenant_ids]
 
     if not missing_tenant_ids:

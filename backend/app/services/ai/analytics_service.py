@@ -6,7 +6,7 @@ Provides aggregated analytics data for Admin ECharts dashboards:
 - T2: AI 调用趋势（按天聚合）
 - T3: 模型调用分布（饼图）
 - T4: 供应商性能对比（雷达图）
-- T5: 租户 Top N 排行
+- T5: 企业 Top N 排行
 - T6: 延迟分布（直方图）
 - 成功率趋势
 - Token 消耗趋势
@@ -198,7 +198,7 @@ class AnalyticsService:
             for r in rows
         ]
 
-    # ── T5: 租户 Top N 使用排行 ──
+    # ── T5: 企业 Top N 使用排行 ──
 
     async def get_tenant_ranking(
         self,
@@ -207,7 +207,7 @@ class AnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """
-        租户 Top N 使用排行
+        企业 Top N 使用排行
 
         Returns:
             [{"tenant_id", "tenant_name", "calls", "tokens", "cost"}, ...]

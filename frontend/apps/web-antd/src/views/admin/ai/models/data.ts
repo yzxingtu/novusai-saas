@@ -13,7 +13,7 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIModelListApi, getAIProviderListApi } from '#/api/admin/ai';
+import { getAIModelSelectApi, getAIProviderSelectApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
 function getModelTypeOptions() {
@@ -59,36 +59,18 @@ export function getModelTypeText(type: string | undefined): string {
 }
 
 /**
- * 获取模型下拉选项（用于备用模型选择）
- *
- * @param excludeId 排除的模型 ID（编辑模式下排除当前模型，避免自引用）
+ * 备用模型下拉 — 用闭包排除自身 ID 后透传 ApiSelect 分页参数
  */
-export async function getModelSelectOptions(excludeId?: number) {
-  const response = await getAIModelListApi({
-    'page[size]': 200,
-    sort: 'name',
-    'filter[is_active]': true,
-  });
-  return response.items
-    .filter((item) => !excludeId || item.id !== excludeId)
-    .map((item) => ({
-      label: `${item.name} (${item.provider_name || '-'})`,
-      value: item.id,
-    }));
-}
-
-/**
- * 获取供应商下拉选项
- */
-async function getProviderSelectOptions() {
-  const response = await getAIProviderListApi({
-    'page[size]': 100,
-    sort: 'sort_order',
-  });
-  return response.items.map((item) => ({
-    label: item.name,
-    value: item.id,
-  }));
+export function getFallbackModelSelectApi(excludeId?: number) {
+  return async (params?: Record<string, unknown>) => {
+    const res = await getAIModelSelectApi({ ...params, type: 'chat' });
+    if (excludeId && res?.items) {
+      res.items = res.items.filter(
+        (i: { value: number }) => i.value !== excludeId,
+      );
+    }
+    return res;
+  };
 }
 
 /**
@@ -195,7 +177,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.ai.model.placeholder.allTypes'),
     }),
     select('filter[provider_id]', $t('admin.ai.model.providerName'), {
-      api: getProviderSelectOptions,
+      api: getAIProviderSelectApi,
       placeholder: $t('admin.ai.model.placeholder.allProviders'),
     }),
   ];
@@ -210,7 +192,7 @@ export function useFormSchema(
   onProviderChange?: (providerId: number) => void,
 ): VbenFormSchema[] {
   const providerField = select('provider_id', $t('admin.ai.model.providerId'), {
-    api: getProviderSelectOptions,
+    api: getAIProviderSelectApi,
     required: true,
     placeholder: $t('admin.ai.model.placeholder.selectProvider'),
   });
@@ -337,7 +319,7 @@ export function useFormSchema(
     dividerField('failover_divider', $t('admin.ai.model.section.failover')),
     {
       ...select('fallback_model_id', $t('admin.ai.model.fallbackModel'), {
-        api: () => getModelSelectOptions(currentModelId),
+        api: getFallbackModelSelectApi(currentModelId),
         placeholder: $t('admin.ai.model.placeholder.selectFallback'),
       }),
       help: $t('admin.ai.model.help.fallbackModel'),

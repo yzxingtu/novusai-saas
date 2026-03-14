@@ -61,12 +61,12 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    # ==================== 租户覆盖查询 ====================
+    # ==================== 企业覆盖查询 ====================
 
     async def get_tenant_override(
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
-        """获取租户覆盖绑定"""
+        """获取企业覆盖绑定"""
         stmt = (
             select(self.model)
             .where(self.model.feature_code == feature_code)
@@ -77,7 +77,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         return result.scalar_one_or_none()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取租户的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定"""
         stmt = (
             select(self.model)
             .where(self.model.tenant_id == tenant_id)
@@ -91,9 +91,9 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认。
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认。
 
-        当租户覆盖存在时直接返回（无论 is_active），让调用方根据
+        当企业覆盖存在时直接返回（无论 is_active），让调用方根据
         is_active 决定行为。只有覆盖不存在时才 fallback 到全局默认。
         """
         override = await self.get_tenant_override(feature_code, tenant_id)

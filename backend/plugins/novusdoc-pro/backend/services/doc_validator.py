@@ -23,13 +23,13 @@ async def verify_document_exists(
     doc_id: int,
 ) -> bool:
     """
-    校验 novusdoc 文档是否存在且属于指定租户。
+    校验 novusdoc 文档是否存在且属于指定企业。
 
     通过插件模块加载器跨插件调用 novusdoc 的 get_document。
     若 novusdoc 插件不可用，降级为直接查询文档表。
 
     Returns:
-        True = 文档存在且属于该租户, False = 不存在/不属于
+        True = 文档存在且属于该企业, False = 不存在/不属于
     """
     # 方式 1：通过插件模块加载器调用 novusdoc service
     try:

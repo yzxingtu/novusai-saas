@@ -12,27 +12,15 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIProviderListApi } from '#/api/admin/ai';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import { getAIProviderSelectApi } from '#/api/admin/ai';
+import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
+import { getScopeOptions } from '#/utils/scope-helpers';
 
-/**
- * 获取供应商下拉选项
- */
-async function getProviderSelectOptions() {
-  const response = await getAIProviderListApi({
-    'page[size]': 100,
-    sort: 'sort_order',
-  });
-  return response.items.map((item) => ({
-    label: item.name,
-    value: item.id,
-  }));
+function getApiKeyScopeOptions() {
+  return getScopeOptions(['admin_only', 'all_tenants']);
 }
 
-/**
- * 表格列定义
- */
 export function useColumns<T = AIApiKeyInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -52,16 +40,16 @@ export function useColumns<T = AIApiKeyInfo>(
     {
       field: 'provider_name',
       title: $t('admin.ai.apiKey.providerName'),
-      width: 160,
+      width: 200,
       align: 'center',
       slots: { default: 'providerName_cell' },
     },
     {
-      field: 'tenant_name',
-      title: $t('admin.ai.apiKey.tenantName'),
+      field: 'scope',
+      title: $t('common.scope.label'),
       width: 140,
       align: 'center',
-      slots: { default: 'tenantName_cell' },
+      slots: { default: 'scope_cell' },
     },
     {
       field: 'usage_count',
@@ -118,35 +106,27 @@ export function useColumns<T = AIApiKeyInfo>(
   ];
 }
 
-/**
- * 搜索表单 Schema
- */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('name', $t('admin.ai.apiKey.name'), {
       placeholder: $t('admin.ai.apiKey.placeholder.searchName'),
     }),
     select('filter[provider_id]', $t('admin.ai.apiKey.providerName'), {
-      api: getProviderSelectOptions,
+      api: getAIProviderSelectApi,
       placeholder: $t('admin.ai.apiKey.placeholder.allProviders'),
     }),
-    select('filter[tenant_id]', $t('admin.ai.apiKey.tenantName'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.ai.apiKey.tenantName'),
+    select('filter[scope][eq]', $t('common.scope.label'), {
+      options: getApiKeyScopeOptions(),
     }),
   ];
 }
 
-/**
- * 表单 Schema
- */
 export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   const providerField = select(
     'provider_id',
     $t('admin.ai.apiKey.providerId'),
     {
-      api: getProviderSelectOptions,
+      api: getAIProviderSelectApi,
       required: true,
       placeholder: $t('admin.ai.apiKey.placeholder.selectProvider'),
     },
@@ -167,7 +147,6 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     providerField,
   ];
 
-  // Only show api_key field in create mode / 仅新建模式显示 api_key 字段
   if (!isEdit) {
     fields.push({
       ...inputField('api_key', $t('admin.ai.apiKey.apiKey'), {
@@ -178,24 +157,14 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     });
   }
 
-  const tenantField = select('tenant_id', $t('admin.ai.apiKey.tenantId'), {
-    api: getTenantSelectApi,
-    params: { is_active: 'true' },
-    placeholder: $t('admin.ai.apiKey.placeholder.selectTenant'),
-  });
-
-  if (isEdit) {
-    tenantField.componentProps = {
-      ...(tenantField.componentProps as Record<string, unknown>),
-      disabled: true,
-    };
-  }
-
   fields.push(
-    {
-      ...tenantField,
-      help: $t('admin.ai.apiKey.help.tenantId'),
-    },
+    ...useScopeFields({
+      allowedScopes: ['admin_only', 'all_tenants'],
+      showTenantId: true,
+      tenantIdRequired: false,
+      scopeHelp: $t('admin.ai.apiKey.help.scope'),
+      scopeDisabled: (values) => values._mode === 'edit',
+    }),
     {
       ...numberField('usage_limit', $t('admin.ai.apiKey.usageLimit'), {
         min: 0,
@@ -214,11 +183,9 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   return fields;
 }
 
-/**
- * 表单默认值
- */
 export function getFormDefaults(): Record<string, unknown> {
   return {
+    scope: 'all_tenants',
     is_active: true,
   };
 }

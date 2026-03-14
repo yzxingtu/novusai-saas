@@ -41,8 +41,8 @@
   },
   "modeDesc": {
     "platform": "使用平台管理员配置的全局存储，所有文件共用同一存储空间",
-    "adminOverride": "由平台管理员为该租户指定专用云存储配置",
-    "custom": "允许租户自行填写云存储凭证，文件存储到租户自己的存储空间"
+    "adminOverride": "由平台管理员为该企业指定专用云存储配置",
+    "custom": "允许企业自行填写云存储凭证，文件存储到企业自己的存储空间"
   },
   "status": {
     "title": "存储配置",
@@ -59,8 +59,8 @@
   "adminTab": {
     "title": "存储配置",
     "modeLabel": "存储模式",
-    "selfConfigSwitch": "允许租户自主配置",
-    "selfConfigSwitchDesc": "开启后，租户可自行填写云存储凭证",
-    "customHint": "保存后，该租户可在自己的系统配置 → 存储设置中自行填写云存储凭证"
+    "selfConfigSwitch": "允许企业自主配置",
+    "selfConfigSwitchDesc": "开启后，企业可自行填写云存储凭证",
+    "customHint": "保存后，该企业可在自己的系统配置 → 存储设置中自行填写云存储凭证"
   }
 }

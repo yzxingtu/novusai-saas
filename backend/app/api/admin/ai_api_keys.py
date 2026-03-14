@@ -6,6 +6,7 @@ Provides AI API key CRUD endpoints (platform admin only).
 """
 
 from fastapi import Query, Request
+from sqlalchemy import func, select
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -13,6 +14,7 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
+from app.models.ai import AIModel
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     MenuConfig,
@@ -45,17 +47,17 @@ def _make_key_preview(key) -> str | None:
         return None
 
 
-def _build_api_key_response(key) -> dict:
+def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) -> dict:
     """
     构建 API Key 响应数据 / Build API Key response data
 
-    手动处理 is_available 方法和其他字段 / Manually handle is_available method and other fields
+    Args:
+        key: ProviderApiKey instance
+        model_count_map: provider_id → active model count (pre-queried for efficiency)
     """
-    # 安全地访问关系，避免 AttributeError / Safely access relationships to avoid AttributeError
     provider_name = None
     tenant_name = None
 
-    # 只有在 tenant_id 不为 None 时才尝试访问 tenant 关系 / Only try to access tenant relationship when tenant_id is not None
     if key.tenant_id is not None:
         try:
             tenant = getattr(key, 'tenant', None)
@@ -64,8 +66,8 @@ def _build_api_key_response(key) -> dict:
         except AttributeError:
             pass
 
-    # 尝试访问 provider 关系 / Try to access provider relationship
     provider_icon = None
+    provider_model_count = 0
     try:
         provider = getattr(key, 'provider', None)
         if provider is not None:
@@ -74,9 +76,13 @@ def _build_api_key_response(key) -> dict:
     except AttributeError:
         pass
 
+    if model_count_map:
+        provider_model_count = model_count_map.get(key.provider_id, 0)
+
     return {
         "id": key.id,
         "provider_id": key.provider_id,
+        "scope": key.scope,
         "tenant_id": key.tenant_id,
         "name": key.name,
         "is_active": key.is_active,
@@ -91,6 +97,7 @@ def _build_api_key_response(key) -> dict:
         "key_preview": _make_key_preview(key),
         "provider_name": provider_name,
         "provider_icon": provider_icon,
+        "provider_model_count": provider_model_count,
         "tenant_name": tenant_name,
     }
 
@@ -143,9 +150,20 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             items, total = await service.query_list(spec)
 
+            provider_ids = {item.provider_id for item in items}
+            model_count_map: dict[int, int] = {}
+            if provider_ids:
+                stmt = (
+                    select(AIModel.provider_id, func.count(AIModel.id))
+                    .where(AIModel.provider_id.in_(provider_ids), AIModel.is_deleted.is_(False), AIModel.is_active.is_(True))
+                    .group_by(AIModel.provider_id)
+                )
+                result = await db.execute(stmt)
+                model_count_map = dict(result.all())
+
             return success(
                 data=PageResponse.create(
-                    items=[ProviderApiKeyResponse(**_build_api_key_response(item)) for item in items],
+                    items=[ProviderApiKeyResponse(**_build_api_key_response(item, model_count_map)) for item in items],
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -160,7 +178,7 @@ class AdminAIApiKeyController(GlobalController):
             db: DbSession,
             provider_id: int,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
         ):
             """
             根据供应商 ID 获取其所有 API Key / Get all API Keys by provider ID
@@ -270,7 +288,12 @@ class AdminAIApiKeyController(GlobalController):
             权限 / Permission: ai_api_key:delete
             """
             service = ProviderApiKeyService(db)
-            await service.delete_key(key_id)
+            key = await service.get_by_id(key_id)
+            if not key:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("ai.error.api_key_not_found"))
+
+            await service.delete(key_id)
             await db.commit()
 
             return success(message=_("ai.api_key.deleted"))

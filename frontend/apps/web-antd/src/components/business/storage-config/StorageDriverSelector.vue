@@ -8,7 +8,7 @@
  * Disabled plugin drivers show "unavailable" tag and cannot be selected.
  * 未启用的插件驱动显示「不可用」标签且禁止选择。
  * Shared between admin and tenant storage config pages.
- * 管理端和租户端存储配置页面共用。
+ * 管理端和企业端存储配置页面共用。
  */
 import type { StorageDriverInfo } from '#/types/storage';
 

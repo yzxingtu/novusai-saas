@@ -19,13 +19,13 @@ import { getAIApiKeyListApi, toggleAIApiKeyStatusApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { getProcessedImageUrl } from '#/utils/image';
+import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
 import { getFormDefaults, useColumns, useFormSchema, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AIApiKeyList' });
 
-/** 复制 Key 预览到剪贴板 */
 async function onCopyKeyPreview(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -132,7 +132,7 @@ onUnmounted(() => {
     <FormDrawer @success="onRefresh" />
 
     <Grid>
-      <!-- 名称列 -->
+      <!-- 名称列 / Name column -->
       <template #name_cell="{ row }">
         <div class="flex items-center gap-2">
           <div
@@ -162,7 +162,7 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <!-- Key 预览列：带复制按钮 -->
+      <!-- Key 预览列 / Key preview column -->
       <template #keyPreview_cell="{ row }">
         <div v-if="row.key_preview" class="flex items-center gap-1">
           <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
@@ -180,39 +180,59 @@ onUnmounted(() => {
         <span v-else class="text-muted-foreground">-</span>
       </template>
 
-      <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
+      <!-- 供应商列：图标 + 名称 + 模型数 / Provider column: icon + name + model count -->
       <template #providerName_cell="{ row }">
         <div
           v-if="row.provider_name"
-          class="flex items-center justify-center gap-1.5"
+          class="flex flex-col items-center gap-0.5"
         >
-          <img
-            v-if="row.provider_icon && Number(row.provider_icon) > 0"
-            :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
-            class="size-4 shrink-0 rounded object-contain"
-            alt=""
-          />
-          <IconifyIcon
-            v-else
-            icon="lucide:cpu"
-            class="size-3.5 text-muted-foreground"
-          />
-          <span class="text-foreground">{{ row.provider_name }}</span>
+          <div class="flex items-center gap-1.5">
+            <img
+              v-if="row.provider_icon && Number(row.provider_icon) > 0"
+              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              class="size-4 shrink-0 rounded object-contain"
+              alt=""
+            />
+            <IconifyIcon
+              v-else
+              icon="lucide:cpu"
+              class="size-3.5 text-muted-foreground"
+            />
+            <span class="text-foreground">{{ row.provider_name }}</span>
+          </div>
+          <span
+            v-if="row.provider_model_count > 0"
+            class="text-[11px] text-muted-foreground"
+          >
+            {{ $t('admin.ai.apiKey.providerModels', { count: row.provider_model_count }) }}
+          </span>
         </div>
         <span v-else class="text-muted-foreground">-</span>
       </template>
 
-      <!-- 租户列 -->
-      <template #tenantName_cell="{ row }">
-        <Tag v-if="row.tenant_name" color="orange">
-          {{ row.tenant_name }}
-        </Tag>
-        <Tag v-else color="blue">
-          {{ $t('admin.ai.apiKey.scope.platform') }}
-        </Tag>
+      <!-- 作用域列 / Scope column -->
+      <template #scope_cell="{ row }">
+        <div class="flex flex-col items-center gap-0.5">
+          <Tag
+            :color="getScopeColor(row.scope)"
+            class="!mr-0 !text-[11px]"
+            style="padding: 0 6px; line-height: 20px"
+          >
+            <div class="flex items-center gap-1">
+              <IconifyIcon :icon="getScopeIcon(row.scope)" class="size-3" />
+              <span>{{ getScopeText(row.scope) }}</span>
+            </div>
+          </Tag>
+          <span
+            v-if="row.tenant_name"
+            class="text-[11px] text-muted-foreground"
+          >
+            {{ row.tenant_name }}
+          </span>
+        </div>
       </template>
 
-      <!-- 使用次数列：进度条 -->
+      <!-- 使用次数列 / Usage count column -->
       <template #usageCount_cell="{ row }">
         <div v-if="row.usage_limit" class="flex flex-col items-end gap-0.5">
           <span class="text-xs text-muted-foreground">
@@ -242,7 +262,7 @@ onUnmounted(() => {
         </span>
       </template>
 
-      <!-- 过期时间列 -->
+      <!-- 过期时间列 / Expires at column -->
       <template #expiresAt_cell="{ row }">
         <template v-if="row.expires_at">
           <Tooltip :title="formatDate(row.expires_at)">
@@ -264,7 +284,7 @@ onUnmounted(() => {
         <span v-else class="text-muted-foreground">-</span>
       </template>
 
-      <!-- 创建时间列 -->
+      <!-- 创建时间列 / Created at column -->
       <template #createdAt_cell="{ row }">
         <Tooltip :title="formatDate(row.created_at)">
           <span class="text-muted-foreground">
@@ -273,7 +293,7 @@ onUnmounted(() => {
         </Tooltip>
       </template>
 
-      <!-- 启用状态列 -->
+      <!-- 启用状态列 / Active status column -->
       <template #isActive_cell="{ row }">
         <Switch
           v-access:code="['ai_api_key:toggle_status']"
@@ -285,7 +305,7 @@ onUnmounted(() => {
         />
       </template>
 
-      <!-- 可用状态列：禁用开关 + 过期警告 -->
+      <!-- 可用状态列 / Available status column -->
       <template #isAvailable_cell="{ row }">
         <div class="flex items-center justify-center gap-1">
           <Switch

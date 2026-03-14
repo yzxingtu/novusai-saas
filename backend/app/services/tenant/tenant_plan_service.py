@@ -1,7 +1,7 @@
 """
-租户套餐服务 / Tenant Plan Service
+企业套餐服务 / Tenant Plan Service
 
-提供套餐的业务逻辑（平台级，非租户隔离）
+提供套餐的业务逻辑（平台级，非企业隔离）
 Provides plan business logic (platform-level, no tenant isolation).
 
 """
@@ -26,10 +26,10 @@ from app.schemas.tenant.plan import (
 
 class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
     """
-    租户套餐服务
+    企业套餐服务
 
     提供套餐特有的业务方法
-    注意：套餐是平台级数据，不做租户隔离
+    注意：套餐是平台级数据，不做企业隔离
     """
 
     model = TenantPlan
@@ -185,7 +185,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
         Raises:
             NotFoundException: 套餐不存在
-            BusinessException: 套餐正在被租户使用
+            BusinessException: 套餐正在被企业使用
         """
         plan = await self.repo.get_with_tenants(plan_id)
         if not plan:
@@ -193,7 +193,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 message=_("tenant_plan.not_found"),
             )
 
-        # 检查是否有租户使用该套餐
+        # 检查是否有企业使用该套餐
         if plan.has_tenants:
             raise BusinessException(
                 message=_("tenant_plan.has_tenants"),

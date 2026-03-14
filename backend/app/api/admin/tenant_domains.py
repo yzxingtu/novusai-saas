@@ -1,7 +1,7 @@
 """
-租户域名管理 API / Tenant Domain Management API
+企业域名管理 API / Tenant Domain Management API
 
-提供租户域名 CRUD 接口（平台管理员专用）
+提供企业域名 CRUD 接口（平台管理员专用）
 Provides tenant domain CRUD endpoints (platform admin only)
 """
 
@@ -43,13 +43,13 @@ from app.services.system.ssl_certificate_service import SslCertificateService
     resource="tenant_domain",
     name="menu.admin.tenant_domain",  # i18n key
     scope=PermissionScope.ADMIN_ONLY,
-    parent_resource="tenant",  # 操作权限挂载到租户管理菜单下 / Permissions mounted under tenant management menu
+    parent_resource="tenant",  # 操作权限挂载到企业管理菜单下 / Permissions mounted under tenant management menu
 )
 class AdminTenantDomainController(GlobalController):
     """
-    租户域名管理控制器 / Tenant Domain Management Controller
+    企业域名管理控制器 / Tenant Domain Management Controller
 
-    提供租户域名 CRUD、验证、主域名设置等接口
+    提供企业域名 CRUD、验证、主域名设置等接口
     Provides tenant domain CRUD, verification, primary domain setting endpoints
     """
 
@@ -65,7 +65,7 @@ class AdminTenantDomainController(GlobalController):
             db: DbSession,
             tenant_id: int,
         ) -> None:
-            """验证租户是否存在 / Verify tenant exists"""
+            """验证企业是否存在 / Verify tenant exists"""
             tenant_service = TenantService(db)
             tenant = await tenant_service.get_by_id(tenant_id)
             if tenant is None:
@@ -74,7 +74,7 @@ class AdminTenantDomainController(GlobalController):
                     detail=_("tenant.not_found"),
                 )
 
-        @router.get("", summary="获取租户域名列表")
+        @router.get("", summary="获取企业域名列表")
         @action_read("action.tenant_domain.list")
         async def list_domains(
             request: Request,
@@ -84,7 +84,7 @@ class AdminTenantDomainController(GlobalController):
             tenant_id: int,
         ):
             """
-            获取租户域名列表 / Get tenant domain list
+            获取企业域名列表 / Get tenant domain list
 
             - 支持通用筛选 / Supports filtering: filter[field][op]=value
             - 支持排序 / Supports sorting: sort=-created_at,domain
@@ -94,7 +94,7 @@ class AdminTenantDomainController(GlobalController):
             """
             await _verify_tenant_exists(db, tenant_id)
 
-            # 强制添加租户 ID 筛选 / Force add tenant ID filter
+            # 强制添加企业 ID 筛选 / Force add tenant ID filter
             spec.filters.append(FilterRule(field="tenant_id", op=FilterOp.eq, value=tenant_id))
 
             service = TenantDomainService(db)
@@ -128,7 +128,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.post("", summary="为租户添加自定义域名")
+        @router.post("", summary="为企业添加自定义域名")
         @action_create("action.tenant_domain.create")
         async def create_domain(
             request: Request,
@@ -138,7 +138,7 @@ class AdminTenantDomainController(GlobalController):
             tenant_id: int,
         ):
             """
-            为租户添加自定义域名 / Add custom domain for tenant
+            为企业添加自定义域名 / Add custom domain for tenant
 
             - 新域名需要 DNS 验证后才能使用 / New domain requires DNS verification before use
 
@@ -239,7 +239,7 @@ class AdminTenantDomainController(GlobalController):
 
             service = TenantDomainService(db)
 
-            # 验证域名存在且属于该租户 / Verify domain exists and belongs to this tenant
+            # 验证域名存在且属于该企业 / Verify domain exists and belongs to this tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -286,7 +286,7 @@ class AdminTenantDomainController(GlobalController):
 
             service = TenantDomainService(db)
 
-            # 验证域名存在且属于该租户 / Verify domain exists and belongs to this tenant
+            # 验证域名存在且属于该企业 / Verify domain exists and belongs to this tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -320,7 +320,7 @@ class AdminTenantDomainController(GlobalController):
 
             service = TenantDomainService(db)
 
-            # 验证域名存在且属于该租户 / Verify domain exists and belongs to this tenant
+            # 验证域名存在且属于该企业 / Verify domain exists and belongs to this tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -349,7 +349,7 @@ class AdminTenantDomainController(GlobalController):
             """
             设置为主域名 / Set as primary domain
 
-            - 每个租户只能有一个主域名 / Each tenant can only have one primary domain
+            - 每个企业只能有一个主域名 / Each tenant can only have one primary domain
             - 域名必须已验证 / Domain must be verified
 
             权限 / Permission: tenant_domain:set_primary
@@ -374,7 +374,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取当前租户全部域名的 Dev Hosts 状态 / Get Dev Hosts status for all domains of the current tenant
+            获取当前企业全部域名的 Dev Hosts 状态 / Get Dev Hosts status for all domains of the current tenant
 
             - 仅管理端可见 / Admin-only
             - 返回运行时信息和每个域名的 hosts 状态 / Returns runtime info and per-domain hosts state
@@ -445,7 +445,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.post("/dev-hosts/sync-all", summary="批量同步租户全部 Dev Hosts 条目")
+        @router.post("/dev-hosts/sync-all", summary="批量同步企业全部 Dev Hosts 条目")
         @permission_action("hosts_sync_all", "action.tenant_domain.hosts_sync_all")
         async def sync_all_dev_hosts(
             request: Request,
@@ -454,7 +454,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            批量同步租户全部可用域名的 Dev Hosts 条目 / Batch sync Dev Hosts entries for all eligible tenant domains
+            批量同步企业全部可用域名的 Dev Hosts 条目 / Batch sync Dev Hosts entries for all eligible tenant domains
 
             - 默认域名和已验证自定义域名参与同步 / Default domains and verified custom domains are synced
             - 未验证域名自动跳过 / Unverified domains are skipped automatically
@@ -478,7 +478,7 @@ class AdminTenantDomainController(GlobalController):
             tenant_id: int,
             domain_id: int,
         ) -> None:
-            """验证域名属于指定租户 / Verify domain belongs to specified tenant"""
+            """验证域名属于指定企业 / Verify domain belongs to specified tenant"""
             service = TenantDomainService(db)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != tenant_id:
@@ -506,7 +506,7 @@ class AdminTenantDomainController(GlobalController):
                 return success(data=None, message=_("ssl_certificate.not_found"))
             return success(data=SslCertificateResponse.from_model(cert))
 
-        @router.post("/{domain_id}/ssl/provision", summary="为租户签发 SSL 证书")
+        @router.post("/{domain_id}/ssl/provision", summary="为企业签发 SSL 证书")
         @permission_action("ssl_provision", "action.tenant_domain.ssl_provision")
         async def provision_ssl(
             request: Request,
@@ -537,7 +537,7 @@ class AdminTenantDomainController(GlobalController):
 
             return success(message=_("ssl_certificate.provision_started"))
 
-        @router.post("/{domain_id}/ssl/renew", summary="为租户展期/续期 SSL 证书")
+        @router.post("/{domain_id}/ssl/renew", summary="为企业展期/续期 SSL 证书")
         @permission_action("ssl_renew", "action.tenant_domain.ssl_renew")
         async def renew_ssl(
             request: Request,
@@ -568,7 +568,7 @@ class AdminTenantDomainController(GlobalController):
 
             return success(message=_("ssl_certificate.renew_started"))
 
-        @router.post("/{domain_id}/ssl/upload", summary="为租户上传自定义 SSL 证书")
+        @router.post("/{domain_id}/ssl/upload", summary="为企业上传自定义 SSL 证书")
         @permission_action("ssl_upload", "action.tenant_domain.ssl_upload")
         async def upload_ssl(
             request: Request,
@@ -579,7 +579,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            管理员为租户上传自定义证书（不受套餐限制）
+            管理员为企业上传自定义证书（不受套餐限制）
             Admin uploads custom certificate for tenant (not subject to plan limits)
             自动设置 cert_type=custom, auto_renew=False
             Auto-sets cert_type=custom, auto_renew=False
@@ -602,7 +602,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("ssl_certificate.upload_success"),
             )
 
-        @router.post("/{domain_id}/ssl/replace", summary="强制替换租户 SSL 证书")
+        @router.post("/{domain_id}/ssl/replace", summary="强制替换企业 SSL 证书")
         @permission_action("ssl_replace", "action.tenant_domain.ssl_replace")
         async def replace_ssl(
             request: Request,
@@ -645,7 +645,7 @@ class AdminTenantDomainController(GlobalController):
                 await db.commit()
                 return success(data=SslCertificateResponse.from_model(cert), message=_("ssl_certificate.replace_success"))
 
-        @router.delete("/{domain_id}/ssl", summary="删除租户 SSL 证书")
+        @router.delete("/{domain_id}/ssl", summary="删除企业 SSL 证书")
         @permission_action("ssl_delete", "action.tenant_domain.ssl_delete")
         async def delete_ssl(
             request: Request,
@@ -687,7 +687,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("ssl_certificate.auto_renew_updated"),
             )
 
-        @router.post("/ssl/batch-provision", summary="批量签发租户所有域名 SSL")
+        @router.post("/ssl/batch-provision", summary="批量签发企业所有域名 SSL")
         @permission_action("ssl_batch_provision", "action.tenant_domain.ssl_batch_provision")
         async def batch_provision_ssl(
             request: Request,
@@ -696,7 +696,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            批量为租户所有已验证但无 SSL 的域名触发签发（Admin 独有）
+            批量为企业所有已验证但无 SSL 的域名触发签发（Admin 独有）
             Batch provision SSL for all verified domains without SSL (Admin exclusive)
             每个域名一个 Celery 任务 / One Celery task per domain
             """

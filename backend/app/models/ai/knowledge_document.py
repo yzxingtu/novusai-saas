@@ -31,7 +31,7 @@ class KnowledgeDocument(TenantModel):
     知识文档模型
 
     存储文档的文件信息、处理状态机、统计数据等
-    属于租户级资源，通过 tenant_id 隔离（全局/管理端 KB 的文档 tenant_id 为 NULL）
+    属于企业级资源，通过 tenant_id 隔离（全局/管理端 KB 的文档 tenant_id 为 NULL）
 
     状态机流转：
     pending → parsing → chunking → embedding → completed
@@ -46,8 +46,8 @@ class KnowledgeDocument(TenantModel):
                     label_field="id", i18n_key="document_chunk"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 文档无租户归属）
-    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 文档无企业归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="企业ID")
 
     # 允许前端筛选的字段
     __filterable__ = {

@@ -1,7 +1,7 @@
 """
-租户 Schema 模块 / Tenant Schema Module
+企业 Schema 模块 / Tenant Schema Module
 
-导出租户相关的 Schema
+导出企业相关的 Schema
 Exports tenant related schemas.
 """
 

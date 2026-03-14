@@ -73,23 +73,6 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         await self.db.flush()
         return key
 
-    async def delete_key(self, id: int) -> None:
-        """
-        删除 API Key（软删除）
-
-        Args:
-            id: API Key ID
-
-        Raises:
-            NotFoundException: API Key 不存在
-        """
-        key = await self.get_by_id(id)
-        if not key:
-            raise NotFoundException(message=_("ai.error.api_key_not_found"))
-
-        key.soft_delete()
-        await self.db.flush()
-
     async def toggle_status(self, id: int) -> ProviderApiKey:
         """
         切换 API Key 启用状态
@@ -131,7 +114,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
         Args:
             provider_id: 供应商 ID（None 则不限）
-            tenant_id: 租户 ID（None 则不限）
+            tenant_id: 企业 ID（None 则不限）
 
         Returns:
             ProviderApiKey 列表
@@ -151,7 +134,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             ProviderApiKey 或 None

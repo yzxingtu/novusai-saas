@@ -170,7 +170,7 @@ def permission_resource(
         # Menu-less resource, mount operation permissions under parent resource / 无菜单的资源，操作权限挂载到父资源下
         @permission_resource(
             resource="tenant_domain",
-            name="租户域名管理",
+            name="企业域名管理",
             scope=PermissionScope.ADMIN_ONLY,
             parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下
         )

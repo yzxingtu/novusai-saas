@@ -1,7 +1,7 @@
 """
-租户管理员角色模型 / Tenant Admin Role Model
+企业管理员角色模型 / Tenant Admin Role Model
 
-租户级别的角色，用于租户管理员权限控制，支持多级角色层级结构
+企业级别的角色，用于企业管理员权限控制，支持多级角色层级结构
 Tenant-level roles for tenant admin permission control, supports multi-level role hierarchy.
 """
 
@@ -25,14 +25,14 @@ tenant_admin_role_permissions = Table(
 
 class TenantAdminRole(TenantModel):
     """
-    租户管理员角色模型
+    企业管理员角色模型
 
-    - 属于特定租户
-    - 用于租户管理员的权限控制
+    - 属于特定企业
+    - 用于企业管理员的权限控制
     - 与 Permission 多对多关联
     - 支持多级角色层级结构（父子关系）
     - 子角色自动继承父角色的权限
-    - 不同租户可以有同名角色
+    - 不同企业可以有同名角色
     """
 
     __tablename__ = "tenant_admin_roles"
@@ -79,7 +79,7 @@ class TenantAdminRole(TenantModel):
     __sortable__ = {
         "field": "sort_order",      # 排序字段名
         "step": 1000,               # 排序步长
-        "scope_fields": ["tenant_id", "parent_id"],  # 租户内同级排序
+        "scope_fields": ["tenant_id", "parent_id"],  # 企业内同级排序
     }
 
     # 角色名称
@@ -87,7 +87,7 @@ class TenantAdminRole(TenantModel):
         String(50), comment="角色名称"
     )
 
-    # 角色代码（租户内唯一）
+    # 角色代码（企业内唯一）
     code: Mapped[str] = mapped_column(
         String(50), index=True, comment="角色代码"
     )
@@ -185,7 +185,7 @@ class TenantAdminRole(TenantModel):
         lazy="selectin",
     )
 
-    # 关联租户管理员（一对多）- 节点成员
+    # 关联企业管理员（一对多）- 节点成员
     admins: Mapped[list["TenantAdmin"]] = relationship(
         "TenantAdmin",
         back_populates="role",

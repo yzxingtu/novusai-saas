@@ -8,7 +8,7 @@ Unified definition of all business error codes, following i18n conventions.
 - 4xxx: 客户端错误 / Client errors
   - 40xx: 通用验证错误 / Generic validation errors
   - 41xx: 角色/权限相关 / Role/permission related
-  - 42xx: 租户/域名相关 / Tenant/domain related
+  - 42xx: 企业/域名相关 / Tenant/domain related
   - 43xx: 认证相关 / Authentication related
 - 5xxx: 服务端错误 / Server errors
 
@@ -65,7 +65,7 @@ class ErrorCode(IntEnum):
     ROLE_MEMBER_EXISTS = 4111
     ROLE_MEMBER_NOT_IN_NODE = 4112
 
-    # ==================== Tenant/Domain Errors / 租户/域名相关错误 (42xx) ====================
+    # ==================== Tenant/Domain Errors / 企业/域名相关错误 (42xx) ====================
     DOMAIN_CUSTOM_DISABLED = 4201
     DOMAIN_QUOTA_EXCEEDED = 4202
     DOMAIN_ALREADY_EXISTS = 4203
@@ -129,7 +129,7 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.ROLE_MEMBER_EXISTS: "error.role.member_exists",
     ErrorCode.ROLE_MEMBER_NOT_IN_NODE: "error.role.member_not_in_node",
 
-    # Tenant/Domain related / 租户/域名相关
+    # Tenant/Domain related / 企业/域名相关
     ErrorCode.DOMAIN_CUSTOM_DISABLED: "error.domain.custom_disabled",
     ErrorCode.DOMAIN_QUOTA_EXCEEDED: "error.domain.quota_exceeded",
     ErrorCode.DOMAIN_ALREADY_EXISTS: "error.domain.already_exists",

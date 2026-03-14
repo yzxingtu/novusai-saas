@@ -1,7 +1,7 @@
 """
 系统配置模型 / System Configuration Model
 
-定义配置分组和配置项的数据模型，支持平台级和租户级配置
+定义配置分组和配置项的数据模型，支持平台级和企业级配置
 Defines config group and config item data models, supports platform-level and tenant-level configs.
 """
 
@@ -232,12 +232,12 @@ class SystemConfigValue(TenantModel):
 
     存储实际的配置值，支持：
     - 平台级配置：tenant_id = 0
-    - 租户级配置：tenant_id > 0
+    - 企业级配置：tenant_id > 0
     """
 
     __tablename__ = "system_config_values"
 
-    # 复合唯一索引：同一配置项在同一租户下只能有一个值
+    # 复合唯一索引：同一配置项在同一企业下只能有一个值
     __table_args__ = (
         Index("ix_system_config_values_config_tenant", "config_id", "tenant_id", unique=True),
     )

@@ -92,7 +92,7 @@ export async function getSkillTypesApi(
   return requestClient.get<SkillTypeOption[]>(`${PREFIX}/skill-types`, options);
 }
 
-/** Get skill list (all tenants) / 获取技能列表（全租户） */
+/** Get skill list (all tenants) / 获取技能列表（全企业） */
 export async function getSkillListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,

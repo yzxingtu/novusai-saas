@@ -1,5 +1,5 @@
 /**
- * Tenant AI action audit log API / 租户端 AI 操作审计日志 API
+ * Tenant AI action audit log API / 企业端 AI 操作审计日志 API
  * Backend: /tenant/ai/action-logs/* / 对接后端 /tenant/ai/action-logs/* 接口
  */
 import { requestClient } from '#/utils/request';

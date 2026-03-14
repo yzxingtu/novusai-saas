@@ -168,7 +168,7 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取租户使用量（含汇总 + 每日趋势 + 模型分布）
+        获取企业使用量（含汇总 + 每日趋势 + 模型分布）
         """
         summary = await self.repo.get_tenant_usage_summary(
             tenant_id=tenant_id,

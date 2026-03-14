@@ -142,7 +142,11 @@ class FormStateTrackerImpl {
     const dirtyFields: string[] = [];
     for (const [key, value] of Object.entries(currentValues)) {
       const initial = entry.initialValues[key];
-      if (value !== initial && !(value == null && initial == null)) {
+      const match = value === initial
+        || (value == null && initial == null)
+        || (typeof value === 'object' && typeof initial === 'object'
+          && JSON.stringify(value) === JSON.stringify(initial));
+      if (!match) {
         dirtyFields.push(key);
       }
     }

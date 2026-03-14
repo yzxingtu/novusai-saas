@@ -608,6 +608,33 @@ class ExtensionRegistry:
         result.sort(key=lambda x: x.get("sort_order", 100))
         return result
 
+    def resolve_plugin_menu_title(self, i18n_key: str) -> str | None:
+        """
+        Resolve plugin menu title by i18n key, using current request locale.
+        / 根据 i18n key 解析插件菜单标题，使用当前请求语言。
+
+        Falls back across locale aliases (zh-CN -> zh_CN, en-US -> en).
+        Returns None if no matching title found.
+        """
+        from app.core.i18n import get_locale
+
+        locale = get_locale()
+
+        for titles_map in self._plugin_menu_titles.values():
+            if i18n_key in titles_map:
+                locale_titles = titles_map[i18n_key]
+                if locale in locale_titles:
+                    return locale_titles[locale]
+                normalized = locale.replace("_", "-")
+                if normalized in locale_titles:
+                    return locale_titles[normalized]
+                short = locale.split("_")[0]
+                if short in locale_titles:
+                    return locale_titles[short]
+                if locale_titles:
+                    return next(iter(locale_titles.values()))
+        return None
+
     # ── 11. Socket.IO Namespace ──
 
     def register_socketio(

@@ -69,7 +69,7 @@ def upgrade() -> None:
         'ai_table_policies', ['table_name'], unique=True,
     )
 
-    # ai_table_policy_overrides - AI 表策略租户级覆盖
+    # ai_table_policy_overrides - AI 表策略企业级覆盖
     op.create_table(
         'ai_table_policy_overrides',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -81,7 +81,7 @@ def upgrade() -> None:
         sa.Column('max_rows', sa.Integer(), nullable=True, comment='覆盖最大行数'),
         sa.Column('blocked_columns', sa.JSON(), nullable=True, comment='追加屏蔽列'),
         sa.Column('is_active', sa.Boolean(), nullable=True, comment='覆盖启用状态'),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
         sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),

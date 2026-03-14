@@ -1,7 +1,7 @@
 """
-租户套餐模型 / Tenant Plan Model
+企业套餐模型 / Tenant Plan Model
 
-定义租户订阅套餐，控制租户可用的功能模块和配额
+定义企业订阅套餐，控制企业可用的功能模块和配额
 Defines tenant subscription plans, controls available features and quotas.
 """
 
@@ -35,10 +35,10 @@ tenant_plan_permissions = Table(
 
 class TenantPlan(BaseModel):
     """
-    租户套餐模型
+    企业套餐模型
 
     - 定义不同等级的订阅套餐
-    - 控制租户可用的功能模块（通过关联权限）
+    - 控制企业可用的功能模块（通过关联权限）
     - 设置资源配额（存储、用户数、域名数等）
     """
 
@@ -166,8 +166,8 @@ class TenantPlan(BaseModel):
         lazy="selectin",
     )
 
-    # 使用该套餐的租户（一对多）
-    # lazy="noload": 不自动加载，避免列表查询时加载全部租户对象
+    # 使用该套餐的企业（一对多）
+    # lazy="noload": 不自动加载，避免列表查询时加载全部企业对象
     # 需要时通过 get_with_tenants() 显式加载
     tenants: Mapped[list["Tenant"]] = relationship(
         "Tenant",
@@ -182,13 +182,13 @@ class TenantPlan(BaseModel):
         """获取权限数量"""
         return len(self.permissions)
 
-    # 租户数量缓存（由查询端注入，避免加载全部租户对象）
+    # 企业数量缓存（由查询端注入，避免加载全部企业对象）
     # 注意：不使用类型注解，避免 SQLAlchemy MappedAnnotationError
     _tenants_count_cache = None
 
     @property
     def tenants_count(self) -> int:
-        """获取使用该套餐的租户数量"""
+        """获取使用该套餐的企业数量"""
         if self._tenants_count_cache is not None:
             return self._tenants_count_cache
         # 如果 tenants 已显式加载（如 get_with_tenants），用列表计数
@@ -199,12 +199,12 @@ class TenantPlan(BaseModel):
 
     @tenants_count.setter
     def tenants_count(self, value: int) -> None:
-        """设置租户数量缓存"""
+        """设置企业数量缓存"""
         self._tenants_count_cache = value
 
     @property
     def has_tenants(self) -> bool:
-        """是否有租户使用该套餐"""
+        """是否有企业使用该套餐"""
         return self.tenants_count > 0
 
     def get_quota_value(self, key: str, default: int | bool | None = None):

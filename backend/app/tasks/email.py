@@ -41,7 +41,7 @@ def send_email_task(
         cc: CC list / 抄送列表
         bcc: BCC list / 密送列表
         triggered_by: Trigger source / 触发来源 (manual/task_failure/password_reset/test/welcome/ssl_expiry)
-        tenant_id: Associated tenant ID (optional) / 关联租户 ID（可选）
+        tenant_id: Associated tenant ID (optional) / 关联企业 ID（可选）
 
     Returns:
         Send result dict / 发送结果 dict

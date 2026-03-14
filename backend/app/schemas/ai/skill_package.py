@@ -47,7 +47,7 @@ class SkillPackageUpdate(BaseUpdateSchema):
 class SkillPackageResponse(BaseResponseSchema):
     """技能包响应"""
 
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     name: str = Field(..., description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))

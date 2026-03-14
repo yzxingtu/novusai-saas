@@ -1,6 +1,6 @@
 {
   "admin": "管理员",
-  "tenant": "租户",
+  "tenant": "企业",
   "enable": "启用",
   "disable": "禁用",
   "notAssigned": "未分配",
@@ -38,7 +38,7 @@
   "next": "下一页",
   "createdAt": "创建时间",
   "deletedAt": "删除时间",
-  "tenantAdmin": "租户管理员",
-  "noPlan": "当前租户未分配套餐",
+  "tenantAdmin": "企业管理员",
+  "noPlan": "当前企业未分配套餐",
   "noPlanDesc": "无法使用任何功能，请联系平台管理员分配套餐。"
 }

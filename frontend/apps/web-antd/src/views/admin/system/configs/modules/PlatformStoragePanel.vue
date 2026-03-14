@@ -11,7 +11,7 @@
  * - General storage params (visibility/chunking/limits/extensions, still uses ConfigForm) / 通用存储参数
  *
  * Note: Tenant self-config is now per-tenant (in TenantStorageDrawer), no global switch.
- * 注意：租户自主配置权限改为逐租户控制，不再有全局开关。
+ * 注意：企业自主配置权限改为逐企业控制，不再有全局开关。
  */
 import type { ConfigItemMeta } from '#/types/config';
 import type { StorageDriverInfo } from '#/types/storage';
@@ -108,7 +108,7 @@ async function loadData() {
       'platform_storage_driver',
       'platform_storage_options',
       'platform_storage_root_path',
-      // Self-config permission now per-tenant, global switch no longer used / 自主配置权限逐租户控制
+      // Self-config permission now per-tenant, global switch no longer used / 自主配置权限逐企业控制
       'platform_tenant_storage_self_config_enabled',
     ]);
     generalConfigs.value = configs

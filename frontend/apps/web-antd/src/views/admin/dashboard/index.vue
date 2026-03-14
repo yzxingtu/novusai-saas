@@ -3,7 +3,7 @@
  * Admin Dashboard — 综合数据面板
  *
  * A7: 统计卡片网格（基础 + AI + 存储 + 插件）
- * A8: 租户增长趋势
+ * A8: 企业增长趋势
  * A9: 近期活动时间线
  * A10: 系统健康状态指示卡片
  */
@@ -305,7 +305,7 @@ function navigateTo(route: string) {
   router.push(route);
 }
 
-// ── A8: 租户增长趋势（简单条形图） ──
+// ── A8: 企业增长趋势（简单条形图） ──
 const growthChartRef = ref<EchartsUIType>();
 const { renderEcharts: renderGrowthChart } = useEcharts(growthChartRef);
 

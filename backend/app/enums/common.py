@@ -75,10 +75,10 @@ class ResourceScopeEnum(LabeledStrEnum):
 
     6 种作用域覆盖所有业务场景 / 6 scopes cover all business scenarios:
       - ADMIN_ONLY:         仅管理端可见 / Admin panel only
-      - ALL_TENANTS:        仅租户端可见 / All tenants only
-      - ADMIN_AND_ALL:      管理端 + 全部租户 / Admin + all tenants (global shared)
-      - ADMIN_AND_ASSIGNED: 管理端 + 部分租户 / Admin + assigned tenants
-      - ASSIGNED_TENANTS:   部分租户 / Assigned tenants only
+      - ALL_TENANTS:        仅企业端可见 / All tenants only
+      - ADMIN_AND_ALL:      管理端 + 全部企业 / Admin + all tenants (global shared)
+      - ADMIN_AND_ASSIGNED: 管理端 + 部分企业 / Admin + assigned tenants
+      - ASSIGNED_TENANTS:   部分企业 / Assigned tenants only
       - TENANT_USER:        仅用户端可见 / Tenant users only
 
     注意区分 / Note: This is 「Resource Scope」, unrelated to:
@@ -136,7 +136,7 @@ class AudienceEnum(LabeledStrEnum):
     控制智能体和技能包的可见端 / Controls agent and skill package visibility:
       - ALL:          所有端可见 / Visible to all (admin + tenant + user)
       - ADMIN_ONLY:   仅管理端可见 / Admin panel only
-      - ADMIN_TENANT: 管理端 + 租户端可见（默认） / Admin + tenant (default)
+      - ADMIN_TENANT: 管理端 + 企业端可见（默认） / Admin + tenant (default)
     """
 
     ALL = ("all", "enum.audience.all")

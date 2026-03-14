@@ -12,7 +12,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
     """
     智能体技能绑定 Repository
 
-    - tenant 场景: tenant_id = 指定租户
+    - tenant 场景: tenant_id = 指定企业
     - admin/global 场景: tenant_id IS NULL
     """
 

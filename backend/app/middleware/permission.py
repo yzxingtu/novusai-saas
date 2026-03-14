@@ -138,7 +138,7 @@ class PermissionMiddleware:
     async def _load_tenant_admin_permissions(
         self, request: Request, tenant_admin_id: int
     ) -> None:
-        """Load tenant admin permissions / 加载租户管理员权限"""
+        """Load tenant admin permissions / 加载企业管理员权限"""
         from app.models.tenant.tenant import Tenant
 
         async with async_session_factory() as db:
@@ -159,10 +159,10 @@ class PermissionMiddleware:
             )
             plan_id = plan_result.scalar_one_or_none()
             if plan_id is None:
-                # Tenant has no plan, deny all feature access / 租户未分配套餐
+                # Tenant has no plan, deny all feature access / 企业未分配套餐
                 return
 
-            # Tenant owner has all plan permissions / 租户所有者拥有套餐内全部权限
+            # Tenant owner has all plan permissions / 企业所有者拥有套餐内全部权限
             if tenant_admin.is_owner:
                 request.state.user_permissions = {"*"}
                 return
@@ -191,7 +191,7 @@ class PermissionMiddleware:
     async def _load_tenant_user_permissions(
         self, request: Request, tenant_user_id: int
     ) -> None:
-        """Load tenant business user permissions / 加载租户业务用户权限"""
+        """Load tenant business user permissions / 加载企业业务用户权限"""
         async with async_session_factory() as db:
             result = await db.execute(
                 select(TenantUser).where(TenantUser.id == tenant_user_id)

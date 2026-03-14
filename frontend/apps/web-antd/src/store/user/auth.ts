@@ -1,7 +1,7 @@
 /**
  * User endpoint authentication store / 用户端认证 Store
  * Handles tenant user login, logout, and user info management.
- * 专用于租户普通用户的登录、登出、用户信息管理。
+ * 专用于企业普通用户的登录、登出、用户信息管理。
  */
 import type { Recordable, UserInfo } from '@vben/types';
 

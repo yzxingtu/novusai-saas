@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class QuotaRepository(TenantRepository["Quota"]):
 
     async def get_or_create(self, default_bytes: int = 10 * 1024 ** 3) -> Quota:
-        """获取当前租户配额，不存在则创建默认记录（幂等）"""
+        """获取当前企业配额，不存在则创建默认记录（幂等）"""
         from app.core.base_model import utc_now
         from ..models.quota import Quota
 

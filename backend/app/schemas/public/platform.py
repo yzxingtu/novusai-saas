@@ -19,7 +19,7 @@ class PlatformPublicConfig(BaseSchema):
     site_favicon: str | None = Field(None, description="站点 Favicon")
     site_copyright: str | None = Field(None, description="版权信息")
     site_icp: str | None = Field(None, description="ICP 备案号")
-    tenant_domain_suffix: str | None = Field(None, description="租户默认域名后缀")
+    tenant_domain_suffix: str | None = Field(None, description="企业默认域名后缀")
     domain_verification_prefix: str | None = Field(None, description="域名验证 DNS 前缀")
     maintenance_mode: bool | None = Field(None, description="维护模式开关")
     maintenance_message: str | None = Field(None, description="维护提示信息")

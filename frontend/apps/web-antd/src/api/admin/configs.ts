@@ -81,7 +81,7 @@ export async function getStorageDriversApi(
   return await requestClient.get('/admin/configs/storage/drivers', options);
 }
 
-/** Get tenant storage config / 获取租户存储配置 */
+/** Get tenant storage config / 获取企业存储配置 */
 export async function getTenantStorageConfigApi(
   tenantId: number,
   options?: ApiRequestOptions,
@@ -92,7 +92,7 @@ export async function getTenantStorageConfigApi(
   );
 }
 
-/** Set tenant storage config / 设置租户存储配置 */
+/** Set tenant storage config / 设置企业存储配置 */
 export async function updateTenantStorageConfigApi(
   tenantId: number,
   data: Record<string, unknown>,
@@ -105,7 +105,7 @@ export async function updateTenantStorageConfigApi(
   );
 }
 
-/** Test tenant storage connection / 测试租户存储连接 */
+/** Test tenant storage connection / 测试企业存储连接 */
 export async function testTenantStorageConnectionApi(
   tenantId: number,
   data: {

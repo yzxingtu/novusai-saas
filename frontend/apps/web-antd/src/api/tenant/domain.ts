@@ -1,5 +1,5 @@
 /**
- * Tenant domain management API / 租户端域名管理 API
+ * Tenant domain management API / 企业端域名管理 API
  * Backend: /tenant/domains/* / 对接后端 /tenant/domains/* 接口
  */
 import type {
@@ -137,7 +137,7 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
 // ============================================================
 
 /**
- * Get tenant domain list / 获取租户域名列表
+ * Get tenant domain list / 获取企业域名列表
  * GET /tenant/domains
  */
 export async function getTenantDomainsApi(

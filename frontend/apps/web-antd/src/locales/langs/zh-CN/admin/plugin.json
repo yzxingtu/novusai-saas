@@ -42,7 +42,7 @@
   },
   "placeholder": {
     "searchName": "搜索插件名称",
-    "selectTenants": "选择租户",
+    "selectTenants": "选择企业",
     "selectStatus": "筛选状态",
     "selectScope": "筛选作用域",
     "selectType": "筛选类型"
@@ -55,10 +55,10 @@
   },
   "scope_options": {
     "admin_only": "仅管理端",
-    "all_tenants": "全部租户",
-    "assigned_tenants": "指定租户",
-    "admin_and_all": "管理端+全部租户",
-    "admin_and_assigned": "管理端+指定租户"
+    "all_tenants": "全部企业",
+    "assigned_tenants": "指定企业",
+    "admin_and_all": "管理端+全部企业",
+    "admin_and_assigned": "管理端+指定企业"
   },
   "dependency": {
     "installed": "依赖已安装",
@@ -78,7 +78,7 @@
     "repair": "修复",
     "configure": "配置",
     "settings": "设置",
-    "assignTenant": "分配租户",
+    "assignTenant": "分配企业",
     "upgrade": "升级",
     "rollback": "回退",
     "detail": "详情",
@@ -91,7 +91,7 @@
     "forceCleanup": "确认强制清理「{name}」的残留记录？该插件磁盘文件已缺失。",
     "uninstallWithData": "同时删除插件数据表",
     "force_disable_title": "强制禁用插件「{name}」？",
-    "force_disable_content": "该插件的存储驱动正被平台或租户使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
+    "force_disable_content": "该插件的存储驱动正被平台或企业使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
     "force_disable_ok": "强制禁用",
     "repair": "确认修复插件「{name}」？将重新安装依赖并注册扩展点。",
     "installDependencies": "确认为插件「{name}」安装依赖？",
@@ -106,7 +106,7 @@
     "overview": "概览",
     "config": "配置",
     "versions": "版本历史",
-    "tenants": "租户分配",
+    "tenants": "企业分配",
     "aiFeatures": "AI 功能",
     "health": "健康状态",
     "logs": "运行日志"
@@ -118,8 +118,8 @@
     "noReadme": "暂无说明文档",
     "noCapabilities": "无能力声明"
   },
-  "tenantAssignment": "租户分配",
-  "tenantAssignmentEmpty": "未分配任何租户，此插件在租户端不可用",
+  "tenantAssignment": "企业分配",
+  "tenantAssignmentEmpty": "未分配任何企业，此插件在企业端不可用",
   "config": {
     "save": "保存配置",
     "saveSuccess": "配置已保存",
@@ -131,9 +131,9 @@
     "noHistory": "暂无版本历史"
   },
   "tenant": {
-    "assign": "分配租户",
+    "assign": "分配企业",
     "unassign": "取消分配",
-    "noAssignment": "无需分配（作用域为全部租户）"
+    "noAssignment": "无需分配（作用域为全部企业）"
   },
   "ai": {
     "bindAgent": "绑定智能体",
@@ -206,8 +206,8 @@
     }
   },
   "emptyList": "暂无插件，请安装或从市场获取插件",
-  "assignFailed": "分配租户失败",
-  "unassignFailed": "取消分配租户失败",
+  "assignFailed": "分配企业失败",
+  "unassignFailed": "取消分配企业失败",
   "license": {
     "title": "许可证管理",
     "type": "许可类型",
@@ -245,9 +245,9 @@
     "save_success": "菜单位置已更新",
     "menu_location": "菜单位置",
     "admin_parent": "管理端位置",
-    "tenant_parent": "租户端位置",
+    "tenant_parent": "企业端位置",
     "admin_section": "管理端菜单",
-    "tenant_section": "租户端菜单"
+    "tenant_section": "企业端菜单"
   },
   "messages": {
     "enableSuccess": "插件已启用",
@@ -266,7 +266,7 @@
     "enableFailed": "插件启用失败",
     "disableBeforeUninstallDeps": "请先禁用插件后再卸载依赖",
     "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
-    "assignSuccess": "租户分配成功",
+    "assignSuccess": "企业分配成功",
     "forceCleanupSuccess": "残留记录已清理",
     "installFailed": "插件安装失败"
   },

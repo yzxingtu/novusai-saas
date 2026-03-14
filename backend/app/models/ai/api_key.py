@@ -1,7 +1,7 @@
 """
 AI 供应商 API Key 模型 / AI Provider API Key Model
 
-存储 AI 供应商的 API Key，支持平台级和租户级 Key
+存储 AI 供应商的 API Key，支持平台级和企业级 Key
 Stores AI provider API keys, supports platform-level and tenant-level keys.
 """
 
@@ -14,15 +14,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import BaseModel, utc_now
 from app.core.i18n import _
 from app.core.security import decrypt_data, encrypt_data
+from app.enums.common import ResourceScopeEnum
 
 
 class ProviderApiKey(BaseModel):
     """
     AI 供应商 API Key 模型
 
-    存储平台级或租户级的 API Key，支持加密存储
-    - 平台级 Key：tenant_id 为 None，平台统一配置
-    - 租户级 Key：tenant_id 为具体租户 ID，租户自有 Key
+    存储平台级或企业级的 API Key，支持加密存储
+    - admin_only + tenant_id=None：仅管理端 AI 调用可用 / Admin-only key
+    - all_tenants + tenant_id=None：平台级 Key，所有企业共享 / Platform-wide key
+    - all_tenants + tenant_id=X：企业 X 专用 Key / Tenant-specific key
     """
 
     __tablename__ = "ai_api_keys"
@@ -32,6 +34,7 @@ class ProviderApiKey(BaseModel):
         "id": "id",
         "provider_id": "provider_id",
         "tenant_id": "tenant_id",
+        "scope": "scope",
         "name": "name",
         "is_active": "is_active",
         "created_at": "created_at",
@@ -41,11 +44,21 @@ class ProviderApiKey(BaseModel):
     __sortable__ = {
         "id": "id",
         "name": "name",
+        "scope": "scope",
         "created_at": "created_at",
         "usage_count": "usage_count",
         "last_used_at": "last_used_at",
         "is_active": "is_active",
     }
+
+    # 作用域 / Scope (admin_only / all_tenants)
+    scope: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=ResourceScopeEnum.ALL_TENANTS.value,
+        index=True,
+        comment=_("enum.ai_api_key.scope"),
+    )
 
     # 外键：所属供应商
     provider_id: Mapped[int] = mapped_column(
@@ -56,7 +69,7 @@ class ProviderApiKey(BaseModel):
         comment=_("enum.ai_api_key.provider_id")
     )
 
-    # 租户 ID（平台级 Key 为 NULL）
+    # 企业 ID（平台级 Key 为 NULL）
     tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -185,7 +198,7 @@ class ProviderApiKey(BaseModel):
         )
 
     def __repr__(self) -> str:
-        return f"<ProviderApiKey(id={self.id}, name={self.name}, tenant_id={self.tenant_id})>"
+        return f"<ProviderApiKey(id={self.id}, name={self.name}, scope={self.scope}, tenant_id={self.tenant_id})>"
 
 
 if TYPE_CHECKING:

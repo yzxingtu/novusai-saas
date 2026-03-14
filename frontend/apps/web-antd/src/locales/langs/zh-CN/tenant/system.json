@@ -105,7 +105,7 @@
       "inputSortOrder": "请输入排序值",
       "selectParent": "请选择父角色（留空为顶级角色）"
     },
-    "tip": "管理租户角色，配置角色对应的功能权限"
+    "tip": "管理企业角色，配置角色对应的功能权限"
   },
   "userRole": {
     "title": "用户角色管理",
@@ -151,7 +151,7 @@
       "inputSortOrder": "请输入排序值"
     },
     "help": {
-      "codeHelp": "角色代码在租户内唯一，创建后不可修改",
+      "codeHelp": "角色代码在企业内唯一，创建后不可修改",
       "codeCreate": "角色代码将用于权限标识",
       "systemRoleHelp": "系统内置角色不可删除和修改代码"
     }
@@ -177,12 +177,12 @@
     "online": "在线",
     "offline": "离线",
     "allUsers": "全部用户",
-    "allUsersDesc": "查看租户下所有用户，不按角色过滤",
+    "allUsersDesc": "查看企业下所有用户，不按角色过滤",
     "allUsersListTitle": "用户列表"
   },
   "configs": {
     "title": "系统配置",
-    "description": "管理租户级配置项"
+    "description": "管理企业级配置项"
   },
   "domain": {
     "title": "域名管理",
@@ -330,7 +330,7 @@
     "queryParams": "请求参数",
     "requestBody": "请求体",
     "userTypeOptions": {
-      "tenantAdmin": "租户管理员",
+      "tenantAdmin": "企业管理员",
       "tenantUser": "普通用户"
     },
     "placeholder": {

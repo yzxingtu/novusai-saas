@@ -1,7 +1,7 @@
 """
-租户域名管理 API / Tenant Domain Management API
+企业域名管理 API / Tenant Domain Management API
 
-提供租户端域名管理 CRUD、验证、主域名设置等接口
+提供企业端域名管理 CRUD、验证、主域名设置等接口
 Provides tenant domain management CRUD, verification, primary domain setting endpoints
 """
 
@@ -52,9 +52,9 @@ from app.services.system.tenant_domain_service import TenantDomainTenantService
 )
 class TenantDomainController(TenantController):
     """
-    租户域名管理控制器 / Tenant Domain Management Controller
+    企业域名管理控制器 / Tenant Domain Management Controller
 
-    提供租户域名 CRUD、验证、主域名设置等接口
+    提供企业域名 CRUD、验证、主域名设置等接口
     Provides tenant domain CRUD, verification, primary domain setting endpoints
     """
 
@@ -76,7 +76,7 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户域名列表 / Get tenant domain list
+            获取企业域名列表 / Get tenant domain list
 
             - 支持通用筛选 / Supports filtering: filter[field][op]=value
             - 支持排序 / Supports sorting: sort=-created_at,domain
@@ -219,7 +219,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
+            # 验证域名存在且属于当前企业 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -264,7 +264,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
+            # 验证域名存在且属于当前企业 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -296,7 +296,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户 / Verify domain exists and belongs to current tenant
+            # 验证域名存在且属于当前企业 / Verify domain exists and belongs to current tenant
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -325,7 +325,7 @@ class TenantDomainController(TenantController):
             """
             设置为主域名 / Set as primary domain
 
-            - 每个租户只能有一个主域名 / Each tenant can only have one primary domain
+            - 每个企业只能有一个主域名 / Each tenant can only have one primary domain
             - 域名必须已验证 / Domain must be verified
 
             权限 / Permission: tenant_domain:set_primary
@@ -349,7 +349,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """获取域名 SSL 证书详情（租户隔离） / Get domain SSL certificate details (tenant-isolated)"""
+            """获取域名 SSL 证书详情（企业隔离） / Get domain SSL certificate details (tenant-isolated)"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:

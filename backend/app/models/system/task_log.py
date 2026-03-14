@@ -99,5 +99,5 @@ class TaskLog(BaseModel):
     )
     tenant_id: Mapped[int | None] = mapped_column(
         default=None,
-        comment="租户ID(可选)",
+        comment="企业ID(可选)",
     )

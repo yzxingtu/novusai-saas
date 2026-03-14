@@ -24,6 +24,7 @@ import { EndpointType } from '#/types/endpoint';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from '../shared/token-storage';
+import { useUserPreferenceStore } from '../shared/user-preference';
 
 export const useAdminAuthStore = defineStore('admin-auth', () => {
   const accessStore = useAccessStore();
@@ -67,6 +68,10 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
 
         // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo();
+
+        // Load user preferences and sync to UI framework / 加载用户偏好并同步到 UI 框架
+        const preferenceStore = useUserPreferenceStore();
+        preferenceStore.loadPreferences('admin').catch(() => {});
 
         // Convert to Vben UserInfo format / 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
@@ -134,6 +139,10 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
 
     userStore.setUserInfo(null);
     adminInfo.value = null;
+
+    // Clear preference cache / 清除偏好缓存
+    const preferenceStore = useUserPreferenceStore();
+    preferenceStore.clearPreferences();
 
     await router.replace({
       path: ADMIN_LOGIN_PATH,

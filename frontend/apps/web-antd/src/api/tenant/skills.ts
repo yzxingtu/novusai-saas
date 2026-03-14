@@ -1,5 +1,5 @@
 /**
- * Tenant skill management API / 租户端技能管理 API
+ * Tenant skill management API / 企业端技能管理 API
  * Backend: /tenant/ai/skills/* / 对接后端 /tenant/ai/skills/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

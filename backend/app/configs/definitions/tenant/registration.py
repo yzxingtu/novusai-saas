@@ -1,7 +1,7 @@
-"""Tenant user registration config items / 租户用户注册配置项
+"""Tenant user registration config items / 企业用户注册配置项
 
 Includes tenant-level user self-registration configs.
-包含租户级的用户自助注册相关配置
+包含企业级的用户自助注册相关配置
 """
 
 from app.configs.definitions.groups import TENANT_FEATURES_GROUP

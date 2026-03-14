@@ -29,7 +29,7 @@ class DocumentChunk(TenantModel):
     文档分块模型
 
     存储分块文本内容、Embedding 向量、元数据等
-    属于租户级资源，通过 tenant_id 隔离
+    属于企业级资源，通过 tenant_id 隔离
 
     向量索引使用 HNSW（在 Alembic 迁移中手动创建）：
     - 适合增量写入场景
@@ -39,8 +39,8 @@ class DocumentChunk(TenantModel):
 
     __tablename__ = "document_chunks"
 
-    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 分块无租户归属）
-    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 分块无企业归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="企业ID")
 
     # 允许前端筛选的字段
     __filterable__ = {

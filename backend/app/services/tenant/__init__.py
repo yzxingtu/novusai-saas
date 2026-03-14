@@ -1,7 +1,7 @@
 """
-租户服务模块 / Tenant Service Module
+企业服务模块 / Tenant Service Module
 
-提供租户相关的服务
+提供企业相关的服务
 Provides tenant related services.
 """
 

@@ -4,7 +4,7 @@
 提供业务逻辑层的基类，包括：
 Provides base classes for the business logic layer, including:
 - BaseService: 通用服务基类 / Generic service base class
-- TenantService: 租户级服务基类 / Tenant-scoped service base class
+- TenantService: 企业级服务基类 / Tenant-scoped service base class
 - GlobalService: 全局服务基类 / Global service base class
 """
 
@@ -719,9 +719,9 @@ class BaseService(Generic[ModelType, RepoType]):
 
 class TenantService(BaseService[ModelType, RepoType]):
     """
-    租户级服务基类 / Tenant Service Base Class
+    企业级服务基类 / Tenant Service Base Class
 
-    自动注入租户隔离逻辑
+    自动注入企业隔离逻辑
     Automatically injects tenant isolation logic.
     """
 
@@ -729,11 +729,11 @@ class TenantService(BaseService[ModelType, RepoType]):
 
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
-        初始化租户服务 / Initialize tenant service
+        初始化企业服务 / Initialize tenant service
 
         Args:
             db: 异步数据库会话 / Async database session
-            tenant_id: 租户 ID / Tenant ID (None for global/admin resources)
+            tenant_id: 企业 ID / Tenant ID (None for global/admin resources)
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -749,7 +749,7 @@ class GlobalService(BaseService[ModelType, RepoType]):
     """
     全局服务基类 / Global Service Base Class
 
-    用于超管或系统级操作，无租户隔离
+    用于超管或系统级操作，无企业隔离
     Used for super-admin or system-level operations, no tenant isolation.
     """
     pass

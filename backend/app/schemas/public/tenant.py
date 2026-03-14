@@ -1,7 +1,7 @@
 """
-租户公开配置 Schema / Tenant Public Config Schema
+企业公开配置 Schema / Tenant Public Config Schema
 
-定义登录前可获取的租户公开信息
+定义登录前可获取的企业公开信息
 Defines tenant public info accessible before login.
 """
 
@@ -13,15 +13,15 @@ from app.schemas.public.platform import StoragePublicConfig
 
 class TenantPublicConfig(BaseSchema):
     """
-    租户公开配置
+    企业公开配置
 
-    登录页面可获取的租户信息（无需认证）
+    登录页面可获取的企业信息（无需认证）
     """
 
     # 基本信息
-    tenant_id: int = Field(..., description="租户 ID")
-    tenant_code: str = Field(..., description="租户代码")
-    tenant_name: str = Field(..., description="租户名称")
+    tenant_id: int = Field(..., description="企业 ID")
+    tenant_code: str = Field(..., description="企业代码")
+    tenant_name: str = Field(..., description="企业名称")
 
     # 品牌设置
     logo_url: str | None = Field(None, description="Logo URL")
@@ -60,7 +60,7 @@ class TenantPublicConfig(BaseSchema):
     terms_url: str | None = Field(None, description="服务条款链接")
 
     # 域名信息
-    subdomain: str = Field(..., description="租户子域名")
+    subdomain: str = Field(..., description="企业子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")
 
     # 存储配置

@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 plugin_api_router = APIRouter(tags=["插件 API"])
-plugin_tenant_api_router = APIRouter(tags=["插件 API (租户)"])
+plugin_tenant_api_router = APIRouter(tags=["插件 API (企业)"])
 plugin_public_api_router = APIRouter(tags=["插件 API (公开)"])
 
 
@@ -83,7 +83,7 @@ async def _dispatch_plugin_api(
     plugin_scope: str = row[2]
 
     # C1: Tenant-side scope visibility check — prevent unauthorized access to admin_only / unassigned plugins
-    # / C1: 租户端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
+    # / C1: 企业端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
     if tenant_id is not None:
         visible = await ScopeChecker.is_visible_to_tenant(
             scope=plugin_scope,
@@ -316,7 +316,7 @@ async def tenant_plugin_api(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """Plugin API dispatcher (tenant side) / 插件 API 分发器（租户端）"""
+    """Plugin API dispatcher (tenant side) / 插件 API 分发器（企业端）"""
     return await _dispatch_plugin_api(
         plugin_name, path, request, db,
         tenant_id=tenant_admin.tenant_id,
@@ -494,7 +494,7 @@ async def _check_plugin_permission(
             if not ta:
                 return False
 
-            # Tenant owner has all permissions / 租户所有者拥有全部权限
+            # Tenant owner has all permissions / 企业所有者拥有全部权限
             if ta.is_owner:
                 return True
 

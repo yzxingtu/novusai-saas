@@ -27,9 +27,9 @@ _ASSIGNED_SCOPES = (
 
 class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
     """
-    租户级知识库 Repository
+    企业级知识库 Repository
 
-    提供基于租户隔离的知识库数据访问。
+    提供基于企业隔离的知识库数据访问。
     查询时自动包含 scope=global 的全局知识库。
     """
 
@@ -44,8 +44,8 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         根据 ID 获取知识库，检查可见性权限
 
         访问规则：
-        - 自己租户的 KB → 允许
-        - scope=global → 允许（全局知识库对所有租户可见）
+        - 自己企业的 KB → 允许
+        - scope=global → 允许（全局知识库对所有企业可见）
         - visibility=all_tenants → 允许
         - visibility=assigned → 检查 KnowledgeBaseTenantAccess 关联
         - 其他 → 拒绝
@@ -53,7 +53,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if not instance:
             return None
-        # 自己租户的 KB
+        # 自己企业的 KB
         if instance.tenant_id == self.tenant_id:
             return instance
         # 全局作用域的 KB（admin_and_all）
@@ -71,10 +71,10 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
             if await repo.check_assignment("knowledge_base", instance.id, self.tenant_id):
                 return instance
             return None
-        # 对所有租户可见
+        # 对所有企业可见
         if instance.visibility == KBVisibilityEnum.ALL_TENANTS.value:
             return instance
-        # 指定租户可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
+        # 指定企业可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
         if instance.visibility == KBVisibilityEnum.ASSIGNED.value:
             access_stmt = select(KnowledgeBaseTenantAccess.id).where(
                 KnowledgeBaseTenantAccess.knowledge_base_id == id,
@@ -94,7 +94,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         include_deleted: bool = False,
     ) -> tuple[list[KnowledgeBase], int]:
         """
-        租户级知识库列表查询
+        企业级知识库列表查询
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -168,7 +168,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         exclude_id: int | None = None,
     ) -> KnowledgeBase | None:
         """
-        按名称查找知识库（同租户内唯一性检查）
+        按名称查找知识库（同企业内唯一性检查）
 
         Args:
             name: 知识库名称
@@ -241,7 +241,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         await self.db.execute(update_stmt)
 
     async def count_by_tenant(self) -> int:
-        """统计当前租户的知识库总数"""
+        """统计当前企业的知识库总数"""
         return await self.count()
 
 
@@ -249,7 +249,7 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
     """
     管理端知识库 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = KnowledgeBase
@@ -257,7 +257,7 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
 
 class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
     """
-    租户级知识文档 Repository
+    企业级知识文档 Repository
     """
 
     model = KnowledgeDocument
@@ -320,7 +320,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
 
 class DocumentChunkRepository(TenantRepository[DocumentChunk]):
     """
-    租户级文档分块 Repository
+    企业级文档分块 Repository
     """
 
     model = DocumentChunk

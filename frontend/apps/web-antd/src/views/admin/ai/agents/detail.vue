@@ -5,7 +5,7 @@ import type { PkgOption } from './data';
  * 管理端智能体详情页
  *
  * Tab 面板：概览 / 模型参数 / 对话配置 / 技能绑定 / 配额管理
- * 额外显示 scope/租户信息，系统智能体核心字段保护。
+ * 额外显示 scope/企业信息，系统智能体核心字段保护。
  */
 import type {
   AIAgentInfo,

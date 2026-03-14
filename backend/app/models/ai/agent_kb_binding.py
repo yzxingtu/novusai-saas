@@ -40,7 +40,7 @@ class AgentKnowledgeBaseBinding(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（跟随 Agent 的 tenant_id）"
+        comment="企业ID（跟随 Agent 的 tenant_id）"
     )
 
     # ==================== 关联 ====================

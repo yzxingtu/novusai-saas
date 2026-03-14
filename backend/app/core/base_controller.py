@@ -4,7 +4,7 @@
 提供 API 控制器层的基类，包括：
 Provides base classes for the API controller layer, including:
 - BaseController: 通用控制器基类 / Generic controller base class
-- TenantController: 租户级控制器基类 / Tenant-scoped controller base class
+- TenantController: 企业级控制器基类 / Tenant-scoped controller base class
 - GlobalController: 全局控制器基类（平台管理端） / Global controller base class (platform admin)
 
 使用示例 / Usage example:
@@ -172,9 +172,9 @@ class BaseController:
 
 class TenantController(BaseController):
     """
-    租户级控制器基类 / Tenant Controller Base Class
+    企业级控制器基类 / Tenant Controller Base Class
 
-    用于租户管理后台 API，自动注入租户上下文
+    用于企业管理后台 API，自动注入企业上下文
     Used for tenant admin APIs, automatically injects tenant context.
     """
 
@@ -183,14 +183,14 @@ class TenantController(BaseController):
 
     def get_service(self, db: Any, tenant_id: int) -> Any:
         """
-        获取租户级服务实例 / Get tenant-scoped service instance
+        获取企业级服务实例 / Get tenant-scoped service instance
 
         Args:
             db: 数据库会话 / Database session
-            tenant_id: 租户 ID / Tenant ID
+            tenant_id: 企业 ID / Tenant ID
 
         Returns:
-            租户服务实例 / Tenant service instance
+            企业服务实例 / Tenant service instance
         """
         if self.service_class:
             return self.service_class(db, tenant_id)
@@ -201,7 +201,7 @@ class GlobalController(BaseController):
     """
     全局控制器基类 / Global Controller Base Class
 
-    用于平台管理后台 API，超管或系统级操作，无租户隔离
+    用于平台管理后台 API，超管或系统级操作，无企业隔离
     Used for platform admin APIs, super-admin or system-level operations, no tenant isolation.
     """
 

@@ -1,7 +1,7 @@
 """
-租户管理员权限 API / Tenant Admin Permission API
+企业管理员权限 API / Tenant Admin Permission API
 
-提供租户端权限树、菜单等接口
+提供企业端权限树、菜单等接口
 Provides tenant permission tree, menu endpoints
 """
 
@@ -28,7 +28,7 @@ from app.rbac.services import PermissionService
 )
 class TenantPermissionController(TenantController):
     """
-    租户权限控制器 / Tenant Permission Controller
+    企业权限控制器 / Tenant Permission Controller
 
     提供权限树、菜单树等查询接口
     Provides permission tree, menu tree query endpoints
@@ -49,12 +49,12 @@ class TenantPermissionController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户端权限（树形结构） / Get tenant permissions (tree structure)
+            获取企业端权限（树形结构） / Get tenant permissions (tree structure)
 
             用于角色权限配置页面。 / Used for role permission configuration page.
 
             层级权限控制： / Hierarchical permission control:
-            - 租户所有者：返回所有权限 / Tenant owner: returns all permissions
+            - 企业所有者：返回所有权限 / Tenant owner: returns all permissions
             - 普通管理员：返回自己拥有的权限（含继承） / Regular admin: returns owned permissions (including inherited)
             """
             perm_service = PermissionService(db)
@@ -69,7 +69,7 @@ class TenantPermissionController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户管理员的菜单列表 / Get current tenant admin menu list
+            获取当前企业管理员的菜单列表 / Get current tenant admin menu list
 
             根据角色权限过滤，用于前端动态渲染菜单
             Filtered by role permissions, used for frontend dynamic menu rendering

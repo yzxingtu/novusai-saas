@@ -10,8 +10,8 @@ Menu hierarchy example / 菜单层级示例:
 - Permission Management / 权限管理 (system)
   ├── User Management / 用户管理 (admin_user) - declared by controller / 由控制器声明
   └── Role Management / 角色管理 (role) - declared by controller / 由控制器声明
-- Tenant Management / 租户管理 (tenant_mgmt)
-  └── Tenant List / 租户列表 (tenant) - declared by controller / 由控制器声明
+- Tenant Management / 企业管理 (tenant_mgmt)
+  └── Tenant List / 企业列表 (tenant) - declared by controller / 由控制器声明
 
 The name field uses i18n keys, translated during frontend rendering.
 name 字段使用 i18n key，前端渲染时翻译。
@@ -65,7 +65,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.organization (Organization / 组织架构) - declared by roles.py / 由 roles.py 声明
 
     # ========================================
-    # Tenant Management (directory) / 租户管理（目录）
+    # Tenant Management (directory) / 企业管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.tenant_mgmt",
@@ -79,7 +79,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
-    # - menu:admin.tenant (Tenant List / 租户列表)
+    # - menu:admin.tenant (Tenant List / 企业列表)
 
     # ========================================
     # System Management (directory) / 系统管理（目录）
@@ -97,6 +97,22 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
     # - menu:admin.platform_config (Platform Config / 平台配置)
+    # - menu:admin.global_preferences (Global Preferences / 偏好设置) — declared below / 下方声明
+
+    # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
+    PermissionMeta(
+        code="menu:admin.global_preferences",
+        name="menu.admin.global_preferences",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN_ONLY,
+        resource="menu",
+        action="admin.global_preferences",
+        icon="lucide:palette",
+        path="/system-mgmt/preferences",
+        component="system/preferences/index",
+        sort_order=20,
+        parent_code="menu:admin.system_mgmt",
+    ),
 
     # ========================================
     # AI Management (directory) / AI 管理（目录）
@@ -132,7 +148,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_api_key (API Key Management / API Key 管理)
     # - menu:admin.ai_health (Health Status / 健康状态)
 
-    # ---- AI Apps (sub-directory, unified name with tenant) / 智能应用（子目录，与租户端统一名称） ----
+    # ---- AI Apps (sub-directory, unified name with tenant) / 智能应用（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_app",
         name="menu.admin.ai_app",  # i18n key
@@ -151,7 +167,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_knowledge_base (Knowledge Base / 知识库)
     # - menu:admin.admin_agent_chat (AI Chat / AI 对话)
 
-    # ---- Data Analytics (sub-directory, unified name with tenant) / 数据分析（子目录，与租户端统一名称） ----
+    # ---- Data Analytics (sub-directory, unified name with tenant) / 数据分析（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_ops",
         name="menu.admin.ai_ops",  # i18n key

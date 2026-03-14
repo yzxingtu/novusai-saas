@@ -131,7 +131,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return AgentAccessRepository(self.db, self.tenant_id)
 
     def _get_memory_override_repo(self) -> AgentMemoryOverrideRepository:
-        """获取租户记忆开关覆盖 Repository"""
+        """获取企业记忆开关覆盖 Repository"""
         return AgentMemoryOverrideRepository(self.db, self.tenant_id)
 
     async def _get_platform_default_memory_enabled(self) -> bool:
@@ -145,7 +145,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def resolve_memory_effective_config(self, agent_id: int) -> dict[str, bool]:
         """
-        计算智能体记忆最终生效状态（租户侧）
+        计算智能体记忆最终生效状态（企业侧）
 
         规则：
             effective = platform_default_memory_enabled
@@ -174,7 +174,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def get_memory_config(self, agent_id: int) -> dict[str, Any]:
         """
-        获取租户侧智能体记忆配置状态
+        获取企业侧智能体记忆配置状态
         """
         await self.get_agent_detail(agent_id)
         resolved = await self.resolve_memory_effective_config(agent_id)
@@ -189,13 +189,13 @@ class AgentService(TenantService[Agent, AgentRepository]):
         disabled: bool,
     ) -> dict[str, Any]:
         """
-        设置租户侧“关闭记忆”覆盖（仅支持关闭/恢复默认）
+        设置企业侧“关闭记忆”覆盖（仅支持关闭/恢复默认）
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端仅允许操作自有 agent；全局/系统 agent 不允许覆盖
+        # 企业端仅允许操作自有 agent；全局/系统 agent 不允许覆盖
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -273,7 +273,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能修改自有智能体（即 tenant_id 与当前租户匹配）
+        # 企业端只能修改自有智能体（即 tenant_id 与当前企业匹配）
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -320,7 +320,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能删除自有智能体（即 tenant_id 与当前租户匹配）
+        # 企业端只能删除自有智能体（即 tenant_id 与当前企业匹配）
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -382,7 +382,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         except AttributeError:
             pass
 
-        # 附加记忆开关计算结果（租户服务）
+        # 附加记忆开关计算结果（企业服务）
         resolved = await self.resolve_memory_effective_config(agent_id)
         result["memory_enabled"] = bool(getattr(agent, "memory_enabled", True))
         result["effective_memory_enabled"] = resolved["effective_memory_enabled"]
@@ -630,7 +630,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         Args:
             agent_id: 智能体 ID
             admin_role_ids: 管理端角色 ID 列表
-            tenant_role_ids: 租户端角色 ID 列表
+            tenant_role_ids: 企业端角色 ID 列表
             user_role_ids: 用户端角色 ID 列表
 
         Returns:
@@ -748,7 +748,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     """
     平台管理端智能体 Service
 
-    提供跨租户的智能体列表查询、CRUD 和状态管理
+    提供跨企业的智能体列表查询、CRUD 和状态管理
     """
 
     model = Agent
@@ -806,7 +806,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
 
-        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        # all_tenants 现在表示对全部企业可见，无需指定具体企业
         data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
@@ -834,7 +834,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         scope = data.get("scope", agent.scope)
 
-        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        # all_tenants 现在表示对全部企业可见，无需指定具体企业
         data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
@@ -848,7 +848,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     async def query_list(self, query: QuerySpec) -> tuple[list[Agent], int]:
         """
-        全租户智能体列表查询
+        全企业智能体列表查询
 
         Args:
             query: JSON:API QueryParams
@@ -859,7 +859,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.repo.query_list(query)
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话，清理租户分配"""
+        """删除前校验：系统智能体不可删除，级联软删除对话，清理企业分配"""
         await super()._before_delete(id)
         agent = await self.repo.get_by_id(id)
         if not agent:

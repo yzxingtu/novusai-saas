@@ -36,7 +36,7 @@ DEFAULT_MAX_DOCUMENTS_PER_KB = 500
 
 class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]):
     """
-    租户级知识库 Service
+    企业级知识库 Service
 
     提供知识库的创建、更新、删除、统计更新、配额检查等业务逻辑
     """
@@ -65,7 +65,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能修改自有知识库（tenant_id 与当前租户匹配）
+        # 企业端只能修改自有知识库（tenant_id 与当前企业匹配）
         if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
@@ -83,7 +83,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能删除自有知识库（tenant_id 与当前租户匹配）
+        # 企业端只能删除自有知识库（tenant_id 与当前企业匹配）
         if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
@@ -210,7 +210,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         await self.repo.update_statistics(kb_id)
 
     async def check_kb_quota(self) -> None:
-        """检查租户知识库数量配额"""
+        """检查企业知识库数量配额"""
         count = await self.repo.count_by_tenant()
         if count >= DEFAULT_MAX_KNOWLEDGE_BASES:
             raise BusinessException(
@@ -289,7 +289,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
 class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumentRepository]):
     """
-    租户级知识文档 Service
+    企业级知识文档 Service
     """
 
     model = KnowledgeDocument
@@ -316,7 +316,7 @@ class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumen
 
 class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]):
     """
-    租户级文档分块 Service
+    企业级文档分块 Service
     """
 
     model = DocumentChunk
@@ -340,7 +340,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
     """
     管理端知识库 Service
 
-    无租户隔离，供平台管理端全局查询和 CRUD 使用
+    无企业隔离，供平台管理端全局查询和 CRUD 使用
     """
 
     model = KnowledgeBase
@@ -390,7 +390,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：级联软删除文档和分块，清理租户分配"""
+        """删除前：级联软删除文档和分块，清理企业分配"""
         await super()._before_delete(id)
 
         level = self._default_delete_level
@@ -486,7 +486,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         tenant_ids: list[int] | None,
     ) -> None:
         """
-        同步知识库的租户访问记录
+        同步知识库的企业访问记录
 
         全量替换：先删除旧记录，再批量插入新记录
         """

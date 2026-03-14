@@ -326,8 +326,8 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
         "welcome": {
             "subject": "欢迎加入 {platform_name}",
             "title": "欢迎加入！",
-            "body": "您的租户已创建成功，以下是您的登录信息：",
-            "tenant_label": "租户名称",
+            "body": "您的企业已创建成功，以下是您的登录信息：",
+            "tenant_label": "企业名称",
             "button": "登录管理后台",
             "support_notice": "如需帮助，请联系平台支持团队。",
         },

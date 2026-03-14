@@ -8,7 +8,7 @@
  * Supports 4 cloud storage drivers: s3, aliyun-oss, qiniu-kodo, tencent-cos.
  * 支持 4 种云存储驱动：s3、aliyun-oss、qiniu-kodo、tencent-cos。
  * Shared between admin and tenant storage config pages.
- * 管理端和租户端存储配置页面共用。
+ * 管理端和企业端存储配置页面共用。
  */
 import { computed, nextTick, reactive, watch } from 'vue';
 

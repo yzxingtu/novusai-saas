@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """migrate_tenant_settings_to_config
 
 Revision ID: migrate_tenant_settings
@@ -35,18 +35,18 @@ SETTINGS_MAPPING = {
 
 
 def upgrade() -> None:
-    """Upgrade: 迁移租户设置数据到新配置表."""
+    """Upgrade: 迁移企业设置数据到新配置表."""
     bind = op.get_bind()
     session = Session(bind=bind)
     
     try:
-        # 获取所有租户及其设置
+        # 获取所有企业及其设置
         tenants = session.execute(
             sa.text("SELECT id, settings FROM tenants WHERE settings IS NOT NULL")
         ).fetchall()
         
         if not tenants:
-            print("没有需要迁移的租户设置数据")
+            print("没有需要迁移的企业设置数据")
             return
         
         # 获取配置 ID 映射
@@ -74,7 +74,7 @@ def upgrade() -> None:
                 try:
                     settings = json.loads(settings_json)
                 except json.JSONDecodeError:
-                    print(f"租户 {tenant_id} 的 settings 解析失败，跳过")
+                    print(f"企业 {tenant_id} 的 settings 解析失败，跳过")
                     continue
             else:
                 settings = settings_json

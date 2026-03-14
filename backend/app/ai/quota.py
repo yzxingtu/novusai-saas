@@ -3,7 +3,7 @@ AI Call Quota Management Service
 AI 调用配额管理服务
 
 Manages tenant Token quota, monthly budget, and usage tracking.
-管理租户的 Token 配额、月度预算和使用量追踪。
+管理企业的 Token 配额、月度预算和使用量追踪。
 """
 
 from datetime import date
@@ -83,7 +83,7 @@ class UsageTracker:
         获取当日 Token 使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             stat_date: Statistics date, defaults to today / 统计日期，默认今天
 
@@ -109,7 +109,7 @@ class UsageTracker:
         获取当月 Token 使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             year: Year, defaults to current / 年份，默认当前年
             month: Month, defaults to current / 月份，默认当前月
@@ -145,7 +145,7 @@ class UsageTracker:
         原子检查+预扣减使用量（消除 TOCTOU 竞态）。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated token count / 预估 Token 数量
             limit: Quota limit / 配额上限
@@ -194,7 +194,7 @@ class UsageTracker:
         记录 Token 使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             tokens: Token count / Token 数量
             stat_date: Statistics date / 统计日期
@@ -234,7 +234,7 @@ class UsageTracker:
         响应后调整使用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
@@ -270,7 +270,7 @@ class QuotaManager:
     Quota Manager / 配额管理器
 
     Checks and enforces tenant quota limits.
-    检查和执行租户配额限制。
+    检查和执行企业配额限制。
     """
 
     def __init__(self, db: AsyncSession):
@@ -297,7 +297,7 @@ class QuotaManager:
         检查配额。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated token count / 预估 Token 数量
 
@@ -307,7 +307,7 @@ class QuotaManager:
         Raises:
             QuotaExceeded: Quota exceeded / 配额超出
         """
-        # Get tenant quota config / 获取租户配额配置
+        # Get tenant quota config / 获取企业配额配置
         quota = await self._get_tenant_quota(tenant_id, model_id)
 
         if not quota or not quota.is_active:
@@ -353,7 +353,7 @@ class QuotaManager:
                 )
                 # Soft limit allows overuse, but logs warning
                 # 软限制允许超额，但记录警告
-                # TODO: 发送通知给租户
+                # TODO: 发送通知给企业
 
         return True
 
@@ -369,7 +369,7 @@ class QuotaManager:
         记录使用量（用于软限制或无配额场景）。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             tokens: Token count / Token 数量
             stat_date: Statistics date / 统计日期
@@ -388,7 +388,7 @@ class QuotaManager:
         响应后调整使用量：从预估值调整为实际值。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
@@ -404,10 +404,10 @@ class QuotaManager:
     ) -> TenantQuota | None:
         """
         Get tenant quota config.
-        获取租户配额配置。
+        获取企业配额配置。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
 
         Returns:
@@ -427,7 +427,7 @@ class QuotaManager:
         获取使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             period: Period (daily/monthly) / 周期
 

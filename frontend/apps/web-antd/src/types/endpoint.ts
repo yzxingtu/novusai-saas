@@ -5,8 +5,8 @@
  * Defines type enums and related interfaces for the three system endpoints
  * 定义系统三端的类型枚举和相关接口
  * - ADMIN: Platform admin (super admin, system configuration) / 平台管理端（超级管理员、系统配置）
- * - TENANT: Tenant admin (tenant backend, merchant management) / 租户管理端（租户后台、商户管理）
- * - USER: User-facing (tenant end-users) / 用户端（租户C端用户）
+ * - TENANT: Tenant admin (tenant backend, merchant management) / 企业管理端（企业后台、商户管理）
+ * - USER: User-facing (tenant end-users) / 用户端（企业C端用户）
  */
 
 /**
@@ -18,7 +18,7 @@
 export enum EndpointType {
   /** Platform admin / 平台管理端 */
   ADMIN = 'admin',
-  /** Tenant admin / 租户管理端 */
+  /** Tenant admin / 企业管理端 */
   TENANT = 'tenant',
   /** User-facing / 用户端 */
   USER = 'user',

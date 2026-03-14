@@ -49,7 +49,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
     errors = 0
     now = utc_now()
 
-    # Iterate all tenant/admin subdirectories / 遍历所有租户/admin 子目录
+    # Iterate all tenant/admin subdirectories / 遍历所有企业/admin 子目录
     for tenant_dir in upload_root.iterdir():
         if not tenant_dir.is_dir():
             continue
@@ -100,7 +100,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                 )
                 errors += 1
 
-        # Clean up empty tenant directories too / 如果租户目录为空，也清理掉
+        # Clean up empty tenant directories too / 如果企业目录为空，也清理掉
         try:
             if tenant_dir.exists() and not any(tenant_dir.iterdir()):
                 tenant_dir.rmdir()

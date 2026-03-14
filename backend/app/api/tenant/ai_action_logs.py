@@ -1,5 +1,5 @@
 """
-租户端 AI 操作审计日志 API / Tenant AI Action Audit Log API
+企业端 AI 操作审计日志 API / Tenant AI Action Audit Log API
 
 提供审计日志列表、详情和统计接口（只读）
 Provides audit log list, details and statistics endpoints (read-only)
@@ -36,7 +36,7 @@ from app.services.ai.action_log_service import AIActionLogService
 )
 class TenantAIActionLogController(TenantController):
     """
-    租户 AI 操作审计日志控制器 / Tenant AI Action Audit Log Controller
+    企业 AI 操作审计日志控制器 / Tenant AI Action Audit Log Controller
 
     提供只读的审计日志查询和统计接口
     Provides read-only audit log query and statistics endpoints
@@ -58,7 +58,7 @@ class TenantAIActionLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户的 AI 操作审计日志 / Get current tenant AI action audit logs
+            获取当前企业的 AI 操作审计日志 / Get current tenant AI action audit logs
 
             支持 JSON:API 筛选 / Supports JSON:API filtering:
             - filter[action_name][ilike]=xxx

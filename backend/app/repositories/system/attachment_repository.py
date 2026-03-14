@@ -1,7 +1,7 @@
 """
 平台端附件仓储 / Admin Attachment Repository
 
-提供跨租户的附件数据访问能力（平台管理员专用）
+提供跨企业的附件数据访问能力（平台管理员专用）
 Provides cross-tenant attachment data access (platform admin only).
 """
 
@@ -17,7 +17,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     """
     平台端附件仓储
 
-    提供跨租户的附件数据访问方法
+    提供跨企业的附件数据访问方法
     """
 
     model = Attachment
@@ -56,7 +56,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
         Args:
             file_hash: 文件哈希
-            tenant_id: 可选的租户 ID
+            tenant_id: 可选的企业 ID
             driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
 
         Returns:
@@ -78,7 +78,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         统计附件总占用大小
 
         Args:
-            tenant_id: 可选的租户 ID，不传则统计所有租户
+            tenant_id: 可选的企业 ID，不传则统计所有企业
 
         Returns:
             总大小（字节）
@@ -96,7 +96,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         获取存储统计
 
         Args:
-            tenant_id: 可选的租户 ID
+            tenant_id: 可选的企业 ID
 
         Returns:
             存储统计信息
@@ -110,10 +110,10 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按租户分组的存储统计
+        获取按企业分组的存储统计
 
         Returns:
-            各租户存储统计列表
+            各企业存储统计列表
         """
         query = (
             select(

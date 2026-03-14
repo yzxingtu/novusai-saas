@@ -1,7 +1,7 @@
 """
-租户用户角色服务 / Tenant User Role Service
+企业用户角色服务 / Tenant User Role Service
 
-提供租户用户角色的业务逻辑（租户隔离），扁平结构无层级
+提供企业用户角色的业务逻辑（企业隔离），扁平结构无层级
 Provides tenant user role business logic (tenant-isolated), flat structure without hierarchy.
 """
 
@@ -23,9 +23,9 @@ from app.repositories.tenant.tenant_user_role_repository import TenantUserRoleRe
 
 class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleRepository]):
     """
-    租户用户角色服务
+    企业用户角色服务
 
-    提供租户用户角色特有的业务方法，自动注入租户隔离
+    提供企业用户角色特有的业务方法，自动注入企业隔离
     """
 
     model = TenantUserRole
@@ -33,7 +33,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
 
     async def get_by_code(self, code: str) -> TenantUserRole | None:
         """
-        根据代码获取角色（租户内）
+        根据代码获取角色（企业内）
 
         Args:
             code: 角色代码
@@ -57,7 +57,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         permission_ids: list[int] | None = None,
     ) -> TenantUserRole:
         """
-        创建用户角色（租户内）
+        创建用户角色（企业内）
 
         Args:
             name: 角色名称
@@ -113,7 +113,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         data: dict[str, Any],
     ) -> TenantUserRole:
         """
-        更新用户角色（租户内）
+        更新用户角色（企业内）
 
         Args:
             role_id: 角色 ID
@@ -175,7 +175,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
 
     async def delete_role(self, role_id: int) -> bool:
         """
-        删除用户角色（租户内） / Delete user role (tenant-scoped)
+        删除用户角色（企业内） / Delete user role (tenant-scoped)
 
         通过 BaseService.delete() 统一处理 __delete_deps__ 依赖检查。
         Uses BaseService.delete() for unified __delete_deps__ checking.
@@ -209,7 +209,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         permission_ids: list[int],
     ) -> TenantUserRole:
         """
-        分配权限给角色（租户内）
+        分配权限给角色（企业内）
 
         Args:
             role_id: 角色 ID

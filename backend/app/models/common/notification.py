@@ -18,7 +18,7 @@ class Notification(BaseModel):
     """
     通知收件箱
 
-    - tenant_id: NULL=平台级通知，有值=租户级通知
+    - tenant_id: NULL=平台级通知，有值=企业级通知
     - recipient_type: admin / tenant_admin / tenant_user
     - recipient_id: 接收人 ID
     - template_code: 关联通知模板编码
@@ -39,7 +39,7 @@ class Notification(BaseModel):
     )
 
     tenant_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True, comment="租户 ID（NULL=平台级）",
+        Integer, nullable=True, index=True, comment="企业 ID（NULL=平台级）",
     )
     recipient_type: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="接收人类型: admin/tenant_admin/tenant_user",

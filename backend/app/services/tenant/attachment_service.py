@@ -132,7 +132,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         预检查文件是否已存在（秒传）
 
         前端先计算 SHA-256 哈希，发送到此方法检查。
-        如果同租户、同驱动下已存在相同哈希的文件，返回已有记录（零上传）。
+        如果同企业、同驱动下已存在相同哈希的文件，返回已有记录（零上传）。
 
         Args:
             file_hash: 文件哈希（纯 hex digest，不含 sha256: 前缀）
@@ -328,7 +328,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _ensure_upload_enabled(self) -> None:
         """
-        检查租户上传功能开关
+        检查企业上传功能开关
         """
         enabled = await self._config_service.get_tenant_config(
             self.tenant_id,
@@ -389,7 +389,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _get_tenant(self) -> Tenant:
         """
-        获取租户信息（含套餐）
+        获取企业信息（含套餐）
         """
         result = await self.db.execute(
             select(Tenant)
@@ -575,7 +575,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
         """
-        加载会话状态（含租户隔离校验）
+        加载会话状态（含企业隔离校验）
         """
         session_file = self._get_session_file(upload_id)
         if not session_file.exists():
@@ -589,7 +589,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         session = await anyio.to_thread.run_sync(_read)
 
-        # 租户隔离校验：确保当前租户只能操作自己的上传会话
+        # 企业隔离校验：确保当前企业只能操作自己的上传会话
         session_tenant_id = session.get("tenant_id")
         if session_tenant_id is not None and int(session_tenant_id) != self.tenant_id:
             raise BusinessException(
@@ -744,7 +744,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         Args:
             driver_name: 存储驱动名称（local / qiniu / s3 等）
             path: 文件存储路径
-            tenant_id: 租户 ID（用于解析存储配置）
+            tenant_id: 企业 ID（用于解析存储配置）
         """
         from app.core.logging import LogManager
         logger = LogManager.get_logger("storage")
@@ -771,7 +771,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def get_storage_stats(self) -> dict[str, Any]:
         """
-        获取租户存储统计
+        获取企业存储统计
 
         Returns:
             存储统计信息

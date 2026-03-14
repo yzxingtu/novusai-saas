@@ -5,7 +5,7 @@
 Provides AI provider CRUD endpoints (platform admin only).
 """
 
-from fastapi import Request
+from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -94,6 +94,25 @@ class AdminAIProviderController(GlobalController):
                 result.append(entry)
 
             return success(data=result)
+
+        @router.get("/select", summary="获取 AI 供应商下拉选项")
+        @action_read("action.ai_provider.list")
+        async def select_providers(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            search: str = Query("", description="搜索关键词"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+        ):
+            service = AIProviderService(db)
+            response = await service.get_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+                is_active=True,
+            )
+            return success(data=response, message=_("common.success"))
 
         @router.get("", summary="获取 AI 供应商列表")
         @action_read("action.ai_provider.list")

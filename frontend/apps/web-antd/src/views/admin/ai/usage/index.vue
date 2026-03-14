@@ -360,7 +360,7 @@ onUnmounted(() => {
           </span>
         </template>
 
-        <!-- 租户 -->
+        <!-- 企业 -->
         <template #tenantName_cell="{ row }">
           <span v-if="row.tenant_name" class="text-foreground">
             {{ row.tenant_name }}

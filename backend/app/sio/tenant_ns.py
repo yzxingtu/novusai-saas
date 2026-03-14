@@ -3,7 +3,7 @@ Socket.IO /tenant Namespace
 
 Tenant admin real-time communication namespace.
 Handles connection auth, room management, and online status broadcast.
-租户管理员实时通信 namespace。
+企业管理员实时通信 namespace。
 处理连接认证、房间管理、在线状态广播。
 """
 
@@ -22,11 +22,11 @@ logger = LogManager.get_logger("app")
 
 class TenantNamespace(PageSessionMixin, socketio.AsyncNamespace):
     """
-    /tenant namespace — Tenant admins / 租户管理员
+    /tenant namespace — Tenant admins / 企业管理员
 
     Rooms:
-    - user:{user_id} — All devices of specified tenant admin / 指定租户管理员的所有设备
-    - tenant:{tenant_id} — All online admins of this tenant / 该租户的所有在线管理员
+    - user:{user_id} — All devices of specified tenant admin / 指定企业管理员的所有设备
+    - tenant:{tenant_id} — All online admins of this tenant / 该企业的所有在线管理员
     - page_session:{id} — Page operation targeting (dynamic join) / 页面操作定位（动态加入）
     """
 
@@ -81,7 +81,7 @@ class TenantNamespace(PageSessionMixin, socketio.AsyncNamespace):
         if current_conn >= max_conn:
             raise ConnectionRefusedError("max_connections_exceeded")
 
-        # Query tenant admin to get tenant_id / 查询租户管理员获取 tenant_id
+        # Query tenant admin to get tenant_id / 查询企业管理员获取 tenant_id
         from sqlalchemy import select
 
         from app.core.database import async_session_factory
@@ -127,7 +127,7 @@ class TenantNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 room=f"tenant:{tenant_id}",
                 skip_sid=sid,
             )
-            # Also notify /admin namespace so platform admins see tenant admin online / 同时通知 /admin namespace，让平台管理员看到租户管理员上线
+            # Also notify /admin namespace so platform admins see tenant admin online / 同时通知 /admin namespace，让平台管理员看到企业管理员上线
             from app.core.socketio_server import get_sio
             await get_sio().emit(
                 "tenant_presence:online",

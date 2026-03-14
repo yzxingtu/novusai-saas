@@ -1,5 +1,5 @@
 /**
- * 租户端对话管理 - 表格列、搜索配置
+ * 企业端对话管理 - 表格列、搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';

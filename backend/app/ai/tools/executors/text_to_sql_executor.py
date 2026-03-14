@@ -56,7 +56,7 @@ class TextToSQLExecutor(BaseToolExecutor):
     Complete security pipeline:
     完整安全链路：
       LLM generates SQL -> safety validation -> tenant isolation injection -> read-only execution -> result formatting
-      LLM 生成 SQL → 安全校验 → 租户隔离注入 → 只读执行 → 结果格式化
+      LLM 生成 SQL → 安全校验 → 企业隔离注入 → 只读执行 → 结果格式化
 
     Dependencies / 依赖：
     - AIGateway: Call LLM / 调用 LLM
@@ -193,7 +193,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                 )
 
             # 3. Tenant isolation injection (isolation strategy based on user_role)
-            # 3. 租户隔离注入（按 user_role 决定隔离策略）
+            # 3. 企业隔离注入（按 user_role 决定隔离策略）
             user_id = context.user_id if context else None
             isolated_sql = TenantIsolationInjector.inject(
                 generated.sql, tenant_id, schema,

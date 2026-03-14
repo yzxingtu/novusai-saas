@@ -1,7 +1,7 @@
 import type { VbenFormSchema } from '#/adapter/form';
 /**
- * 租户端附件管理 - 列定义和搜索 Schema
- * 复用平台端的大部分配置，移除租户筛选
+ * 企业端附件管理 - 列定义和搜索 Schema
+ * 复用平台端的大部分配置，移除企业筛选
  */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AttachmentInfo } from '#/types/attachment';
@@ -187,7 +187,7 @@ export function useColumns(
 // ============ 搜索表单 ============
 
 /**
- * 搜索表单 Schema（租户端不需要租户筛选）
+ * 搜索表单 Schema（企业端不需要企业筛选）
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [

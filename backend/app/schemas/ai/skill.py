@@ -64,7 +64,7 @@ class PluginToolInfo(BaseSchema):
 class SkillResponse(BaseResponseSchema):
     """技能响应"""
 
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     package_id: int = Field(..., description=_("skill.field.package_id"))
     name: str = Field(..., description=_("skill.field.name"))
     description: str | None = Field(None, description=_("skill.field.description"))

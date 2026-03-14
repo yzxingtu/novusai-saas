@@ -48,7 +48,7 @@ class UserPermissionController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """
-            获取当前租户业务用户的菜单列表
+            获取当前企业业务用户的菜单列表
             Get menu list for current tenant business user
 
             根据角色权限过滤，用于前端动态渲染菜单

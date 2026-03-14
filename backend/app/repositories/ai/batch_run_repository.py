@@ -12,7 +12,7 @@ from app.models.ai.batch_run import BatchRun
 
 class BatchRunRepository(TenantRepository[BatchRun]):
     """
-    租户级批量运行 Repository
+    企业级批量运行 Repository
 
     提供按智能体查询、更新进度等方法
     """

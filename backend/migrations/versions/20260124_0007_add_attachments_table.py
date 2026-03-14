@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add attachments table
 
 Revision ID: 20260124_0007
@@ -22,7 +22,7 @@ def upgrade() -> None:
     op.create_table(
         "attachments",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("tenant_id", sa.Integer(), nullable=False, index=True, comment="租户ID"),
+        sa.Column("tenant_id", sa.Integer(), nullable=False, index=True, comment="企业ID"),
         sa.Column("name", sa.String(length=255), nullable=False, comment="文件名"),
         sa.Column("original_name", sa.String(length=255), nullable=True, comment="原始文件名"),
         sa.Column("path", sa.String(length=500), nullable=False, comment="存储路径"),

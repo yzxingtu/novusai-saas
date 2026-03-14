@@ -170,10 +170,11 @@
   },
   "apiKey": {
     "title": "API Key Management",
-    "pageDesc": "Manage platform and tenant-level API keys. Leave tenant empty for platform-wide shared keys.",
+    "pageDesc": "Manage AI provider API keys. Use scope to control key availability: Admin Only keys are reserved for admin AI calls; All Tenants keys are shared across tenants or assigned to a specific tenant. Tenant calls prefer dedicated keys, falling back to platform shared keys.",
     "name": "Key Name",
     "providerId": "Provider",
     "providerName": "Provider",
+    "providerModels": "{count} models",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
     "apiKey": "API Key",
@@ -187,22 +188,17 @@
     "lastUsedAt": "Last Used",
     "expiresAt": "Expires At",
     "create": "Add API Key",
-    "scope": {
-      "platform": "Platform",
-      "tenant": "Tenant"
-    },
     "placeholder": {
       "searchName": "Search key name",
       "inputName": "Enter key name",
       "inputApiKey": "Enter API Key",
       "selectProvider": "Select provider",
-      "selectTenant": "Select tenant (leave empty for platform)",
       "allProviders": "All Providers",
       "inputUsageLimit": "Leave empty for unlimited"
     },
     "help": {
       "apiKey": "The API secret key from the provider. Stored encrypted. Cannot be viewed in full after creation",
-      "tenantId": "Leave empty for a platform-level key (shared by all tenants). Select a tenant for an exclusive key",
+      "scope": "Admin Only keys are used exclusively for admin AI calls; tenants cannot fall back to these keys. All Tenants keys can be shared platform-wide (no tenant) or assigned to a specific tenant (tenant-exclusive)",
       "usageLimit": "Maximum call count for this key. Automatically marked unavailable when reached. Leave empty for unlimited",
       "isActive": "When manually disabled, this key is excluded from load balancing. Useful for temporarily pausing a key"
     },

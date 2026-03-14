@@ -7,7 +7,7 @@ Organized by module layers, exports all Pydantic schemas.
 目录结构 / Directory structure:
 - common/: 公共 Schema（三端共用） / Common schemas (shared across all endpoints)
 - system/: 平台管理后台 Schema / Platform admin schemas
-- tenant/: 租户相关 Schema / Tenant schemas
+- tenant/: 企业相关 Schema / Tenant schemas
 """
 
 # Common

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端 AI 用量统计页面
+ * 企业端 AI 用量统计页面
  */
 import type { Dayjs } from 'dayjs';
 

@@ -20,7 +20,7 @@ class Skill(TenantModel):
     技能模型
 
     Skill 是更高层的抽象，封装 Agent 可使用的能力。
-    Skill 属于 SkillPackage，作用域和租户归属由所属技能包决定。
+    Skill 属于 SkillPackage，作用域和企业归属由所属技能包决定。
     Agent 通过绑定 SkillPackage 间接获得包内所有 Skill。
     """
 
@@ -31,7 +31,7 @@ class Skill(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（由所属技能包决定）"
+        comment="企业ID（由所属技能包决定）"
     )
 
     # 允许前端筛选的字段

@@ -1,7 +1,7 @@
 """
 AI 使用量统计模型 / AI Usage Statistics Model
 
-按租户/用户/模型维度聚合 Token 使用量和费用统计
+按企业/用户/模型维度聚合 Token 使用量和费用统计
 Aggregates token usage and cost statistics by tenant/user/model dimensions.
 """
 
@@ -28,7 +28,7 @@ class UsageStat(TenantModel):
     """
     AI 使用量统计模型
 
-    按维度（租户/用户/模型/日期）聚合统计数据：
+    按维度（企业/用户/模型/日期）聚合统计数据：
     - Token 使用量（输入/输出/总计）
     - 调用次数
     - 费用总计
@@ -158,7 +158,7 @@ class UsageStat(TenantModel):
     # ==================== 索引和约束 ====================
 
     __table_args__ = (
-        # 唯一约束：同一租户+用户+模型+请求类型+日期只能有一条记录
+        # 唯一约束：同一企业+用户+模型+请求类型+日期只能有一条记录
         UniqueConstraint(
             "tenant_id",
             "user_id",
@@ -167,7 +167,7 @@ class UsageStat(TenantModel):
             "stat_date",
             name="uq_ai_usage_stat_dims",
         ),
-        # 租户 + 日期复合索引（用于按租户查询某日期的所有统计）
+        # 企业 + 日期复合索引（用于按企业查询某日期的所有统计）
         Index("idx_ai_usage_stats_tenant_date", "tenant_id", "stat_date"),
         # 用户 + 日期复合索引（用于用户级统计）
         Index("idx_ai_usage_stats_user_date", "user_id", "stat_date"),

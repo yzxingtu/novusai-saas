@@ -99,7 +99,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         return result.scalar_one_or_none() is not None
 
     async def list_trash(self) -> list[FileNode]:
-        """回收站列表（仅当前租户顶层删除节点）"""
+        """回收站列表（仅当前企业顶层删除节点）"""
         from ..models.node import FileNode
         result = await self.db.execute(
             select(FileNode)
@@ -134,7 +134,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         return list(result.scalars().all())
 
     async def sum_folder_size(self) -> int:
-        """统计租户全部文件总大小（用于配额重算）"""
+        """统计企业全部文件总大小（用于配额重算）"""
         from ..models.node import FileNode, NodeTypeEnum
         result = await self.db.execute(
             select(func.coalesce(func.sum(FileNode.size_bytes), 0)).where(

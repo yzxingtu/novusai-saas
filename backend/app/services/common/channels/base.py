@@ -69,7 +69,7 @@ class NotificationChannel(ABC):
             link: 跳转链接
             priority: 优先级 (low/normal/high/urgent)
             template_code: 模板编码
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             **kwargs: 扩展参数（如 email_html, email_subject）
 
         Returns:

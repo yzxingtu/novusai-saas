@@ -125,7 +125,7 @@ async def check_deletion_deps(
     Args:
         db: 异步数据库会话 / Async database session
         instance: 要删除的模型实例 / Model instance to delete
-        tenant_id: 租户 ID（TenantModel 子类自动添加过滤） / Tenant ID (auto-filter for TenantModel subclasses)
+        tenant_id: 企业 ID（TenantModel 子类自动添加过滤） / Tenant ID (auto-filter for TenantModel subclasses)
 
     Returns:
         DependencyCheckResult
@@ -163,7 +163,7 @@ async def check_deletion_deps(
         if hasattr(target_cls, "is_deleted"):
             conditions.append(target_cls.is_deleted.is_(False))
 
-        # 多租户隔离：如果目标模型是 TenantModel 且提供了 tenant_id / Multi-tenant isolation
+        # 多企业隔离：如果目标模型是 TenantModel 且提供了 tenant_id / Multi-tenant isolation
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 
@@ -308,7 +308,7 @@ async def execute_cascade_deps(
         db: 异步数据库会话 / Async database session
         instance: 已软删除的模型实例 / Soft-deleted model instance
         delete_level: 删除层级（tenant / admin） / Deletion level
-        tenant_id: 租户 ID / Tenant ID
+        tenant_id: 企业 ID / Tenant ID
 
     Returns:
         {"cascade_soft": N, "cascade_delete": N, "nullify": N}
@@ -337,7 +337,7 @@ async def execute_cascade_deps(
         # 基础条件 / Base conditions
         conditions = [fk_col == instance_id]
 
-        # 多租户隔离 / Multi-tenant isolation
+        # 多企业隔离 / Multi-tenant isolation
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 

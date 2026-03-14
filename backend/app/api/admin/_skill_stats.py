@@ -75,7 +75,7 @@ async def get_all_skills_stats(
 
     Args:
         db: 数据库会话 / Database session
-        tenant_id: 可选租户 ID 过滤 / Optional tenant ID filter
+        tenant_id: 可选企业 ID 过滤 / Optional tenant ID filter
 
     Returns:
         按调用次数降序排列的统计列表 / Statistics list sorted by call count in descending order

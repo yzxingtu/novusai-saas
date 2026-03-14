@@ -1,7 +1,7 @@
 """
-租户端总回收站 API / Tenant Recycle Bin API
+企业端总回收站 API / Tenant Recycle Bin API
 
-聚合展示当前租户所有模块的 tenant 级已删除记录，支持恢复和升级到管理端。
+聚合展示当前企业所有模块的 tenant 级已删除记录，支持恢复和升级到管理端。
 Aggregate display of current tenant's tenant-level deleted records, supports restore and escalation to admin.
 """
 
@@ -29,7 +29,7 @@ logger = LogManager.get_logger("db")
 router = APIRouter(prefix="/recycle-bin", tags=["tenant-recycle-bin"])
 
 
-# ── 租户端可回收模块注册表 / Tenant Recyclable Module Registry ──
+# ── 企业端可回收模块注册表 / Tenant Recyclable Module Registry ──
 TENANT_RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
     "agents": {
         "model": "app.models.ai.agent.Agent",

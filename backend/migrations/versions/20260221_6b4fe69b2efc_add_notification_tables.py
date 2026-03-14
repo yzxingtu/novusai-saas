@@ -33,7 +33,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_type', 'user_id', 'category', name='uq_notification_pref')
     )
@@ -47,13 +47,13 @@ def upgrade() -> None:
     sa.Column('channels', postgresql.ARRAY(sa.String(length=20)), nullable=True, comment='投递渠道'),
     sa.Column('priority', sa.String(length=20), nullable=False, comment='优先级: low/normal/high/urgent'),
     sa.Column('is_system', sa.Boolean(), nullable=False, comment='是否系统内置'),
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户 ID（NULL=系统级）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业 ID（NULL=系统级）'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
     )
@@ -62,7 +62,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_notification_templates_is_deleted'), 'notification_templates', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_notification_templates_tenant_id'), 'notification_templates', ['tenant_id'], unique=False)
     op.create_table('notifications',
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户 ID（NULL=平台级）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业 ID（NULL=平台级）'),
     sa.Column('recipient_type', sa.String(length=20), nullable=False, comment='接收人类型: admin/tenant_admin/tenant_user'),
     sa.Column('recipient_id', sa.Integer(), nullable=False, comment='接收人 ID'),
     sa.Column('template_code', sa.String(length=100), nullable=False, comment='通知模板编码'),
@@ -80,7 +80,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_notifications_recipient', 'notifications', ['recipient_type', 'recipient_id', 'is_read'], unique=False)

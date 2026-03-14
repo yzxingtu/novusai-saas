@@ -85,7 +85,7 @@ class AdminKnowledgeBaseController(GlobalController):
     """
     平台端知识库监控控制器 / Platform Knowledge Base Monitoring Controller
 
-    提供全租户知识库查询和统计 / Provides cross-tenant knowledge base query and statistics
+    提供全企业知识库查询和统计 / Provides cross-tenant knowledge base query and statistics
     """
 
     prefix = "/ai/knowledge-bases"
@@ -103,7 +103,7 @@ class AdminKnowledgeBaseController(GlobalController):
             resource_name="ai_knowledge_base",
         )
 
-        @router.get("", summary="查询知识库列表（全租户）")
+        @router.get("", summary="查询知识库列表（全企业）")
         @action_read("action.ai_knowledge_base.list")
         async def list_knowledge_bases(
             request: Request,
@@ -112,10 +112,10 @@ class AdminKnowledgeBaseController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            查询全部租户的知识库列表 / Query knowledge base list across all tenants
+            查询全部企业的知识库列表 / Query knowledge base list across all tenants
 
             支持 JSON:API 风格筛选 / Supports JSON:API style filtering:
-            - filter[tenant_id][eq]: 租户 ID / Tenant ID
+            - filter[tenant_id][eq]: 企业 ID / Tenant ID
             - filter[status][eq]: 状态 / Status
             - filter[name][ilike]: 名称模糊搜索 / Name fuzzy search
 
@@ -151,7 +151,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 message=_("common.success"),
             )
 
-        @router.post("", summary="创建知识库（支持全局/租户/管理端专属）")
+        @router.post("", summary="创建知识库（支持全局/企业/管理端专属）")
         @action_create("action.ai_knowledge_base.create")
         async def create_knowledge_base(
             request: Request,
@@ -163,8 +163,8 @@ class AdminKnowledgeBaseController(GlobalController):
             管理端创建知识库 / Admin create knowledge base
 
             支持 3 种 scope / Supports 3 scopes:
-            - tenant: 属于指定租户（需提供 tenant_id） / Belongs to specified tenant (requires tenant_id)
-            - global: 全局共享（所有租户可见） / Global shared (visible to all tenants)
+            - tenant: 属于指定企业（需提供 tenant_id） / Belongs to specified tenant (requires tenant_id)
+            - global: 全局共享（所有企业可见） / Global shared (visible to all tenants)
             - admin: 仅管理端可见 / Admin only visible
 
             权限 / Permission: ai_knowledge_base:create
@@ -175,7 +175,7 @@ class AdminKnowledgeBaseController(GlobalController):
             data.pop("assigned_tenant_ids", None)
             kb = await service.create(data)
 
-            # scope=assigned_tenants/admin_and_assigned 时同步租户分配 / Sync tenant assignments when scope=assigned_tenants/admin_and_assigned
+            # scope=assigned_tenants/admin_and_assigned 时同步企业分配 / Sync tenant assignments when scope=assigned_tenants/admin_and_assigned
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("knowledge_base", kb.id, tenant_ids)
@@ -223,7 +223,7 @@ class AdminKnowledgeBaseController(GlobalController):
             data.pop("assigned_tenant_ids", None)
             kb = await service.update(kb_id, data)
 
-            # 同步租户分配 / Sync tenant assignments
+            # 同步企业分配 / Sync tenant assignments
             effective_scope = kb.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -367,7 +367,7 @@ class AdminKnowledgeBaseController(GlobalController):
             except Exception:
                 pass
 
-            # 返回已分配的租户 ID 列表 / Return assigned tenant ID list
+            # 返回已分配的企业 ID 列表 / Return assigned tenant ID list
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 result["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
@@ -392,7 +392,7 @@ class AdminKnowledgeBaseController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取知识库下的文档列表（跨租户） / Get document list under knowledge base (cross-tenant)
+            获取知识库下的文档列表（跨企业） / Get document list under knowledge base (cross-tenant)
 
             权限 / Permission: ai_knowledge_base:document_list
             """
@@ -465,7 +465,7 @@ class AdminKnowledgeBaseController(GlobalController):
             import io
 
             if tenant_id is not None:
-                # 租户 KB：通过 AttachmentService 上传（含租户配额校验） / Tenant KB: upload via AttachmentService (with tenant quota check)
+                # 企业 KB：通过 AttachmentService 上传（含企业配额校验） / Tenant KB: upload via AttachmentService (with tenant quota check)
                 attachment_service = AttachmentService(db, tenant_id)
                 upload_result = await attachment_service.upload_file(
                     content=io.BytesIO(file_bytes),
@@ -480,7 +480,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
                 attachment = upload_result["attachment"]
             else:
-                # 全局/管理端 KB：直接使用平台存储，跳过租户校验 / Global/admin KB: use platform storage directly, skip tenant validation
+                # 全局/管理端 KB：直接使用平台存储，跳过企业校验 / Global/admin KB: use platform storage directly, skip tenant validation
                 from app.configs.service import ConfigService
                 from app.models.tenant.attachment import Attachment as AttachmentModel
                 from app.storage import storage_manager

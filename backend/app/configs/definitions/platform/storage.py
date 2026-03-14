@@ -487,7 +487,7 @@ PLATFORM_STORAGE_ALLOWED_CUSTOM_DRIVERS = ConfigMeta(
     scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.JSON,
     default_value=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
-    # display_rules removed: self-config changed to per-tenant control / 自主配置改为逐租户控制
+    # display_rules removed: self-config changed to per-tenant control / 自主配置改为逐企业控制
     sort_order=180,
 )
 

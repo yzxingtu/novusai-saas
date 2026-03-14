@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 重置租户管理员密码弹窗
+ * 重置企业管理员密码弹窗
  */
 import { ref } from 'vue';
 

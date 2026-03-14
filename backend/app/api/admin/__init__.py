@@ -54,6 +54,7 @@ from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router
 from app.api.admin.notification_preferences import (
     router as notification_preferences_router,
 )
+from app.api.admin.preferences import router as preferences_router
 from app.api.admin.notification_templates import AdminNotificationTemplateController
 from app.api.admin.notification_templates import router as notification_templates_router
 from app.api.admin.notifications import router as notifications_router
@@ -136,12 +137,14 @@ admin_router.include_router(email_logs_router)
 admin_router.include_router(recycle_bin_router)
 # WebSocket 在线状态 / WebSocket online status
 admin_router.include_router(ws_router)
-# 租户管理员管理 / Tenant admin management
+# 企业管理员管理 / Tenant admin management
 admin_router.include_router(tenant_admins_router)
 # 通知 / Notifications
 admin_router.include_router(notifications_router)
 # 通知偏好 / Notification preferences
 admin_router.include_router(notification_preferences_router)
+# 偏好设置 / User preferences
+admin_router.include_router(preferences_router)
 # 通知模板管理 / Notification template management
 admin_router.include_router(notification_templates_router)
 # 插件管理 / Plugin management

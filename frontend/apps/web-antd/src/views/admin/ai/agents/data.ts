@@ -5,7 +5,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { AIModelInfo } from '#/api/admin/ai';
 
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
@@ -45,21 +45,8 @@ function getExecutionModeOptions() {
 
 // ============ Chat 模型下拉 ============
 
-export async function getChatModelOptions() {
-  try {
-    const res = await getAIModelListApi({ 'page[size]': 100 });
-    return (res.items || [])
-      .filter((m: AIModelInfo) => {
-        const name = (m.name || '').toLowerCase();
-        return !name.includes('embed');
-      })
-      .map((m: AIModelInfo) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      }));
-  } catch {
-    return [];
-  }
+export function getChatModelSelectApi(params?: Record<string, unknown>) {
+  return getAIModelSelectApi({ ...params, type: 'chat' });
 }
 
 // ============ 表单默认值 ============
@@ -245,7 +232,7 @@ export function useFormSchema(
     }),
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {
-        api: getChatModelOptions,
+        api: getChatModelSelectApi,
         required: true,
       }),
     },

@@ -72,7 +72,7 @@ const [Modal, modalApi] = useVbenModal({
       };
 
       if (props.apiPrefix === 'tenant') {
-        // Tenant side (requires roleId) / 租户端（目前需要 roleId）
+        // Tenant side (requires roleId) / 企业端（目前需要 roleId）
         // Note: When called from member panel, roleId should be passed via props. / 注意：从成员面板调用时，roleId 应由 props 传入
         if (roleId) {
           await tenantApi.resetTenantMemberPasswordApi(

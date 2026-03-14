@@ -1,9 +1,9 @@
 """
-租户端插件列表 API / Tenant Plugin List API
+企业端插件列表 API / Tenant Plugin List API
 
-返回当前租户可用的已启用插件列表（根据 scope + tenant_assignments 过滤）。
+返回当前企业可用的已启用插件列表（根据 scope + tenant_assignments 过滤）。
 Returns enabled plugin list available to current tenant (filtered by scope + tenant_assignments).
-租户端不能管理插件（安装/卸载/启用/禁用），只能查看可用的插件。
+企业端不能管理插件（安装/卸载/启用/禁用），只能查看可用的插件。
 Tenant cannot manage plugins (install/uninstall/enable/disable), only view available ones.
 """
 
@@ -18,7 +18,7 @@ from app.rbac.decorators import auth_only
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/plugins", tags=["租户插件"])
+router = APIRouter(prefix="/plugins", tags=["企业插件"])
 
 
 @router.get("")
@@ -28,14 +28,14 @@ async def list_available_plugins(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户可用的已启用插件列表 / Get enabled plugin list available to current tenant
+    获取当前企业可用的已启用插件列表 / Get enabled plugin list available to current tenant
 
     过滤规则（根据 scope） / Filter rules (by scope):
-    - all_tenants → 所有租户可见 / visible to all tenants
-    - admin_and_all → 所有租户可见 / visible to all tenants
-    - assigned_tenants → 仅分配了当前租户的插件可见 / only plugins assigned to current tenant visible
-    - admin_and_assigned → 仅分配了当前租户的插件可见 / only plugins assigned to current tenant visible
-    - admin_only → 租户端不可见 / not visible in tenant
+    - all_tenants → 所有企业可见 / visible to all tenants
+    - admin_and_all → 所有企业可见 / visible to all tenants
+    - assigned_tenants → 仅分配了当前企业的插件可见 / only plugins assigned to current tenant visible
+    - admin_and_assigned → 仅分配了当前企业的插件可见 / only plugins assigned to current tenant visible
+    - admin_only → 企业端不可见 / not visible in tenant
     """
     from sqlalchemy import select
 
@@ -54,7 +54,7 @@ async def list_available_plugins(
     )
     all_enabled = list(result.scalars().all())
 
-    # 查询当前租户被分配的插件 ID / Query plugin IDs assigned to current tenant
+    # 查询当前企业被分配的插件 ID / Query plugin IDs assigned to current tenant
     assignment_result = await db.execute(
         select(ResourceTenantAssignment.resource_id).where(
             ResourceTenantAssignment.resource_type == "plugin",
@@ -102,12 +102,12 @@ async def get_plugin_slots(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户可见的已启用插件前端插槽数据。
+    获取当前企业可见的已启用插件前端插槽数据。
     Get enabled plugin frontend slot data visible to current tenant.
 
     过滤规则 / Filter rules:
     - admin_only scope 的插槽不返回 / admin_only scope slots not returned
-    - assigned_tenants / admin_and_assigned scope 的插槽仅当租户被分配时返回 / slots only returned when tenant is assigned
+    - assigned_tenants / admin_and_assigned scope 的插槽仅当企业被分配时返回 / slots only returned when tenant is assigned
 
     返回格式 / Return format:
     {

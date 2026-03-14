@@ -11,7 +11,7 @@ from app.models.ai.conversation_message import ConversationMessage
 
 class ConversationMessageRepository(TenantRepository[ConversationMessage]):
     """
-    租户级对话消息 Repository
+    企业级对话消息 Repository
 
     提供按对话获取消息、追加消息、统计等方法
     """

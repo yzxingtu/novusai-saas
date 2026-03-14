@@ -47,7 +47,7 @@ def _presence_key(user_type: str, tenant_id: int | None = None) -> str:
 
     Args:
         user_type: admin / tenant_admin / tenant_user
-        tenant_id: Tenant ID (None for admin) / 租户 ID（admin 端为 None）
+        tenant_id: Tenant ID (None for admin) / 企业 ID（admin 端为 None）
 
     Returns:
         Redis key, e.g. presence:admin or presence:tenant_admin:5 /

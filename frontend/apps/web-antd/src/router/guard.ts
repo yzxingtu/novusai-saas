@@ -103,14 +103,14 @@ function setupAccessGuard(router: Router) {
       (hostname === 'localhost' || hostname === '127.0.0.1');
 
     if (!isDevLocalhost && publicConfigStore.isDomainDetected) {
-      // 租户域名禁止访问平台管理端
+      // 企业域名禁止访问平台管理端
       if (
         publicConfigStore.isDomainTenantDomain === true &&
         currentEndpoint === 'admin'
       ) {
         return { path: LOGIN_PATHS.tenant, replace: true };
       }
-      // 平台域名禁止访问租户端/用户端
+      // 平台域名禁止访问企业端/用户端
       if (
         publicConfigStore.isDomainTenantDomain === false &&
         (currentEndpoint === 'tenant' || currentEndpoint === 'user')
@@ -135,9 +135,9 @@ function setupAccessGuard(router: Router) {
       }
     } else if (currentEndpoint === 'tenant' || currentEndpoint === 'user') {
       if (!publicConfigStore.tenantConfigLoaded) {
-        // 租户端 / 用户端：加载租户公开配置（用户属于租户，复用租户配置）
+        // 企业端 / 用户端：加载企业公开配置（用户属于企业，复用企业配置）
         await publicConfigStore.loadTenantConfig().catch((error) => {
-          console.warn('[Router Guard] 加载租户公开配置失败:', error);
+          console.warn('[Router Guard] 加载企业公开配置失败:', error);
         });
       } else if (publicConfigStore.tenantConfig?.brand) {
         // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）

@@ -1,9 +1,9 @@
 """
-租户端技能包管理 API（只读） / Tenant Skill Package Management API (Read-only)
+企业端技能包管理 API（只读） / Tenant Skill Package Management API (Read-only)
 
 提供技能包的只读查询接口。
 Provides read-only query endpoints for skill packages.
-租户端不允许创建、编辑、删除技能包（最小权限原则）。
+企业端不允许创建、编辑、删除技能包（最小权限原则）。
 Tenant is not allowed to create, edit, or delete skill packages (least privilege principle).
 """
 
@@ -41,9 +41,9 @@ def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, An
 )
 class TenantSkillPackageController(TenantController):
     """
-    租户技能包管理控制器（只读） / Tenant Skill Package Management Controller (Read-only)
+    企业技能包管理控制器（只读） / Tenant Skill Package Management Controller (Read-only)
 
-    租户端不允许创建/编辑/删除技能包，仅提供只读查询。
+    企业端不允许创建/编辑/删除技能包，仅提供只读查询。
     Tenant is not allowed to create/edit/delete skill packages, only read-only queries.
     """
 
@@ -73,7 +73,7 @@ class TenantSkillPackageController(TenantController):
             )
             return success(data=response)
 
-        @router.get("/recommended", summary="推荐技能包列表（租户端）")
+        @router.get("/recommended", summary="推荐技能包列表（企业端）")
         @action_read("action.skill_package.list")
         async def list_recommended_packages(
             request: Request,
@@ -83,7 +83,7 @@ class TenantSkillPackageController(TenantController):
             """
             获取推荐技能包（is_recommended=true） / Get recommended skill packages (is_recommended=true)
 
-            租户端自动过滤掉 target_audience=admin_only 的包。
+            企业端自动过滤掉 target_audience=admin_only 的包。
             Tenant automatically filters out packages with target_audience=admin_only.
             用于创建智能体时显示推荐绑定列表。
             Used for displaying recommended binding list when creating agents.
@@ -135,10 +135,10 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+            获取企业可绑定的所有技能包（用于智能体技能绑定下拉）。
             Get all skill packages available for tenant binding (for agent skill binding dropdown).
 
-            包括当前租户自有包 + admin 共享包，返回 label/value 格式。
+            包括当前企业自有包 + admin 共享包，返回 label/value 格式。
             Includes current tenant's own packages + admin shared packages, returns label/value format.
             """
             from app.repositories.ai.skill_package_repository import (

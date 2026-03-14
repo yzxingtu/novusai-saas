@@ -6,7 +6,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** Knowledge base list item (all tenants) / 知识库列表项（全租户） */
+/** Knowledge base list item (all tenants) / 知识库列表项（全企业） */
 export interface AdminKnowledgeBaseItem {
   id: number;
   tenant_id: null | number;

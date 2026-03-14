@@ -64,7 +64,7 @@ class NotificationService:
             recipients: 接收人列表 [(user_type, user_id), ...]
             data: 业务数据（用于模板渲染和前端展示）
             link: 点击跳转链接
-            tenant_id: 租户 ID（平台级通知为 None）
+            tenant_id: 企业 ID（平台级通知为 None）
             **kwargs: 渠道扩展参数
                 - email_html: 自定义 HTML 邮件正文
                 - email_subject: 自定义邮件主题
@@ -110,7 +110,10 @@ class NotificationService:
         for user_type, user_id in recipients:
             # 查询用户偏好（force 模式跳过）
             if not force:
-                pref = await self._get_preference(user_type, user_id, template.category)
+                pref = await self._get_preference(
+                    user_type, user_id, template.category,
+                    tenant_id=tenant_id or 0,
+                )
             else:
                 pref = {}
 
@@ -304,12 +307,14 @@ class NotificationService:
         user_type: str,
         user_id: int,
         category: str,
+        tenant_id: int = 0,
     ) -> dict[str, bool]:
-        """查询用户通知偏好，不存在则返回默认值"""
+        """查询用户通知偏好（个人 -> 全局 -> 硬编码默认）"""
         result = await self.db.execute(
             select(NotificationPreference).where(
                 NotificationPreference.user_type == user_type,
                 NotificationPreference.user_id == user_id,
+                NotificationPreference.tenant_id == tenant_id,
                 NotificationPreference.category == category,
             )
         )
@@ -320,7 +325,26 @@ class NotificationService:
                 "channel_email": pref.channel_email,
                 "channel_inbox": pref.channel_inbox,
             }
-        # 默认：WS + 收件箱开，邮件关
+
+        global_type_map = {"admin": "platform_global", "tenant_admin": "tenant_global"}
+        global_user_type = global_type_map.get(user_type)
+        if global_user_type:
+            gl_result = await self.db.execute(
+                select(NotificationPreference).where(
+                    NotificationPreference.user_type == global_user_type,
+                    NotificationPreference.tenant_id == tenant_id,
+                    NotificationPreference.user_id.is_(None),
+                    NotificationPreference.category == category,
+                )
+            )
+            gl_pref = gl_result.scalar_one_or_none()
+            if gl_pref:
+                return {
+                    "channel_ws": gl_pref.channel_ws,
+                    "channel_email": gl_pref.channel_email,
+                    "channel_inbox": gl_pref.channel_inbox,
+                }
+
         return {"channel_ws": True, "channel_email": False, "channel_inbox": True}
 
     async def _enforce_max_per_user(

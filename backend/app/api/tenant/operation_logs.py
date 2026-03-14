@@ -1,7 +1,7 @@
 """
-租户操作日志 API / Tenant Operation Log API
+企业操作日志 API / Tenant Operation Log API
 
-提供租户内操作日志查询接口（只读）
+提供企业内操作日志查询接口（只读）
 Provides tenant operation log query endpoints (read-only)
 """
 
@@ -34,9 +34,9 @@ from app.services.system import OperationLogService
 )
 class TenantOperationLogController(TenantController):
     """
-    租户操作日志控制器 / Tenant Operation Log Controller
+    企业操作日志控制器 / Tenant Operation Log Controller
 
-    提供租户内操作日志查询接口，租户只能查看本租户的日志，无删除权限
+    提供企业内操作日志查询接口，企业只能查看本企业的日志，无删除权限
     Provides tenant operation log query endpoints, tenant can only view own logs, no delete permission
     """
 
@@ -56,10 +56,10 @@ class TenantOperationLogController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户的操作日志列表 / Get current tenant operation log list
+            获取当前企业的操作日志列表 / Get current tenant operation log list
 
             基于当前管理员权限过滤 / Filtered by current admin permissions:
-            - 租户所有者：可查看本租户所有日志 / Tenant owner: can view all tenant logs
+            - 企业所有者：可查看本企业所有日志 / Tenant owner: can view all tenant logs
             - 普通管理员：只能查看自己及其角色子树下用户的日志 / Regular admin: can only view own and subordinate role users' logs
 
             支持 JSON:API 风格筛选参数 / Supports JSON:API filter params:
@@ -102,7 +102,7 @@ class TenantOperationLogController(TenantController):
             page_size: int = 10,
         ):
             """
-            获取当前租户操作日志中的去重操作人列表 / Get deduplicated operator list from tenant operation logs
+            获取当前企业操作日志中的去重操作人列表 / Get deduplicated operator list from tenant operation logs
 
             支持两种模式 / Supports two modes:
             - 分页模式（传 page 参数）：返回 {items, total, page, page_size} 供 ApiSelect 使用 / Paginated mode (with page param): returns {items, total, page, page_size} for ApiSelect
@@ -160,7 +160,7 @@ class TenantOperationLogController(TenantController):
                     detail=_("operation_log.not_found"),
                 )
 
-            # 租户隔离：只能查看本租户的日志 / Tenant isolation: can only view own tenant's logs
+            # 企业隔离：只能查看本企业的日志 / Tenant isolation: can only view own tenant's logs
             if log.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,

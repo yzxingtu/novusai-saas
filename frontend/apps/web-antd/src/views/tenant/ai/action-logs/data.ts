@@ -1,5 +1,5 @@
 /**
- * 租户端 AI 操作审计日志 - 表格列、搜索配置
+ * 企业端 AI 操作审计日志 - 表格列、搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';

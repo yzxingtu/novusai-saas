@@ -10,3 +10,4 @@ export * from './presence';
 export * from './public-config';
 export * from './socketio';
 export * from './token-storage';
+export * from './user-preference';

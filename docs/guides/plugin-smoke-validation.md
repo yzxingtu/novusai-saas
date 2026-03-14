@@ -61,7 +61,7 @@ python -m pytest tests/test_plugin_api_dispatcher_security.py tests/test_plugin_
 
 ### 4.1 novusdoc
 
-1. 登录租户端，打开文档列表页（`/tenant/plugins/novusdoc/docs`）
+1. 登录企业端，打开文档列表页（`/tenant/plugins/novusdoc/docs`）
 2. 新建文档、编辑文档、删除文档
 3. 调用 AI 相关接口（如 `docs/{doc_id}/ai/continue`）
 

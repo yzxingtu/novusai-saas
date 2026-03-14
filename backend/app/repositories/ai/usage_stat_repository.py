@@ -118,7 +118,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取租户使用量汇总
+        获取企业使用量汇总
         """
         stmt = select(
             func.sum(UsageStat.total_tokens).label("total_tokens"),
@@ -222,7 +222,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> list[dict]:
         """
-        获取租户每日用量统计
+        获取企业每日用量统计
         """
         stmt = select(
             UsageStat.stat_date.label("stat_date"),
@@ -267,7 +267,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> list[dict]:
         """
-        获取租户按模型维度的用量统计
+        获取企业按模型维度的用量统计
         """
         stmt = select(
             UsageStat.model_id,

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户速率限制新建/编辑表单抽屉
+ * 企业速率限制新建/编辑表单抽屉
  */
 import type { TenantRateLimitInfo } from '#/api/tenant/ai';
 

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户配额新建/编辑表单抽屉
+ * 企业配额新建/编辑表单抽屉
  */
 import type { TenantQuotaInfo } from '#/api/tenant/ai';
 

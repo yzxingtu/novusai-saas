@@ -1,7 +1,7 @@
 """
 平台端智能体管理 API / Platform Agent Management API
 
-提供跨租户智能体列表、详情、状态管理接口（平台管理员专用）/ Provides cross-tenant agent list, details, and status management interfaces (for platform administrators only)
+提供跨企业智能体列表、详情、状态管理接口（平台管理员专用）/ Provides cross-tenant agent list, details, and status management interfaces (for platform administrators only)
 """
 
 from fastapi import Query, Request
@@ -79,7 +79,7 @@ class AdminAgentController(GlobalController):
     """
     平台端智能体管理控制器 / Platform Agent Management Controller
 
-    跨租户只读查看 + 状态管理 / Cross-tenant read-only view + status management
+    跨企业只读查看 + 状态管理 / Cross-tenant read-only view + status management
     """
 
     prefix = "/ai/agents"
@@ -97,7 +97,7 @@ class AdminAgentController(GlobalController):
             serialize=_build_admin_agent_item,
         )
 
-        @router.get("", summary="全租户智能体列表")
+        @router.get("", summary="全企业智能体列表")
         @action_read("action.ai_agent.list")
         async def list_agents(
             request: Request,
@@ -106,10 +106,10 @@ class AdminAgentController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户智能体列表 / Get all-tenant agent list
+            获取全企业智能体列表 / Get all-tenant agent list
 
             支持 JSON:API 风格筛选、排序、分页 / Supports JSON:API style filtering, sorting, pagination
-            - filter[tenant_id][eq]=1  按租户筛选 / Filter by tenant
+            - filter[tenant_id][eq]=1  按企业筛选 / Filter by tenant
             - filter[status][eq]=published  按状态筛选 / Filter by status
             - filter[name][ilike]=xxx  按名称模糊搜索 / Fuzzy search by name
             权限 / Permission: ai_agent:list
@@ -126,7 +126,7 @@ class AdminAgentController(GlobalController):
                 page_size=query.size,
             )
 
-        @router.post("", summary="创建智能体（支持全局/租户/管理端专属）")
+        @router.post("", summary="创建智能体（支持全局/企业/管理端专属）")
         @action_create("action.ai_agent.create")
         async def create_agent(
             request: Request,
@@ -138,8 +138,8 @@ class AdminAgentController(GlobalController):
             管理端创建智能体 / Admin create agent
 
             支持 3 种 scope / Supports 3 scopes:
-            - tenant: 属于指定租户（需提供 tenant_id） / Belongs to specified tenant (tenant_id required)
-            - global: 全局共享（所有租户可见） / Global shared (visible to all tenants)
+            - tenant: 属于指定企业（需提供 tenant_id） / Belongs to specified tenant (tenant_id required)
+            - global: 全局共享（所有企业可见） / Global shared (visible to all tenants)
             - admin: 仅管理端可见 / Admin-only visible
 
             权限 / Permission: ai_agent:create
@@ -149,7 +149,7 @@ class AdminAgentController(GlobalController):
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.create(data)
 
-            # 同步租户分配 / Sync tenant assignments
+            # 同步企业分配 / Sync tenant assignments
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
@@ -185,7 +185,7 @@ class AdminAgentController(GlobalController):
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.update(agent_id, data)
 
-            # 同步租户分配 / Sync tenant assignments
+            # 同步企业分配 / Sync tenant assignments
             effective_scope = agent.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -234,7 +234,7 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体详情（跨租户只读） / Get agent details (cross-tenant read-only)
+            获取智能体详情（跨企业只读） / Get agent details (cross-tenant read-only)
 
             权限 / Permission: ai_agent:detail
             """
@@ -244,11 +244,11 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            # 使用租户 Service 获取完整详情（含模型关联） / Use tenant Service to get full details (including model associations)
+            # 使用企业 Service 获取完整详情（含模型关联） / Use tenant Service to get full details (including model associations)
             service = AgentService(db, agent.tenant_id)
             detail = await service.get_agent_detail(agent_id)
 
-            # 追加已分配的租户 ID 列表 / Append assigned tenant ID list
+            # 追加已分配的企业 ID 列表 / Append assigned tenant ID list
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(

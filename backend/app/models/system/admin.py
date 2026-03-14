@@ -1,7 +1,7 @@
 """
 平台管理员模型 / Platform Admin Model
 
-平台级别的超级管理员，独立于租户体系
+平台级别的超级管理员，独立于企业体系
 Platform-level super administrators, independent of the tenant system.
 """
 
@@ -19,9 +19,9 @@ class Admin(BaseModel):
     """
     平台管理员模型
 
-    - 独立于租户体系
+    - 独立于企业体系
     - 用于平台后台管理
-    - 可管理所有租户和系统配置
+    - 可管理所有企业和系统配置
     """
 
     __tablename__ = "admins"

@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['model_id'], ['ai_models.id'], name=op.f('fk_tenant_model_rate_limits_model_id_ai_models'), ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_tenant_model_rate_limits')),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], name=op.f('fk_tenant_model_rate_limits_tenant_id_tenants'), ondelete='CASCADE'),
-        comment='租户 AI 模型速率限制配置'
+        comment='企业 AI 模型速率限制配置'
     )
     
     # 创建索引
@@ -60,7 +60,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['model_id'], ['ai_models.id'], name=op.f('fk_tenant_quotas_model_id_ai_models'), ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_tenant_quotas')),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], name=op.f('fk_tenant_quotas_tenant_id_tenants'), ondelete='CASCADE'),
-        comment='租户 AI 配额配置'
+        comment='企业 AI 配额配置'
     )
     
     # 创建索引

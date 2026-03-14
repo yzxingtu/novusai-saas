@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Initial migration - Create all tables and seed initial admin user
 
 Revision ID: 0001
@@ -130,13 +130,13 @@ def upgrade() -> None:
     op.create_index('ix_admins_is_deleted', 'admins', ['is_deleted'])
     
     # ========================================
-    # 5. 创建租户表 (tenants)
+    # 5. 创建企业表 (tenants)
     # ========================================
     op.create_table(
         'tenants',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('name', sa.String(length=100), nullable=False, comment='租户名称'),
-        sa.Column('code', sa.String(length=50), nullable=False, comment='租户编码'),
+        sa.Column('name', sa.String(length=100), nullable=False, comment='企业名称'),
+        sa.Column('code', sa.String(length=50), nullable=False, comment='企业编码'),
         sa.Column('contact_name', sa.String(length=50), nullable=True, comment='联系人姓名'),
         sa.Column('contact_phone', sa.String(length=20), nullable=True, comment='联系人电话'),
         sa.Column('contact_email', sa.String(length=255), nullable=True, comment='联系人邮箱'),
@@ -157,12 +157,12 @@ def upgrade() -> None:
     op.create_index('ix_tenants_is_deleted', 'tenants', ['is_deleted'])
     
     # ========================================
-    # 6. 创建租户管理员角色表 (tenant_admin_roles)
+    # 6. 创建企业管理员角色表 (tenant_admin_roles)
     # ========================================
     op.create_table(
         'tenant_admin_roles',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('name', sa.String(length=50), nullable=False, comment='角色名称'),
         sa.Column('code', sa.String(length=50), nullable=False, comment='角色代码'),
         sa.Column('description', sa.Text(), nullable=True, comment='角色描述'),
@@ -180,7 +180,7 @@ def upgrade() -> None:
     op.create_index('ix_tenant_admin_roles_is_deleted', 'tenant_admin_roles', ['is_deleted'])
     
     # ========================================
-    # 7. 创建租户角色-权限关联表
+    # 7. 创建企业角色-权限关联表
     # ========================================
     op.create_table(
         'tenant_admin_role_permissions',
@@ -192,18 +192,18 @@ def upgrade() -> None:
     )
     
     # ========================================
-    # 8. 创建租户管理员表 (tenant_admins)
+    # 8. 创建企业管理员表 (tenant_admins)
     # ========================================
     op.create_table(
         'tenant_admins',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('username', sa.String(length=50), nullable=False, comment='用户名'),
         sa.Column('email', sa.String(length=255), nullable=False, comment='邮箱'),
         sa.Column('phone', sa.String(length=20), nullable=True, comment='手机号'),
         sa.Column('password_hash', sa.String(length=255), nullable=False, comment='密码哈希'),
         sa.Column('is_active', sa.Boolean(), nullable=False, default=True, comment='是否激活'),
-        sa.Column('is_owner', sa.Boolean(), nullable=False, default=False, comment='是否租户所有者'),
+        sa.Column('is_owner', sa.Boolean(), nullable=False, default=False, comment='是否企业所有者'),
         sa.Column('nickname', sa.String(length=100), nullable=True, comment='昵称'),
         sa.Column('avatar', sa.String(length=500), nullable=True, comment='头像 URL'),
         sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True, comment='最后登录时间'),
@@ -223,12 +223,12 @@ def upgrade() -> None:
     op.create_index('ix_tenant_admins_is_deleted', 'tenant_admins', ['is_deleted'])
     
     # ========================================
-    # 9. 创建租户业务用户表 (tenant_users)
+    # 9. 创建企业业务用户表 (tenant_users)
     # ========================================
     op.create_table(
         'tenant_users',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('username', sa.String(length=50), nullable=True, comment='用户名'),
         sa.Column('email', sa.String(length=255), nullable=True, comment='邮箱'),
         sa.Column('phone', sa.String(length=20), nullable=True, comment='手机号'),
@@ -291,7 +291,7 @@ def downgrade() -> None:
     """Drop all tables."""
     # 按照依赖关系的反序删除表
     
-    # 删除租户业务用户表
+    # 删除企业业务用户表
     op.drop_index('ix_tenant_users_is_deleted', 'tenant_users')
     op.drop_index('ix_tenant_users_unionid', 'tenant_users')
     op.drop_index('ix_tenant_users_openid', 'tenant_users')
@@ -302,7 +302,7 @@ def downgrade() -> None:
     op.drop_index('ix_tenant_users_id', 'tenant_users')
     op.drop_table('tenant_users')
     
-    # 删除租户管理员表
+    # 删除企业管理员表
     op.drop_index('ix_tenant_admins_is_deleted', 'tenant_admins')
     op.drop_index('ix_tenant_admins_phone', 'tenant_admins')
     op.drop_index('ix_tenant_admins_email', 'tenant_admins')
@@ -311,17 +311,17 @@ def downgrade() -> None:
     op.drop_index('ix_tenant_admins_id', 'tenant_admins')
     op.drop_table('tenant_admins')
     
-    # 删除租户角色-权限关联表
+    # 删除企业角色-权限关联表
     op.drop_table('tenant_admin_role_permissions')
     
-    # 删除租户管理员角色表
+    # 删除企业管理员角色表
     op.drop_index('ix_tenant_admin_roles_is_deleted', 'tenant_admin_roles')
     op.drop_index('ix_tenant_admin_roles_code', 'tenant_admin_roles')
     op.drop_index('ix_tenant_admin_roles_tenant_id', 'tenant_admin_roles')
     op.drop_index('ix_tenant_admin_roles_id', 'tenant_admin_roles')
     op.drop_table('tenant_admin_roles')
     
-    # 删除租户表
+    # 删除企业表
     op.drop_index('ix_tenants_is_deleted', 'tenants')
     op.drop_index('ix_tenants_code', 'tenants')
     op.drop_index('ix_tenants_name', 'tenants')

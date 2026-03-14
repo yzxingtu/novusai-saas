@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端配额与速率限制管理页面（只读）— useCrudList 声明式卡片布局
+ * 企业端配额与速率限制管理页面（只读）— useCrudList 声明式卡片布局
  */
 import type {
   TenantQuotaWithUsageInfo,

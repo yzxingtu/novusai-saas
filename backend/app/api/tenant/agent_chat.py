@@ -1,5 +1,5 @@
 """
-租户端 AI 对话 API / Tenant AI Chat API
+企业端 AI 对话 API / Tenant AI Chat API
 
 提供 AI 对话（非流式/流式）、对话列表、删除等接口
 Provides AI chat (non-streaming/streaming), conversation list, delete endpoints
@@ -56,7 +56,7 @@ from app.services.ai.conversation_service import ConversationService
 )
 class TenantAgentChatController(TenantController):
     """
-    租户 AI 对话控制器 / Tenant AI Chat Controller
+    企业 AI 对话控制器 / Tenant AI Chat Controller
 
     提供 AI 对话交互和对话管理
     Provides AI chat interaction and conversation management
@@ -353,7 +353,7 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            清空当前会话的记忆状态（仅当前租户当前用户） / Clear current conversation memory state (current tenant and user only)
+            清空当前会话的记忆状态（仅当前企业当前用户） / Clear current conversation memory state (current tenant and user only)
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             deleted_count = await service.clear_conversation_memory_state(

@@ -69,7 +69,7 @@ class RetryService:
             api_key: Current API Key / 当前 API Key
             model: Model name / 模型名称
             call_fn: Async function that receives adapter and returns result / 接收 adapter 实例并返回结果的异步函数
-            tenant_id: Tenant ID (for getting backup Key) / 租户 ID（用于获取备用 Key）
+            tenant_id: Tenant ID (for getting backup Key) / 企业 ID（用于获取备用 Key）
             log_key: Log i18n key / 日志 i18n key
 
         Returns:
@@ -185,7 +185,7 @@ class RetryService:
         Args:
             provider_id: Provider ID / 供应商 ID
             current_key_id: Current Key ID (excluded) / 当前 Key 的 ID（排除）
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
 
         Returns:
             Next available API Key, or None / 下一个可用的 API Key，如果没有则返回 None

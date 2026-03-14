@@ -1,5 +1,5 @@
 /**
- * 操作日志管理（租户端） - 表格列和搜索配置
+ * 操作日志管理（企业端） - 表格列和搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -72,7 +72,7 @@ export function getMethodColor(method: string | undefined): string {
 }
 
 /**
- * 表格列定义（租户端无删除操作）
+ * 表格列定义（企业端无删除操作）
  */
 export function useColumns<T = OperationLogInfo>(
   onActionClick: OnActionClickFn<T>,

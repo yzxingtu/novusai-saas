@@ -1,7 +1,7 @@
 """
-租户端仪表盘 API / Tenant Dashboard API
+企业端仪表盘 API / Tenant Dashboard API
 
-提供租户 Dashboard 统计数据 / Provides tenant dashboard statistics:
+提供企业 Dashboard 统计数据 / Provides tenant dashboard statistics:
 - B1: 真实 AI 调用统计（替换硬编码 0） / Real AI call statistics (replaces hardcoded 0)
 - B2: AI 使用趋势（近7天每日调用量+Token量） / AI usage trend (daily calls + tokens for last 7 days)
 - B3: 存储使用详情（配额/已用/文件分类分布） / Storage usage details (quota/used/file type distribution)
@@ -18,15 +18,15 @@ from app.services.system.dashboard_service import TenantDashboardService
 router = APIRouter(prefix="/dashboard", tags=["Dashboard (Tenant)"])
 
 
-@router.get("/stats", summary="获取租户仪表盘统计数据")
+@router.get("/stats", summary="获取企业仪表盘统计数据")
 @auth_only
 async def get_tenant_dashboard_stats(
     db: DbSession,
     current_admin: ActiveTenantAdmin,
 ):
     """
-    获取租户端仪表盘统计（增强版） / Get tenant dashboard statistics (enhanced):
-    - total_users: 租户下管理员总数 / Total admins under tenant
+    获取企业端仪表盘统计（增强版） / Get tenant dashboard statistics (enhanced):
+    - total_users: 企业下管理员总数 / Total admins under tenant
     - active_users: 活跃用户数 / Active user count
     - api_calls: 真实 AI 调用数 / Real AI call count
     - total_tokens: AI Token 总量 / Total AI tokens

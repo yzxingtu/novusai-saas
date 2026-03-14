@@ -92,7 +92,7 @@ class AgentRouterService:
         执行智能路由
 
         Args：
-            tenant_id: 租户 ID（管理端可为 None）
+            tenant_id: 企业 ID（管理端可为 None）
             message: 用户消息
             page_context: 页面上下文信息
             pinned_agent_id: 用户固定选择的智能体 ID
@@ -208,7 +208,7 @@ class AgentRouterService:
         获取 scope-aware + target_audience-aware 候选智能体列表
 
         管理端: ADMIN_ONLY / ADMIN_AND_ALL / ADMIN_AND_ASSIGNED
-        租户端: ALL_TENANTS / ADMIN_AND_ALL + 同租户 + 已分配
+        企业端: ALL_TENANTS / ADMIN_AND_ALL + 同企业 + 已分配
         最终按 target_audience 过滤
         """
         from app.ai.skills.resolver import _audience_allows_role
@@ -241,7 +241,7 @@ class AgentRouterService:
                 ])
             )
         elif tenant_id:
-            # 租户端：scope-aware 过滤
+            # 企业端：scope-aware 过滤
             assigned_subq = assigned_resource_ids_subquery("agent", tenant_id)
             query = query.where(
                 or_(
@@ -430,14 +430,14 @@ class AgentRouterService:
         降级到 default_chat 绑定的智能体
 
         查询 SystemAgentAssignment: feature_code='default_chat'
-        租户端先查租户覆盖，再 fallback 全局默认
+        企业端先查企业覆盖，再 fallback 全局默认
         """
         feature_code = "default_chat"
 
         assignment: SystemAgentAssignment | None = None
 
         if tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value:
-            # 租户端：先查覆盖
+            # 企业端：先查覆盖
             result = await self.db.execute(
                 select(SystemAgentAssignment).where(
                     SystemAgentAssignment.feature_code == feature_code,

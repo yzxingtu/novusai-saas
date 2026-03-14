@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-租户管理员认证 API 测试模块
+企业管理员认证 API 测试模块
 
 测试 /tenant/auth/* 接口
 
-注意：需要先配置租户管理员账号才能运行此测试
+注意：需要先配置企业管理员账号才能运行此测试
 """
 import os
 import sys
@@ -21,16 +21,16 @@ from tests.api.base import (
 
 
 class ManualTestTenantAuth(BaseAPITest):
-    """租户管理员认证测试"""
+    """企业管理员认证测试"""
 
-    module_name = "租户管理员认证 (/tenant/auth)"
+    module_name = "企业管理员认证 (/tenant/auth)"
 
     def _run_tests(self) -> None:
         """运行所有测试"""
-        # 检查是否配置了租户管理员账号
+        # 检查是否配置了企业管理员账号
         skip_reason = None
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
-            skip_reason = "未配置租户管理员账号，请在 config.py 中设置 TENANT_ADMIN_USERNAME 和 TENANT_ADMIN_PASSWORD"
+            skip_reason = "未配置企业管理员账号，请在 config.py 中设置 TENANT_ADMIN_USERNAME 和 TENANT_ADMIN_PASSWORD"
 
         # 1. 测试登录 - 正确凭据
         self.run_test("登录 - 正确凭据", self.test_login_success, skip_reason)
@@ -125,7 +125,7 @@ class ManualTestTenantAuth(BaseAPITest):
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_scope_isolation_tenant_admin_token_to_admin(self) -> None:
-        """使用租户管理员 Token 访问平台管理员接口应返回 401"""
+        """使用企业管理员 Token 访问平台管理员接口应返回 401"""
         if not self.client.token:
             self._do_login()
         resp = self.client.get("/admin/auth/me")
@@ -142,7 +142,7 @@ class ManualTestTenantAuth(BaseAPITest):
     def _do_login(self) -> None:
         """执行登录"""
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
-            raise AssertionError("未配置租户管理员账号")
+            raise AssertionError("未配置企业管理员账号")
 
         resp = self.client.post("/tenant/auth/login", data={
             "username": config.TENANT_ADMIN_USERNAME,

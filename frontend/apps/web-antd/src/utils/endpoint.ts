@@ -76,7 +76,7 @@ export function isAdminPath(path: string): boolean {
 
 /**
  * Check if the path is a tenant endpoint path
- * 检查路径是否为租户管理端路径
+ * 检查路径是否为企业管理端路径
  *
  * @param path - Route path / 路由路径
  */

@@ -1,7 +1,7 @@
 """
 配额服务 / Quota Service
 
-提供租户配额检查功能
+提供企业配额检查功能
 Provides tenant quota checking functionality.
 """
 
@@ -44,8 +44,8 @@ class QuotaService:
     """
     配额服务
 
-    提供租户运行时配额检查功能
-    配额优先级：租户覆盖 > 套餐默认
+    提供企业运行时配额检查功能
+    配额优先级：企业覆盖 > 套餐默认
     """
 
     def __init__(self, db: AsyncSession, tenant: Tenant):
@@ -54,7 +54,7 @@ class QuotaService:
 
         Args:
             db: 异步数据库会话
-            tenant: 租户实例（需要已加载 tenant_plan 关系）
+            tenant: 企业实例（需要已加载 tenant_plan 关系）
         """
         self.db = db
         self.tenant = tenant
@@ -74,7 +74,7 @@ class QuotaService:
 
     async def _lock_tenant_row(self) -> None:
         """
-        对租户行加排他锁，序列化同一租户的并发配额检查。
+        对企业行加排他锁，序列化同一企业的并发配额检查。
 
         在同一事务中先锁定再 COUNT，确保 CHECK → INSERT 之间
         不会有其他事务插入同类资源，消除 TOCTOU 竞态。
@@ -88,9 +88,9 @@ class QuotaService:
 
     def get_quota_value(self, key: str, default: int | bool | None = None) -> Any:
         """
-        获取租户有效配额值
+        获取企业有效配额值
 
-        优先级：租户覆盖 > 套餐默认
+        优先级：企业覆盖 > 套餐默认
 
         Args:
             key: 配额键名
@@ -112,7 +112,7 @@ class QuotaService:
         Returns:
             特性是否启用
         """
-        # 优先从租户级 quota 获取（特性也可以存在 quota 中）
+        # 优先从企业级 quota 获取（特性也可以存在 quota 中）
         if self.tenant.quota and key in self.tenant.quota:
             return bool(self.tenant.quota.get(key, default))
         # 其次从套餐 features 获取
@@ -197,7 +197,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
 
         # 统计当前用户数
@@ -241,7 +241,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
 
         # 统计当前管理员数
@@ -296,7 +296,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
 
         # 获取平台域名后缀，用于区分默认域名和自定义域名
@@ -458,7 +458,7 @@ class QuotaService:
 
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             QuotaCheckResult（无限制时 allowed=True）

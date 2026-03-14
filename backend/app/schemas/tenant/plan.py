@@ -1,5 +1,5 @@
 """
-租户套餐相关 Schema / Tenant Plan Schema
+企业套餐相关 Schema / Tenant Plan Schema
 
 定义套餐管理 API 的请求和响应数据结构
 Defines plan management API request and response data structures.
@@ -62,7 +62,7 @@ class TenantPlanResponse(BaseSchema):
     sort_order: int = Field(0, description="排序顺序")
     quota: dict | None = Field(None, description="配额配置")
     features: dict | None = Field(None, description="特性标记")
-    tenants_count: int = Field(0, description="使用该套餐的租户数")
+    tenants_count: int = Field(0, description="使用该套餐的企业数")
     permissions_count: int = Field(0, description="关联权限数")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")

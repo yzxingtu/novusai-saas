@@ -27,7 +27,7 @@ class KnowledgeBase(TenantModel):
     知识库模型
 
     存储知识库配置，包括 Embedding 模型、分块策略、检索模式等
-    属于租户级资源，通过 tenant_id 隔离
+    属于企业级资源，通过 tenant_id 隔离
     """
 
     __tablename__ = "knowledge_bases"
@@ -42,7 +42,7 @@ class KnowledgeBase(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（scope=tenant 时必填，global/admin 时为 NULL）"
+        comment="企业ID（scope=tenant 时必填，global/admin 时为 NULL）"
     )
 
     # 允许前端筛选的字段

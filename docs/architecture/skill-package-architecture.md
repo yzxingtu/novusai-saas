@@ -69,43 +69,43 @@
 
 ---
 
-## 二、作用域与多租户体系
+## 二、作用域与多企业体系
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    ResourceScopeEnum 作用域枚举                │
 ├─────────┬────────────────────────────────────────────────────┤
 │  tenant │ tenant_id = X（必填）                               │
-│  租户级  │ 仅该租户可见                                        │
-│         │ 租户可完全增删改查                                    │
+│  企业级  │ 仅该企业可见                                        │
+│         │ 企业可完全增删改查                                    │
 ├─────────┼────────────────────────────────────────────────────┤
 │  admin  │ tenant_id = NULL                                    │
 │  管理级  │ 仅管理端可见                                        │
-│         │ 租户可绑定使用（只读），可通过"从模板克隆"复制为自有    │
+│         │ 企业可绑定使用（只读），可通过"从模板克隆"复制为自有    │
 ├─────────┼────────────────────────────────────────────────────┤
 │  global │ tenant_id = NULL                                    │
-│  全局级  │ 全平台可见（管理端 + 所有租户）                       │
-│         │ 自动包含在租户的列表查询中                             │
+│  全局级  │ 全平台可见（管理端 + 所有企业）                       │
+│         │ 自动包含在企业的列表查询中                             │
 └─────────┴────────────────────────────────────────────────────┘
 ```
 
 ### 可见性规则（源自 Repository 代码）
 
-**租户端** (`SkillPackageRepository.query_list`)：
+**企业端** (`SkillPackageRepository.query_list`)：
 ```python
-WHERE (tenant_id = :当前租户ID) OR (scope = 'global')
+WHERE (tenant_id = :当前企业ID) OR (scope = 'global')
 ```
 
-**租户端绑定下拉** (`get_available_for_binding`)：
+**企业端绑定下拉** (`get_available_for_binding`)：
 ```python
 WHERE is_active AND NOT is_deleted AND (
-    tenant_id = :当前租户ID                          -- 自有包
+    tenant_id = :当前企业ID                          -- 自有包
     OR (tenant_id IS NULL AND scope IN ('admin', 'global'))  -- 共享包
 )
 ```
 
 **管理端** (`AdminSkillPackageRepository` / `BaseRepository`)：
-- 无租户过滤 — 可查看**所有租户**、**所有作用域**的技能包。
+- 无企业过滤 — 可查看**所有企业**、**所有作用域**的技能包。
 
 ---
 
@@ -151,7 +151,7 @@ WHERE is_active AND NOT is_deleted AND (
     ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  AgentChatService / API 控制器                               │
-│  （租户端/管理端接收用户消息）                                │
+│  （企业端/管理端接收用户消息）                                │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -308,17 +308,17 @@ resolve_for_agent(db, agent, tenant_id)
 
 ---
 
-## 六、管理端 vs 租户端 — 完整对比
+## 六、管理端 vs 企业端 — 完整对比
 
 ### 6.1 后端架构差异
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────────────┐
-│         管理端 (Admin)            │          租户端 (Tenant)              │
+│         管理端 (Admin)            │          企业端 (Tenant)              │
 ├──────────────────────────────────┼──────────────────────────────────────┤
 │ 控制器：                          │ 控制器：                              │
 │   GlobalController               │   TenantController                   │
-│   （无租户隔离）                   │   （自动注入 tenant_id）              │
+│   （无企业隔离）                   │   （自动注入 tenant_id）              │
 │                                  │                                      │
 │ 服务层：                          │ 服务层：                              │
 │   AdminSkillPackageService       │   SkillPackageService                │
@@ -339,7 +339,7 @@ resolve_for_agent(db, agent, tenant_id)
 │                                  │                                      │
 │ 删除层级：                        │ 删除层级：                            │
 │   _default_delete_level='admin'  │   _default_delete_level='tenant'     │
-│   （直接进入管理端回收站）         │   （先进租户回收站，可升级到管理端）    │
+│   （直接进入管理端回收站）         │   （先进企业回收站，可升级到管理端）    │
 └──────────────────────────────────┴──────────────────────────────────────┘
 ```
 
@@ -347,10 +347,10 @@ resolve_for_agent(db, agent, tenant_id)
 
 ```
 ┌───────────────────────┬──────────────────────────┬──────────────────────────┐
-│ 功能                   │ 管理端 (/admin/...)       │ 租户端 (/tenant/...)      │
+│ 功能                   │ 管理端 (/admin/...)       │ 企业端 (/tenant/...)      │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 技能包列表             │ GET  /ai/skill-packages  │ GET  /ai/skill-packages  │
-│                       │ （所有作用域、所有租户）    │ （仅本租户 + global 包）  │
+│                       │ （所有作用域、所有企业）    │ （仅本企业 + global 包）  │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 下拉选项               │ GET  .../select          │ GET  .../select          │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
@@ -358,7 +358,7 @@ resolve_for_agent(db, agent, tenant_id)
 │                       │                          │ （自有 + admin + global）  │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 创建                   │ POST（任意作用域，        │ POST（仅 tenant 作用域）  │
-│                       │  可指定 tenant_id）        │ tenant_id=当前租户       │
+│                       │  可指定 tenant_id）        │ tenant_id=当前企业       │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 上传 ZIP 安装          │ POST .../upload          │ POST .../upload          │
 │                       │ scope=admin              │ scope=tenant             │
@@ -369,7 +369,7 @@ resolve_for_agent(db, agent, tenant_id)
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 从模板克隆             │ —                        │ POST .../from-template/  │
 │                       │                          │  {id}                    │
-│                       │                          │ （admin/global → 租户自有）│
+│                       │                          │ （admin/global → 企业自有）│
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 导出                   │ GET .../{id}/export      │ —                        │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
@@ -383,7 +383,7 @@ resolve_for_agent(db, agent, tenant_id)
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 切换启用状态           │ PUT .../{id}/status      │ —                        │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 回收站                 │ 管理端级别路由            │ 租户端级别路由            │
+│ 回收站                 │ 管理端级别路由            │ 企业端级别路由            │
 └───────────────────────┴──────────────────────────┴──────────────────────────┘
 ```
 
@@ -395,10 +395,10 @@ resolve_for_agent(db, agent, tenant_id)
 - `scope=admin` 或 `scope=global` 时，自动设置 `tenant_id=NULL`
 - 名称唯一性在**同一 scope + tenant_id** 范围内检查
 
-**租户端** (`SkillPackageService._before_create`)：
+**企业端** (`SkillPackageService._before_create`)：
 - **只能**创建 `scope=tenant` 的技能包
 - `tenant_id` 由 `TenantService` 自动注入
-- 名称唯一性仅在本租户范围内检查
+- 名称唯一性仅在本企业范围内检查
 - **不能**创建 `is_system=True` 的技能包
 
 ---
@@ -408,7 +408,7 @@ resolve_for_agent(db, agent, tenant_id)
 ```
 is_system = True（系统技能包标记）
     │
-    ├─ 不可删除（管理端和租户端 Service 均检查）
+    ├─ 不可删除（管理端和企业端 Service 均检查）
     ├─ 不可修改以下字段：scope、is_system、is_active
     ├─ 前端：删除按钮隐藏、状态切换开关禁用
     ├─ 前端：显示紫色「系统」徽章
@@ -429,12 +429,12 @@ is_system = True（系统技能包标记）
 │                                                               │
 │  创建                                                         │
 │  ├─ 管理端：API 创建 + ZIP 上传 + JSON 导入 + 克隆           │
-│  ├─ 租户端：API 创建 + ZIP 上传 + 从模板克隆                  │
+│  ├─ 企业端：API 创建 + ZIP 上传 + 从模板克隆                  │
 │                                                               │
 │  绑定到智能体                                                  │
 │  ├─ 创建 AgentSkillBinding(agent_id, package_id)              │
 │  ├─ 可选：config_override（配置覆盖）、consent_mode（授权模式）│
-│  └─ 租户可使用：自有包 + admin 共享包 + global 全局包          │
+│  └─ 企业可使用：自有包 + admin 共享包 + global 全局包          │
 │                                                               │
 │  AI 执行                                                      │
 │  ├─ Dispatcher 调用 resolve_for_agent()                       │
@@ -443,7 +443,7 @@ is_system = True（系统技能包标记）
 │  └─ Sandbox 按 tool_type 路由到对应执行器                      │
 │                                                               │
 │  删除（两级回收站）                                            │
-│  ├─ 租户删除 → delete_level='tenant'（进入租户回收站）         │
+│  ├─ 企业删除 → delete_level='tenant'（进入企业回收站）         │
 │  │   └─ 级联：技能软删除、绑定物理删除                         │
 │  ├─ 管理端升级 → delete_level='admin'（进入管理端回收站）      │
 │  ├─ 永久删除 → 物理删除 + 清理磁盘存储文件                     │
@@ -493,7 +493,7 @@ is_system = True（系统技能包标记）
 ### 服务层 / 仓库层
 | 文件 | 说明 |
 |---|---|
-| `backend/app/services/ai/skill_package_service.py` | SkillPackageService（租户）+ AdminSkillPackageService（全局） |
+| `backend/app/services/ai/skill_package_service.py` | SkillPackageService（企业）+ AdminSkillPackageService（全局） |
 | `backend/app/repositories/ai/skill_package_repository.py` | 仓库 + 级联 Mixin + 作用域感知查询 |
 
 ### API 控制器
@@ -510,8 +510,8 @@ is_system = True（系统技能包标记）
 2. **SkillResolver 是唯一桥梁** — 连接 ORM 模型和 AI 引擎运行时（ToolDefinition）。
 3. **resolve_for_agent() 在 Dispatcher 层调用**，不在 Engine 内部 — Engine 接收已解析好的 `SkillResolveResult`。
 4. **knowledge_base 类型技能产生 0 个 ToolDefinition** — 通过 RAG 管线注入上下文到 system_prompt。
-5. **作用域创建后不可变** — 不能将租户包改为管理包或反之。
+5. **作用域创建后不可变** — 不能将企业包改为管理包或反之。
 6. **系统技能包/技能**（is_system=True）不可删除、禁用，scope/is_system 字段不可修改。
-7. **租户可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
+7. **企业可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
 8. **删除级联规则**：删除技能包 → 软删除所有子技能 + 物理删除所有 AgentSkillBinding。
 9. **Valves 环境配置**存储在技能包级别，解析时注入到每个工具的 config 中（键名 `_valves_config`）。

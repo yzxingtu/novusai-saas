@@ -15,8 +15,8 @@
  * // Search form / 搜索表单
  * export function useGridFormSchema() {
  *   return [
- *     searchInput('code', '租户编码'),
- *     searchInput('name', '租户名称'),
+ *     searchInput('code', '企业编码'),
+ *     searchInput('name', '企业名称'),
  *     statusSelect(),
  *     planSelect({ fieldName: 'filter[plan_id]' }),
  *   ];
@@ -330,7 +330,7 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
  *
  * @example
  * ```ts
- * searchInput('code', '租户编码')
+ * searchInput('code', '企业编码')
  * // => fieldName: 'filter[code][ilike]'
  *
  * searchInput('name', '名称', { op: 'eq' })

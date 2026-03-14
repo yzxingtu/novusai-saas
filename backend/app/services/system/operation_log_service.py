@@ -39,7 +39,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
     提供操作日志的业务方法，包括：
     - 异步写入日志
     - 平台端日志查询
-    - 租户端日志查询（自动隔离）
+    - 企业端日志查询（自动隔离）
     - 批量删除日志
     """
 
@@ -71,7 +71,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         创建操作日志记录
 
         Args:
-            tenant_id: 租户 ID（平台操作为 None）
+            tenant_id: 企业 ID（平台操作为 None）
             user_type: 用户类型
             user_id: 用户 ID
             username: 用户名
@@ -139,12 +139,12 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端查询日志
+        企业端查询日志
 
-        自动添加租户隔离
+        自动添加企业隔离
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
 
         Returns:
@@ -179,7 +179,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         按模块统计日志
 
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期
             end_date: 结束日期
 
@@ -202,7 +202,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         按操作类型统计日志
 
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期
             end_date: 结束日期
 
@@ -257,20 +257,20 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端基于权限的日志查询
+        企业端基于权限的日志查询
 
-        - 租户所有者: 可查看本租户所有日志
+        - 企业所有者: 可查看本企业所有日志
         - 普通管理员: 只能查看自己及其角色子树下用户的日志
 
         Args:
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
             spec: 查询规格
 
         Returns:
             (日志列表, 总数)
         """
         if tenant_admin.is_owner:
-            # 租户所有者可查看本租户所有日志
+            # 企业所有者可查看本企业所有日志
             return await self.repo.query_tenant_logs_with_hierarchy(
                 tenant_id=tenant_admin.tenant_id,
                 spec=spec,
@@ -344,10 +344,10 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
         """
-        获取租户端操作日志中的去重操作人列表（含头像）
+        获取企业端操作日志中的去重操作人列表（含头像）
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             操作人列表
@@ -409,12 +409,12 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         page_size: int = 10,
     ) -> tuple[list[dict], int]:
         """
-        获取租户端操作人分页下拉列表
+        获取企业端操作人分页下拉列表
 
         支持远程搜索和按用户类型过滤，返回 label/value 格式供 ApiSelect 使用
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             search: 搜索关键词（匹配 username/nickname）
             user_type: 用户类型过滤
             page: 页码
@@ -536,14 +536,14 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         tenant_admin: "TenantAdmin",
     ) -> list[int]:
         """
-        获取租户管理员的下属用户 ID 列表
+        获取企业管理员的下属用户 ID 列表
 
         包含:
         - 当前用户自己
         - 当前角色子树下所有角色的成员
 
         Args:
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
 
         Returns:
             下属用户 ID 列表
@@ -561,7 +561,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 获取当前角色的 path
         current_role_path = tenant_admin.role.path or f"/{tenant_admin.role_id}/"
 
-        # 查询同租户内所有子角色（path 以当前角色 path 开头的）
+        # 查询同企业内所有子角色（path 以当前角色 path 开头的）
         child_roles_query = select(TenantAdminRole.id).where(
             TenantAdminRole.is_deleted.is_(False),
             TenantAdminRole.tenant_id == tenant_admin.tenant_id,
@@ -703,7 +703,7 @@ def create_log_async(
     使用 asyncio.create_task 在后台写入日志
 
     Args:
-        tenant_id: 租户 ID（平台操作为 None）
+        tenant_id: 企业 ID（平台操作为 None）
         user_type: 用户类型
         user_id: 用户 ID
         username: 用户名

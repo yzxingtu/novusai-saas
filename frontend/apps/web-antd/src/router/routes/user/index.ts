@@ -72,6 +72,8 @@ const mainRoutes: RouteRecordRaw = {
             title: $t('user.profile.changePassword'),
           },
         },
+        // UserPreferences route removed — personal preferences handled via Vben gear sidebar
+        // 用户端偏好页面已移除，个人偏好通过 Vben 齿轮侧边栏管理
       ],
     },
   ],

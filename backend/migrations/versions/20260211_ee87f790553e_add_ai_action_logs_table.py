@@ -34,7 +34,7 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=50), nullable=False, comment='执行状态'),
     sa.Column('error_message', sa.Text(), nullable=True, comment='错误信息'),
     sa.Column('duration_ms', sa.Integer(), nullable=True, comment='执行耗时（毫秒）'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),

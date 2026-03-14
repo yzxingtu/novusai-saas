@@ -40,7 +40,7 @@ _PKG_B_NAME = "平台数据管理"
 _PKG_B_DESC = "平台数据管理能力包。包含数据智能、Text-to-SQL 等数据操作技能，仅限管理端使用。"
 
 _PKG_C_NAME = "联网搜索"
-_PKG_C_DESC = "联网搜索能力包。提供 web_search（联网搜索）和 fetch_url（网页抓取）工具，支持管理端和租户端智能体使用。"
+_PKG_C_DESC = "联网搜索能力包。提供 web_search（联网搜索）和 fetch_url（网页抓取）工具，支持管理端和企业端智能体使用。"
 
 _PKG_D_NAME = "页面感知交互"
 _PKG_D_DESC = "页面感知与交互能力包。提供 get_page_context（读取页面上下文）和 invoke_page_operation（执行页面操作）工具。"

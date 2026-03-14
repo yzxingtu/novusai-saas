@@ -2,7 +2,7 @@
 NovusDoc 文档服务
 
 负责文档 CRUD 业务逻辑、content_text 同步、软删除。
-通过 PluginContext 获取 DB 和租户信息。
+通过 PluginContext 获取 DB 和企业信息。
 """
 
 from __future__ import annotations

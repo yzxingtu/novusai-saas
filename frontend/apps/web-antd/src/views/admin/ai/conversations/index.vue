@@ -167,7 +167,7 @@ onUnmounted(() => {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 租户列 -->
+        <!-- 企业列 -->
         <template #tenant_cell="{ row }">
           <span v-if="row.tenant_name" class="text-foreground">{{
             row.tenant_name

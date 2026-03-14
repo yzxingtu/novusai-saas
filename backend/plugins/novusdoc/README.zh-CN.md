@@ -23,7 +23,7 @@ NovusAI 平台的现代化 AI 富文本编辑器插件（免费社区版）。
 
 1. 管理后台 → 插件 → 上传 `novusdoc.zip`
 2. 点击 **启用**
-3. 分配给租户（scope: `assigned_tenants`）
+3. 分配给企业（scope: `assigned_tenants`）
 
 ## 开发
 

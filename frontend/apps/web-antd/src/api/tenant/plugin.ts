@@ -1,7 +1,7 @@
 import type { PluginSlotData, PluginSlotsResponse } from '#/api/admin/plugin';
 
 /**
- * Tenant plugin API / 租户端插件 API
+ * Tenant plugin API / 企业端插件 API
  */
 import { requestClient } from '#/utils/request';
 

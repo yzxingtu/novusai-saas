@@ -40,6 +40,13 @@ class AIModel(BaseModel):
                     label_field="name", i18n_key="knowledge_base_vision"),
     ]
 
+    __selectable__ = {
+        "label": "name",
+        "value": "id",
+        "search": ["name", "code"],
+        "extra": ["code", "type"],
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

@@ -1,5 +1,5 @@
 """
-AI 表策略租户覆盖 Repository / AI Table Policy Override Repository
+AI 表策略企业覆盖 Repository / AI Table Policy Override Repository
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from app.models.ai.table_policy import AITablePolicyOverride
 
 
 class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):
-    """AI 表策略租户覆盖仓库"""
+    """AI 表策略企业覆盖仓库"""
 
     model = AITablePolicyOverride
 
@@ -38,7 +38,7 @@ class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):
         return result.scalar_one_or_none()
 
     async def get_all_for_tenant(self) -> list[AITablePolicyOverride]:
-        """获取当前租户的所有覆盖"""
+        """获取当前企业的所有覆盖"""
         stmt = select(AITablePolicyOverride).where(
             AITablePolicyOverride.tenant_id == self.tenant_id,
             AITablePolicyOverride.is_deleted.is_(False),

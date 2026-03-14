@@ -1,7 +1,7 @@
 """
 仪表盘统计服务 / Dashboard Service
 
-提供平台端和租户端 Dashboard 统计数据查询。
+提供平台端和企业端 Dashboard 统计数据查询。
 Provides platform and tenant Dashboard statistics data queries.
 将 Controller 中的直接 DB 查询下沉到 Service 层。
 
@@ -252,11 +252,11 @@ class AdminDashboardService:
             "error_count": int(r.with_errors or 0),
         }
 
-    # ── A5: 租户增长趋势 ──
+    # ── A5: 企业增长趋势 ──
 
     async def get_tenant_growth(self, days: int = 30) -> list[dict[str, Any]]:
         """
-        租户增长趋势：近 N 天每日新增租户数
+        企业增长趋势：近 N 天每日新增企业数
 
         Returns:
             [{"date": "2026-02-20", "count": 3}, ...]
@@ -343,7 +343,7 @@ class AdminDashboardService:
 
 
 class TenantDashboardService:
-    """租户端仪表盘统计服务"""
+    """企业端仪表盘统计服务"""
 
     def __init__(self, db: AsyncSession, tenant_id: int) -> None:
         self.db = db
@@ -351,7 +351,7 @@ class TenantDashboardService:
 
     async def get_stats(self) -> dict[str, Any]:
         """
-        获取租户端仪表盘统计（增强版）
+        获取企业端仪表盘统计（增强版）
 
         Returns:
             {"total_users", "active_users", "api_calls", "total_tokens",
@@ -400,7 +400,7 @@ class TenantDashboardService:
     # ── B1: 真实 AI 调用统计 ──
 
     async def _get_ai_stats(self) -> dict[str, Any]:
-        """租户级 AI 调用汇总"""
+        """企业级 AI 调用汇总"""
         row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("total_calls"),
@@ -491,7 +491,7 @@ class TenantDashboardService:
     # ── B4: 近期活动 ──
 
     async def get_recent_activities(self, limit: int = 20) -> list[dict[str, Any]]:
-        """租户级近期操作日志"""
+        """企业级近期操作日志"""
         rows = await self.db.execute(
             select(OperationLog)
             .where(
@@ -519,7 +519,7 @@ class TenantDashboardService:
         ]
 
     async def _get_storage_used(self) -> int:
-        """租户存储总占用"""
+        """企业存储总占用"""
         result = await self.db.execute(
             select(func.coalesce(func.sum(Attachment.size), 0)).where(
                 Attachment.tenant_id == self.tenant_id,
@@ -529,7 +529,7 @@ class TenantDashboardService:
         return int(result.scalar() or 0)
 
     async def _count_admins(self, *extra_filters) -> int:
-        """租户下管理员计数"""
+        """企业下管理员计数"""
         query = select(func.count()).select_from(TenantAdmin).where(
             TenantAdmin.deleted_at.is_(None),
             TenantAdmin.tenant_id == self.tenant_id,
@@ -538,13 +538,21 @@ class TenantDashboardService:
         return (await self.db.execute(query)).scalar() or 0
 
     async def _count_tenant_model(self, model, *extra_filters) -> int:
-        """通用租户模型计数（模型须含 tenant_id + deleted_at）"""
+        """通用企业模型计数（模型须含 tenant_id + deleted_at）"""
         query = select(func.count()).select_from(model).where(
             model.deleted_at.is_(None),
             model.tenant_id == self.tenant_id,
             *extra_filters,
         )
         return (await self.db.execute(query)).scalar() or 0
+
+    @staticmethod
+    def _format_dt(dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
 
 
 __all__ = ["AdminDashboardService", "TenantDashboardService"]

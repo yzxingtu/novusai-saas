@@ -1,7 +1,7 @@
 """
 平台端附件管理 API / Platform Attachment API
 
-提供跨租户的附件管理接口（平台管理员专用）
+提供跨企业的附件管理接口（平台管理员专用）
 Provides cross-tenant attachment management endpoints (platform admin only).
 """
 
@@ -68,7 +68,7 @@ class AdminAttachmentController(GlobalController):
     """
     平台端附件管理控制器 / Platform Attachment Management Controller
 
-    提供跨租户的附件管理接口 / Provides cross-tenant attachment management endpoints
+    提供跨企业的附件管理接口 / Provides cross-tenant attachment management endpoints
     """
 
     prefix = "/attachments"
@@ -123,7 +123,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: AttachmentPreflightRequest,
-            tenant_id: int = Query(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            tenant_id: int = Query(0, ge=0, description="目标企业 ID，0 表示平台附件"),
         ):
             """
             预检文件是否已存在 / Check if file already exists (preflight)
@@ -169,7 +169,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description="上传的文件"),
-            tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            tenant_id: int = Form(0, ge=0, description="目标企业 ID，0 表示平台附件"),
             visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
             business_type: str | None = Form(None, description="业务类型"),
             business_id: int | None = Form(None, description="业务 ID"),
@@ -178,9 +178,9 @@ class AdminAttachmentController(GlobalController):
             平台端上传附件 / Platform upload attachment
 
             - tenant_id=0: 平台附件（站点 Logo、系统资源等） / Platform attachment (site logo, system resources, etc.)
-            - tenant_id>0: 代租户上传附件 / Upload on behalf of tenant
+            - tenant_id>0: 代企业上传附件 / Upload on behalf of tenant
 
-            不受租户配额限制，使用平台存储配置 / Not subject to tenant quota, uses platform storage config
+            不受企业配额限制，使用平台存储配置 / Not subject to tenant quota, uses platform storage config
 
             权限 / Permission: attachment:upload
             """
@@ -221,7 +221,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             files: list[UploadFile] = File(..., description="上传的文件列表（最多 20 个）"),
-            tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            tenant_id: int = Form(0, ge=0, description="目标企业 ID，0 表示平台附件"),
             visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
             business_type: str | None = Form(None, description="业务类型"),
             business_id: int | None = Form(None, description="业务 ID"),
@@ -231,7 +231,7 @@ class AdminAttachmentController(GlobalController):
 
             - 最多一次上传 20 个文件 / Max 20 files per batch
             - 单个文件失败不影响其他文件 / Single file failure doesn't affect others
-            - 不受租户配额限制 / Not subject to tenant quota
+            - 不受企业配额限制 / Not subject to tenant quota
 
             权限 / Permission: attachment:upload
             """
@@ -299,7 +299,7 @@ class AdminAttachmentController(GlobalController):
             初始化分片上传会话（平台端） / Initialize chunk upload session (platform)
 
             - tenant_id=0: 平台附件 / Platform attachment
-            - tenant_id>0: 代租户上传 / Upload on behalf of tenant
+            - tenant_id>0: 代企业上传 / Upload on behalf of tenant
 
             权限 / Permission: attachment:chunk_init
             """
@@ -419,7 +419,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             search: str = Query("", description="搜索关键词"),
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
             page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
             page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
@@ -449,13 +449,13 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
         ):
             """
             获取附件存储统计 / Get attachment storage statistics
 
-            - 不传 tenant_id: 统计所有租户 / Without tenant_id: stats for all tenants
-            - 传入 tenant_id: 统计指定租户 / With tenant_id: stats for specified tenant
+            - 不传 tenant_id: 统计所有企业 / Without tenant_id: stats for all tenants
+            - 传入 tenant_id: 统计指定企业 / With tenant_id: stats for specified tenant
 
             权限 / Permission: attachment:stats
             """
@@ -463,7 +463,7 @@ class AdminAttachmentController(GlobalController):
             stats = await service.get_storage_stats(tenant_id)
             return success(data=stats, message=_("common.success"))
 
-        @router.get("/stats/by-tenant", summary="获取按租户分组的附件统计")
+        @router.get("/stats/by-tenant", summary="获取按企业分组的附件统计")
         @action_read("action.attachment.stats_by_tenant")
         async def get_attachment_stats_by_tenant(
             request: Request,
@@ -471,9 +471,9 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取按租户分组的存储统计 / Get storage statistics grouped by tenant
+            获取按企业分组的存储统计 / Get storage statistics grouped by tenant
 
-            返回各租户的附件数量和存储用量 / Returns attachment count and storage usage per tenant
+            返回各企业的附件数量和存储用量 / Returns attachment count and storage usage per tenant
 
             权限 / Permission: attachment:stats_by_tenant
             """
@@ -493,7 +493,7 @@ class AdminAttachmentController(GlobalController):
             获取附件列表 / Get attachment list
 
             - 支持通用筛选 / General filtering: filter[field][op]=value
-            - 支持按租户筛选 / Tenant filtering: filter[tenant_id][eq]=1
+            - 支持按企业筛选 / Tenant filtering: filter[tenant_id][eq]=1
             - 支持排序 / Sorting: sort=-created_at,name
             - 支持分页 / Pagination: page[number]=1&page[size]=20
 
@@ -574,7 +574,7 @@ class AdminAttachmentController(GlobalController):
 
             权限 / Permission: attachment:download_url
             """
-            # 平台端不做租户隔离，传入 None / Platform doesn't enforce tenant isolation, pass None
+            # 平台端不做企业隔离，传入 None / Platform doesn't enforce tenant isolation, pass None
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)
             data = await service.build_access_url(

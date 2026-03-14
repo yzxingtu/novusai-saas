@@ -51,10 +51,10 @@ def register_tenant_recycle_bin_routes(
     serialize: Callable | None = None,
 ) -> None:
     """
-    为租户端控制器注册回收站路由
+    为企业端控制器注册回收站路由
     Register recycle bin routes for tenant-side controllers.
 
-    租户端回收站行为：
+    企业端回收站行为：
     Tenant-side recycle bin behavior:
     - 查询：查 delete_level='tenant' 的记录 / Query: records with delete_level='tenant'
     - 恢复：还原记录 / Restore: undelete records

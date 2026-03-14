@@ -40,7 +40,7 @@ class EmbeddingService:
 
         Args:
             db: Database session / 数据库会话
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
         """
         self.db = db
         self.tenant_id = tenant_id

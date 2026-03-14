@@ -112,7 +112,7 @@ class AIGateway:
             top_p: Nucleus sampling parameter / 核采样参数
             stream: Whether to use streaming / 是否使用流式响应
             tools: Tool list / 工具列表
-            tenant_id: Tenant ID (for tenant-level API Key) / 租户 ID
+            tenant_id: Tenant ID (for tenant-level API Key) / 企业 ID
             user_id: User ID (for usage recording) / 用户 ID
             **kwargs: Additional parameters / 其他参数
 
@@ -154,7 +154,7 @@ class AIGateway:
                 logger.info("Cache hit: key=%s", cache_key)
                 return ChatResponse(**cached_response)
 
-        # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅租户调用）
+        # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅企业调用）
         estimated_input = 0
         if tenant_id:
             estimated_input = TokenCounter.count_messages_tokens(
@@ -348,7 +348,7 @@ class AIGateway:
             max_tokens: Max generation tokens / 最大生成 tokens
             top_p: Nucleus sampling parameter / 核采样参数
             tools: Tool list / 工具列表
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             user_id: User ID (for usage recording) / 用户 ID
             **kwargs: Additional parameters / 其他参数
 
@@ -369,7 +369,7 @@ class AIGateway:
         if not ai_model:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
-        # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
         if tenant_id:
             estimated_input = TokenCounter.count_messages_tokens(
@@ -600,7 +600,7 @@ class AIGateway:
             provider_code: Provider code / 供应商代码
             texts: Text list / 文本列表
             model: Model name / 模型名称
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             user_id: User ID (for usage recording) / 用户 ID
             **kwargs: Additional parameters / 其他参数
 
@@ -618,7 +618,7 @@ class AIGateway:
 
         model_id = ai_model.id
 
-        # 1. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        # 1. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
         if tenant_id:
             estimated_input = TokenCounter.count_messages_tokens(
@@ -729,7 +729,7 @@ class AIGateway:
             quality: Quality (standard / hd) / 质量
             style: Style (vivid / natural) / 风格
             n: Number to generate / 生成数量
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             user_id: User ID / 用户 ID
             **kwargs: Additional parameters / 其他参数
 
@@ -747,7 +747,7 @@ class AIGateway:
 
         model_id = ai_model.id
 
-        # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         # Image generation uses fixed token estimate (cannot predict precisely, use 1000 as baseline) / 生图按固定 token 估算（无法精确预估，使用 1000 作为基准）
         estimated_input = 0
         if tenant_id:
@@ -1000,7 +1000,7 @@ class AIGateway:
 
         Args:
             provider_code: Provider code / 供应商代码
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
 
         Returns:
             (provider, API Key) tuple / (供应商, API Key) 元组

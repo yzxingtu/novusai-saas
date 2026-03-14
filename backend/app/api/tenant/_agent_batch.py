@@ -1,5 +1,5 @@
 """
-租户端智能体批处理路由 / Tenant Agent Batch Processing Routes
+企业端智能体批处理路由 / Tenant Agent Batch Processing Routes
 
 提供批处理任务提交、进度查询、取消等接口
 Provides batch task submission, progress query, and cancellation endpoints

@@ -1,7 +1,7 @@
 """
 通知模板模型 / Notification Template Model
 
-系统预置 + 租户自定义的通知模板。每种通知类型对应一个模板，定义标题/正文模板、投递渠道、优先级。
+系统预置 + 企业自定义的通知模板。每种通知类型对应一个模板，定义标题/正文模板、投递渠道、优先级。
 System preset + tenant custom notification templates. Each notification type has a template defining title/body, channels, priority.
 """
 
@@ -23,7 +23,7 @@ class NotificationTemplate(BaseModel):
     - channels: 投递渠道列表 ['ws', 'inbox', 'email']
     - priority: 优先级 low/normal/high/urgent
     - is_system: 是否系统内置（不可删除）
-    - tenant_id: NULL=系统级，有值=租户自定义
+    - tenant_id: NULL=系统级，有值=企业自定义
     """
 
     __tablename__ = "notification_templates"
@@ -66,7 +66,7 @@ class NotificationTemplate(BaseModel):
         Boolean, default=True, comment="是否系统内置",
     )
     tenant_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True, comment="租户 ID（NULL=系统级）",
+        Integer, nullable=True, index=True, comment="企业 ID（NULL=系统级）",
     )
 
     def __repr__(self) -> str:

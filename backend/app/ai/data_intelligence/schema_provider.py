@@ -8,9 +8,9 @@ Provides database schema awareness for AI Text-to-SQL.
 Security strategy / 安全策略：
 - Dynamic table/column visibility via ai_table_policies table / 基于 ai_table_policies 表动态控制
 - Column masking: blocked_columns not exposed to AI / 列脱敏
-- Tenant filtering: permission_code implements RBAC / 按租户过滤
+- Tenant filtering: permission_code implements RBAC / 按企业过滤
 - Redis cache: reduces DB reflection calls / Redis 缓存
-- Tenant overrides: ai_table_policy_overrides can tighten policies / 租户覆盖
+- Tenant overrides: ai_table_policy_overrides can tighten policies / 企业覆盖
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ class TableSchema:
     table_name: str
     description: str           # Table description / 表描述
     columns: list[ColumnSchema] = field(default_factory=list)
-    tenant_column: str = "tenant_id"  # Tenant isolation column / 租户隔离列名
+    tenant_column: str = "tenant_id"  # Tenant isolation column / 企业隔离列名
     row_count_approx: int = 0  # Approx row count (from pg_stat, no COUNT) / 近似行数
     max_rows: int = 200        # Max rows per query / 单次查询最大行数
     allow_read: bool = True
@@ -162,7 +162,7 @@ class SchemaProvider:
     - Dynamically loads available tables from ai_table_policies / 动态加载可用表
     - blocked_columns not exposed to AI / 列不暴露给 AI
     - permission_code implements RBAC / RBAC 权限控制
-    - Tenant overrides can tighten but not loosen global policies / 租户覆盖可收紧不能放开
+    - Tenant overrides can tighten but not loosen global policies / 企业覆盖可收紧不能放开
     """
 
     # ===== Global sensitive column names (fallback, not exposed even if policy misconfigured) / 全局敏感列名（兜底，即使策略配置错误也不暴露） =====
@@ -182,11 +182,11 @@ class SchemaProvider:
     ) -> list[TableSchema]:
         """
         Get table schemas queryable by tenant.
-        获取租户可查询的表结构。
+        获取企业可查询的表结构。
 
         Args:
             db: Database session / 数据库会话
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             question: User question (optional, for smart filtering) / 用户问题
             permissions: User RBAC permission code set (for table-level filtering) / RBAC 权限码集合
             user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
@@ -237,7 +237,7 @@ class SchemaProvider:
     ) -> list[dict[str, Any]]:
         """
         Load active policy list (merge global + tenant overrides).
-        加载有效策略列表（合并全局 + 租户覆盖）。
+        加载有效策略列表（合并全局 + 企业覆盖）。
 
         Returns:
             Policy dict list, each containing table name, CRUD switches, blocked_columns, etc.
@@ -251,7 +251,7 @@ class SchemaProvider:
         result = await db.execute(stmt)
         global_policies = result.scalars().all()
 
-        # Load tenant overrides (when tenant_id > 0) / 加载租户覆盖
+        # Load tenant overrides (when tenant_id > 0) / 加载企业覆盖
         overrides_map: dict[int, AITablePolicyOverride] = {}
         if tenant_id and tenant_id > 0:
             override_stmt = select(AITablePolicyOverride).where(
@@ -577,7 +577,7 @@ class SchemaProvider:
 
     @staticmethod
     async def invalidate_cache(tenant_id: int) -> None:
-        """Clear tenant schema cache / 清除租户 schema 缓存"""
+        """Clear tenant schema cache / 清除企业 schema 缓存"""
         try:
             from app.core.redis import get_redis
             redis = await get_redis()
@@ -668,7 +668,7 @@ def _merge_policy_with_override(
     gp: AITablePolicy,
     ov: AITablePolicyOverride | None,
 ) -> dict[str, Any]:
-    """Merge global policy with tenant override. Override can only tighten, not loosen. / 合并全局策略与租户覆盖"""
+    """Merge global policy with tenant override. Override can only tighten, not loosen. / 合并全局策略与企业覆盖"""
     policy: dict[str, Any] = {
         "table_name": gp.table_name,
         "label": gp.label,

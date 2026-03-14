@@ -90,7 +90,7 @@ class PeriodicTask(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         default=None,
         index=True,
-        comment="所属租户ID（NULL表示平台级任务）",
+        comment="所属企业ID（NULL表示平台级任务）",
     )
     scope: Mapped[str] = mapped_column(
         default=TaskScopeEnum.ADMIN_ONLY.value,

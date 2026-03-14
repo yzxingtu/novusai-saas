@@ -1,8 +1,8 @@
 {
-  "title": "租户管理控制台",
+  "title": "企业管理控制台",
   "welcome": "欢迎回来",
   "greeting": "您好，{name}！",
-  "description": "这是租户管理控制台，您可以在这里管理您的租户资源。",
+  "description": "这是企业管理控制台，您可以在这里管理您的企业资源。",
   "stats": {
     "users": "用户数",
     "orders": "订单数",

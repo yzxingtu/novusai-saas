@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 租户端附件详情抽屉
+ * 企业端附件详情抽屉
  */
 import type { AttachmentInfo } from '#/types/attachment';
 

@@ -17,7 +17,7 @@ class AgentMemoryToggleRequest(BaseModel):
 
 
 class AgentMemoryDisableRequest(BaseModel):
-    """租户端：关闭/恢复默认（禁用覆盖）"""
+    """企业端：关闭/恢复默认（禁用覆盖）"""
 
     disabled: bool = Field(
         ...,

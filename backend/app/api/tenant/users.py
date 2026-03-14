@@ -1,7 +1,7 @@
 """
-租户用户管理 API（租户端） / Tenant User Management API (Tenant Side)
+企业用户管理 API（企业端） / Tenant User Management API (Tenant Side)
 
-提供租户业务用户的 CRUD、重置密码、状态切换、审批等接口
+提供企业业务用户的 CRUD、重置密码、状态切换、审批等接口
 Provides tenant user CRUD, password reset, status toggle, approval endpoints
 """
 
@@ -58,9 +58,9 @@ def _serialize_user(user) -> dict:
 )
 class TenantUserController(TenantController):
     """
-    租户用户管理控制器 / Tenant User Management Controller
+    企业用户管理控制器 / Tenant User Management Controller
 
-    提供租户业务用户 CRUD、密码重置、状态切换、审批等接口
+    提供企业业务用户 CRUD、密码重置、状态切换、审批等接口
     Provides tenant user CRUD, password reset, status toggle, approval endpoints
     """
 
@@ -79,7 +79,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             query: QueryParams,
         ):
-            """获取租户用户分页列表 / Get tenant user paginated list"""
+            """获取企业用户分页列表 / Get tenant user paginated list"""
             service = TenantUserService(db, current_admin.tenant_id)
             items, total = await service.query_list(spec=query)
 
@@ -98,7 +98,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """获取单个租户用户详情 / Get single tenant user details"""
+            """获取单个企业用户详情 / Get single tenant user details"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.get_by_id(user_id)
             if not user:
@@ -114,7 +114,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             data: TenantUserCreateRequest,
         ):
-            """创建租户用户 / Create tenant user"""
+            """创建企业用户 / Create tenant user"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.create_user(
                 username=data.username,
@@ -137,7 +137,7 @@ class TenantUserController(TenantController):
             user_id: int,
             data: TenantUserUpdateRequest,
         ):
-            """更新租户用户信息 / Update tenant user info"""
+            """更新企业用户信息 / Update tenant user info"""
             service = TenantUserService(db, current_admin.tenant_id)
             update_data = data.model_dump(exclude_unset=True)
             user = await service.update_user(user_id, update_data)
@@ -152,7 +152,7 @@ class TenantUserController(TenantController):
             current_admin: ActiveTenantAdmin,
             user_id: int,
         ):
-            """删除租户用户 / Delete tenant user"""
+            """删除企业用户 / Delete tenant user"""
             service = TenantUserService(db, current_admin.tenant_id)
             await service.delete(user_id)
 

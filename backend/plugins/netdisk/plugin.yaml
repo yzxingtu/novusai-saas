@@ -35,7 +35,7 @@ config_schema:
       minimum: 1
       maximum: 10240
       title: "默认配额 (GB)"
-      description: "新租户默认存储配额（单位 GB）"
+      description: "新企业默认存储配额（单位 GB）"
     max_file_size_mb:
       type: integer
       default: 5120
@@ -72,7 +72,7 @@ extensions:
       schedule_type: cron
       cron_expression: "0 2 * * *"
       queue: scheduled
-      description: "回收站物理清理 + 租户配额重算"
+      description: "回收站物理清理 + 企业配额重算"
 
   skills:
     - name: netdisk-tools

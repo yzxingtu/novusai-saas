@@ -27,7 +27,7 @@ def upgrade() -> None:
     op.create_table(
         'skill_packages',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
+        sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
         sa.Column('name', sa.String(100), nullable=False, comment='技能包名称'),
         sa.Column('description', sa.Text(), nullable=True, comment='技能包描述'),
         sa.Column('avatar', sa.String(255), nullable=True, comment='技能包图标'),

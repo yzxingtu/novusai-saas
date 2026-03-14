@@ -1,7 +1,7 @@
 """
-租户模块模型 / Tenant Module Models
+企业模块模型 / Tenant Module Models
 
-租户级别的模型定义
+企业级别的模型定义
 Tenant-level model definitions.
 """
 

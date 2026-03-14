@@ -61,12 +61,12 @@ class UsageRecorder:
     ) -> None:
         """
         Atomic rate limit + quota check (executed only for tenant calls).
-        原子检查速率限制 + 配额（仅租户调用时执行）。
+        原子检查速率限制 + 配额（仅企业调用时执行）。
 
         Rate limit priority: tenant custom > model default.
-        速率限制优先级：租户自定义 > 模型默认值。
+        速率限制优先级：企业自定义 > 模型默认值。
         """
-        # Determine effective rate limits: prioritize tenant-specific config / 确定有效的速率限制：优先使用租户专属配置
+        # Determine effective rate limits: prioritize tenant-specific config / 确定有效的速率限制：优先使用企业专属配置
         rpm_limit = ai_model.rpm_limit
         tpm_limit = ai_model.tpm_limit
 

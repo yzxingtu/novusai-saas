@@ -33,7 +33,7 @@ def upgrade() -> None:
     # 移除 server_default，保持应用层默认
     op.alter_column("agents", "memory_enabled", server_default=None)
 
-    # 2) 租户覆盖表（仅 disabled=true 的覆盖语义）
+    # 2) 企业覆盖表（仅 disabled=true 的覆盖语义）
     op.create_table(
         "agent_memory_overrides",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -126,7 +126,7 @@ def downgrade() -> None:
         """
     )
 
-    # 删除租户覆盖表
+    # 删除企业覆盖表
     op.drop_index(op.f("ix_agent_memory_overrides_id"), table_name="agent_memory_overrides")
     op.drop_index(op.f("ix_agent_memory_overrides_is_deleted"), table_name="agent_memory_overrides")
     op.drop_index("uq_agent_memory_overrides_tenant_agent", table_name="agent_memory_overrides")

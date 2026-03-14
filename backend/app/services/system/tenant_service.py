@@ -1,7 +1,7 @@
 """
-租户服务 / Tenant Service
+企业服务 / Tenant Service
 
-提供租户的业务逻辑
+提供企业的业务逻辑
 Provides tenant business logic.
 """
 
@@ -28,9 +28,9 @@ logger = LogManager.get_logger("app")
 
 class TenantService(GlobalService[Tenant, TenantRepository]):
     """
-    租户服务
+    企业服务
 
-    提供租户特有的业务方法（全局级别，由平台管理员操作）
+    提供企业特有的业务方法（全局级别，由平台管理员操作）
     """
 
     model = Tenant
@@ -38,24 +38,24 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def get_by_code(self, code: str) -> Tenant | None:
         """
-        根据编码获取租户
+        根据编码获取企业
 
         Args:
-            code: 租户编码
+            code: 企业编码
 
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         return await self.repo.get_by_code(code)
 
     async def _generate_tenant_code(self) -> str:
         """
-        生成唯一的租户编码
+        生成唯一的企业编码
 
         格式: t + 8位小写字母数字（如 t3a8k2m9x）
 
         Returns:
-            唯一的租户编码
+            唯一的企业编码
         """
         charset = string.ascii_lowercase + string.digits
         max_attempts = 10
@@ -89,13 +89,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         remark: str | None = None,
     ) -> Tenant:
         """
-        创建租户
+        创建企业
 
         Args:
-            name: 租户名称
-            admin_username: 租户超级管理员用户名
-            admin_email: 租户超级管理员邮箱
-            admin_password: 租户超级管理员密码
+            name: 企业名称
+            admin_username: 企业超级管理员用户名
+            admin_email: 企业超级管理员邮箱
+            admin_password: 企业超级管理员密码
             contact_name: 联系人姓名
             contact_phone: 联系人电话
             contact_email: 联系人邮箱
@@ -106,12 +106,12 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             remark: 备注
 
         Returns:
-            创建的租户
+            创建的企业
         """
-        # 自动生成租户编码
+        # 自动生成企业编码
         code = await self._generate_tenant_code()
 
-        # 创建租户
+        # 创建企业
         data = {
             "code": code,
             "name": name,
@@ -132,10 +132,10 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         domain_service = TenantDomainService(self.db)
         await domain_service.create_default_domain(tenant.id, tenant.code)
 
-        # 创建租户组织架构根节点
+        # 创建企业组织架构根节点
         root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
 
-        # 创建租户超级管理员（owner）
+        # 创建企业超级管理员（owner）
         await self._create_tenant_owner(
             tenant_id=tenant.id,
             username=admin_username,
@@ -169,9 +169,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        发送租户欢迎邮件（通过统一通知系统）
+        发送企业欢迎邮件（通过统一通知系统）
 
-        走 notification 队列异步发送，失败不影响租户创建流程。
+        走 notification 队列异步发送，失败不影响企业创建流程。
         """
         _ = admin_email
         try:
@@ -198,11 +198,11 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
-        为租户创建组织架构根节点
+        为企业创建组织架构根节点
 
         Args:
-            tenant_id: 租户 ID
-            tenant_name: 租户名称（用作根节点名称）
+            tenant_id: 企业 ID
+            tenant_name: 企业名称（用作根节点名称）
 
         Returns:
             创建的根节点
@@ -240,14 +240,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         phone: str | None = None,
     ) -> TenantAdmin:
         """
-        为租户创建超级管理员（owner）
+        为企业创建超级管理员（owner）
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             username: 用户名
             email: 邮箱
             password: 明文密码
-            root_node: 租户根节点
+            root_node: 企业根节点
             phone: 手机号
 
         Returns:
@@ -275,13 +275,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _create_default_user_role(self, tenant_id: int) -> TenantUserRole:
         """
-        为新租户创建默认用户角色
+        为新企业创建默认用户角色
 
         创建 code='default_user' 的系统内置角色，作为用户注册时的默认角色。
-        该角色 is_system=True，不可被租户管理员删除。
+        该角色 is_system=True，不可被企业管理员删除。
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             创建的默认用户角色
@@ -304,7 +304,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             default_role.id, tenant_id,
         )
 
-        # 将默认角色 ID 写入租户配置
+        # 将默认角色 ID 写入企业配置
         from app.configs.service import ConfigService
         config_service = ConfigService(self.db)
         await config_service.set_tenant_config(
@@ -317,7 +317,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
         """
-        为新租户自动绑定插件（插件系统待重建）
+        为新企业自动绑定插件（插件系统待重建）
         """
         pass
 
@@ -327,28 +327,28 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         new_password: str,
     ) -> TenantAdmin:
         """
-        重置租户超级管理员密码
+        重置企业超级管理员密码
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             new_password: 新密码（明文）
 
         Returns:
             更新后的管理员
 
         Raises:
-            NotFoundException: 租户或超级管理员不存在
+            NotFoundException: 企业或超级管理员不存在
         """
         from sqlalchemy import select
 
-        # 检查租户是否存在
+        # 检查企业是否存在
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
 
-        # 查找租户的超级管理员（owner）
+        # 查找企业的超级管理员（owner）
         result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.tenant_id == tenant_id,
@@ -417,17 +417,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         data: dict[str, Any],
     ) -> Tenant:
         """
-        更新租户
+        更新企业
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             data: 更新数据
 
         Returns:
-            更新后的租户
+            更新后的企业
 
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
             BusinessException: 编码已存在
         """
         tenant = await self.get_by_id(tenant_id)
@@ -455,16 +455,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def enable_tenant(self, tenant_id: int) -> Tenant:
         """
-        启用租户
+        启用企业
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
-            更新后的租户
+            更新后的企业
 
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
@@ -479,16 +479,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def disable_tenant(self, tenant_id: int) -> Tenant:
         """
-        禁用租户
+        禁用企业
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
-            更新后的租户
+            更新后的企业
 
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
@@ -503,17 +503,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def toggle_status(self, tenant_id: int, is_active: bool) -> Tenant:
         """
-        切换租户状态
+        切换企业状态
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             is_active: 是否启用
 
         Returns:
-            更新后的租户
+            更新后的企业
 
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         if is_active:
             return await self.enable_tenant(tenant_id)

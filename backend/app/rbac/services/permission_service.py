@@ -200,20 +200,20 @@ class PermissionService:
     ) -> tuple[set[str], set[int]] | None:
         """
         Get tenant plan's permission set.
-        获取租户套餐的权限集合。
+        获取企业套餐的权限集合。
 
         Note: Plans only assign menu-level permissions, but automatically include all child
         operation permissions under those menus, so tenants can assign operation permission granularity.
         注意：套餐只分配菜单级权限，但会自动包含这些菜单下的所有子操作权限。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
 
         Returns:
             (permission code set, permission ID set) or None (if tenant has no plan) /
-            (权限码集合, 权限ID集合) 或 None（如果租户无套餐）
+            (权限码集合, 权限ID集合) 或 None（如果企业无套餐）
         """
-        # Query tenant and its plan (with plan's permission list loaded) / 查询租户及其套餐
+        # Query tenant and its plan (with plan's permission list loaded) / 查询企业及其套餐
         result = await self.db.execute(
             select(Tenant)
             .where(Tenant.id == tenant_id)
@@ -244,7 +244,7 @@ class PermissionService:
                     menu_ids.add(p.id)
 
         # Query all child operation permissions under plan menu permissions / 查询套餐菜单权限下的所有子操作权限
-        # So tenants can assign operation permission granularity / 这样租户可以自行分配操作权限粒度
+        # So tenants can assign operation permission granularity / 这样企业可以自行分配操作权限粒度
         if menu_ids:
             child_result = await self.db.execute(
                 select(Permission)
@@ -267,15 +267,15 @@ class PermissionService:
     ) -> set[str]:
         """
         Get tenant admin's permission set.
-        获取租户管理员的权限集合。
+        获取企业管理员的权限集合。
 
         Permission logic (strict mode) / 权限逻辑（严格模式）：
         - No plan: no permissions (returns empty set) / 无套餐：无权限
-        - Tenant owner: all plan permissions / 租户所有者：套餐全部权限
+        - Tenant owner: all plan permissions / 企业所有者：套餐全部权限
         - Regular admin: role permissions ∩ plan permissions / 普通管理员：角色权限 ∩ 套餐权限
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Permission code set / 权限代码集合
@@ -287,7 +287,7 @@ class PermissionService:
         if plan_perms is None:
             return set()
 
-        # Tenant owner: return all plan permissions / 租户所有者：返回套餐全部权限
+        # Tenant owner: return all plan permissions / 企业所有者：返回套餐全部权限
         if tenant_admin.is_owner:
             return plan_perms[0]
 
@@ -319,15 +319,15 @@ class PermissionService:
     ) -> set[int]:
         """
         Get tenant admin's effective permission ID set.
-        获取租户管理员的有效权限 ID 集合。
+        获取企业管理员的有效权限 ID 集合。
 
         Permission logic (strict mode) / 权限逻辑（严格模式）：
         - No plan: no permissions / 无套餐：无权限
-        - Tenant owner: all plan permission IDs / 租户所有者：套餐全部权限 ID
+        - Tenant owner: all plan permission IDs / 企业所有者：套餐全部权限 ID
         - Regular admin: role permissions ∩ plan permissions / 普通管理员：角色权限 ∩ 套餐权限
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Permission ID set / 权限 ID 集合
@@ -339,7 +339,7 @@ class PermissionService:
         if plan_perms is None:
             return set()
 
-        # Tenant owner: return all plan permission IDs / 租户所有者：返回套餐全部权限 ID
+        # Tenant owner: return all plan permission IDs / 企业所有者：返回套餐全部权限 ID
         if tenant_admin.is_owner:
             return plan_perms[1]
 
@@ -371,15 +371,15 @@ class PermissionService:
     ) -> set[int]:
         """
         Get tenant admin's manageable role ID set.
-        获取租户管理员可管理的角色 ID 集合。
+        获取企业管理员可管理的角色 ID 集合。
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Tenant owner can manage all roles / 租户所有者可以管理所有角色
+        # Tenant owner can manage all roles / 企业所有者可以管理所有角色
         if tenant_admin.is_owner:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
@@ -419,15 +419,15 @@ class PermissionService:
     ) -> set[int]:
         """
         Get tenant admin's visible role ID set.
-        获取租户管理员可见的角色 ID 集合。
+        获取企业管理员可见的角色 ID 集合。
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Role ID set / 角色 ID 集合
         """
-        # Tenant owner can see all roles / 租户所有者可以看到所有角色
+        # Tenant owner can see all roles / 企业所有者可以看到所有角色
         if tenant_admin.is_owner:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
@@ -665,10 +665,10 @@ class PermissionService:
     async def get_tenant_permission_tree(self, tenant_admin: TenantAdmin) -> list[PermissionTreeResponse]:
         """
         Get tenant admin's permission tree.
-        获取租户管理员的权限树。
+        获取企业管理员的权限树。
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Permission tree list / 权限树列表
@@ -769,10 +769,10 @@ class PermissionService:
     ) -> list[PermissionResponse]:
         """
         Get tenant admin's permission list (flat).
-        获取租户管理员的权限列表（平铺）。
+        获取企业管理员的权限列表（平铺）。
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
             perm_type: Permission type filter / 权限类型过滤 (menu/operation)
 
         Returns:
@@ -984,16 +984,16 @@ class PermissionService:
     async def get_tenant_admin_menus(self, tenant_admin: TenantAdmin) -> list[MenuResponse]:
         """
         Get tenant admin's menu tree.
-        获取租户管理员的菜单树。
+        获取企业管理员的菜单树。
 
         Args:
-            tenant_admin: Tenant admin / 租户管理员
+            tenant_admin: Tenant admin / 企业管理员
 
         Returns:
             Menu tree list, each menu includes user's operation permission codes /
             菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
         """
-        # Get all tenant permissions (menu + operation) / 获取所有租户端权限
+        # Get all tenant permissions (menu + operation) / 获取所有企业端权限
         all_permissions = await self.get_enabled_permissions_by_scope("all_tenants")
 
         # Get user's effective permission ID set (includes plan filtering) / 获取用户的有效权限 ID 集合
@@ -1052,10 +1052,10 @@ class PermissionService:
     ) -> set[str]:
         """
         Get tenant business user's permission code set.
-        获取租户业务用户的权限码集合。
+        获取企业业务用户的权限码集合。
 
         Args:
-            tenant_user: Tenant business user / 租户业务用户
+            tenant_user: Tenant business user / 企业业务用户
 
         Returns:
             Permission code set / 权限代码集合
@@ -1084,10 +1084,10 @@ class PermissionService:
     ) -> set[int]:
         """
         Get tenant business user's effective permission ID set.
-        获取租户业务用户的有效权限 ID 集合。
+        获取企业业务用户的有效权限 ID 集合。
 
         Args:
-            tenant_user: Tenant business user / 租户业务用户
+            tenant_user: Tenant business user / 企业业务用户
 
         Returns:
             Permission ID set / 权限 ID 集合
@@ -1113,10 +1113,10 @@ class PermissionService:
     async def get_tenant_user_menus(self, tenant_user: TenantUser) -> list[MenuResponse]:
         """
         Get tenant business user's menu tree.
-        获取租户业务用户的菜单树。
+        获取企业业务用户的菜单树。
 
         Args:
-            tenant_user: Tenant business user / 租户业务用户
+            tenant_user: Tenant business user / 企业业务用户
 
         Returns:
             Menu tree list, each menu includes user's operation permission codes /

@@ -152,7 +152,7 @@ export async function getAttachmentStatsApi(
 }
 
 /**
- * Get attachment stats by tenant / 获取按租户分组的附件统计
+ * Get attachment stats by tenant / 获取按企业分组的附件统计
  * GET /admin/attachments/stats/by-tenant
  */
 export async function getAttachmentStatsByTenantApi(

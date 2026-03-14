@@ -192,13 +192,13 @@ class BaseResponseSchema(BaseSchema):
 
 class TenantResponseSchema(BaseResponseSchema):
     """
-    租户级响应 Schema 基类 / Tenant Response Schema Base Class
+    企业级响应 Schema 基类 / Tenant Response Schema Base Class
 
     包含 tenant_id 字段
     Includes tenant_id field.
     """
 
-    tenant_id: int = Field(..., description="租户ID / Tenant ID")
+    tenant_id: int = Field(..., description="企业ID / Tenant ID")
 
 
 class PageParams(BaseSchema):

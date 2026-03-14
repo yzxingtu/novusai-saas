@@ -7,8 +7,8 @@
   "admin": "管理员",
   "description": "这是平台管理端控制台，您可以在这里管理平台的各项配置。",
   "stats": {
-    "totalTenants": "租户总数",
-    "activeTenants": "活跃租户",
+    "totalTenants": "企业总数",
+    "activeTenants": "活跃企业",
     "totalAdmins": "管理员数",
     "systemHealth": "系统状态",
     "totalUsers": "用户总数",
@@ -44,7 +44,7 @@
     "files": "个文件"
   },
   "tenantGrowth": {
-    "title": "租户增长趋势",
+    "title": "企业增长趋势",
     "empty": "暂无数据"
   },
   "activities": {
@@ -53,8 +53,8 @@
   },
   "quickActions": {
     "title": "快捷操作",
-    "tenantManage": "租户管理",
-    "tenantManageDesc": "管理租户信息",
+    "tenantManage": "企业管理",
+    "tenantManageDesc": "管理企业信息",
     "adminManage": "管理员管理",
     "adminManageDesc": "管理平台管理员",
     "systemConfig": "系统配置",

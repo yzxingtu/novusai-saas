@@ -1,7 +1,7 @@
 """
-租户业务用户认证 API / Tenant Business User Authentication API
+企业业务用户认证 API / Tenant Business User Authentication API
 
-提供租户业务用户（C端用户）的登录、登出、注册、Token 刷新、
+提供企业业务用户（C端用户）的登录、登出、注册、Token 刷新、
 Provides login, logout, registration, token refresh,
 个人资料管理、忘记密码等接口
 profile management, forgot password endpoints for tenant business users (end users)
@@ -201,7 +201,7 @@ async def register(
     register_data: TenantUserRegisterRequest,
 ):
     """
-    租户用户自助注册 / Tenant user self-registration
+    企业用户自助注册 / Tenant user self-registration
 
     - **username**: 用户名 / Username
     - **email**: 邮箱 / Email

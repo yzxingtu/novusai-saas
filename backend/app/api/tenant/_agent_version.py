@@ -1,5 +1,5 @@
 """
-租户端智能体版本管理路由 / Tenant Agent Version Management Routes
+企业端智能体版本管理路由 / Tenant Agent Version Management Routes
 
 提供版本列表、版本详情、版本对比、发布、回滚等接口
 Provides version list, version details, version diff, publish, rollback endpoints

@@ -35,7 +35,7 @@ export const zhCN: Record<string, string> = {
   'task.concurrency': '并发数',
   'task.scope': '迁移范围',
   'task.scopeAll': '全部文件',
-  'task.scopeTenant': '租户 {id} 的文件',
+  'task.scopeTenant': '企业 {id} 的文件',
   'task.startedAt': '开始时间',
   'task.completedAt': '完成时间',
   'task.fileUnit': '文件',

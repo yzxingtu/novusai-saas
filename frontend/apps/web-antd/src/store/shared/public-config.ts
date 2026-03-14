@@ -1,7 +1,7 @@
 /**
  * Public config store / 公开配置 Store
  * Stores platform/tenant public configuration (branding, captcha, etc.).
- * 存储平台/租户的公开配置（品牌、验证码等）。
+ * 存储平台/企业的公开配置（品牌、验证码等）。
  */
 import type {
   BrandConfig,
@@ -99,33 +99,33 @@ function applyBrandConfig(brand: BrandConfig) {
 interface PublicConfigState {
   /** Platform public config / 平台公开配置 */
   platformConfig: null | PlatformPublicConfig;
-  /** Tenant public config / 租户公开配置 */
+  /** Tenant public config / 企业公开配置 */
   tenantConfig: null | TenantPublicConfig;
   /** Whether platform config is loaded / 平台配置是否已加载 */
   platformConfigLoaded: boolean;
-  /** Whether tenant config is loaded / 租户配置是否已加载 */
+  /** Whether tenant config is loaded / 企业配置是否已加载 */
   tenantConfigLoaded: boolean;
   /** Loading state (backward compat, true if any endpoint loading) / 加载中状态 */
   loading: boolean;
   /** Platform config loading / 平台配置加载中 */
   platformLoading: boolean;
-  /** Tenant config loading / 租户配置加载中 */
+  /** Tenant config loading / 企业配置加载中 */
   tenantLoading: boolean;
   /** Error message / 错误信息 */
   error: null | string;
   /** Platform login fail count / 平台端登录失败次数 */
   platformLoginFailCount: number;
-  /** Tenant login fail count / 租户端登录失败次数 */
+  /** Tenant login fail count / 企业端登录失败次数 */
   tenantLoginFailCount: number;
   /** Platform captcha forced (from login response) / 平台端验证码强制要求 */
   platformCaptchaRequired: boolean;
-  /** Tenant captcha forced (from login response) / 租户端验证码强制要求 */
+  /** Tenant captcha forced (from login response) / 企业端验证码强制要求 */
   tenantCaptchaRequired: boolean;
   /** User login fail count / 用户端登录失败次数 */
   userLoginFailCount: number;
   /** User captcha forced (from login response) / 用户端验证码强制要求 */
   userCaptchaRequired: boolean;
-  /** Whether current domain is tenant domain (null=undetected, true=tenant, false=platform) / 当前域名是否租户域名 */
+  /** Whether current domain is tenant domain (null=undetected, true=tenant, false=platform) / 当前域名是否企业域名 */
   isDomainTenantDomain: boolean | null;
   /** Whether domain type detection is complete (marked after 200/404, not on network error to allow retry) / 域名检测是否完成 */
   isDomainDetected: boolean;
@@ -166,7 +166,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.brand ?? null;
     },
 
-    /** Get tenant brand config / 获取租户品牌配置 */
+    /** Get tenant brand config / 获取企业品牌配置 */
     tenantBrand(): BrandConfig | null {
       return this.tenantConfig?.brand ?? null;
     },
@@ -176,7 +176,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.login?.captcha ?? null;
     },
 
-    /** Get tenant captcha config / 获取租户验证码配置 */
+    /** Get tenant captcha config / 获取企业验证码配置 */
     tenantCaptcha(): CaptchaConfig | null {
       return this.tenantConfig?.login?.captcha ?? null;
     },
@@ -186,7 +186,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.login?.captcha?.enabled ?? false;
     },
 
-    /** Whether tenant captcha is enabled / 租户验证码是否启用 */
+    /** Whether tenant captcha is enabled / 企业验证码是否启用 */
     isTenantCaptchaEnabled(): boolean {
       return this.tenantConfig?.login?.captcha?.enabled ?? false;
     },
@@ -205,7 +205,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformLoginFailCount >= captcha.failedThreshold;
     },
 
-    /** Whether tenant captcha should show (based on switch, threshold, or forced) / 租户验证码是否需显示 */
+    /** Whether tenant captcha should show (based on switch, threshold, or forced) / 企业验证码是否需显示 */
     shouldShowTenantCaptcha(): boolean {
       // If backend forces captcha, show immediately (highest priority) / 后端强制验证码
       if (this.tenantCaptchaRequired) return true;
@@ -294,7 +294,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
     /**
      * Load tenant public config (called only on first access)
-     * 加载租户公开配置（首次访问时调用）
+     * 加载企业公开配置（首次访问时调用）
      * Tenant is auto-detected by domain middleware, no manual tenant_code needed.
      */
     async loadTenantConfig(): Promise<null | TenantPublicConfig> {
@@ -392,18 +392,18 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           return;
         }
 
-        // 2b: Check tenant subdomain suffix match (*.suffix) / 检查租户子域名后缀
+        // 2b: Check tenant subdomain suffix match (*.suffix) / 检查企业子域名后缀
         const suffix = platformConfig.domain.suffix?.toLowerCase();
         if (suffix && hostname.toLowerCase().endsWith(suffix)) {
           this.isDomainTenantDomain = true;
           this.isDomainDetected = true;
-          // Preload tenant config / 预加载租户配置
+          // Preload tenant config / 预加载企业配置
           await this.loadTenantConfig();
           return;
         }
       }
 
-      // ── Layer 3: Tenant config API fallback (custom domain) / 租户配置回退 ────
+      // ── Layer 3: Tenant config API fallback (custom domain) / 企业配置回退 ────
       try {
         const tenantConfig = await getTenantPublicConfigApi();
         this.isDomainTenantDomain = true;
@@ -424,7 +424,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           httpStatus === 404 ||
           businessCode === 4040
         ) {
-          // Tenant not found → platform domain / 租户不存在
+          // Tenant not found → platform domain / 企业不存在
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
         } else if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
@@ -446,7 +446,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * Reset tenant config (for forced refresh) / 重置租户配置
+     * Reset tenant config (for forced refresh) / 重置企业配置
      */
     resetTenantConfig() {
       this.tenantConfig = null;
@@ -489,14 +489,14 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * Increment tenant login fail count / 增加租户端登录失败次数
+     * Increment tenant login fail count / 增加企业端登录失败次数
      */
     incrementTenantLoginFail() {
       this.tenantLoginFailCount++;
     },
 
     /**
-     * Reset tenant login fail count (called after login success) / 重置租户端登录失败次数
+     * Reset tenant login fail count (called after login success) / 重置企业端登录失败次数
      */
     resetTenantLoginFail() {
       this.tenantLoginFailCount = 0;
@@ -510,7 +510,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * Set tenant captcha forced state / 设置租户端验证码强制状态
+     * Set tenant captcha forced state / 设置企业端验证码强制状态
      */
     setTenantCaptchaRequired(required: boolean) {
       this.tenantCaptchaRequired = required;
@@ -525,7 +525,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * Reset tenant login state (called after login success) / 重置租户端登录状态
+     * Reset tenant login state (called after login success) / 重置企业端登录状态
      */
     resetTenantLoginState() {
       this.tenantLoginFailCount = 0;

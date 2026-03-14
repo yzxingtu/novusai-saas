@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 操作日志详情抽屉（租户端）
+ * 操作日志详情抽屉（企业端）
  */
 import type { tenantApi } from '#/api';
 

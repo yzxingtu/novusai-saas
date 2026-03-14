@@ -129,7 +129,7 @@ async function handleRestore(record: Record<string, unknown>) {
   }
 }
 
-/** Delete single record (permanent on admin side, escalate on tenant side) / 删除单条记录（管理端永久删除，租户端升级到管理端） */
+/** Delete single record (permanent on admin side, escalate on tenant side) / 删除单条记录（管理端永久删除，企业端升级到管理端） */
 function handleDelete(record: Record<string, unknown>) {
   const displayName = String(record[props.nameField] || record.id);
   const title = isTenantSide.value
@@ -173,7 +173,7 @@ async function handleBatchRestore() {
   }
 }
 
-/** Batch delete (permanent on admin side, escalate on tenant side) / 批量删除（管理端永久删除，租户端升级到管理端） */
+/** Batch delete (permanent on admin side, escalate on tenant side) / 批量删除（管理端永久删除，企业端升级到管理端） */
 function handleBatchDelete() {
   if (selectedRowKeys.value.length === 0) return;
   const title = isTenantSide.value

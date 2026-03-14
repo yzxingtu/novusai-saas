@@ -90,7 +90,7 @@ async function doImpersonateLogin() {
 
     status.value = 'success';
 
-    // Delayed redirect to tenant dashboard / 延迟跳转到租户后台首页
+    // Delayed redirect to tenant dashboard / 延迟跳转到企业后台首页
     setTimeout(() => {
       router.replace(HOME_PATHS.tenant);
     }, 1000);

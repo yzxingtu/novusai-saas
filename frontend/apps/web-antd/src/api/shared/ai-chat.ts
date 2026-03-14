@@ -64,7 +64,7 @@ function chatBaseUrl(apiPrefix: string): string {
  *
  * Admin: returns only admin-visible scopes (admin_only / admin_and_all / admin_and_assigned).
  * Tenant: backend auto-filters by tenant_id + scope.
- * 管理端：仅返回管理端可见作用域；租户端：后端自动过滤。
+ * 管理端：仅返回管理端可见作用域；企业端：后端自动过滤。
  */
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,

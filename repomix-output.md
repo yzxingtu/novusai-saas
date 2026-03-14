@@ -2976,7 +2976,7 @@ shared
 
 ## 项目概述
 
-多租户 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
+多企业 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
 ## 全局禁令
 
@@ -3057,12 +3057,12 @@ shared
 - Repository：数据访问、查询构建
 - Model：表结构定义
 
-### 多租户
+### 多企业
 
-- 租户模型继承 `TenantModel`（自动含 `tenant_id`）
-- 租户仓库继承 `TenantRepository`（自动注入 `tenant_id` 过滤）
-- 租户服务继承 `TenantService`
-- 租户控制器继承 `TenantController`
+- 企业模型继承 `TenantModel`（自动含 `tenant_id`）
+- 企业仓库继承 `TenantRepository`（自动注入 `tenant_id` 过滤）
+- 企业服务继承 `TenantService`
+- 企业控制器继承 `TenantController`
 - 平台管理用 `GlobalController`
 - `TenantController.get_service(db, tenant_id)` — 第二参数是 int
 - `BaseController.get_service(db)` — 只需 db
@@ -3105,7 +3105,7 @@ error(message, code, status_code)         # 自定义错误
 
 - `DbSession` — AsyncSession
 - `ActiveAdmin` — 活跃平台管理员
-- `ActiveTenantAdmin` — 活跃租户管理员
+- `ActiveTenantAdmin` — 活跃企业管理员
 - `QueryParams` — JSON:API 查询参数
 - `SuperAdmin` — 超级管理员
 
@@ -3171,7 +3171,7 @@ alembic upgrade head
 ### 技能（Skill）体系
 
 - **技能包（SkillPackage）是一级管理单元**，技能（Skill）必须归属于某个技能包
-- **前端统一入口**：`/admin/ai/skill-packages`（管理端）和 `/tenant/ai/skill-packages`（租户端）为唯一技能管理入口
+- **前端统一入口**：`/admin/ai/skill-packages`（管理端）和 `/tenant/ai/skill-packages`（企业端）为唯一技能管理入口
 - **禁止独立技能路由**：不允许存在独立的 `/admin/ai/skills` 或 `/tenant/ai/skills` 页面
 - 技能包详情页内嵌技能 CRUD（新增/编辑/删除/排序），技能表单自动继承当前包的 `package_id`
 - 新建技能时 `package_id` 自动填充，用户无需手动选择
@@ -3851,7 +3851,7 @@ AI 模块常量定义
 # ============================================
 
 # Key pattern: ai:action_rate:{tenant_id}:{action_name}
-# 用于限制单个租户对某个 Action 的调用频率
+# 用于限制单个企业对某个 Action 的调用频率
 ACTION_RATE_KEY_PREFIX = "ai:action_rate:"
 ACTION_RATE_TTL = 3600  # 1 小时窗口
 
@@ -3881,7 +3881,7 @@ def action_confirm_key(confirm_id: str) -> str:
 # ============================================
 
 # Key pattern: ai:schema:{tenant_id}
-# 缓存租户的数据库 Schema 信息，供 Text-to-SQL 使用
+# 缓存企业的数据库 Schema 信息，供 Text-to-SQL 使用
 SCHEMA_CACHE_KEY_PREFIX = "ai:schema:"
 SCHEMA_CACHE_TTL = 3600  # 1 小时缓存
 
@@ -4871,11 +4871,11 @@ __all__ = [
 
 ```python
 """
-租户隔离注入器（TenantIsolationInjector）
+企业隔离注入器（TenantIsolationInjector）
 
 自动为每个查询表注入 tenant_id 条件。
 这是最关键的安全层 —— 即使 SQL 本身合法，
-没有 tenant_id 过滤就会泄露其他租户数据。
+没有 tenant_id 过滤就会泄露其他企业数据。
 
 安全保证：
 - 不依赖 LLM 生成 tenant_id 条件（LLM 可能遗漏或被注入）
@@ -4901,7 +4901,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 # ============================================
 
 class TenantIsolationError(Exception):
-    """租户隔离注入异常"""
+    """企业隔离注入异常"""
     pass
 
 
@@ -4914,7 +4914,7 @@ class TableReference:
     """SQL 中的表引用"""
     table_name: str        # 原始表名
     alias: str | None      # 别名（AS）
-    tenant_column: str     # 租户隔离列名
+    tenant_column: str     # 企业隔离列名
 
     @property
     def qualified_tenant_column(self) -> str:
@@ -4986,7 +4986,7 @@ class TenantIsolationInjector:
     自动为 SQL 中每个 FROM/JOIN 的表注入隔离条件
 
     按 user_role 决定隔离策略：
-    - platform_admin: 平台表不注入，租户表注入 tenant_id
+    - platform_admin: 平台表不注入，企业表注入 tenant_id
     - tenant_admin: 所有表强制 tenant_id 隔离
     - tenant_user: 强制 tenant_id + user_id 隔离（仅限自身数据）
 
@@ -5016,7 +5016,7 @@ class TenantIsolationInjector:
 
         Args:
             sql: 原始 SQL（已通过 SQLSafetyValidator 校验）
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             schema: 表结构信息（用于确认 tenant_column）
             user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
             user_id: 用户 ID（tenant_user 角色时用于用户级隔离）
@@ -5411,7 +5411,7 @@ class TextToSQLGenerator:
 
         Args:
             question: 用户的自然语言问题
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             agent: 智能体（包含模型配置）
             conversation_history: 多轮对话历史（最近 N 轮）
             permissions: 用户 RBAC 权限码集合（用于表级过滤）
@@ -6039,7 +6039,7 @@ class BaseEngine(ABC):
             agent: 智能体（含模型配置）
             messages: 消息列表
             tools: 工具定义列表
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             user_id: 用户 ID
         """
         # 构建 OpenAI tools 参数
@@ -7055,7 +7055,7 @@ class ExecutionRequest:
 
     Attributes:
         agent_id: 智能体 ID
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
         user_id: 用户 ID（可选，匿名/API 调用时为 None）
         messages: 用户消息列表（conversation 模式）
         input_variables: 输入变量（task/batch 模式，注入到 system_prompt）
@@ -8665,7 +8665,7 @@ __all__ = ["FailoverService"]
 """
 AI 调用配额管理服务
 
-管理租户的 Token 配额、月度预算和使用量追踪
+管理企业的 Token 配额、月度预算和使用量追踪
 """
 
 from datetime import date
@@ -8740,7 +8740,7 @@ class UsageTracker:
         获取当日 Token 使用量
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             stat_date: 统计日期,默认今天
             
@@ -8765,7 +8765,7 @@ class UsageTracker:
         获取当月 Token 使用量
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             year: 年份,默认当前年
             month: 月份,默认当前月
@@ -8800,7 +8800,7 @@ class UsageTracker:
         原子检查+预扣减使用量（消除 TOCTOU 竞态）
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量
             limit: 配额上限
@@ -8847,7 +8847,7 @@ class UsageTracker:
         记录 Token 使用量
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             tokens: Token 数量
             stat_date: 统计日期
@@ -8886,7 +8886,7 @@ class UsageTracker:
         响应后调整使用量：从预估值调整为实际值
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量（已预扣）
             actual_tokens: 实际 Token 数量
@@ -8920,7 +8920,7 @@ class QuotaManager:
     """
     配额管理器
     
-    检查和执行租户配额限制
+    检查和执行企业配额限制
     """
     
     def __init__(self, db: AsyncSession):
@@ -8945,7 +8945,7 @@ class QuotaManager:
         检查配额
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量
             
@@ -8955,7 +8955,7 @@ class QuotaManager:
         Raises:
             QuotaExceeded: 配额超出
         """
-        # 获取租户配额配置
+        # 获取企业配额配置
         quota = await self._get_tenant_quota(tenant_id, model_id)
         
         if not quota or not quota.is_active:
@@ -9006,7 +9006,7 @@ class QuotaManager:
                     period=quota.period
                 )
                 # 软限制允许超额,但记录警告
-                # TODO: 发送通知给租户
+                # TODO: 发送通知给企业
         
         return True
     
@@ -9021,7 +9021,7 @@ class QuotaManager:
         记录使用量（用于软限制或无配额场景）
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             tokens: Token 数量
             stat_date: 统计日期
@@ -9039,7 +9039,7 @@ class QuotaManager:
         响应后调整使用量：从预估值调整为实际值
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量（已预扣）
             actual_tokens: 实际 Token 数量
@@ -9054,10 +9054,10 @@ class QuotaManager:
         model_id: int
     ) -> TenantQuota | None:
         """
-        获取租户配额配置
+        获取企业配额配置
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             
         Returns:
@@ -9076,7 +9076,7 @@ class QuotaManager:
         获取使用量
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             period: 周期(daily/monthly)
             
@@ -9555,7 +9555,7 @@ class EmbeddingService:
 
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -10270,7 +10270,7 @@ class MultiQueryRewriter(BaseRewriter):
         """
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model: LLM 模型代码（None 时使用默认）
         """
         self.db = db
@@ -10422,7 +10422,7 @@ def get_rewriter(
     Args:
         strategy: 改写策略 (none/multi/hyde)
         db: 数据库会话
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
         model: LLM 模型代码
 
     Returns:
@@ -10489,7 +10489,7 @@ class LLMReranker:
         """
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model: LLM 模型代码
         """
         self.db = db
@@ -11422,7 +11422,7 @@ class RateLimiter:
         TPM: Lua 脚本原子执行 预扣减→检查超限
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             rpm_limit: RPM 限制(每分钟请求数)
             tpm_limit: TPM 限制(每分钟 Token 数)
@@ -11514,7 +11514,7 @@ class RateLimiter:
         响应后调整 TPM：从预估值调整为实际值
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量（已预扣）
             actual_tokens: 实际 Token 数量
@@ -11575,7 +11575,7 @@ class RateLimiter:
 
         Args:
             redis: Redis 客户端
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             current_time: 当前时间戳
 
@@ -11609,7 +11609,7 @@ class RateLimiter:
         获取当前使用量
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
 
         Returns:
@@ -11699,7 +11699,7 @@ class RetryService:
             api_key: 当前 API Key
             model: 模型名称
             call_fn: 接收 adapter 实例并返回结果的异步函数
-            tenant_id: 租户 ID（用于获取备用 Key）
+            tenant_id: 企业 ID（用于获取备用 Key）
             log_key: 日志 i18n key
 
         Returns:
@@ -11809,7 +11809,7 @@ class RetryService:
         Args:
             provider_id: 供应商 ID
             current_key_id: 当前 Key 的 ID（排除）
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             下一个可用的 API Key，如果没有则返回 None
@@ -14410,7 +14410,7 @@ class TextToSQLExecutor(BaseToolExecutor):
     Text-to-SQL 工具执行器
 
     完整安全链路：
-      LLM 生成 SQL → 安全校验 → 租户隔离注入 → 只读执行 → 结果格式化
+      LLM 生成 SQL → 安全校验 → 企业隔离注入 → 只读执行 → 结果格式化
 
     依赖：
     - AIGateway: 调用 LLM
@@ -14538,7 +14538,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                     duration_ms=duration_ms,
                 )
 
-            # 3. 租户隔离注入（按 user_role 决定隔离策略）
+            # 3. 企业隔离注入（按 user_role 决定隔离策略）
             user_id = context.user_id if context else None
             isolated_sql = TenantIsolationInjector.inject(
                 generated.sql, tenant_id, schema,
@@ -15955,7 +15955,7 @@ class ToolSandbox:
     ):
         """
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             agent_id: 智能体 ID
             config: 沙箱配置
             user_id: 当前操作用户 ID（可选，传递给 ExecutionContext）
@@ -16515,11 +16515,11 @@ class ExecutionContext:
     """
     工具执行上下文
 
-    封装当前执行环境的租户、用户、权限等信息，
+    封装当前执行环境的企业、用户、权限等信息，
     供 TextToSQLExecutor / CRUD Executor 等执行器使用。
 
     Attributes:
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
         agent_id: 智能体 ID
         user_id: 当前操作用户 ID（可为 None 表示匿名 / API 调用）
         user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
@@ -17032,7 +17032,7 @@ __all__ = [
 """
 平台端智能体管理 API
 
-提供跨租户智能体列表、详情、状态管理接口（平台管理员专用）
+提供跨企业智能体列表、详情、状态管理接口（平台管理员专用）
 """
 
 from fastapi import Query, Request
@@ -17100,7 +17100,7 @@ class AdminAgentController(GlobalController):
     """
     平台端智能体管理控制器
 
-    跨租户只读查看 + 状态管理
+    跨企业只读查看 + 状态管理
     """
 
     prefix = "/ai/agents"
@@ -17118,7 +17118,7 @@ class AdminAgentController(GlobalController):
             serialize=_build_admin_agent_item,
         )
 
-        @router.get("", summary="全租户智能体列表")
+        @router.get("", summary="全企业智能体列表")
         @action_read("action.ai_agent.list")
         async def list_agents(
             request: Request,
@@ -17127,10 +17127,10 @@ class AdminAgentController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户智能体列表
+            获取全企业智能体列表
 
             支持 JSON:API 风格筛选、排序、分页
-            - filter[tenant_id][eq]=1  按租户筛选
+            - filter[tenant_id][eq]=1  按企业筛选
             - filter[status][eq]=published  按状态筛选
             - filter[name][ilike]=xxx  按名称模糊搜索
             权限: ai_agent:list
@@ -17147,7 +17147,7 @@ class AdminAgentController(GlobalController):
                 page_size=query.size,
             )
 
-        @router.post("", summary="创建智能体（支持全局/租户/管理端专属）")
+        @router.post("", summary="创建智能体（支持全局/企业/管理端专属）")
         @action_create("action.ai_agent.create")
         async def create_agent(
             request: Request,
@@ -17159,8 +17159,8 @@ class AdminAgentController(GlobalController):
             管理端创建智能体
 
             支持 3 种 scope:
-            - tenant: 属于指定租户（需提供 tenant_id）
-            - global: 全局共享（所有租户可见）
+            - tenant: 属于指定企业（需提供 tenant_id）
+            - global: 全局共享（所有企业可见）
             - admin: 仅管理端可见
 
             权限: ai_agent:create
@@ -17170,7 +17170,7 @@ class AdminAgentController(GlobalController):
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.create(data)
 
-            # 同步租户分配
+            # 同步企业分配
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
@@ -17206,7 +17206,7 @@ class AdminAgentController(GlobalController):
             tenant_ids = data.pop("tenant_ids", None)
             agent = await service.update(agent_id, data)
 
-            # 同步租户分配
+            # 同步企业分配
             effective_scope = agent.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -17255,7 +17255,7 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取智能体详情（跨租户只读）
+            获取智能体详情（跨企业只读）
 
             权限: ai_agent:detail
             """
@@ -17265,11 +17265,11 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            # 使用租户 Service 获取完整详情（含模型关联）
+            # 使用企业 Service 获取完整详情（含模型关联）
             service = AgentService(db, agent.tenant_id)
             detail = await service.get_agent_detail(agent_id)
 
-            # 追加已分配的租户 ID 列表
+            # 追加已分配的企业 ID 列表
             if agent.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
@@ -18990,7 +18990,7 @@ __all__ = ["router", "AdminAIProviderController"]
 """
 平台端 AI 配额管理 API
 
-提供租户 AI 配额的 CRUD 接口（平台管理员专用）
+提供企业 AI 配额的 CRUD 接口（平台管理员专用）
 """
 
 from fastapi import Request
@@ -19075,7 +19075,7 @@ class AdminAIQuotaController(GlobalController):
     """
     AI 配额管理控制器
 
-    提供租户 AI 配额 CRUD 接口
+    提供企业 AI 配额 CRUD 接口
     """
 
     prefix = "/ai/quotas"
@@ -19095,7 +19095,7 @@ class AdminAIQuotaController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取配额列表（跨租户）
+            获取配额列表（跨企业）
 
             权限: ai_quota:list
             """
@@ -19376,7 +19376,7 @@ class AdminAITablePolicyController(GlobalController):
             await db.commit()
             await db.refresh(policy)
 
-            # 清除 Redis schema 缓存（所有租户）
+            # 清除 Redis schema 缓存（所有企业）
             from app.ai.data_intelligence.schema_provider import SchemaProvider
             await SchemaProvider.invalidate_cache(0)
 
@@ -19493,7 +19493,7 @@ class AdminAIUsageController(GlobalController):
         """注册路由"""
         router = self.router
 
-        @router.get("/summary/tenant/{tenant_id}", summary="获取租户使用量汇总")
+        @router.get("/summary/tenant/{tenant_id}", summary="获取企业使用量汇总")
         @action_read("action.ai_usage.tenant_summary")
         async def get_tenant_usage_summary(
             request: Request,
@@ -19504,7 +19504,7 @@ class AdminAIUsageController(GlobalController):
             end_date: Optional[date] = Query(None, description="结束日期"),
         ):
             """
-            获取指定租户的使用量汇总
+            获取指定企业的使用量汇总
 
             权限: ai_usage:tenant_summary
             """
@@ -19584,7 +19584,7 @@ __all__ = ["router", "AdminAIUsageController"]
 """
 平台端附件管理 API
 
-提供跨租户的附件管理接口（平台管理员专用）
+提供跨企业的附件管理接口（平台管理员专用）
 """
 
 from fastapi import Query, Request, UploadFile, File, Form
@@ -19635,7 +19635,7 @@ class AdminAttachmentController(GlobalController):
     """
     平台端附件管理控制器
     
-    提供跨租户的附件管理接口
+    提供跨企业的附件管理接口
     """
     
     prefix = "/attachments"
@@ -19688,7 +19688,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description="上传的文件"),
-            tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            tenant_id: int = Form(0, ge=0, description="目标企业 ID，0 表示平台附件"),
             visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
             business_type: str | None = Form(None, description="业务类型"),
             business_id: int | None = Form(None, description="业务 ID"),
@@ -19697,9 +19697,9 @@ class AdminAttachmentController(GlobalController):
             平台端上传附件
             
             - tenant_id=0: 平台附件（站点 Logo、系统资源等）
-            - tenant_id>0: 代租户上传附件
+            - tenant_id>0: 代企业上传附件
             
-            不受租户配额限制，使用平台存储配置
+            不受企业配额限制，使用平台存储配置
             
             权限: attachment:upload
             """
@@ -19745,7 +19745,7 @@ class AdminAttachmentController(GlobalController):
             初始化分片上传会话（平台端）
             
             - tenant_id=0: 平台附件
-            - tenant_id>0: 代租户上传
+            - tenant_id>0: 代企业上传
             
             权限: attachment:chunk_init
             """
@@ -19865,7 +19865,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             search: str = Query("", description="搜索关键词"),
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
             page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
             page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
@@ -19895,13 +19895,13 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
         ):
             """
             获取附件存储统计
             
-            - 不传 tenant_id: 统计所有租户
-            - 传入 tenant_id: 统计指定租户
+            - 不传 tenant_id: 统计所有企业
+            - 传入 tenant_id: 统计指定企业
             
             权限: attachment:stats
             """
@@ -19909,7 +19909,7 @@ class AdminAttachmentController(GlobalController):
             stats = await service.get_storage_stats(tenant_id)
             return success(data=stats, message=_("common.success"))
 
-        @router.get("/stats/by-tenant", summary="获取按租户分组的附件统计")
+        @router.get("/stats/by-tenant", summary="获取按企业分组的附件统计")
         @action_read("action.attachment.stats_by_tenant")
         async def get_attachment_stats_by_tenant(
             request: Request,
@@ -19917,9 +19917,9 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取按租户分组的存储统计
+            获取按企业分组的存储统计
             
-            返回各租户的附件数量和存储用量
+            返回各企业的附件数量和存储用量
             
             权限: attachment:stats_by_tenant
             """
@@ -19939,7 +19939,7 @@ class AdminAttachmentController(GlobalController):
             获取附件列表
             
             - 支持通用筛选: filter[field][op]=value
-            - 支持按租户筛选: filter[tenant_id][eq]=1
+            - 支持按企业筛选: filter[tenant_id][eq]=1
             - 支持排序: sort=-created_at,name
             - 支持分页: page[number]=1&page[size]=20
             
@@ -20011,7 +20011,7 @@ class AdminAttachmentController(GlobalController):
             
             权限: attachment:download_url
             """
-            # 平台端不做租户隔离，传入 None
+            # 平台端不做企业隔离，传入 None
             service = AttachmentDownloadService(db, tenant_id=None)
             attachment = await service.get_attachment(attachment_id)
             data = await service.build_access_url(
@@ -21143,7 +21143,7 @@ class AdminNotificationTemplateController(GlobalController):
                 "version": "2.1.0",
                 "start_time": "2025-03-01 02:00",
                 "duration": "2 小时",
-                "tenant_name": "演示租户",
+                "tenant_name": "演示企业",
                 "admin_name": admin.nickname or admin.username,
                 "user_name": admin.nickname or admin.username,
                 "task_name": "test_task",
@@ -21690,7 +21690,7 @@ __all__ = ["router", "AdminPermissionController"]
 """
 套餐管理 API
 
-提供租户套餐 CRUD 接口（平台管理员专用）
+提供企业套餐 CRUD 接口（平台管理员专用）
 """
 
 from fastapi import Query, Request
@@ -21751,7 +21751,7 @@ def _translate_permission_name(name: str) -> str:
         icon="lucide:package",
         path="/tenant/plans",
         component="tenant/Plans",
-        parent="tenant_mgmt",  # 父菜单: 租户管理
+        parent="tenant_mgmt",  # 父菜单: 企业管理
         sort_order=20,
     ),
 )
@@ -21850,7 +21850,7 @@ class AdminPlanController(GlobalController):
             service = TenantPlanService(db)
             items, total = await service.query_list(spec, scope="admin")
             
-            # 批量获取租户数量（高效 COUNT 查询，避免加载全部租户对象）
+            # 批量获取企业数量（高效 COUNT 查询，避免加载全部企业对象）
             plan_ids = [item.id for item in items]
             tenant_counts = await service.repo.get_tenant_counts_batch(plan_ids)
             for item in items:
@@ -22040,7 +22040,7 @@ class AdminPlanController(GlobalController):
             """
             删除套餐（软删除）
             
-            - 如果有租户正在使用该套餐，则无法删除
+            - 如果有企业正在使用该套餐，则无法删除
             
             权限: tenant_plan:delete
             """
@@ -23054,7 +23054,7 @@ class AdminPluginController(GlobalController):
             await manager.rollback(plugin_id, body.target_version)
             return success(data={"message": f"Rolled back to {body.target_version}"})
 
-        # ── 租户分配 ──
+        # ── 企业分配 ──
 
         @self.router.get("/{plugin_id}/tenants")
         @action_read("action.plugin.tenants")
@@ -23226,7 +23226,7 @@ router = admin_plugin_controller.router
 
 聚合展示所有模块的已删除记录，支持按模块筛选、恢复、升级、永久删除。
 支持：
-- 区分管理端/租户级记录（is_tenant + tenant_name）
+- 区分管理端/企业级记录（is_tenant + tenant_name）
 - 继承原模块 __filterable__/__sortable__ 搜索能力
 """
 
@@ -23362,9 +23362,9 @@ def _get_model(module_code: str):
 def _get_service(module_code: str, db: Any):
     """获取模块对应的 Service 实例
 
-    TenantService 子类需要 tenant_id，但管理端总回收站跨租户查询，
+    TenantService 子类需要 tenant_id，但管理端总回收站跨企业查询，
     因此对 TenantService 子类动态构建基于 BaseRepository 的
-    GlobalService（无租户隔离），并继承原模型的 __filterable__ /
+    GlobalService（无企业隔离），并继承原模型的 __filterable__ /
     __sortable__ 搜索能力，同时额外开放 tenant_id 过滤。
     """
     from app.core.base_repository import BaseRepository
@@ -23458,7 +23458,7 @@ async def recycle_bin_modules(
     for code, config in RECYCLABLE_MODULES.items():
         model_cls = _get_model(code)
         filterable = getattr(model_cls, "__filterable__", {})
-        # 对租户模型额外开放 tenant_id
+        # 对企业模型额外开放 tenant_id
         if config.get("is_tenant") and "tenant_id" not in filterable:
             filterable = {**filterable, "tenant_id": "tenant_id"}
         result[code] = {
@@ -23523,7 +23523,7 @@ async def recycle_bin_list(
     查询指定模块的已删除记录。
 
     搜索/排序继承原模块的 __filterable__ / __sortable__ 定义。
-    租户级记录自动附带 tenant_id / tenant_name。
+    企业级记录自动附带 tenant_id / tenant_name。
     """
     config = RECYCLABLE_MODULES.get(module)
     if not config:
@@ -23539,7 +23539,7 @@ async def recycle_bin_list(
 
     result = [_model_to_dict(item, columns) for item in items]
 
-    # 批量解析租户名称
+    # 批量解析企业名称
     if is_tenant:
         tenant_ids = {r["tenant_id"] for r in result if r.get("tenant_id")}
         name_map = await _batch_resolve_tenant_names(db, tenant_ids)
@@ -23613,7 +23613,7 @@ async def recycle_bin_cleanup(
 """
 平台端技能管理 API
 
-提供跨租户技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
+提供跨企业技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
 """
 
 from typing import Any
@@ -23677,7 +23677,7 @@ class AdminSkillController(GlobalController):
     """
     平台端技能管理控制器
 
-    跨租户查看 + admin/tenant scope 技能 CRUD + 状态管理
+    跨企业查看 + admin/tenant scope 技能 CRUD + 状态管理
     """
 
     prefix = "/ai/skills"
@@ -23700,7 +23700,7 @@ class AdminSkillController(GlobalController):
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
 
-        @router.get("", summary="全租户技能列表")
+        @router.get("", summary="全企业技能列表")
         @action_read("action.ai_skill.list")
         async def list_skills(
             request: Request,
@@ -23709,10 +23709,10 @@ class AdminSkillController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户技能列表
+            获取全企业技能列表
 
             支持 JSON:API 风格筛选、排序、分页
-            - filter[tenant_id][eq]=1  按租户筛选
+            - filter[tenant_id][eq]=1  按企业筛选
             - filter[scope][eq]=admin  筛选管理技能
             - filter[type][eq]=http  按类型筛选
             - filter[name][ilike]=xxx  按名称模糊搜索
@@ -23738,7 +23738,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能详情（跨租户）
+            获取技能详情（跨企业）
 
             插件注册的技能额外返回 source_plugin 和 plugin_tools 字段
             """
@@ -24065,7 +24065,7 @@ __all__ = ["router", "AdminSkillController"]
 """
 平台端技能包管理 API
 
-提供跨租户技能包列表、详情、CRUD，支持 admin / tenant / global scope 技能包管理
+提供跨企业技能包列表、详情、CRUD，支持 admin / tenant / global scope 技能包管理
 """
 
 from typing import Any
@@ -24141,7 +24141,7 @@ class AdminSkillPackageController(GlobalController):
     """
     平台端技能包管理控制器
 
-    跨租户查看 + admin/tenant scope 技能包 CRUD
+    跨企业查看 + admin/tenant scope 技能包 CRUD
     """
 
     prefix = "/ai/skill-packages"
@@ -24177,7 +24177,7 @@ class AdminSkillPackageController(GlobalController):
             )
             return success(data=response)
 
-        @router.get("", summary="全租户技能包列表")
+        @router.get("", summary="全企业技能包列表")
         @action_read("action.ai_skill_package.list")
         async def list_packages(
             request: Request,
@@ -24186,7 +24186,7 @@ class AdminSkillPackageController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户技能包列表
+            获取全企业技能包列表
 
             支持 JSON:API 风格筛选、排序、分页
             """
@@ -24226,7 +24226,7 @@ class AdminSkillPackageController(GlobalController):
             if not data:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            # 追加已分配的租户 ID 列表
+            # 追加已分配的企业 ID 列表
             if data.get("scope") in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 data["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
@@ -24259,7 +24259,7 @@ class AdminSkillPackageController(GlobalController):
             # 校验和创建均由 Service._before_create 处理
             pkg = await service.create(pkg_data)
 
-            # 同步租户分配
+            # 同步企业分配
             if pkg.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("skill_package", pkg.id, tenant_ids)
@@ -24295,7 +24295,7 @@ class AdminSkillPackageController(GlobalController):
             # scope 不可变 + 名称唯一性等校验统一由 Service._before_update 处理
             updated = await service.update(package_id, update_data)
 
-            # 同步租户分配
+            # 同步企业分配
             effective_scope = updated.scope
             if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -24582,7 +24582,7 @@ class AdminSkillPackageController(GlobalController):
             - data: 导出的 JSON 数据
             - conflict_mode (in data): skip / rename（同名技能包处理方式）
             - target_scope (in data): 目标作用域 (admin/tenant/global)
-            - target_tenant_id (in data): 目标租户 ID（scope=tenant 时必填）
+            - target_tenant_id (in data): 目标企业 ID（scope=tenant 时必填）
             """
             from app.api.shared._skill_package_export import import_skill_package
 
@@ -24607,7 +24607,7 @@ class AdminSkillPackageController(GlobalController):
             参数：
             - new_name: 新技能包名称（可选，默认追加 " (Copy)"）
             - target_scope: 目标作用域 (admin/tenant/global)
-            - target_tenant_id: 目标租户 ID（scope=tenant 时必填）
+            - target_tenant_id: 目标企业 ID（scope=tenant 时必填）
             """
             from app.api.shared._skill_package_export import (
                 export_skill_package,
@@ -25134,10 +25134,10 @@ router = AdminTaskController.get_router()
 
 ```python
 """
-租户管理员管理 API（平台端）
+企业管理员管理 API（平台端）
 
-平台管理员查看/创建/管理指定租户的管理员。
-使用独立资源码 tenant_admin，权限与租户资源分离。
+平台管理员查看/创建/管理指定企业的管理员。
+使用独立资源码 tenant_admin，权限与企业资源分离。
 """
 
 from fastapi import HTTPException, Request, status
@@ -25165,7 +25165,7 @@ from app.services.system import TenantService
 # ==========================================
 
 class TenantAdminCreateRequest(BaseModel):
-    """创建租户管理员请求"""
+    """创建企业管理员请求"""
     username: str = Field(..., min_length=2, max_length=50)
     email: str = Field(..., max_length=255)
     password: str = Field(..., min_length=6, max_length=100)
@@ -25174,7 +25174,7 @@ class TenantAdminCreateRequest(BaseModel):
 
 
 class TenantAdminUpdateRequest(BaseModel):
-    """更新租户管理员请求（平台端重置密码等）"""
+    """更新企业管理员请求（平台端重置密码等）"""
     password: str | None = Field(None, min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     role_id: int | None = Field(None)
@@ -25199,9 +25199,9 @@ class TenantAdminStatusRequest(BaseModel):
 )
 class AdminTenantAdminController(GlobalController):
     """
-    租户管理员管理控制器
+    企业管理员管理控制器
 
-    平台管理员可查看/创建/禁用指定租户的管理员。
+    平台管理员可查看/创建/禁用指定企业的管理员。
     路由嵌套在 /admin/tenants/{tenant_id}/admins 下。
     """
 
@@ -25213,7 +25213,7 @@ class AdminTenantAdminController(GlobalController):
         router = self.router
 
         async def _verify_tenant(db: DbSession, tenant_id: int):
-            """验证租户存在"""
+            """验证企业存在"""
             tenant_service = TenantService(db)
             tenant = await tenant_service.get_by_id(tenant_id)
             if tenant is None:
@@ -25223,7 +25223,7 @@ class AdminTenantAdminController(GlobalController):
                 )
             return tenant
 
-        @router.get("", summary="获取租户管理员列表")
+        @router.get("", summary="获取企业管理员列表")
         @action_read("action.tenant_admin.list")
         async def list_tenant_admins(
             request: Request,
@@ -25232,7 +25232,7 @@ class AdminTenantAdminController(GlobalController):
             tenant_id: int,
         ):
             """
-            获取指定租户下所有管理员列表
+            获取指定企业下所有管理员列表
 
             返回管理员基本信息、角色名、在线状态相关字段。
             """
@@ -25272,7 +25272,7 @@ class AdminTenantAdminController(GlobalController):
 
             return success(data=items)
 
-        @router.post("", summary="为租户创建管理员")
+        @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")
         async def create_tenant_admin(
             request: Request,
@@ -25282,10 +25282,10 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminCreateRequest,
         ):
             """
-            为指定租户创建新管理员
+            为指定企业创建新管理员
 
             - 自动设置 tenant_id 和 is_owner=False
-            - 验证用户名/邮箱在该租户内唯一
+            - 验证用户名/邮箱在该企业内唯一
             """
             await _verify_tenant(db, tenant_id)
 
@@ -25350,7 +25350,7 @@ class AdminTenantAdminController(GlobalController):
                 "is_active": new_admin.is_active,
             })
 
-        @router.put("/{admin_id}", summary="更新租户管理员")
+        @router.put("/{admin_id}", summary="更新企业管理员")
         @action_update("action.tenant_admin.update")
         async def update_tenant_admin(
             request: Request,
@@ -25361,9 +25361,9 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminUpdateRequest,
         ):
             """
-            更新租户管理员信息（含重置密码）
+            更新企业管理员信息（含重置密码）
 
-            平台管理员可修改租户管理员的密码、昵称、角色、状态。
+            平台管理员可修改企业管理员的密码、昵称、角色、状态。
             至少需要一个字段有值。
             """
             await _verify_tenant(db, tenant_id)
@@ -25420,9 +25420,9 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminStatusRequest,
         ):
             """
-            切换租户管理员的启用/禁用状态
+            切换企业管理员的启用/禁用状态
 
-            不可禁用租户所有者（is_owner=True）。
+            不可禁用企业所有者（is_owner=True）。
             """
             await _verify_tenant(db, tenant_id)
 
@@ -25467,9 +25467,9 @@ router = _controller.router
 
 ```python
 """
-租户域名管理 API
+企业域名管理 API
 
-提供租户域名 CRUD 接口（平台管理员专用）
+提供企业域名 CRUD 接口（平台管理员专用）
 """
 
 from fastapi import HTTPException, Request, status
@@ -25507,13 +25507,13 @@ from app.services.system.ssl_certificate_service import SslCertificateService
     resource="tenant_domain",
     name="menu.admin.tenant_domain",  # i18n key
     scope=PermissionScope.ADMIN_ONLY,
-    parent_resource="tenant",  # 操作权限挂载到租户管理菜单下
+    parent_resource="tenant",  # 操作权限挂载到企业管理菜单下
 )
 class AdminTenantDomainController(GlobalController):
     """
-    租户域名管理控制器
+    企业域名管理控制器
     
-    提供租户域名 CRUD、验证、主域名设置等接口
+    提供企业域名 CRUD、验证、主域名设置等接口
     """
     
     prefix = "/tenants/{tenant_id}/domains"
@@ -25528,7 +25528,7 @@ class AdminTenantDomainController(GlobalController):
             db: DbSession,
             tenant_id: int,
         ) -> None:
-            """验证租户是否存在"""
+            """验证企业是否存在"""
             tenant_service = TenantService(db)
             tenant = await tenant_service.get_by_id(tenant_id)
             if tenant is None:
@@ -25537,7 +25537,7 @@ class AdminTenantDomainController(GlobalController):
                     detail=_("tenant.not_found"),
                 )
         
-        @router.get("", summary="获取租户域名列表")
+        @router.get("", summary="获取企业域名列表")
         @action_read("action.tenant_domain.list")
         async def list_domains(
             request: Request,
@@ -25547,7 +25547,7 @@ class AdminTenantDomainController(GlobalController):
             tenant_id: int,
         ):
             """
-            获取租户域名列表
+            获取企业域名列表
             
             - 支持通用筛选: filter[field][op]=value
             - 支持排序: sort=-created_at,domain
@@ -25557,7 +25557,7 @@ class AdminTenantDomainController(GlobalController):
             """
             await _verify_tenant_exists(db, tenant_id)
             
-            # 强制添加租户 ID 筛选
+            # 强制添加企业 ID 筛选
             spec.filters.append(FilterRule(field="tenant_id", op=FilterOp.eq, value=tenant_id))
             
             service = TenantDomainService(db)
@@ -25591,7 +25591,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("common.success"),
             )
         
-        @router.post("", summary="为租户添加自定义域名")
+        @router.post("", summary="为企业添加自定义域名")
         @action_create("action.tenant_domain.create")
         async def create_domain(
             request: Request,
@@ -25601,7 +25601,7 @@ class AdminTenantDomainController(GlobalController):
             tenant_id: int,
         ):
             """
-            为租户添加自定义域名
+            为企业添加自定义域名
             
             - 新域名需要 DNS 验证后才能使用
             
@@ -25701,7 +25701,7 @@ class AdminTenantDomainController(GlobalController):
             
             service = TenantDomainService(db)
             
-            # 验证域名存在且属于该租户
+            # 验证域名存在且属于该企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -25748,7 +25748,7 @@ class AdminTenantDomainController(GlobalController):
             
             service = TenantDomainService(db)
             
-            # 验证域名存在且属于该租户
+            # 验证域名存在且属于该企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -25782,7 +25782,7 @@ class AdminTenantDomainController(GlobalController):
             
             service = TenantDomainService(db)
             
-            # 验证域名存在且属于该租户
+            # 验证域名存在且属于该企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != tenant_id:
                 raise HTTPException(
@@ -25811,7 +25811,7 @@ class AdminTenantDomainController(GlobalController):
             """
             设置为主域名
             
-            - 每个租户只能有一个主域名
+            - 每个企业只能有一个主域名
             - 域名必须已验证
             
             权限: tenant_domain:set_primary
@@ -25846,7 +25846,7 @@ class AdminTenantDomainController(GlobalController):
                 return success(data=None, message=_("ssl_certificate.not_found"))
             return success(data=SslCertificateResponse.from_model(cert))
         
-        @router.post("/{domain_id}/ssl/provision", summary="为租户签发 SSL 证书")
+        @router.post("/{domain_id}/ssl/provision", summary="为企业签发 SSL 证书")
         @permission_action("ssl_provision", "action.tenant_domain.ssl_provision")
         async def provision_ssl(
             request: Request,
@@ -25876,7 +25876,7 @@ class AdminTenantDomainController(GlobalController):
             
             return success(message=_("ssl_certificate.provision_started"))
         
-        @router.post("/{domain_id}/ssl/renew", summary="为租户展期/续期 SSL 证书")
+        @router.post("/{domain_id}/ssl/renew", summary="为企业展期/续期 SSL 证书")
         @permission_action("ssl_renew", "action.tenant_domain.ssl_renew")
         async def renew_ssl(
             request: Request,
@@ -25905,7 +25905,7 @@ class AdminTenantDomainController(GlobalController):
             
             return success(message=_("ssl_certificate.renew_started"))
         
-        @router.post("/{domain_id}/ssl/upload", summary="为租户上传自定义 SSL 证书")
+        @router.post("/{domain_id}/ssl/upload", summary="为企业上传自定义 SSL 证书")
         @permission_action("ssl_upload", "action.tenant_domain.ssl_upload")
         async def upload_ssl(
             request: Request,
@@ -25916,7 +25916,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            管理员为租户上传自定义证书（不受套餐限制）
+            管理员为企业上传自定义证书（不受套餐限制）
             自动设置 cert_type=custom, auto_renew=False
             """
             await _verify_tenant_exists(db, tenant_id)
@@ -25936,7 +25936,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("ssl_certificate.upload_success"),
             )
         
-        @router.post("/{domain_id}/ssl/replace", summary="强制替换租户 SSL 证书")
+        @router.post("/{domain_id}/ssl/replace", summary="强制替换企业 SSL 证书")
         @permission_action("ssl_replace", "action.tenant_domain.ssl_replace")
         async def replace_ssl(
             request: Request,
@@ -25981,7 +25981,7 @@ class AdminTenantDomainController(GlobalController):
                 await db.commit()
                 return success(data=SslCertificateResponse.from_model(cert), message=_("ssl_certificate.replace_success"))
         
-        @router.delete("/{domain_id}/ssl", summary="删除租户 SSL 证书")
+        @router.delete("/{domain_id}/ssl", summary="删除企业 SSL 证书")
         @permission_action("ssl_delete", "action.tenant_domain.ssl_delete")
         async def delete_ssl(
             request: Request,
@@ -26021,7 +26021,7 @@ class AdminTenantDomainController(GlobalController):
                 message=_("ssl_certificate.auto_renew_updated"),
             )
         
-        @router.post("/ssl/batch-provision", summary="批量签发租户所有域名 SSL")
+        @router.post("/ssl/batch-provision", summary="批量签发企业所有域名 SSL")
         @permission_action("ssl_batch_provision", "action.tenant_domain.ssl_batch_provision")
         async def batch_provision_ssl(
             request: Request,
@@ -26030,7 +26030,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            批量为租户所有已验证但无 SSL 的域名触发签发（Admin 独有）
+            批量为企业所有已验证但无 SSL 的域名触发签发（Admin 独有）
             每个域名一个 Celery 任务
             """
             await _verify_tenant_exists(db, tenant_id)
@@ -26116,19 +26116,19 @@ async def get_admin_presence(
     })
 
 
-@router.get("/presence/tenant/{tenant_id}", summary="指定租户管理员在线状态")
+@router.get("/presence/tenant/{tenant_id}", summary="指定企业管理员在线状态")
 @auth_only
 async def get_tenant_admin_presence(
     tenant_id: int,
     admin: ActiveAdmin,
 ):
     """
-    获取指定租户的管理员在线状态
+    获取指定企业的管理员在线状态
 
-    平台管理员可查看任意租户的管理员在线情况。
+    平台管理员可查看任意企业的管理员在线情况。
 
     Args:
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
     """
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
     online_ids = list(details.keys())
@@ -26220,7 +26220,7 @@ async def get_all_skills_stats(
 
     Args:
         db: 数据库会话
-        tenant_id: 可选租户 ID 过滤
+        tenant_id: 可选企业 ID 过滤
 
     Returns:
         按调用次数降序排列的统计列表
@@ -26374,7 +26374,7 @@ admin_router.include_router(recycle_bin_router)
 # WebSocket 在线状态
 from app.api.admin.ws import router as ws_router
 admin_router.include_router(ws_router)
-# 租户管理员管理
+# 企业管理员管理
 from app.api.admin.tenant_admins import router as tenant_admins_router, AdminTenantAdminController
 admin_router.include_router(tenant_admins_router)
 # 通知
@@ -27222,7 +27222,7 @@ async def import_skill_package(
 
     pkg_name = package_info["name"]
 
-    # 检查同名技能包（按 scope + tenant_id 隔离，避免跨租户干扰）
+    # 检查同名技能包（按 scope + tenant_id 隔离，避免跨企业干扰）
     name_conditions = [
         SkillPackage.name == pkg_name,
         SkillPackage.scope == target_scope,
@@ -27372,7 +27372,7 @@ async def process_skill_package_upload(
         package_service: 已实例化的 SkillPackageService（admin 或 tenant）
         skill_service: 已实例化的 SkillService（admin 或 tenant）
         scope: 资源范围 ("admin" / "tenant")
-        tenant_id: 租户 ID（admin 端为 None）
+        tenant_id: 企业 ID（admin 端为 None）
         is_system: 是否系统包（仅 admin 端使用）
         source_plugin: 是否设置 source_plugin 字段
 
@@ -28011,7 +28011,7 @@ __all__ = ["test_skill"]
 """
 存储配置共享辅助函数
 
-管理端和租户端配置控制器共用，从数据库查询已知的插件存储驱动。
+管理端和企业端配置控制器共用，从数据库查询已知的插件存储驱动。
 """
 
 from sqlalchemy import select
@@ -28066,7 +28066,7 @@ async def get_known_plugin_storage_drivers(db: AsyncSession) -> list[dict]:
 
 ```python
 """
-租户端智能体管理 API
+企业端智能体管理 API
 
 提供智能体的 CRUD、发布等接口
 """
@@ -28098,10 +28098,10 @@ from app.services.ai.agent_service import AgentService
 
 async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     """
-    确保智能体为租户自有（scope=all_tenants）才允许变更操作。
+    确保智能体为企业自有（scope=all_tenants）才允许变更操作。
 
     assigned_tenants / admin_and_assigned / admin_and_all / admin_only 的智能体
-    对租户只读，不允许编辑、发布、回滚、绑定技能等变更操作。
+    对企业只读，不允许编辑、发布、回滚、绑定技能等变更操作。
     """
     from app.enums.common import ResourceScopeEnum
 
@@ -28137,7 +28137,7 @@ def _build_agent_list_item(agent) -> dict:
 )
 class TenantAgentController(TenantController):
     """
-    租户智能体管理控制器
+    企业智能体管理控制器
 
     提供智能体 CRUD、发布等操作
     """
@@ -28395,9 +28395,9 @@ __all__ = ["router", "TenantAgentController"]
 
 ```python
 """
-租户端系统智能体绑定 API
+企业端系统智能体绑定 API
 
-提供功能代码到智能体的映射解析 + 租户级覆盖管理
+提供功能代码到智能体的映射解析 + 企业级覆盖管理
 """
 
 from fastapi import Request
@@ -28427,7 +28427,7 @@ logger = LogManager.get_logger("app")
 
 
 class TenantOverrideRequest(PydanticBaseModel):
-    """租户覆盖绑定请求"""
+    """企业覆盖绑定请求"""
     agent_id: int | None = Field(None, description=_("system_agent_assignment.field.agent_id"))
     config: dict | None = Field(None, description=_("system_agent_assignment.field.config"))
 
@@ -28473,7 +28473,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
 )
 class TenantAgentAssignmentController(TenantController):
     """
-    租户端系统智能体绑定控制器
+    企业端系统智能体绑定控制器
     """
 
     prefix = "/ai/agent-assignments"
@@ -28482,7 +28482,7 @@ class TenantAgentAssignmentController(TenantController):
     def _register_routes(self) -> None:
         router = self.router
 
-        @router.get("", summary="租户智能体绑定列表")
+        @router.get("", summary="企业智能体绑定列表")
         @action_read("action.tenant_agent_assignment.list")
         async def list_assignments(
             request: Request,
@@ -28490,7 +28490,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
         ):
             """
-            获取所有绑定列表，含全局默认 + 租户覆盖对比
+            获取所有绑定列表，含全局默认 + 企业覆盖对比
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
@@ -28523,14 +28523,14 @@ class TenantAgentAssignmentController(TenantController):
             """
             按 feature_code 获取绑定的 agent_id
 
-            Resolve 顺序：租户覆盖 → 全局默认
+            Resolve 顺序：企业覆盖 → 全局默认
             """
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             assignment = await service.resolve_for_tenant(feature_code, tenant_id)
             return success(data=_build_resolve_result(assignment, feature_code))
 
-        @router.put("/{feature_code}", summary="设置租户覆盖")
+        @router.put("/{feature_code}", summary="设置企业覆盖")
         @action_update("action.tenant_agent_assignment.update")
         async def set_override(
             request: Request,
@@ -28539,7 +28539,7 @@ class TenantAgentAssignmentController(TenantController):
             feature_code: str,
             body: TenantOverrideRequest,
         ):
-            """创建或更新租户覆盖绑定"""
+            """创建或更新企业覆盖绑定"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             assignment = await service.set_tenant_override(
@@ -28548,7 +28548,7 @@ class TenantAgentAssignmentController(TenantController):
             i18n_map = await _build_plugin_feature_i18n_map(db)
             return success(data=_build_assignment_item(assignment, i18n_map=i18n_map))
 
-        @router.delete("/{feature_code}", summary="删除租户覆盖")
+        @router.delete("/{feature_code}", summary="删除企业覆盖")
         @action_delete("action.tenant_agent_assignment.delete")
         async def delete_override(
             request: Request,
@@ -28556,7 +28556,7 @@ class TenantAgentAssignmentController(TenantController):
             admin: ActiveTenantAdmin,
             feature_code: str,
         ):
-            """删除租户覆盖（恢复全局默认）"""
+            """删除企业覆盖（恢复全局默认）"""
             tenant_id = admin.tenant_id
             service = AgentAssignmentService(db)
             removed = await service.delete_tenant_override(feature_code, tenant_id)
@@ -28576,7 +28576,7 @@ __all__ = ["router", "TenantAgentAssignmentController"]
 
 ```python
 """
-租户端 AI 对话 API
+企业端 AI 对话 API
 
 提供 AI 对话（非流式/流式）、对话列表、删除等接口
 """
@@ -28620,7 +28620,7 @@ from app.services.ai.conversation_service import ConversationService
 )
 class TenantAgentChatController(TenantController):
     """
-    租户 AI 对话控制器
+    企业 AI 对话控制器
 
     提供 AI 对话交互和对话管理
     """
@@ -28884,7 +28884,7 @@ __all__ = ["router", "TenantAgentChatController"]
 
 ```python
 """
-租户端 AI 操作审计日志 API
+企业端 AI 操作审计日志 API
 
 提供审计日志列表、详情和统计接口（只读）
 """
@@ -28919,7 +28919,7 @@ from app.services.ai.action_log_service import AIActionLogService
 )
 class TenantAIActionLogController(TenantController):
     """
-    租户 AI 操作审计日志控制器
+    企业 AI 操作审计日志控制器
 
     提供只读的审计日志查询和统计接口
     """
@@ -28940,7 +28940,7 @@ class TenantAIActionLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户的 AI 操作审计日志
+            获取当前企业的 AI 操作审计日志
 
             支持 JSON:API 筛选:
             - filter[action_name][ilike]=xxx
@@ -29019,9 +29019,9 @@ __all__ = ["router", "TenantAIActionLogController"]
 
 ```python
 """
-租户端 AI 调用日志 API
+企业端 AI 调用日志 API
 
-提供租户端 AI 调用日志查询接口（自动按 tenant_id 过滤）
+提供企业端 AI 调用日志查询接口（自动按 tenant_id 过滤）
 """
 
 from fastapi import Request
@@ -29055,9 +29055,9 @@ from app.repositories.ai import AICallLogRepository
 )
 class TenantAICallLogController(TenantController):
     """
-    租户 AI 调用日志控制器
+    企业 AI 调用日志控制器
 
-    提供租户端调用日志查询（自动按 tenant_id 过滤）
+    提供企业端调用日志查询（自动按 tenant_id 过滤）
     """
 
     prefix = "/ai/call-logs"
@@ -29076,7 +29076,7 @@ class TenantAICallLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            查询当前租户的 AI 调用日志列表
+            查询当前企业的 AI 调用日志列表
 
             自动按 tenant_id 过滤，支持 JSON:API 筛选:
             - filter[model_id]: 模型 ID
@@ -29124,7 +29124,7 @@ class TenantAICallLogController(TenantController):
             """
             获取调用日志详情（含完整请求和响应体）
 
-            仅允许查看自己租户的日志
+            仅允许查看自己企业的日志
 
             权限: ai_tenant_call_log:detail
             """
@@ -29134,7 +29134,7 @@ class TenantAICallLogController(TenantController):
             if not log:
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))
 
-            # 确保只能看自己租户的日志
+            # 确保只能看自己企业的日志
             if log.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
@@ -29153,7 +29153,7 @@ __all__ = ["router", "TenantAICallLogController"]
 """
 AI 网关调用 API (Tenant)
 
-提供租户端 AI 代理调用接口，支持配额和限流检查
+提供企业端 AI 代理调用接口，支持配额和限流检查
 """
 
 from fastapi import Request
@@ -29188,7 +29188,7 @@ class TenantAIGatewayController(TenantController):
     """
     AI 网关控制器 (Tenant)
 
-    租户端 AI 网关调用接口，支持配额和限流检查
+    企业端 AI 网关调用接口，支持配额和限流检查
     """
 
     prefix = "/ai/gateway"
@@ -29316,9 +29316,9 @@ __all__ = ["router", "TenantAIGatewayController"]
 
 ```python
 """
-租户端 AI 配额和速率限制配置 API
+企业端 AI 配额和速率限制配置 API
 
-提供租户级配额管理和速率限制配置接口
+提供企业级配额管理和速率限制配置接口
 """
 
 from fastapi import Query, Request
@@ -29366,7 +29366,7 @@ from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 )
 class TenantAIQuotaController(TenantController):
     """
-    租户 AI 配额和速率限制控制器
+    企业 AI 配额和速率限制控制器
 
     提供配额管理和速率限制配置接口
     """
@@ -29391,7 +29391,7 @@ class TenantAIQuotaController(TenantController):
             include_usage: bool = Query(False, description="是否包含使用量"),
         ):
             """
-            获取租户配额配置列表
+            获取企业配额配置列表
 
             权限: ai_quota:list_quotas
             """
@@ -29685,9 +29685,9 @@ __all__ = ["router", "TenantAIQuotaController"]
 
 ```python
 """
-租户端 AI 表策略管理控制器
+企业端 AI 表策略管理控制器
 
-提供租户管理员查看和覆盖 AI 表策略的接口。
+提供企业管理员查看和覆盖 AI 表策略的接口。
 覆盖只能收紧（限制更多），不能放开。
 """
 
@@ -29708,7 +29708,7 @@ from app.services.ai.table_policy_override_service import AITablePolicyOverrideS
     name="AI 表策略覆盖",
 )
 class TenantAITablePolicyController(TenantController):
-    """租户端 AI 表策略管理"""
+    """企业端 AI 表策略管理"""
 
     prefix = "/ai/table-policies"
     tags = ["Tenant AI Table Policies"]
@@ -29725,7 +29725,7 @@ class TenantAITablePolicyController(TenantController):
             tenant_admin: ActiveTenantAdmin,
             params: QueryParams,
         ):
-            """获取当前租户的有效策略列表（全局 + 租户覆盖合并）"""
+            """获取当前企业的有效策略列表（全局 + 企业覆盖合并）"""
             service = self.get_service(db, tenant_admin.tenant_id)
             policies = await service.get_effective_policies()
             return success(data=policies)
@@ -29739,7 +29739,7 @@ class TenantAITablePolicyController(TenantController):
             data: AITablePolicyOverrideUpdate,
             tenant_admin: ActiveTenantAdmin,
         ):
-            """创建或更新租户策略覆盖（仅允许收紧）"""
+            """创建或更新企业策略覆盖（仅允许收紧）"""
             service = self.get_service(db, tenant_admin.tenant_id)
             override = await service.create_or_update_override(
                 policy_id=policy_id,
@@ -29763,7 +29763,7 @@ class TenantAITablePolicyController(TenantController):
             policy_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
-            """删除租户策略覆盖（恢复到全局策略）"""
+            """删除企业策略覆盖（恢复到全局策略）"""
             service = self.get_service(db, tenant_admin.tenant_id)
             await service.remove_override(policy_id)
             await db.commit()
@@ -29792,7 +29792,7 @@ __all__ = ["TenantAITablePolicyController", "router"]
 """
 AI 使用量统计 API (Tenant)
 
-提供租户级使用量统计查询接口
+提供企业级使用量统计查询接口
 """
 
 from datetime import date
@@ -29827,9 +29827,9 @@ from app.services.ai import MeteringService
 )
 class TenantAIUsageController(TenantController):
     """
-    租户 AI 使用量控制器
+    企业 AI 使用量控制器
 
-    提供租户级使用量统计查询
+    提供企业级使用量统计查询
     """
 
     prefix = "/ai/usage"
@@ -29839,7 +29839,7 @@ class TenantAIUsageController(TenantController):
         """注册路由"""
         router = self.router
 
-        @router.get("/summary", summary="获取当前租户使用量汇总")
+        @router.get("/summary", summary="获取当前企业使用量汇总")
         @action_read("action.ai_tenant_usage.summary")
         async def get_tenant_usage_summary(
             request: Request,
@@ -29849,7 +29849,7 @@ class TenantAIUsageController(TenantController):
             end_date: Optional[date] = Query(None, description="结束日期"),
         ):
             """
-            获取当前租户使用量汇总
+            获取当前企业使用量汇总
 
             权限: ai_tenant_usage:summary
             """
@@ -29873,7 +29873,7 @@ class TenantAIUsageController(TenantController):
             end_date: Optional[date] = Query(None, description="结束日期"),
         ):
             """
-            获取租户下指定用户的使用量汇总
+            获取企业下指定用户的使用量汇总
 
             权限: ai_tenant_usage:user_summary
             """
@@ -29960,9 +29960,9 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户上传规则（扩展名白名单、黑名单、大小限制）
+            获取企业上传规则（扩展名白名单、黑名单、大小限制）
 
-            优先使用租户配置，留空则回退平台配置。
+            优先使用企业配置，留空则回退平台配置。
 
             权限: attachment:upload_rules
             """
@@ -30180,7 +30180,7 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户存储配额使用情况
+            获取当前企业存储配额使用情况
             
             权限: attachment:storage_quota
             """
@@ -30393,9 +30393,9 @@ __all__ = ["router", "TenantAttachmentController"]
 
 ```python
 """
-租户域名管理 API
+企业域名管理 API
 
-提供租户端域名管理 CRUD、验证、主域名设置等接口
+提供企业端域名管理 CRUD、验证、主域名设置等接口
 """
 
 from fastapi import HTTPException, Request, status
@@ -30445,9 +30445,9 @@ from app.services.system.ssl_certificate_service import SslCertificateService
 )
 class TenantDomainController(TenantController):
     """
-    租户域名管理控制器
+    企业域名管理控制器
 
-    提供租户域名 CRUD、验证、主域名设置等接口
+    提供企业域名 CRUD、验证、主域名设置等接口
     """
 
     prefix = "/domains"
@@ -30468,7 +30468,7 @@ class TenantDomainController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户域名列表
+            获取企业域名列表
 
             - 支持通用筛选: filter[field][op]=value
             - 支持排序: sort=-created_at,domain
@@ -30632,7 +30632,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -30677,7 +30677,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -30709,7 +30709,7 @@ class TenantDomainController(TenantController):
             """
             service = self.get_service(db, current_admin.tenant_id)
 
-            # 验证域名存在且属于当前租户
+            # 验证域名存在且属于当前企业
             existing = await service.get_by_id(domain_id)
             if existing is None or existing.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
@@ -30738,7 +30738,7 @@ class TenantDomainController(TenantController):
             """
             设置为主域名
 
-            - 每个租户只能有一个主域名
+            - 每个企业只能有一个主域名
             - 域名必须已验证
 
             权限: tenant_domain:set_primary
@@ -30762,7 +30762,7 @@ class TenantDomainController(TenantController):
             domain_id: int,
             current_admin: ActiveTenantAdmin,
         ):
-            """获取域名 SSL 证书详情（租户隔离）"""
+            """获取域名 SSL 证书详情（企业隔离）"""
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
             if not domain or domain.tenant_id != current_admin.tenant_id:
@@ -30926,10 +30926,10 @@ __all__ = ["router", "TenantDomainController"]
 
 ```python
 """
-租户管理端通知 API
+企业管理端通知 API
 
-提供租户管理员通知列表、未读计数、已读、全部已读、删除接口。
-严格租户隔离：只能查看本租户的通知。
+提供企业管理员通知列表、未读计数、已读、全部已读、删除接口。
+严格企业隔离：只能查看本企业的通知。
 """
 
 from fastapi import APIRouter, Query
@@ -30955,7 +30955,7 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    """获取当前租户管理员的通知列表（分页）"""
+    """获取当前企业管理员的通知列表（分页）"""
     service = NotificationService(db)
 
     read_filter = None
@@ -31001,7 +31001,7 @@ async def get_unread_count(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """获取当前租户管理员的未读通知数量"""
+    """获取当前企业管理员的未读通知数量"""
     service = NotificationService(db)
     count = await service.get_unread_count("tenant_admin", tenant_admin.id)
     return success(data={"count": count})
@@ -31054,9 +31054,9 @@ async def delete_notification(
 
 ```python
 """
-租户端通知偏好 API
+企业端通知偏好 API
 
-租户管理员可设置各通知分类的渠道偏好（WS/收件箱/邮件）。
+企业管理员可设置各通知分类的渠道偏好（WS/收件箱/邮件）。
 """
 
 from fastapi import APIRouter
@@ -31077,7 +31077,7 @@ async def get_preferences(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """获取当前租户管理员的所有通知偏好设置"""
+    """获取当前企业管理员的所有通知偏好设置"""
     service = NotificationPreferenceService(db)
     prefs = await service.get_all_preferences("tenant_admin", tenant_admin.id)
     return success(data=prefs)
@@ -31090,7 +31090,7 @@ async def save_preferences(
     tenant_admin: ActiveTenantAdmin,
     data: list[dict],
 ):
-    """批量保存租户管理员的通知偏好设置"""
+    """批量保存企业管理员的通知偏好设置"""
     service = NotificationPreferenceService(db)
     await service.save_preferences("tenant_admin", tenant_admin.id, data)
     await db.commit()
@@ -31104,9 +31104,9 @@ __all__ = ["router"]
 
 ```python
 """
-租户操作日志 API
+企业操作日志 API
 
-提供租户内操作日志查询接口（只读）
+提供企业内操作日志查询接口（只读）
 """
 
 from fastapi import HTTPException, Request, status
@@ -31137,9 +31137,9 @@ from app.services.system import OperationLogService
 )
 class TenantOperationLogController(TenantController):
     """
-    租户操作日志控制器
+    企业操作日志控制器
     
-    提供租户内操作日志查询接口，租户只能查看本租户的日志，无删除权限
+    提供企业内操作日志查询接口，企业只能查看本企业的日志，无删除权限
     """
     
     prefix = "/operation-logs"
@@ -31158,10 +31158,10 @@ class TenantOperationLogController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户的操作日志列表
+            获取当前企业的操作日志列表
             
             基于当前管理员权限过滤：
-            - 租户所有者：可查看本租户所有日志
+            - 企业所有者：可查看本企业所有日志
             - 普通管理员：只能查看自己及其角色子树下用户的日志
             
             支持 JSON:API 风格筛选参数:
@@ -31200,7 +31200,7 @@ class TenantOperationLogController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户操作日志中的去重操作人列表（含头像）
+            获取当前企业操作日志中的去重操作人列表（含头像）
             
             权限: operation_log:list
             """
@@ -31233,7 +31233,7 @@ class TenantOperationLogController(TenantController):
                     detail=_("operation_log.not_found"),
                 )
             
-            # 租户隔离：只能查看本租户的日志
+            # 企业隔离：只能查看本企业的日志
             if log.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -31256,9 +31256,9 @@ __all__ = ["router", "TenantOperationLogController"]
 
 ```python
 """
-租户端定时任务管理 API
+企业端定时任务管理 API
 
-提供租户端定时任务 CRUD、启停、手动触发接口（自动按 tenant_id 过滤）
+提供企业端定时任务 CRUD、启停、手动触发接口（自动按 tenant_id 过滤）
 """
 
 from fastapi import Request
@@ -31299,7 +31299,7 @@ from app.services.tenant.periodic_task_service import TenantPeriodicTaskService
 )
 class TenantPeriodicTaskController(TenantController):
     """
-    租户端定时任务控制器
+    企业端定时任务控制器
     """
 
     prefix = "/periodic-tasks"
@@ -31438,9 +31438,9 @@ __all__ = ["router", "TenantPeriodicTaskController"]
 
 ```python
 """
-租户管理员权限 API
+企业管理员权限 API
 
-提供租户端权限树、菜单等接口
+提供企业端权限树、菜单等接口
 """
 
 from fastapi import Request
@@ -31465,7 +31465,7 @@ from app.rbac.services import PermissionService
 )
 class TenantPermissionController(TenantController):
     """
-    租户权限控制器
+    企业权限控制器
     
     提供权限树、菜单树等查询接口
     """
@@ -31485,12 +31485,12 @@ class TenantPermissionController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户端权限（树形结构）
+            获取企业端权限（树形结构）
             
             用于角色权限配置页面。
             
             层级权限控制：
-            - 租户所有者：返回所有权限
+            - 企业所有者：返回所有权限
             - 普通管理员：返回自己拥有的权限（含继承）
             """
             perm_service = PermissionService(db)
@@ -31505,7 +31505,7 @@ class TenantPermissionController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户管理员的菜单列表
+            获取当前企业管理员的菜单列表
             
             根据角色权限过滤，用于前端动态渲染菜单
             
@@ -31530,10 +31530,10 @@ __all__ = ["router", "TenantPermissionController"]
 
 ```python
 """
-租户端插件列表 API
+企业端插件列表 API
 
-返回当前租户可用的已启用插件列表（根据 scope + tenant_assignments 过滤）。
-租户端不能管理插件（安装/卸载/启用/禁用），只能查看可用的插件。
+返回当前企业可用的已启用插件列表（根据 scope + tenant_assignments 过滤）。
+企业端不能管理插件（安装/卸载/启用/禁用），只能查看可用的插件。
 """
 
 from __future__ import annotations
@@ -31547,7 +31547,7 @@ from app.rbac.decorators import auth_only
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/plugins", tags=["租户插件"])
+router = APIRouter(prefix="/plugins", tags=["企业插件"])
 
 
 @router.get("")
@@ -31557,14 +31557,14 @@ async def list_available_plugins(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户可用的已启用插件列表
+    获取当前企业可用的已启用插件列表
 
     过滤规则（根据 scope）：
-    - all_tenants → 所有租户可见
-    - admin_and_all → 所有租户可见
-    - assigned_tenants → 仅分配了当前租户的插件可见
-    - admin_and_assigned → 仅分配了当前租户的插件可见
-    - admin_only → 租户端不可见
+    - all_tenants → 所有企业可见
+    - admin_and_all → 所有企业可见
+    - assigned_tenants → 仅分配了当前企业的插件可见
+    - admin_and_assigned → 仅分配了当前企业的插件可见
+    - admin_only → 企业端不可见
     """
     from sqlalchemy import select
 
@@ -31583,7 +31583,7 @@ async def list_available_plugins(
     )
     all_enabled = list(result.scalars().all())
 
-    # 查询当前租户被分配的插件 ID
+    # 查询当前企业被分配的插件 ID
     assignment_result = await db.execute(
         select(ResourceTenantAssignment.resource_id).where(
             ResourceTenantAssignment.resource_type == "plugin",
@@ -31634,11 +31634,11 @@ async def get_plugin_slots(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户可见的已启用插件前端插槽数据。
+    获取当前企业可见的已启用插件前端插槽数据。
 
     过滤规则：
     - admin_only scope 的插槽不返回
-    - assigned_tenants / admin_and_assigned scope 的插槽仅当租户被分配时返回
+    - assigned_tenants / admin_and_assigned scope 的插槽仅当企业被分配时返回
 
     返回格式：
     {
@@ -31659,7 +31659,7 @@ async def get_plugin_slots(
 
     tenant_id = tenant_admin.tenant_id
 
-    # 查询当前租户被分配的插件 ID
+    # 查询当前企业被分配的插件 ID
     assignment_result = await db.execute(
         select(ResourceTenantAssignment.resource_id).where(
             ResourceTenantAssignment.resource_type == "plugin",
@@ -31726,7 +31726,7 @@ async def get_plugin_slots(
 
 ```python
 """
-租户端技能管理 API
+企业端技能管理 API
 
 提供技能的 CRUD 接口，仅限 tenant scope 技能
 """
@@ -31766,7 +31766,7 @@ from app.services.ai.skill_service import SkillService
 )
 class TenantSkillController(TenantController):
     """
-    租户技能管理控制器
+    企业技能管理控制器
 
     提供技能 CRUD 操作，仅限 tenant scope
     """
@@ -32027,7 +32027,7 @@ __all__ = ["router", "TenantSkillController"]
 
 ```python
 """
-租户端技能包管理 API
+企业端技能包管理 API
 
 提供技能包的 CRUD 接口，仅限 tenant scope 技能包
 """
@@ -32081,7 +32081,7 @@ def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, An
 )
 class TenantSkillPackageController(TenantController):
     """
-    租户技能包管理控制器
+    企业技能包管理控制器
 
     提供技能包 CRUD 操作，仅限 tenant scope
     """
@@ -32126,9 +32126,9 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+            获取企业可绑定的所有技能包（用于智能体技能绑定下拉）。
 
-            包括当前租户自有包 + admin 共享包，返回 label/value 格式。
+            包括当前企业自有包 + admin 共享包，返回 label/value 格式。
             """
             from app.repositories.ai.skill_package_repository import (
                 SkillPackageRepository,
@@ -32274,8 +32274,8 @@ class TenantSkillPackageController(TenantController):
             上传技能 ZIP 包并自动创建 SkillPackage + Skill (toolkit)
 
             ZIP 包结构参见 SKILL.md 规范。
-            - scope=tenant, tenant_id=当前租户
-            - 租户端不允许创建 is_system 包
+            - scope=tenant, tenant_id=当前企业
+            - 企业端不允许创建 is_system 包
             """
             from app.api.shared._skill_package_upload import process_skill_package_upload
             from app.enums.common import ResourceScopeEnum
@@ -32394,7 +32394,7 @@ class TenantSkillPackageController(TenantController):
             data: dict[str, Any] = ...,
         ):
             """
-            从系统/全局技能包模板克隆为租户自己的技能包
+            从系统/全局技能包模板克隆为企业自己的技能包
 
             参数：
             - new_name: 新技能包名称（可选，默认追加 " (Copy)"）
@@ -32406,13 +32406,13 @@ class TenantSkillPackageController(TenantController):
             from app.core.scope import ScopeChecker
             from app.services.ai.skill_package_service import AdminSkillPackageService
 
-            # 使用 AdminSkillPackageService 查询（不受租户隔离限制）
+            # 使用 AdminSkillPackageService 查询（不受企业隔离限制）
             admin_svc = AdminSkillPackageService(db)
             pkg = await admin_svc.get_by_id(package_id)
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            # F9: 验证租户对源技能包的可见性，防止克隆其他租户的私有包
+            # F9: 验证企业对源技能包的可见性，防止克隆其他企业的私有包
             visible = await ScopeChecker.is_visible_to_tenant(
                 scope=pkg.scope,
                 resource_type="skill_package",
@@ -32450,9 +32450,9 @@ __all__ = ["router", "TenantSkillPackageController"]
 
 ```python
 """
-租户端任务日志 API
+企业端任务日志 API
 
-提供租户端任务日志查询接口（只读，自动按 tenant_id 过滤）
+提供企业端任务日志查询接口（只读，自动按 tenant_id 过滤）
 """
 
 from datetime import timedelta
@@ -32492,7 +32492,7 @@ from app.core.base_model import utc_now
 )
 class TenantTaskLogController(TenantController):
     """
-    租户端任务日志控制器（只读）
+    企业端任务日志控制器（只读）
     """
 
     prefix = "/tasks"
@@ -32564,9 +32564,9 @@ __all__ = ["router", "TenantTaskLogController"]
 
 ```python
 """
-租户管理端 WebSocket 相关 HTTP API
+企业管理端 WebSocket 相关 HTTP API
 
-提供当前租户管理员在线状态查询接口。
+提供当前企业管理员在线状态查询接口。
 """
 
 from fastapi import APIRouter
@@ -32580,16 +32580,16 @@ from app.sio.presence import PresenceManager
 router = APIRouter(prefix="/ws", tags=["WebSocket 在线状态"])
 
 
-@router.get("/presence", summary="当前租户管理员在线状态")
+@router.get("/presence", summary="当前企业管理员在线状态")
 @auth_only
 async def get_tenant_presence(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前租户的管理员在线状态
+    获取当前企业的管理员在线状态
 
-    自动从当前登录的租户管理员获取 tenant_id，
-    确保租户隔离（只能查看本租户的在线状态）。
+    自动从当前登录的企业管理员获取 tenant_id，
+    确保企业隔离（只能查看本企业的在线状态）。
     """
     tenant_id = tenant_admin.tenant_id
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
@@ -32607,7 +32607,7 @@ async def get_tenant_presence(
 
 ```python
 """
-租户端智能体批处理路由
+企业端智能体批处理路由
 
 提供批处理任务提交、进度查询、取消等接口
 """
@@ -32741,7 +32741,7 @@ async def cancel_batch(
 
 ```python
 """
-租户端智能体技能绑定路由
+企业端智能体技能绑定路由
 
 提供技能包绑定、解绑、批量绑定等接口
 """
@@ -32893,7 +32893,7 @@ async def unbind_skill(
 
 ```python
 """
-租户端智能体版本管理路由
+企业端智能体版本管理路由
 
 提供版本列表、版本详情、版本对比、发布、回滚等接口
 """
@@ -33033,9 +33033,9 @@ async def get_version_detail(
 
 ```python
 """
-租户管理后台 API 路由模块
+企业管理后台 API 路由模块
 
-聚合所有租户管理后台的 API 路由
+聚合所有企业管理后台的 API 路由
 
 控制器类使用 @permission_resource 装饰器定义资源权限，
 导入控制器类时会自动注册权限到 PermissionRegistry。
@@ -33067,7 +33067,7 @@ from app.api.tenant.skill_packages import router as skill_packages_router, Tenan
 from app.api.tenant.skills import router as skills_router, TenantSkillController
 from app.api.tenant.dashboard import router as dashboard_router
 
-# 创建租户管理后台路由器
+# 创建企业管理后台路由器
 tenant_router = APIRouter()
 
 # 注册子路由
@@ -33111,7 +33111,7 @@ tenant_router.include_router(notifications_router)
 # 通知偏好
 from app.api.tenant.notification_preferences import router as notification_preferences_router
 tenant_router.include_router(notification_preferences_router)
-# 插件（租户端只读列表，按 scope + 分配过滤）
+# 插件（企业端只读列表，按 scope + 分配过滤）
 from app.api.tenant.plugins import router as plugins_router
 tenant_router.include_router(plugins_router)
 # 数据分析
@@ -33191,8 +33191,8 @@ API 路由模块
 
 路由结构:
 - /admin/*: 平台管理后台 API
-- /tenant/*: 租户管理后台 API
-- /api/v1/*: 租户业务用户 API
+- /tenant/*: 企业管理后台 API
+- /api/v1/*: 企业业务用户 API
 """
 
 from app.api.v1 import api_router as api_v1_router
@@ -33665,7 +33665,7 @@ except Exception:
 """
 配置分组定义
 
-定义平台级和租户级的配置分组
+定义平台级和企业级的配置分组
 
 图标规范:
 使用 Lucide 图标库: https://lucide.dev/icons
@@ -33724,10 +33724,10 @@ PLATFORM_STORAGE_GROUP = ConfigGroupMeta(
 
 
 # ==========================================
-# 租户配置分组
+# 企业配置分组
 # ==========================================
 
-# 租户基础设置分组
+# 企业基础设置分组
 TENANT_GENERAL_GROUP = ConfigGroupMeta(
     code="tenant_general",
     name_key="config.group.tenant_general.name",
@@ -33737,7 +33737,7 @@ TENANT_GENERAL_GROUP = ConfigGroupMeta(
     sort_order=10,
 )
 
-# 租户外观设置分组
+# 企业外观设置分组
 TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     code="tenant_appearance",
     name_key="config.group.tenant_appearance.name",
@@ -33747,7 +33747,7 @@ TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     sort_order=20,
 )
 
-# 租户功能设置分组
+# 企业功能设置分组
 TENANT_FEATURES_GROUP = ConfigGroupMeta(
     code="tenant_features",
     name_key="config.group.tenant_features.name",
@@ -33812,7 +33812,7 @@ PLATFORM_CONFIG_GROUPS = [
     PLATFORM_WEBSOCKET_GROUP,
 ]
 
-# 所有租户配置分组
+# 所有企业配置分组
 TENANT_CONFIG_GROUPS = [
     TENANT_GENERAL_GROUP,
     TENANT_APPEARANCE_GROUP,
@@ -33834,7 +33834,7 @@ __all__ = [
     "PLATFORM_AI_TOOLKIT_GROUP",
     "PLATFORM_WEBSOCKET_GROUP",
     "PLATFORM_CONFIG_GROUPS",
-    # 租户分组
+    # 企业分组
     "TENANT_GENERAL_GROUP",
     "TENANT_APPEARANCE_GROUP",
     "TENANT_FEATURES_GROUP",
@@ -34205,10 +34205,10 @@ SITE_ICP = ConfigMeta(
 
 
 # ==========================================
-# 租户域名配置
+# 企业域名配置
 # ==========================================
 
-# 租户默认域名后缀
+# 企业默认域名后缀
 TENANT_DOMAIN_SUFFIX = ConfigMeta(
     key="tenant_domain_suffix",
     name_key="config.platform.tenant_domain_suffix.name",
@@ -34405,7 +34405,7 @@ PASSWORD_EXPIRY_DAYS = ConfigMeta(
 # 连续登录失败达到此次数后，账户将被锁定
 # 用于防止暴力破解攻击
 # 推荐值：3-5次（平衡安全性和用户体验）
-# 影响：所有登录接口（平台管理员、租户管理员、租户用户）
+# 影响：所有登录接口（平台管理员、企业管理员、企业用户）
 LOGIN_MAX_ATTEMPTS = ConfigMeta(
     key="login_max_attempts",
     name_key="config.platform.login_max_attempts.name",
@@ -34771,9 +34771,9 @@ __all__ = [
 
 ```python
 """
-租户品牌设置配置项
+企业品牌设置配置项
 
-包含租户 Logo、主题色、外观定制等配置
+包含企业 Logo、主题色、外观定制等配置
 """
 
 from app.configs.meta import ConfigMeta, max_length, pattern
@@ -34785,7 +34785,7 @@ from app.enums.config import ConfigScope, ConfigValueType
 # Logo 和图标
 # ==========================================
 
-# 租户 Logo
+# 企业 Logo
 TENANT_LOGO = ConfigMeta(
     key="tenant_logo",
     name_key="config.tenant.logo.name",
@@ -34796,7 +34796,7 @@ TENANT_LOGO = ConfigMeta(
     sort_order=10,
 )
 
-# 租户 Favicon
+# 企业 Favicon
 TENANT_FAVICON = ConfigMeta(
     key="tenant_favicon",
     name_key="config.tenant.favicon.name",
@@ -34931,9 +34931,9 @@ __all__ = [
 
 ```python
 """
-租户功能开关配置项
+企业功能开关配置项
 
-包含租户级的功能模块启用/禁用配置
+包含企业级的功能模块启用/禁用配置
 """
 
 from app.configs.meta import ConfigMeta
@@ -35063,9 +35063,9 @@ __all__ = [
 
 ```python
 """
-租户配置定义
+企业配置定义
 
-导入所有租户配置模块以触发配置注册
+导入所有企业配置模块以触发配置注册
 """
 
 # 导入配置模块（触发配置注册到分组）
@@ -35104,7 +35104,7 @@ from app.configs.definitions.groups import (
 # 导入平台配置（触发配置项注册到分组）
 from app.configs.definitions import platform
 
-# 导入租户配置（触发配置项注册到分组）
+# 导入企业配置（触发配置项注册到分组）
 from app.configs.definitions import tenant
 
 
@@ -35780,7 +35780,7 @@ __all__ = [
 """
 配置读写服务
 
-提供配置的 CRUD 操作，支持平台配置和租户配置
+提供配置的 CRUD 操作，支持平台配置和企业配置
 """
 
 import json
@@ -35828,7 +35828,7 @@ class ConfigService:
         # 设置平台配置
         await service.set_platform_config("site_name", "My SaaS")
         
-        # 获取租户配置（会回退到平台默认值）
+        # 获取企业配置（会回退到平台默认值）
         value = await service.get_tenant_config(tenant_id, "theme_color")
     """
     
@@ -35910,7 +35910,7 @@ class ConfigService:
         )
     
     # ==========================================
-    # 租户配置操作
+    # 企业配置操作
     # ==========================================
     
     async def get_tenant_config(
@@ -35920,23 +35920,23 @@ class ConfigService:
         default: Any = None,
     ) -> Any:
         """
-        获取租户配置值
+        获取企业配置值
         
-        如果租户未设置该配置，会依次回退：
-        1. 租户设置的值
+        如果企业未设置该配置，会依次回退：
+        1. 企业设置的值
         2. 平台设置的默认值（对于 tenant 作用域的配置）
         3. 代码定义的默认值
         4. 传入的 default 参数
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             key: 配置键名
             default: 默认值
             
         Returns:
             配置值（已反序列化）
         """
-        # 先尝试获取租户设置的值
+        # 先尝试获取企业设置的值
         value = await self._get_config_value(
             key=key,
             tenant_id=tenant_id,
@@ -35962,10 +35962,10 @@ class ConfigService:
         value: Any,
     ) -> None:
         """
-        设置租户配置值
+        设置企业配置值
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             key: 配置键名
             value: 配置值
         """
@@ -35981,10 +35981,10 @@ class ConfigService:
         group_code: str,
     ) -> dict[str, Any]:
         """
-        获取租户配置分组下的所有配置值
+        获取企业配置分组下的所有配置值
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             group_code: 分组代码
             
         Returns:
@@ -35997,19 +35997,19 @@ class ConfigService:
     
     async def ensure_tenant_configs(self, tenant_id: int) -> int:
         """
-        确保租户配置已初始化
+        确保企业配置已初始化
         
-        为租户创建所有 tenant 作用域配置的默认值记录
+        为企业创建所有 tenant 作用域配置的默认值记录
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             
         Returns:
             创建的配置值数量
         """
         created_count = 0
         
-        # 获取所有租户作用域的配置
+        # 获取所有企业作用域的配置
         tenant_configs = self.registry.get_configs_by_scope(ConfigScope.ALL_TENANTS)
         
         for config_meta in tenant_configs:
@@ -36062,7 +36062,7 @@ class ConfigService:
         
         Args:
             scope: 作用域
-            tenant_id: 租户 ID（租户作用域时必填）
+            tenant_id: 企业 ID（企业作用域时必填）
             group_code: 分组代码（可选，为空则返回所有）
             
         Returns:
@@ -36113,7 +36113,7 @@ class ConfigService:
         
         Args:
             scope: 作用域
-            tenant_id: 租户 ID（租户作用域时必填）
+            tenant_id: 企业 ID（企业作用域时必填）
             
         Returns:
             分组列表，每项包含分组信息和配置项列表
@@ -36778,7 +36778,7 @@ __all__ = [
 
 提供 API 控制器层的基类，包括：
 - BaseController: 通用控制器基类
-- TenantController: 租户级控制器基类
+- TenantController: 企业级控制器基类
 - GlobalController: 全局控制器基类（平台管理端）
 
 使用示例:
@@ -36939,9 +36939,9 @@ class BaseController:
 
 class TenantController(BaseController):
     """
-    租户级控制器基类
+    企业级控制器基类
     
-    用于租户管理后台 API，自动注入租户上下文
+    用于企业管理后台 API，自动注入企业上下文
     """
     
     _instance: "TenantController | None" = None
@@ -36949,14 +36949,14 @@ class TenantController(BaseController):
     
     def get_service(self, db: Any, tenant_id: int) -> Any:
         """
-        获取租户级服务实例
+        获取企业级服务实例
         
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
-            租户服务实例
+            企业服务实例
         """
         if self.service_class:
             return self.service_class(db, tenant_id)
@@ -36967,7 +36967,7 @@ class GlobalController(BaseController):
     """
     全局控制器基类
     
-    用于平台管理后台 API，超管或系统级操作，无租户隔离
+    用于平台管理后台 API，超管或系统级操作，无企业隔离
     """
     
     _instance: "GlobalController | None" = None
@@ -36986,7 +36986,7 @@ __all__ = ["BaseController", "TenantController", "GlobalController"]
 
 提供所有数据库模型的基类，包括：
 - BaseModel: 通用模型基类
-- TenantModel: 租户级模型基类
+- TenantModel: 企业级模型基类
 """
 
 import re
@@ -37058,7 +37058,7 @@ class BaseModel(Base):
         String(20),
         nullable=True,
         default=None,
-        comment="删除层级: tenant=租户回收站, admin=管理端回收站"
+        comment="删除层级: tenant=企业回收站, admin=管理端回收站"
     )
     
     @declared_attr
@@ -37137,9 +37137,9 @@ class BaseModel(Base):
 
 class TenantModel(BaseModel):
     """
-    租户模型基类
+    企业模型基类
     
-    继承自 BaseModel，添加 tenant_id 字段用于多租户数据隔离
+    继承自 BaseModel，添加 tenant_id 字段用于多企业数据隔离
     """
     
     __abstract__ = True
@@ -37148,7 +37148,7 @@ class TenantModel(BaseModel):
         Integer,
         nullable=False,
         index=True,
-        comment="租户ID"
+        comment="企业ID"
     )
     
     def __repr__(self) -> str:
@@ -37787,7 +37787,7 @@ class BaseRepository(Generic[ModelType]):
         Args:
             spec: 查询规格（包含 filters/sort/page/size）
             scope: 作用域，用于按端限制可过滤字段
-            forced_filters: 强制过滤条件（如多租户隔离），不可被用户覆盖
+            forced_filters: 强制过滤条件（如多企业隔离），不可被用户覆盖
             include_deleted: 是否包含已删除记录
         
         Returns:
@@ -38515,18 +38515,18 @@ class BaseRepository(Generic[ModelType]):
 
 class TenantRepository(BaseRepository[ModelType]):
     """
-    租户级仓储基类
+    企业级仓储基类
     
     自动在查询中添加 tenant_id 过滤
     """
     
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
-        初始化租户仓储
+        初始化企业仓储
         
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID（全局/管理端资源传 None）
+            tenant_id: 企业 ID（全局/管理端资源传 None）
         """
         super().__init__(db)
         self.tenant_id = tenant_id
@@ -38539,7 +38539,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> list[ModelType]:
-        """获取租户级记录列表"""
+        """获取企业级记录列表"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_list(
             skip=skip,
@@ -38554,12 +38554,12 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> int:
-        """统计租户级记录数量"""
+        """统计企业级记录数量"""
         filters["tenant_id"] = self.tenant_id
         return await super().count(include_deleted=include_deleted, **filters)
     
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建租户级记录"""
+        """创建企业级记录"""
         data["tenant_id"] = self.tenant_id
         return await super().create(data)
     
@@ -38568,9 +38568,9 @@ class TenantRepository(BaseRepository[ModelType]):
         id: int,
         include_deleted: bool = False,
     ) -> ModelType | None:
-        """根据 ID 获取租户级记录"""
+        """根据 ID 获取企业级记录"""
         instance = await super().get_by_id(id, include_deleted)
-        # 验证租户归属
+        # 验证企业归属
         if instance and hasattr(instance, "tenant_id"):
             if instance.tenant_id != self.tenant_id:
                 return None
@@ -38581,7 +38581,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         include_deleted: bool = False,
     ) -> list[ModelType]:
-        """根据 ID 列表获取租户级记录，自动过滤非本租户数据"""
+        """根据 ID 列表获取企业级记录，自动过滤非本企业数据"""
         instances = await super().get_by_ids(ids, include_deleted)
         return [
             inst for inst in instances
@@ -38593,7 +38593,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> ModelType | None:
-        """根据条件获取租户级单条记录，自动注入 tenant_id"""
+        """根据条件获取企业级单条记录，自动注入 tenant_id"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_one_by(include_deleted=include_deleted, **filters)
     
@@ -38605,11 +38605,11 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
     ) -> tuple[list[ModelType], int]:
         """
-        租户级通用列表查询
+        企业级通用列表查询
         
         自动注入 tenant_id 过滤条件
         """
-        # 强制添加租户过滤
+        # 强制添加企业过滤
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
         
@@ -38631,7 +38631,7 @@ class TenantRepository(BaseRepository[ModelType]):
         page_size: int = 20,
     ) -> tuple[list[SelectOption], int]:
         """
-        租户级下拉选项列表
+        企业级下拉选项列表
         
         自动注入 tenant_id 过滤，支持列表和树型两种模式
         
@@ -38647,7 +38647,7 @@ class TenantRepository(BaseRepository[ModelType]):
         Returns:
             (SelectOption 列表, 总数)
         """
-        # 自动添加租户过滤
+        # 自动添加企业过滤
         all_filters = filters.copy() if filters else {}
         all_filters["tenant_id"] = self.tenant_id
         
@@ -38668,7 +38668,7 @@ class TenantRepository(BaseRepository[ModelType]):
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
-        """租户级回收站查询，自动注入 tenant_id"""
+        """企业级回收站查询，自动注入 tenant_id"""
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
         return await super().query_deleted(
@@ -38682,7 +38682,7 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         delete_level: str | None = None,
     ) -> int:
-        """租户级回收站计数，自动注入 tenant_id"""
+        """企业级回收站计数，自动注入 tenant_id"""
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True),
             self.model.tenant_id == self.tenant_id,
@@ -38698,7 +38698,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         data: dict[str, Any],
     ) -> int:
-        """租户级批量更新，自动注入 tenant_id 防止跨租户操作"""
+        """企业级批量更新，自动注入 tenant_id 防止跨企业操作"""
         if not ids:
             return 0
 
@@ -38719,7 +38719,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         soft: bool = True,
     ) -> int:
-        """租户级批量删除，自动注入 tenant_id 防止跨租户操作"""
+        """企业级批量删除，自动注入 tenant_id 防止跨企业操作"""
         if not ids:
             return 0
 
@@ -38743,7 +38743,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_restore(self, ids: list[int]) -> int:
-        """租户级批量恢复，自动注入 tenant_id 防止跨租户操作"""
+        """企业级批量恢复，自动注入 tenant_id 防止跨企业操作"""
         if not ids:
             return 0
 
@@ -38765,7 +38765,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_permanent_delete(self, ids: list[int]) -> int:
-        """租户级批量物理删除，自动注入 tenant_id 防止跨租户操作"""
+        """企业级批量物理删除，自动注入 tenant_id 防止跨企业操作"""
         if not ids:
             return 0
 
@@ -38973,12 +38973,12 @@ class BaseResponseSchema(BaseSchema):
 
 class TenantResponseSchema(BaseResponseSchema):
     """
-    租户级响应 Schema 基类
+    企业级响应 Schema 基类
     
     包含 tenant_id 字段
     """
     
-    tenant_id: int = Field(..., description="租户ID")
+    tenant_id: int = Field(..., description="企业ID")
 
 
 class PageParams(BaseSchema):
@@ -39084,7 +39084,7 @@ __all__ = [
 
 提供业务逻辑层的基类，包括：
 - BaseService: 通用服务基类
-- TenantService: 租户级服务基类
+- TenantService: 企业级服务基类
 - GlobalService: 全局服务基类
 """
 
@@ -39737,20 +39737,20 @@ class BaseService(Generic[ModelType, RepoType]):
 
 class TenantService(BaseService[ModelType, RepoType]):
     """
-    租户级服务基类
+    企业级服务基类
     
-    自动注入租户隔离逻辑
+    自动注入企业隔离逻辑
     """
     
     _default_delete_level: str = DeleteLevelEnum.TENANT.value
 
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
-        初始化租户服务
+        初始化企业服务
         
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID（全局/管理端资源传 None）
+            tenant_id: 企业 ID（全局/管理端资源传 None）
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -39766,7 +39766,7 @@ class GlobalService(BaseService[ModelType, RepoType]):
     """
     全局服务基类
     
-    用于超管或系统级操作，无租户隔离
+    用于超管或系统级操作，无企业隔离
     """
     pass
 
@@ -40231,7 +40231,7 @@ async def check_deletion_deps(
     Args:
         db: 异步数据库会话
         instance: 要删除的模型实例
-        tenant_id: 租户 ID（TenantModel 子类自动添加过滤）
+        tenant_id: 企业 ID（TenantModel 子类自动添加过滤）
 
     Returns:
         DependencyCheckResult
@@ -40269,7 +40269,7 @@ async def check_deletion_deps(
         if hasattr(target_cls, "is_deleted"):
             conditions.append(target_cls.is_deleted.is_(False))
 
-        # 多租户隔离：如果目标模型是 TenantModel 且提供了 tenant_id
+        # 多企业隔离：如果目标模型是 TenantModel 且提供了 tenant_id
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 
@@ -40409,7 +40409,7 @@ async def execute_cascade_deps(
         db: 异步数据库会话
         instance: 已软删除的模型实例
         delete_level: 删除层级（tenant / admin）
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
 
     Returns:
         {"cascade_soft": N, "cascade_delete": N, "nullify": N}
@@ -40438,7 +40438,7 @@ async def execute_cascade_deps(
         # 基础条件
         conditions = [fk_col == instance_id]
 
-        # 多租户隔离
+        # 多企业隔离
         if tenant_id is not None and issubclass(target_cls, TenantModel):
             conditions.append(target_cls.tenant_id == tenant_id)
 
@@ -41802,9 +41802,9 @@ def register_tenant_recycle_bin_routes(
     serialize: Callable | None = None,
 ) -> None:
     """
-    为租户端控制器注册回收站路由
+    为企业端控制器注册回收站路由
 
-    租户端回收站行为：
+    企业端回收站行为：
     - 查询：查 delete_level='tenant' 的记录
     - 恢复：还原记录
     - 删除：升级到 admin 回收站（escalate_delete）
@@ -42543,19 +42543,19 @@ _ADMIN_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 所有租户可见的 scope 集合（无需分配表）
+# 所有企业可见的 scope 集合（无需分配表）
 _ALL_TENANTS_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ALL_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ALL.value,
 })
 
-# 需要租户分配表的 scope 集合
+# 需要企业分配表的 scope 集合
 _ASSIGNMENT_REQUIRED_SCOPES = frozenset({
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 租户端可能可见的 scope 集合（全部租户 + 部分租户）
+# 企业端可能可见的 scope 集合（全部企业 + 部分企业）
 _TENANT_POSSIBLE_SCOPES = _ALL_TENANTS_VISIBLE_SCOPES | _ASSIGNMENT_REQUIRED_SCOPES
 
 
@@ -42574,7 +42574,7 @@ class ScopeChecker:
         if ScopeChecker.is_visible_to_admin(resource.scope):
             ...
 
-        # 租户端是否可见（需要异步查分配表）
+        # 企业端是否可见（需要异步查分配表）
         if await ScopeChecker.is_visible_to_tenant(
             scope=resource.scope,
             resource_type="skill_package",
@@ -42598,7 +42598,7 @@ class ScopeChecker:
     @staticmethod
     def is_visible_to_all_tenants(scope: str) -> bool:
         """
-        是否对所有租户可见（无需分配表查询）
+        是否对所有企业可见（无需分配表查询）
 
         all_tenants / admin_and_all → True
         其他 → False
@@ -42614,9 +42614,9 @@ class ScopeChecker:
         db: AsyncSession,
     ) -> bool:
         """
-        指定租户是否可见
+        指定企业是否可见
 
-        - all_tenants / admin_and_all → True（全部租户可见）
+        - all_tenants / admin_and_all → True（全部企业可见）
         - assigned_tenants / admin_and_assigned → 查 ResourceTenantAssignment
         - admin_only → False
 
@@ -42624,11 +42624,11 @@ class ScopeChecker:
             scope: 资源的作用域值
             resource_type: 资源类型（如 "skill_package" / "plugin"）
             resource_id: 资源 ID
-            tenant_id: 目标租户 ID
+            tenant_id: 目标企业 ID
             db: 数据库会话
 
         Returns:
-            该租户是否可见此资源
+            该企业是否可见此资源
         """
         if scope in _ALL_TENANTS_VISIBLE_SCOPES:
             return True
@@ -42641,7 +42641,7 @@ class ScopeChecker:
     @staticmethod
     def requires_tenant_assignment(scope: str) -> bool:
         """
-        是否需要手动分配租户
+        是否需要手动分配企业
 
         assigned_tenants / admin_and_assigned → True
         其他 → False
@@ -42655,17 +42655,17 @@ class ScopeChecker:
 
     @staticmethod
     def get_all_tenants_visible_scopes() -> list[str]:
-        """返回所有租户可见的 scope 值列表（无需分配表）"""
+        """返回所有企业可见的 scope 值列表（无需分配表）"""
         return list(_ALL_TENANTS_VISIBLE_SCOPES)
 
     @staticmethod
     def get_tenant_possible_scopes() -> list[str]:
-        """返回租户端可能可见的所有 scope 值列表（含需要分配表的）"""
+        """返回企业端可能可见的所有 scope 值列表（含需要分配表的）"""
         return list(_TENANT_POSSIBLE_SCOPES)
 
     @staticmethod
     def get_assignment_required_scopes() -> list[str]:
-        """返回需要租户分配表的 scope 值列表"""
+        """返回需要企业分配表的 scope 值列表"""
         return list(_ASSIGNMENT_REQUIRED_SCOPES)
 
 
@@ -42816,10 +42816,10 @@ def notify_tenant_sync(
     namespace: str = "/tenant",
 ) -> None:
     """
-    同步环境下广播通知给指定租户所有在线用户
+    同步环境下广播通知给指定企业所有在线用户
 
     Args:
-        tenant_id: 租户 ID
+        tenant_id: 企业 ID
         notification_data: 通知数据
         namespace: Socket.IO namespace
     """
@@ -43852,7 +43852,7 @@ __all__ = [
 """
 计费相关枚举模块
 
-定义租户套餐计费相关的枚举
+定义企业套餐计费相关的枚举
 """
 
 from app.enums.base import LabeledStrEnum
@@ -43983,10 +43983,10 @@ class ResourceScopeEnum(LabeledStrEnum):
 
     5 种作用域覆盖所有业务场景：
       - ADMIN_ONLY:         仅管理端可见
-      - ALL_TENANTS:        仅租户端可见（全部租户）
-      - ADMIN_AND_ALL:      管理端 + 全部租户（全局共享）
-      - ADMIN_AND_ASSIGNED: 管理端 + 部分租户（需 ResourceTenantAssignment 分配）
-      - ASSIGNED_TENANTS:   部分租户（需 ResourceTenantAssignment 分配）
+      - ALL_TENANTS:        仅企业端可见（全部企业）
+      - ADMIN_AND_ALL:      管理端 + 全部企业（全局共享）
+      - ADMIN_AND_ASSIGNED: 管理端 + 部分企业（需 ResourceTenantAssignment 分配）
+      - ASSIGNED_TENANTS:   部分企业（需 ResourceTenantAssignment 分配）
 
     注意区分：本枚举是「资源作用域」，与以下概念无关：
       - JWT Token Scope (TOKEN_SCOPE_ADMIN 等) — 认证身份标识
@@ -44200,9 +44200,9 @@ class UserTypeEnum(StrEnum):
     
     # 平台管理员
     ADMIN = ("admin", "enum.user_type.admin")
-    # 租户管理员
+    # 企业管理员
     TENANT_ADMIN = ("tenant_admin", "enum.user_type.tenant_admin")
-    # 租户用户
+    # 企业用户
     TENANT_USER = ("tenant_user", "enum.user_type.tenant_user")
     # 匿名用户（未登录）
     ANONYMOUS = ("anonymous", "enum.user_type.anonymous")
@@ -44223,11 +44223,11 @@ class LogModuleEnum(StrEnum):
     ROLE = ("role", "enum.log_module.role")
     # 平台管理员模块
     ADMIN_USER = ("admin_user", "enum.log_module.admin_user")
-    # 租户模块
+    # 企业模块
     TENANT = ("tenant", "enum.log_module.tenant")
-    # 租户管理员模块
+    # 企业管理员模块
     TENANT_ADMIN = ("tenant_admin", "enum.log_module.tenant_admin")
-    # 租户用户模块
+    # 企业用户模块
     TENANT_USER = ("tenant_user", "enum.log_module.tenant_user")
     # 配置模块
     CONFIG = ("config", "enum.log_module.config")
@@ -45201,7 +45201,7 @@ def create_application() -> FastAPI:
     # 访问控制中间件（实施“默认拒绝”安全策略）
     app.add_middleware(AccessControlMiddleware)
     
-    # 租户识别中间件（基于 Host 头解析租户）
+    # 企业识别中间件（基于 Host 头解析企业）
     app.add_middleware(TenantMiddleware)
     
     # ========================================
@@ -45358,15 +45358,15 @@ def create_application() -> FastAPI:
     from app.plugins.webhook_dispatcher import webhook_router
     app.include_router(webhook_router)
     
-    # 注册租户管理后台路由 (/tenant/*)
+    # 注册企业管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
     app.include_router(tenant_router, prefix="/tenant")
     
-    # 注册租户业务用户 API v1 路由 (/api/v1/*)
+    # 注册企业业务用户 API v1 路由 (/api/v1/*)
     from app.api.v1 import api_router
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
     
-    # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
+    # 注册公共 API 路由 (/api/public/*) - 无需认证，用于企业登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
 
@@ -45846,9 +45846,9 @@ __all__ = ["MaintenanceMiddleware"]
 
 ```python
 """
-租户识别中间件
+企业识别中间件
 
-根据请求的 Host 头解析租户信息，支持：
+根据请求的 Host 头解析企业信息，支持：
 1. 子域名模式: {tenant_code}.app.novusai.com
 2. 自定义域名模式: custom.domain.com -> 查询 tenant_domains 表
 """
@@ -45870,9 +45870,9 @@ from app.models import Tenant, TenantDomain
 
 class TenantContext:
     """
-    租户上下文
+    企业上下文
     
-    存储从请求中解析出的租户信息
+    存储从请求中解析出的企业信息
     """
     
     def __init__(
@@ -45889,7 +45889,7 @@ class TenantContext:
     
     @property
     def is_resolved(self) -> bool:
-        """租户是否已解析"""
+        """企业是否已解析"""
         return self.tenant is not None
     
     def __repr__(self) -> str:
@@ -45898,7 +45898,7 @@ class TenantContext:
 
 def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
     """
-    从 Host 头解析租户信息
+    从 Host 头解析企业信息
     
     Args:
         host: 请求的 Host 头，如 "abc.app.novusai.com" 或 "custom.com"
@@ -45921,7 +45921,7 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
         # 提取子域名部分
         subdomain = host[:-len(suffix)]
         if subdomain and "." not in subdomain:
-            # 合法的租户子域名（不含点号）
+            # 合法的企业子域名（不含点号）
             return subdomain, "subdomain"
     
     # 可能是自定义域名
@@ -45934,9 +45934,9 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
 
 class TenantMiddleware:
     """
-    租户识别中间件（纯 ASGI 实现）
+    企业识别中间件（纯 ASGI 实现）
     
-    在每个请求中解析租户信息并存储到 request.state.tenant_ctx
+    在每个请求中解析企业信息并存储到 request.state.tenant_ctx
     """
     
     def __init__(self, app: ASGIApp):
@@ -45951,16 +45951,16 @@ class TenantMiddleware:
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode("utf-8", errors="ignore")
         
-        # 解析租户
+        # 解析企业
         tenant_code, domain_type = parse_tenant_from_host(host)
         
-        # 创建租户上下文
+        # 创建企业上下文
         tenant_ctx = TenantContext(
             tenant_code=tenant_code,
             domain_type=domain_type,
         )
         
-        # 如果解析出了租户信息，从数据库加载
+        # 如果解析出了企业信息，从数据库加载
         if tenant_code or domain_type == "custom":
             async with async_session_factory() as db:
                 tenant = await self._resolve_tenant(db, tenant_code, host, domain_type)
@@ -45969,7 +45969,7 @@ class TenantMiddleware:
                     tenant_ctx.tenant_id = tenant.id
                     tenant_ctx.tenant_code = tenant.code
         
-        # 将租户上下文存储到 scope 的 state 中
+        # 将企业上下文存储到 scope 的 state 中
         # FastAPI 会将其映射到 request.state
         if "state" not in scope:
             scope["state"] = {}
@@ -45985,11 +45985,11 @@ class TenantMiddleware:
         domain_type: str,
     ) -> Tenant | None:
         """
-        从数据库解析租户
+        从数据库解析企业
         
         Args:
             db: 数据库会话
-            tenant_code: 租户代码（子域名模式）
+            tenant_code: 企业代码（子域名模式）
             host: 原始 Host（自定义域名模式）
             domain_type: 域名类型
         
@@ -46022,7 +46022,7 @@ class TenantMiddleware:
             tenant_domain = result.scalar_one_or_none()
             
             if tenant_domain and tenant_domain.tenant:
-                # 检查租户是否激活
+                # 检查企业是否激活
                 if tenant_domain.tenant.is_active and not tenant_domain.tenant.is_deleted:
                     return tenant_domain.tenant
         
@@ -46031,7 +46031,7 @@ class TenantMiddleware:
 
 def get_tenant_context(request: Request) -> TenantContext | None:
     """
-    从请求中获取租户上下文
+    从请求中获取企业上下文
     
     Usage:
         tenant_ctx = get_tenant_context(request)
@@ -46043,7 +46043,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
 
 def get_current_tenant(request: Request) -> Tenant | None:
     """
-    从请求中获取当前租户
+    从请求中获取当前企业
     
     Usage:
         tenant = get_current_tenant(request)
@@ -46242,7 +46242,7 @@ class AIActionLog(TenantModel):
     __table_args__ = (
         # 操作类型 + 创建时间复合索引（用于按类型查询审计记录）
         Index("idx_ai_action_logs_type_created", "action_type", "created_at"),
-        # 租户 + 创建时间复合索引（用于按租户查询最近记录）
+        # 企业 + 创建时间复合索引（用于按企业查询最近记录）
         Index("idx_ai_action_logs_tenant_created", "tenant_id", "created_at"),
         # 操作者 + 创建时间复合索引（用于按操作者追溯记录）
         Index("idx_ai_action_logs_operator_created", "operator_id", "created_at"),
@@ -46391,7 +46391,7 @@ class AgentSkillBinding(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（跟随 Agent 的 tenant_id）"
+        comment="企业ID（跟随 Agent 的 tenant_id）"
     )
 
     # ==================== 关联 ====================
@@ -46672,7 +46672,7 @@ class KnowledgeBase(TenantModel):
     知识库模型
 
     存储知识库配置，包括 Embedding 模型、分块策略、检索模式等
-    属于租户级资源，通过 tenant_id 隔离
+    属于企业级资源，通过 tenant_id 隔离
     """
 
     __tablename__ = "knowledge_bases"
@@ -46687,7 +46687,7 @@ class KnowledgeBase(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（scope=tenant 时必填，global/admin 时为 NULL）"
+        comment="企业ID（scope=tenant 时必填，global/admin 时为 NULL）"
     )
 
     # 允许前端筛选的字段
@@ -46876,9 +46876,9 @@ __all__ = ["KnowledgeBase"]
 
 ```python
 """
-知识库租户访问关联表
+知识库企业访问关联表
 
-当 KnowledgeBase.visibility='assigned' 时，通过此表控制哪些租户可以访问该知识库。
+当 KnowledgeBase.visibility='assigned' 时，通过此表控制哪些企业可以访问该知识库。
 """
 
 from sqlalchemy import ForeignKey, Index, Integer, UniqueConstraint
@@ -46890,9 +46890,9 @@ from app.core.i18n import _
 
 class KnowledgeBaseTenantAccess(BaseModel):
     """
-    知识库租户访问关联表
+    知识库企业访问关联表
 
-    用于 visibility='assigned' 的知识库，指定哪些租户可以访问。
+    用于 visibility='assigned' 的知识库，指定哪些企业可以访问。
     """
 
     __tablename__ = "knowledge_base_tenant_access"
@@ -47058,7 +47058,7 @@ class AIQueryLog(TenantModel):
     # ==================== 索引 ====================
 
     __table_args__ = (
-        # 租户 + 创建时间复合索引
+        # 企业 + 创建时间复合索引
         Index("idx_ai_query_logs_tenant_created", "tenant_id", "created_at"),
         # 操作者 + 创建时间复合索引
         Index("idx_ai_query_logs_user_created", "user_id", "created_at"),
@@ -47099,7 +47099,7 @@ class Skill(TenantModel):
     技能模型
 
     Skill 是更高层的抽象，封装 Agent 可使用的能力。
-    Skill 属于 SkillPackage，作用域和租户归属由所属技能包决定。
+    Skill 属于 SkillPackage，作用域和企业归属由所属技能包决定。
     Agent 通过绑定 SkillPackage 间接获得包内所有 Skill。
     """
 
@@ -47110,7 +47110,7 @@ class Skill(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（由所属技能包决定）"
+        comment="企业ID（由所属技能包决定）"
     )
 
     # 允许前端筛选的字段
@@ -47387,7 +47387,7 @@ __all__ = ["SkillCallLog"]
 Agent 通过绑定技能包来获取其中所有技能的能力。
 
 作用域:
-  - scope=tenant: 租户端使用（tenant_id 必填）
+  - scope=tenant: 企业端使用（tenant_id 必填）
   - scope=admin: 仅管理端使用（tenant_id 为 NULL）
 """
 
@@ -47421,7 +47421,7 @@ class SkillPackage(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（scope=tenant 时必填，scope=admin 时为 NULL）"
+        comment="企业ID（scope=tenant 时必填，scope=admin 时为 NULL）"
     )
 
     # 允许前端筛选的字段
@@ -47759,10 +47759,10 @@ class AITablePolicy(BaseModel):
 
 class AITablePolicyOverride(TenantModel):
     """
-    AI 表策略租户级覆盖
+    AI 表策略企业级覆盖
 
-    允许租户管理员针对自己的租户自定义策略，覆盖全局设置。
-    规则：租户只能收紧（限制更多），不能放开（超出全局策略）。
+    允许企业管理员针对自己的企业自定义策略，覆盖全局设置。
+    规则：企业只能收紧（限制更多），不能放开（超出全局策略）。
     字段为 NULL 表示使用全局策略值。
     """
 
@@ -47856,9 +47856,9 @@ __all__ = ["AITablePolicy", "AITablePolicyOverride"]
 
 ```python
 """
-租户 AI 配额配置模型
+企业 AI 配额配置模型
 
-存储租户的 Token 配额、预算和超额策略
+存储企业的 Token 配额、预算和超额策略
 """
 
 from typing import TYPE_CHECKING
@@ -47873,9 +47873,9 @@ from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
 
 class TenantQuota(TenantModel):
     """
-    租户 AI 配额配置
+    企业 AI 配额配置
     
-    为每个租户配置 Token 使用配额和超额策略
+    为每个企业配置 Token 使用配额和超额策略
     支持按模型配置，也支持全局配置（model_id 为 NULL）
     """
     
@@ -47964,7 +47964,7 @@ class TenantQuota(TenantModel):
         lazy="selectin",
     )
 
-    # 关联的租户
+    # 关联的企业
     tenant = relationship(
         "Tenant",
         lazy="selectin",
@@ -47989,9 +47989,9 @@ __all__ = ["TenantQuota"]
 
 ```python
 """
-租户 AI 模型速率限制配置模型
+企业 AI 模型速率限制配置模型
 
-存储每个租户对每个模型的速率限制配置
+存储每个企业对每个模型的速率限制配置
 """
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
@@ -48003,9 +48003,9 @@ from app.core.i18n import _
 
 class TenantModelRateLimit(TenantModel):
     """
-    租户 AI 模型速率限制配置
+    企业 AI 模型速率限制配置
     
-    为每个租户配置对每个 AI 模型的速率限制
+    为每个企业配置对每个 AI 模型的速率限制
     如果未配置，则使用模型的默认限制
     """
     
@@ -48487,7 +48487,7 @@ class Permission(BaseModel):
         String(20), index=True, comment="权限类型: menu/operation"
     )
     
-    # 作用域: admin(平台) / tenant(租户) / both(两端)
+    # 作用域: admin(平台) / tenant(企业) / both(两端)
     scope: Mapped[str] = mapped_column(
         String(20), index=True, comment="作用域: admin/tenant/both"
     )
@@ -48555,9 +48555,9 @@ __all__ = ["Permission"]
 
 ```python
 """
-租户管理员角色模型
+企业管理员角色模型
 
-租户级别的角色，用于租户管理员权限控制，支持多级角色层级结构
+企业级别的角色，用于企业管理员权限控制，支持多级角色层级结构
 """
 
 from typing import TYPE_CHECKING
@@ -48581,14 +48581,14 @@ tenant_admin_role_permissions = Table(
 
 class TenantAdminRole(TenantModel):
     """
-    租户管理员角色模型
+    企业管理员角色模型
     
-    - 属于特定租户
-    - 用于租户管理员的权限控制
+    - 属于特定企业
+    - 用于企业管理员的权限控制
     - 与 Permission 多对多关联
     - 支持多级角色层级结构（父子关系）
     - 子角色自动继承父角色的权限
-    - 不同租户可以有同名角色
+    - 不同企业可以有同名角色
     """
     
     __tablename__ = "tenant_admin_roles"
@@ -48635,7 +48635,7 @@ class TenantAdminRole(TenantModel):
     __sortable__ = {
         "field": "sort_order",      # 排序字段名
         "step": 1000,               # 排序步长
-        "scope_fields": ["tenant_id", "parent_id"],  # 租户内同级排序
+        "scope_fields": ["tenant_id", "parent_id"],  # 企业内同级排序
     }
     
     # 角色名称
@@ -48643,7 +48643,7 @@ class TenantAdminRole(TenantModel):
         String(50), comment="角色名称"
     )
     
-    # 角色代码（租户内唯一）
+    # 角色代码（企业内唯一）
     code: Mapped[str] = mapped_column(
         String(50), index=True, comment="角色代码"
     )
@@ -48741,7 +48741,7 @@ class TenantAdminRole(TenantModel):
         lazy="selectin",
     )
     
-    # 关联租户管理员（一对多）- 节点成员
+    # 关联企业管理员（一对多）- 节点成员
     admins: Mapped[list["TenantAdmin"]] = relationship(
         "TenantAdmin",
         back_populates="role",
@@ -48876,7 +48876,7 @@ class Notification(BaseModel):
     """
     通知收件箱
 
-    - tenant_id: NULL=平台级通知，有值=租户级通知
+    - tenant_id: NULL=平台级通知，有值=企业级通知
     - recipient_type: admin / tenant_admin / tenant_user
     - recipient_id: 接收人 ID
     - template_code: 关联通知模板编码
@@ -48897,7 +48897,7 @@ class Notification(BaseModel):
     )
 
     tenant_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True, comment="租户 ID（NULL=平台级）",
+        Integer, nullable=True, index=True, comment="企业 ID（NULL=平台级）",
     )
     recipient_type: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="接收人类型: admin/tenant_admin/tenant_user",
@@ -49005,7 +49005,7 @@ __all__ = ["NotificationPreference"]
 """
 通知模板模型
 
-系统预置 + 租户自定义的通知模板。
+系统预置 + 企业自定义的通知模板。
 每种通知类型对应一个模板，定义标题/正文模板、投递渠道、优先级。
 """
 
@@ -49027,7 +49027,7 @@ class NotificationTemplate(BaseModel):
     - channels: 投递渠道列表 ['ws', 'inbox', 'email']
     - priority: 优先级 low/normal/high/urgent
     - is_system: 是否系统内置（不可删除）
-    - tenant_id: NULL=系统级，有值=租户自定义
+    - tenant_id: NULL=系统级，有值=企业自定义
     """
 
     __tablename__ = "notification_templates"
@@ -49070,7 +49070,7 @@ class NotificationTemplate(BaseModel):
         Boolean, default=True, comment="是否系统内置",
     )
     tenant_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True, comment="租户 ID（NULL=系统级）",
+        Integer, nullable=True, index=True, comment="企业 ID（NULL=系统级）",
     )
 
     def __repr__(self) -> str:
@@ -49086,7 +49086,7 @@ __all__ = ["NotificationTemplate"]
 """
 平台管理员模型
 
-平台级别的超级管理员，独立于租户体系
+平台级别的超级管理员，独立于企业体系
 """
 
 from datetime import datetime
@@ -49102,9 +49102,9 @@ class Admin(BaseModel):
     """
     平台管理员模型
     
-    - 独立于租户体系
+    - 独立于企业体系
     - 用于平台后台管理
-    - 可管理所有租户和系统配置
+    - 可管理所有企业和系统配置
     """
     
     __tablename__ = "admins"
@@ -49255,8 +49255,8 @@ class SystemAgentAssignment(BaseModel):
     系统智能体绑定模型
 
     每条记录表示一个功能代码绑定了一个智能体。
-    全局默认记录 tenant_id=NULL，租户覆盖记录 tenant_id=<id>。
-    Resolve 顺序：租户覆盖 → 全局默认。
+    全局默认记录 tenant_id=NULL，企业覆盖记录 tenant_id=<id>。
+    Resolve 顺序：企业覆盖 → 全局默认。
     """
 
     __tablename__ = "system_agent_assignments"
@@ -49363,7 +49363,7 @@ __all__ = ["SystemAgentAssignment"]
 """
 系统配置模型
 
-定义配置分组和配置项的数据模型，支持平台级和租户级配置
+定义配置分组和配置项的数据模型，支持平台级和企业级配置
 """
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
@@ -49593,12 +49593,12 @@ class SystemConfigValue(TenantModel):
     
     存储实际的配置值，支持：
     - 平台级配置：tenant_id = 0
-    - 租户级配置：tenant_id > 0
+    - 企业级配置：tenant_id > 0
     """
     
     __tablename__ = "system_config_values"
     
-    # 复合唯一索引：同一配置项在同一租户下只能有一个值
+    # 复合唯一索引：同一配置项在同一企业下只能有一个值
     __table_args__ = (
         Index("ix_system_config_values_config_tenant", "config_id", "tenant_id", unique=True),
     )
@@ -49729,7 +49729,7 @@ class EmailLog(BaseModel):
     tenant_id: Mapped[int | None] = mapped_column(
         ForeignKey("tenants.id", ondelete="SET NULL"),
         default=None,
-        comment="关联租户ID（可选）",
+        comment="关联企业ID（可选）",
     )
 ```
 
@@ -49755,14 +49755,14 @@ class OperationLog(BaseModel):
     
     记录所有 API 调用的审计日志，支持：
     - 平台端操作（tenant_id 为空）
-    - 租户端操作（tenant_id 不为空）
+    - 企业端操作（tenant_id 不为空）
     """
     
     __tablename__ = "operation_logs"
     
     # 表级索引
     __table_args__ = (
-        # 复合索引：租户 + 时间，用于租户日志查询
+        # 复合索引：企业 + 时间，用于企业日志查询
         Index("ix_operation_logs_tenant_created", "tenant_id", "created_at"),
         # 复合索引：用户类型 + 用户ID，用于用户操作追溯
         Index("ix_operation_logs_user", "user_type", "user_id"),
@@ -49791,13 +49791,13 @@ class OperationLog(BaseModel):
     
     # ==================== 用户信息 ====================
     
-    # 租户ID（平台操作时为空）
+    # 企业ID（平台操作时为空）
     tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="租户ID（平台操作为空）"
+        comment="企业ID（平台操作为空）"
     )
     
     # 用户类型: admin / tenant_admin / tenant_user
@@ -50041,7 +50041,7 @@ class PeriodicTask(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         default=None,
         index=True,
-        comment="所属租户ID（NULL表示平台级任务）",
+        comment="所属企业ID（NULL表示平台级任务）",
     )
     scope: Mapped[str] = mapped_column(
         default=TaskScopeEnum.ADMIN_ONLY.value,
@@ -50367,16 +50367,16 @@ class PluginVersion(BaseModel):
 
 ```python
 """
-资源-租户分配模型
+资源-企业分配模型
 
-通用分配表，支持所有需要「部分租户」作用域的资源类型：
-- skill_package: 技能包分配给指定租户
-- agent: 智能体分配给指定租户
-- knowledge_base: 知识库分配给指定租户
-- plugin: 插件分配给指定租户（替代旧 PluginTenantAssignment）
+通用分配表，支持所有需要「部分企业」作用域的资源类型：
+- skill_package: 技能包分配给指定企业
+- agent: 智能体分配给指定企业
+- knowledge_base: 知识库分配给指定企业
+- plugin: 插件分配给指定企业（替代旧 PluginTenantAssignment）
 
 当资源的 scope 为 assigned_tenants 或 admin_and_assigned 时，
-通过本表记录哪些租户可以访问该资源。
+通过本表记录哪些企业可以访问该资源。
 """
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
@@ -50387,9 +50387,9 @@ from app.core.base_model import BaseModel
 
 class ResourceTenantAssignment(BaseModel):
     """
-    资源-租户分配表（通用）
+    资源-企业分配表（通用）
 
-    所有支持「部分租户」作用域的资源共用此表，
+    所有支持「部分企业」作用域的资源共用此表，
     通过 resource_type + resource_id 标识目标资源。
     """
 
@@ -50429,7 +50429,7 @@ class ResourceTenantAssignment(BaseModel):
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        comment="被分配的租户 ID",
+        comment="被分配的企业 ID",
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -50441,7 +50441,7 @@ class ResourceTenantAssignment(BaseModel):
         JSON,
         nullable=True,
         default=None,
-        comment="租户级配置（可选，如插件的租户级配置）",
+        comment="企业级配置（可选，如插件的企业级配置）",
     )
 
     tenant = relationship("Tenant", lazy="noload")
@@ -50561,7 +50561,7 @@ class TaskLog(BaseModel):
     )
     tenant_id: Mapped[int | None] = mapped_column(
         default=None,
-        comment="租户ID(可选)",
+        comment="企业ID(可选)",
     )
 ```
 
@@ -50625,8 +50625,8 @@ class Attachment(TenantModel):
                     label_field="title", i18n_key="knowledge_document"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无租户归属）
-    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无企业归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="企业ID")
     
     # 支持过滤字段
     __filterable__ = {
@@ -50807,7 +50807,7 @@ class DomainSslCertificate(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="租户 ID",
+        comment="企业 ID",
     )
 
     # ==================== 证书类型与状态 ====================
@@ -50954,9 +50954,9 @@ __all__ = ["DomainSslCertificate"]
 
 ```python
 """
-租户模型
+企业模型
 
-多租户 SaaS 的租户实体
+多企业 SaaS 的企业实体
 """
 
 from datetime import datetime
@@ -50971,10 +50971,10 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Tenant(BaseModel):
     """
-    租户模型
+    企业模型
     
-    - 每个租户是一个独立的商户/组织
-    - 租户数据完全隔离
+    - 每个企业是一个独立的商户/组织
+    - 企业数据完全隔离
     """
     
     __tablename__ = "tenants"
@@ -51017,10 +51017,10 @@ class Tenant(BaseModel):
     
     # 基本信息
     name: Mapped[str] = mapped_column(
-        String(100), index=True, comment="租户名称"
+        String(100), index=True, comment="企业名称"
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="租户编码（唯一标识）"
+        String(50), unique=True, index=True, comment="企业编码（唯一标识）"
     )
     
     # 联系信息
@@ -51034,7 +51034,7 @@ class Tenant(BaseModel):
         String(255), nullable=True, comment="联系人邮箱"
     )
     
-    # 租户状态
+    # 企业状态
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否启用"
     )
@@ -51055,7 +51055,7 @@ class Tenant(BaseModel):
         comment="关联套餐ID"
     )
     
-    # 租户级配额覆盖（可覆盖套餐默认配额）
+    # 企业级配额覆盖（可覆盖套餐默认配额）
     quota: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="配额配置(可覆盖套餐默认值)"
     )
@@ -51070,12 +51070,12 @@ class Tenant(BaseModel):
         Text, nullable=True, comment="备注"
     )
     
-    # 租户设置（JSON 格式）
+    # 企业设置（JSON 格式）
     # @deprecated: 已废弃，请使用 ConfigService.get_tenant_config() 获取配置
     # 数据已迁移到 system_config_values 表
     # 保留字段以兼容旧数据，但不再使用
     settings: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="租户设置(已废弃)"
+        JSON, nullable=True, comment="企业设置(已废弃)"
     )
     
     # ==================== 关系 ====================
@@ -51087,7 +51087,7 @@ class Tenant(BaseModel):
         lazy="selectin",
     )
     
-    # 租户绑定的域名列表
+    # 企业绑定的域名列表
     domains = relationship(
         "TenantDomain",
         back_populates="tenant",
@@ -51099,7 +51099,7 @@ class Tenant(BaseModel):
     
     @property
     def subdomain(self) -> str:
-        """获取租户子域名"""
+        """获取企业子域名"""
         return self.code
     
     # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
@@ -51112,7 +51112,7 @@ class Tenant(BaseModel):
     @property
     def max_custom_domains(self) -> int:
         """获取最大自定义域名数量（由套餐决定）"""
-        # 优先从租户级 quota 获取，其次从套餐获取
+        # 优先从企业级 quota 获取，其次从套餐获取
         if self.quota and "max_custom_domains" in self.quota:
             return self.quota.get("max_custom_domains", 0)
         if self.tenant_plan:
@@ -51121,7 +51121,7 @@ class Tenant(BaseModel):
     
     def get_quota_value(self, key: str, default: int | bool | None = None):
         """
-        获取配额值（优先租户级覆盖，其次套餐默认值）
+        获取配额值（优先企业级覆盖，其次套餐默认值）
         
         Args:
             key: 配额键名
@@ -51130,7 +51130,7 @@ class Tenant(BaseModel):
         Returns:
             配额值
         """
-        # 优先从租户级 quota 获取
+        # 优先从企业级 quota 获取
         if self.quota and key in self.quota:
             return self.quota.get(key, default)
         # 其次从套餐获取
@@ -51153,9 +51153,9 @@ __all__ = ["Tenant"]
 
 ```python
 """
-租户管理员模型
+企业管理员模型
 
-租户后台管理人员，区别于租户业务用户
+企业后台管理人员，区别于企业业务用户
 """
 
 from datetime import datetime
@@ -51169,11 +51169,11 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class TenantAdmin(TenantModel):
     """
-    租户管理员模型
+    企业管理员模型
     
-    - 属于特定租户
-    - 管理租户后台
-    - 可管理租户内的用户、配置等
+    - 属于特定企业
+    - 管理企业后台
+    - 可管理企业内的用户、配置等
     - 独立于业务用户（TenantUser）
     """
     
@@ -51230,7 +51230,7 @@ class TenantAdmin(TenantModel):
         Boolean, default=True, comment="是否激活"
     )
     is_owner: Mapped[bool] = mapped_column(
-        Boolean, default=False, comment="是否租户所有者（最高权限）"
+        Boolean, default=False, comment="是否企业所有者（最高权限）"
     )
     
     # 个人资料
@@ -51260,7 +51260,7 @@ class TenantAdmin(TenantModel):
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
     
-    # 角色关联（租户内角色）
+    # 角色关联（企业内角色）
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tenant_admin_roles.id"), nullable=True, comment="角色 ID"
     )
@@ -51278,7 +51278,7 @@ class TenantAdmin(TenantModel):
     
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查租户管理员是否拥有指定权限
+        检查企业管理员是否拥有指定权限
         
         Args:
             permission_code: 权限代码
@@ -51286,7 +51286,7 @@ class TenantAdmin(TenantModel):
         Returns:
             是否拥有该权限
         """
-        # 租户所有者拥有所有权限
+        # 企业所有者拥有所有权限
         if self.is_owner:
             return True
         # 检查角色权限
@@ -51308,9 +51308,9 @@ __all__ = ["TenantAdmin"]
 
 ```python
 """
-租户套餐模型
+企业套餐模型
 
-定义租户订阅套餐，控制租户可用的功能模块和配额
+定义企业订阅套餐，控制企业可用的功能模块和配额
 """
 
 from decimal import Decimal
@@ -51334,10 +51334,10 @@ tenant_plan_permissions = Table(
 
 class TenantPlan(BaseModel):
     """
-    租户套餐模型
+    企业套餐模型
     
     - 定义不同等级的订阅套餐
-    - 控制租户可用的功能模块（通过关联权限）
+    - 控制企业可用的功能模块（通过关联权限）
     - 设置资源配额（存储、用户数、域名数等）
     """
     
@@ -51465,8 +51465,8 @@ class TenantPlan(BaseModel):
         lazy="selectin",
     )
     
-    # 使用该套餐的租户（一对多）
-    # lazy="noload": 不自动加载，避免列表查询时加载全部租户对象
+    # 使用该套餐的企业（一对多）
+    # lazy="noload": 不自动加载，避免列表查询时加载全部企业对象
     # 需要时通过 get_with_tenants() 显式加载
     tenants: Mapped[list["Tenant"]] = relationship(
         "Tenant",
@@ -51481,13 +51481,13 @@ class TenantPlan(BaseModel):
         """获取权限数量"""
         return len(self.permissions)
     
-    # 租户数量缓存（由查询端注入，避免加载全部租户对象）
+    # 企业数量缓存（由查询端注入，避免加载全部企业对象）
     # 注意：不使用类型注解，避免 SQLAlchemy MappedAnnotationError
     _tenants_count_cache = None
     
     @property
     def tenants_count(self) -> int:
-        """获取使用该套餐的租户数量"""
+        """获取使用该套餐的企业数量"""
         if self._tenants_count_cache is not None:
             return self._tenants_count_cache
         # 如果 tenants 已显式加载（如 get_with_tenants），用列表计数
@@ -51498,12 +51498,12 @@ class TenantPlan(BaseModel):
     
     @tenants_count.setter
     def tenants_count(self, value: int) -> None:
-        """设置租户数量缓存"""
+        """设置企业数量缓存"""
         self._tenants_count_cache = value
     
     @property
     def has_tenants(self) -> bool:
-        """是否有租户使用该套餐"""
+        """是否有企业使用该套餐"""
         return self.tenants_count > 0
     
     def get_quota_value(self, key: str, default: int | bool | None = None):
@@ -51553,9 +51553,9 @@ __all__ = ["TenantPlan", "tenant_plan_permissions"]
 
 ```python
 """
-租户业务用户模型
+企业业务用户模型
 
-租户的终端用户（C端用户/业务用户）
+企业的终端用户（C端用户/业务用户）
 """
 
 from datetime import datetime
@@ -51568,11 +51568,11 @@ from app.core.base_model import TenantModel
 
 class TenantUser(TenantModel):
     """
-    租户业务用户模型
+    企业业务用户模型
     
-    - 属于特定租户
-    - 租户的终端用户（客户、会员等）
-    - 与租户管理员（TenantAdmin）独立
+    - 属于特定企业
+    - 企业的终端用户（客户、会员等）
+    - 与企业管理员（TenantAdmin）独立
     """
     
     __tablename__ = "tenant_users"
@@ -51652,9 +51652,9 @@ __all__ = ["TenantUser"]
 
 ```python
 """
-租户模块模型
+企业模块模型
 
-租户级别的模型定义
+企业级别的模型定义
 """
 
 from app.models.tenant.tenant import Tenant
@@ -51687,7 +51687,7 @@ __all__ = [
 
 目录结构:
 - system/: 平台级模型 (Admin)
-- tenant/: 租户级模型 (Tenant, TenantAdmin, TenantUser)
+- tenant/: 企业级模型 (Tenant, TenantAdmin, TenantUser)
 - auth/: RBAC 模型 (Permission, AdminRole, TenantAdminRole)
 - ai/: AI 网关模型 (AIProvider, AIModel, ProviderApiKey, AICallLog)
 """
@@ -51708,7 +51708,7 @@ from app.models.system import (
     ResourceTenantAssignment,
 )
 
-# 租户级模型
+# 企业级模型
 from app.models.tenant import (
     Tenant,
     TenantAdmin,
@@ -51775,7 +51775,7 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
-    # 租户级
+    # 企业级
     "Tenant",
     "TenantAdmin",
     "TenantUser",
@@ -51887,7 +51887,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 plugin_api_router = APIRouter(tags=["插件 API"])
-plugin_tenant_api_router = APIRouter(tags=["插件 API (租户)"])
+plugin_tenant_api_router = APIRouter(tags=["插件 API (企业)"])
 plugin_public_api_router = APIRouter(tags=["插件 API (公开)"])
 
 
@@ -51922,7 +51922,7 @@ async def _dispatch_plugin_api(
     plugin_id: int = row[0]
     plugin_scope: str = row[2]
 
-    # C1: 租户端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
+    # C1: 企业端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
     if tenant_id is not None:
         visible = await ScopeChecker.is_visible_to_tenant(
             scope=plugin_scope,
@@ -52140,7 +52140,7 @@ async def tenant_plugin_api(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
 ):
-    """插件 API 分发器（租户端）"""
+    """插件 API 分发器（企业端）"""
     return await _dispatch_plugin_api(
         plugin_name, path, request, db,
         tenant_id=tenant_admin.tenant_id,
@@ -52325,7 +52325,7 @@ async def _check_plugin_permission(
             if not ta:
                 return False
 
-            # 租户所有者拥有全部权限
+            # 企业所有者拥有全部权限
             if ta.is_owner:
                 return True
 
@@ -52976,7 +52976,7 @@ class PluginContext:
         return config
 
     async def get_tenant_config(self, tenant_id: int) -> dict:
-        """获取租户级配置"""
+        """获取企业级配置"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
@@ -53539,7 +53539,7 @@ class PluginContext:
         return settings.APP_VERSION
 
     def get_current_tenant_id(self) -> int | None:
-        """获取当前请求的租户 ID（从 RequestContext 注入）"""
+        """获取当前请求的企业 ID（从 RequestContext 注入）"""
         if self._request_context:
             return self._request_context.tenant_id
         return None
@@ -57498,7 +57498,7 @@ class MarketplaceClient:
       "slug": "data-analytics",
       "name": "data-analytics",
       "display_name": "数据分析仪表板",
-      "description": "为租户提供可视化数据分析面板，支持自定义图表、数据导出、定时报告。基于 ECharts。",
+      "description": "为企业提供可视化数据分析面板，支持自定义图表、数据导出、定时报告。基于 ECharts。",
       "version": "0.9.0",
       "author": "DevGenius",
       "tier": "verified",
@@ -58918,7 +58918,7 @@ class ExtensionRegistry:
 
         namespace 路径自动添加 /plugin/{plugin_name}/ 前缀。
         如果 auth_required=True，自动用 PluginAuthNamespaceWrapper 包装
-        handler_class，注入 JWT 校验和租户隔离。
+        handler_class，注入 JWT 校验和企业隔离。
 
         Args:
             plugin_name: 插件名
@@ -59178,7 +59178,7 @@ class ExtensionRegistry:
 """
 插件作用域判定
 
-根据 Plugin.scope 判断插件对管理员和租户的可见性。
+根据 Plugin.scope 判断插件对管理员和企业的可见性。
 委托给 app.core.scope.ScopeChecker 统一判定。
 """
 
@@ -59203,7 +59203,7 @@ async def is_visible_to_tenant(
     plugin: Plugin, tenant_id: int, db: AsyncSession
 ) -> bool:
     """
-    指定租户是否能使用此插件。
+    指定企业是否能使用此插件。
 
     委托给 ScopeChecker.is_visible_to_tenant()。
     """
@@ -59217,7 +59217,7 @@ async def is_visible_to_tenant(
 
 
 def requires_tenant_assignment(plugin: Plugin) -> bool:
-    """是否需要手动分配租户"""
+    """是否需要手动分配企业"""
     return ScopeChecker.requires_tenant_assignment(plugin.scope)
 ```
 
@@ -60618,7 +60618,7 @@ def register_all_extensions(
         scope = menu_ext.scope or "admin_only"
 
         if scope == "admin_and_all":
-            # admin_and_all → 始终拆分为两条独立权限（管理端 + 租户端），
+            # admin_and_all → 始终拆分为两条独立权限（管理端 + 企业端），
             # 分别可配置不同的父级菜单目录
             admin_parent = override.get("parent", menu_ext.parent)
             # tenant_parent 未配置时沿用 admin parent（降级）
@@ -60957,7 +60957,7 @@ def permission_resource(
         # 无菜单的资源，操作权限挂载到父资源下
         @permission_resource(
             resource="tenant_domain",
-            name="租户域名管理",
+            name="企业域名管理",
             scope=PermissionScope.ADMIN_ONLY,
             parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下
         )
@@ -61357,7 +61357,7 @@ def require_any_admin_permission(*permissions: str) -> Callable:
 
 def require_tenant_admin_permissions(*permissions: str) -> Callable:
     """
-    要求租户管理员拥有指定权限
+    要求企业管理员拥有指定权限
     
     Args:
         *permissions: 需要的权限代码列表
@@ -61392,7 +61392,7 @@ def require_tenant_admin_permissions(*permissions: str) -> Callable:
 
 def require_any_tenant_admin_permission(*permissions: str) -> Callable:
     """
-    要求租户管理员拥有任意一个指定权限
+    要求企业管理员拥有任意一个指定权限
     
     Args:
         *permissions: 需要的权限代码列表（满足任意一个即可）
@@ -61426,7 +61426,7 @@ __all__ = [
     # 平台管理员
     "require_admin_permissions",
     "require_any_admin_permission",
-    # 租户管理员
+    # 企业管理员
     "require_tenant_admin_permissions",
     "require_any_tenant_admin_permission",
     # 别名
@@ -61447,8 +61447,8 @@ __all__ = [
 - 权限管理 (system)
   ├── 用户管理 (admin_user) - 由控制器声明
   └── 角色管理 (role) - 由控制器声明
-- 租户管理 (tenant_mgmt)
-  └── 租户列表 (tenant) - 由控制器声明
+- 企业管理 (tenant_mgmt)
+  └── 企业列表 (tenant) - 由控制器声明
 
 name 字段使用 i18n key，前端渲染时翻译。
 格式: menu.{scope}.{resource}
@@ -61502,7 +61502,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.organization (组织架构) - 由 roles.py 控制器声明
     
     # ========================================
-    # 租户管理（目录）
+    # 企业管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.tenant_mgmt",
@@ -61516,7 +61516,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
     ),
     # 子菜单由控制器声明:
-    # - menu:admin.tenant (租户列表)
+    # - menu:admin.tenant (企业列表)
     
     # ========================================
     # 系统管理（目录）
@@ -61569,7 +61569,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_api_key (API Key 管理)
     # - menu:admin.ai_health (健康状态)
 
-    # ---- 智能应用（子目录，与租户端统一名称） ----
+    # ---- 智能应用（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_app",
         name="menu.admin.ai_app",  # i18n key
@@ -61588,7 +61588,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_knowledge_base (知识库)
     # - menu:admin.admin_agent_chat (AI 对话)
 
-    # ---- 数据分析（子目录，与租户端统一名称） ----
+    # ---- 数据分析（子目录，与企业端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_ops",
         name="menu.admin.ai_ops",  # i18n key
@@ -61658,9 +61658,9 @@ __all__ = ["ADMIN_DIRECTORY_MENUS"]
 
 ```python
 """
-租户管理端菜单定义
+企业管理端菜单定义
 
-定义租户管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
+定义企业管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
 菜单层级示例:
 - 仪表板 (dashboard)
@@ -61683,7 +61683,7 @@ from app.enums.rbac import PermissionType, PermissionScope
 from app.rbac.decorators import PermissionMeta
 
 
-# 租户管理端目录菜单
+# 企业管理端目录菜单
 TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     # 仪表板（首页，叶子菜单）
@@ -61735,8 +61735,8 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
     ),
     # 子菜单由控制器声明:
-    # - menu:tenant.tenant_config (租户配置)
-    # - menu:tenant.tenant_settings (租户设置)
+    # - menu:tenant.tenant_config (企业配置)
+    # - menu:tenant.tenant_settings (企业设置)
 
     # ========================================
     # AI 管理（目录）
@@ -61869,7 +61869,7 @@ __all__ = ["TENANT_DIRECTORY_MENUS"]
 """
 菜单定义模块
 
-集中管理平台端和租户端的目录型菜单定义。
+集中管理平台端和企业端的目录型菜单定义。
 
 目录型菜单（无实际 API）在此定义，叶子菜单（有实际 API）通过控制器的
 @permission_resource 装饰器声明。
@@ -61902,7 +61902,7 @@ def register_directory_menus() -> int:
         permission_registry.register(menu)
         count += 1
     
-    # 注册租户端目录菜单
+    # 注册企业端目录菜单
     for menu in TENANT_DIRECTORY_MENUS:
         permission_registry.register(menu)
         count += 1
@@ -62256,18 +62256,18 @@ class PermissionService:
         tenant_id: int,
     ) -> tuple[set[str], set[int]] | None:
         """
-        获取租户套餐的权限集合
+        获取企业套餐的权限集合
         
         注意：套餐只分配菜单级权限，但会自动包含这些菜单下的所有子操作权限，
-        以便租户能够自行分配操作权限粒度。
+        以便企业能够自行分配操作权限粒度。
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
-            (权限码集合, 权限ID集合) 或 None（如果租户无套餐）
+            (权限码集合, 权限ID集合) 或 None（如果企业无套餐）
         """
-        # 查询租户及其套餐（并加载套餐的权限列表）
+        # 查询企业及其套餐（并加载套餐的权限列表）
         result = await self.db.execute(
             select(Tenant)
             .where(Tenant.id == tenant_id)
@@ -62298,7 +62298,7 @@ class PermissionService:
                     menu_ids.add(p.id)
         
         # 查询套餐菜单权限下的所有子操作权限
-        # 这样租户可以自行分配操作权限粒度
+        # 这样企业可以自行分配操作权限粒度
         if menu_ids:
             child_result = await self.db.execute(
                 select(Permission)
@@ -62320,15 +62320,15 @@ class PermissionService:
         tenant_admin: TenantAdmin,
     ) -> set[str]:
         """
-        获取租户管理员的权限集合
+        获取企业管理员的权限集合
         
         权限逻辑（严格模式）：
         - 无套餐：无权限（返回空集）
-        - 租户所有者：套餐全部权限
+        - 企业所有者：套餐全部权限
         - 普通管理员：角色权限 ∩ 套餐权限
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
         
         Returns:
             权限代码集合
@@ -62340,7 +62340,7 @@ class PermissionService:
         if plan_perms is None:
             return set()
 
-        # 租户所有者：返回套餐全部权限
+        # 企业所有者：返回套餐全部权限
         if tenant_admin.is_owner:
             return plan_perms[0]
         
@@ -62371,15 +62371,15 @@ class PermissionService:
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
-        获取租户管理员的有效权限 ID 集合
+        获取企业管理员的有效权限 ID 集合
         
         权限逻辑（严格模式）：
         - 无套餐：无权限（返回空集）
-        - 租户所有者：套餐全部权限 ID
+        - 企业所有者：套餐全部权限 ID
         - 普通管理员：角色权限 ∩ 套餐权限
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
         
         Returns:
             权限 ID 集合
@@ -62391,7 +62391,7 @@ class PermissionService:
         if plan_perms is None:
             return set()
 
-        # 租户所有者：返回套餐全部权限 ID
+        # 企业所有者：返回套餐全部权限 ID
         if tenant_admin.is_owner:
             return plan_perms[1]
         
@@ -62422,15 +62422,15 @@ class PermissionService:
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
-        获取租户管理员可管理的角色 ID 集合
+        获取企业管理员可管理的角色 ID 集合
 
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
 
         Returns:
             角色 ID 集合
         """
-        # 租户所有者可以管理所有角色
+        # 企业所有者可以管理所有角色
         if tenant_admin.is_owner:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
@@ -62469,15 +62469,15 @@ class PermissionService:
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
-        获取租户管理员可见的角色 ID 集合
+        获取企业管理员可见的角色 ID 集合
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
         
         Returns:
             角色 ID 集合
         """
-        # 租户所有者可以看到所有角色
+        # 企业所有者可以看到所有角色
         if tenant_admin.is_owner:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
@@ -62695,10 +62695,10 @@ class PermissionService:
     
     async def get_tenant_permission_tree(self, tenant_admin: TenantAdmin) -> list[PermissionTreeResponse]:
         """
-        获取租户管理员的权限树
+        获取企业管理员的权限树
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
         
         Returns:
             权限树列表
@@ -62797,10 +62797,10 @@ class PermissionService:
         perm_type: str | None = None,
     ) -> list[PermissionResponse]:
         """
-        获取租户管理员的权限列表（平铺）
+        获取企业管理员的权限列表（平铺）
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
             perm_type: 权限类型过滤 (menu/operation)
         
         Returns:
@@ -62998,15 +62998,15 @@ class PermissionService:
     
     async def get_tenant_admin_menus(self, tenant_admin: TenantAdmin) -> list[MenuResponse]:
         """
-        获取租户管理员的菜单树
+        获取企业管理员的菜单树
         
         Args:
-            tenant_admin: 租户管理员
+            tenant_admin: 企业管理员
         
         Returns:
             菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
         """
-        # 获取所有租户端权限（菜单 + 操作权限）
+        # 获取所有企业端权限（菜单 + 操作权限）
         all_permissions = await self.get_enabled_permissions_by_scope("all_tenants")
         
         # 获取用户的有效权限 ID 集合（已包含套餐过滤逻辑）
@@ -63464,7 +63464,7 @@ __all__ = ["AIActionLogRepository"]
 """
 智能体访问权限 Repository
 
-提供 AgentAccess 的数据访问操作（基于租户隔离）
+提供 AgentAccess 的数据访问操作（基于企业隔离）
 """
 
 from typing import Any
@@ -63477,7 +63477,7 @@ from app.models.ai.agent_access import AgentAccess
 
 class AgentAccessRepository(TenantRepository[AgentAccess]):
     """
-    租户级智能体访问权限 Repository
+    企业级智能体访问权限 Repository
 
     提供 get_by_agent_id 和 upsert（按 agent_id 创建或更新）
     """
@@ -63555,7 +63555,7 @@ from app.enums.agent import ConversationStatusEnum
 
 class AgentConversationRepository(TenantRepository[AgentConversation]):
     """
-    租户级智能体对话 Repository
+    企业级智能体对话 Repository
 
     提供按智能体、按状态查询，批量归档等方法
     """
@@ -63742,9 +63742,9 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
 class AdminAgentConversationRepository(BaseRepository[AgentConversation]):
     """
-    平台级智能体对话 Repository（无租户过滤）
+    平台级智能体对话 Repository（无企业过滤）
 
-    供管理端全租户只读审计使用
+    供管理端全企业只读审计使用
     """
 
     model = AgentConversation
@@ -63782,9 +63782,9 @@ _ASSIGNED_SCOPES = (
 
 class AgentRepository(TenantRepository[Agent]):
     """
-    租户级智能体 Repository
+    企业级智能体 Repository
 
-    提供基于租户隔离的智能体数据访问。
+    提供基于企业隔离的智能体数据访问。
     查询时自动包含 scope=global 的全局智能体。
     """
 
@@ -63795,13 +63795,13 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局 + 全部租户可见 + 已分配的智能体"""
+        """根据 ID 获取智能体，允许访问全局 + 全部企业可见 + 已分配的智能体"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 全局共享（管理端 + 全部租户）
+            # 全局共享（管理端 + 全部企业）
             if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                 return instance
-            # 全部租户可见（平台创建的全局资源，tenant_id=null）
+            # 全部企业可见（平台创建的全局资源，tenant_id=null）
             if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             # 已分配 scope：检查 resource_tenant_assignments
@@ -63811,7 +63811,7 @@ class AgentRepository(TenantRepository[Agent]):
                 if await repo.check_assignment("agent", instance.id, self.tenant_id):
                     return instance
                 return None
-            # 同租户
+            # 同企业
             if instance.tenant_id == self.tenant_id:
                 return instance
             return None
@@ -63825,7 +63825,7 @@ class AgentRepository(TenantRepository[Agent]):
         include_deleted: bool = False,
     ) -> tuple[list[Agent], int]:
         """
-        租户级智能体列表查询
+        企业级智能体列表查询
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -63837,13 +63837,13 @@ class AgentRepository(TenantRepository[Agent]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部租户可见 + 已分配资源
+        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部企业可见 + 已分配资源
         assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+                # 平台创建的全局资源（tenant_id=null，对全部企业可见）
                 and_(
                     self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
                     self.model.tenant_id.is_(None),
@@ -63985,7 +63985,7 @@ class AgentRepository(TenantRepository[Agent]):
         exclude_id: int | None = None,
     ) -> Agent | None:
         """
-        按名称查找智能体（同租户内唯一性检查）
+        按名称查找智能体（同企业内唯一性检查）
 
         Args:
             name: 智能体名称
@@ -64011,7 +64011,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
     """
     管理端智能体 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = Agent
@@ -64110,7 +64110,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
     """
     智能体技能绑定 Repository
 
-    - tenant 场景: tenant_id = 指定租户
+    - tenant 场景: tenant_id = 指定企业
     - admin/global 场景: tenant_id IS NULL
     """
 
@@ -64242,9 +64242,9 @@ from app.models.ai.agent_version import AgentVersion
 
 class AgentVersionRepository(TenantRepository[AgentVersion]):
     """
-    租户级智能体版本 Repository
+    企业级智能体版本 Repository
 
-    提供基于租户隔离的版本数据访问
+    提供基于企业隔离的版本数据访问
     """
 
     model = AgentVersion
@@ -64371,16 +64371,16 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         """
         获取可用的 API Key
         
-        优先使用租户自己的 Key，否则回退到平台 Key
+        优先使用企业自己的 Key，否则回退到平台 Key
         
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             
         Returns:
             ProviderApiKey 对象或 None
         """
-        # 先查找租户级 Key
+        # 先查找企业级 Key
         if tenant_id:
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
@@ -64425,7 +64425,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             
         Returns:
             ProviderApiKey 列表（按使用次数升序，实现负载均衡）
@@ -64437,7 +64437,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         ]
         
         if tenant_id:
-            # 优先使用租户级 Key
+            # 优先使用企业级 Key
             tenant_conditions = base_conditions + [
                 ProviderApiKey.tenant_id == tenant_id,
             ]
@@ -64489,7 +64489,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID（None 表示获取所有 Key）
+            tenant_id: 企业 ID（None 表示获取所有 Key）
             include_deleted: 是否包含已删除的记录
             
         Returns:
@@ -64526,7 +64526,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         Args:
             provider_id: 供应商 ID
             exclude_key_id: 排除的 Key ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             
         Returns:
             ProviderApiKey 对象或 None
@@ -64601,7 +64601,7 @@ from app.models.ai.batch_run import BatchRun
 
 class BatchRunRepository(TenantRepository[BatchRun]):
     """
-    租户级批量运行 Repository
+    企业级批量运行 Repository
 
     提供按智能体查询、更新进度等方法
     """
@@ -64718,7 +64718,7 @@ from app.core.base_repository import TenantRepository
 
 class ConversationMessageRepository(TenantRepository[ConversationMessage]):
     """
-    租户级对话消息 Repository
+    企业级对话消息 Repository
 
     提供按对话获取消息、追加消息、统计等方法
     """
@@ -64928,9 +64928,9 @@ _ASSIGNED_SCOPES = (
 
 class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
     """
-    租户级知识库 Repository
+    企业级知识库 Repository
 
-    提供基于租户隔离的知识库数据访问。
+    提供基于企业隔离的知识库数据访问。
     查询时自动包含 scope=global 的全局知识库。
     """
 
@@ -64945,8 +64945,8 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         根据 ID 获取知识库，检查可见性权限
 
         访问规则：
-        - 自己租户的 KB → 允许
-        - scope=global → 允许（全局知识库对所有租户可见）
+        - 自己企业的 KB → 允许
+        - scope=global → 允许（全局知识库对所有企业可见）
         - visibility=all_tenants → 允许
         - visibility=assigned → 检查 KnowledgeBaseTenantAccess 关联
         - 其他 → 拒绝
@@ -64954,7 +64954,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if not instance:
             return None
-        # 自己租户的 KB
+        # 自己企业的 KB
         if instance.tenant_id == self.tenant_id:
             return instance
         # 全局作用域的 KB（admin_and_all）
@@ -64970,10 +64970,10 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
             if await repo.check_assignment("knowledge_base", instance.id, self.tenant_id):
                 return instance
             return None
-        # 对所有租户可见
+        # 对所有企业可见
         if instance.visibility == KBVisibilityEnum.ALL_TENANTS.value:
             return instance
-        # 指定租户可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
+        # 指定企业可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
         if instance.visibility == KBVisibilityEnum.ASSIGNED.value:
             access_stmt = select(KnowledgeBaseTenantAccess.id).where(
                 KnowledgeBaseTenantAccess.knowledge_base_id == id,
@@ -64993,7 +64993,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         include_deleted: bool = False,
     ) -> tuple[list[KnowledgeBase], int]:
         """
-        租户级知识库列表查询
+        企业级知识库列表查询
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -65067,7 +65067,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         exclude_id: int | None = None,
     ) -> KnowledgeBase | None:
         """
-        按名称查找知识库（同租户内唯一性检查）
+        按名称查找知识库（同企业内唯一性检查）
 
         Args:
             name: 知识库名称
@@ -65140,7 +65140,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         await self.db.execute(update_stmt)
 
     async def count_by_tenant(self) -> int:
-        """统计当前租户的知识库总数"""
+        """统计当前企业的知识库总数"""
         return await self.count()
 
 
@@ -65148,7 +65148,7 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
     """
     管理端知识库 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = KnowledgeBase
@@ -65156,7 +65156,7 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
 
 class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
     """
-    租户级知识文档 Repository
+    企业级知识文档 Repository
     """
 
     model = KnowledgeDocument
@@ -65219,7 +65219,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
 
 class DocumentChunkRepository(TenantRepository[DocumentChunk]):
     """
-    租户级文档分块 Repository
+    企业级文档分块 Repository
     """
 
     model = DocumentChunk
@@ -65825,9 +65825,9 @@ class _SkillPackageCascadeMixin:
 
 class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPackage]):
     """
-    租户级技能包 Repository
+    企业级技能包 Repository
 
-    提供基于租户隔离的技能包数据访问。
+    提供基于企业隔离的技能包数据访问。
     查询时自动包含 scope=global 的全局技能包。
     """
 
@@ -65836,12 +65836,12 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
-        """根据 ID 获取技能包，允许访问全局 + 全部租户可见 + 已分配的技能包"""
+        """根据 ID 获取技能包，允许访问全局 + 全部企业可见 + 已分配的技能包"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
             if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                 return instance
-            # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+            # 平台创建的全局资源（tenant_id=null，对全部企业可见）
             if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             if instance.scope in _ASSIGNED_SCOPES:
@@ -65862,7 +65862,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         include_deleted: bool = False,
     ) -> tuple[list[SkillPackage], int]:
         """
-        租户级技能包列表查询
+        企业级技能包列表查询
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -65879,7 +65879,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+                # 平台创建的全局资源（tenant_id=null，对全部企业可见）
                 and_(
                     self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
                     self.model.tenant_id.is_(None),
@@ -65920,7 +65920,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         exclude_id: int | None = None,
     ) -> SkillPackage | None:
         """
-        按名称查找技能包（同租户内唯一性检查）
+        按名称查找技能包（同企业内唯一性检查）
         """
         conditions = [
             SkillPackage.tenant_id == self.tenant_id,
@@ -65936,7 +65936,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_active_packages(self) -> list[SkillPackage]:
         """
-        获取当前租户所有已激活的技能包（含 global scope + 已分配包）
+        获取当前企业所有已激活的技能包（含 global scope + 已分配包）
         """
         assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         stmt = (
@@ -65963,10 +65963,10 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_available_for_binding(self) -> list[SkillPackage]:
         """
-        获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+        获取企业可绑定的所有技能包（用于智能体技能绑定下拉）。
 
         包括：
-          - 同租户的 all_tenants 包
+          - 同企业的 all_tenants 包
           - admin_and_all 共享包（全局）
           - assigned_tenants / admin_and_assigned 已分配包
 
@@ -66004,7 +66004,7 @@ class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[Skil
     """
     管理端技能包 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = SkillPackage
@@ -66099,9 +66099,9 @@ _ASSIGNED_SCOPES = (
 
 class SkillRepository(TenantRepository[Skill]):
     """
-    租户级技能 Repository
+    企业级技能 Repository
 
-    提供基于租户隔离的技能数据访问。
+    提供基于企业隔离的技能数据访问。
     查询时自动包含 scope=global 的全局技能。
     """
 
@@ -66113,7 +66113,7 @@ class SkillRepository(TenantRepository[Skill]):
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 同租户的技能
+            # 同企业的技能
             if instance.tenant_id == self.tenant_id:
                 return instance
             # 检查所属包的 scope（技能本身没有独立 scope，继承自包）
@@ -66144,7 +66144,7 @@ class SkillRepository(TenantRepository[Skill]):
         include_deleted: bool = False,
     ) -> tuple[list[Skill], int]:
         """
-        租户级技能列表查询
+        企业级技能列表查询
 
         自动注入条件：(tenant_id = X) OR (所属技能包 scope = 'admin_and_all')
         """
@@ -66166,7 +66166,7 @@ class SkillRepository(TenantRepository[Skill]):
         global_pkg_result = await self.db.execute(global_pkg_stmt)
         global_pkg_ids = [row[0] for row in global_pkg_result.all()]
 
-        # 查找已分配给当前租户的技能包 ID
+        # 查找已分配给当前企业的技能包 ID
         assigned_pkg_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         assigned_pkg_stmt = select(SkillPackage.id).where(
             SkillPackage.scope.in_(_ASSIGNED_SCOPES),
@@ -66220,7 +66220,7 @@ class SkillRepository(TenantRepository[Skill]):
         exclude_id: int | None = None,
     ) -> Skill | None:
         """
-        按名称查找技能（同租户内唯一性检查）
+        按名称查找技能（同企业内唯一性检查）
 
         Args:
             name: 技能名称
@@ -66243,7 +66243,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_active_skills(self) -> list[Skill]:
         """
-        获取当前租户所有已激活的技能
+        获取当前企业所有已激活的技能
 
         Returns:
             已激活的 Skill 列表
@@ -66264,7 +66264,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
         """
-        按类型获取当前租户的技能
+        按类型获取当前企业的技能
 
         Args:
             skill_type: 技能类型
@@ -66292,7 +66292,7 @@ class AdminSkillRepository(BaseRepository[Skill]):
     """
     管理端技能 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = Skill
@@ -66338,7 +66338,7 @@ __all__ = [
 
 ```python
 """
-AI 表策略租户覆盖 Repository
+AI 表策略企业覆盖 Repository
 """
 
 from __future__ import annotations
@@ -66350,7 +66350,7 @@ from app.core.base_repository import TenantRepository
 
 
 class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):
-    """AI 表策略租户覆盖仓库"""
+    """AI 表策略企业覆盖仓库"""
 
     model = AITablePolicyOverride
 
@@ -66377,7 +66377,7 @@ class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):
         return result.scalar_one_or_none()
 
     async def get_all_for_tenant(self) -> list[AITablePolicyOverride]:
-        """获取当前租户的所有覆盖"""
+        """获取当前企业的所有覆盖"""
         stmt = select(AITablePolicyOverride).where(
             AITablePolicyOverride.tenant_id == self.tenant_id,
             AITablePolicyOverride.is_deleted.is_(False),
@@ -66408,7 +66408,7 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
     """
     AI 表策略 Repository
 
-    继承 BaseRepository（平台级资源，无租户隔离）
+    继承 BaseRepository（平台级资源，无企业隔离）
     """
 
     model = AITablePolicy
@@ -66473,7 +66473,7 @@ __all__ = ["AITablePolicyRepository"]
 
 ```python
 """
-租户 AI 配额配置 Repository
+企业 AI 配额配置 Repository
 """
 
 from typing import List
@@ -66485,16 +66485,16 @@ from app.core.base_repository import BaseRepository, TenantRepository
 
 class AdminTenantQuotaRepository(BaseRepository[TenantQuota]):
     """
-    平台端 AI 配额配置 Repository（跨租户）
+    平台端 AI 配额配置 Repository（跨企业）
     
-    用于平台管理员查看所有租户的配额配置
+    用于平台管理员查看所有企业的配额配置
     """
     model = TenantQuota
 
 
 class TenantQuotaRepository(TenantRepository[TenantQuota]):
     """
-    租户 AI 配额配置 Repository
+    企业 AI 配额配置 Repository
     """
 
     model = TenantQuota
@@ -66506,10 +66506,10 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         period: str = "monthly"
     ) -> TenantQuota | None:
         """
-        获取租户对指定模型的配额配置
+        获取企业对指定模型的配额配置
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID（None 表示全局配额）
             period: 周期（daily/monthly）
             
@@ -66534,10 +66534,10 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         period: str | None = None
     ) -> List[TenantQuota]:
         """
-        获取租户所有激活的配额配置
+        获取企业所有激活的配额配置
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             period: 周期（daily/monthly），None 表示全部
             
         Returns:
@@ -66566,10 +66566,10 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         model_id: int,
     ) -> TenantQuota | None:
         """
-        获取租户对指定模型的激活配额配置（按创建时间倒序取最新）
+        获取企业对指定模型的激活配额配置（按创建时间倒序取最新）
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
 
         Returns:
@@ -66595,7 +66595,7 @@ __all__ = ["TenantQuotaRepository", "AdminTenantQuotaRepository"]
 
 ```python
 """
-租户 AI 模型速率限制配置 Repository
+企业 AI 模型速率限制配置 Repository
 """
 
 from typing import List
@@ -66607,7 +66607,7 @@ from app.core.base_repository import TenantRepository
 
 class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
     """
-    租户 AI 模型速率限制配置 Repository
+    企业 AI 模型速率限制配置 Repository
     """
 
     model = TenantModelRateLimit
@@ -66618,7 +66618,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         model_id: int
     ) -> TenantModelRateLimit | None:
         """
-        获取租户对指定模型的速率限制配置
+        获取企业对指定模型的速率限制配置
         """
         stmt = select(TenantModelRateLimit).where(
             and_(
@@ -66637,7 +66637,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         model_id: int | None = None
     ) -> List[TenantModelRateLimit]:
         """
-        获取租户所有激活的速率限制配置
+        获取企业所有激活的速率限制配置
         """
         conditions = [
             TenantModelRateLimit.tenant_id == tenant_id,
@@ -66741,7 +66741,7 @@ from app.models.common.notification_template import NotificationTemplate
 
 
 class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
-    """通知模板仓库（全局，无租户过滤）"""
+    """通知模板仓库（全局，无企业过滤）"""
 
     model = NotificationTemplate
 
@@ -67571,12 +67571,12 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    # ==================== 租户覆盖查询 ====================
+    # ==================== 企业覆盖查询 ====================
 
     async def get_tenant_override(
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
-        """获取租户覆盖绑定"""
+        """获取企业覆盖绑定"""
         stmt = (
             select(self.model)
             .where(self.model.feature_code == feature_code)
@@ -67587,7 +67587,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         return result.scalar_one_or_none()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取租户的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定"""
         stmt = (
             select(self.model)
             .where(self.model.tenant_id == tenant_id)
@@ -67601,9 +67601,9 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认。
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认。
 
-        当租户覆盖存在时直接返回（无论 is_active），让调用方根据
+        当企业覆盖存在时直接返回（无论 is_active），让调用方根据
         is_active 决定行为。只有覆盖不存在时才 fallback 到全局默认。
         """
         override = await self.get_tenant_override(feature_code, tenant_id)
@@ -67621,7 +67621,7 @@ __all__ = ["AgentAssignmentRepository"]
 """
 平台端附件仓储
 
-提供跨租户的附件数据访问能力（平台管理员专用）
+提供跨企业的附件数据访问能力（平台管理员专用）
 """
 
 from typing import Any
@@ -67636,7 +67636,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     """
     平台端附件仓储
     
-    提供跨租户的附件数据访问方法
+    提供跨企业的附件数据访问方法
     """
     
     model = Attachment
@@ -67670,7 +67670,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         
         Args:
             file_hash: 文件哈希
-            tenant_id: 可选的租户 ID
+            tenant_id: 可选的企业 ID
         
         Returns:
             附件实例或 None
@@ -67689,7 +67689,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         统计附件总占用大小
         
         Args:
-            tenant_id: 可选的租户 ID，不传则统计所有租户
+            tenant_id: 可选的企业 ID，不传则统计所有企业
         
         Returns:
             总大小（字节）
@@ -67707,7 +67707,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         获取存储统计
         
         Args:
-            tenant_id: 可选的租户 ID
+            tenant_id: 可选的企业 ID
         
         Returns:
             存储统计信息
@@ -67721,10 +67721,10 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按租户分组的存储统计
+        获取按企业分组的存储统计
         
         Returns:
-            各租户存储统计列表
+            各企业存储统计列表
         """
         query = (
             select(
@@ -67814,7 +67814,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
     
     提供操作日志的数据访问方法，支持：
     - admin 作用域：平台管理员可查看所有日志
-    - tenant 作用域：租户管理员仅可查看本租户日志
+    - tenant 作用域：企业管理员仅可查看本企业日志
     """
     
     model = OperationLog
@@ -67827,7 +67827,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
             "module", "action", "resource", "method", "path",
             "response_code", "ip", "created_at",
         },
-        # 租户管理员可过滤的字段（不包含 tenant_id）
+        # 企业管理员可过滤的字段（不包含 tenant_id）
         "tenant": {
             "id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
@@ -67853,18 +67853,18 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        查询租户操作日志
+        查询企业操作日志
         
-        自动添加租户隔离过滤
+        自动添加企业隔离过滤
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
         
         Returns:
             (日志列表, 总数)
         """
-        # 强制添加租户过滤
+        # 强制添加企业过滤
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
         
         return await self.query_list(
@@ -67903,7 +67903,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         
         Args:
             before_date: 日期阈值
-            tenant_id: 租户 ID（可选，为空则删除所有租户）
+            tenant_id: 企业 ID（可选，为空则删除所有企业）
             hard_delete: 是否硬删除
         
         Returns:
@@ -67941,7 +67941,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         按模块统计日志数量
         
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期（可选）
             end_date: 结束日期（可选）
         
@@ -67981,7 +67981,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         按操作类型统计日志数量
         
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期（可选）
             end_date: 结束日期（可选）
         
@@ -68059,22 +68059,22 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         include_tenant_users: bool = True,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端带层级权限的日志查询
+        企业端带层级权限的日志查询
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
-            is_owner: 是否租户所有者
+            is_owner: 是否企业所有者
             subordinate_user_ids: 下属用户 ID 列表（非所有者时必须）
-            include_tenant_users: 是否包含租户普通用户日志
+            include_tenant_users: 是否包含企业普通用户日志
         
         Returns:
             (日志列表, 总数)
         """
-        # 强制租户隔离
+        # 强制企业隔离
         tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
         
-        # 限制只查看租户端日志（tenant_admin / tenant_user）
+        # 限制只查看企业端日志（tenant_admin / tenant_user）
         allowed_user_types = [UserTypeEnum.TENANT_ADMIN.value]
         if include_tenant_users:
             allowed_user_types.append(UserTypeEnum.TENANT_USER.value)
@@ -68204,7 +68204,7 @@ class PluginRepository(BaseRepository[Plugin]):
     async def get_tenant_assignments(
         self, plugin_id: int
     ) -> list[ResourceTenantAssignment]:
-        """查询插件的租户分配列表"""
+        """查询插件的企业分配列表"""
         result = await self.db.execute(
             select(ResourceTenantAssignment).where(
                 ResourceTenantAssignment.resource_type == "plugin",
@@ -68228,7 +68228,7 @@ class PluginRepository(BaseRepository[Plugin]):
 
 ```python
 """
-资源-租户分配 Repository
+资源-企业分配 Repository
 """
 
 from sqlalchemy import select, delete, and_
@@ -68243,9 +68243,9 @@ logger = LogManager.get_logger("app")
 
 class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment]):
     """
-    资源-租户分配 Repository
+    资源-企业分配 Repository
 
-    提供通用的资源→租户分配 CRUD，支持所有需要「部分租户」作用域的资源类型。
+    提供通用的资源→企业分配 CRUD，支持所有需要「部分企业」作用域的资源类型。
     """
 
     model = ResourceTenantAssignment
@@ -68260,12 +68260,12 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_id: int,
     ) -> bool:
         """
-        检查资源是否已分配给指定租户
+        检查资源是否已分配给指定企业
 
         Args:
             resource_type: 资源类型
             resource_id: 资源 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             是否已分配且启用
@@ -68291,15 +68291,15 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         config: dict | None = None,
     ) -> ResourceTenantAssignment:
         """
-        分配资源给租户
+        分配资源给企业
 
         如果已存在（包括已禁用的），则重新激活；否则创建新记录。
 
         Args:
             resource_type: 资源类型
             resource_id: 资源 ID
-            tenant_id: 租户 ID
-            config: 租户级配置（可选）
+            tenant_id: 企业 ID
+            config: 企业级配置（可选）
 
         Returns:
             分配记录
@@ -68365,7 +68365,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取资源已分配的租户 ID 列表
+        获取资源已分配的企业 ID 列表
 
         Args:
             resource_type: 资源类型
@@ -68373,7 +68373,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
             active_only: 是否仅返回启用的
 
         Returns:
-            租户 ID 列表
+            企业 ID 列表
         """
         conditions = [
             ResourceTenantAssignment.resource_type == resource_type,
@@ -68395,11 +68395,11 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取租户可访问的资源 ID 列表
+        获取企业可访问的资源 ID 列表
 
         Args:
             resource_type: 资源类型
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             active_only: 是否仅返回启用的
 
         Returns:
@@ -68425,7 +68425,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_ids: list[int],
     ) -> int:
         """
-        批量分配资源给多个租户
+        批量分配资源给多个企业
 
         Returns:
             新增分配数
@@ -68523,10 +68523,10 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
 
 def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
     """
-    构建「已分配给指定租户的资源 ID」子查询
+    构建「已分配给指定企业的资源 ID」子查询
 
-    用于租户端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
-    scope 的资源对被分配的租户可见。
+    用于企业端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
+    scope 的资源对被分配的企业可见。
 
     用法::
 
@@ -68569,7 +68569,7 @@ __all__ = ["ResourceTenantAssignmentRepository", "assigned_resource_ids_subquery
 """
 SSL 证书仓储
 
-提供 SSL 证书的数据访问操作（平台级，非租户隔离）
+提供 SSL 证书的数据访问操作（平台级，非企业隔离）
 """
 
 from datetime import timedelta
@@ -68762,9 +68762,9 @@ class TaskLogRepository(BaseRepository[TaskLog]):
 
 ```python
 """
-租户域名仓储
+企业域名仓储
 
-提供租户域名的数据访问操作（平台级，非租户隔离）
+提供企业域名的数据访问操作（平台级，非企业隔离）
 """
 
 from sqlalchemy import select, asc
@@ -68775,10 +68775,10 @@ from app.models.tenant.tenant_domain import TenantDomain
 
 class TenantDomainRepository(BaseRepository[TenantDomain]):
     """
-    租户域名仓储
+    企业域名仓储
     
     提供域名特有的数据访问方法
-    注意：域名管理是平台级操作，不做租户隔离
+    注意：域名管理是平台级操作，不做企业隔离
     """
     
     model = TenantDomain
@@ -68809,10 +68809,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         """
-        获取租户的主域名
+        获取企业的主域名
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             主域名实例或 None
@@ -68827,10 +68827,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
         """
-        获取租户所有域名
+        获取企业所有域名
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             域名列表，主域名排在前面
@@ -68876,10 +68876,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     
     async def count_tenant_domains(self, tenant_id: int) -> int:
         """
-        统计租户域名数量
+        统计企业域名数量
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             域名数量
@@ -68888,10 +68888,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     
     async def has_primary_domain(self, tenant_id: int) -> bool:
         """
-        检查租户是否已有主域名
+        检查企业是否已有主域名
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             是否有主域名
@@ -68901,12 +68901,12 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
     
     async def clear_primary_flag(self, tenant_id: int) -> None:
         """
-        清除租户现有的主域名标记
+        清除企业现有的主域名标记
         
         在设置新的主域名之前调用，确保只有一个主域名
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         from sqlalchemy import update
         
@@ -68929,9 +68929,9 @@ __all__ = ["TenantDomainRepository"]
 
 ```python
 """
-租户仓储
+企业仓储
 
-提供租户的数据访问操作
+提供企业的数据访问操作
 """
 
 from sqlalchemy import select
@@ -68942,9 +68942,9 @@ from app.models.tenant.tenant import Tenant
 
 class TenantRepository(BaseRepository[Tenant]):
     """
-    租户仓储
+    企业仓储
     
-    提供租户特有的数据访问方法
+    提供企业特有的数据访问方法
     """
     
     model = Tenant
@@ -68960,13 +68960,13 @@ class TenantRepository(BaseRepository[Tenant]):
     
     async def get_by_code(self, code: str) -> Tenant | None:
         """
-        根据编码获取租户
+        根据编码获取企业
         
         Args:
-            code: 租户编码
+            code: 企业编码
         
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         return await self.get_one_by(code=code)
     
@@ -68975,7 +68975,7 @@ class TenantRepository(BaseRepository[Tenant]):
         检查编码是否已存在
         
         Args:
-            code: 租户编码
+            code: 企业编码
             exclude_id: 排除的 ID
         
         Returns:
@@ -68997,14 +68997,14 @@ class TenantRepository(BaseRepository[Tenant]):
         limit: int = 100,
     ) -> list[Tenant]:
         """
-        获取所有启用的租户
+        获取所有启用的企业
         
         Args:
             skip: 跳过的记录数
             limit: 返回的最大记录数
         
         Returns:
-            租户列表
+            企业列表
         """
         return await self.get_list(
             skip=skip,
@@ -69014,10 +69014,10 @@ class TenantRepository(BaseRepository[Tenant]):
     
     async def count_active(self) -> int:
         """
-        统计启用的租户数量
+        统计启用的企业数量
         
         Returns:
-            租户数量
+            企业数量
         """
         return await self.count(is_active=True)
 
@@ -69062,7 +69062,7 @@ __all__ = [
 """
 附件仓储
 
-提供附件数据访问能力（租户隔离）
+提供附件数据访问能力（企业隔离）
 """
 
 from sqlalchemy import select, func
@@ -69145,7 +69145,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
 
     async def sum_size(self) -> int:
         """
-        统计租户附件总占用大小
+        统计企业附件总占用大小
         """
         result = await self.db.execute(
             select(func.coalesce(func.sum(self.model.size), 0)).where(
@@ -69163,9 +69163,9 @@ __all__ = ["AttachmentRepository"]
 
 ```python
 """
-租户端定时任务仓储
+企业端定时任务仓储
 
-提供定时任务数据访问能力（租户隔离）
+提供定时任务数据访问能力（企业隔离）
 """
 
 from app.core.base_repository import TenantRepository
@@ -69174,7 +69174,7 @@ from app.models.system.periodic_task import PeriodicTask
 
 class TenantPeriodicTaskRepository(TenantRepository[PeriodicTask]):
     """
-    租户端定时任务仓储（自动按 tenant_id 过滤）
+    企业端定时任务仓储（自动按 tenant_id 过滤）
     """
 
     model = PeriodicTask
@@ -69198,9 +69198,9 @@ __all__ = ["TenantPeriodicTaskRepository"]
 
 ```python
 """
-租户端任务日志仓储
+企业端任务日志仓储
 
-提供任务日志数据访问能力（租户隔离）
+提供任务日志数据访问能力（企业隔离）
 """
 
 from app.core.base_repository import TenantRepository
@@ -69209,7 +69209,7 @@ from app.models.system.task_log import TaskLog
 
 class TenantTaskLogRepository(TenantRepository[TaskLog]):
     """
-    租户端任务日志仓储（自动按 tenant_id 过滤）
+    企业端任务日志仓储（自动按 tenant_id 过滤）
     """
 
     model = TaskLog
@@ -69229,9 +69229,9 @@ __all__ = ["TenantTaskLogRepository"]
 
 ```python
 """
-租户管理员仓储
+企业管理员仓储
 
-提供租户管理员的数据访问操作（租户隔离）
+提供企业管理员的数据访问操作（企业隔离）
 """
 
 from sqlalchemy import select, or_
@@ -69242,22 +69242,22 @@ from app.models.tenant.tenant_admin import TenantAdmin
 
 class TenantAdminRepository(TenantRepository[TenantAdmin]):
     """
-    租户管理员仓储
+    企业管理员仓储
     
-    提供租户管理员特有的数据访问方法，自动过滤租户 ID
+    提供企业管理员特有的数据访问方法，自动过滤企业 ID
     """
     
     model = TenantAdmin
     
     # 按 scope 限制可过滤字段
     _scope_fields = {
-        # 平台管理员查看租户管理员列表
+        # 平台管理员查看企业管理员列表
         "admin": {
             "id", "tenant_id", "username", "email", "phone",
             "is_active", "is_owner", "nickname", "role_id",
             "created_at", "updated_at",
         },
-        # 租户管理员查看本租户管理员列表
+        # 企业管理员查看本企业管理员列表
         "tenant": {
             "id", "username", "email", "phone",
             "is_active", "is_owner", "nickname", "role_id",
@@ -69267,25 +69267,25 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
     
     async def get_by_username(self, username: str) -> TenantAdmin | None:
         """
-        根据用户名获取租户管理员（租户内）
+        根据用户名获取企业管理员（企业内）
         
         Args:
             username: 用户名
         
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         return await self.get_one_by(username=username, tenant_id=self.tenant_id)
     
     async def get_by_email(self, email: str) -> TenantAdmin | None:
         """
-        根据邮箱获取租户管理员（租户内）
+        根据邮箱获取企业管理员（企业内）
         
         Args:
             email: 邮箱
         
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         return await self.get_one_by(email=email, tenant_id=self.tenant_id)
     
@@ -69294,13 +69294,13 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         username_or_email: str,
     ) -> TenantAdmin | None:
         """
-        根据用户名或邮箱获取租户管理员（用于登录）
+        根据用户名或邮箱获取企业管理员（用于登录）
         
         Args:
             username_or_email: 用户名或邮箱
         
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
@@ -69319,7 +69319,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查用户名是否已存在（租户内唯一）
+        检查用户名是否已存在（企业内唯一）
         
         Args:
             username: 用户名
@@ -69345,7 +69345,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查邮箱是否已存在（租户内唯一）
+        检查邮箱是否已存在（企业内唯一）
         
         Args:
             email: 邮箱
@@ -69371,7 +69371,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查手机号是否已存在（租户内唯一）
+        检查手机号是否已存在（企业内唯一）
         
         Args:
             phone: 手机号
@@ -69396,10 +69396,10 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
     
     async def get_owner(self) -> TenantAdmin | None:
         """
-        获取租户所有者
+        获取企业所有者
         
         Returns:
-            租户所有者或 None
+            企业所有者或 None
         """
         return await self.get_one_by(is_owner=True, tenant_id=self.tenant_id)
 
@@ -69501,9 +69501,9 @@ __all__ = ["TenantDomainTenantRepository"]
 
 ```python
 """
-租户套餐仓储
+企业套餐仓储
 
-提供套餐的数据访问操作（平台级，非租户隔离）
+提供套餐的数据访问操作（平台级，非企业隔离）
 """
 
 from sqlalchemy import select, asc, func
@@ -69516,10 +69516,10 @@ from app.models.tenant.tenant_plan import TenantPlan
 
 class TenantPlanRepository(BaseRepository[TenantPlan]):
     """
-    租户套餐仓储
+    企业套餐仓储
     
     提供套餐特有的数据访问方法
-    注意：套餐是平台级数据，不做租户隔离
+    注意：套餐是平台级数据，不做企业隔离
     """
     
     model = TenantPlan
@@ -69602,13 +69602,13 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
     
     async def get_with_tenants(self, plan_id: int) -> TenantPlan | None:
         """
-        获取套餐及其关联租户
+        获取套餐及其关联企业
         
         Args:
             plan_id: 套餐 ID
         
         Returns:
-            套餐实例（含租户）或 None
+            套餐实例（含企业）或 None
         """
         query = (
             select(self.model)
@@ -69640,7 +69640,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_tenant_counts_batch(self, plan_ids: list[int]) -> dict[int, int]:
         """
-        批量获取套餐的租户数量
+        批量获取套餐的企业数量
         
         Args:
             plan_ids: 套餐 ID 列表
@@ -69673,9 +69673,9 @@ __all__ = ["TenantPlanRepository"]
 
 ```python
 """
-租户角色仓储
+企业角色仓储
 
-提供租户角色的数据访问操作（租户隔离），支持层级查询
+提供企业角色的数据访问操作（企业隔离），支持层级查询
 """
 
 from sqlalchemy import select, func
@@ -69687,22 +69687,22 @@ from app.models.auth.tenant_admin_role import TenantAdminRole
 
 class TenantRoleRepository(TenantRepository[TenantAdminRole]):
     """
-    租户角色仓储
+    企业角色仓储
     
-    提供租户角色特有的数据访问方法，自动过滤租户 ID，包含层级结构查询
+    提供企业角色特有的数据访问方法，自动过滤企业 ID，包含层级结构查询
     """
     
     model = TenantAdminRole
     
     # 按 scope 限制可过滤字段
     _scope_fields = {
-        # 平台管理员查看租户角色
+        # 平台管理员查看企业角色
         "admin": {
             "id", "tenant_id", "name", "code", "is_system", "is_active",
             "parent_id", "level", "type", "leader_id",
             "created_at", "updated_at",
         },
-        # 租户管理员查看本租户角色
+        # 企业管理员查看本企业角色
         "tenant": {
             "id", "name", "code", "is_system", "is_active",
             "parent_id", "level", "type", "leader_id",
@@ -69712,7 +69712,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
     
     async def get_by_code(self, code: str) -> TenantAdminRole | None:
         """
-        根据代码获取角色（租户内）
+        根据代码获取角色（企业内）
         
         Args:
             code: 角色代码
@@ -69728,7 +69728,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色代码是否已存在（租户内唯一）
+        检查角色代码是否已存在（企业内唯一）
         
         Args:
             code: 角色代码
@@ -69756,7 +69756,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取直接子角色列表（租户内）
+        获取直接子角色列表（企业内）
         
         Args:
             parent_id: 父角色 ID，None 表示获取顶级角色
@@ -69793,7 +69793,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         Returns:
             祖先角色列表（按层级从上到下排序）
         """
-        # 先获取当前角色的 path（需要验证租户归属）
+        # 先获取当前角色的 path（需要验证企业归属）
         role = await self.get_by_id(role_id, include_deleted=include_deleted)
         if not role or not role.path:
             return []
@@ -69803,7 +69803,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         if not ancestor_ids:
             return []
         
-        # 查询祖先角色（同一租户内）
+        # 查询祖先角色（同一企业内）
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
             self.model.id.in_(ancestor_ids),
@@ -69834,7 +69834,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         Returns:
             后代角色列表（按层级从上到下排序）
         """
-        # 先获取当前角色（需要验证租户归属）
+        # 先获取当前角色（需要验证企业归属）
         role = await self.get_by_id(role_id, include_deleted=include_deleted)
         if not role:
             return []
@@ -69880,7 +69880,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取角色树（指定节点下的所有角色，租户内）
+        获取角色树（指定节点下的所有角色，企业内）
         
         Args:
             parent_id: 父角色 ID，None 表示从根节点开始
@@ -69890,12 +69890,12 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
             角色列表（平铺，按层级和排序字段排序）
         """
         if parent_id is None:
-            # 获取租户内所有角色
+            # 获取企业内所有角色
             query = select(self.model).where(
                 self.model.tenant_id == self.tenant_id
             )
         else:
-            # 获取指定节点及其后代（需要验证租户归属）
+            # 获取指定节点及其后代（需要验证企业归属）
             role = await self.get_by_id(parent_id, include_deleted=include_deleted)
             if not role:
                 return []
@@ -69925,7 +69925,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有子角色（租户内）
+        检查角色是否有子角色（企业内）
         
         Args:
             role_id: 角色 ID
@@ -69952,7 +69952,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计直接子角色数量（租户内）
+        统计直接子角色数量（企业内）
         
         Args:
             parent_id: 父角色 ID，None 表示统计顶级角色
@@ -69977,7 +69977,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有顶级角色（租户内，无父角色）
+        获取所有顶级角色（企业内，无父角色）
         
         Args:
             include_deleted: 是否包含已删除记录
@@ -69993,7 +69993,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有关联的管理员（租户内）
+        检查角色是否有关联的管理员（企业内）
         
         Args:
             role_id: 角色 ID
@@ -70024,7 +70024,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        根据节点类型获取角色列表（租户内）
+        根据节点类型获取角色列表（企业内）
         
         Args:
             role_type: 节点类型 (department/position/role)
@@ -70051,7 +70051,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有部门节点（租户内）
+        获取所有部门节点（企业内）
         
         Args:
             include_deleted: 是否包含已删除记录
@@ -70071,7 +70071,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> tuple[list, int]:
         """
-        获取节点成员列表（租户内，分页 + 搜索 + 递归子节点）
+        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）
         
         Args:
             role_id: 角色/节点 ID
@@ -70095,7 +70095,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
             if not role:
                 return [], 0
             
-            # 查询所有子节点 ID（包含自身，租户内）
+            # 查询所有子节点 ID（包含自身，企业内）
             # 子节点的 path 以当前节点的 path 为前缀，如当前节点 path=/155/，子节点 path=/155/xxx/
             path_prefix = role.path or f"/{role_id}/"
             role_ids_query = select(self.model.id).where(
@@ -70163,7 +70163,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计节点成员数量（租户内）
+        统计节点成员数量（企业内）
         
         Args:
             role_id: 角色/节点 ID
@@ -70191,7 +70191,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> TenantAdminRole | None:
         """
-        获取角色并加载成员关系（租户内）
+        获取角色并加载成员关系（企业内）
         
         Args:
             role_id: 角色 ID
@@ -70221,7 +70221,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树，租户内）
+        获取组织架构根节点列表（用于按需加载树，企业内）
         
         Args:
             include_deleted: 是否包含已删除记录
@@ -70257,7 +70257,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取指定节点的直接子节点（含关联数据，租户内）
+        获取指定节点的直接子节点（含关联数据，企业内）
         
         Args:
             parent_id: 父节点 ID
@@ -70296,9 +70296,9 @@ __all__ = ["TenantRoleRepository"]
 
 ```python
 """
-租户级仓储模块
+企业级仓储模块
 
-导出租户级别的仓储类
+导出企业级别的仓储类
 """
 
 from app.repositories.tenant.attachment_repository import AttachmentRepository
@@ -70338,7 +70338,7 @@ __all__ = [
     # 平台级
     "AdminRepository",
     "TenantRepository",
-    # 租户级
+    # 企业级
     "AttachmentRepository",
     "TenantAdminRepository",
     "TenantRoleRepository",
@@ -70642,7 +70642,7 @@ class PluginToolInfo(BaseSchema):
 class SkillResponse(BaseResponseSchema):
     """技能响应"""
 
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     package_id: int = Field(..., description=_("skill.field.package_id"))
     name: str = Field(..., description=_("skill.field.name"))
     description: str | None = Field(None, description=_("skill.field.description"))
@@ -70699,10 +70699,10 @@ class SkillPackageCreate(BaseCreateSchema):
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     scope: str = Field("all_tenants", description=_("skill_package.field.scope"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
-    tenant_id: int | None = Field(None, description="租户ID（scope=tenant 时必填）")
+    tenant_id: int | None = Field(None, description="企业ID（scope=tenant 时必填）")
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill_package.field.sort_order"))
-    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
+    tenant_ids: list[int] | None = Field(None, description="分配的企业 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageUpdate(BaseUpdateSchema):
@@ -70715,13 +70715,13 @@ class SkillPackageUpdate(BaseUpdateSchema):
     bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill_package.field.sort_order"))
-    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
+    tenant_ids: list[int] | None = Field(None, description="分配的企业 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageResponse(BaseResponseSchema):
     """技能包响应"""
 
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     name: str = Field(..., description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
@@ -70806,7 +70806,7 @@ __all__ = [
 
 ```python
 """
-AI 表策略租户覆盖 Schema
+AI 表策略企业覆盖 Schema
 """
 
 from __future__ import annotations
@@ -70817,7 +70817,7 @@ from app.core.i18n import _
 
 
 class AITablePolicyOverrideUpdate(BaseModel):
-    """租户覆盖更新（NULL = 使用全局值）"""
+    """企业覆盖更新（NULL = 使用全局值）"""
 
     allow_read: bool | None = Field(None, description=_("ai_table_policy_override.field.allow_read"))
     allow_create: bool | None = Field(None, description=_("ai_table_policy_override.field.allow_create"))
@@ -71209,7 +71209,7 @@ class ReorderRequest(BaseModel):
     
     tenant_id: int | None = Field(
         None,
-        description="租户 ID（用于租户内排序，通常由系统自动注入）",
+        description="企业 ID（用于企业内排序，通常由系统自动注入）",
     )
 
 
@@ -71655,7 +71655,7 @@ class EmailLogResponse(BaseSchema):
     triggered_by: str = Field(..., description="触发来源")
     error_message: str | None = Field(None, description="错误信息")
     sent_at: datetime | None = Field(None, description="发送时间")
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     created_at: datetime = Field(..., description="创建时间")
 
 
@@ -71724,7 +71724,7 @@ class OperationLogResponse(BaseSchema):
     """操作日志响应"""
     
     id: int = Field(..., description="日志 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")
@@ -71779,7 +71779,7 @@ class OperationLogListResponse(BaseSchema):
     """操作日志列表项响应（简化版）"""
     
     id: int = Field(..., description="日志 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")
@@ -71894,7 +71894,7 @@ class PeriodicTaskResponse(BaseSchema):
     next_run_at: datetime | None = Field(None, description="下次执行时间")
     description: str | None = Field(None, description="任务描述")
     scope: str = Field("admin_only", description="作用范围")
-    tenant_id: int | None = Field(None, description="所属租户ID")
+    tenant_id: int | None = Field(None, description="所属企业ID")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
     max_retries: int = Field(0, description="最大重试次数")
@@ -71918,7 +71918,7 @@ class PeriodicTaskCreateRequest(BaseSchema):
     is_active: bool = Field(True, description="是否启用")
     description: str | None = Field(None, description="任务描述")
     scope: str = Field("admin_only", description="作用范围（platform/tenant/all_tenants）")
-    tenant_id: int | None = Field(None, description="所属租户ID（scope=tenant时必填）")
+    tenant_id: int | None = Field(None, description="所属企业ID（scope=tenant时必填）")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
     max_retries: int = Field(0, ge=0, le=10, description="最大重试次数")
@@ -71949,7 +71949,7 @@ class PeriodicTaskUpdateRequest(BaseSchema):
     is_active: bool | None = Field(None, description="是否启用")
     description: str | None = Field(None, description="任务描述")
     scope: str | None = Field(None, description="作用范围")
-    tenant_id: int | None = Field(None, description="所属租户ID")
+    tenant_id: int | None = Field(None, description="所属企业ID")
     is_locked: bool | None = Field(None, description="是否禁止删除")
     is_editable: bool | None = Field(None, description="是否允许编辑")
     max_retries: int | None = Field(None, ge=0, le=10, description="最大重试次数")
@@ -72189,7 +72189,7 @@ class TaskLogResponse(BaseSchema):
     finished_at: datetime | None = Field(None, description="完成时间")
     duration_ms: int | None = Field(None, description="耗时(毫秒)")
     retry_count: int = Field(0, description="重试次数")
-    tenant_id: int | None = Field(None, description="租户ID")
+    tenant_id: int | None = Field(None, description="企业ID")
     created_at: datetime = Field(..., description="创建时间")
 
 
@@ -72364,9 +72364,9 @@ __all__ = [
 
 ```python
 """
-租户管理员相关 Schema
+企业管理员相关 Schema
 
-定义租户管理员 API 的请求和响应数据结构
+定义企业管理员 API 的请求和响应数据结构
 """
 
 from datetime import datetime
@@ -72377,7 +72377,7 @@ from app.core.base_schema import BaseSchema
 
 
 class TenantAdminLoginRequest(BaseSchema):
-    """租户管理员登录请求"""
+    """企业管理员登录请求"""
     
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
@@ -72387,20 +72387,20 @@ class TenantAdminLoginRequest(BaseSchema):
 
 
 class TenantAdminResponse(BaseSchema):
-    """租户管理员信息响应"""
+    """企业管理员信息响应"""
     
     id: int = Field(..., description="管理员 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     username: str = Field(..., description="用户名")
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像 URL")
     is_active: bool = Field(..., description="是否激活")
-    is_owner: bool = Field(..., description="是否租户所有者")
+    is_owner: bool = Field(..., description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
     role_name: str | None = Field(None, description="角色名称")
-    has_plan: bool = Field(True, description="租户是否已分配套餐")
+    has_plan: bool = Field(True, description="企业是否已分配套餐")
     plan_name: str | None = Field(None, description="套餐名称")
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
@@ -72433,7 +72433,7 @@ class TenantAdminResponse(BaseSchema):
 
 
 class TenantAdminCreateRequest(BaseSchema):
-    """创建租户管理员请求"""
+    """创建企业管理员请求"""
     
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -72441,31 +72441,31 @@ class TenantAdminCreateRequest(BaseSchema):
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     is_active: bool = Field(True, description="是否激活")
-    is_owner: bool = Field(False, description="是否租户所有者")
+    is_owner: bool = Field(False, description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
 
 
 class TenantAdminUpdateRequest(BaseSchema):
-    """更新租户管理员请求"""
+    """更新企业管理员请求"""
     
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像 URL")
     is_active: bool | None = Field(None, description="是否激活")
-    is_owner: bool | None = Field(None, description="是否租户所有者")
+    is_owner: bool | None = Field(None, description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
 
 
 class TenantAdminChangePasswordRequest(BaseSchema):
-    """租户管理员修改密码请求"""
+    """企业管理员修改密码请求"""
     
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class TenantAdminUpdateProfileRequest(BaseSchema):
-    """租户管理员自助修改个人信息请求"""
+    """企业管理员自助修改个人信息请求"""
 
     nickname: str | None = Field(None, max_length=50, description="昵称")
     avatar: str | None = Field(None, max_length=500, description="头像 URL")
@@ -72504,7 +72504,7 @@ class AttachmentAccessUrlResponse(BaseSchema):
 class AttachmentResponse(BaseSchema):
     """附件详情响应"""
     id: int = Field(..., description="附件 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
     path: str = Field(..., description="存储路径")
@@ -72528,7 +72528,7 @@ class AttachmentResponse(BaseSchema):
 class AttachmentListItem(BaseSchema):
     """附件列表项响应（精简字段）"""
     id: int = Field(..., description="附件 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
     path: str = Field(..., description="存储路径")
@@ -72544,7 +72544,7 @@ class AttachmentListItem(BaseSchema):
 
 
 class TenantStorageQuotaResponse(BaseSchema):
-    """租户存储配额响应"""
+    """企业存储配额响应"""
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
     limit_bytes: int = Field(..., description="存储限制（字节），0 表示无限制")
     limit_gb: int = Field(..., description="存储限制（GB），0 表示无限制")
@@ -72601,7 +72601,7 @@ class ChunkUploadProgressResponse(BaseSchema):
 
 class AdminChunkUploadInitRequest(BaseSchema):
     """平台端分片上传初始化请求"""
-    tenant_id: int = Field(0, ge=0, description="目标租户 ID，0 表示平台附件")
+    tenant_id: int = Field(0, ge=0, description="目标企业 ID，0 表示平台附件")
     filename: str = Field(..., min_length=1, max_length=255, description="文件名")
     total_size: int = Field(..., gt=0, description="文件总大小（字节）")
     chunk_size: int = Field(5 * 1024 * 1024, gt=0, description="分片大小（字节），默认 5MB")
@@ -72629,7 +72629,7 @@ __all__ = [
 
 ```python
 """
-租户套餐相关 Schema
+企业套餐相关 Schema
 
 定义套餐管理 API 的请求和响应数据结构
 """
@@ -72691,7 +72691,7 @@ class TenantPlanResponse(BaseSchema):
     sort_order: int = Field(0, description="排序顺序")
     quota: dict | None = Field(None, description="配额配置")
     features: dict | None = Field(None, description="特性标记")
-    tenants_count: int = Field(0, description="使用该套餐的租户数")
+    tenants_count: int = Field(0, description="使用该套餐的企业数")
     permissions_count: int = Field(0, description="关联权限数")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
@@ -72869,9 +72869,9 @@ __all__ = [
 
 ```python
 """
-租户角色相关 Schema
+企业角色相关 Schema
 
-定义租户角色管理的请求和响应数据结构，支持多级角色层级结构
+定义企业角色管理的请求和响应数据结构，支持多级角色层级结构
 """
 
 from __future__ import annotations
@@ -72886,10 +72886,10 @@ from app.enums.role import RoleType
 
 
 class TenantAdminRoleResponse(BaseSchema):
-    """租户角色响应"""
+    """企业角色响应"""
     
     id: int = Field(..., description="角色 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     code: str = Field(..., description="角色代码")
     name: str = Field(..., description="角色名称")
     description: str | None = Field(None, description="角色描述")
@@ -72913,20 +72913,20 @@ class TenantAdminRoleResponse(BaseSchema):
 
 
 class TenantAdminRoleDetailResponse(TenantAdminRoleResponse):
-    """租户角色详情响应（含权限）"""
+    """企业角色详情响应（含权限）"""
     
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
     permission_codes: list[str] = Field(default_factory=list, description="权限代码列表")
 
 
 class TenantAdminRoleTreeNode(TenantAdminRoleResponse):
-    """租户角色树节点（含子节点）"""
+    """企业角色树节点（含子节点）"""
     
     children: list[TenantAdminRoleTreeNode] = Field(default_factory=list, description="子角色列表")
 
 
 class TenantAdminRoleCreateRequest(BaseSchema):
-    """创建租户角色请求"""
+    """创建企业角色请求"""
     
     name: str = Field(..., min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
@@ -72940,7 +72940,7 @@ class TenantAdminRoleCreateRequest(BaseSchema):
 
 
 class TenantAdminRoleUpdateRequest(BaseSchema):
-    """更新租户角色请求"""
+    """更新企业角色请求"""
     
     name: str | None = Field(None, min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
@@ -72955,13 +72955,13 @@ class TenantAdminRoleUpdateRequest(BaseSchema):
 
 
 class TenantAdminRolePermissionsRequest(BaseSchema):
-    """分配租户角色权限请求"""
+    """分配企业角色权限请求"""
     
     permission_ids: list[int] = Field(..., description="权限 ID 列表")
 
 
 class TenantAdminRoleMoveRequest(BaseSchema):
-    """移动租户角色节点请求"""
+    """移动企业角色节点请求"""
     
     new_parent_id: int | None = Field(None, description="新父角色 ID，None 表示移动到根级")
 
@@ -72977,7 +72977,7 @@ class TenantAdminRoleSetLeaderRequest(BaseSchema):
 class TenantAdminRoleAddMemberRequest(BaseSchema):
     """添加成员到节点请求"""
     
-    admin_id: int = Field(..., description="租户管理员 ID")
+    admin_id: int = Field(..., description="企业管理员 ID")
 
 
 class TenantAdminRoleCreateMemberRequest(BaseSchema):
@@ -73017,7 +73017,7 @@ class TenantAdminRoleToggleStatusRequest(BaseSchema):
 class TenantAdminRoleMemberResponse(BaseSchema):
     """节点成员响应"""
     
-    id: int = Field(..., description="租户管理员 ID")
+    id: int = Field(..., description="企业管理员 ID")
     username: str = Field(..., description="用户名")
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像")
@@ -73053,9 +73053,9 @@ __all__ = [
 
 ```python
 """
-租户用户相关 Schema
+企业用户相关 Schema
 
-定义租户用户（C端用户）API 的请求和响应数据结构
+定义企业用户（C端用户）API 的请求和响应数据结构
 """
 
 from datetime import datetime
@@ -73066,7 +73066,7 @@ from app.core.base_schema import BaseSchema
 
 
 class TenantUserLoginRequest(BaseSchema):
-    """租户用户登录请求"""
+    """企业用户登录请求"""
     
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
@@ -73076,10 +73076,10 @@ class TenantUserLoginRequest(BaseSchema):
 
 
 class TenantUserResponse(BaseSchema):
-    """租户用户信息响应"""
+    """企业用户信息响应"""
     
     id: int = Field(..., description="用户 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     username: str = Field(..., description="用户名")
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -73091,7 +73091,7 @@ class TenantUserResponse(BaseSchema):
 
 
 class TenantUserCreateRequest(BaseSchema):
-    """创建租户用户请求"""
+    """创建企业用户请求"""
     
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -73102,7 +73102,7 @@ class TenantUserCreateRequest(BaseSchema):
 
 
 class TenantUserUpdateRequest(BaseSchema):
-    """更新租户用户请求"""
+    """更新企业用户请求"""
     
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -73112,7 +73112,7 @@ class TenantUserUpdateRequest(BaseSchema):
 
 
 class TenantUserChangePasswordRequest(BaseSchema):
-    """租户用户修改密码请求"""
+    """企业用户修改密码请求"""
     
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
@@ -73131,9 +73131,9 @@ __all__ = [
 
 ```python
 """
-租户 Schema 模块
+企业 Schema 模块
 
-导出租户相关的 Schema
+导出企业相关的 Schema
 """
 
 from app.schemas.tenant.admin import (
@@ -73474,7 +73474,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能修改自有智能体（即 tenant_id 与当前租户匹配）
+        # 企业端只能修改自有智能体（即 tenant_id 与当前企业匹配）
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -73521,7 +73521,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能删除自有智能体（即 tenant_id 与当前租户匹配）
+        # 企业端只能删除自有智能体（即 tenant_id 与当前企业匹配）
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -73934,7 +73934,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     """
     平台管理端智能体 Service
 
-    提供跨租户的智能体列表查询、CRUD 和状态管理
+    提供跨企业的智能体列表查询、CRUD 和状态管理
     """
 
     model = Agent
@@ -73948,7 +73948,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
 
-        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        # all_tenants 现在表示对全部企业可见，无需指定具体企业
         data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
@@ -73978,7 +73978,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         scope = data.get("scope", agent.scope)
 
-        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        # all_tenants 现在表示对全部企业可见，无需指定具体企业
         data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
@@ -73992,7 +73992,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     async def query_list(self, query: QuerySpec) -> tuple[list[Agent], int]:
         """
-        全租户智能体列表查询
+        全企业智能体列表查询
 
         Args:
             query: JSON:API QueryParams
@@ -74003,7 +74003,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.repo.query_list(query)
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话，清理租户分配"""
+        """删除前校验：系统智能体不可删除，级联软删除对话，清理企业分配"""
         await super()._before_delete(id)
         agent = await self.repo.get_by_id(id)
         if not agent:
@@ -74208,7 +74208,7 @@ class AgentSkillBindingService:
         校验 Agent scope 与 SkillPackage scope 的兼容性。
 
         Rules:
-          - tenant agent → 同租户 tenant 包 + global 包
+          - tenant agent → 同企业 tenant 包 + global 包
           - admin agent  → admin 包 + global 包
           - global agent → global 包 + admin 包 + 任意 tenant 包
         """
@@ -74245,7 +74245,7 @@ class AgentSkillBindingService:
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
         elif a == ResourceScopeEnum.ASSIGNED_TENANTS.value:
-            # 部分租户 agent → 可绑定同类型 + 全局 + 租户包
+            # 部分企业 agent → 可绑定同类型 + 全局 + 企业包
             if p not in (
                 ResourceScopeEnum.ASSIGNED_TENANTS.value,
                 ResourceScopeEnum.ALL_TENANTS.value,
@@ -74256,7 +74256,7 @@ class AgentSkillBindingService:
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
         elif a == ResourceScopeEnum.ADMIN_AND_ASSIGNED.value:
-            # 管理端+部分租户 agent → 可绑定所有 scope 的包
+            # 管理端+部分企业 agent → 可绑定所有 scope 的包
             pass
 
     async def bind_package(
@@ -74452,7 +74452,7 @@ logger = LogManager.get_logger("ai")
 
 class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
     """
-    租户端批量运行 Service
+    企业端批量运行 Service
 
     提供批量运行查询、取消等操作
     """
@@ -74582,7 +74582,7 @@ DEFAULT_MAX_DOCUMENTS_PER_KB = 500
 
 class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]):
     """
-    租户级知识库 Service
+    企业级知识库 Service
 
     提供知识库的创建、更新、删除、统计更新、配额检查等业务逻辑
     """
@@ -74611,7 +74611,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能修改自有知识库（tenant_id 与当前租户匹配）
+        # 企业端只能修改自有知识库（tenant_id 与当前企业匹配）
         if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
@@ -74629,7 +74629,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能删除自有知识库（tenant_id 与当前租户匹配）
+        # 企业端只能删除自有知识库（tenant_id 与当前企业匹配）
         if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
@@ -74748,7 +74748,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         await self.repo.update_statistics(kb_id)
 
     async def check_kb_quota(self) -> None:
-        """检查租户知识库数量配额"""
+        """检查企业知识库数量配额"""
         count = await self.repo.count_by_tenant()
         if count >= DEFAULT_MAX_KNOWLEDGE_BASES:
             raise BusinessException(
@@ -74827,7 +74827,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
 class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumentRepository]):
     """
-    租户级知识文档 Service
+    企业级知识文档 Service
     """
 
     model = KnowledgeDocument
@@ -74854,7 +74854,7 @@ class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumen
 
 class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]):
     """
-    租户级文档分块 Service
+    企业级文档分块 Service
     """
 
     model = DocumentChunk
@@ -74878,7 +74878,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
     """
     管理端知识库 Service
 
-    无租户隔离，供平台管理端全局查询和 CRUD 使用
+    无企业隔离，供平台管理端全局查询和 CRUD 使用
     """
 
     model = KnowledgeBase
@@ -74932,7 +74932,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：级联软删除文档和分块，清理租户分配"""
+        """删除前：级联软删除文档和分块，清理企业分配"""
         await super()._before_delete(id)
 
         level = self._default_delete_level
@@ -75026,7 +75026,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         tenant_ids: list[int] | None,
     ) -> None:
         """
-        同步知识库的租户访问记录
+        同步知识库的企业访问记录
 
         全量替换：先删除旧记录，再批量插入新记录
         """
@@ -75317,7 +75317,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     """
-    租户端技能包 Service
+    企业端技能包 Service
 
     提供技能包的创建、更新、删除等业务逻辑
     """
@@ -75339,11 +75339,11 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if scope not in ResourceScopeEnum.values():
             raise BusinessException(message=_("skill_package.error.invalid_scope"))
 
-        # 租户端只能创建 all_tenants scope 技能包
+        # 企业端只能创建 all_tenants scope 技能包
         if scope != ResourceScopeEnum.ALL_TENANTS.value:
             raise BusinessException(message=_("skill_package.error.invalid_scope"))
 
-        # 租户端只能创建 manual 绑定模式
+        # 企业端只能创建 manual 绑定模式
         from app.enums.common import SkillBindModeEnum
         data["bind_mode"] = SkillBindModeEnum.MANUAL.value
 
@@ -75355,7 +75355,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        # 租户端只能修改自有包（tenant_id 与当前租户匹配）
+        # 企业端只能修改自有包（tenant_id 与当前企业匹配）
         if pkg.tenant_id != self.tenant_id:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -75382,7 +75382,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        # 租户端只能删除自有包（tenant_id 与当前租户匹配）
+        # 企业端只能删除自有包（tenant_id 与当前企业匹配）
         if pkg.tenant_id != self.tenant_id:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -75427,7 +75427,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         return await self.repo.get_skill_counts_batch(package_ids)
 
     async def get_active_packages(self) -> list[SkillPackage]:
-        """获取当前租户所有已激活的技能包"""
+        """获取当前企业所有已激活的技能包"""
         return await self.repo.get_active_packages()
 
 
@@ -75435,7 +75435,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
     """
     管理端技能包 Service
 
-    无租户隔离，供平台管理端全局查询和 CRUD 使用
+    无企业隔离，供平台管理端全局查询和 CRUD 使用
     """
 
     model = SkillPackage
@@ -75623,7 +75623,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillService(TenantService[Skill, SkillRepository]):
     """
-    租户端技能 Service
+    企业端技能 Service
 
     提供技能的创建、更新、删除等业务逻辑
     """
@@ -75709,7 +75709,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能修改自有包（tenant_id 与当前租户匹配）中的技能
+        # 企业端只能修改自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
@@ -75763,7 +75763,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能删除自有包（tenant_id 与当前租户匹配）中的技能
+        # 企业端只能删除自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
@@ -75827,7 +75827,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             )
 
     async def get_active_skills(self) -> list[Skill]:
-        """获取当前租户所有已激活的技能"""
+        """获取当前企业所有已激活的技能"""
         return await self.repo.get_active_skills()
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
@@ -75839,7 +75839,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     """
     管理端技能 Service
 
-    无租户隔离，供平台管理端全局 CRUD 使用
+    无企业隔离，供平台管理端全局 CRUD 使用
     """
 
     model = Skill
@@ -75929,7 +75929,7 @@ __all__ = ["SkillService", "AdminSkillService"]
 
 ```python
 """
-AI 表策略租户覆盖 Service
+AI 表策略企业覆盖 Service
 """
 
 from __future__ import annotations
@@ -75945,7 +75945,7 @@ from app.core.base_service import TenantService
 
 
 class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITablePolicyOverrideRepository]):
-    """AI 表策略租户覆盖服务"""
+    """AI 表策略企业覆盖服务"""
 
     repository_class = AITablePolicyOverrideRepository
 
@@ -75955,7 +75955,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         return await repo.get_all_active()
 
     async def get_effective_policies(self) -> list[dict[str, Any]]:
-        """获取当前租户的有效策略列表（全局 + 覆盖合并）"""
+        """获取当前企业的有效策略列表（全局 + 覆盖合并）"""
         global_policies = await self.get_global_policies()
         overrides = await self.repo.get_all_for_tenant()
         overrides_map = {ov.policy_id: ov for ov in overrides}
@@ -75974,7 +75974,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         policy_id: int,
         data: dict[str, Any],
     ) -> AITablePolicyOverride:
-        """创建或更新租户覆盖（仅允许收紧）"""
+        """创建或更新企业覆盖（仅允许收紧）"""
         # 验证全局策略存在
         repo = AITablePolicyRepository(self.db)
         global_policy = await repo.get_by_id(policy_id)
@@ -76001,7 +76001,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
             return override
 
     async def remove_override(self, policy_id: int) -> None:
-        """删除租户覆盖（恢复到全局策略）"""
+        """删除企业覆盖（恢复到全局策略）"""
         existing = await self.repo.get_by_policy_id(policy_id)
         if not existing:
             raise NotFoundException(message=_("ai_table_policy_override.not_found"))
@@ -76010,7 +76010,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
 
     @staticmethod
     def _merge(gp: AITablePolicy, ov: AITablePolicyOverride | None) -> dict[str, Any]:
-        """合并全局策略与租户覆盖（复用 SchemaProvider 的逻辑）"""
+        """合并全局策略与企业覆盖（复用 SchemaProvider 的逻辑）"""
         from app.ai.data_intelligence.schema_provider import _merge_policy_with_override
         policy = _merge_policy_with_override(gp, ov)
         policy["id"] = gp.id
@@ -76142,10 +76142,10 @@ _READONLY_COLUMNS: list[str] = [
 
 # ===== 表名 → 中文关键词映射（常用表手动维护） =====
 _TABLE_KEYWORDS: dict[str, list[str]] = {
-    "tenants": ["租户", "tenant", "组织", "商户", "客户"],
+    "tenants": ["企业", "tenant", "组织", "商户", "客户"],
     "tenant_plans": ["套餐", "plan", "计划", "订阅"],
     "tenant_users": ["用户", "user", "终端用户"],
-    "tenant_admins": ["管理员", "admin", "租户管理员"],
+    "tenant_admins": ["管理员", "admin", "企业管理员"],
     "tenant_domains": ["域名", "domain"],
     "agents": ["智能体", "agent", "机器人", "bot", "助手"],
     "agent_conversations": ["对话", "conversation", "chat", "聊天"],
@@ -76164,7 +76164,7 @@ _TABLE_KEYWORDS: dict[str, list[str]] = {
     "batch_runs": ["批处理", "batch", "批量运行"],
     "agent_versions": ["版本", "version", "智能体版本"],
     "agent_access": ["访问权限", "access", "智能体权限"],
-    "tenant_quotas": ["配额", "quota", "租户配额"],
+    "tenant_quotas": ["配额", "quota", "企业配额"],
     "tenant_model_rate_limits": ["限流", "rate_limit", "速率限制"],
     "periodic_tasks": ["定时任务", "periodic", "计划任务"],
     "task_logs": ["任务日志", "task_log"],
@@ -76471,7 +76471,7 @@ __all__ = ["sync_table_policies"]
 
 ```python
 """
-租户 AI 配额配置 Service
+企业 AI 配额配置 Service
 """
 
 from typing import Optional, List, Dict, Any
@@ -76491,7 +76491,7 @@ logger = LogManager.get_logger("ai.quota_service")
 
 class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     """
-    租户 AI 配额配置 Service
+    企业 AI 配额配置 Service
     """
 
     model = TenantQuota
@@ -76503,7 +76503,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> Optional[TenantQuota]:
         """
-        获取租户配额配置
+        获取企业配额配置
 
         Args:
             model_id: 模型 ID（None 表示全局配额）
@@ -76568,7 +76568,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        获取租户所有配额配置及使用量
+        获取企业所有配额配置及使用量
 
         Args:
             period: 周期（None 表示全部）
@@ -76621,7 +76621,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: Optional[str] = None,
     ) -> List[TenantQuota]:
         """
-        获取租户活跃配额列表
+        获取企业活跃配额列表
 
         Args:
             period: 周期过滤（可选）
@@ -76686,7 +76686,7 @@ __all__ = ["TenantQuotaService"]
 
 ```python
 """
-租户 AI 模型速率限制配置 Service
+企业 AI 模型速率限制配置 Service
 """
 
 from typing import Optional
@@ -76703,7 +76703,7 @@ logger = LogManager.get_logger("ai.rate_limit_service")
 
 class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRateLimitRepository]):
     """
-    租户 AI 模型速率限制配置 Service
+    企业 AI 模型速率限制配置 Service
     """
 
     model = TenantModelRateLimit
@@ -76714,7 +76714,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> Optional[TenantModelRateLimit]:
         """
-        获取租户对指定模型的速率限制配置
+        获取企业对指定模型的速率限制配置
 
         Args:
             model_id: 模型 ID
@@ -76729,7 +76729,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> dict:
         """
-        获取有效的速率限制（优先使用租户配置，否则使用模型默认值）
+        获取有效的速率限制（优先使用企业配置，否则使用模型默认值）
 
         Args:
             model_id: 模型 ID
@@ -76737,7 +76737,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         Returns:
             包含 rpm_limit 和 tpm_limit 的字典
         """
-        # 先查租户配置
+        # 先查企业配置
         tenant_limit = await self.get_rate_limit(model_id)
 
         if tenant_limit and tenant_limit.is_active:
@@ -76747,7 +76747,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
                 "source": "tenant",
             }
 
-        # 如果租户没配置，查模型默认值
+        # 如果企业没配置，查模型默认值
         from app.repositories.ai.model_repository import AIModelRepository
         model_repo = AIModelRepository(self.db)
         model = await model_repo.get_by_id(model_id)
@@ -76771,7 +76771,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: Optional[int] = None,
     ) -> list[TenantModelRateLimit]:
         """
-        获取租户活跃速率限制列表
+        获取企业活跃速率限制列表
 
         Args:
             model_id: 模型 ID（可选）
@@ -76937,7 +76937,7 @@ class NotificationChannel(ABC):
             link: 跳转链接
             priority: 优先级 (low/normal/high/urgent)
             template_code: 模板编码
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             **kwargs: 扩展参数（如 email_html, email_subject）
 
         Returns:
@@ -77507,12 +77507,12 @@ class FileValidator:
         file_size: int | None = None,
     ) -> FileValidationResult:
         """
-        租户端文件验证
+        企业端文件验证
 
-        优先使用租户配置，如果租户未配置则使用平台配置
+        优先使用企业配置，如果企业未配置则使用平台配置
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             filename: 文件名
             file_size: 文件大小（字节），可选
 
@@ -77521,11 +77521,11 @@ class FileValidator:
         """
         extension = self._get_extension(filename)
 
-        # 获取租户配置（留空则使用平台配置）
+        # 获取企业配置（留空则使用平台配置）
         tenant_allowed = await self._get_tenant_allowed_extensions(tenant_id)
         tenant_denied = await self._get_tenant_denied_extensions(tenant_id)
 
-        # 如果租户未配置，则使用平台配置
+        # 如果企业未配置，则使用平台配置
         if not tenant_allowed:
             tenant_allowed = await self._get_platform_allowed_extensions()
         if not tenant_denied:
@@ -77642,7 +77642,7 @@ class FileValidator:
         return self._platform_max_size_mb
 
     async def _get_tenant_allowed_extensions(self, tenant_id: int) -> set[str]:
-        """获取租户允许的扩展名"""
+        """获取企业允许的扩展名"""
         value = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_allowed_extensions",
@@ -77651,7 +77651,7 @@ class FileValidator:
         return self._parse_extensions(str(value))
 
     async def _get_tenant_denied_extensions(self, tenant_id: int) -> set[str]:
-        """获取租户禁止的扩展名"""
+        """获取企业禁止的扩展名"""
         value = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_denied_extensions",
@@ -77722,7 +77722,7 @@ class ImageProcessService:
         
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID，为空表示公共上下文
+            tenant_id: 企业 ID，为空表示公共上下文
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -78213,7 +78213,7 @@ class NotificationService:
             recipients: 接收人列表 [(user_type, user_id), ...]
             data: 业务数据（用于模板渲染和前端展示）
             link: 点击跳转链接
-            tenant_id: 租户 ID（平台级通知为 None）
+            tenant_id: 企业 ID（平台级通知为 None）
             **kwargs: 渠道扩展参数
                 - email_html: 自定义 HTML 邮件正文
                 - email_subject: 自定义邮件主题
@@ -78799,9 +78799,9 @@ class AdminRoleHierarchyValidator:
 
 class TenantAdminRoleHierarchyValidator:
     """
-    租户管理员角色层级校验器
+    企业管理员角色层级校验器
     
-    提供基于角色层级的访问控制校验（租户隔离）
+    提供基于角色层级的访问控制校验（企业隔离）
     """
     
     def __init__(self, db: AsyncSession, tenant_admin: TenantAdmin):
@@ -78810,7 +78810,7 @@ class TenantAdminRoleHierarchyValidator:
         
         Args:
             db: 数据库会话
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
         """
         self.db = db
         self.tenant_admin = tenant_admin
@@ -78850,7 +78850,7 @@ class TenantAdminRoleHierarchyValidator:
     
     async def can_create_under_parent(self, parent_id: int | None) -> bool:
         """检查是否可以在指定父角色下创建子角色"""
-        # 租户所有者可以在任何位置创建
+        # 企业所有者可以在任何位置创建
         if self.tenant_admin.is_owner:
             return True
         
@@ -78858,7 +78858,7 @@ class TenantAdminRoleHierarchyValidator:
         if self.tenant_admin.role_id is None:
             return False
         
-        # 不能创建根角色（只有租户所有者可以）
+        # 不能创建根角色（只有企业所有者可以）
         if parent_id is None:
             return False
         
@@ -78891,7 +78891,7 @@ __all__ = ["AdminRoleHierarchyValidator", "TenantAdminRoleHierarchyValidator"]
 """
 角色树操作公共 Mixin
 
-提供角色层级结构的通用操作方法，供平台角色和租户角色服务复用
+提供角色层级结构的通用操作方法，供平台角色和企业角色服务复用
 """
 
 from typing import Any, TypeVar, Generic, TYPE_CHECKING
@@ -79389,15 +79389,15 @@ class StorageConfigResolver:
 
     async def get_storage_mode(self, tenant_id: int) -> str:
         """
-        获取租户有效存储模式
+        获取企业有效存储模式
 
         解析规则：
-        1. tenant_storage_mode == 'custom' 且该租户的 self_config 开关打开 → 'custom'
-        2. tenant_storage_mode == 'admin_override' 且该租户有驱动配置 → 'admin_override'
+        1. tenant_storage_mode == 'custom' 且该企业的 self_config 开关打开 → 'custom'
+        2. tenant_storage_mode == 'admin_override' 且该企业有驱动配置 → 'admin_override'
         3. 其他情况 → 'platform'
 
-        注意：自主配置权限是逐租户控制的（tenant_storage_self_config_enabled），
-        不依赖全局开关，管理员可以为个别租户单独开启。
+        注意：自主配置权限是逐企业控制的（tenant_storage_self_config_enabled），
+        不依赖全局开关，管理员可以为个别企业单独开启。
 
         Returns:
             'platform' | 'admin_override' | 'custom'
@@ -79642,7 +79642,7 @@ __all__ = ["StorageConfigResolver"]
 """
 存储配额服务
 
-提供租户存储配额的统一计算逻辑，供平台端和租户端共用
+提供企业存储配额的统一计算逻辑，供平台端和企业端共用
 """
 
 from typing import Any
@@ -79673,10 +79673,10 @@ class StorageQuotaService:
     
     async def get_tenant_storage_stats(self, tenant_id: int) -> dict[str, Any]:
         """
-        获取单个租户的存储统计信息
+        获取单个企业的存储统计信息
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             存储统计信息
@@ -79695,7 +79695,7 @@ class StorageQuotaService:
         used_bytes = int(row.used_bytes)
         file_count = int(row.file_count)
         
-        # 获取租户配额限制
+        # 获取企业配额限制
         tenant = await self._get_tenant_with_plan(tenant_id)
         limit_gb = 0
         max_file_size_mb = 0
@@ -79714,13 +79714,13 @@ class StorageQuotaService:
         self, tenant_ids: list[int]
     ) -> dict[int, dict[str, Any]]:
         """
-        批量获取租户存储统计信息
+        批量获取企业存储统计信息
         
         Args:
-            tenant_ids: 租户 ID 列表
+            tenant_ids: 企业 ID 列表
         
         Returns:
-            租户 ID 到存储统计的映射
+            企业 ID 到存储统计的映射
         """
         if not tenant_ids:
             return {}
@@ -79746,7 +79746,7 @@ class StorageQuotaService:
                 "file_count": int(row.file_count),
             }
         
-        # 批量获取租户配额信息
+        # 批量获取企业配额信息
         tenants = await self._get_tenants_with_plan(tenant_ids)
         
         result_map: dict[int, dict[str, Any]] = {}
@@ -79762,7 +79762,7 @@ class StorageQuotaService:
                 max_file_size_mb=max_file_size_mb,
             )
         
-        # 确保所有请求的租户都有统计数据（默认值）
+        # 确保所有请求的企业都有统计数据（默认值）
         for tid in tenant_ids:
             if tid not in result_map:
                 result_map[tid] = self._build_stats_response(
@@ -79776,10 +79776,10 @@ class StorageQuotaService:
     
     async def get_used_bytes(self, tenant_id: int) -> int:
         """
-        获取租户已使用的存储空间
+        获取企业已使用的存储空间
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             已使用字节数
@@ -79794,10 +79794,10 @@ class StorageQuotaService:
     
     async def get_file_count(self, tenant_id: int) -> int:
         """
-        获取租户附件总数
+        获取企业附件总数
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             附件数量
@@ -79812,13 +79812,13 @@ class StorageQuotaService:
     
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取租户信息（含套餐关联）
+        获取企业信息（含套餐关联）
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         result = await self.db.execute(
             select(Tenant)
@@ -79832,13 +79832,13 @@ class StorageQuotaService:
     
     async def _get_tenants_with_plan(self, tenant_ids: list[int]) -> list[Tenant]:
         """
-        批量获取租户信息（含套餐关联）
+        批量获取企业信息（含套餐关联）
         
         Args:
-            tenant_ids: 租户 ID 列表
+            tenant_ids: 企业 ID 列表
         
         Returns:
-            租户列表
+            企业列表
         """
         result = await self.db.execute(
             select(Tenant)
@@ -81387,11 +81387,11 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, agent_id: int | None, tenant_id: int | None = None
     ) -> None:
         """
-        校验 agent_id 有效性：存在 + 已发布 + 对租户可见。
+        校验 agent_id 有效性：存在 + 已发布 + 对企业可见。
 
         Args:
             agent_id: 要校验的智能体 ID，None 时跳过（清除绑定）
-            tenant_id: 租户 ID，None 表示 admin 端（不做 scope 校验）
+            tenant_id: 企业 ID，None 表示 admin 端（不做 scope 校验）
         """
         if agent_id is None:
             return
@@ -81424,7 +81424,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         if tenant_id is None:
             return
 
-        # 租户端校验 scope 可见性
+        # 企业端校验 scope 可见性
         scope = agent.scope
         if scope in (
             ResourceScopeEnum.ADMIN_AND_ALL.value,
@@ -81438,7 +81438,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
         if agent.tenant_id == tenant_id:
-            return  # 同租户
+            return  # 同企业
 
         # assigned scope：检查 ResourceTenantAssignment
         if scope in (
@@ -81481,7 +81481,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认
         """
         return await self.repo.resolve_for_tenant(feature_code, tenant_id)
 
@@ -81490,14 +81490,14 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         return await self.repo.get_all_global()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取租户的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定"""
         return await self.repo.get_all_for_tenant(tenant_id)
 
     async def set_tenant_override(
         self, feature_code: str, tenant_id: int, agent_id: int | None, config: dict | None = None
     ) -> SystemAgentAssignment:
         """
-        创建或更新租户覆盖绑定
+        创建或更新企业覆盖绑定
         """
         await self.validate_agent_id(agent_id, tenant_id=tenant_id)
 
@@ -81541,7 +81541,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
     async def delete_tenant_override(self, feature_code: str, tenant_id: int) -> bool:
-        """删除租户覆盖（恢复全局默认）
+        """删除企业覆盖（恢复全局默认）
 
         使用硬删除，因为覆盖是配置记录而非用户数据，
         且 UniqueConstraint 不含 is_deleted 过滤，软删除后无法重建。
@@ -81562,7 +81562,7 @@ __all__ = ["AgentAssignmentService"]
 """
 平台端附件服务
 
-提供跨租户的附件管理能力（平台管理员专用）
+提供跨企业的附件管理能力（平台管理员专用）
 """
 
 import hashlib
@@ -81592,7 +81592,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     """
     平台端附件服务
     
-    提供跨租户的附件管理能力
+    提供跨企业的附件管理能力
     """
     
     model = Attachment
@@ -81622,10 +81622,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         平台端上传文件
         
-        不受租户配额限制，使用平台存储配置
+        不受企业配额限制，使用平台存储配置
         
         Args:
-            tenant_id: 目标租户 ID
+            tenant_id: 目标企业 ID
             content: 文件内容
             filename: 文件名
             file_size: 文件大小
@@ -81650,7 +81650,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
-        # 检查同租户是否已存在相同哈希的文件
+        # 检查同企业是否已存在相同哈希的文件
         existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
         if existing:
             await self._remove_temp_file(temp_path)
@@ -81968,7 +81968,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         构建存储路径（管理端始终使用平台存储 / 共享 Bucket）
 
         - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
-        - tenant_id>0: 租户附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
+        - tenant_id>0: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
@@ -82101,7 +82101,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         获取存储统计
         
         Args:
-            tenant_id: 可选的租户 ID，不传则统计所有租户
+            tenant_id: 可选的企业 ID，不传则统计所有企业
         
         Returns:
             存储统计信息
@@ -82110,10 +82110,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按租户分组的存储统计
+        获取按企业分组的存储统计
         
         Returns:
-            各租户存储统计列表
+            各企业存储统计列表
         """
         return await self.repo.get_storage_stats_by_tenant()
 
@@ -82520,7 +82520,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
     提供操作日志的业务方法，包括：
     - 异步写入日志
     - 平台端日志查询
-    - 租户端日志查询（自动隔离）
+    - 企业端日志查询（自动隔离）
     - 批量删除日志
     """
     
@@ -82552,7 +82552,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         创建操作日志记录
         
         Args:
-            tenant_id: 租户 ID（平台操作为 None）
+            tenant_id: 企业 ID（平台操作为 None）
             user_type: 用户类型
             user_id: 用户 ID
             username: 用户名
@@ -82620,12 +82620,12 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端查询日志
+        企业端查询日志
         
-        自动添加租户隔离
+        自动添加企业隔离
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             spec: 查询规格
         
         Returns:
@@ -82660,7 +82660,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         按模块统计日志
         
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期
             end_date: 结束日期
         
@@ -82683,7 +82683,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         按操作类型统计日志
         
         Args:
-            tenant_id: 租户 ID（可选）
+            tenant_id: 企业 ID（可选）
             start_date: 开始日期
             end_date: 结束日期
         
@@ -82738,20 +82738,20 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        租户端基于权限的日志查询
+        企业端基于权限的日志查询
         
-        - 租户所有者: 可查看本租户所有日志
+        - 企业所有者: 可查看本企业所有日志
         - 普通管理员: 只能查看自己及其角色子树下用户的日志
         
         Args:
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
             spec: 查询规格
         
         Returns:
             (日志列表, 总数)
         """
         if tenant_admin.is_owner:
-            # 租户所有者可查看本租户所有日志
+            # 企业所有者可查看本企业所有日志
             return await self.repo.query_tenant_logs_with_hierarchy(
                 tenant_id=tenant_admin.tenant_id,
                 spec=spec,
@@ -82825,10 +82825,10 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
         """
-        获取租户端操作日志中的去重操作人列表（含头像）
+        获取企业端操作日志中的去重操作人列表（含头像）
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
             操作人列表
@@ -82934,14 +82934,14 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         tenant_admin: "TenantAdmin",
     ) -> list[int]:
         """
-        获取租户管理员的下属用户 ID 列表
+        获取企业管理员的下属用户 ID 列表
         
         包含:
         - 当前用户自己
         - 当前角色子树下所有角色的成员
         
         Args:
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
         
         Returns:
             下属用户 ID 列表
@@ -82959,7 +82959,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 获取当前角色的 path
         current_role_path = tenant_admin.role.path or f"/{tenant_admin.role_id}/"
         
-        # 查询同租户内所有子角色（path 以当前角色 path 开头的）
+        # 查询同企业内所有子角色（path 以当前角色 path 开头的）
         child_roles_query = select(TenantAdminRole.id).where(
             TenantAdminRole.is_deleted.is_(False),
             TenantAdminRole.tenant_id == tenant_admin.tenant_id,
@@ -83100,7 +83100,7 @@ def create_log_async(
     使用 asyncio.create_task 在后台写入日志
     
     Args:
-        tenant_id: 租户 ID（平台操作为 None）
+        tenant_id: 企业 ID（平台操作为 None）
         user_type: 用户类型
         user_id: 用户 ID
         username: 用户名
@@ -83317,7 +83317,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
 """
 插件 Service
 
-封装插件安装/启停/卸载/配置/租户分配等业务逻辑。
+封装插件安装/启停/卸载/配置/企业分配等业务逻辑。
 """
 
 from __future__ import annotations
@@ -83422,13 +83422,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         await self.db.flush()
         return plugin
 
-    # ── 租户分配 ──
+    # ── 企业分配 ──
 
     async def assign_tenants(
         self, plugin_id: int, tenant_ids: list[int]
     ) -> int:
         """
-        批量分配租户
+        批量分配企业
 
         Returns:
             实际新增的分配数量
@@ -83467,7 +83467,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         return count
 
     async def unassign_tenant(self, plugin_id: int, tenant_id: int) -> None:
-        """取消租户分配"""
+        """取消企业分配"""
         from sqlalchemy import delete
 
         from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
@@ -83484,7 +83484,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def toggle_tenant_assignment(
         self, plugin_id: int, tenant_id: int, is_active: bool
     ) -> None:
-        """切换租户分配启用状态"""
+        """切换企业分配启用状态"""
         from sqlalchemy import update
 
         from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
@@ -84111,9 +84111,9 @@ class TaskManagerService:
 
 ```python
 """
-租户服务
+企业服务
 
-提供租户的业务逻辑
+提供企业的业务逻辑
 """
 
 import secrets
@@ -84139,9 +84139,9 @@ logger = LogManager.get_logger("app")
 
 class TenantService(GlobalService[Tenant, TenantRepository]):
     """
-    租户服务
+    企业服务
     
-    提供租户特有的业务方法（全局级别，由平台管理员操作）
+    提供企业特有的业务方法（全局级别，由平台管理员操作）
     """
     
     model = Tenant
@@ -84149,24 +84149,24 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     
     async def get_by_code(self, code: str) -> Tenant | None:
         """
-        根据编码获取租户
+        根据编码获取企业
         
         Args:
-            code: 租户编码
+            code: 企业编码
         
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         return await self.repo.get_by_code(code)
     
     async def _generate_tenant_code(self) -> str:
         """
-        生成唯一的租户编码
+        生成唯一的企业编码
         
         格式: t + 8位小写字母数字（如 t3a8k2m9x）
         
         Returns:
-            唯一的租户编码
+            唯一的企业编码
         """
         charset = string.ascii_lowercase + string.digits
         max_attempts = 10
@@ -84200,13 +84200,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         remark: str | None = None,
     ) -> Tenant:
         """
-        创建租户
+        创建企业
         
         Args:
-            name: 租户名称
-            admin_username: 租户超级管理员用户名
-            admin_email: 租户超级管理员邮箱
-            admin_password: 租户超级管理员密码
+            name: 企业名称
+            admin_username: 企业超级管理员用户名
+            admin_email: 企业超级管理员邮箱
+            admin_password: 企业超级管理员密码
             contact_name: 联系人姓名
             contact_phone: 联系人电话
             contact_email: 联系人邮箱
@@ -84217,12 +84217,12 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             remark: 备注
         
         Returns:
-            创建的租户
+            创建的企业
         """
-        # 自动生成租户编码
+        # 自动生成企业编码
         code = await self._generate_tenant_code()
         
-        # 创建租户
+        # 创建企业
         data = {
             "code": code,
             "name": name,
@@ -84243,10 +84243,10 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         domain_service = TenantDomainService(self.db)
         await domain_service.create_default_domain(tenant.id, tenant.code)
         
-        # 创建租户组织架构根节点
+        # 创建企业组织架构根节点
         root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
         
-        # 创建租户超级管理员（owner）
+        # 创建企业超级管理员（owner）
         await self._create_tenant_owner(
             tenant_id=tenant.id,
             username=admin_username,
@@ -84277,9 +84277,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        发送租户欢迎邮件（通过统一通知系统）
+        发送企业欢迎邮件（通过统一通知系统）
 
-        走 notification 队列异步发送，失败不影响租户创建流程。
+        走 notification 队列异步发送，失败不影响企业创建流程。
         """
         try:
             from app.services.common.email_templates import render_welcome_email
@@ -84305,11 +84305,11 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
-        为租户创建组织架构根节点
+        为企业创建组织架构根节点
         
         Args:
-            tenant_id: 租户 ID
-            tenant_name: 租户名称（用作根节点名称）
+            tenant_id: 企业 ID
+            tenant_name: 企业名称（用作根节点名称）
         
         Returns:
             创建的根节点
@@ -84347,14 +84347,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         phone: str | None = None,
     ) -> TenantAdmin:
         """
-        为租户创建超级管理员（owner）
+        为企业创建超级管理员（owner）
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             username: 用户名
             email: 邮箱
             password: 明文密码
-            root_node: 租户根节点
+            root_node: 企业根节点
             phone: 手机号
         
         Returns:
@@ -84382,7 +84382,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
         """
-        为新租户自动绑定插件（插件系统待重建）
+        为新企业自动绑定插件（插件系统待重建）
         """
         pass
 
@@ -84392,28 +84392,28 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         new_password: str,
     ) -> TenantAdmin:
         """
-        重置租户超级管理员密码
+        重置企业超级管理员密码
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             new_password: 新密码（明文）
         
         Returns:
             更新后的管理员
         
         Raises:
-            NotFoundException: 租户或超级管理员不存在
+            NotFoundException: 企业或超级管理员不存在
         """
         from sqlalchemy import select
         
-        # 检查租户是否存在
+        # 检查企业是否存在
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
         
-        # 查找租户的超级管理员（owner）
+        # 查找企业的超级管理员（owner）
         result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.tenant_id == tenant_id,
@@ -84481,17 +84481,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         data: dict[str, Any],
     ) -> Tenant:
         """
-        更新租户
+        更新企业
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             data: 更新数据
         
         Returns:
-            更新后的租户
+            更新后的企业
         
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
             BusinessException: 编码已存在
         """
         tenant = await self.get_by_id(tenant_id)
@@ -84516,16 +84516,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     
     async def enable_tenant(self, tenant_id: int) -> Tenant:
         """
-        启用租户
+        启用企业
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
-            更新后的租户
+            更新后的企业
         
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
@@ -84540,16 +84540,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     
     async def disable_tenant(self, tenant_id: int) -> Tenant:
         """
-        禁用租户
+        禁用企业
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         
         Returns:
-            更新后的租户
+            更新后的企业
         
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
@@ -84564,17 +84564,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     
     async def toggle_status(self, tenant_id: int, is_active: bool) -> Tenant:
         """
-        切换租户状态
+        切换企业状态
         
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             is_active: 是否启用
         
         Returns:
-            更新后的租户
+            更新后的企业
         
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         if is_active:
             return await self.enable_tenant(tenant_id)
@@ -84911,7 +84911,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _ensure_upload_enabled(self) -> None:
         """
-        检查租户上传功能开关
+        检查企业上传功能开关
         """
         enabled = await self._config_service.get_tenant_config(
             self.tenant_id,
@@ -84972,7 +84972,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _get_tenant(self) -> Tenant:
         """
-        获取租户信息（含套餐）
+        获取企业信息（含套餐）
         """
         result = await self.db.execute(
             select(Tenant)
@@ -85170,7 +85170,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
         """
-        加载会话状态（含租户隔离校验）
+        加载会话状态（含企业隔离校验）
         """
         session_file = self._get_session_file(upload_id)
         if not session_file.exists():
@@ -85184,7 +85184,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         session = await anyio.to_thread.run_sync(_read)
 
-        # 租户隔离校验：确保当前租户只能操作自己的上传会话
+        # 企业隔离校验：确保当前企业只能操作自己的上传会话
         session_tenant_id = session.get("tenant_id")
         if session_tenant_id is not None and int(session_tenant_id) != self.tenant_id:
             raise BusinessException(
@@ -85314,7 +85314,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def get_storage_stats(self) -> dict[str, Any]:
         """
-        获取租户存储统计
+        获取企业存储统计
         
         Returns:
             存储统计信息
@@ -85334,9 +85334,9 @@ __all__ = ["AttachmentService"]
 
 ```python
 """
-租户端定时任务服务
+企业端定时任务服务
 
-提供租户端定时任务 CRUD（自动按 tenant_id 过滤）
+提供企业端定时任务 CRUD（自动按 tenant_id 过滤）
 """
 
 from app.celery_app import celery_app
@@ -85351,7 +85351,7 @@ logger = LogManager.get_logger("queue")
 
 class TenantPeriodicTaskService(TenantService[PeriodicTask, TenantPeriodicTaskRepository]):
     """
-    租户端定时任务服务
+    企业端定时任务服务
     """
 
     model = PeriodicTask
@@ -85388,7 +85388,7 @@ __all__ = ["TenantPeriodicTaskService"]
 """
 配额服务
 
-提供租户配额检查功能
+提供企业配额检查功能
 """
 
 from dataclasses import dataclass
@@ -85428,8 +85428,8 @@ class QuotaService:
     """
     配额服务
     
-    提供租户运行时配额检查功能
-    配额优先级：租户覆盖 > 套餐默认
+    提供企业运行时配额检查功能
+    配额优先级：企业覆盖 > 套餐默认
     """
     
     def __init__(self, db: AsyncSession, tenant: Tenant):
@@ -85438,14 +85438,14 @@ class QuotaService:
         
         Args:
             db: 异步数据库会话
-            tenant: 租户实例（需要已加载 tenant_plan 关系）
+            tenant: 企业实例（需要已加载 tenant_plan 关系）
         """
         self.db = db
         self.tenant = tenant
     
     async def _lock_tenant_row(self) -> None:
         """
-        对租户行加排他锁，序列化同一租户的并发配额检查。
+        对企业行加排他锁，序列化同一企业的并发配额检查。
         
         在同一事务中先锁定再 COUNT，确保 CHECK → INSERT 之间
         不会有其他事务插入同类资源，消除 TOCTOU 竞态。
@@ -85459,9 +85459,9 @@ class QuotaService:
     
     def get_quota_value(self, key: str, default: int | bool | None = None) -> Any:
         """
-        获取租户有效配额值
+        获取企业有效配额值
         
-        优先级：租户覆盖 > 套餐默认
+        优先级：企业覆盖 > 套餐默认
         
         Args:
             key: 配额键名
@@ -85483,7 +85483,7 @@ class QuotaService:
         Returns:
             特性是否启用
         """
-        # 优先从租户级 quota 获取（特性也可以存在 quota 中）
+        # 优先从企业级 quota 获取（特性也可以存在 quota 中）
         if self.tenant.quota and key in self.tenant.quota:
             return bool(self.tenant.quota.get(key, default))
         # 其次从套餐 features 获取
@@ -85569,7 +85569,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
         
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
         
         # 统计当前用户数
@@ -85613,7 +85613,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
         
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
         
         # 统计当前管理员数
@@ -85668,7 +85668,7 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
         
-        # 锁定租户行，防止并发超额
+        # 锁定企业行，防止并发超额
         await self._lock_tenant_row()
         
         # 统计当前自定义域名数（排除主域名/子域名）
@@ -85820,9 +85820,9 @@ __all__ = ["QuotaService", "QuotaCheckResult"]
 
 ```python
 """
-租户端任务日志服务
+企业端任务日志服务
 
-提供租户端任务日志查询（只读，自动按 tenant_id 过滤）
+提供企业端任务日志查询（只读，自动按 tenant_id 过滤）
 """
 
 from datetime import datetime
@@ -85834,7 +85834,7 @@ from app.repositories.tenant.task_log_repository import TenantTaskLogRepository
 
 class TenantTaskLogService(TenantService[TaskLog, TenantTaskLogRepository]):
     """
-    租户端任务日志服务（只读）
+    企业端任务日志服务（只读）
     """
 
     model = TaskLog
@@ -85855,9 +85855,9 @@ __all__ = ["TenantTaskLogService"]
 
 ```python
 """
-租户管理员角色服务
+企业管理员角色服务
 
-提供租户角色的业务逻辑，支持层级结构和权限继承（租户隔离）
+提供企业角色的业务逻辑，支持层级结构和权限继承（企业隔离）
 """
 
 import uuid
@@ -85879,9 +85879,9 @@ from app.services.common.role_tree_mixin import RoleTreeMixin, MAX_ROLE_DEPTH
 
 class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository], RoleTreeMixin[TenantAdminRole]):
     """
-    租户管理员角色服务
+    企业管理员角色服务
     
-    提供角色的 CRUD 操作和层级结构管理，自动注入租户隔离
+    提供角色的 CRUD 操作和层级结构管理，自动注入企业隔离
     """
     
     model = TenantAdminRole
@@ -85889,7 +85889,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     
     async def get_by_code(self, code: str) -> TenantAdminRole | None:
         """
-        根据代码获取角色（租户内）
+        根据代码获取角色（企业内）
         
         Args:
             code: 角色代码
@@ -85915,7 +85915,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         allow_members: bool = True,
     ) -> TenantAdminRole:
         """
-        创建角色（租户内）
+        创建角色（企业内）
         
         Args:
             name: 角色名称
@@ -85984,7 +85984,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         data: dict[str, Any],
     ) -> TenantAdminRole:
         """
-        更新角色（租户内）
+        更新角色（企业内）
         
         Args:
             role_id: 角色 ID
@@ -86009,9 +86009,9 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             )
         
         # 移除不允许直接更新的字段
-        data.pop("tenant_id", None)  # 租户 ID 不允许修改
+        data.pop("tenant_id", None)  # 企业 ID 不允许修改
         
-        # 检查代码是否已被其他角色使用（租户内唯一）
+        # 检查代码是否已被其他角色使用（企业内唯一）
         if "code" in data and data["code"]:
             if await self.repo.code_exists(data["code"], exclude_id=role_id):
                 raise BusinessException(
@@ -86058,7 +86058,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     
     async def delete_role(self, role_id: int) -> bool:
         """
-        删除角色（租户内）
+        删除角色（企业内）
         
         Args:
             role_id: 角色 ID
@@ -86103,7 +86103,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         permission_ids: list[int],
     ) -> TenantAdminRole:
         """
-        分配权限给角色（租户内）
+        分配权限给角色（企业内）
         
         Args:
             role_id: 角色 ID
@@ -86136,7 +86136,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     
     async def get_root_roles(self) -> list[TenantAdminRole]:
         """
-        获取所有顶级角色（租户内）
+        获取所有顶级角色（企业内）
         
         Returns:
             顶级角色列表
@@ -86174,7 +86174,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         leader_id: int | None,
     ) -> TenantAdminRole:
         """
-        设置节点负责人（租户内）
+        设置节点负责人（企业内）
         
         Args:
             role_id: 角色/节点 ID
@@ -86198,7 +86198,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_ONLY_DEPARTMENT_CAN_SET_LEADER,
             )
         
-        # 验证负责人是否存在（租户内）
+        # 验证负责人是否存在（企业内）
         if leader_id:
             query = select(TenantAdmin).where(
                 TenantAdmin.id == leader_id,
@@ -86215,7 +86215,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     
     async def get_organization_root_nodes(self) -> list[TenantAdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树，租户内）
+        获取组织架构根节点列表（用于按需加载树，企业内）
         
         Returns:
             根节点列表（level=1），每个节点包含 has_children 标记
@@ -86224,7 +86224,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     
     async def get_organization_children(self, parent_id: int) -> list[TenantAdminRole]:
         """
-        获取指定节点的直接子节点（用于按需加载，租户内）
+        获取指定节点的直接子节点（用于按需加载，企业内）
         
         Args:
             parent_id: 父节点 ID
@@ -86240,11 +86240,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        添加成员到节点（租户内）
+        添加成员到节点（企业内）
         
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
         
         Returns:
             更新后的角色
@@ -86264,7 +86264,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
             )
         
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -86294,11 +86294,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        删除节点成员（租户内，软删除）
+        删除节点成员（企业内，软删除）
         
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
         
         Returns:
             更新后的角色
@@ -86311,7 +86311,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
         
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -86338,7 +86338,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                     code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
                 )
         
-        # 保护租户所有者：不允许删除
+        # 保护企业所有者：不允许删除
         if admin.is_owner:
             raise BusinessException(
                 message=_(ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER.message_key),
@@ -86364,7 +86364,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         include_descendants: bool = True,
     ) -> tuple[list[TenantAdmin], int]:
         """
-        获取节点成员列表（租户内，分页 + 搜索 + 递归子节点）
+        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）
         
         Args:
             role_id: 角色/节点 ID
@@ -86402,7 +86402,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool = True,
     ) -> TenantAdmin:
         """
-        在节点下创建新成员（租户内）
+        在节点下创建新成员（企业内）
         
         Args:
             role_id: 角色/节点 ID
@@ -86414,7 +86414,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             is_active: 是否激活
         
         Returns:
-            创建的租户管理员
+            创建的企业管理员
         
         Raises:
             NotFoundException: 角色不存在
@@ -86460,11 +86460,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        更新节点成员信息（租户内）
+        更新节点成员信息（企业内）
         
         Args:
             role_id: 当前角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             email: 邮箱
             phone: 手机号
             nickname: 昵称
@@ -86473,7 +86473,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             new_role_id: 新角色 ID（调整所属角色）
         
         Returns:
-            更新后的租户管理员
+            更新后的企业管理员
         
         Raises:
             NotFoundException: 角色或管理员不存在
@@ -86485,7 +86485,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
         
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -86550,11 +86550,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_password: str,
     ) -> bool:
         """
-        重置节点成员密码（租户内）
+        重置节点成员密码（企业内）
         
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             new_password: 新密码
         
         Returns:
@@ -86570,7 +86570,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
         
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -86607,15 +86607,15 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool,
     ) -> TenantAdmin:
         """
-        切换节点成员状态（租户内）
+        切换节点成员状态（企业内）
         
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             is_active: 是否激活
         
         Returns:
-            更新后的租户管理员
+            更新后的企业管理员
         
         Raises:
             NotFoundException: 角色或管理员不存在
@@ -86627,7 +86627,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
         
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -86665,9 +86665,9 @@ __all__ = ["TenantAdminRoleService"]
 
 ```python
 """
-租户管理员服务
+企业管理员服务
 
-提供租户管理员的业务逻辑（租户隔离）
+提供企业管理员的业务逻辑（企业隔离）
 """
 
 from typing import Any
@@ -86686,9 +86686,9 @@ from app.repositories.tenant.tenant_admin_repository import TenantAdminRepositor
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
     """
-    租户管理员服务
+    企业管理员服务
     
-    提供租户管理员特有的业务方法，自动注入租户隔离
+    提供企业管理员特有的业务方法，自动注入企业隔离
     """
     
     model = TenantAdmin
@@ -86745,7 +86745,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        创建租户管理员
+        创建企业管理员
         
         Args:
             username: 用户名
@@ -86754,7 +86754,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             phone: 手机号
             nickname: 昵称
             is_active: 是否激活
-            is_owner: 是否租户所有者
+            is_owner: 是否企业所有者
             role_id: 角色 ID
         
         Returns:
@@ -86763,21 +86763,21 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         Raises:
             BusinessException: 用户名/邮箱/手机号已存在
         """
-        # 检查用户名是否已存在（租户内唯一）
+        # 检查用户名是否已存在（企业内唯一）
         if await self.repo.username_exists(username):
             raise BusinessException(
                 message=_("tenant_admin.username_exists"),
                 code=ErrorCode.ADMIN_USERNAME_EXISTS,
             )
         
-        # 检查邮箱是否已存在（租户内唯一）
+        # 检查邮箱是否已存在（企业内唯一）
         if await self.repo.email_exists(email):
             raise BusinessException(
                 message=_("tenant_admin.email_exists"),
                 code=ErrorCode.ADMIN_EMAIL_EXISTS,
             )
         
-        # 检查手机号是否已存在（租户内唯一）
+        # 检查手机号是否已存在（企业内唯一）
         if phone and await self.repo.phone_exists(phone):
             raise BusinessException(
                 message=_("tenant_admin.phone_exists"),
@@ -86802,7 +86802,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                     code=ErrorCode.CONFLICT,
                 )
 
-        # 如果是租户所有者，获取根节点
+        # 如果是企业所有者，获取根节点
         root_node = None
         if is_owner:
             root_node = await self._get_tenant_root_node()
@@ -86824,7 +86824,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         
         admin = await self.create(data)
         
-        # 如果是租户所有者，设为根节点负责人
+        # 如果是企业所有者，设为根节点负责人
         if is_owner and root_node and root_node.leader_id is None:
             root_node.leader_id = admin.id
             await self.db.flush()
@@ -86837,7 +86837,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data: dict[str, Any],
     ) -> TenantAdmin:
         """
-        更新租户管理员
+        更新企业管理员
         
         Args:
             admin_id: 管理员 ID
@@ -86876,7 +86876,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data.pop("password", None)
         data.pop("password_hash", None)
         data.pop("username", None)  # 用户名不允许修改
-        data.pop("tenant_id", None)  # 租户 ID 不允许修改
+        data.pop("tenant_id", None)  # 企业 ID 不允许修改
         
         result = await self.update(admin_id, data)
         if not result:
@@ -86930,7 +86930,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        重置密码（租户所有者操作）
+        重置密码（企业所有者操作）
         
         Args:
             admin_id: 管理员 ID
@@ -86982,7 +86982,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
     
     async def _get_tenant_root_node(self) -> TenantAdminRole | None:
         """
-        获取租户的组织架构根节点
+        获取企业的组织架构根节点
         
         Returns:
             根节点实例或 None
@@ -87005,9 +87005,9 @@ __all__ = ["TenantAdminService"]
 
 ```python
 """
-租户套餐服务
+企业套餐服务
 
-提供套餐的业务逻辑（平台级，非租户隔离）
+提供套餐的业务逻辑（平台级，非企业隔离）
 """
 
 import secrets
@@ -87033,10 +87033,10 @@ from app.schemas.tenant.plan import (
 
 class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
     """
-    租户套餐服务
+    企业套餐服务
     
     提供套餐特有的业务方法
-    注意：套餐是平台级数据，不做租户隔离
+    注意：套餐是平台级数据，不做企业隔离
     """
     
     model = TenantPlan
@@ -87192,7 +87192,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         
         Raises:
             NotFoundException: 套餐不存在
-            BusinessException: 套餐正在被租户使用
+            BusinessException: 套餐正在被企业使用
         """
         plan = await self.repo.get_with_tenants(plan_id)
         if not plan:
@@ -87200,7 +87200,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 message=_("tenant_plan.not_found"),
             )
         
-        # 检查是否有租户使用该套餐
+        # 检查是否有企业使用该套餐
         if plan.has_tenants:
             raise BusinessException(
                 message=_("tenant_plan.has_tenants"),
@@ -87333,9 +87333,9 @@ __all__ = ["TenantPlanService"]
 
 ```python
 """
-租户设置服务
+企业设置服务
 
-提供租户设置和自定义域名管理的业务逻辑
+提供企业设置和自定义域名管理的业务逻辑
 """
 
 import secrets
@@ -87357,10 +87357,10 @@ from app.core.base_model import utc_now
 
 class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     """
-    租户设置服务
+    企业设置服务
     
     提供：
-    - 租户设置读取和更新
+    - 企业设置读取和更新
     - 自定义域名 CRUD
     - 域名验证
     
@@ -87376,7 +87376,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         # 注意：这里不调用 super().__init__，因为 TenantRepository 不是 TenantRepository
         # 而是继承自 BaseRepository，不需要 tenant_id
@@ -87384,17 +87384,17 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         self.tenant_id = tenant_id
         self.repo = TenantRepository(db)
     
-    # ==================== 租户设置 ====================
+    # ==================== 企业设置 ====================
     
     async def get_tenant(self) -> Tenant:
         """
-        获取当前租户
+        获取当前企业
         
         Returns:
-            租户实例
+            企业实例
             
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         result = await self.db.execute(
             select(Tenant).where(Tenant.id == self.tenant_id)
@@ -87408,10 +87408,10 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     
     async def get_settings(self) -> dict[str, Any]:
         """
-        获取租户设置
+        获取企业设置
         
         Returns:
-            包含租户设置信息的字典
+            包含企业设置信息的字典
         """
         tenant = await self.get_tenant()
         
@@ -87438,7 +87438,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     
     async def update_settings(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        更新租户设置
+        更新企业设置
         
         Args:
             data: 更新数据（logo_url, favicon_url, theme_color, captcha_enabled, login_methods）
@@ -87757,9 +87757,9 @@ __all__ = ["TenantSettingsService"]
 
 ```python
 """
-租户服务模块
+企业服务模块
 
-提供租户相关的服务
+提供企业相关的服务
 """
 
 from app.services.tenant.attachment_service import AttachmentService
@@ -87795,7 +87795,7 @@ Service 服务层模块
 目录结构:
 - common/: 公共服务（三端共用）
 - system/: 平台管理后台服务
-- tenant/: 租户相关服务
+- tenant/: 企业相关服务
 """
 
 __all__ = []
@@ -87876,8 +87876,8 @@ SEED_TEMPLATES: list[dict] = [
     {
         "code": "system.tenant_welcome",
         "category": "system",
-        "title_template": "租户创建成功",
-        "body_template": "租户 {tenant_name} 已创建成功，管理员 {admin_name} 可前往登录。",
+        "title_template": "企业创建成功",
+        "body_template": "企业 {tenant_name} 已创建成功，管理员 {admin_name} 可前往登录。",
         "channels": ["inbox", "email"],
         "priority": "normal",
     },
@@ -88031,16 +88031,16 @@ SEED_TEMPLATES: list[dict] = [
     {
         "code": "biz.tenant_created",
         "category": "biz",
-        "title_template": "新租户已创建：{tenant_name}",
-        "body_template": "新租户 {tenant_name} 已创建成功。",
+        "title_template": "新企业已创建：{tenant_name}",
+        "body_template": "新企业 {tenant_name} 已创建成功。",
         "channels": ["ws", "inbox"],
         "priority": "normal",
     },
     {
         "code": "biz.tenant_expired",
         "category": "biz",
-        "title_template": "租户套餐即将到期：{tenant_name}",
-        "body_template": "租户 {tenant_name} 的套餐将在 {days_remaining} 天后到期，请及时续费。",
+        "title_template": "企业套餐即将到期：{tenant_name}",
+        "body_template": "企业 {tenant_name} 的套餐将在 {days_remaining} 天后到期，请及时续费。",
         "channels": ["ws", "inbox", "email"],
         "priority": "high",
     },
@@ -88048,7 +88048,7 @@ SEED_TEMPLATES: list[dict] = [
         "code": "biz.plan_changed",
         "category": "biz",
         "title_template": "套餐已变更",
-        "body_template": "租户 {tenant_name} 的套餐已从 {old_plan} 变更为 {new_plan}。",
+        "body_template": "企业 {tenant_name} 的套餐已从 {old_plan} 变更为 {new_plan}。",
         "channels": ["ws", "inbox"],
         "priority": "normal",
     },
@@ -88080,7 +88080,7 @@ SEED_TEMPLATES: list[dict] = [
         "code": "biz.storage_warning",
         "category": "biz",
         "title_template": "存储空间不足警告",
-        "body_template": "租户 {tenant_name} 的存储空间已使用 {usage_percent}%，请清理或扩容。",
+        "body_template": "企业 {tenant_name} 的存储空间已使用 {usage_percent}%，请清理或扩容。",
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
@@ -88238,7 +88238,7 @@ def _presence_key(user_type: str, tenant_id: int | None = None) -> str:
 
     Args:
         user_type: admin / tenant_admin / tenant_user
-        tenant_id: 租户 ID（admin 端为 None）
+        tenant_id: 企业 ID（admin 端为 None）
 
     Returns:
         Redis key，如 presence:admin 或 presence:tenant_admin:5
@@ -90189,7 +90189,7 @@ GET /calendar/rooms
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `room_level_id` | string | 否 | 层级 ID，为空时返回租户所有会议室 |
+| `room_level_id` | string | 否 | 层级 ID，为空时返回企业所有会议室 |
 | `page_size` | int | 否 | 每页数量，默认 20 |
 | `page_token` | string | 否 | 分页标记 |
 
@@ -91496,7 +91496,7 @@ class BaseTask(Task):
 
 class TenantTask(BaseTask):
     """
-    租户隔离任务基类
+    企业隔离任务基类
 
     自动从任务参数中提取 tenant_id 并设置到上下文
     """
@@ -91605,7 +91605,7 @@ def send_email_task(
         cc: 抄送列表
         bcc: 密送列表
         triggered_by: 触发来源 (manual/task_failure/password_reset/test/welcome/ssl_expiry)
-        tenant_id: 关联租户 ID（可选）
+        tenant_id: 关联企业 ID（可选）
 
     Returns:
         发送结果 dict
@@ -91880,7 +91880,7 @@ def send_notification_email(
         html_body: HTML 正文
         text_body: 纯文本正文
         triggered_by: 触发来源（通知模板编码，如 system.password_reset）
-        tenant_id: 关联租户 ID
+        tenant_id: 关联企业 ID
 
     Returns:
         发送结果 dict
@@ -92843,7 +92843,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
     """
     单个平台证书续期
 
-    走 default 队列，由 task_check_ssl_renewals 或管理端/租户端手动触发
+    走 default 队列，由 task_check_ssl_renewals 或管理端/企业端手动触发
     仅 platform 类型可续期
     """
 
@@ -92952,7 +92952,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
 async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | None:
     """
-    从 domain_id 查询域名 + 租户联系邮箱（显式查询，避免 ORM 懒加载）
+    从 domain_id 查询域名 + 企业联系邮箱（显式查询，避免 ORM 懒加载）
 
     Returns:
         {"domain": str, "email": str, "tenant_id": int} 或 None
@@ -93069,7 +93069,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
     errors = 0
     now = utc_now()
 
-    # 遍历所有租户/admin 子目录
+    # 遍历所有企业/admin 子目录
     for tenant_dir in upload_root.iterdir():
         if not tenant_dir.is_dir():
             continue
@@ -93120,7 +93120,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                 )
                 errors += 1
 
-        # 如果租户目录为空，也清理掉
+        # 如果企业目录为空，也清理掉
         try:
             if tenant_dir.exists() and not any(tenant_dir.iterdir()):
                 tenant_dir.rmdir()
@@ -93916,7 +93916,7 @@ from app.models import (
     TaskLog,
     PeriodicTask,
     SystemAgentAssignment,
-    # 租户级模型
+    # 企业级模型
     Tenant,
     TenantAdmin,
     TenantUser,
@@ -94422,7 +94422,7 @@ def downgrade() -> None:
 ﻿# -*- coding: utf-8 -*-
 """add organization root nodes
 
-为平台端和现有租户添加组织架构根节点
+为平台端和现有企业添加组织架构根节点
 
 Revision ID: 0006_org_root
 Revises: bd94c7f44d6c
@@ -94448,7 +94448,7 @@ def upgrade() -> None:
     添加组织架构根节点
     
     1. 为平台端插入默认根节点
-    2. 为现有租户补充根节点
+    2. 为现有企业补充根节点
     """
     conn = op.get_bind()
     
@@ -94518,8 +94518,8 @@ def upgrade() -> None:
                     WHERE id = {root_id}
                 """))
     
-    # ========== 2. 租户端根节点 ==========
-    # 查询所有租户
+    # ========== 2. 企业端根节点 ==========
+    # 查询所有企业
     result = conn.execute(text("""
         SELECT id, name FROM tenants WHERE is_deleted = false
     """))
@@ -94529,7 +94529,7 @@ def upgrade() -> None:
         tenant_id = tenant[0]
         tenant_name = tenant[1]
         
-        # 检查该租户是否已有根节点
+        # 检查该企业是否已有根节点
         result = conn.execute(text(f"""
             SELECT id FROM tenant_admin_roles 
             WHERE tenant_id = {tenant_id} 
@@ -94539,14 +94539,14 @@ def upgrade() -> None:
         tenant_root = result.fetchone()
         
         if not tenant_root:
-            # 插入租户根节点
+            # 插入企业根节点
             conn.execute(text(f"""
                 INSERT INTO tenant_admin_roles (
                     tenant_id, name, code, description, is_system, is_active, sort_order,
                     parent_id, level, type, allow_members,
                     created_at, updated_at, is_deleted
                 ) VALUES (
-                    {tenant_id}, '{tenant_name}', 'tenant_root', '租户组织架构根节点，不可删除',
+                    {tenant_id}, '{tenant_name}', 'tenant_root', '企业组织架构根节点，不可删除',
                     true, true, 0,
                     NULL, 1, 'department', true,
                     NOW(), NOW(), false
@@ -94577,7 +94577,7 @@ def upgrade() -> None:
                       AND is_deleted = false
                 """))
                 
-                # 将租户所有者关联到根节点并设为负责人
+                # 将企业所有者关联到根节点并设为负责人
                 result = conn.execute(text(f"""
                     SELECT id FROM tenant_admins 
                     WHERE tenant_id = {tenant_id}
@@ -94630,7 +94630,7 @@ def downgrade() -> None:
             UPDATE admin_roles SET is_deleted = true WHERE id = {root_id}
         """))
     
-    # 租户端根节点
+    # 企业端根节点
     result = conn.execute(text("""
         SELECT id, tenant_id FROM tenant_admin_roles 
         WHERE code = 'tenant_root' AND is_deleted = false
@@ -94742,7 +94742,7 @@ def upgrade() -> None:
     op.create_table('system_config_values',
     sa.Column('config_id', sa.Integer(), nullable=False, comment='配置项 ID'),
     sa.Column('value', sa.Text(), nullable=True, comment='配置值（JSON 字符串存储）'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
@@ -94823,18 +94823,18 @@ SETTINGS_MAPPING = {
 
 
 def upgrade() -> None:
-    """Upgrade: 迁移租户设置数据到新配置表."""
+    """Upgrade: 迁移企业设置数据到新配置表."""
     bind = op.get_bind()
     session = Session(bind=bind)
     
     try:
-        # 获取所有租户及其设置
+        # 获取所有企业及其设置
         tenants = session.execute(
             sa.text("SELECT id, settings FROM tenants WHERE settings IS NOT NULL")
         ).fetchall()
         
         if not tenants:
-            print("没有需要迁移的租户设置数据")
+            print("没有需要迁移的企业设置数据")
             return
         
         # 获取配置 ID 映射
@@ -94862,7 +94862,7 @@ def upgrade() -> None:
                 try:
                     settings = json.loads(settings_json)
                 except json.JSONDecodeError:
-                    print(f"租户 {tenant_id} 的 settings 解析失败，跳过")
+                    print(f"企业 {tenant_id} 的 settings 解析失败，跳过")
                     continue
             else:
                 settings = settings_json
@@ -94999,8 +94999,8 @@ def upgrade() -> None:
                existing_nullable=True)
     op.alter_column('tenants', 'settings',
                existing_type=postgresql.JSON(astext_type=sa.Text()),
-               comment='租户设置(已废弃)',
-               existing_comment='租户设置',
+               comment='企业设置(已废弃)',
+               existing_comment='企业设置',
                existing_nullable=True)
     op.create_index(op.f('ix_tenants_plan_id'), 'tenants', ['plan_id'], unique=False)
     op.create_foreign_key('fk_tenants_plan_id', 'tenants', 'tenant_plans', ['plan_id'], ['id'], ondelete='SET NULL')
@@ -95014,8 +95014,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_tenants_plan_id'), table_name='tenants')
     op.alter_column('tenants', 'settings',
                existing_type=postgresql.JSON(astext_type=sa.Text()),
-               comment='租户设置',
-               existing_comment='租户设置(已废弃)',
+               comment='企业设置',
+               existing_comment='企业设置(已废弃)',
                existing_nullable=True)
     op.alter_column('tenants', 'quota',
                existing_type=postgresql.JSON(astext_type=sa.Text()),
@@ -95066,7 +95066,7 @@ def upgrade() -> None:
     """Upgrade database schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.create_table('operation_logs',
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户ID（平台操作为空）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业ID（平台操作为空）'),
     sa.Column('user_type', sa.String(length=20), nullable=False, comment='用户类型'),
     sa.Column('user_id', sa.Integer(), nullable=True, comment='用户ID'),
     sa.Column('username', sa.String(length=100), nullable=True, comment='用户名'),
@@ -95311,7 +95311,7 @@ def upgrade() -> None:
     op.create_table(
         "attachments",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("tenant_id", sa.Integer(), nullable=False, index=True, comment="租户ID"),
+        sa.Column("tenant_id", sa.Integer(), nullable=False, index=True, comment="企业ID"),
         sa.Column("name", sa.String(length=255), nullable=False, comment="文件名"),
         sa.Column("original_name", sa.String(length=255), nullable=True, comment="原始文件名"),
         sa.Column("path", sa.String(length=500), nullable=False, comment="存储路径"),
@@ -95495,7 +95495,7 @@ def upgrade() -> None:
         sa.Column("finished_at", sa.DateTime(), nullable=True, comment="完成时间"),
         sa.Column("duration_ms", sa.Integer(), nullable=True, comment="耗时(毫秒)"),
         sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0", comment="重试次数"),
-        sa.Column("tenant_id", sa.Integer(), nullable=True, comment="租户ID(可选)"),
+        sa.Column("tenant_id", sa.Integer(), nullable=True, comment="企业ID(可选)"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now(), comment="创建时间"),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now(), comment="更新时间"),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false", index=True, comment="软删除标记"),
@@ -95588,7 +95588,7 @@ def upgrade() -> None:
             sa.Integer(),
             sa.ForeignKey("tenants.id", ondelete="CASCADE"),
             nullable=True,
-            comment="所属租户ID（NULL表示平台级任务）",
+            comment="所属企业ID（NULL表示平台级任务）",
         ),
     )
     op.create_index("ix_periodic_tasks_tenant_id", "periodic_tasks", ["tenant_id"])
@@ -95982,7 +95982,7 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=50), nullable=False, comment='执行状态'),
     sa.Column('error_message', sa.Text(), nullable=True, comment='错误信息'),
     sa.Column('duration_ms', sa.Integer(), nullable=True, comment='执行耗时（毫秒）'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
@@ -96114,7 +96114,7 @@ def upgrade() -> None:
     sa.Column('error_message', sa.Text(), nullable=True, comment='错误信息'),
     sa.Column('duration_ms', sa.Integer(), nullable=True, comment='执行耗时(ms)'),
     sa.Column('confidence', sa.String(length=20), nullable=True, comment='置信度'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
@@ -96258,7 +96258,7 @@ def upgrade() -> None:
         'ai_table_policies', ['table_name'], unique=True,
     )
 
-    # ai_table_policy_overrides - AI 表策略租户级覆盖
+    # ai_table_policy_overrides - AI 表策略企业级覆盖
     op.create_table(
         'ai_table_policy_overrides',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -96270,7 +96270,7 @@ def upgrade() -> None:
         sa.Column('max_rows', sa.Integer(), nullable=True, comment='覆盖最大行数'),
         sa.Column('blocked_columns', sa.JSON(), nullable=True, comment='追加屏蔽列'),
         sa.Column('is_active', sa.Boolean(), nullable=True, comment='覆盖启用状态'),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
         sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
@@ -96387,7 +96387,7 @@ def upgrade() -> None:
         ))
         op.add_column(table, sa.Column(
             'delete_level', sa.String(length=20), nullable=True,
-            comment='删除层级: tenant=租户回收站, admin=管理端回收站',
+            comment='删除层级: tenant=企业回收站, admin=管理端回收站',
         ))
 
 
@@ -96424,7 +96424,7 @@ def upgrade() -> None:
     """Upgrade database schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.create_table('skills',
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
     sa.Column('name', sa.String(length=100), nullable=False, comment='技能名称'),
     sa.Column('description', sa.Text(), nullable=True, comment='技能描述'),
     sa.Column('avatar', sa.String(length=255), nullable=True, comment='技能图标'),
@@ -96441,7 +96441,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_skills_id'), 'skills', ['id'], unique=False)
@@ -96454,7 +96454,7 @@ def upgrade() -> None:
     op.create_index('ix_skills_tenant_type', 'skills', ['tenant_id', 'type'], unique=False)
     op.create_index(op.f('ix_skills_type'), 'skills', ['type'], unique=False)
     op.create_table('agent_skill_bindings',
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户ID（跟随 Agent 的 tenant_id）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业ID（跟随 Agent 的 tenant_id）'),
     sa.Column('agent_id', sa.Integer(), nullable=False, comment='智能体ID'),
     sa.Column('skill_id', sa.Integer(), nullable=False, comment='技能ID'),
     sa.Column('enabled', sa.Boolean(), nullable=False, comment='启用状态'),
@@ -96465,7 +96465,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['agent_id'], ['agents.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['skill_id'], ['skills.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -96611,10 +96611,10 @@ def upgrade() -> None:
 
     op.create_table(
         'tenant_plugins',
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('plugin_id', sa.Integer(), nullable=False, comment='插件 ID'),
         sa.Column('is_active', sa.Boolean(), nullable=False, comment='是否启用'),
-        sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='租户自定义配置'),
+        sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='企业自定义配置'),
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
@@ -96730,7 +96730,7 @@ def upgrade() -> None:
     op.create_table(
         'skill_packages',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
+        sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业ID（scope=tenant 时必填，scope=admin 时为 NULL）'),
         sa.Column('name', sa.String(100), nullable=False, comment='技能包名称'),
         sa.Column('description', sa.Text(), nullable=True, comment='技能包描述'),
         sa.Column('avatar', sa.String(255), nullable=True, comment='技能包图标'),
@@ -96899,7 +96899,7 @@ Insert preset Skill seed data for out-of-the-box usage.
 
 Seed skills (scope=admin, globally available):
 1. 平台数据管理 (data_intelligence) - full CRUD for platform admins
-2. 租户数据查询 (data_intelligence) - read-only for tenants
+2. 企业数据查询 (data_intelligence) - read-only for tenants
 
 Revision ID: b2c3d4e5f6a7
 Revises: a1b2c3d4e5f6
@@ -96935,8 +96935,8 @@ SEED_SKILLS = [
         "sort_order": 1,
     },
     {
-        "name": "租户数据查询",
-        "description": "租户的只读数据查询技能，仅支持查询操作",
+        "name": "企业数据查询",
+        "description": "企业的只读数据查询技能，仅支持查询操作",
         "type": "data_intelligence",
         "scope": "admin",
         "config": {
@@ -100221,7 +100221,7 @@ AGENT_WELCOME_DATA = [
         "name": "数据分析助手",
         "welcome_message": "你好！我可以直接查询和分析系统中的数据。你可以用自然语言告诉我你想了解什么，我会帮你查询并分析结果。",
         "suggested_questions": [
-            "查看系统中有多少个租户",
+            "查看系统中有多少个企业",
             "统计最近 7 天的 AI 调用次数",
             "列出最近创建的 10 条操作日志",
         ],
@@ -100290,7 +100290,7 @@ def upgrade() -> None:
     """Upgrade database schema."""
     op.create_table('domain_ssl_certificates',
     sa.Column('domain_id', sa.Integer(), nullable=False, comment='域名 ID'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
     sa.Column('cert_type', sa.String(length=20), nullable=False, comment='证书类型: platform(ACME自动签发) / custom(用户上传)'),
     sa.Column('status', sa.String(length=20), nullable=False, comment='证书状态: pending/active/expired/revoked/failed'),
     sa.Column('certificate', sa.Text(), nullable=True, comment='PEM 格式证书内容'),
@@ -100309,7 +100309,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['domain_id'], ['tenant_domains.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -100370,13 +100370,13 @@ def upgrade() -> None:
     sa.Column('triggered_by', sa.String(), nullable=False, comment='触发来源（manual/task_failure/password_reset/test/welcome/ssl_expiry）'),
     sa.Column('error_message', sa.Text(), nullable=True, comment='错误信息'),
     sa.Column('sent_at', sa.DateTime(), nullable=True, comment='实际发送时间'),
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='关联租户ID（可选）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='关联企业ID（可选）'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -100428,7 +100428,7 @@ def upgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.create_table('plugin_tenant_assignments',
     sa.Column('plugin_id', sa.Integer(), nullable=False, comment='插件 ID'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
     sa.Column('assigned_by', sa.Integer(), nullable=True, comment='分配操作的管理员 ID'),
     sa.Column('assigned_at', sa.DateTime(), nullable=False, comment='分配时间'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -100436,7 +100436,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['assigned_by'], ['admins.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
@@ -100501,7 +100501,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_type', 'user_id', 'category', name='uq_notification_pref')
     )
@@ -100515,13 +100515,13 @@ def upgrade() -> None:
     sa.Column('channels', postgresql.ARRAY(sa.String(length=20)), nullable=True, comment='投递渠道'),
     sa.Column('priority', sa.String(length=20), nullable=False, comment='优先级: low/normal/high/urgent'),
     sa.Column('is_system', sa.Boolean(), nullable=False, comment='是否系统内置'),
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户 ID（NULL=系统级）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业 ID（NULL=系统级）'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
     )
@@ -100530,7 +100530,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_notification_templates_is_deleted'), 'notification_templates', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_notification_templates_tenant_id'), 'notification_templates', ['tenant_id'], unique=False)
     op.create_table('notifications',
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='租户 ID（NULL=平台级）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='企业 ID（NULL=平台级）'),
     sa.Column('recipient_type', sa.String(length=20), nullable=False, comment='接收人类型: admin/tenant_admin/tenant_user'),
     sa.Column('recipient_id', sa.Integer(), nullable=False, comment='接收人 ID'),
     sa.Column('template_code', sa.String(length=100), nullable=False, comment='通知模板编码'),
@@ -100548,7 +100548,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_notifications_recipient', 'notifications', ['recipient_type', 'recipient_id', 'is_read'], unique=False)
@@ -101206,7 +101206,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -101226,7 +101226,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -101243,7 +101243,7 @@ def upgrade() -> None:
     op.drop_index(op.f('ix_plugin_migrations_plugin_name'), table_name='plugin_migrations')
     op.drop_table('plugin_migrations')
     op.add_column('plugin_tenant_assignments', sa.Column('is_active', sa.Boolean(), nullable=False, comment='是否启用'))
-    op.add_column('plugin_tenant_assignments', sa.Column('config', sa.JSON(), nullable=False, comment='租户级配置'))
+    op.add_column('plugin_tenant_assignments', sa.Column('config', sa.JSON(), nullable=False, comment='企业级配置'))
     op.alter_column('plugin_tenant_assignments', 'plugin_id',
                existing_type=sa.INTEGER(),
                comment='插件ID',
@@ -101251,8 +101251,8 @@ def upgrade() -> None:
                existing_nullable=False)
     op.alter_column('plugin_tenant_assignments', 'tenant_id',
                existing_type=sa.INTEGER(),
-               comment='租户ID',
-               existing_comment='租户 ID',
+               comment='企业ID',
+               existing_comment='企业 ID',
                existing_nullable=False)
     op.drop_constraint(op.f('uq_plugin_tenant_assignments_plugin_tenant'), 'plugin_tenant_assignments', type_='unique')
     op.create_unique_constraint('uq_plugin_tenant', 'plugin_tenant_assignments', ['plugin_id', 'tenant_id'])
@@ -101468,8 +101468,8 @@ def downgrade() -> None:
     op.create_unique_constraint(op.f('uq_plugin_tenant_assignments_plugin_tenant'), 'plugin_tenant_assignments', ['plugin_id', 'tenant_id'], postgresql_nulls_not_distinct=False)
     op.alter_column('plugin_tenant_assignments', 'tenant_id',
                existing_type=sa.INTEGER(),
-               comment='租户 ID',
-               existing_comment='租户ID',
+               comment='企业 ID',
+               existing_comment='企业ID',
                existing_nullable=False)
     op.alter_column('plugin_tenant_assignments', 'plugin_id',
                existing_type=sa.INTEGER(),
@@ -101490,7 +101490,7 @@ def downgrade() -> None:
     sa.Column('updated_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.PrimaryKeyConstraint('id', name=op.f('plugin_migrations_pkey')),
     sa.UniqueConstraint('plugin_name', 'version', name=op.f('uq_plugin_migrations_name_version'), postgresql_include=[], postgresql_nulls_not_distinct=False)
     )
@@ -101498,16 +101498,16 @@ def downgrade() -> None:
     op.create_index(op.f('ix_plugin_migrations_is_deleted'), 'plugin_migrations', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_plugin_migrations_id'), 'plugin_migrations', ['id'], unique=False)
     op.create_table('tenant_plugins',
-    sa.Column('tenant_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='租户 ID'),
+    sa.Column('tenant_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='企业 ID'),
     sa.Column('plugin_id', sa.INTEGER(), autoincrement=False, nullable=False, comment='插件 ID'),
     sa.Column('is_active', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='是否启用'),
-    sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True, comment='租户自定义配置（覆盖插件默认配置）'),
+    sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True, comment='企业自定义配置（覆盖插件默认配置）'),
     sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
     sa.Column('created_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='创建时间'),
     sa.Column('updated_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.BOOLEAN(), autoincrement=False, nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.VARCHAR(length=20), autoincrement=False, nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], name=op.f('tenant_plugins_plugin_id_fkey'), ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], name=op.f('tenant_plugins_tenant_id_fkey'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('tenant_plugins_pkey')),
@@ -101727,11 +101727,11 @@ def upgrade() -> None:
         sa.Column("resource_id", sa.Integer(), nullable=False,
                   comment="资源 ID"),
         sa.Column("tenant_id", sa.Integer(), nullable=False,
-                  comment="被分配的租户 ID"),
+                  comment="被分配的企业 ID"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true"),
                   comment="是否启用"),
         sa.Column("config", sa.JSON(), nullable=True,
-                  comment="租户级配置（可选）"),
+                  comment="企业级配置（可选）"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
@@ -104329,7 +104329,7 @@ def _escape_html(text: str) -> str:
 NovusDoc 文档服务
 
 负责文档 CRUD 业务逻辑、content_text 同步、软删除。
-通过 PluginContext 获取 DB 和租户信息。
+通过 PluginContext 获取 DB 和企业信息。
 """
 
 from __future__ import annotations
@@ -109209,7 +109209,7 @@ extensions:
         icon: "lucide:file-text"
         sort_order: 30
         scope: "all_tenants"
-        parent: "tenant_workspace"  # 默认挂载到租户工作台（管理员可覆盖）
+        parent: "tenant_workspace"  # 默认挂载到企业工作台（管理员可覆盖）
         title:
           zh-CN: "文档"
           en: "Documents"
@@ -109338,7 +109338,7 @@ NovusAI 平台的现代化 AI 富文本编辑器插件（免费社区版）。
 
 1. 管理后台 → 插件 → 上传 `novusdoc.zip`
 2. 点击 **启用**
-3. 分配给租户（scope: `assigned_tenants`）
+3. 分配给企业（scope: `assigned_tenants`）
 
 ## Development
 
@@ -109420,7 +109420,7 @@ NovusAI 平台的现代化 AI 富文本编辑器插件（免费社区版）。
 
 1. 管理后台 → 插件 → 上传 `novusdoc.zip`
 2. 点击 **启用**
-3. 分配给租户（scope: `assigned_tenants`）
+3. 分配给企业（scope: `assigned_tenants`）
 
 ## 开发
 
@@ -110827,13 +110827,13 @@ async def verify_document_exists(
     doc_id: int,
 ) -> bool:
     """
-    校验 novusdoc 文档是否存在且属于指定租户。
+    校验 novusdoc 文档是否存在且属于指定企业。
 
     通过插件模块加载器跨插件调用 novusdoc 的 get_document。
     若 novusdoc 插件不可用，降级为直接查询文档表。
 
     Returns:
-        True = 文档存在且属于该租户, False = 不存在/不属于
+        True = 文档存在且属于该企业, False = 不存在/不属于
     """
     # 方式 1：通过插件模块加载器调用 novusdoc service
     try:
@@ -111908,7 +111908,7 @@ NovusDoc 商业扩展插件，为 NovusDoc 编辑器增加实时协作、评论�
 1. 确保 `novusdoc` 插件已安装并启用（依赖）
 2. 管理后台 → 插件 → 上传 `novusdoc-pro.zip`
 3. 点击 **启用**
-4. 分配给租户（scope: `assigned_tenants`）
+4. 分配给企业（scope: `assigned_tenants`）
 
 ## Architecture
 
@@ -111965,7 +111965,7 @@ NovusDoc 商业扩展插件，为 NovusDoc 编辑器增加实时协作、评论�
 1. 确保 `novusdoc` 插件已安装并启用（前置依赖）
 2. 管理后台 → 插件 → 上传 `novusdoc-pro.zip`
 3. 点击 **启用**
-4. 分配给租户（scope: `assigned_tenants`）
+4. 分配给企业（scope: `assigned_tenants`）
 
 ## 架构
 
@@ -114893,7 +114893,7 @@ export interface ImpactAnalysis {
       "concurrency": "并发数",
       "scope": "迁移范围",
       "scope_all": "全部文件",
-      "scope_tenant": "租户 {id} 的文件",
+      "scope_tenant": "企业 {id} 的文件",
       "started_at": "开始时间",
       "completed_at": "完成时间"
     },
@@ -119694,8 +119694,8 @@ API 测试运行入口
     TEST_API_BASE_URL=http://localhost:8000  # API 基础地址
     TEST_ADMIN_USERNAME=admin                # 平台管理员用户名
     TEST_ADMIN_PASSWORD=admin123456          # 平台管理员密码
-    TEST_TENANT_ADMIN_USERNAME=              # 租户管理员用户名
-    TEST_TENANT_ADMIN_PASSWORD=              # 租户管理员密码
+    TEST_TENANT_ADMIN_USERNAME=              # 企业管理员用户名
+    TEST_TENANT_ADMIN_PASSWORD=              # 企业管理员密码
     TEST_LANGUAGE=zh-cn                      # 语言设置
 """
 import sys
@@ -119740,7 +119740,7 @@ def run_admin_tests() -> list[TestReport]:
 
 
 def run_tenant_tests() -> list[TestReport]:
-    """运行租户管理端测试"""
+    """运行企业管理端测试"""
     reports = []
     
     # Tenant Auth
@@ -119830,7 +119830,7 @@ def main():
     if args.module in ("tenant", "all"):
         print("\n")
         print("=" * 70)
-        print("🏢 租户管理端测试")
+        print("🏢 企业管理端测试")
         print("=" * 70)
         tenant_reports = run_tenant_tests()
         for report in tenant_reports:
@@ -119857,10 +119857,10 @@ API 测试包
 - test_admin_permissions: 平台权限管理
 - test_admin_roles: 平台角色管理
 - test_admin_admins: 平台管理员管理
-- test_admin_tenants: 租户管理
-- test_tenant_auth: 租户管理员认证
-- test_tenant_roles: 租户角色管理
-- test_tenant_admins: 租户管理员管理
+- test_admin_tenants: 企业管理
+- test_tenant_auth: 企业管理员认证
+- test_tenant_roles: 企业角色管理
+- test_tenant_admins: 企业管理员管理
 """
 ```
 
@@ -120202,7 +120202,7 @@ class TestAdminQuery:
 """
 AnalyticsService + TenantAnalyticsService 单元测试
 
-覆盖：调用趋势、模型分布、供应商性能、租户排行、延迟分布、成功率趋势。
+覆盖：调用趋势、模型分布、供应商性能、企业排行、延迟分布、成功率趋势。
 """
 
 from __future__ import annotations
@@ -121748,7 +121748,7 @@ class TestSkillValvesConfig:
 """
 TenantService 单元测试
 
-覆盖：租户 CRUD、状态变更、配额检查、slug 唯一性。
+覆盖：企业 CRUD、状态变更、配额检查、slug 唯一性。
 """
 
 from __future__ import annotations
@@ -124599,43 +124599,43 @@ networks:
 
 ---
 
-## 二、作用域与多租户体系
+## 二、作用域与多企业体系
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    ResourceScopeEnum 作用域枚举                │
 ├─────────┬────────────────────────────────────────────────────┤
 │  tenant │ tenant_id = X（必填）                               │
-│  租户级  │ 仅该租户可见                                        │
-│         │ 租户可完全增删改查                                    │
+│  企业级  │ 仅该企业可见                                        │
+│         │ 企业可完全增删改查                                    │
 ├─────────┼────────────────────────────────────────────────────┤
 │  admin  │ tenant_id = NULL                                    │
 │  管理级  │ 仅管理端可见                                        │
-│         │ 租户可绑定使用（只读），可通过"从模板克隆"复制为自有    │
+│         │ 企业可绑定使用（只读），可通过"从模板克隆"复制为自有    │
 ├─────────┼────────────────────────────────────────────────────┤
 │  global │ tenant_id = NULL                                    │
-│  全局级  │ 全平台可见（管理端 + 所有租户）                       │
-│         │ 自动包含在租户的列表查询中                             │
+│  全局级  │ 全平台可见（管理端 + 所有企业）                       │
+│         │ 自动包含在企业的列表查询中                             │
 └─────────┴────────────────────────────────────────────────────┘
 ```
 
 ### 可见性规则（源自 Repository 代码）
 
-**租户端** (`SkillPackageRepository.query_list`)：
+**企业端** (`SkillPackageRepository.query_list`)：
 ```python
-WHERE (tenant_id = :当前租户ID) OR (scope = 'global')
+WHERE (tenant_id = :当前企业ID) OR (scope = 'global')
 ```
 
-**租户端绑定下拉** (`get_available_for_binding`)：
+**企业端绑定下拉** (`get_available_for_binding`)：
 ```python
 WHERE is_active AND NOT is_deleted AND (
-    tenant_id = :当前租户ID                          -- 自有包
+    tenant_id = :当前企业ID                          -- 自有包
     OR (tenant_id IS NULL AND scope IN ('admin', 'global'))  -- 共享包
 )
 ```
 
 **管理端** (`AdminSkillPackageRepository` / `BaseRepository`)：
-- 无租户过滤 — 可查看**所有租户**、**所有作用域**的技能包。
+- 无企业过滤 — 可查看**所有企业**、**所有作用域**的技能包。
 
 ---
 
@@ -124681,7 +124681,7 @@ WHERE is_active AND NOT is_deleted AND (
     ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  AgentChatService / API 控制器                               │
-│  （租户端/管理端接收用户消息）                                │
+│  （企业端/管理端接收用户消息）                                │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -124838,17 +124838,17 @@ resolve_for_agent(db, agent, tenant_id)
 
 ---
 
-## 六、管理端 vs 租户端 — 完整对比
+## 六、管理端 vs 企业端 — 完整对比
 
 ### 6.1 后端架构差异
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────────────┐
-│         管理端 (Admin)            │          租户端 (Tenant)              │
+│         管理端 (Admin)            │          企业端 (Tenant)              │
 ├──────────────────────────────────┼──────────────────────────────────────┤
 │ 控制器：                          │ 控制器：                              │
 │   GlobalController               │   TenantController                   │
-│   （无租户隔离）                   │   （自动注入 tenant_id）              │
+│   （无企业隔离）                   │   （自动注入 tenant_id）              │
 │                                  │                                      │
 │ 服务层：                          │ 服务层：                              │
 │   AdminSkillPackageService       │   SkillPackageService                │
@@ -124869,7 +124869,7 @@ resolve_for_agent(db, agent, tenant_id)
 │                                  │                                      │
 │ 删除层级：                        │ 删除层级：                            │
 │   _default_delete_level='admin'  │   _default_delete_level='tenant'     │
-│   （直接进入管理端回收站）         │   （先进租户回收站，可升级到管理端）    │
+│   （直接进入管理端回收站）         │   （先进企业回收站，可升级到管理端）    │
 └──────────────────────────────────┴──────────────────────────────────────┘
 ```
 
@@ -124877,10 +124877,10 @@ resolve_for_agent(db, agent, tenant_id)
 
 ```
 ┌───────────────────────┬──────────────────────────┬──────────────────────────┐
-│ 功能                   │ 管理端 (/admin/...)       │ 租户端 (/tenant/...)      │
+│ 功能                   │ 管理端 (/admin/...)       │ 企业端 (/tenant/...)      │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 技能包列表             │ GET  /ai/skill-packages  │ GET  /ai/skill-packages  │
-│                       │ （所有作用域、所有租户）    │ （仅本租户 + global 包）  │
+│                       │ （所有作用域、所有企业）    │ （仅本企业 + global 包）  │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 下拉选项               │ GET  .../select          │ GET  .../select          │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
@@ -124888,7 +124888,7 @@ resolve_for_agent(db, agent, tenant_id)
 │                       │                          │ （自有 + admin + global）  │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 创建                   │ POST（任意作用域，        │ POST（仅 tenant 作用域）  │
-│                       │  可指定 tenant_id）        │ tenant_id=当前租户       │
+│                       │  可指定 tenant_id）        │ tenant_id=当前企业       │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 上传 ZIP 安装          │ POST .../upload          │ POST .../upload          │
 │                       │ scope=admin              │ scope=tenant             │
@@ -124899,7 +124899,7 @@ resolve_for_agent(db, agent, tenant_id)
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 从模板克隆             │ —                        │ POST .../from-template/  │
 │                       │                          │  {id}                    │
-│                       │                          │ （admin/global → 租户自有）│
+│                       │                          │ （admin/global → 企业自有）│
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 导出                   │ GET .../{id}/export      │ —                        │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
@@ -124913,7 +124913,7 @@ resolve_for_agent(db, agent, tenant_id)
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
 │ 切换启用状态           │ PUT .../{id}/status      │ —                        │
 ├───────────────────────┼──────────────────────────┼──────────────────────────┤
-│ 回收站                 │ 管理端级别路由            │ 租户端级别路由            │
+│ 回收站                 │ 管理端级别路由            │ 企业端级别路由            │
 └───────────────────────┴──────────────────────────┴──────────────────────────┘
 ```
 
@@ -124925,10 +124925,10 @@ resolve_for_agent(db, agent, tenant_id)
 - `scope=admin` 或 `scope=global` 时，自动设置 `tenant_id=NULL`
 - 名称唯一性在**同一 scope + tenant_id** 范围内检查
 
-**租户端** (`SkillPackageService._before_create`)：
+**企业端** (`SkillPackageService._before_create`)：
 - **只能**创建 `scope=tenant` 的技能包
 - `tenant_id` 由 `TenantService` 自动注入
-- 名称唯一性仅在本租户范围内检查
+- 名称唯一性仅在本企业范围内检查
 - **不能**创建 `is_system=True` 的技能包
 
 ---
@@ -124938,7 +124938,7 @@ resolve_for_agent(db, agent, tenant_id)
 ```
 is_system = True（系统技能包标记）
     │
-    ├─ 不可删除（管理端和租户端 Service 均检查）
+    ├─ 不可删除（管理端和企业端 Service 均检查）
     ├─ 不可修改以下字段：scope、is_system、is_active
     ├─ 前端：删除按钮隐藏、状态切换开关禁用
     ├─ 前端：显示紫色「系统」徽章
@@ -124959,12 +124959,12 @@ is_system = True（系统技能包标记）
 │                                                               │
 │  创建                                                         │
 │  ├─ 管理端：API 创建 + ZIP 上传 + JSON 导入 + 克隆           │
-│  ├─ 租户端：API 创建 + ZIP 上传 + 从模板克隆                  │
+│  ├─ 企业端：API 创建 + ZIP 上传 + 从模板克隆                  │
 │                                                               │
 │  绑定到智能体                                                  │
 │  ├─ 创建 AgentSkillBinding(agent_id, package_id)              │
 │  ├─ 可选：config_override（配置覆盖）、consent_mode（授权模式）│
-│  └─ 租户可使用：自有包 + admin 共享包 + global 全局包          │
+│  └─ 企业可使用：自有包 + admin 共享包 + global 全局包          │
 │                                                               │
 │  AI 执行                                                      │
 │  ├─ Dispatcher 调用 resolve_for_agent()                       │
@@ -124973,7 +124973,7 @@ is_system = True（系统技能包标记）
 │  └─ Sandbox 按 tool_type 路由到对应执行器                      │
 │                                                               │
 │  删除（两级回收站）                                            │
-│  ├─ 租户删除 → delete_level='tenant'（进入租户回收站）         │
+│  ├─ 企业删除 → delete_level='tenant'（进入企业回收站）         │
 │  │   └─ 级联：技能软删除、绑定物理删除                         │
 │  ├─ 管理端升级 → delete_level='admin'（进入管理端回收站）      │
 │  ├─ 永久删除 → 物理删除 + 清理磁盘存储文件                     │
@@ -125023,7 +125023,7 @@ is_system = True（系统技能包标记）
 ### 服务层 / 仓库层
 | 文件 | 说明 |
 |---|---|
-| `backend/app/services/ai/skill_package_service.py` | SkillPackageService（租户）+ AdminSkillPackageService（全局） |
+| `backend/app/services/ai/skill_package_service.py` | SkillPackageService（企业）+ AdminSkillPackageService（全局） |
 | `backend/app/repositories/ai/skill_package_repository.py` | 仓库 + 级联 Mixin + 作用域感知查询 |
 
 ### API 控制器
@@ -125040,9 +125040,9 @@ is_system = True（系统技能包标记）
 2. **SkillResolver 是唯一桥梁** — 连接 ORM 模型和 AI 引擎运行时（ToolDefinition）。
 3. **resolve_for_agent() 在 Dispatcher 层调用**，不在 Engine 内部 — Engine 接收已解析好的 `SkillResolveResult`。
 4. **knowledge_base 类型技能产生 0 个 ToolDefinition** — 通过 RAG 管线注入上下文到 system_prompt。
-5. **作用域创建后不可变** — 不能将租户包改为管理包或反之。
+5. **作用域创建后不可变** — 不能将企业包改为管理包或反之。
 6. **系统技能包/技能**（is_system=True）不可删除、禁用，scope/is_system 字段不可修改。
-7. **租户可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
+7. **企业可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
 8. **删除级联规则**：删除技能包 → 软删除所有子技能 + 物理删除所有 AgentSkillBinding。
 9. **Valves 环境配置**存储在技能包级别，解析时注入到每个工具的 config 中（键名 `_valves_config`）。
 ````
@@ -125095,20 +125095,20 @@ backend/
 │   │   └── logging.py             # 分类日志 LogManager
 │   ├── api/                       # 路由层（按作用域分）
 │   │   ├── admin/                 # 平台管理 /admin/*
-│   │   ├── tenant/                # 租户管理 /tenant/*
+│   │   ├── tenant/                # 企业管理 /tenant/*
 │   │   ├── public/                # 公开接口 /api/public/*
 │   │   └── v1/                    # 业务 API  /api/v1/*
 │   ├── services/                  # 业务逻辑
 │   │   ├── common/                # 跨域共享服务
 │   │   ├── system/                # 平台级服务
-│   │   └── tenant/                # 租户级服务
+│   │   └── tenant/                # 企业级服务
 │   ├── repositories/              # 数据访问层
 │   │   ├── system/
 │   │   └── tenant/
 │   ├── models/                    # ORM 模型
 │   │   ├── auth/                  # 角色、权限
 │   │   ├── system/                # 管理员、配置、操作日志
-│   │   └── tenant/                # 租户、附件、套餐、域名
+│   │   └── tenant/                # 企业、附件、套餐、域名
 │   ├── schemas/                   # Pydantic Schema
 │   │   ├── common/                # 通用（查询、选项、排序）
 │   │   ├── public/
@@ -125147,19 +125147,19 @@ backend/
 
 ---
 
-## 多租户体系
+## 多企业体系
 
-项目为 SaaS 架构，每层均有租户专用基类：
+项目为 SaaS 架构，每层均有企业专用基类：
 
-| 基类 | 租户版 | 区别 |
+| 基类 | 企业版 | 区别 |
 |------|--------|------|
 | `BaseModel` | `TenantModel` | 自动带 `tenant_id` 字段 |
 | `BaseRepository` | `TenantRepository` | 查询自动注入 `tenant_id` 过滤 |
-| `BaseService` | `TenantService` | 自动获取并注入租户上下文 |
-| `BaseController` | `TenantController` | 自动解析租户上下文 |
-| — | `GlobalController` | 平台管理员专用，无租户隔离 |
+| `BaseService` | `TenantService` | 自动获取并注入企业上下文 |
+| `BaseController` | `TenantController` | 自动解析企业上下文 |
+| — | `GlobalController` | 平台管理员专用，无企业隔离 |
 
-租户识别方式：中间件从 `Host` 请求头解析子域名或自定义域名。
+企业识别方式：中间件从 `Host` 请求头解析子域名或自定义域名。
 
 ---
 
@@ -125215,7 +125215,7 @@ class NoticeResponse(BaseResponseSchema):
 > - `BaseCreateSchema` — 创建请求
 > - `BaseUpdateSchema` — 更新请求
 > - `BaseResponseSchema` — 通用响应（含 id, created_at, updated_at）
-> - `TenantResponseSchema` — 租户级响应（额外含 tenant_id）
+> - `TenantResponseSchema` — 企业级响应（额外含 tenant_id）
 > - `PageResponse` — 分页响应泛型
 
 ### 3. Repository `app/repositories/tenant/notice_repository.py`
@@ -125405,11 +125405,11 @@ class NoticeController(TenantController):
 | `CurrentAdmin` | 当前平台管理员（含未激活） |
 | `ActiveAdmin` | 当前活跃平台管理员 |
 | `SuperAdmin` | 超级管理员 |
-| `CurrentTenantAdmin` | 当前租户管理员（含未激活） |
-| `ActiveTenantAdmin` | 当前活跃租户管理员 |
-| `TenantOwner` | 租户所有者 |
-| `CurrentTenantUser` | 当前租户用户（含未激活） |
-| `ActiveTenantUser` | 当前活跃租户用户 |
+| `CurrentTenantAdmin` | 当前企业管理员（含未激活） |
+| `ActiveTenantAdmin` | 当前活跃企业管理员 |
+| `TenantOwner` | 企业所有者 |
+| `CurrentTenantUser` | 当前企业用户（含未激活） |
+| `ActiveTenantUser` | 当前活跃企业用户 |
 | `QueryParams` | JSON:API 查询参数 |
 
 ```python
@@ -125715,7 +125715,7 @@ class MyPlugin(PluginBase):
 
 ```python
 config = await ctx.get_config()                         # 读取配置（自动解密敏感字段）
-tenant_config = await ctx.get_tenant_config(tenant_id) # 读取租户配置
+tenant_config = await ctx.get_tenant_config(tenant_id) # 读取企业配置
 await ctx.update_config(config)                         # 更新配置（需 config:write）
 db = ctx.get_db()                                       # 获取 DB 代理（需 db:own_tables）
 logger = ctx.get_logger()                               # 获取专属 Logger
@@ -125883,15 +125883,15 @@ python -m pytest tests/test_plugin_api_dispatcher_security.py tests/test_plugin_
   - weather-widget 配置与天气查询路径
 - 观察 30 分钟，关键指标无异常再进入 Phase 1
 
-### Phase 1：生产灰度（10% 流量 / 单租户组）
+### Phase 1：生产灰度（10% 流量 / 单企业组）
 
-- 仅放量给白名单租户
+- 仅放量给白名单企业
 - 观察 60 分钟
 - 若指标稳定，进入 Phase 2
 
 ### Phase 2：生产扩容（50% 流量）
 
-- 扩到半量租户
+- 扩到半量企业
 - 观察 60 分钟
 - 若稳定，进入 Phase 3
 
@@ -126035,7 +126035,7 @@ python -m pytest tests/test_plugin_api_dispatcher_security.py tests/test_plugin_
 
 ### 4.1 novusdoc
 
-1. 登录租户端，打开文档列表页（`/tenant/plugins/novusdoc/docs`）
+1. 登录企业端，打开文档列表页（`/tenant/plugins/novusdoc/docs`）
 2. 新建文档、编辑文档、删除文档
 3. 调用 AI 相关接口（如 `docs/{doc_id}/ai/continue`）
 
@@ -126312,18 +126312,18 @@ coverage
 
     "tenants": {
       "_status": "全部使用中",
-      "GET /admin/tenants": "获取租户列表 [views/admin/tenant/list/data.ts - useCrudPage]",
-      "GET /admin/tenants/{tenant_id}": "获取租户详情（useCrudDrawer 编辑）",
-      "POST /admin/tenants": "创建租户（useCrudDrawer 新建）",
-      "PUT /admin/tenants/{tenant_id}": "更新租户（useCrudDrawer 保存）",
-      "DELETE /admin/tenants/{tenant_id}": "删除租户（useCrudPage 删除）",
-      "POST /admin/tenants/{tenant_id}/impersonate": "一键登录租户后台 [views/admin/tenant/list/index.vue]"
+      "GET /admin/tenants": "获取企业列表 [views/admin/tenant/list/data.ts - useCrudPage]",
+      "GET /admin/tenants/{tenant_id}": "获取企业详情（useCrudDrawer 编辑）",
+      "POST /admin/tenants": "创建企业（useCrudDrawer 新建）",
+      "PUT /admin/tenants/{tenant_id}": "更新企业（useCrudDrawer 保存）",
+      "DELETE /admin/tenants/{tenant_id}": "删除企业（useCrudPage 删除）",
+      "POST /admin/tenants/{tenant_id}/impersonate": "一键登录企业后台 [views/admin/tenant/list/index.vue]"
     },
 
     "tenant_domains": {
       "_status": "全部使用中",
       "_note": "domains-modal.vue 使用",
-      "GET /admin/tenants/{tenant_id}/domains": "获取租户域名列表",
+      "GET /admin/tenants/{tenant_id}/domains": "获取企业域名列表",
       "GET /admin/tenants/{tenant_id}/domains/{domain_id}": "获取域名详情",
       "POST /admin/tenants/{tenant_id}/domains": "添加自定义域名",
       "PUT /admin/tenants/{tenant_id}/domains/{domain_id}": "更新域名",
@@ -126390,14 +126390,14 @@ coverage
   },
 
   "tenant": {
-    "_description": "租户管理端 API（/tenant/*）",
+    "_description": "企业管理端 API（/tenant/*）",
 
     "auth": {
       "_status": "部分使用",
-      "POST /tenant/auth/login": "租户管理员登录 [store/tenant/auth.ts]",
+      "POST /tenant/auth/login": "企业管理员登录 [store/tenant/auth.ts]",
       "POST /tenant/auth/refresh": "刷新 Token [request 拦截器]",
-      "POST /tenant/auth/logout": "租户管理员登出 [store/tenant/auth.ts]",
-      "GET /tenant/auth/me": "获取当前租户管理员信息 [store/tenant/auth.ts, impersonate.vue]",
+      "POST /tenant/auth/logout": "企业管理员登出 [store/tenant/auth.ts]",
+      "GET /tenant/auth/me": "获取当前企业管理员信息 [store/tenant/auth.ts, impersonate.vue]",
       "POST /tenant/auth/impersonate": "平台管理员一键登录验证 [views/tenant/authentication/impersonate.vue]",
       "_未使用": {
         "PUT /tenant/auth/password": "修改密码 - 已定义但未使用"
@@ -126443,7 +126443,7 @@ coverage
     "permissions": {
       "_status": "部分使用",
       "GET /tenant/permissions": "获取权限树 [permission-preview.vue]",
-      "GET /tenant/permissions/menus": "获取当前租户管理员菜单列表 [router/access.ts]",
+      "GET /tenant/permissions/menus": "获取当前企业管理员菜单列表 [router/access.ts]",
       "_未使用": {
         "GET /tenant/permissions/list": "获取权限列表（平铺）- 已定义但未使用"
       }
@@ -127528,7 +127528,7 @@ export async function getAIUsageStatsApi(
   );
 }
 
-/** 获取租户使用量汇总 */
+/** 获取企业使用量汇总 */
 export async function getAITenantUsageSummaryApi(
   tenantId: number,
   params?: Record<string, unknown>,
@@ -127611,7 +127611,7 @@ interface PageResponse<T> {
 
 const CONV_PREFIX = '/admin/ai/conversations';
 
-/** 获取全租户对话列表 */
+/** 获取全企业对话列表 */
 export async function getAIConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -128423,7 +128423,7 @@ const API_PREFIX = '/admin/attachments';
  * GET /admin/attachments
  *
  * 权限: attachment:list
- * 支持按租户筛选: filter[tenant_id][eq]=1
+ * 支持按企业筛选: filter[tenant_id][eq]=1
  */
 export async function getAttachmentListApi(
   params?: AttachmentListParams,
@@ -128501,7 +128501,7 @@ export async function getAttachmentStatsApi(
 }
 
 /**
- * 获取按租户分组的附件统计
+ * 获取按企业分组的附件统计
  * GET /admin/attachments/stats/by-tenant
  */
 export async function getAttachmentStatsByTenantApi(
@@ -128915,7 +128915,7 @@ export async function getStorageDriversApi(
   return await requestClient.get('/admin/configs/storage/drivers', options);
 }
 
-/** 获取租户存储配置 */
+/** 获取企业存储配置 */
 export async function getTenantStorageConfigApi(
   tenantId: number,
   options?: ApiRequestOptions,
@@ -128926,7 +128926,7 @@ export async function getTenantStorageConfigApi(
   );
 }
 
-/** 设置租户存储配置 */
+/** 设置企业存储配置 */
 export async function updateTenantStorageConfigApi(
   tenantId: number,
   data: Record<string, unknown>,
@@ -128939,7 +128939,7 @@ export async function updateTenantStorageConfigApi(
   );
 }
 
-/** 测试租户存储连接 */
+/** 测试企业存储连接 */
 export async function testTenantStorageConnectionApi(
   tenantId: number,
   data: {
@@ -129296,7 +129296,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 知识库列表项（全租户） */
+/** 知识库列表项（全企业） */
 export interface AdminKnowledgeBaseItem {
   id: number;
   tenant_id: number | null;
@@ -131298,7 +131298,7 @@ export interface PluginVersionInfo {
   rolled_back_at: string | null;
 }
 
-/** 租户分配 */
+/** 企业分配 */
 export interface PluginTenantAssignmentInfo {
   id: number;
   plugin_id: number;
@@ -131451,7 +131451,7 @@ export function rollbackPluginApi(id: number, targetVersion: string) {
   return requestClient.post(`${BASE_URL}/${id}/rollback`, { target_version: targetVersion });
 }
 
-// ── 租户分配 ──
+// ── 企业分配 ──
 
 export function getPluginTenantsApi(id: number) {
   return requestClient.get<PluginTenantAssignmentInfo[]>(`${BASE_URL}/${id}/tenants`);
@@ -132217,7 +132217,7 @@ export async function getSkillTypesApi(
   );
 }
 
-/** 获取技能列表（全租户） */
+/** 获取技能列表（全企业） */
 export async function getSkillListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -132973,7 +132973,7 @@ export async function cancelTaskApi(
 
 ```typescript
 /**
- * 平台端租户域名管理 API
+ * 平台端企业域名管理 API
  * 对接后端 /admin/tenants/{tenant_id}/domains/* 接口
  */
 import type {
@@ -133090,14 +133090,14 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
 // ============================================================
 
 /**
- * 构建租户域名 API 前缀
+ * 构建企业域名 API 前缀
  */
 function getDomainApiPrefix(tenantId: number): string {
   return `/admin/tenants/${tenantId}/domains`;
 }
 
 /**
- * 获取租户域名列表
+ * 获取企业域名列表
  * GET /admin/tenants/{tenant_id}/domains
  */
 export async function getTenantDomainsApi(
@@ -133354,7 +133354,7 @@ export async function updateSslAutoRenewApi(
 }
 
 /**
- * 批量签发租户所有域名 SSL（Admin 独有）
+ * 批量签发企业所有域名 SSL（Admin 独有）
  * POST /admin/tenants/{tenant_id}/domains/ssl/batch-provision
  */
 export async function batchProvisionSslApi(
@@ -133373,7 +133373,7 @@ export async function batchProvisionSslApi(
 
 ```typescript
 /**
- * 租户管理 API
+ * 企业管理 API
  * 对接后端 /admin/tenants/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -133387,12 +133387,12 @@ import { requestClient } from '#/utils/request';
 /** 套餐类型 */
 export type TenantPlan = 'basic' | 'enterprise' | 'free' | 'pro';
 
-/** 租户列表查询参数 */
+/** 企业列表查询参数 */
 export type TenantListParams = Record<string, unknown>;
 
-/** 创建租户请求 */
+/** 创建企业请求 */
 export interface TenantCreateRequest {
-  /** 租户编码（可选，后端自动生成） */
+  /** 企业编码（可选，后端自动生成） */
   code?: string;
   name: string;
   contact_name?: null | string;
@@ -133404,7 +133404,7 @@ export interface TenantCreateRequest {
   remark?: null | string;
 }
 
-/** 更新租户请求 */
+/** 更新企业请求 */
 export interface TenantUpdateRequest {
   name?: null | string;
   contact_name?: null | string;
@@ -133462,7 +133462,7 @@ export interface TenantPlanBrief {
   name: string;
 }
 
-/** 租户信息（后端原始格式 snake_case） */
+/** 企业信息（后端原始格式 snake_case） */
 export interface TenantInfoRaw {
   id: number;
   code: string;
@@ -133485,7 +133485,7 @@ export interface TenantInfoRaw {
   domains?: TenantDomainBriefRaw[];
 }
 
-/** 租户信息（前端格式 camelCase） */
+/** 企业信息（前端格式 camelCase） */
 export interface TenantInfo {
   id: number;
   code: string;
@@ -133567,7 +133567,7 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
 
 const API_PREFIX = '/admin/tenants';
 
-/** 租户下拉选项结果 */
+/** 企业下拉选项结果 */
 export interface TenantSelectOption {
   label: string;
   value: number;
@@ -133578,7 +133578,7 @@ export interface TenantSelectOption {
 }
 
 /**
- * 获取租户下拉选项
+ * 获取企业下拉选项
  * GET /admin/tenants/select
  *
  * 权限: tenant:select
@@ -133594,7 +133594,7 @@ export async function getTenantSelectApi(
 }
 
 /**
- * 获取租户列表
+ * 获取企业列表
  * GET /admin/tenants
  */
 export async function getTenantListApi(
@@ -133617,7 +133617,7 @@ export async function getTenantListApi(
 }
 
 /**
- * 获取租户详情
+ * 获取企业详情
  * GET /admin/tenants/{tenant_id}
  */
 export async function getTenantDetailApi(
@@ -133632,7 +133632,7 @@ export async function getTenantDetailApi(
 }
 
 /**
- * 创建租户
+ * 创建企业
  * POST /admin/tenants
  */
 export async function createTenantApi(
@@ -133648,7 +133648,7 @@ export async function createTenantApi(
 }
 
 /**
- * 更新租户
+ * 更新企业
  * PUT /admin/tenants/{tenant_id}
  */
 export async function updateTenantApi(
@@ -133665,7 +133665,7 @@ export async function updateTenantApi(
 }
 
 /**
- * 删除租户
+ * 删除企业
  * DELETE /admin/tenants/{tenant_id}
  */
 export async function deleteTenantApi(
@@ -133676,7 +133676,7 @@ export async function deleteTenantApi(
 }
 
 /**
- * 切换租户状态
+ * 切换企业状态
  * PUT /admin/tenants/{tenant_id}/status
  */
 export async function toggleTenantStatusApi(
@@ -133692,13 +133692,13 @@ export async function toggleTenantStatusApi(
   return transformTenantInfo(raw);
 }
 
-/** 重置租户管理员密码请求 */
+/** 重置企业管理员密码请求 */
 export interface ResetTenantOwnerPasswordRequest {
   new_password: string;
 }
 
 /**
- * 重置租户管理员密码
+ * 重置企业管理员密码
  * PUT /admin/tenants/{tenant_id}/reset-owner-password
  */
 export async function resetTenantOwnerPasswordApi(
@@ -133739,7 +133739,7 @@ interface TenantImpersonateResponseRaw {
 }
 
 /**
- * 一键登录租户后台
+ * 一键登录企业后台
  * POST /admin/tenants/{tenant_id}/impersonate
  * 生成一键登录 Token（60秒过期，一次性使用）
  */
@@ -133762,10 +133762,10 @@ export async function tenantImpersonateApi(
 }
 
 // ============================================================
-// 租户管理员管理 API
+// 企业管理员管理 API
 // ============================================================
 
-/** 租户管理员信息 */
+/** 企业管理员信息 */
 export interface TenantAdminItem {
   id: number;
   username: string;
@@ -133781,7 +133781,7 @@ export interface TenantAdminItem {
   created_at: string | null;
 }
 
-/** 创建租户管理员请求 */
+/** 创建企业管理员请求 */
 export interface TenantAdminCreateRequest {
   username: string;
   email: string;
@@ -133791,7 +133791,7 @@ export interface TenantAdminCreateRequest {
 }
 
 /**
- * 获取租户管理员列表
+ * 获取企业管理员列表
  */
 export async function getTenantAdminsApi(
   tenantId: number,
@@ -133802,7 +133802,7 @@ export async function getTenantAdminsApi(
 }
 
 /**
- * 创建租户管理员
+ * 创建企业管理员
  */
 export async function createTenantAdminApi(
   tenantId: number,
@@ -133815,7 +133815,7 @@ export async function createTenantAdminApi(
 }
 
 /**
- * 更新租户管理员
+ * 更新企业管理员
  */
 export async function updateTenantAdminApi(
   tenantId: number,
@@ -133829,7 +133829,7 @@ export async function updateTenantAdminApi(
 }
 
 /**
- * 切换租户管理员状态
+ * 切换企业管理员状态
  */
 export async function toggleTenantAdminStatusApi(
   tenantId: number,
@@ -133855,10 +133855,10 @@ export * as publicApi from './public';
 // 共享类型和工具
 export * from './shared';
 
-// 租户后台 API
+// 企业后台 API
 export * as tenantApi from './tenant';
 
-// 租户用户端 API
+// 企业用户端 API
 export * as userApi from './user';
 ```
 
@@ -134058,7 +134058,7 @@ export async function verifyCaptchaApi(
 ```typescript
 /**
  * 公开配置 API
- * 获取平台/租户公开配置，无需认证
+ * 获取平台/企业公开配置，无需认证
  */
 import { getProcessedImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
@@ -134169,13 +134169,13 @@ export interface PlatformPublicConfig {
   domain: DomainConfig;
 }
 
-/** 租户公开配置 */
+/** 企业公开配置 */
 export interface TenantPublicConfig {
-  /** 租户 ID */
+  /** 企业 ID */
   tenantId: number;
-  /** 租户编码 */
+  /** 企业编码 */
   tenantCode: string;
-  /** 租户名称 */
+  /** 企业名称 */
   tenantName: string;
   /** 品牌配置 */
   brand: BrandConfig;
@@ -134432,10 +134432,10 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
 }
 
 /**
- * 获取租户公开配置
+ * 获取企业公开配置
  * GET /api/public/tenant/config
- * 无需认证，根据域名自动识别租户
- * 开发环境支持通过 tenantCode 参数指定租户
+ * 无需认证，根据域名自动识别企业
+ * 开发环境支持通过 tenantCode 参数指定企业
  */
 export async function getTenantPublicConfigApi(
   tenantCode?: string,
@@ -134584,7 +134584,7 @@ export async function updateAgentAssignmentApi(
 }
 
 /**
- * 删除租户覆盖（恢复全局默认）
+ * 删除企业覆盖（恢复全局默认）
  *
  * @param apiPrefix - '/admin' 或 '/tenant'
  * @param featureCode - 功能代码
@@ -134665,8 +134665,8 @@ function chatBaseUrl(apiPrefix: string): string {
  * 获取已发布智能体列表
  *
  * 管理端：仅返回管理端可见的作用域（admin_only / admin_and_all / admin_and_assigned），
- * 排除仅租户端作用域（all_tenants / assigned_tenants）。
- * 租户端：后端已自动按 tenant_id + scope 过滤，无需额外传参。
+ * 排除仅企业端作用域（all_tenants / assigned_tenants）。
+ * 企业端：后端已自动按 tenant_id + scope 过滤，无需额外传参。
  */
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,
@@ -135366,7 +135366,7 @@ export interface AdminUserInfo extends BaseUserInfo {
   isSuperAdmin?: boolean;
 }
 
-/** 租户管理员信息 */
+/** 企业管理员信息 */
 export interface TenantAdminInfo extends BaseUserInfo {
   tenantId: number | string;
   tenantName?: string;
@@ -135375,7 +135375,7 @@ export interface TenantAdminInfo extends BaseUserInfo {
   planName?: string;
 }
 
-/** 租户用户信息 */
+/** 企业用户信息 */
 export interface TenantUserInfo extends BaseUserInfo {
   tenantId: number | string;
   email?: string;
@@ -135400,7 +135400,7 @@ export function getApiEndpoint(path: string): ApiEndpoint {
 
 ```typescript
 /**
- * 租户端 AI 操作审计日志 API
+ * 企业端 AI 操作审计日志 API
  * 对接后端 /tenant/ai/action-logs/* 接口
  */
 import { requestClient } from '#/utils/request';
@@ -135467,7 +135467,7 @@ export async function getActionLogStatsApi(): Promise<ActionLogStats> {
 
 ```typescript
 /**
- * 租户管理员管理 API
+ * 企业管理员管理 API
  * 对接后端 /tenant/admins/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -135705,7 +135705,7 @@ export async function toggleTenantAdminStatusApi(
 
 ```typescript
 /**
- * 租户端智能体管理 API
+ * 企业端智能体管理 API
  * 对接后端 /tenant/ai/agents/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -136117,7 +136117,7 @@ export async function permanentDeleteAgentApi(id: number): Promise<void> {
 
 ```typescript
 /**
- * 租户端 AI 配置与用量 API
+ * 企业端 AI 配置与用量 API
  * 对接后端 /tenant/ai/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -136152,7 +136152,7 @@ export interface TenantAIModelInfo {
 // 类型定义 - API Key
 // ============================================================
 
-/** 租户 API Key 信息 */
+/** 企业 API Key 信息 */
 export interface TenantAIApiKeyInfo {
   id: number;
   provider_id: number;
@@ -136215,7 +136215,7 @@ export interface TenantAIUsageByModel {
 }
 
 // ============================================================
-// 类型定义 - 供应商选项（用于租户端下拉选择）
+// 类型定义 - 供应商选项（用于企业端下拉选择）
 // ============================================================
 
 /** 供应商简要信息（从模型列表中提取） */
@@ -136354,7 +136354,7 @@ export async function getTenantAICallLogDetailApi(
 // 类型定义 - 配额管理
 // ============================================================
 
-/** 租户配额信息 */
+/** 企业配额信息 */
 export interface TenantQuotaInfo {
   id: number;
   tenant_id: number;
@@ -136404,7 +136404,7 @@ export interface TenantQuotaUpdateRequest {
 // 类型定义 - 速率限制
 // ============================================================
 
-/** 租户速率限制信息 */
+/** 企业速率限制信息 */
 export interface TenantRateLimitInfo {
   id: number;
   tenant_id: number;
@@ -136550,7 +136550,7 @@ export async function deleteTenantRateLimitApi(
 /**
  * 从可用模型列表中提取供应商下拉选项（去重）
  *
- * 租户端没有独立的供应商列表 API，通过模型列表的 provider_id/provider_name 提取。
+ * 企业端没有独立的供应商列表 API，通过模型列表的 provider_id/provider_name 提取。
  * 用于表单中的供应商下拉选择。
  */
 export async function getTenantProviderSelectOptions(): Promise<TenantProviderOption[]> {
@@ -136575,7 +136575,7 @@ export async function getTenantProviderSelectOptions(): Promise<TenantProviderOp
 // AI 表策略覆盖
 // ============================================================
 
-/** 有效策略（全局 + 租户覆盖合并） */
+/** 有效策略（全局 + 企业覆盖合并） */
 export interface EffectiveTablePolicy {
   id: number;
   table_name: string;
@@ -136605,7 +136605,7 @@ export interface TablePolicyOverrideRequest {
   is_active?: boolean;
 }
 
-/** 获取当前租户的有效策略列表 */
+/** 获取当前企业的有效策略列表 */
 export async function getTenantTablePoliciesApi() {
   return requestClient.get<EffectiveTablePolicy[]>('/tenant/ai/table-policies');
 }
@@ -136698,7 +136698,7 @@ export async function getTenantCostTrendApi(params?: DateRangeParams): Promise<C
 
 ```typescript
 /**
- * 租户端附件管理 API
+ * 企业端附件管理 API
  * 对接后端 /tenant/attachments/* 接口
  *
  * @module api/tenant/attachment
@@ -137172,7 +137172,7 @@ export async function smartUploadFile(
 
 ```typescript
 /**
- * 租户后台认证 API
+ * 企业后台认证 API
  * 对接后端 /tenant/auth/* 接口
  */
 import type {
@@ -137197,7 +137197,7 @@ import { baseRequestClient, requestClient } from '#/utils/request';
 const API_PREFIX = '/tenant/auth';
 
 /**
- * 租户管理员登录
+ * 企业管理员登录
  * 后端返回 snake_case，转换为 camelCase
  */
 export async function tenantLoginApi(
@@ -137260,7 +137260,7 @@ export async function tenantRefreshTokenApi(
 }
 
 /**
- * 租户管理员登出
+ * 企业管理员登出
  * 使用 baseRequestClient 避免 401 时触发循环调用
  */
 export async function tenantLogoutApi() {
@@ -137278,7 +137278,7 @@ export async function tenantLogoutApi() {
 }
 
 /**
- * 后端返回的租户管理员信息原始格式
+ * 后端返回的企业管理员信息原始格式
  */
 interface TenantAdminInfoRaw {
   id: number;
@@ -137295,14 +137295,14 @@ interface TenantAdminInfoRaw {
   created_at?: string;
   /** 权限码列表 */
   permissions?: string[];
-  /** 租户是否已分配套餐 */
+  /** 企业是否已分配套餐 */
   has_plan?: boolean;
   /** 套餐名称 */
   plan_name?: string;
 }
 
 /**
- * 获取当前租户管理员信息
+ * 获取当前企业管理员信息
  * 将后端 snake_case 转换为前端 camelCase
  */
 export async function getTenantAdminInfoApi(
@@ -137358,7 +137358,7 @@ export interface UpdateProfileParams {
 }
 
 /**
- * 修改当前租户管理员个人信息
+ * 修改当前企业管理员个人信息
  * PUT /tenant/auth/profile
  */
 export async function updateTenantProfileApi(
@@ -137417,7 +137417,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 获取租户配置分组列表 */
+/** 获取企业配置分组列表 */
 export async function getTenantConfigGroupsApi(
   options?: ApiRequestOptions,
 ): Promise<ConfigGroupListItemMeta[]> {
@@ -137427,7 +137427,7 @@ export async function getTenantConfigGroupsApi(
   );
 }
 
-/** 获取租户配置分组详情（含配置项） */
+/** 获取企业配置分组详情（含配置项） */
 export async function getTenantConfigGroupDetailApi(
   groupCode: string,
   options?: ApiRequestOptions,
@@ -137438,7 +137438,7 @@ export async function getTenantConfigGroupDetailApi(
   );
 }
 
-/** 更新租户配置分组配置，后端期望 { configs: { key: value } } 格式 */
+/** 更新企业配置分组配置，后端期望 { configs: { key: value } } 格式 */
 export async function updateTenantConfigGroupApi(
   groupCode: string,
   configs: ConfigSubmitPayload,
@@ -137451,7 +137451,7 @@ export async function updateTenantConfigGroupApi(
   );
 }
 
-/** 测试租户存储连接（Mode 3） */
+/** 测试企业存储连接（Mode 3） */
 export async function testTenantStorageConnectionApi(
   data: {
     driver: string;
@@ -137468,21 +137468,21 @@ export async function testTenantStorageConnectionApi(
   );
 }
 
-/** 获取租户允许的存储驱动列表 */
+/** 获取企业允许的存储驱动列表 */
 export async function getTenantStorageDriversApi(
   options?: ApiRequestOptions,
 ): Promise<StorageDriverInfo[]> {
   return await requestClient.get('/tenant/configs/storage/drivers', options);
 }
 
-/** 获取租户存储状态 */
+/** 获取企业存储状态 */
 export async function getTenantStorageStatusApi(
   options?: ApiRequestOptions,
 ): Promise<TenantStorageStatus> {
   return await requestClient.get('/tenant/configs/storage/status', options);
 }
 
-/** 保存租户存储配置（Mode 3） */
+/** 保存企业存储配置（Mode 3） */
 export async function saveTenantStorageConfigApi(
   data: Record<string, unknown>,
   options?: ApiRequestOptions,
@@ -137495,7 +137495,7 @@ export async function saveTenantStorageConfigApi(
 
 ```typescript
 /**
- * 租户端对话管理 API
+ * 企业端对话管理 API
  * 对接后端 /tenant/ai/conversations/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -137670,7 +137670,7 @@ export async function exportConversationApi(
 
 ```typescript
 /**
- * 租户端仪表盘 API
+ * 企业端仪表盘 API
  * 对接后端 /tenant/dashboard/* 接口
  */
 import { requestClient } from '#/utils/request';
@@ -137741,7 +137741,7 @@ export async function getTenantRecentActivitiesApi(limit = 20): Promise<TenantAc
 
 ```typescript
 /**
- * 租户端域名管理 API
+ * 企业端域名管理 API
  * 对接后端 /tenant/domains/* 接口
  */
 import type {
@@ -137874,7 +137874,7 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
 // ============================================================
 
 /**
- * 获取租户域名列表
+ * 获取企业域名列表
  * GET /tenant/domains
  */
 export async function getTenantDomainsApi(
@@ -138129,7 +138129,7 @@ export * from './task-log';
 
 ```typescript
 /**
- * 租户端知识库管理 API
+ * 企业端知识库管理 API
  * 对接后端 /tenant/ai/knowledge-bases/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -138447,7 +138447,7 @@ export interface SelectableKBItem {
   description: string | null;
 }
 
-/** 获取可选知识库列表（租户端：自己的 + global） */
+/** 获取可选知识库列表（企业端：自己的 + global） */
 export async function getTenantSelectableKBApi(
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {
@@ -138488,7 +138488,7 @@ export async function searchKnowledgeBaseApi(
 
 ```typescript
 /**
- * 租户后台菜单 API
+ * 企业后台菜单 API
  * 对接后端 /tenant/permissions/menus 接口
  */
 import type { RouteRecordStringComponent } from '@vben/types';
@@ -138512,7 +138512,7 @@ export interface MenusWithPermissions {
 }
 
 /**
- * 获取当前租户管理员菜单列表（含权限码）
+ * 获取当前企业管理员菜单列表（含权限码）
  * 根据角色权限过滤，用于前端动态渲染菜单
  * 自动处理后端 snake_case 到前端 camelCase 的转换
  * @returns 菜单列表和权限码
@@ -138537,7 +138537,7 @@ export async function getTenantMenusWithPermissionsApi(
 }
 
 /**
- * 获取当前租户管理员菜单列表
+ * 获取当前企业管理员菜单列表
  * @deprecated 请使用 getTenantMenusWithPermissionsApi 以同时获取权限码
  */
 export async function getTenantMenusApi(
@@ -138552,7 +138552,7 @@ export async function getTenantMenusApi(
 
 ```typescript
 /**
- * 操作日志 API（租户端）
+ * 操作日志 API（企业端）
  * 对接后端 /tenant/operation-logs/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -138715,7 +138715,7 @@ export async function getOperationLogDetailApi(
 
 ```typescript
 /**
- * 租户组织架构管理 API
+ * 企业组织架构管理 API
  * 对接后端 /tenant/roles/* 组织架构相关接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -139142,7 +139142,7 @@ export async function setTenantNodeLeaderApi(
 
 ```typescript
 /**
- * 定时任务 API（租户端）
+ * 定时任务 API（企业端）
  * 对接后端 /tenant/periodic-tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -139313,7 +139313,7 @@ export async function triggerPeriodicTaskApi(
 
 ```typescript
 /**
- * 租户权限管理 API
+ * 企业权限管理 API
  * 对接后端 /tenant/permissions/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -139444,7 +139444,7 @@ export async function getTenantPermissionListApi(
 
 ```typescript
 /**
- * 租户角色管理 API
+ * 企业角色管理 API
  * 对接后端 /tenant/roles/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -139748,7 +139748,7 @@ export async function moveTenantRoleApi(
 
 ```typescript
 /**
- * 租户端技能包管理 API
+ * 企业端技能包管理 API
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 
@@ -139948,7 +139948,7 @@ export function getSkillPackageSkillsApi(
 
 ```typescript
 /**
- * 租户端技能管理 API
+ * 企业端技能管理 API
  * 对接后端 /tenant/ai/skills/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -140219,7 +140219,7 @@ export async function parseToolkitApi(
 
 ```typescript
 /**
- * 任务日志 API（租户端）
+ * 任务日志 API（企业端）
  * 对接后端 /tenant/tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -140357,7 +140357,7 @@ export async function getTaskStatsApi(
 
 ```typescript
 /**
- * 租户用户端认证 API
+ * 企业用户端认证 API
  * 对接后端 /api/v1/auth/* 接口
  */
 import type {
@@ -140505,7 +140505,7 @@ export * from './menu';
 
 ```typescript
 /**
- * 租户用户端菜单 API
+ * 企业用户端菜单 API
  * 对接后端 /api/v1/menus/* 接口
  */
 import type { RouteRecordStringComponent } from '@vben/types';
@@ -143981,7 +143981,7 @@ defineOptions({ name: 'FilePicker' });
 const props = withDefaults(
   defineProps<{
     accept?: string;
-    /** API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+    /** API 端类型：admin 使用平台附件 API，tenant 使用企业附件 API。默认根据 URL 自动检测。 */
     endpoint?: 'admin' | 'tenant';
     imageOnly?: boolean;
     maxConcurrency?: number;
@@ -145641,7 +145641,7 @@ export { default as KbMentionSelector } from './KbMentionSelector.vue';
  * 知识库 @ 提及选择器
  *
  * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
- * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
+ * 通过 props.fetchApi 传入不同的 API 函数，管理端和企业端共用。
  */
 defineOptions({ name: 'KbMentionSelector' });
 
@@ -149380,7 +149380,7 @@ async function loadPermissions() {
     let permIds: number[] = [];
 
     if (props.apiPrefix === 'tenant') {
-      // 租户端 API
+      // 企业端 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
       // 优先使用 permissionIds，否则从 permissions 提取
       permIds =
@@ -151122,8 +151122,8 @@ function handleChange(value: unknown) {
  *
  * 为 VbenForm 生成一组 scope 相关的表单字段：
  * 1. 作用域下拉（scope）
- * 2. 所属租户单选（scope=all_tenants 时显示）
- * 3. 分配租户多选（scope=assigned_tenants / admin_and_assigned 时显示）
+ * 2. 所属企业单选（scope=all_tenants 时显示）
+ * 3. 分配企业多选（scope=assigned_tenants / admin_and_assigned 时显示）
  *
  * 所有需要作用域选择的表单（技能包、知识库、智能体等）统一使用此函数。
  */
@@ -151141,16 +151141,16 @@ export interface ScopeFieldsOptions {
   /** scope 字段是否禁用（编辑时锁定） */
   scopeDisabled?: boolean | ((values: Record<string, unknown>) => boolean);
   /**
-   * 是否在 scope=all_tenants 时显示「所属租户」单选，默认 false。
-   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定租户）。
+   * 是否在 scope=all_tenants 时显示「所属企业」单选，默认 false。
+   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定企业）。
    * 普通资源（智能体/知识库/技能包）不传此项，all_tenants = 平台全局资源。
    */
   showTenantId?: boolean;
   /** scope 字段名，默认 'scope' */
   scopeField?: string;
-  /** 所属租户字段名，默认 'tenant_id' */
+  /** 所属企业字段名，默认 'tenant_id' */
   tenantIdField?: string;
-  /** 分配租户字段名，默认 'tenant_ids' */
+  /** 分配企业字段名，默认 'tenant_ids' */
   tenantIdsField?: string;
 }
 
@@ -151201,7 +151201,7 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
   };
   fields.push(scopeSchema);
 
-  // ── 2. 所属租户（scope=all_tenants 时显示，仅特定场景下需要） ──
+  // ── 2. 所属企业（scope=all_tenants 时显示，仅特定场景下需要） ──
   if (showTenantId) {
     const isTenantScope = (v: Record<string, unknown>) => v[scopeField] === 'all_tenants';
     fields.push({
@@ -151226,7 +151226,7 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
     });
   }
 
-  // ── 3. 分配租户（scope=assigned_tenants / admin_and_assigned 时显示） ──
+  // ── 3. 分配企业（scope=assigned_tenants / admin_and_assigned 时显示） ──
   fields.push({
     component: 'ApiSelect',
     fieldName: tenantIdsField,
@@ -151254,7 +151254,7 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
 }
 
 /**
- * 判断 scope 是否需要租户分配
+ * 判断 scope 是否需要企业分配
  */
 export function scopeNeedsAssignment(scope: string): boolean {
   return scope === 'assigned_tenants' || scope === 'admin_and_assigned';
@@ -151265,7 +151265,7 @@ export function scopeNeedsAssignment(scope: string): boolean {
  *
  * @param values 表单值
  * @param scopeField scope 字段名
- * @param withTenantId 是否包含 tenant_id（仅用于语义上需要指定租户的 all_tenants 场景，如定时任务）
+ * @param withTenantId 是否包含 tenant_id（仅用于语义上需要指定企业的 all_tenants 场景，如定时任务）
  */
 export function extractScopePayload(
   values: Record<string, unknown>,
@@ -151369,7 +151369,7 @@ export { default as StorageDriverSelector } from './StorageDriverSelector.vue';
  *
  * 展示所有可用存储驱动，标记插件启用状态。
  * 未启用的插件驱动显示「不可用」标签且禁止选择。
- * 管理端和租户端存储配置页面共用。
+ * 管理端和企业端存储配置页面共用。
  */
 import type { StorageDriverInfo } from '#/types/storage';
 
@@ -153613,7 +153613,7 @@ export async function refreshPluginSlots(endpoint: string = '/admin', router?: R
   extensionsStore.clearAll();
 
   try {
-    // admin 端从 /admin/plugins 获取，tenant 端从 /tenant/plugins 获取（后端按 scope + 租户分配过滤）
+    // admin 端从 /admin/plugins 获取，tenant 端从 /tenant/plugins 获取（后端按 scope + 企业分配过滤）
     const apiUrl = side === 'tenant' ? '/tenant/plugins' : '/admin/plugins';
     const resp = await requestClient.get<{
       items?: PluginListItem[];
@@ -153767,7 +153767,7 @@ import { EndpointType } from '#/types/endpoint';
 /** 平台管理端路由前缀 */
 export const ADMIN_ROUTE_PREFIX = '/admin';
 
-/** 租户管理端路由前缀 */
+/** 企业管理端路由前缀 */
 export const TENANT_ROUTE_PREFIX = '/tenant';
 
 /** 用户端路由前缀（根路径） */
@@ -153780,7 +153780,7 @@ export const USER_ROUTE_PREFIX = '';
 /** 平台管理端登录路径 */
 export const ADMIN_LOGIN_PATH = '/admin/login';
 
-/** 租户管理端登录路径 */
+/** 企业管理端登录路径 */
 export const TENANT_LOGIN_PATH = '/tenant/login';
 
 /** 用户端登录路径 */
@@ -153793,7 +153793,7 @@ export const USER_LOGIN_PATH = '/login';
 /** 平台管理端默认首页 */
 export const ADMIN_HOME_PATH = '/admin/dashboard';
 
-/** 租户管理端默认首页 */
+/** 企业管理端默认首页 */
 export const TENANT_HOME_PATH = '/tenant/dashboard';
 
 /** 用户端默认首页 */
@@ -153806,7 +153806,7 @@ export const USER_HOME_PATH = '/dashboard';
 /** 平台管理端 API 前缀 */
 export const ADMIN_API_PREFIX = '/api/v1/admin';
 
-/** 租户管理端 API 前缀 */
+/** 企业管理端 API 前缀 */
 export const TENANT_API_PREFIX = '/api/v1/tenant';
 
 /** 用户端 API 前缀 */
@@ -153852,7 +153852,7 @@ export const API_PREFIXES: Record<EndpointType, string> = {
 export const ENDPOINT_CONFIGS: Record<EndpointType, EndpointConfig> = {
   [EndpointType.ADMIN]: {
     apiPrefix: ADMIN_API_PREFIX,
-    description: '平台超级管理员使用，管理租户、系统配置等',
+    description: '平台超级管理员使用，管理企业、系统配置等',
     homePath: ADMIN_HOME_PATH,
     loginPath: ADMIN_LOGIN_PATH,
     name: '平台管理端',
@@ -153861,16 +153861,16 @@ export const ENDPOINT_CONFIGS: Record<EndpointType, EndpointConfig> = {
   },
   [EndpointType.TENANT]: {
     apiPrefix: TENANT_API_PREFIX,
-    description: '租户管理员使用，管理租户内部业务和用户',
+    description: '企业管理员使用，管理企业内部业务和用户',
     homePath: TENANT_HOME_PATH,
     loginPath: TENANT_LOGIN_PATH,
-    name: '租户管理端',
+    name: '企业管理端',
     routePrefix: TENANT_ROUTE_PREFIX,
     type: EndpointType.TENANT,
   },
   [EndpointType.USER]: {
     apiPrefix: USER_API_PREFIX,
-    description: '租户普通用户使用，使用租户提供的服务',
+    description: '企业普通用户使用，使用企业提供的服务',
     homePath: USER_HOME_PATH,
     loginPath: USER_LOGIN_PATH,
     name: '用户端',
@@ -154654,8 +154654,8 @@ export type { VbenFormProps, VbenFormSchema } from './setup';
  * // 搜索表单
  * export function useGridFormSchema() {
  *   return [
- *     searchInput('code', '租户编码'),
- *     searchInput('name', '租户名称'),
+ *     searchInput('code', '企业编码'),
+ *     searchInput('name', '企业名称'),
  *     statusSelect(),
  *     planSelect({ fieldName: 'filter[plan_id]' }),
  *   ];
@@ -154964,7 +154964,7 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
  *
  * @example
  * ```ts
- * searchInput('code', '租户编码')
+ * searchInput('code', '企业编码')
  * // => fieldName: 'filter[code][ilike]'
  *
  * searchInput('name', '名称', { op: 'eq' })
@@ -159898,7 +159898,7 @@ export { $t, antdLocale, setupI18n };
   "tokenTrend": "Token 消耗趋势",
   "modelDistribution": "模型调用分布",
   "providerPerformance": "供应商性能对比",
-  "tenantRanking": "租户使用排行",
+  "tenantRanking": "企业使用排行",
   "successRate": "成功率趋势",
   "latencyDistribution": "响应延迟分布",
   "chart": {
@@ -159973,8 +159973,8 @@ export { $t, antdLocale, setupI18n };
   "admin": "管理员",
   "description": "这是平台管理端控制台，您可以在这里管理平台的各项配置。",
   "stats": {
-    "totalTenants": "租户总数",
-    "activeTenants": "活跃租户",
+    "totalTenants": "企业总数",
+    "activeTenants": "活跃企业",
     "totalAdmins": "管理员数",
     "systemHealth": "系统状态",
     "totalUsers": "用户总数",
@@ -160010,7 +160010,7 @@ export { $t, antdLocale, setupI18n };
     "files": "个文件"
   },
   "tenantGrowth": {
-    "title": "租户增长趋势",
+    "title": "企业增长趋势",
     "empty": "暂无数据"
   },
   "activities": {
@@ -160019,8 +160019,8 @@ export { $t, antdLocale, setupI18n };
   },
   "quickActions": {
     "title": "快捷操作",
-    "tenantManage": "租户管理",
-    "tenantManageDesc": "管理租户信息",
+    "tenantManage": "企业管理",
+    "tenantManageDesc": "管理企业信息",
     "adminManage": "管理员管理",
     "adminManageDesc": "管理平台管理员",
     "systemConfig": "系统配置",
@@ -160055,7 +160055,7 @@ export { $t, antdLocale, setupI18n };
 ```json
 {
   "title": "知识库管理",
-  "pageDesc": "管理全平台知识库，支持创建全局/租户/管理端专属知识库，查看文档、分块和存储情况。",
+  "pageDesc": "管理全平台知识库，支持创建全局/企业/管理端专属知识库，查看文档、分块和存储情况。",
   "create": "创建知识库",
   "stats": {
     "totalKnowledgeBases": "知识库总数",
@@ -160064,15 +160064,15 @@ export { $t, antdLocale, setupI18n };
     "totalStorage": "总存储大小"
   },
   "field": {
-    "tenantName": "租户",
+    "tenantName": "企业",
     "name": "知识库名称",
     "description": "描述",
     "scope": "作用域",
     "visibility": "可见范围",
-    "tenantId": "所属租户",
-    "tenantIdPlaceholder": "请选择所属租户",
-    "assignedTenantIds": "指定可见租户",
-    "assignedTenantIdsPlaceholder": "请选择可访问的租户",
+    "tenantId": "所属企业",
+    "tenantIdPlaceholder": "请选择所属企业",
+    "assignedTenantIds": "指定可见企业",
+    "assignedTenantIdsPlaceholder": "请选择可访问的企业",
     "embeddingModel": "Embedding 模型",
     "documentCount": "文档数",
     "totalChunks": "分块数",
@@ -160086,14 +160086,14 @@ export { $t, antdLocale, setupI18n };
     "searchMode": "检索模式"
   },
   "scope": {
-    "tenant": "租户专属",
+    "tenant": "企业专属",
     "global": "全局",
     "admin": "管理端"
   },
   "visibility": {
     "private": "仅管理端可见",
-    "all_tenants": "全部租户可见",
-    "assigned": "指定租户可见"
+    "all_tenants": "全部企业可见",
+    "assigned": "指定企业可见"
   },
   "searchMode": {
     "hybrid": "混合检索",
@@ -160108,8 +160108,8 @@ export { $t, antdLocale, setupI18n };
   "forceDelete": "强制删除",
   "forceDeleteConfirm": "确认删除知识库「{name}」？所有文档和分块数据将被永久删除。",
   "help": {
-    "scope": "决定知识库的使用范围：租户专属仅限指定租户使用，全局为管理端+所有租户共享，管理端为仅管理端可用",
-    "visibility": "控制管理端知识库对租户的可见范围",
+    "scope": "决定知识库的使用范围：企业专属仅限指定企业使用，全局为管理端+所有企业共享，管理端为仅管理端可用",
+    "visibility": "控制管理端知识库对企业的可见范围",
     "embeddingModel": "将文本转换为向量的模型。创建后不可更改，需重建知识库才能切换",
     "chunkSize": "每个文档分块的目标字符数。越大上下文越完整但精度下降，推荐 512~1024",
     "chunkOverlap": "相邻分块之间重叠的字符数。避免语义截断，推荐为分块大小的 10%~20%",
@@ -160220,7 +160220,7 @@ export { $t, antdLocale, setupI18n };
   },
   "placeholder": {
     "searchName": "搜索插件名称",
-    "selectTenants": "选择租户",
+    "selectTenants": "选择企业",
     "selectStatus": "筛选状态",
     "selectScope": "筛选作用域",
     "selectType": "筛选类型"
@@ -160233,10 +160233,10 @@ export { $t, antdLocale, setupI18n };
   },
   "scope_options": {
     "admin_only": "仅管理端",
-    "all_tenants": "全部租户",
-    "assigned_tenants": "指定租户",
-    "admin_and_all": "管理端+全部租户",
-    "admin_and_assigned": "管理端+指定租户"
+    "all_tenants": "全部企业",
+    "assigned_tenants": "指定企业",
+    "admin_and_all": "管理端+全部企业",
+    "admin_and_assigned": "管理端+指定企业"
   },
   "tier_options": {
     "official": "官方",
@@ -160250,7 +160250,7 @@ export { $t, antdLocale, setupI18n };
     "repair": "修复",
     "configure": "配置",
     "settings": "设置",
-    "assignTenant": "分配租户",
+    "assignTenant": "分配企业",
     "upgrade": "升级",
     "rollback": "回退",
     "detail": "详情",
@@ -160263,14 +160263,14 @@ export { $t, antdLocale, setupI18n };
     "forceCleanup": "确认强制清理「{name}」的残留记录？该插件磁盘文件已缺失。",
     "uninstallWithData": "同时删除插件数据表",
     "force_disable_title": "强制禁用插件「{name}」？",
-    "force_disable_content": "该插件的存储驱动正被平台或租户使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
+    "force_disable_content": "该插件的存储驱动正被平台或企业使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
     "force_disable_ok": "强制禁用"
   },
   "tab": {
     "overview": "概览",
     "config": "配置",
     "versions": "版本历史",
-    "tenants": "租户分配",
+    "tenants": "企业分配",
     "aiFeatures": "AI 功能",
     "health": "健康状态",
     "logs": "运行日志"
@@ -160282,8 +160282,8 @@ export { $t, antdLocale, setupI18n };
     "noReadme": "暂无说明文档",
     "noCapabilities": "无能力声明"
   },
-  "tenantAssignment": "租户分配",
-  "tenantAssignmentEmpty": "未分配任何租户，此插件在租户端不可用",
+  "tenantAssignment": "企业分配",
+  "tenantAssignmentEmpty": "未分配任何企业，此插件在企业端不可用",
   "config": {
     "save": "保存配置",
     "saveSuccess": "配置已保存",
@@ -160295,9 +160295,9 @@ export { $t, antdLocale, setupI18n };
     "noHistory": "暂无版本历史"
   },
   "tenant": {
-    "assign": "分配租户",
+    "assign": "分配企业",
     "unassign": "取消分配",
-    "noAssignment": "无需分配（作用域为全部租户）"
+    "noAssignment": "无需分配（作用域为全部企业）"
   },
   "ai": {
     "bindAgent": "绑定智能体",
@@ -160396,9 +160396,9 @@ export { $t, antdLocale, setupI18n };
     "save_success": "菜单位置已更新",
     "menu_location": "菜单位置",
     "admin_parent": "管理端位置",
-    "tenant_parent": "租户端位置",
+    "tenant_parent": "企业端位置",
     "admin_section": "管理端菜单",
-    "tenant_section": "租户端菜单"
+    "tenant_section": "企业端菜单"
   },
   "messages": {
     "enableSuccess": "插件已启用",
@@ -160409,7 +160409,7 @@ export { $t, antdLocale, setupI18n };
     "upgradeSuccess": "插件已升级",
     "rollbackSuccess": "插件已回退",
     "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
-    "assignSuccess": "租户分配成功",
+    "assignSuccess": "企业分配成功",
     "forceCleanupSuccess": "残留记录已清理"
   },
   "progress": {
@@ -160493,7 +160493,7 @@ export { $t, antdLocale, setupI18n };
     "concurrency": "并发数",
     "scope": "迁移范围",
     "scopeAll": "全部文件",
-    "scopeTenant": "租户 {id} 的文件",
+    "scopeTenant": "企业 {id} 的文件",
     "startedAt": "开始时间",
     "completedAt": "完成时间"
   },
@@ -160566,8 +160566,8 @@ export { $t, antdLocale, setupI18n };
   "uploadedBy": "上传者",
   "uploadedAt": "上传时间",
   "createdAt": "创建时间",
-  "tenantId": "租户ID",
-  "tenantName": "租户名称",
+  "tenantId": "企业ID",
+  "tenantName": "企业名称",
   "visibilityType": {
     "public": "公开",
     "private": "私有"
@@ -160585,7 +160585,7 @@ export { $t, antdLocale, setupI18n };
     "totalCount": "总文件数",
     "totalSize": "总大小",
     "byCategory": "按分类统计",
-    "byTenant": "按租户统计",
+    "byTenant": "按企业统计",
     "byDriver": "按存储驱动统计"
   },
   "quota": {
@@ -160625,8 +160625,8 @@ export { $t, antdLocale, setupI18n };
     "searchName": "搜索文件名",
     "allCategory": "全部分类",
     "allVisibility": "全部可见性",
-    "allTenant": "全部租户",
-    "selectTenant": "请选择租户"
+    "allTenant": "全部企业",
+    "selectTenant": "请选择企业"
   },
   "empty": {
     "title": "暂无附件",
@@ -160892,16 +160892,16 @@ export { $t, antdLocale, setupI18n };
       "knowledge_document": "知识库文档",
       "table_policy": "表策略",
       "table_policy_override": "表策略覆盖",
-      "tenant_quota": "租户配额",
+      "tenant_quota": "企业配额",
       "tenant_rate_limit": "速率限制",
       "admin_role": "管理员角色",
       "admin": "管理员",
-      "tenant_admin_role": "租户角色",
-      "tenant_admin": "租户管理员",
-      "tenant_plan": "租户套餐",
-      "tenant": "租户",
+      "tenant_admin_role": "企业角色",
+      "tenant_admin": "企业管理员",
+      "tenant_plan": "企业套餐",
+      "tenant": "企业",
       "tenant_domain": "域名",
-      "tenant_plugin": "租户插件",
+      "tenant_plugin": "企业插件",
       "system_agent_assignment": "系统智能体绑定"
     }
   },
@@ -160912,18 +160912,18 @@ export { $t, antdLocale, setupI18n };
   },
   "scope": {
     "adminOnly": "仅管理端",
-    "allTenants": "全部租户",
+    "allTenants": "全部企业",
     "adminAndAll": "全局共享",
-    "adminAndAssigned": "管理端+部分租户",
-    "assignedTenants": "部分租户",
+    "adminAndAssigned": "管理端+部分企业",
+    "assignedTenants": "部分企业",
     "label": "作用域",
     "placeholder": "请选择作用域",
     "allScopes": "全部作用域",
-    "tenantId": "所属租户",
-    "selectTenant": "请选择租户",
-    "assignedTenantsLabel": "分配租户",
-    "assignedTenantsHelp": "选择允许使用此资源的租户",
-    "selectAssignedTenants": "请选择要分配的租户"
+    "tenantId": "所属企业",
+    "selectTenant": "请选择企业",
+    "assignedTenantsLabel": "分配企业",
+    "assignedTenantsHelp": "选择允许使用此资源的企业",
+    "selectAssignedTenants": "请选择要分配的企业"
   },
   "bindMode": {
     "auto": "自动绑定",
@@ -161050,7 +161050,7 @@ export { $t, antdLocale, setupI18n };
     "ai_call_log": "调用日志",
     "ai_action_log": "操作审计",
     "ai_gateway": "AI 网关",
-    "tenant_config": "租户配置",
+    "tenant_config": "企业配置",
     "domain": "域名管理",
     "attachment": "附件管理",
     "organization": "组织架构",
@@ -161065,7 +161065,7 @@ export { $t, antdLocale, setupI18n };
     "dashboard": "控制台",
     "system": "权限管理",
     "system_mgmt": "系统管理",
-    "tenant_mgmt": "租户管理",
+    "tenant_mgmt": "企业管理",
     "ai_mgmt": "AI 管理",
     "ai_infra": "基础设施",
     "ai_workspace": "智能应用",
@@ -161076,7 +161076,7 @@ export { $t, antdLocale, setupI18n };
     "admin_role": "角色管理",
     "permission": "权限管理",
     "organization": "组织架构",
-    "tenant": "租户列表",
+    "tenant": "企业列表",
     "tenant_plan": "套餐管理",
     "platform_config": "平台配置",
     "notification_template": "通知模板",
@@ -161122,8 +161122,8 @@ export { $t, antdLocale, setupI18n };
     "workspace": "工作台"
   },
   "tenant": {
-    "authentication": "租户认证",
-    "root": "租户后台"
+    "authentication": "企业认证",
+    "root": "企业后台"
   }
 }
 ```
@@ -161378,7 +161378,7 @@ export { $t, antdLocale, setupI18n };
   "scope": {
     "global": "全局",
     "admin": "平台",
-    "tenant": "租户"
+    "tenant": "企业"
   }
 }
 ```
@@ -161562,7 +161562,7 @@ export { $t, antdLocale, setupI18n };
 ```json
 {
   "admin": "管理员",
-  "tenant": "租户",
+  "tenant": "企业",
   "user": "用户",
   "dashboard": "控制台",
   "settings": "设置",
@@ -161591,8 +161591,8 @@ export { $t, antdLocale, setupI18n };
   "next": "下一页",
   "createdAt": "创建时间",
   "deletedAt": "删除时间",
-  "tenantAdmin": "租户管理员",
-  "noPlan": "当前租户未分配套餐",
+  "tenantAdmin": "企业管理员",
+  "noPlan": "当前企业未分配套餐",
   "noPlanDesc": "无法使用任何功能，请联系平台管理员分配套餐。"
 }
 ```
@@ -161601,10 +161601,10 @@ export { $t, antdLocale, setupI18n };
 
 ```json
 {
-  "title": "租户管理控制台",
+  "title": "企业管理控制台",
   "welcome": "欢迎回来",
   "greeting": "您好，{name}！",
-  "description": "这是租户管理控制台，您可以在这里管理您的租户资源。",
+  "description": "这是企业管理控制台，您可以在这里管理您的企业资源。",
   "stats": {
     "users": "用户数",
     "orders": "订单数",
@@ -161643,7 +161643,7 @@ export { $t, antdLocale, setupI18n };
   "loading": "正在登录...",
   "pleaseWait": "请稍候，正在验证登录凭证",
   "success": "登录成功",
-  "redirecting": "即将跳转到租户后台...",
+  "redirecting": "即将跳转到企业后台...",
   "failed": "登录失败",
   "invalidLink": "无效的登录链接",
   "tokenExpired": "登录链接已过期，请重新获取",
@@ -161658,7 +161658,7 @@ export { $t, antdLocale, setupI18n };
 ```json
 {
   "$schema": "https://json.schemastore.org/i18n",
-  "$description": "租户管理端翻译索引 - 通过各模块文件导入"
+  "$description": "企业管理端翻译索引 - 通过各模块文件导入"
 }
 ```
 
@@ -162190,9 +162190,9 @@ function setupAccessGuard(router: Router) {
       }
     } else if (currentEndpoint === 'tenant') {
       if (!publicConfigStore.tenantConfigLoaded) {
-        // 租户端：加载租户公开配置
+        // 企业端：加载企业公开配置
         await publicConfigStore.loadTenantConfig().catch((error) => {
-          console.warn('[Router Guard] 加载租户公开配置失败:', error);
+          console.warn('[Router Guard] 加载企业公开配置失败:', error);
         });
       } else if (publicConfigStore.tenantConfig?.brand) {
         // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
@@ -162745,7 +162745,7 @@ export { accessRoutes, coreRouteNames, routes };
 
 ```typescript
 /**
- * 租户管理端路由模块
+ * 企业管理端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
 
@@ -162754,7 +162754,7 @@ import { $t } from '#/locales';
 const AuthPageLayout = () => import('#/layouts/auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
-/** 租户管理端认证路由 */
+/** 企业管理端认证路由 */
 const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
@@ -162784,7 +162784,7 @@ const authRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 租户管理端主布局路由 */
+/** 企业管理端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
@@ -162853,7 +162853,7 @@ const mainRoutes: RouteRecordRaw = {
   ],
 };
 
-/** 租户管理端路由 */
+/** 企业管理端路由 */
 export const tenantRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
 export { tenantCoreRouteNames } from './names';
@@ -163215,7 +163215,7 @@ export * from './admin';
 // 共享状态（多端通用）
 export * from './shared';
 
-// 租户管理端状态
+// 企业管理端状态
 export * from './tenant';
 
 // 用户端状态
@@ -163719,7 +163719,7 @@ export const useNotificationStore = defineStore('notification', () => {
  * 在线状态 Store
  *
  * 管理用户在线状态数据，支持 HTTP 初始加载和 Socket.IO 实时更新。
- * 按用户类型和租户隔离状态数据。
+ * 按用户类型和企业隔离状态数据。
  */
 
 import { reactive, ref } from 'vue';
@@ -163751,10 +163751,10 @@ export const usePresenceStore = defineStore('presence', () => {
   /** 平台管理员在线 ID 集合 */
   const adminOnlineIds = reactive(new Set<number>());
 
-  /** 当前租户管理员在线 ID 集合 */
+  /** 当前企业管理员在线 ID 集合 */
   const tenantAdminOnlineIds = reactive(new Set<number>());
 
-  /** 指定租户的管理员在线（管理端查看租户详情时） */
+  /** 指定企业的管理员在线（管理端查看企业详情时） */
   const tenantPresenceMap = reactive(new Map<number, Set<number>>());
 
   /** 是否已初始化 */
@@ -163794,7 +163794,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 获取指定租户的在线管理员 ID 列表
+   * 获取指定企业的在线管理员 ID 列表
    */
   function getTenantOnlineIds(tenantId: number): number[] {
     const ids = tenantPresenceMap.get(tenantId);
@@ -163823,7 +163823,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 加载指定租户的管理员在线状态
+   * 加载指定企业的管理员在线状态
    */
   async function loadTenantPresence(tenantId: number): Promise<void> {
     try {
@@ -163843,7 +163843,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * 加载当前租户管理员在线状态（租户端使用）
+   * 加载当前企业管理员在线状态（企业端使用）
    */
   async function loadCurrentTenantPresence(): Promise<void> {
     try {
@@ -163910,7 +163910,7 @@ export const usePresenceStore = defineStore('presence', () => {
       }
     });
 
-    // 跨 namespace 租户管理员上线（平台管理员收到）
+    // 跨 namespace 企业管理员上线（平台管理员收到）
     sioStore.registerHandler('tenant_presence:online', (data: unknown) => {
       const { user_id, tenant_id } = data as {
         user_id: number;
@@ -163926,7 +163926,7 @@ export const usePresenceStore = defineStore('presence', () => {
       }
     });
 
-    // 跨 namespace 租户管理员下线（平台管理员收到）
+    // 跨 namespace 企业管理员下线（平台管理员收到）
     sioStore.registerHandler('tenant_presence:offline', (data: unknown) => {
       const { user_id, tenant_id } = data as {
         user_id: number;
@@ -163991,7 +163991,7 @@ export const usePresenceStore = defineStore('presence', () => {
 ```typescript
 /**
  * 公开配置 Store
- * 存储平台/租户的公开配置（品牌、验证码等）
+ * 存储平台/企业的公开配置（品牌、验证码等）
  */
 import type {
   BrandConfig,
@@ -164067,11 +164067,11 @@ function applyBrandConfig(brand: BrandConfig) {
 interface PublicConfigState {
   /** 平台公开配置 */
   platformConfig: null | PlatformPublicConfig;
-  /** 租户公开配置 */
+  /** 企业公开配置 */
   tenantConfig: null | TenantPublicConfig;
   /** 平台配置是否已加载 */
   platformConfigLoaded: boolean;
-  /** 租户配置是否已加载 */
+  /** 企业配置是否已加载 */
   tenantConfigLoaded: boolean;
   /** 加载中状态 */
   loading: boolean;
@@ -164079,11 +164079,11 @@ interface PublicConfigState {
   error: null | string;
   /** 平台端登录失败次数 */
   platformLoginFailCount: number;
-  /** 租户端登录失败次数 */
+  /** 企业端登录失败次数 */
   tenantLoginFailCount: number;
   /** 平台端验证码强制要求（来自登录响应） */
   platformCaptchaRequired: boolean;
-  /** 租户端验证码强制要求（来自登录响应） */
+  /** 企业端验证码强制要求（来自登录响应） */
   tenantCaptchaRequired: boolean;
 }
 
@@ -164111,7 +164111,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.brand ?? null;
     },
 
-    /** 获取租户品牌配置 */
+    /** 获取企业品牌配置 */
     tenantBrand(): BrandConfig | null {
       return this.tenantConfig?.brand ?? null;
     },
@@ -164121,7 +164121,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.login?.captcha ?? null;
     },
 
-    /** 获取租户验证码配置 */
+    /** 获取企业验证码配置 */
     tenantCaptcha(): CaptchaConfig | null {
       return this.tenantConfig?.login?.captcha ?? null;
     },
@@ -164131,7 +164131,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformConfig?.login?.captcha?.enabled ?? false;
     },
 
-    /** 租户验证码是否启用 */
+    /** 企业验证码是否启用 */
     isTenantCaptchaEnabled(): boolean {
       return this.tenantConfig?.login?.captcha?.enabled ?? false;
     },
@@ -164150,7 +164150,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       return this.platformLoginFailCount >= captcha.failedThreshold;
     },
 
-    /** 租户验证码是否需要显示（基于开关、失败阈值或强制要求） */
+    /** 企业验证码是否需要显示（基于开关、失败阈值或强制要求） */
     shouldShowTenantCaptcha(): boolean {
       // 如果后端强制要求验证码，直接显示（优先级最高）
       if (this.tenantCaptchaRequired) return true;
@@ -164199,9 +164199,9 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 加载租户公开配置
+     * 加载企业公开配置
      * 仅首次访问时调用
-     * 开发环境支持通过 URL 参数 tenant_code 指定租户
+     * 开发环境支持通过 URL 参数 tenant_code 指定企业
      */
     async loadTenantConfig(): Promise<null | TenantPublicConfig> {
       if (this.tenantConfigLoaded && this.tenantConfig) {
@@ -164252,7 +164252,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 重置租户配置（用于强制刷新）
+     * 重置企业配置（用于强制刷新）
      */
     resetTenantConfig() {
       this.tenantConfig = null;
@@ -164289,14 +164289,14 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 增加租户端登录失败次数
+     * 增加企业端登录失败次数
      */
     incrementTenantLoginFail() {
       this.tenantLoginFailCount++;
     },
 
     /**
-     * 重置租户端登录失败次数（登录成功后调用）
+     * 重置企业端登录失败次数（登录成功后调用）
      */
     resetTenantLoginFail() {
       this.tenantLoginFailCount = 0;
@@ -164310,7 +164310,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 设置租户端验证码强制要求状态
+     * 设置企业端验证码强制要求状态
      */
     setTenantCaptchaRequired(required: boolean) {
       this.tenantCaptchaRequired = required;
@@ -164325,7 +164325,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 重置租户端登录状态（登录成功后调用）
+     * 重置企业端登录状态（登录成功后调用）
      */
     resetTenantLoginState() {
       this.tenantLoginFailCount = 0;
@@ -164345,7 +164345,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
 ```typescript
 /**
- * 租户管理端状态模块
+ * 企业管理端状态模块
  */
 
 export * from './auth';
@@ -165112,7 +165112,7 @@ export interface AttachmentStats {
 }
 
 /**
- * 按租户统计
+ * 按企业统计
  */
 export interface AttachmentStatsByTenant {
   tenant_id: number;
@@ -165351,8 +165351,8 @@ export function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificate
  *
  * 定义系统三端的类型枚举和相关接口
  * - ADMIN: 平台管理端（超级管理员、系统配置）
- * - TENANT: 租户管理端（租户后台、商户管理）
- * - USER: 用户端（租户C端用户）
+ * - TENANT: 企业管理端（企业后台、商户管理）
+ * - USER: 用户端（企业C端用户）
  */
 
 /**
@@ -165362,7 +165362,7 @@ export function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificate
 export enum EndpointType {
   /** 平台管理端 */
   ADMIN = 'admin',
-  /** 租户管理端 */
+  /** 企业管理端 */
   TENANT = 'tenant',
   /** 用户端 */
   USER = 'user',
@@ -165491,7 +165491,7 @@ export interface SelectResponse {
 /**
  * 存储配置相关共享类型
  *
- * 管理端和租户端共用，避免跨端导入。
+ * 管理端和企业端共用，避免跨端导入。
  */
 
 /** 存储驱动信息（含插件启用状态） */
@@ -165505,7 +165505,7 @@ export interface StorageDriverInfo {
   plugin_status?: string;
 }
 
-/** 租户存储状态 */
+/** 企业存储状态 */
 export interface TenantStorageStatus {
   effective_mode: string;
   effective_driver: string;
@@ -165514,7 +165514,7 @@ export interface TenantStorageStatus {
   tenant_storage_root_path: string;
   tenant_storage_base_url: string;
   tenant_storage_options: Record<string, unknown>;
-  /** 该租户是否可自主配置存储（由管理员逐租户开启） */
+  /** 该企业是否可自主配置存储（由管理员逐企业开启） */
   can_self_config: boolean;
 }
 ```
@@ -166811,7 +166811,7 @@ export function isAdminPath(path: string): boolean {
 }
 
 /**
- * 检查路径是否为租户管理端路径
+ * 检查路径是否为企业管理端路径
  * @param path 路由路径
  */
 export function isTenantPath(path: string): boolean {
@@ -167423,7 +167423,7 @@ export function getBuiltinPluginNames(): string[] {
  * - 404x: 资源不存在
  * - 409x: 资源冲突
  * - 41xx: 角色/权限相关
- * - 42xx: 租户/域名相关
+ * - 42xx: 企业/域名相关
  * - 43xx: 管理员相关
  * - 5xxx: 服务端错误
  *
@@ -167449,7 +167449,7 @@ export enum ErrorCode {
   /** 域名已被使用 */
   DOMAIN_ALREADY_EXISTS = 4203,
   // ============================================================
-  // 租户/域名相关错误 (42xx)
+  // 企业/域名相关错误 (42xx)
   // ============================================================
   /** 自定义域名功能未启用 */
   DOMAIN_CUSTOM_DISABLED = 4201,
@@ -168966,7 +168966,7 @@ export function getAdminScopeOptions(): ScopeOption[] {
   ]);
 }
 
-/** 获取租户端可见的 scope 列表（租户端只能创建 all_tenants） */
+/** 获取企业端可见的 scope 列表（企业端只能创建 all_tenants） */
 export function getTenantScopeOptions(): ScopeOption[] {
   return getScopeOptions(['all_tenants']);
 }
@@ -169570,7 +169570,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 平台端 AI 操作审计日志列表页面
  *
- * 全局审计日志查询，支持跨租户筛选
+ * 全局审计日志查询，支持跨企业筛选
  */
 import type { AdminActionLogDetail, AdminActionLogItem } from '#/api/admin/action-logs';
 
@@ -173438,7 +173438,7 @@ const { Grid, FormDrawer, onRefresh } =
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 租户列 -->
+        <!-- 企业列 -->
         <template #tenantName_cell="{ row }">
           <span v-if="row.tenant_name" class="text-foreground">
             {{ row.tenant_name }}
@@ -175720,7 +175720,7 @@ watch(() => props.data, render, { immediate: true });
 ```text
 <script lang="ts" setup>
 /**
- * T14: 租户 Top 10 水平柱状图
+ * T14: 企业 Top 10 水平柱状图
  */
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
@@ -177740,7 +177740,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 租户分配（仅 assigned_tenants / admin_and_assigned 显示） -->
+      <!-- 企业分配（仅 assigned_tenants / admin_and_assigned 显示） -->
       <div v-if="needsTenantAssignment" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">{{ $t('admin.plugin.tenantAssignment') }}</h4>
@@ -177750,7 +177750,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- 租户选择 -->
+        <!-- 企业选择 -->
         <div v-if="showTenantSelect" class="mb-3 flex items-center gap-2">
           <Select
             v-model:value="selectedTenantIds"
@@ -177765,7 +177765,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- 已分配租户列表 -->
+        <!-- 已分配企业列表 -->
         <div v-if="tenantAssignments.length > 0" class="flex flex-wrap gap-1.5">
           <Tag
             v-for="assignment in tenantAssignments"
@@ -178462,8 +178462,8 @@ defineExpose({ open });
  *
  * 支持：
  * - 多级菜单树形选择（TreeSelect）
- * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 租户端目录
- * - admin_and_all scope：同时配置管理端和租户端父级
+ * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 企业端目录
+ * - admin_and_all scope：同时配置管理端和企业端父级
  */
 import type { MenuOverrideItem, MenuParentOption, MenuParentOptionsResponse } from '#/api/admin/plugin';
 
@@ -178492,7 +178492,7 @@ interface MenuEditRow {
   scope: string;
   /** 管理端父级（admin_only / admin_and_all） */
   adminParent: string;
-  /** 租户端父级（all_tenants / admin_and_all） */
+  /** 企业端父级（all_tenants / admin_and_all） */
   tenantParent: string;
 }
 
@@ -178600,7 +178600,7 @@ const hasMenus = computed(() => rows.value.length > 0);
 const adminRows = computed(() =>
   rows.value.filter((r) => r.scope === 'admin_only' || r.scope === 'admin_and_all'),
 );
-/** 需要展示租户端区块的行 */
+/** 需要展示企业端区块的行 */
 const tenantRows = computed(() =>
   rows.value.filter((r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all'),
 );
@@ -178653,7 +178653,7 @@ defineExpose({ open });
           </div>
         </div>
 
-        <!-- ── 租户端菜单 ── -->
+        <!-- ── 企业端菜单 ── -->
         <div v-if="tenantRows.length > 0">
           <div class="mb-2 flex items-center gap-2">
             <IconifyIcon icon="lucide:users" class="size-3.5 text-success" />
@@ -178920,7 +178920,7 @@ export function useColumns<T = AttachmentInfo>(
 
 // ============ 搜索表单 ============
 
-/** 租户选择器（搜索） */
+/** 企业选择器（搜索） */
 export function tenantSelect(
   options: { search?: boolean } = {},
 ): VbenFormSchema {
@@ -179164,7 +179164,7 @@ const { Grid } = useCrudPage<AttachmentInfo>({
           </Tag>
         </template>
 
-        <!-- 租户列 -->
+        <!-- 企业列 -->
         <template #tenant_cell="{ row }">
           <span class="text-foreground">
             {{ getTenantName(row.tenantId) }}
@@ -179619,7 +179619,7 @@ onBeforeUnmount(() => {
  * - 连接测试按钮
  * - 通用存储参数（可见性/分片/限制/扩展名/允许的自定义驱动等，仍用 ConfigForm）
  *
- * 注意：租户自主配置权限改为逐租户控制（在 TenantStorageDrawer 中），不再有全局开关。
+ * 注意：企业自主配置权限改为逐企业控制（在 TenantStorageDrawer 中），不再有全局开关。
  */
 import type { ConfigItemMeta } from '#/types/config';
 import type { StorageDriverInfo } from '#/types/storage';
@@ -179722,7 +179722,7 @@ async function loadData() {
       'platform_storage_root_path',
       'platform_storage_base_url',
       'platform_storage_options',
-      // 自主配置权限改为逐租户控制，全局开关不再使用
+      // 自主配置权限改为逐企业控制，全局开关不再使用
       'platform_tenant_storage_self_config_enabled',
     ]);
     generalConfigs.value = configs
@@ -183205,7 +183205,7 @@ onMounted(() => {
  *
  * 每个模块使用 searchInput 构建轻量搜索 Schema（不引入原 CRUD data.ts，
  * 避免其 ApiSelect 在回收站上下文触发无关 API 请求）。
- * 租户级模块额外追加「所属租户」下拉。
+ * 企业级模块额外追加「所属企业」下拉。
  */
 import type { VbenFormSchema } from '#/adapter/form';
 
@@ -183213,7 +183213,7 @@ import { searchInput, select, statusSelect } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-// ── 租户选择器 ──
+// ── 企业选择器 ──
 function tenantSelect(): VbenFormSchema {
   return select('filter[tenant_id]', $t('admin.system.recycleBin.tenant'), {
     api: getTenantSelectApi,
@@ -183310,7 +183310,7 @@ const COLUMN_LABELS: Record<string, () => string> = {
   // 套餐
   'tenant_plans:name': () => $t('admin.tenant.plan.name'),
   'tenant_plans:code': () => $t('admin.tenant.plan.code'),
-  // 租户
+  // 企业
   'tenants:name': () => $t('admin.tenant.name'),
   'tenants:code': () => $t('admin.tenant.code'),
   // 域名
@@ -183343,7 +183343,7 @@ export function getColumnLabel(field: string, moduleCode?: string): string {
  *
  * - 高级搜索：继承原 CRUD 模块的声明式搜索 Schema（searchInput / statusSelect / select）
  * - 动态列：根据模块元数据渲染不同列
- * - 租户区分：租户级模块展示「所属租户」列
+ * - 企业区分：企业级模块展示「所属企业」列
  */
 import { computed, nextTick, onMounted, ref } from 'vue';
 
@@ -185320,7 +185320,7 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
 
 ```typescript
 /**
- * 租户管理 - 表格列和表单配置
+ * 企业管理 - 表格列和表单配置
  * 遵循 vben-admin 规范
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -185558,7 +185558,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // 编辑模式时显示租户编码（只读）
+    // 编辑模式时显示企业编码（只读）
     ...(isEdit
       ? [inputField('code', $t('admin.tenant.code'), { disabled: true })]
       : []),
@@ -185628,7 +185628,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
 }
 
 /**
- * 重置租户管理员密码表单 Schema
+ * 重置企业管理员密码表单 Schema
  */
 export function useResetPasswordSchema(): VbenFormSchema[] {
   return [
@@ -185670,7 +185670,7 @@ export function useResetPasswordSchema(): VbenFormSchema[] {
 
 ```typescript
 /**
- * 租户域名管理 - 类型定义
+ * 企业域名管理 - 类型定义
  */
 import type {
   DomainType,
@@ -185792,7 +185792,7 @@ const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
 
-// 当前租户 ID
+// 当前企业 ID
 const tenantId = ref<number>();
 
 /** 表单 Schema */
@@ -186522,7 +186522,7 @@ function getDnsHostRecord(domain: string): string {
 ```text
 <script lang="ts" setup>
 /**
- * 租户域名管理弹窗 - 主弹窗
+ * 企业域名管理弹窗 - 主弹窗
  * 展示域名列表，提供添加、详情、设为主域名、验证、删除等入口
  */
 import type {
@@ -186986,9 +186986,9 @@ defineExpose({ open });
 ```text
 <script lang="ts" setup>
 /**
- * 创建租户子管理员表单（Drawer）
+ * 创建企业子管理员表单（Drawer）
  *
- * 从租户列表的管理员展开面板中调用。
+ * 从企业列表的管理员展开面板中调用。
  */
 defineOptions({ name: 'TenantAdminForm' });
 
@@ -187149,7 +187149,7 @@ defineExpose({ open });
 ```text
 <script lang="ts" setup>
 /**
- * 重置租户管理员密码弹窗
+ * 重置企业管理员密码弹窗
  */
 defineOptions({ name: 'TenantAdminResetPwdModal' });
 
@@ -187249,7 +187249,7 @@ defineExpose({ open });
 <script lang="ts" setup>
 defineOptions({ name: 'TenantForm' });
 /**
- * 租户新建/编辑表单抽屉
+ * 企业新建/编辑表单抽屉
  *
  * 使用 fields 简化字段映射，自动处理：
  * - 编辑模式：后端 camelCase -> 表单 snake_case
@@ -187331,15 +187331,15 @@ const title = computed(() =>
 ```text
 <script lang="ts" setup>
 /**
- * 管理端租户存储配置抽屉
+ * 管理端企业存储配置抽屉
  *
- * 允许管理员为单个租户配置存储，三种模式互斥：
- * - 使用平台存储：租户使用全局存储，无需任何配置
- * - 管理员帮配：管理员填写云存储凭证，租户只读
- * - 允许租户自定义：租户可在自己的配置页面自行配置（从空白开始）
+ * 允许管理员为单个企业配置存储，三种模式互斥：
+ * - 使用平台存储：企业使用全局存储，无需任何配置
+ * - 管理员帮配：管理员填写云存储凭证，企业只读
+ * - 允许企业自定义：企业可在自己的配置页面自行配置（从空白开始）
  *
  * 三个模式是纯 Radio 三选一，不存在独立开关。
- * 选「允许租户自定义」时 selfConfigEnabled 自动为 true，其他两个自动为 false。
+ * 选「允许企业自定义」时 selfConfigEnabled 自动为 true，其他两个自动为 false。
  */
 import type { StorageDriverInfo } from '#/types/storage';
 
@@ -187558,7 +187558,7 @@ defineExpose({ open });
           class="mt-2"
         />
 
-        <!-- 允许租户自定义提示 -->
+        <!-- 允许企业自定义提示 -->
         <Alert
           v-if="storageMode === 'custom'"
           type="success"
@@ -188518,7 +188518,7 @@ const title = computed(() =>
 
 ```typescript
 /**
- * 租户端 AI 操作审计日志 - 表格列、搜索配置
+ * 企业端 AI 操作审计日志 - 表格列、搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -188685,7 +188685,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 ```text
 <script lang="ts" setup>
 /**
- * 租户端 AI 操作审计日志列表页面
+ * 企业端 AI 操作审计日志列表页面
  *
  * 包含统计卡片 + 操作列表
  */
@@ -189124,7 +189124,7 @@ const columns = [
 ```text
 <script lang="ts" setup>
 /**
- * 租户端智能体管理列表页面 — useCrudList + 卡片网格
+ * 企业端智能体管理列表页面 — useCrudList + 卡片网格
  *
  * useCrudList 管理：列表/分页/搜索/删除/回收站
  * 自定义：AgentForm ref 模式/发布/版本历史
@@ -189644,7 +189644,7 @@ const stats = computed(() => ({
 <script lang="ts" setup>
 defineOptions({ name: 'TenantAgentForm' });
 /**
- * 租户端智能体新建/编辑表单抽屉
+ * 企业端智能体新建/编辑表单抽屉
  * 支持向导模式（新建）和经典模式（编辑）
  */
 import type { AgentInfo, AgentListItem, AgentSkillBindingInfo } from '#/api/tenant/agents';
@@ -190298,7 +190298,7 @@ const diffChanges = computed(() => {
 ```text
 <script lang="ts" setup>
 /**
- * 租户端 AI 调用日志列表页面
+ * 企业端 AI 调用日志列表页面
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
@@ -190446,7 +190446,7 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
 ```text
 <script lang="ts" setup>
 /**
- * 租户端 AI 对话页面
+ * 企业端 AI 对话页面
  *
  * Uses the shared AIChatPanel component in 'page' mode.
  * Persists selected agent and conversation in URL query params
@@ -190744,7 +190744,7 @@ const faqKeys = ['faq1', 'faq2', 'faq3', 'faq4', 'faq5'];
 
 ```typescript
 /**
- * 租户端知识库管理 - 表格列、搜索配置、表单 Schema、辅助函数
+ * 企业端知识库管理 - 表格列、搜索配置、表单 Schema、辅助函数
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -191005,7 +191005,7 @@ export function useFormSchema(): VbenFormSchema[] {
 ```text
 <script lang="ts" setup>
 /**
- * 租户端知识库管理列表页面 — useCrudList + 卡片网格
+ * 企业端知识库管理列表页面 — useCrudList + 卡片网格
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 
@@ -191925,7 +191925,7 @@ watch(activeTab, (tab) => {
 <script lang="ts" setup>
 defineOptions({ name: 'TenantKnowledgeBaseForm' });
 /**
- * 租户端知识库新建/编辑表单抽屉
+ * 企业端知识库新建/编辑表单抽屉
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 
@@ -191986,7 +191986,7 @@ const title = computed(() =>
 <script lang="ts" setup>
 defineOptions({ name: 'TenantQuotaForm' });
 /**
- * 租户配额新建/编辑表单抽屉
+ * 企业配额新建/编辑表单抽屉
  */
 import type { TenantQuotaInfo } from '#/api/tenant/ai';
 
@@ -192064,7 +192064,7 @@ const title = computed(() =>
 <script lang="ts" setup>
 defineOptions({ name: 'TenantRateLimitForm' });
 /**
- * 租户速率限制新建/编辑表单抽屉
+ * 企业速率限制新建/编辑表单抽屉
  */
 import type { TenantRateLimitInfo } from '#/api/tenant/ai';
 
@@ -192131,7 +192131,7 @@ const title = computed(() =>
 
 ```typescript
 /**
- * 租户端技能包管理 - 表格列、搜索配置
+ * 企业端技能包管理 - 表格列、搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -192220,7 +192220,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 ```text
 <script lang="ts" setup>
 /**
- * 技能管理页面（租户端）— Master-Detail 布局
+ * 技能管理页面（企业端）— Master-Detail 布局
  *
  * 左侧：技能包紧凑列表（搜索 + 选中高亮 + CRUD）
  * 右侧：选中包的技能 CRUD（Ant Table + 抽屉表单）
@@ -192281,7 +192281,7 @@ import SkillForm from '../skills/modules/SkillForm.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import { getScopeText } from '#/utils/scope-helpers';
 
-/** 判断是否为租户自有包（只有 all_tenants scope 可编辑） */
+/** 判断是否为企业自有包（只有 all_tenants scope 可编辑） */
 function isTenantOwned(pkg: TenantSkillPackageInfo | null | undefined): boolean {
   return !!pkg && pkg.scope === 'all_tenants';
 }
@@ -193133,7 +193133,7 @@ onMounted(() => {
 <script lang="ts" setup>
 defineOptions({ name: 'TenantSkillPackageForm' });
 /**
- * 租户端技能包新建/编辑表单抽屉
+ * 企业端技能包新建/编辑表单抽屉
  */
 import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 
@@ -193227,7 +193227,7 @@ const title = computed(() =>
 ```text
 <script lang="ts" setup>
 /**
- * 租户端技能管理列表页面
+ * 企业端技能管理列表页面
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 
@@ -193386,9 +193386,9 @@ function onFormSuccess() {
 ```text
 <script lang="ts" setup>
 /**
- * 租户端 AI 数据访问策略页面
+ * 企业端 AI 数据访问策略页面
  *
- * 展示有效策略列表（全局 + 租户覆盖合并），支持编辑覆盖和恢复默认。
+ * 展示有效策略列表（全局 + 企业覆盖合并），支持编辑覆盖和恢复默认。
  */
 import type { EffectiveTablePolicy, TablePolicyOverrideRequest } from '#/api/tenant/ai';
 
@@ -193733,7 +193733,7 @@ const captchaRef = ref<InstanceType<typeof CaptchaImage>>();
 // 验证码用户输入
 const captchaSolution = ref('');
 
-// 首次访问加载租户公开配置
+// 首次访问加载企业公开配置
 onMounted(() => {
   publicConfigStore.loadTenantConfig();
 });
@@ -193826,7 +193826,7 @@ async function handleLogin(values: Record<string, any>) {
 
 <template>
   <div>
-    <!-- 租户管理端标识 -->
+    <!-- 企业管理端标识 -->
     <div class="mb-6 flex items-center justify-center">
       <div class="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2">
         <span class="i-lucide-building-2 text-xl text-primary"></span>
@@ -193896,8 +193896,8 @@ async function handleLogin(values: Record<string, any>) {
 ```typescript
 import type { VbenFormSchema } from '#/adapter/form';
 /**
- * 租户端附件管理 - 列定义和搜索 Schema
- * 复用平台端的大部分配置，移除租户筛选
+ * 企业端附件管理 - 列定义和搜索 Schema
+ * 复用平台端的大部分配置，移除企业筛选
  */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AttachmentInfo } from '#/types/attachment';
@@ -194092,7 +194092,7 @@ export function useColumns(
 // ============ 搜索表单 ============
 
 /**
- * 搜索表单 Schema（租户端不需要租户筛选）
+ * 搜索表单 Schema（企业端不需要企业筛选）
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
@@ -194118,7 +194118,7 @@ export { formatFileSize, getFileIcon } from '#/utils/file';
 ```text
 <script lang="ts" setup>
 /**
- * 租户端附件管理列表页面
+ * 企业端附件管理列表页面
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
@@ -194349,7 +194349,7 @@ const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
 ```text
 <script setup lang="ts">
 /**
- * 租户端附件详情抽屉
+ * 企业端附件详情抽屉
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
@@ -194915,7 +194915,7 @@ onBeforeUnmount(() => {
 
 ```typescript
 /**
- * 操作日志管理（租户端） - 表格列和搜索配置
+ * 操作日志管理（企业端） - 表格列和搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -194965,7 +194965,7 @@ export function getMethodColor(method: string | undefined): string {
 }
 
 /**
- * 表格列定义（租户端无删除操作）
+ * 表格列定义（企业端无删除操作）
  */
 export function useColumns<T = OperationLogInfo>(
   onActionClick: OnActionClickFn<T>,
@@ -195117,7 +195117,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 ```text
 <script lang="ts" setup>
 /**
- * 操作日志列表页面（租户端）
+ * 操作日志列表页面（企业端）
  */
 import type { tenantApi } from '#/api';
 
@@ -195309,7 +195309,7 @@ onMounted(() => {
 ```text
 <script lang="ts" setup>
 /**
- * 操作日志详情抽屉（租户端）
+ * 操作日志详情抽屉（企业端）
  */
 import type { tenantApi } from '#/api';
 
@@ -195521,7 +195521,7 @@ const statusCodeType = computed(() => {
 <script lang="ts" setup>
 defineOptions({ name: 'LogDetail' });
 /**
- * 操作日志详情抽屉（租户端）
+ * 操作日志详情抽屉（企业端）
  */
 import type { tenantApi } from '#/api';
 
@@ -195734,7 +195734,7 @@ const statusCodeType = computed(() => {
 <script lang="ts" setup>
 import type { TenantRoleType } from '#/api/tenant/role';
 /**
- * 租户端组织架构管理页面
+ * 企业端组织架构管理页面
  * 左侧组织树 + 右侧详情/成员面板
  */
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
@@ -196257,7 +196257,7 @@ onMounted(async () => {
 
 ```typescript
 /**
- * 租户端定时任务管理 - 表格列、搜索和表单配置
+ * 企业端定时任务管理 - 表格列、搜索和表单配置
  * 复用 admin 端 data.ts 的辅助函数
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -196685,12 +196685,12 @@ const title = computed(() =>
 ```text
 <script lang="ts" setup>
 /**
- * 租户端存储配置页面
+ * 企业端存储配置页面
  *
- * 展示租户当前存储状态，支持三种模式：
+ * 展示企业当前存储状态，支持三种模式：
  * - 模式 1 (platform): 使用平台全局存储（只读展示）
  * - 模式 2 (admin_override): 管理端指定存储（只读展示）
- * - 模式 3 (custom): 租户自主配置云存储（可编辑）
+ * - 模式 3 (custom): 企业自主配置云存储（可编辑）
  */
 import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
 
@@ -196828,7 +196828,7 @@ async function onSave() {
   saving.value = true;
   try {
     // 构建保存数据：如果 options 为空对象则不发送，避免覆盖后端已有的密钥
-    // （因为 loadData 时不回填脱敏的 options，如果租户没重新填写密钥就不应覆盖）
+    // （因为 loadData 时不回填脱敏的 options，如果企业没重新填写密钥就不应覆盖）
     const saveData: Record<string, unknown> = {
       tenant_storage_mode: 'custom',
       tenant_storage_driver: selectedDriver.value,
@@ -197025,7 +197025,7 @@ onActivated(() => {
 
 ```typescript
 /**
- * 租户端任务日志管理 - 表格列和搜索配置
+ * 企业端任务日志管理 - 表格列和搜索配置
  * 复用 admin 端 data.ts 的列/状态定义
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -197144,7 +197144,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 ```text
 <script lang="ts" setup>
 /**
- * 租户端任务日志列表页面
+ * 企业端任务日志列表页面
  */
 import type { tenantApi } from '#/api';
 
@@ -197925,7 +197925,7 @@ function onCopy(text: string) {
 
 ```typescript
 /**
- * 租户端域名管理 - 类型定义
+ * 企业端域名管理 - 类型定义
  */
 import type {
   DomainType,
@@ -198759,7 +198759,7 @@ defineOptions({ name: 'UserDashboard' });
 ````markdown
 # 用户端视图目录
 
-此目录包含租户用户端（C端）的页面组件。
+此目录包含企业用户端（C端）的页面组件。
 
 ## 目录结构
 

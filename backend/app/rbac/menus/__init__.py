@@ -3,7 +3,7 @@ Menu Definition Module
 菜单定义模块
 
 Centrally manages platform and tenant directory menu definitions.
-集中管理平台端和租户端的目录型菜单定义。
+集中管理平台端和企业端的目录型菜单定义。
 
 Directory menus (no actual API) are defined here; leaf menus (with actual API)
 are declared via controller's @permission_resource decorator.
@@ -30,7 +30,7 @@ def register_directory_menus() -> int:
 
     Registers platform, tenant, and user directory menus to the permission registry.
     Should be called before controllers are imported, ensuring parent menus registered before children.
-    将平台、租户、用户端的目录菜单统一注册到权限注册中心。
+    将平台、企业、用户端的目录菜单统一注册到权限注册中心。
     应在控制器导入之前调用，确保父菜单先于子菜单注册。
 
     Returns:
@@ -43,7 +43,7 @@ def register_directory_menus() -> int:
         permission_registry.register(menu)
         count += 1
 
-    # Tenant directory menus / 租户端目录菜单
+    # Tenant directory menus / 企业端目录菜单
     for menu in TENANT_DIRECTORY_MENUS:
         permission_registry.register(menu)
         count += 1

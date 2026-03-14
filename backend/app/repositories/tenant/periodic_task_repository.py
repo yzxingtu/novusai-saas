@@ -1,7 +1,7 @@
 """
-租户端定时任务仓储 / Tenant Periodic Task Repository
+企业端定时任务仓储 / Tenant Periodic Task Repository
 
-提供定时任务数据访问能力（租户隔离）
+提供定时任务数据访问能力（企业隔离）
 Provides periodic task data access (tenant-isolated).
 """
 
@@ -11,7 +11,7 @@ from app.models.system.periodic_task import PeriodicTask
 
 class TenantPeriodicTaskRepository(TenantRepository[PeriodicTask]):
     """
-    租户端定时任务仓储（自动按 tenant_id 过滤）
+    企业端定时任务仓储（自动按 tenant_id 过滤）
     """
 
     model = PeriodicTask

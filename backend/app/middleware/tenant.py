@@ -1,7 +1,7 @@
 """
-Tenant Identification Middleware / 租户识别中间件
+Tenant Identification Middleware / 企业识别中间件
 
-Resolves tenant info from request Host header, supports / 根据 Host 头解析租户信息，支持：
+Resolves tenant info from request Host header, supports / 根据 Host 头解析企业信息，支持：
 1. Subdomain mode / 子域名模式: {tenant_code}.app.novusai.com
 2. Custom domain mode / 自定义域名模式: custom.domain.com -> tenant_domains table
 """
@@ -21,9 +21,9 @@ from app.models import Tenant, TenantDomain
 class TenantContext:
     """
     Tenant Context.
-    租户上下文。
+    企业上下文。
 
-    Stores tenant info resolved from request / 存储从请求中解析出的租户信息
+    Stores tenant info resolved from request / 存储从请求中解析出的企业信息
     """
 
     def __init__(
@@ -40,7 +40,7 @@ class TenantContext:
 
     @property
     def is_resolved(self) -> bool:
-        """Whether tenant is resolved / 租户是否已解析"""
+        """Whether tenant is resolved / 企业是否已解析"""
         return self.tenant is not None
 
     def __repr__(self) -> str:
@@ -49,7 +49,7 @@ class TenantContext:
 
 def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
     """
-    Parse tenant info from Host header / 从 Host 头解析租户信息
+    Parse tenant info from Host header / 从 Host 头解析企业信息
 
     Args:
         host: Request Host header / 请求的 Host 头, e.g. "abc.app.novusai.com" or "custom.com"
@@ -72,7 +72,7 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
         # Extract subdomain part / 提取子域名部分
         subdomain = host[:-len(suffix)]
         if subdomain and "." not in subdomain:
-            # Valid tenant subdomain (no dots) / 合法的租户子域名
+            # Valid tenant subdomain (no dots) / 合法的企业子域名
             return subdomain, "subdomain"
 
     # Possibly custom domain / 可能是自定义域名
@@ -91,16 +91,16 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
 class TenantMiddleware:
     """
     Tenant Identification Middleware (pure ASGI implementation).
-    租户识别中间件（纯 ASGI 实现）。
+    企业识别中间件（纯 ASGI 实现）。
 
     Resolves tenant info in each request and stores to request.state.tenant_ctx.
-    在每个请求中解析租户信息并存储到 request.state.tenant_ctx。
+    在每个请求中解析企业信息并存储到 request.state.tenant_ctx。
     """
 
     def __init__(self, app: ASGIApp):
         self.app = app
 
-    # Path prefixes that need tenant domain resolution / 需要执行租户域名解析的路径前缀
+    # Path prefixes that need tenant domain resolution / 需要执行企业域名解析的路径前缀
     TENANT_PATHS = (
         "/tenant/",
         "/api/v1/",
@@ -110,7 +110,7 @@ class TenantMiddleware:
 
     @staticmethod
     def _needs_tenant_resolution(path: str) -> bool:
-        """Check if request path needs tenant domain resolution / 判断请求路径是否需要租户域名解析"""
+        """Check if request path needs tenant domain resolution / 判断请求路径是否需要企业域名解析"""
         return any(path.startswith(prefix) for prefix in TenantMiddleware.TENANT_PATHS)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -121,7 +121,7 @@ class TenantMiddleware:
         # Get request path / 获取请求路径
         path = scope.get("path", "")
 
-        # Non-tenant paths skip domain resolution, set empty context to avoid downstream errors / 非租户路径跳过解析
+        # Non-tenant paths skip domain resolution, set empty context to avoid downstream errors / 非企业路径跳过解析
         if not self._needs_tenant_resolution(path):
             if "state" not in scope:
                 scope["state"] = {}
@@ -133,16 +133,16 @@ class TenantMiddleware:
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode("utf-8", errors="ignore")
 
-        # Parse tenant / 解析租户
+        # Parse tenant / 解析企业
         tenant_code, domain_type = parse_tenant_from_host(host)
 
-        # Create tenant context / 创建租户上下文
+        # Create tenant context / 创建企业上下文
         tenant_ctx = TenantContext(
             tenant_code=tenant_code,
             domain_type=domain_type,
         )
 
-        # If tenant info resolved, load from DB / 如果解析出了租户信息，从数据库加载
+        # If tenant info resolved, load from DB / 如果解析出了企业信息，从数据库加载
         if tenant_code or domain_type == "custom":
             async with async_session_factory() as db:
                 tenant = await self._resolve_tenant(db, tenant_code, host, domain_type)
@@ -151,7 +151,7 @@ class TenantMiddleware:
                     tenant_ctx.tenant_id = tenant.id
                     tenant_ctx.tenant_code = tenant.code
 
-        # Store tenant context in scope state / 将租户上下文存储到 scope state
+        # Store tenant context in scope state / 将企业上下文存储到 scope state
         # FastAPI maps this to request.state / FastAPI 会将其映射到 request.state
         if "state" not in scope:
             scope["state"] = {}
@@ -167,11 +167,11 @@ class TenantMiddleware:
         domain_type: str,
     ) -> Tenant | None:
         """
-        Resolve tenant from database / 从数据库解析租户
+        Resolve tenant from database / 从数据库解析企业
 
         Args:
             db: Database session / 数据库会话
-            tenant_code: Tenant code (subdomain mode) / 租户代码
+            tenant_code: Tenant code (subdomain mode) / 企业代码
             host: Original Host (custom domain mode) / 原始 Host
             domain_type: Domain type / 域名类型
 
@@ -211,7 +211,7 @@ class TenantMiddleware:
                 and tenant_domain.tenant.is_active
                 and not tenant_domain.tenant.is_deleted
             ):
-                # Check if tenant is active / 检查租户是否激活
+                # Check if tenant is active / 检查企业是否激活
                 return tenant_domain.tenant
 
         return None
@@ -219,7 +219,7 @@ class TenantMiddleware:
 
 def get_tenant_context(request: Request) -> TenantContext | None:
     """
-    Get tenant context from request / 从请求中获取租户上下文
+    Get tenant context from request / 从请求中获取企业上下文
 
     Usage:
         tenant_ctx = get_tenant_context(request)
@@ -231,7 +231,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
 
 def get_current_tenant(request: Request) -> Tenant | None:
     """
-    Get current tenant from request / 从请求中获取当前租户
+    Get current tenant from request / 从请求中获取当前企业
 
     Usage:
         tenant = get_current_tenant(request)

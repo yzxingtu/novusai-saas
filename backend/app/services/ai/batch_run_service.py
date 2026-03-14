@@ -12,7 +12,7 @@ logger = LogManager.get_logger("ai")
 
 class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
     """
-    租户端批量运行 Service
+    企业端批量运行 Service
 
     提供批量运行查询、取消等操作
     """

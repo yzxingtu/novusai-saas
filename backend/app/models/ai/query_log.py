@@ -130,7 +130,7 @@ class AIQueryLog(TenantModel):
     # ==================== 索引 ====================
 
     __table_args__ = (
-        # 租户 + 创建时间复合索引
+        # 企业 + 创建时间复合索引
         Index("idx_ai_query_logs_tenant_created", "tenant_id", "created_at"),
         # 操作者 + 创建时间复合索引
         Index("idx_ai_query_logs_user_created", "user_id", "created_at"),

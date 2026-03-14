@@ -32,6 +32,13 @@ class AIProvider(BaseModel):
                     label_field="id", i18n_key="provider_api_key"),
     ]
 
+    __selectable__ = {
+        "label": "name",
+        "value": "id",
+        "search": ["name", "code"],
+        "extra": ["code"],
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

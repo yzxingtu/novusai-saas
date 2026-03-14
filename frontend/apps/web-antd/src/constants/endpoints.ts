@@ -16,7 +16,7 @@ import { EndpointType } from '#/types/endpoint';
 /** Admin route prefix / 平台管理端路由前缀 */
 export const ADMIN_ROUTE_PREFIX = '/admin';
 
-/** Tenant route prefix / 租户管理端路由前缀 */
+/** Tenant route prefix / 企业管理端路由前缀 */
 export const TENANT_ROUTE_PREFIX = '/tenant';
 
 /** User route prefix (root path) / 用户端路由前缀（根路径） */
@@ -29,7 +29,7 @@ export const USER_ROUTE_PREFIX = '';
 /** Admin login path / 平台管理端登录路径 */
 export const ADMIN_LOGIN_PATH = '/admin/login';
 
-/** Tenant login path / 租户管理端登录路径 */
+/** Tenant login path / 企业管理端登录路径 */
 export const TENANT_LOGIN_PATH = '/tenant/login';
 
 /** User login path / 用户端登录路径 */
@@ -42,7 +42,7 @@ export const USER_LOGIN_PATH = '/auth/login';
 /** Admin default home / 平台管理端默认首页 */
 export const ADMIN_HOME_PATH = '/admin/dashboard';
 
-/** Tenant default home / 租户管理端默认首页 */
+/** Tenant default home / 企业管理端默认首页 */
 export const TENANT_HOME_PATH = '/tenant/dashboard';
 
 /** User default home / 用户端默认首页 */
@@ -55,7 +55,7 @@ export const USER_HOME_PATH = '/';
 /** Admin API prefix / 平台管理端 API 前缀 */
 export const ADMIN_API_PREFIX = '/api/v1/admin';
 
-/** Tenant API prefix / 租户管理端 API 前缀 */
+/** Tenant API prefix / 企业管理端 API 前缀 */
 export const TENANT_API_PREFIX = '/api/v1/tenant';
 
 /** User API prefix / 用户端 API 前缀 */

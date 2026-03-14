@@ -6,7 +6,7 @@ Provides aggregated analytics data endpoints for ECharts:
 - 调用趋势（折线/面积图） / Call trend (line/area chart)
 - 模型分布（饼图） / Model distribution (pie chart)
 - 供应商性能（雷达图） / Provider performance (radar chart)
-- 租户排行（柱状图） / Tenant ranking (bar chart)
+- 企业排行（柱状图） / Tenant ranking (bar chart)
 - 延迟分布（直方图） / Latency distribution (histogram)
 - 成功率趋势（折线图） / Success rate trend (line chart)
 """
@@ -67,7 +67,7 @@ async def get_provider_performance(
     return success(data=data)
 
 
-@router.get("/tenant-ranking", summary="租户使用排行")
+@router.get("/tenant-ranking", summary="企业使用排行")
 @auth_only
 async def get_tenant_ranking(
     db: DbSession,
@@ -76,7 +76,7 @@ async def get_tenant_ranking(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
 ):
-    """租户 Top N 调用量/Token/费用排行（柱状图） / Tenant Top N calls/token/cost ranking (bar chart)"""
+    """企业 Top N 调用量/Token/费用排行（柱状图） / Tenant Top N calls/token/cost ranking (bar chart)"""
     svc = AnalyticsService(db)
     data = await svc.get_tenant_ranking(top_n, start_date, end_date)
     return success(data=data)

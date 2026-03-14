@@ -18,9 +18,10 @@ from app.core.i18n import _
 
 
 class ProviderApiKeyCreate(BaseCreateSchema):
-    """创建 API Key 请求"""
+    """创建 API Key 请求 / Create API Key request"""
 
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
+    scope: str = Field("all_tenants", description=_("enum.ai_api_key.scope"))
     tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
     name: str = Field(..., max_length=100, description=_("enum.ai_api_key.name"))
     api_key: str = Field(..., min_length=1, description=_("enum.ai_api_key.api_key"))
@@ -39,9 +40,10 @@ class ProviderApiKeyUpdate(BaseUpdateSchema):
 
 
 class ProviderApiKeyResponse(BaseResponseSchema):
-    """API Key 响应（不返回明文 Key）"""
+    """API Key 响应（不返回明文 Key） / API Key response (no plaintext key)"""
 
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
+    scope: str = Field(..., description=_("enum.ai_api_key.scope"))
     tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
     name: str = Field(..., description=_("enum.ai_api_key.name"))
     is_active: bool = Field(..., description=_("enum.ai_api_key.is_active"))
@@ -51,6 +53,7 @@ class ProviderApiKeyResponse(BaseResponseSchema):
     expires_at: datetime | None = Field(None, description=_("enum.ai_api_key.expires_at"))
     provider_name: str | None = Field(None, description=_("enum.ai_api_key.provider_name"))
     provider_icon: str | None = Field(None, description=_("enum.ai_api_key.provider_icon"))
+    provider_model_count: int = Field(0, description=_("enum.ai_api_key.provider_model_count"))
     tenant_name: str | None = Field(None, description=_("enum.ai_api_key.tenant_name"))
     is_available: bool = Field(..., description=_("enum.ai_api_key.is_available"))
     key_preview: str | None = Field(None, description=_("enum.ai_api_key.key_preview"))

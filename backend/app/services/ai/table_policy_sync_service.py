@@ -61,10 +61,10 @@ _READONLY_COLUMNS: list[str] = [
 
 # ===== 表名 → 中文关键词映射（常用表手动维护） =====
 _TABLE_KEYWORDS: dict[str, list[str]] = {
-    "tenants": ["租户", "tenant", "组织", "商户", "客户"],
+    "tenants": ["企业", "tenant", "组织", "商户", "客户"],
     "tenant_plans": ["套餐", "plan", "计划", "订阅"],
     "tenant_users": ["用户", "user", "终端用户"],
-    "tenant_admins": ["管理员", "admin", "租户管理员"],
+    "tenant_admins": ["管理员", "admin", "企业管理员"],
     "tenant_domains": ["域名", "domain"],
     "agents": ["智能体", "agent", "机器人", "bot", "助手"],
     "agent_conversations": ["对话", "conversation", "chat", "聊天"],
@@ -83,7 +83,7 @@ _TABLE_KEYWORDS: dict[str, list[str]] = {
     "batch_runs": ["批处理", "batch", "批量运行"],
     "agent_versions": ["版本", "version", "智能体版本"],
     "agent_access": ["访问权限", "access", "智能体权限"],
-    "tenant_quotas": ["配额", "quota", "租户配额"],
+    "tenant_quotas": ["配额", "quota", "企业配额"],
     "tenant_model_rate_limits": ["限流", "rate_limit", "速率限制"],
     "periodic_tasks": ["定时任务", "periodic", "计划任务"],
     "task_logs": ["任务日志", "task_log"],

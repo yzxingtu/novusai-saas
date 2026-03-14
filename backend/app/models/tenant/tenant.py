@@ -1,7 +1,7 @@
 """
-租户模型 / Tenant Model
+企业模型 / Tenant Model
 
-多租户 SaaS 的租户实体
+多企业 SaaS 的企业实体
 Multi-tenant SaaS tenant entity.
 """
 
@@ -17,10 +17,10 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Tenant(BaseModel):
     """
-    租户模型
+    企业模型
 
-    - 每个租户是一个独立的商户/组织
-    - 租户数据完全隔离
+    - 每个企业是一个独立的商户/组织
+    - 企业数据完全隔离
     """
 
     __tablename__ = "tenants"
@@ -63,10 +63,10 @@ class Tenant(BaseModel):
 
     # 基本信息
     name: Mapped[str] = mapped_column(
-        String(100), index=True, comment="租户名称"
+        String(100), index=True, comment="企业名称"
     )
     code: Mapped[str] = mapped_column(
-        String(50), unique=True, index=True, comment="租户编码（唯一标识）"
+        String(50), unique=True, index=True, comment="企业编码（唯一标识）"
     )
 
     # 联系信息
@@ -80,7 +80,7 @@ class Tenant(BaseModel):
         String(255), nullable=True, comment="联系人邮箱"
     )
 
-    # 租户状态
+    # 企业状态
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否启用"
     )
@@ -101,7 +101,7 @@ class Tenant(BaseModel):
         comment="关联套餐ID"
     )
 
-    # 租户级配额覆盖（可覆盖套餐默认配额）
+    # 企业级配额覆盖（可覆盖套餐默认配额）
     quota: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="配额配置(可覆盖套餐默认值)"
     )
@@ -116,12 +116,12 @@ class Tenant(BaseModel):
         Text, nullable=True, comment="备注"
     )
 
-    # 租户设置（JSON 格式）
+    # 企业设置（JSON 格式）
     # @deprecated: 已废弃，请使用 ConfigService.get_tenant_config() 获取配置
     # 数据已迁移到 system_config_values 表
     # 保留字段以兼容旧数据，但不再使用
     settings: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="租户设置(已废弃)"
+        JSON, nullable=True, comment="企业设置(已废弃)"
     )
 
     # ==================== 关系 ====================
@@ -133,7 +133,7 @@ class Tenant(BaseModel):
         lazy="selectin",
     )
 
-    # 租户绑定的域名列表
+    # 企业绑定的域名列表
     domains = relationship(
         "TenantDomain",
         back_populates="tenant",
@@ -145,7 +145,7 @@ class Tenant(BaseModel):
 
     @property
     def subdomain(self) -> str:
-        """获取租户子域名"""
+        """获取企业子域名"""
         return self.code
 
     # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
@@ -157,7 +157,7 @@ class Tenant(BaseModel):
     @property
     def max_custom_domains(self) -> int:
         """获取最大自定义域名数量（由套餐决定）"""
-        # 优先从租户级 quota 获取，其次从套餐获取
+        # 优先从企业级 quota 获取，其次从套餐获取
         if self.quota and "max_custom_domains" in self.quota:
             return self.quota.get("max_custom_domains", 0)
         if self.tenant_plan:
@@ -166,7 +166,7 @@ class Tenant(BaseModel):
 
     def get_quota_value(self, key: str, default: int | bool | None = None):
         """
-        获取配额值（优先租户级覆盖，其次套餐默认值）
+        获取配额值（优先企业级覆盖，其次套餐默认值）
 
         Args:
             key: 配额键名
@@ -175,7 +175,7 @@ class Tenant(BaseModel):
         Returns:
             配额值
         """
-        # 优先从租户级 quota 获取
+        # 优先从企业级 quota 获取
         if self.quota and key in self.quota:
             return self.quota.get(key, default)
         # 其次从套餐获取

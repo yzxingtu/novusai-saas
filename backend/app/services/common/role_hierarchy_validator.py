@@ -169,9 +169,9 @@ class AdminRoleHierarchyValidator:
 
 class TenantAdminRoleHierarchyValidator:
     """
-    租户管理员角色层级校验器
+    企业管理员角色层级校验器
 
-    提供基于角色层级的访问控制校验（租户隔离）
+    提供基于角色层级的访问控制校验（企业隔离）
     """
 
     def __init__(self, db: AsyncSession, tenant_admin: TenantAdmin):
@@ -180,7 +180,7 @@ class TenantAdminRoleHierarchyValidator:
 
         Args:
             db: 数据库会话
-            tenant_admin: 当前租户管理员
+            tenant_admin: 当前企业管理员
         """
         self.db = db
         self.tenant_admin = tenant_admin
@@ -220,7 +220,7 @@ class TenantAdminRoleHierarchyValidator:
 
     async def can_create_under_parent(self, parent_id: int | None) -> bool:
         """检查是否可以在指定父角色下创建子角色"""
-        # 租户所有者可以在任何位置创建
+        # 企业所有者可以在任何位置创建
         if self.tenant_admin.is_owner:
             return True
 
@@ -228,7 +228,7 @@ class TenantAdminRoleHierarchyValidator:
         if self.tenant_admin.role_id is None:
             return False
 
-        # 不能创建根角色（只有租户所有者可以）
+        # 不能创建根角色（只有企业所有者可以）
         if parent_id is None:
             return False
 

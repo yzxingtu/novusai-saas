@@ -28,16 +28,16 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         """
         获取可用的 API Key
 
-        优先使用租户自己的 Key，否则回退到平台 Key
+        优先使用企业自己的 Key，否则回退到平台 Key
 
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             ProviderApiKey 对象或 None
         """
-        # 先查找租户级 Key
+        # 先查找企业级 Key
         if tenant_id:
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
@@ -53,12 +53,18 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             if key and key.is_available():
                 return key
 
-        # 回退到平台级 Key
-        stmt = select(ProviderApiKey).where(
+        # 回退到平台级 Key（排除 admin_only） / Fallback to platform key (exclude admin_only)
+        fallback_conditions = [
             ProviderApiKey.provider_id == provider_id,
             ProviderApiKey.tenant_id.is_(None),
             ProviderApiKey.is_active.is_(True),
-            ProviderApiKey.is_deleted.is_(False)
+            ProviderApiKey.is_deleted.is_(False),
+        ]
+        if tenant_id:
+            fallback_conditions.append(ProviderApiKey.scope != 'admin_only')
+
+        stmt = select(ProviderApiKey).where(
+            *fallback_conditions
         ).order_by(
             ProviderApiKey.created_at.desc()
         )
@@ -66,7 +72,6 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         result = await self.db.execute(stmt)
         key = result.scalar_one_or_none()
 
-        # 检查 Key 是否可用
         if key and key.is_available():
             return key
 
@@ -82,7 +87,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
 
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             ProviderApiKey 列表（按使用次数升序，实现负载均衡）
@@ -94,7 +99,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         ]
 
         if tenant_id:
-            # 优先使用租户级 Key
+            # 优先使用企业级 Key
             tenant_conditions = base_conditions + [
                 ProviderApiKey.tenant_id == tenant_id,
             ]
@@ -109,9 +114,10 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             if keys:
                 return keys
 
-            # 回退到平台级 Key
+            # 回退到平台级 Key（排除 admin_only） / Fallback to platform key (exclude admin_only)
             platform_conditions = base_conditions + [
                 ProviderApiKey.tenant_id.is_(None),
+                ProviderApiKey.scope != 'admin_only',
             ]
             stmt = select(ProviderApiKey).where(
                 and_(*platform_conditions)
@@ -146,7 +152,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
 
         Args:
             provider_id: 供应商 ID
-            tenant_id: 租户 ID（None 表示获取所有 Key）
+            tenant_id: 企业 ID（None 表示获取所有 Key）
             include_deleted: 是否包含已删除的记录
 
         Returns:
@@ -183,7 +189,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         Args:
             provider_id: 供应商 ID
             exclude_key_id: 排除的 Key ID
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             ProviderApiKey 对象或 None
@@ -194,6 +200,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
                 ProviderApiKey.id != exclude_key_id,
                 ProviderApiKey.is_active.is_(True),
                 ProviderApiKey.is_deleted.is_(False),
+                ProviderApiKey.scope != 'admin_only',
                 (
                     (ProviderApiKey.tenant_id == tenant_id)
                     | (ProviderApiKey.tenant_id.is_(None))

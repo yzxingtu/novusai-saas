@@ -7,7 +7,7 @@ Agent 通过绑定技能包来获取其中所有技能的能力。
 
 可见性通过 target_audience 控制（admin_only / admin_tenant / all）。
 Visibility is controlled by target_audience (admin_only / admin_tenant / all).
-tenant_id=NULL 表示平台级包，tenant_id=X 表示租户自有包。
+tenant_id=NULL 表示平台级包，tenant_id=X 表示企业自有包。
 tenant_id=NULL means platform-level package, tenant_id=X means tenant-owned package.
 """
 
@@ -40,7 +40,7 @@ class SkillPackage(TenantModel):
         Integer,
         nullable=True,
         index=True,
-        comment="租户ID（平台级包为 NULL，租户自有包为租户 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)"
+        comment="企业ID（平台级包为 NULL，企业自有包为企业 ID）/ Tenant ID (NULL for platform packages, tenant ID for tenant-owned)"
     )
 
     # 允许前端筛选的字段

@@ -34,7 +34,7 @@ class ImageProcessService:
 
         Args:
             db: 数据库会话
-            tenant_id: 租户 ID，为空表示公共上下文
+            tenant_id: 企业 ID，为空表示公共上下文
         """
         self.db = db
         self.tenant_id = tenant_id

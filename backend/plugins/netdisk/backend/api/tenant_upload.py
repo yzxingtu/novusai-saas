@@ -1,5 +1,5 @@
 """
-租户端上传/下载 API
+企业端上传/下载 API
 
 Handler 签名：(request, db, ctx)
 - 整文件上传：multipart/form-data 通过 request.form() + request.files()

@@ -13,7 +13,7 @@ from app.models.ai.agent_conversation import AgentConversation
 
 class AgentConversationRepository(TenantRepository[AgentConversation]):
     """
-    租户级智能体对话 Repository
+    企业级智能体对话 Repository
 
     提供按智能体、按状态查询，批量归档等方法
     """
@@ -200,9 +200,9 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
 class AdminAgentConversationRepository(BaseRepository[AgentConversation]):
     """
-    平台级智能体对话 Repository（无租户过滤）
+    平台级智能体对话 Repository（无企业过滤）
 
-    供管理端全租户只读审计使用
+    供管理端全企业只读审计使用
     """
 
     model = AgentConversation

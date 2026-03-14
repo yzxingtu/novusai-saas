@@ -1,7 +1,7 @@
 """
-租户用户角色仓储 / Tenant User Role Repository
+企业用户角色仓储 / Tenant User Role Repository
 
-提供租户用户角色的数据访问操作（租户隔离），扁平结构无层级
+提供企业用户角色的数据访问操作（企业隔离），扁平结构无层级
 Provides tenant user role data access (tenant-isolated), flat structure without hierarchy.
 """
 
@@ -15,16 +15,16 @@ from app.models.auth.tenant_user_role import TenantUserRole
 
 class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
     """
-    租户用户角色仓储
+    企业用户角色仓储
 
-    提供租户用户角色特有的数据访问方法，自动过滤租户 ID
+    提供企业用户角色特有的数据访问方法，自动过滤企业 ID
     """
 
     model = TenantUserRole
 
     async def get_by_code(self, code: str) -> TenantUserRole | None:
         """
-        根据代码获取角色（租户内）
+        根据代码获取角色（企业内）
 
         Args:
             code: 角色代码
@@ -40,7 +40,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色代码是否已存在（租户内唯一）
+        检查角色代码是否已存在（企业内唯一）
 
         Args:
             code: 角色代码
@@ -66,7 +66,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色名称是否已存在（租户内唯一）
+        检查角色名称是否已存在（企业内唯一）
 
         Args:
             name: 角色名称

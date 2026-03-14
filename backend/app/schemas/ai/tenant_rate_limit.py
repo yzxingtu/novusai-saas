@@ -1,5 +1,5 @@
 """
-租户 AI 模型速率限制配置 Schema / Tenant AI Rate Limit Schema
+企业 AI 模型速率限制配置 Schema / Tenant AI Rate Limit Schema
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TenantRateLimitBase(BaseModel):
-    """租户速率限制配置基础 Schema"""
+    """企业速率限制配置基础 Schema"""
 
     model_id: int = Field(..., description="模型 ID")
     rpm_limit: int | None = Field(None, ge=0, description="RPM 限制（每分钟请求数）")
@@ -19,7 +19,7 @@ class TenantRateLimitBase(BaseModel):
 
 
 class TenantRateLimitCreate(TenantRateLimitBase):
-    """创建租户速率限制配置"""
+    """创建企业速率限制配置"""
 
     pass
 
@@ -27,11 +27,11 @@ class TenantRateLimitCreate(TenantRateLimitBase):
 class AdminRateLimitCreate(TenantRateLimitBase):
     """管理端创建速率限制配置（需指定 tenant_id）"""
 
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
 
 
 class TenantRateLimitUpdate(BaseModel):
-    """更新租户速率限制配置"""
+    """更新企业速率限制配置"""
 
     rpm_limit: int | None = Field(None, ge=0, description="RPM 限制")
     tpm_limit: int | None = Field(None, ge=0, description="TPM 限制")
@@ -40,7 +40,7 @@ class TenantRateLimitUpdate(BaseModel):
 
 
 class TenantRateLimitResponse(TenantRateLimitBase):
-    """租户速率限制配置响应"""
+    """企业速率限制配置响应"""
 
     id: int
     tenant_id: int

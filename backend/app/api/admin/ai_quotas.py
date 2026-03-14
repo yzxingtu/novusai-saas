@@ -1,7 +1,7 @@
 """
 平台端 AI 配额管理 API / Platform AI Quota API
 
-提供租户 AI 配额的 CRUD 接口（平台管理员专用）
+提供企业 AI 配额的 CRUD 接口（平台管理员专用）
 Provides tenant AI quota CRUD endpoints (platform admin only).
 """
 
@@ -94,7 +94,7 @@ class AdminAIQuotaController(GlobalController):
     """
     AI 配额管理控制器 / AI Quota Management Controller
 
-    提供租户 AI 配额 CRUD 接口 / Provides tenant AI quota CRUD endpoints
+    提供企业 AI 配额 CRUD 接口 / Provides tenant AI quota CRUD endpoints
     """
 
     prefix = "/ai/quotas"
@@ -118,7 +118,7 @@ class AdminAIQuotaController(GlobalController):
             model_id: int | None = None,
         ):
             """
-            获取速率限制列表（跨租户） / Get rate limit list (cross-tenant)
+            获取速率限制列表（跨企业） / Get rate limit list (cross-tenant)
 
             权限 / Permission: ai_quota:list_rate_limits
             """
@@ -247,7 +247,7 @@ class AdminAIQuotaController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取配额列表（跨租户） / Get quota list (cross-tenant)
+            获取配额列表（跨企业） / Get quota list (cross-tenant)
 
             权限 / Permission: ai_quota:list
             """

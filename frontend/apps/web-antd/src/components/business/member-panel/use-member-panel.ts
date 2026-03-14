@@ -18,7 +18,7 @@ import {
   removeMemberFromNodeApi as adminRemoveMemberApi,
   setNodeLeaderApi as adminSetLeaderApi,
 } from '#/api/admin/organization';
-// Tenant API / 租户端 API
+// Tenant API / 企业端 API
 import {
   addTenantMemberToNodeApi as tenantAddMemberApi,
   getTenantNodeMembersApi as tenantGetMembersApi,

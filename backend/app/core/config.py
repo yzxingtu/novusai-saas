@@ -157,14 +157,14 @@ class Settings(BaseSettings):
     # 例如 / Example: "admin.novusai.com,manage.novusai.com"
     PLATFORM_DOMAINS: str = ""
 
-    # 租户子域名后缀 / Tenant subdomain suffix, e.g. .app.novusai.com
-    # 租户访问地址 / Tenant URL: {tenant_code}.app.novusai.com
+    # 企业子域名后缀 / Tenant subdomain suffix, e.g. .app.novusai.com
+    # 企业访问地址 / Tenant URL: {tenant_code}.app.novusai.com
     TENANT_DOMAIN_SUFFIX: str = ".app.novusai.com"
 
-    # 是否允许租户绑定自定义域名 / Whether to allow tenants to bind custom domains
+    # 是否允许企业绑定自定义域名 / Whether to allow tenants to bind custom domains
     ALLOW_CUSTOM_DOMAIN: bool = True
 
-    # 租户域名验证前缀 / Tenant domain verification prefix (for DNS TXT record verification)
+    # 企业域名验证前缀 / Tenant domain verification prefix (for DNS TXT record verification)
     DOMAIN_VERIFICATION_PREFIX: str = "_novusai-verification"
 
     @property

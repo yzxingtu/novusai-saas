@@ -10,7 +10,7 @@ from app.models.common.notification_template import NotificationTemplate
 
 
 class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
-    """通知模板仓库（全局，无租户过滤）"""
+    """通知模板仓库（全局，无企业过滤）"""
 
     model = NotificationTemplate
 

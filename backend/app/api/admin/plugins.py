@@ -1142,7 +1142,7 @@ class AdminPluginController(GlobalController):
             await manager.rollback(plugin_id, body.target_version)
             return success(data={"message": f"Rolled back to {body.target_version}"})
 
-        # ── 租户分配 / Tenant Assignment ──
+        # ── 企业分配 / Tenant Assignment ──
 
         @self.router.get("/{plugin_id}/tenants")
         @action_read("action.plugin.tenants")

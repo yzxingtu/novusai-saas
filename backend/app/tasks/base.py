@@ -424,7 +424,7 @@ class BaseTask(Task):
 
 class TenantTask(BaseTask):
     """
-    Tenant-isolated task base class / 租户隔离任务基类
+    Tenant-isolated task base class / 企业隔离任务基类
 
     Automatically extracts tenant_id from task params and sets it to context.
     自动从任务参数中提取 tenant_id 并设置到上下文

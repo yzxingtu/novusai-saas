@@ -8,9 +8,9 @@ Dev Hosts 服务单元测试 / Dev Hosts Service Unit Tests
 4. sync_dev_host() 对未验证域名抛 BusinessException
 5. non-DEBUG 环境：enabled=False，sync 不写文件
 6. remove_dev_host() 调用 async_remove_host_entry（受 _should_inject_hosts 控制）
-7. _get_owned_domain 跨租户访问返回 NotFoundException
+7. _get_owned_domain 跨企业访问返回 NotFoundException
 8. sync_all_dev_hosts() 正确计算 synced/skipped 数量
-9. TenantDomainTenantService._should_inject_hosts() 返回 False（租户端隔离）
+9. TenantDomainTenantService._should_inject_hosts() 返回 False（企业端隔离）
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def service(mock_db):
 
 @pytest.fixture()
 def tenant_service(mock_db):
-    """构造 TenantDomainTenantService 实例（租户端，_should_inject_hosts = False）
+    """构造 TenantDomainTenantService 实例（企业端，_should_inject_hosts = False）
     Build TenantDomainTenantService instance (tenant side, _should_inject_hosts = False)"""
     svc = TenantDomainTenantService.__new__(TenantDomainTenantService)
     svc.db = mock_db
@@ -302,7 +302,7 @@ async def test_remove_dev_host_calls_remove_entry(
 async def test_get_owned_domain_cross_tenant_raises_not_found(
     service, verified_domain
 ):
-    """场景7：跨租户访问域名抛出 NotFoundException
+    """场景7：跨企业访问域名抛出 NotFoundException
     Scenario 7: Cross-tenant domain access raises NotFoundException"""
     # domain.tenant_id=1 but we request with tenant_id=999
     service.get_by_id = AsyncMock(return_value=verified_domain)
@@ -350,6 +350,6 @@ def test_tenant_domain_service_should_inject_hosts_true(service):
 
 
 def test_tenant_domain_tenant_service_should_inject_hosts_false(tenant_service):
-    """场景9b：TenantDomainTenantService（租户端）_should_inject_hosts 返回 False，防止误写 hosts
+    """场景9b：TenantDomainTenantService（企业端）_should_inject_hosts 返回 False，防止误写 hosts
     Scenario 9b: TenantDomainTenantService (tenant side) _should_inject_hosts returns False, preventing hosts writes"""
     assert tenant_service._should_inject_hosts() is False

@@ -14,7 +14,7 @@
  * - 404x: 资源不存在
  * - 409x: 资源冲突
  * - 41xx: 角色/权限相关
- * - 42xx: 租户/域名相关
+ * - 42xx: 企业/域名相关
  * - 43xx: 管理员相关
  * - 5xxx: 服务端错误
  *
@@ -46,7 +46,7 @@ export enum ErrorCode {
   /** Domain already in use */
   DOMAIN_ALREADY_EXISTS = 4203,
   // ============================================================
-  // ---- Tenant & domain related / 租户、域名相关 ---- (42xx)
+  // ---- Tenant & domain related / 企业、域名相关 ---- (42xx)
   // ============================================================
   /** 自定义域名功能未启用 */
   /** Custom domain feature not enabled */

@@ -5,8 +5,8 @@
  * Generates a set of scope-related form fields for VbenForm:
  * 为 VbenForm 生成一组 scope 相关的表单字段：
  * 1. Scope dropdown (scope) / 作用域下拉（scope）
- * 2. Tenant select (shown when scope=all_tenants) / 所属租户单选（scope=all_tenants 时显示）
- * 3. Tenant multi-select (scope=assigned_tenants / admin_and_assigned) / 分配租户多选
+ * 2. Tenant select (shown when scope=all_tenants) / 所属企业单选（scope=all_tenants 时显示）
+ * 3. Tenant multi-select (scope=assigned_tenants / admin_and_assigned) / 分配企业多选
  *
  * All forms requiring scope selection (skill packages, knowledge bases, agents, etc.) use this.
  * 所有需要作用域选择的表单（技能包、知识库、智能体等）统一使用此函数。
@@ -26,18 +26,25 @@ export interface ScopeFieldsOptions {
   scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
   /**
    * Whether to show "tenant" select when scope=all_tenants, default false.
-   * 是否在 scope=all_tenants 时显示「所属租户」单选，默认 false。
+   * 是否在 scope=all_tenants 时显示「所属企业」单选，默认 false。
    * Only for semantically different scenarios (e.g. scheduled tasks: all_tenants = belongs to specific tenant).
-   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定租户）。
+   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定企业）。
    * Regular resources (agents/knowledge bases/skill packages) don't pass this, all_tenants = platform global resource.
    * 普通资源（智能体/知识库/技能包）不传此项，all_tenants = 平台全局资源。
    */
   showTenantId?: boolean;
+  /**
+   * Whether tenant_id is required when shown, default true.
+   * 所属企业是否必填，默认 true。
+   * Set to false when tenant_id=null has valid meaning (e.g. API Key: null = platform-wide shared).
+   * 当 tenant_id=null 有合法含义时设为 false（如 API Key：null = 平台共享）。
+   */
+  tenantIdRequired?: boolean;
   /** Scope field name, default 'scope' / scope 字段名，默认 'scope' */
   scopeField?: string;
-  /** Tenant ID field name, default 'tenant_id' / 所属租户字段名，默认 'tenant_id' */
+  /** Tenant ID field name, default 'tenant_id' / 所属企业字段名，默认 'tenant_id' */
   tenantIdField?: string;
-  /** Assigned tenants field name, default 'tenant_ids' / 分配租户字段名，默认 'tenant_ids' */
+  /** Assigned tenants field name, default 'tenant_ids' / 分配企业字段名，默认 'tenant_ids' */
   tenantIdsField?: string;
 }
 
@@ -53,6 +60,7 @@ export function useScopeFields(
     scopeHelp,
     scopeDisabled = false,
     showTenantId = false,
+    tenantIdRequired = true,
     scopeField = 'scope',
     tenantIdField = 'tenant_id',
     tenantIdsField = 'tenant_ids',
@@ -93,15 +101,14 @@ export function useScopeFields(
   };
   fields.push(scopeSchema);
 
-  // ── 2. Tenant select (shown when scope=all_tenants, only for specific scenarios) / 所属租户 ──
+  // ── 2. Tenant select (shown when scope=all_tenants, only for specific scenarios) / 所属企业 ──
   if (showTenantId) {
     const isTenantScope = (v: Record<string, unknown>) =>
       v[scopeField] === 'all_tenants';
-    fields.push({
+    const tenantField: VbenFormSchema = {
       component: 'ApiSelect',
       fieldName: tenantIdField,
       label: $t('common.scope.tenantId'),
-      rules: 'selectRequired',
       componentProps: {
         api: getTenantSelectApi,
         params: { is_active: 'true' },
@@ -109,6 +116,9 @@ export function useScopeFields(
         allowClear: true,
         showSearch: true,
         filterOption: false,
+        pagination: true,
+        clickPagination: true,
+        pageSize: 10,
         class: 'w-full',
         placeholder: $t('common.scope.selectTenant'),
       },
@@ -116,10 +126,14 @@ export function useScopeFields(
         triggerFields: [scopeField],
         if: isTenantScope,
       },
-    });
+    };
+    if (tenantIdRequired) {
+      tenantField.rules = 'selectRequired';
+    }
+    fields.push(tenantField);
   }
 
-  // ── 3. Assigned tenants (shown when scope=assigned_tenants / admin_and_assigned) / 分配租户 ──
+  // ── 3. Assigned tenants (shown when scope=assigned_tenants / admin_and_assigned) / 分配企业 ──
   fields.push({
     component: 'ApiSelect',
     fieldName: tenantIdsField,
@@ -134,6 +148,9 @@ export function useScopeFields(
       allowClear: true,
       showSearch: true,
       filterOption: false,
+      pagination: true,
+      clickPagination: true,
+      pageSize: 10,
       class: 'w-full',
       placeholder: $t('common.scope.selectAssignedTenants'),
     },
@@ -148,7 +165,7 @@ export function useScopeFields(
 
 /**
  * Check if scope requires tenant assignment
- * 判断 scope 是否需要租户分配
+ * 判断 scope 是否需要企业分配
  */
 export function scopeNeedsAssignment(scope: string): boolean {
   return scope === 'assigned_tenants' || scope === 'admin_and_assigned';

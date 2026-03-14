@@ -12,9 +12,9 @@ from app.schemas.common.query import FilterRule, QuerySpec
 
 class SkillRepository(TenantRepository[Skill]):
     """
-    租户级技能 Repository
+    企业级技能 Repository
 
-    提供基于租户隔离的技能数据访问。
+    提供基于企业隔离的技能数据访问。
     查询时自动包含 scope=global 的全局技能。
     """
 
@@ -45,7 +45,7 @@ class SkillRepository(TenantRepository[Skill]):
         include_deleted: bool = False,
     ) -> tuple[list[Skill], int]:
         """
-        租户级技能列表查询
+        企业级技能列表查询
         Tenant-level skill list query
 
         自动注入条件：(tenant_id = X) OR (所属技能包为平台级包 tenant_id=NULL)
@@ -106,7 +106,7 @@ class SkillRepository(TenantRepository[Skill]):
         exclude_id: int | None = None,
     ) -> Skill | None:
         """
-        按名称查找技能（同租户内唯一性检查）
+        按名称查找技能（同企业内唯一性检查）
 
         Args:
             name: 技能名称
@@ -129,7 +129,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_active_skills(self) -> list[Skill]:
         """
-        获取当前租户所有已激活的技能
+        获取当前企业所有已激活的技能
 
         Returns:
             已激活的 Skill 列表
@@ -150,7 +150,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
         """
-        按类型获取当前租户的技能
+        按类型获取当前企业的技能
 
         Args:
             skill_type: 技能类型
@@ -178,7 +178,7 @@ class AdminSkillRepository(BaseRepository[Skill]):
     """
     管理端技能 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = Skill

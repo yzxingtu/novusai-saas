@@ -1,7 +1,7 @@
 """
-租户端智能体技能绑定路由（只读） / Tenant Agent Skill Binding Routes (Read-only)
+企业端智能体技能绑定路由（只读） / Tenant Agent Skill Binding Routes (Read-only)
 
-租户端不允许修改技能绑定，仅提供只读查询（最小权限原则）。
+企业端不允许修改技能绑定，仅提供只读查询（最小权限原则）。
 Tenant is not allowed to modify skill bindings, only read-only queries (least privilege principle).
 """
 

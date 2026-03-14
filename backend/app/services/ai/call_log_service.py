@@ -145,7 +145,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         记录调用日志
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             model_id: 模型 ID
             provider_id: 供应商 ID
             request_type: 请求类型

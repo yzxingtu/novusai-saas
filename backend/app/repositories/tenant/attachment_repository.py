@@ -1,7 +1,7 @@
 """
 附件仓储 / Attachment Repository
 
-提供附件数据访问能力（租户隔离）
+提供附件数据访问能力（企业隔离）
 Provides attachment data access (tenant-isolated).
 """
 
@@ -92,7 +92,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
 
     async def sum_size(self) -> int:
         """
-        统计租户附件总占用大小
+        统计企业附件总占用大小
         """
         result = await self.db.execute(
             select(func.coalesce(func.sum(self.model.size), 0)).where(

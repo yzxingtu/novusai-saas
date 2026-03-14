@@ -1,5 +1,5 @@
 """
-AI 表策略租户覆盖 Service / AI Table Policy Override Service
+AI 表策略企业覆盖 Service / AI Table Policy Override Service
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from app.repositories.ai.table_policy_repository import AITablePolicyRepository
 
 
 class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITablePolicyOverrideRepository]):
-    """AI 表策略租户覆盖服务"""
+    """AI 表策略企业覆盖服务"""
 
     repository_class = AITablePolicyOverrideRepository
 
@@ -27,7 +27,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         return await repo.get_all_active()
 
     async def get_effective_policies(self) -> list[dict[str, Any]]:
-        """获取当前租户的有效策略列表（全局 + 覆盖合并）"""
+        """获取当前企业的有效策略列表（全局 + 覆盖合并）"""
         global_policies = await self.get_global_policies()
         overrides = await self.repo.get_all_for_tenant()
         overrides_map = {ov.policy_id: ov for ov in overrides}
@@ -46,7 +46,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         policy_id: int,
         data: dict[str, Any],
     ) -> AITablePolicyOverride:
-        """创建或更新租户覆盖（仅允许收紧）"""
+        """创建或更新企业覆盖（仅允许收紧）"""
         # 验证全局策略存在
         repo = AITablePolicyRepository(self.db)
         global_policy = await repo.get_by_id(policy_id)
@@ -73,7 +73,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
             return override
 
     async def remove_override(self, policy_id: int) -> None:
-        """删除租户覆盖（恢复到全局策略）"""
+        """删除企业覆盖（恢复到全局策略）"""
         existing = await self.repo.get_by_policy_id(policy_id)
         if not existing:
             raise NotFoundException(message=_("ai_table_policy_override.not_found"))
@@ -82,7 +82,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
 
     @staticmethod
     def _merge(gp: AITablePolicy, ov: AITablePolicyOverride | None) -> dict[str, Any]:
-        """合并全局策略与租户覆盖（复用 SchemaProvider 的逻辑）"""
+        """合并全局策略与企业覆盖（复用 SchemaProvider 的逻辑）"""
         from app.ai.data_intelligence.schema_provider import _merge_policy_with_override
         policy = _merge_policy_with_override(gp, ov)
         policy["id"] = gp.id

@@ -1,5 +1,5 @@
 /**
- * Operation log API (tenant side) / 操作日志 API（租户端）
+ * Operation log API (tenant side) / 操作日志 API（企业端）
  * Backend: /tenant/operation-logs/* / 对接后端 /tenant/operation-logs/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

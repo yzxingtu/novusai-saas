@@ -108,7 +108,7 @@ export async function updateAgentAssignmentApi(
 }
 
 /**
- * Delete tenant override (restore global default) / 删除租户覆盖（恢复全局默认）
+ * Delete tenant override (restore global default) / 删除企业覆盖（恢复全局默认）
  *
  * @param apiPrefix - '/admin' or '/tenant'
  * @param featureCode - Feature code / 功能代码

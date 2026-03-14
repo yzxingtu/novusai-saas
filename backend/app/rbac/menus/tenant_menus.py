@@ -1,9 +1,9 @@
 """
 Tenant Admin Menu Definitions
-租户管理端菜单定义
+企业管理端菜单定义
 
 Defines directory menu structure for tenant admin backend; leaf menus declared via controller decorators.
-定义租户管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
+定义企业管理后台的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
 Menu hierarchy example / 菜单层级示例:
 - Dashboard / 仪表板 (dashboard)
@@ -26,7 +26,7 @@ Icon names use kebab-case / 图标名称使用 kebab-case
 from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
 
-# Tenant admin directory menus / 租户管理端目录菜单
+# Tenant admin directory menus / 企业管理端目录菜单
 TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # ========================================
     # Dashboard (homepage, leaf menu) / 仪表板（首页，叶子菜单）
@@ -96,8 +96,24 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
-    # - menu:tenant.tenant_config (Tenant Config / 租户配置)
-    # - menu:tenant.tenant_settings (Tenant Settings / 租户设置)
+    # - menu:tenant.tenant_config (Tenant Config / 企业配置)
+    # - menu:tenant.tenant_settings (Tenant Settings / 企业设置)
+    # - menu:tenant.global_preferences (Global Preferences / 偏好设置) — declared below / 下方声明
+
+    # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
+    PermissionMeta(
+        code="menu:tenant.global_preferences",
+        name="menu.tenant.global_preferences",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ALL_TENANTS,
+        resource="menu",
+        action="tenant.global_preferences",
+        icon="lucide:palette",
+        path="/system-mgmt/preferences",
+        component="system/preferences/index",
+        sort_order=20,
+        parent_code="menu:tenant.system_mgmt",
+    ),
 
     # ========================================
     # AI Management (directory) / AI 管理（目录）

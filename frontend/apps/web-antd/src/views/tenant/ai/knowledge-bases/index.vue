@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端知识库管理列表页面 — useCrudList + 卡片网格
+ * 企业端知识库管理列表页面 — useCrudList + 卡片网格
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 

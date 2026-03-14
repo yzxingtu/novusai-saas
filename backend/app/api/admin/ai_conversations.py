@@ -1,7 +1,7 @@
 """
 平台端对话管理 API / Platform Conversation API
 
-提供全租户对话列表和只读详情，用于审计和监控
+提供全企业对话列表和只读详情，用于审计和监控
 Provides cross-tenant conversation list and read-only details for auditing and monitoring.
 """
 
@@ -44,7 +44,7 @@ def _build_admin_conversation_item(
     except AttributeError:
         pass
 
-    # 租户信息 / tenant info
+    # 企业信息 / tenant info
     tenant_info = None
     if tenant_map and conv.tenant_id:
         tenant_info = tenant_map.get(conv.tenant_id)
@@ -76,7 +76,7 @@ def _build_admin_conversation_item(
 async def _batch_load_tenants(
     db: AsyncSession, tenant_ids: set[int],
 ) -> dict[int, dict]:
-    """批量加载租户名称 / Batch load tenant names"""
+    """批量加载企业名称 / Batch load tenant names"""
     if not tenant_ids:
         return {}
     stmt = select(Tenant.id, Tenant.name, Tenant.code).where(
@@ -186,7 +186,7 @@ class AdminAIConversationController(GlobalController):
     """
     平台端对话管理控制器 / Platform Conversation Management Controller
 
-    全租户只读审计 / Cross-tenant read-only audit
+    全企业只读审计 / Cross-tenant read-only audit
     """
 
     prefix = "/ai/conversations"
@@ -196,17 +196,17 @@ class AdminAIConversationController(GlobalController):
         """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("", summary="全租户对话列表")
+        @router.get("", summary="全企业对话列表")
         @action_read("action.ai_conversation.list")
         async def list_conversations(
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
             query: QueryParams,
-            tenant_id: int | None = Query(None, description="按租户筛选"),
+            tenant_id: int | None = Query(None, description="按企业筛选"),
         ):
             """
-            获取全租户对话列表 / Get cross-tenant conversation list
+            获取全企业对话列表 / Get cross-tenant conversation list
 
             支持 tenant_id 筛选和 JSON:API 分页排序 / Supports tenant_id filtering and JSON:API pagination/sorting
             权限 / Permission: ai_conversation:list
@@ -215,7 +215,7 @@ class AdminAIConversationController(GlobalController):
                 service = ConversationService(db, tenant_id)
                 items, total = await service.query_list(spec=query)
             else:
-                # 全租户查询：使用 BaseRepository（无 tenant 过滤） / Cross-tenant query: use BaseRepository (no tenant filter)
+                # 全企业查询：使用 BaseRepository（无 tenant 过滤） / Cross-tenant query: use BaseRepository (no tenant filter)
                 repo = AdminAgentConversationRepository(db)
                 items, total = await repo.query_list(query)
 
@@ -270,7 +270,7 @@ class AdminAIConversationController(GlobalController):
             else:
                 detail["agent_avatar"] = None
 
-            # 补充租户信息 / Supplement tenant info
+            # 补充企业信息 / Supplement tenant info
             if conversation.tenant_id:
                 t_map = await _batch_load_tenants(
                     db, {conversation.tenant_id},

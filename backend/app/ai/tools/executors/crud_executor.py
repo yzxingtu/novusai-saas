@@ -14,7 +14,7 @@ All write operations use a two-step confirmation flow:
 Security policies / 安全策略：
 - CRUD permission checks based on ai_table_policies / 基于 ai_table_policies 检查 CRUD 权限
 - blocked_columns / readonly_columns are not writable / 不允许写入
-- Tenant isolation: tenant-scoped tables auto-inject tenant_id / 租户隔离：自动注入 tenant_id
+- Tenant isolation: tenant-scoped tables auto-inject tenant_id / 企业隔离：自动注入 tenant_id
 - Soft delete only (set is_deleted=True), no hard deletes / 仅软删除，不允许硬删除
 - All operations are audited to ai_action_logs / 所有操作审计到 ai_action_logs
 """
@@ -85,11 +85,11 @@ async def _load_policy(
     table_name: str,
 ) -> AITablePolicy | None:
     """Load table policy from database (with tenant override merging).
-    从数据库加载表策略（含租户覆盖合并）。
+    从数据库加载表策略（含企业覆盖合并）。
 
     Loads the global policy, then finds and merges the corresponding tenant override.
     Overrides can only tighten, not loosen. Merged values are written directly to policy object attributes.
-    加载全局策略后，查找对应的租户覆盖并合并。
+    加载全局策略后，查找对应的企业覆盖并合并。
     覆盖只能收紧，不能放开。合并后的值直接写入策略对象属性。
     """
     if not context.db:
@@ -100,7 +100,7 @@ async def _load_policy(
     if not policy:
         return None
 
-    # Load tenant override and merge (tighten-only rules) / 加载租户覆盖并合并（收紧规则）
+    # Load tenant override and merge (tighten-only rules) / 加载企业覆盖并合并（收紧规则）
     if context.tenant_id:
         from app.repositories.ai.table_policy_override_repository import (
             AITablePolicyOverrideRepository,
@@ -406,7 +406,7 @@ class CreateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
-        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        # 企业隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)
@@ -560,7 +560,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
-        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        # 企业隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)
@@ -581,7 +581,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(tool_call_id, violation, name=_name)
 
         # Force tenant isolation (inject from context, never trust LLM input)
-        # 强制租户隔离（从 context 注入，不信任 LLM 输入）
+        # 强制企业隔离（从 context 注入，不信任 LLM 输入）
         _enforce_tenant_isolation(context, policy, data)
 
         # Query current record for diff preview / 查询当前记录用于 diff 预览
@@ -744,7 +744,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # Tenant isolation column check: non-platform users forbidden from tables without tenant_id
-        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        # 企业隔离列检查：非平台用户禁止操作无 tenant_id 列的表
         tc_err = await _check_tenant_column(context, table_name)
         if tc_err:
             return ToolResult.error_result(tool_call_id, tc_err, name=_name)

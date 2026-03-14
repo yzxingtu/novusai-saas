@@ -31,7 +31,7 @@ class ExecutionRequest:
 
     Attributes:
         agent_id: Agent ID / 智能体 ID
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         user_id: User ID (optional, None for anonymous/API calls) / 用户 ID（可选，匿名/API 调用时为 None）
         messages: User message list (conversation mode) / 用户消息列表（conversation 模式）
         input_variables: Input variables (task/batch mode, injected into system_prompt) / 输入变量（task/batch 模式，注入到 system_prompt）

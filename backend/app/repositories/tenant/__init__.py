@@ -1,7 +1,7 @@
 """
-租户级仓储模块 / Tenant Repository Module
+企业级仓储模块 / Tenant Repository Module
 
-导出租户级别的仓储类
+导出企业级别的仓储类
 Exports tenant-level repository classes.
 """
 

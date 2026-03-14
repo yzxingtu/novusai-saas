@@ -1,7 +1,7 @@
 """
-租户端定时任务服务 / Tenant Periodic Task Service
+企业端定时任务服务 / Tenant Periodic Task Service
 
-提供租户端定时任务 CRUD（自动按 tenant_id 过滤）
+提供企业端定时任务 CRUD（自动按 tenant_id 过滤）
 Provides tenant periodic task CRUD (auto-filtered by tenant_id).
 """
 
@@ -19,7 +19,7 @@ logger = LogManager.get_logger("queue")
 
 class TenantPeriodicTaskService(TenantService[PeriodicTask, TenantPeriodicTaskRepository]):
     """
-    租户端定时任务服务
+    企业端定时任务服务
     """
 
     model = PeriodicTask

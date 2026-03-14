@@ -1,7 +1,7 @@
 """
-租户域名服务 / Tenant Domain Service
+企业域名服务 / Tenant Domain Service
 
-提供租户域名的业务逻辑（平台级，非租户隔离）
+提供企业域名的业务逻辑（平台级，非企业隔离）
 Provides tenant domain business logic (platform-level, no tenant isolation).
 """
 
@@ -38,10 +38,10 @@ _CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
 
 class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
     """
-    租户域名服务
+    企业域名服务
 
     提供域名特有的业务方法
-    注意：域名管理是平台级操作，不做租户隔离
+    注意：域名管理是平台级操作，不做企业隔离
     """
 
     model = TenantDomain
@@ -49,7 +49,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _get_domain_suffix(self) -> str:
         """
-        获取租户默认域名后缀
+        获取企业默认域名后缀
 
         优先从平台配置读取，回退到环境变量
         """
@@ -75,7 +75,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取租户及其套餐信息
+        获取企业及其套餐信息
         """
         result = await self.db.execute(
             select(Tenant)
@@ -86,10 +86,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _check_custom_domain_allowed(self, tenant_id: int) -> tuple[bool, int]:
         """
-        检查租户是否允许添加自定义域名
+        检查企业是否允许添加自定义域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             (is_allowed, max_custom_domains) 元组
@@ -111,15 +111,15 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         tenant_code: str,
     ) -> TenantDomain:
         """
-        创建租户默认域名
+        创建企业默认域名
 
         默认域名格式: {tenant_code}{suffix}
         后缀从平台配置读取（tenant_domain_suffix）
         自动标记为主域名、已验证
 
         Args:
-            tenant_id: 租户 ID
-            tenant_code: 租户编码
+            tenant_id: 企业 ID
+            tenant_code: 企业编码
 
         Returns:
             创建的默认域名
@@ -165,7 +165,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         自定义域名需要 DNS 验证后才能使用
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             domain: 域名
             remark: 备注
             skip_quota_check: 跳过配额检查（Admin 端使用）
@@ -265,10 +265,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         设置主域名
 
-        每个租户只能有一个主域名
+        每个企业只能有一个主域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             domain_id: 域名 ID
 
         Returns:
@@ -276,7 +276,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
         Raises:
             NotFoundException: 域名不存在
-            BusinessException: 域名不属于该租户或未验证
+            BusinessException: 域名不属于该企业或未验证
         """
         domain = await self.get_by_id(domain_id)
         if not domain:
@@ -404,10 +404,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
         """
-        获取租户所有域名
+        获取企业所有域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             域名列表，主域名排在前面
@@ -416,10 +416,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         """
-        获取租户主域名
+        获取企业主域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             主域名或 None
@@ -485,10 +485,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_cname_target(self, tenant_id: int) -> str:
         """
-        获取租户的 CNAME 解析目标
+        获取企业的 CNAME 解析目标
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             CNAME 目标（如 tenant_code.novusai.com）
@@ -517,7 +517,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         }
 
     async def _get_owned_domain(self, tenant_id: int, domain_id: int) -> TenantDomain:
-        """获取指定租户拥有的域名，不存在则抛错 / Get a domain owned by the specified tenant, or raise when not found"""
+        """获取指定企业拥有的域名，不存在则抛错 / Get a domain owned by the specified tenant, or raise when not found"""
         domain = await self.get_by_id(domain_id)
         if not domain or domain.tenant_id != tenant_id:
             raise NotFoundException(message=_("tenant_domain.not_found"))
@@ -554,7 +554,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         }
 
     async def get_dev_hosts_status(self, tenant_id: int) -> dict:
-        """获取租户全部域名的 Dev Hosts 状态 / Get Dev Hosts status for all domains of the tenant"""
+        """获取企业全部域名的 Dev Hosts 状态 / Get Dev Hosts status for all domains of the tenant"""
         runtime = await async_get_runtime_info()
         domains = await self.repo.get_tenant_domains(tenant_id)
 
@@ -602,7 +602,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         }
 
     async def sync_all_dev_hosts(self, tenant_id: int) -> dict:
-        """批量同步租户全部可写入的 Dev Hosts 条目 / Batch sync all eligible Dev Hosts entries for the tenant"""
+        """批量同步企业全部可写入的 Dev Hosts 条目 / Batch sync all eligible Dev Hosts entries for the tenant"""
         domains = await self.repo.get_tenant_domains(tenant_id)
         synced = 0
         skipped = 0
@@ -627,7 +627,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         是否允许在当前服务上下文中注入 hosts
 
         管理端（TenantDomainService）返回 True；
-        租户端（TenantDomainTenantService）覆盖返回 False，防止误写入。
+        企业端（TenantDomainTenantService）覆盖返回 False，防止误写入。
         """
         return True
 
@@ -650,10 +650,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def batch_provision_ssl(self, tenant_id: int) -> int:
         """
-        批量为租户所有已验证但无 SSL 的域名触发签发
+        批量为企业所有已验证但无 SSL 的域名触发签发
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             触发签发的域名数量
@@ -698,15 +698,15 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
         TenantService.__init__(self, db, tenant_id)
 
     def _should_inject_hosts(self) -> bool:
-        """租户端禁止 hosts 注入，防止非预期写入本地系统文件"""
+        """企业端禁止 hosts 注入，防止非预期写入本地系统文件"""
         return False
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
-        租户端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响
+        企业端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响
 
-        安全原则：租户端不应因 DEBUG=true 而绕过 DNS 验证，
-        防止租户在开发/测试环境中意外验证不属于自己的域名。
+        安全原则：企业端不应因 DEBUG=true 而绕过 DNS 验证，
+        防止企业在开发/测试环境中意外验证不属于自己的域名。
         """
         domain = await self.get_by_id(domain_id)
         if not domain:
@@ -720,7 +720,7 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
-        # 租户端始终执行真实 DNS 验证，不跳过
+        # 企业端始终执行真实 DNS 验证，不跳过
         is_valid = await self._verify_dns_txt_record(domain)
 
         if not is_valid:
@@ -737,7 +737,7 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 
-        # 触发 SSL 证书签发（租户端不跳过，SSL 是真实需要的）
+        # 触发 SSL 证书签发（企业端不跳过，SSL 是真实需要的）
         from app.celery_app import celery_app
         celery_app.send_task(
             "app.tasks.ssl_tasks.task_provision_ssl",

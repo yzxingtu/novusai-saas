@@ -1,7 +1,7 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add organization root nodes
 
-为平台端和现有租户添加组织架构根节点
+为平台端和现有企业添加组织架构根节点
 
 Revision ID: 0006_org_root
 Revises: bd94c7f44d6c
@@ -27,7 +27,7 @@ def upgrade() -> None:
     添加组织架构根节点
     
     1. 为平台端插入默认根节点
-    2. 为现有租户补充根节点
+    2. 为现有企业补充根节点
     """
     conn = op.get_bind()
     
@@ -97,8 +97,8 @@ def upgrade() -> None:
                     WHERE id = {root_id}
                 """))
     
-    # ========== 2. 租户端根节点 ==========
-    # 查询所有租户
+    # ========== 2. 企业端根节点 ==========
+    # 查询所有企业
     result = conn.execute(text("""
         SELECT id, name FROM tenants WHERE is_deleted = false
     """))
@@ -108,7 +108,7 @@ def upgrade() -> None:
         tenant_id = tenant[0]
         tenant_name = tenant[1]
         
-        # 检查该租户是否已有根节点
+        # 检查该企业是否已有根节点
         result = conn.execute(text(f"""
             SELECT id FROM tenant_admin_roles 
             WHERE tenant_id = {tenant_id} 
@@ -118,14 +118,14 @@ def upgrade() -> None:
         tenant_root = result.fetchone()
         
         if not tenant_root:
-            # 插入租户根节点
+            # 插入企业根节点
             conn.execute(text(f"""
                 INSERT INTO tenant_admin_roles (
                     tenant_id, name, code, description, is_system, is_active, sort_order,
                     parent_id, level, type, allow_members,
                     created_at, updated_at, is_deleted
                 ) VALUES (
-                    {tenant_id}, '{tenant_name}', 'tenant_root', '租户组织架构根节点，不可删除',
+                    {tenant_id}, '{tenant_name}', 'tenant_root', '企业组织架构根节点，不可删除',
                     true, true, 0,
                     NULL, 1, 'department', true,
                     NOW(), NOW(), false
@@ -156,7 +156,7 @@ def upgrade() -> None:
                       AND is_deleted = false
                 """))
                 
-                # 将租户所有者关联到根节点并设为负责人
+                # 将企业所有者关联到根节点并设为负责人
                 result = conn.execute(text(f"""
                     SELECT id FROM tenant_admins 
                     WHERE tenant_id = {tenant_id}
@@ -209,7 +209,7 @@ def downgrade() -> None:
             UPDATE admin_roles SET is_deleted = true WHERE id = {root_id}
         """))
     
-    # 租户端根节点
+    # 企业端根节点
     result = conn.execute(text("""
         SELECT id, tenant_id FROM tenant_admin_roles 
         WHERE code = 'tenant_root' AND is_deleted = false

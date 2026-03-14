@@ -21,7 +21,7 @@ def upgrade() -> None:
     """Upgrade database schema."""
     op.create_table('domain_ssl_certificates',
     sa.Column('domain_id', sa.Integer(), nullable=False, comment='域名 ID'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
     sa.Column('cert_type', sa.String(length=20), nullable=False, comment='证书类型: platform(ACME自动签发) / custom(用户上传)'),
     sa.Column('status', sa.String(length=20), nullable=False, comment='证书状态: pending/active/expired/revoked/failed'),
     sa.Column('certificate', sa.Text(), nullable=True, comment='PEM 格式证书内容'),
@@ -40,7 +40,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['domain_id'], ['tenant_domains.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

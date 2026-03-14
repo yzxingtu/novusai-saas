@@ -27,19 +27,19 @@ _ADMIN_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 所有租户可见的 scope 集合（无需分配表） / All-tenants-visible scope set (no assignment table needed)
+# 所有企业可见的 scope 集合（无需分配表） / All-tenants-visible scope set (no assignment table needed)
 _ALL_TENANTS_VISIBLE_SCOPES = frozenset({
     ResourceScopeEnum.ALL_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ALL.value,
 })
 
-# 需要租户分配表的 scope 集合 / Scopes requiring tenant assignment table
+# 需要企业分配表的 scope 集合 / Scopes requiring tenant assignment table
 _ASSIGNMENT_REQUIRED_SCOPES = frozenset({
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 })
 
-# 租户端可能可见的 scope 集合（全部租户 + 部分租户） / Tenant-possibly-visible scopes (all + assigned)
+# 企业端可能可见的 scope 集合（全部企业 + 部分企业） / Tenant-possibly-visible scopes (all + assigned)
 _TENANT_POSSIBLE_SCOPES = _ALL_TENANTS_VISIBLE_SCOPES | _ASSIGNMENT_REQUIRED_SCOPES
 
 
@@ -60,7 +60,7 @@ class ScopeChecker:
         if ScopeChecker.is_visible_to_admin(resource.scope):
             ...
 
-        # 租户端是否可见（需要异步查分配表）
+        # 企业端是否可见（需要异步查分配表）
         if await ScopeChecker.is_visible_to_tenant(
             scope=resource.scope,
             resource_type="skill_package",
@@ -84,7 +84,7 @@ class ScopeChecker:
     @staticmethod
     def is_visible_to_all_tenants(scope: str) -> bool:
         """
-        是否对所有租户可见（无需分配表查询） / Whether visible to all tenants (no assignment query needed)
+        是否对所有企业可见（无需分配表查询） / Whether visible to all tenants (no assignment query needed)
 
         all_tenants / admin_and_all → True
         其他 / Others → False
@@ -100,9 +100,9 @@ class ScopeChecker:
         db: AsyncSession,
     ) -> bool:
         """
-        指定租户是否可见 / Whether visible to a specific tenant
+        指定企业是否可见 / Whether visible to a specific tenant
 
-        - all_tenants / admin_and_all → True（全部租户可见 / visible to all tenants）
+        - all_tenants / admin_and_all → True（全部企业可见 / visible to all tenants）
         - assigned_tenants / admin_and_assigned → 查 ResourceTenantAssignment / check assignment table
         - admin_only → False
 
@@ -110,11 +110,11 @@ class ScopeChecker:
             scope: 资源的作用域值 / Resource scope value
             resource_type: 资源类型（如 "skill_package" / "plugin"） / Resource type
             resource_id: 资源 ID / Resource ID
-            tenant_id: 目标租户 ID / Target tenant ID
+            tenant_id: 目标企业 ID / Target tenant ID
             db: 数据库会话 / Database session
 
         Returns:
-            该租户是否可见此资源 / Whether the tenant can see this resource
+            该企业是否可见此资源 / Whether the tenant can see this resource
         """
         if scope in _ALL_TENANTS_VISIBLE_SCOPES:
             return True
@@ -127,7 +127,7 @@ class ScopeChecker:
     @staticmethod
     def requires_tenant_assignment(scope: str) -> bool:
         """
-        是否需要手动分配租户 / Whether manual tenant assignment is required
+        是否需要手动分配企业 / Whether manual tenant assignment is required
 
         assigned_tenants / admin_and_assigned → True
         其他 / Others → False
@@ -141,17 +141,17 @@ class ScopeChecker:
 
     @staticmethod
     def get_all_tenants_visible_scopes() -> list[str]:
-        """返回所有租户可见的 scope 值列表（无需分配表） / Return all-tenants-visible scope values (no assignment)"""
+        """返回所有企业可见的 scope 值列表（无需分配表） / Return all-tenants-visible scope values (no assignment)"""
         return list(_ALL_TENANTS_VISIBLE_SCOPES)
 
     @staticmethod
     def get_tenant_possible_scopes() -> list[str]:
-        """返回租户端可能可见的所有 scope 值列表（含需要分配表的） / Return all tenant-possibly-visible scope values"""
+        """返回企业端可能可见的所有 scope 值列表（含需要分配表的） / Return all tenant-possibly-visible scope values"""
         return list(_TENANT_POSSIBLE_SCOPES)
 
     @staticmethod
     def get_assignment_required_scopes() -> list[str]:
-        """返回需要租户分配表的 scope 值列表 / Return scopes requiring tenant assignment table"""
+        """返回需要企业分配表的 scope 值列表 / Return scopes requiring tenant assignment table"""
         return list(_ASSIGNMENT_REQUIRED_SCOPES)
 
 

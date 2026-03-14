@@ -87,7 +87,7 @@ async def import_skills(
     Args:
         db: 数据库会话 / Database session
         items: 技能配置列表 / Skill config list
-        tenant_id: 租户 ID（用于查询已有同名技能） / Tenant ID (for querying existing same-name skills)
+        tenant_id: 企业 ID（用于查询已有同名技能） / Tenant ID (for querying existing same-name skills)
         conflict_mode: 冲突解决方式 skip/overwrite/rename / Conflict resolution mode
         package_id: 导入到指定技能包（必填） / Import to specified skill package (required)
 

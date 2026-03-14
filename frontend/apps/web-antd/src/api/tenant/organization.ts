@@ -1,5 +1,5 @@
 /**
- * Tenant organization structure management API / 租户组织架构管理 API
+ * Tenant organization structure management API / 企业组织架构管理 API
  * Backend: /tenant/roles/* organization-related endpoints / 对接后端 /tenant/roles/* 组织架构相关接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

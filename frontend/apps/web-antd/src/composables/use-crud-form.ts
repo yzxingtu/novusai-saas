@@ -284,6 +284,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         | (T & {
             [key: string]: any;
             _defaults?: Record<string, any>;
+            _overrides?: Record<string, any>;
             _resource?: string;
             id?: number | string;
             mode?: FormMode;
@@ -335,6 +336,12 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         }
         if (toFormValues && fetchedData && formApi) {
           formApi.setValues(toFormValues(fetchedData));
+        }
+        // Apply AI overrides after API data so they take precedence
+        const editOverrides = data?._overrides;
+        if (editOverrides && formApi && Object.keys(editOverrides).length > 0) {
+          await nextTick();
+          formApi.setValues(editOverrides);
         }
       } else {
         // 新建模式：优先使用 _defaults（从 useCrudPage 传入），否则使用本地 defaults 配置

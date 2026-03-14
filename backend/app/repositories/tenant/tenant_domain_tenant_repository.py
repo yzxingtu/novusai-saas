@@ -1,5 +1,5 @@
 """
-租户端域名仓储 / Tenant Domain (Tenant-side) Repository
+企业端域名仓储 / Tenant Domain (Tenant-side) Repository
 """
 
 from sqlalchemy import asc, select

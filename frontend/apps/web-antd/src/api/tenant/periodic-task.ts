@@ -1,6 +1,6 @@
 import type { PeriodicTaskInfo } from '#/api/shared/periodic-task-types';
 /**
- * Periodic task API (tenant side) / 定时任务 API（租户端）
+ * Periodic task API (tenant side) / 定时任务 API（企业端）
  * Backend: /tenant/periodic-tasks/* / 对接后端 /tenant/periodic-tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

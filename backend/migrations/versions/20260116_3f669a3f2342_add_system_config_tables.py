@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add_system_config_tables
 
 Revision ID: 3f669a3f2342
@@ -73,7 +73,7 @@ def upgrade() -> None:
     op.create_table('system_config_values',
     sa.Column('config_id', sa.Integer(), nullable=False, comment='配置项 ID'),
     sa.Column('value', sa.Text(), nullable=True, comment='配置值（JSON 字符串存储）'),
-    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户ID'),
+    sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),

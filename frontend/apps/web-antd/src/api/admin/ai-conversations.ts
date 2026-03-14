@@ -53,7 +53,7 @@ interface PageResponse<T> {
 
 const CONV_PREFIX = '/admin/ai/conversations';
 
-/** Get all-tenant conversation list / 获取全租户对话列表 */
+/** Get all-tenant conversation list / 获取全企业对话列表 */
 export async function getAIConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,

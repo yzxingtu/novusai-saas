@@ -65,7 +65,7 @@ class MultiQueryRewriter(BaseRewriter):
         """
         Args:
             db: Database session / 数据库会话
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model: LLM model code (None for default) / LLM 模型代码（None 时使用默认）
         """
         self.db = db
@@ -226,7 +226,7 @@ def get_rewriter(
     Args:
         strategy: Rewrite strategy (none/multi/hyde) / 改写策略
         db: Database session / 数据库会话
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         model: LLM model code / LLM 模型代码
 
     Returns:

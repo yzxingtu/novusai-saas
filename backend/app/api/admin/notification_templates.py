@@ -172,7 +172,7 @@ class AdminNotificationTemplateController(GlobalController):
                 "version": "2.1.0",
                 "start_time": "2025-03-01 02:00",
                 "duration": "2 小时",
-                "tenant_name": "演示租户",
+                "tenant_name": "演示企业",
                 "admin_name": admin.nickname or admin.username,
                 "user_name": admin.nickname or admin.username,
                 "task_name": "test_task",

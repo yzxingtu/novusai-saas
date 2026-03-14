@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-租户角色管理 API 测试模块
+企业角色管理 API 测试模块
 
 测试 /tenant/roles/* 接口
 
-注意：需要先配置租户管理员账号才能运行此测试
+注意：需要先配置企业管理员账号才能运行此测试
 """
 import os
 import sys
@@ -25,9 +25,9 @@ from tests.api.base import (
 
 
 class ManualTestTenantRoles(BaseAPITest):
-    """租户角色管理测试（含多级角色功能）"""
+    """企业角色管理测试（含多级角色功能）"""
 
-    module_name = "租户角色管理 (/tenant/roles)"
+    module_name = "企业角色管理 (/tenant/roles)"
 
     def setup(self) -> None:
         """测试前登录"""
@@ -65,7 +65,7 @@ class ManualTestTenantRoles(BaseAPITest):
         """运行所有测试"""
         skip_reason = None
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
-            skip_reason = "未配置租户管理员账号"
+            skip_reason = "未配置企业管理员账号"
 
         # ========== 基础测试 ==========
         # 1. 获取角色列表
@@ -178,7 +178,7 @@ class ManualTestTenantRoles(BaseAPITest):
         """测试创建角色"""
         resp = self.client.post("/tenant/roles", data={
             "name": "测试角色",
-            "description": "租户内测试角色",
+            "description": "企业内测试角色",
             "is_active": True,
             "sort_order": 100,
         })
@@ -240,7 +240,7 @@ class ManualTestTenantRoles(BaseAPITest):
         if not role_id:
             raise AssertionError("没有可用的角色ID")
 
-        # 获取租户端权限
+        # 获取企业端权限
         perm_resp = self.client.get("/tenant/permissions/list")
         perm_data = perm_resp.json()
 

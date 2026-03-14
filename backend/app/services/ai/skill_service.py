@@ -17,7 +17,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillService(TenantService[Skill, SkillRepository]):
     """
-    租户端技能 Service
+    企业端技能 Service
 
     提供技能的创建、更新、删除等业务逻辑
     """
@@ -103,7 +103,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能修改自有包（tenant_id 与当前租户匹配）中的技能
+        # 企业端只能修改自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
@@ -157,7 +157,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能删除自有包（tenant_id 与当前租户匹配）中的技能
+        # 企业端只能删除自有包（tenant_id 与当前企业匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
         if pkg and pkg.tenant_id != self.repo.tenant_id:
@@ -221,7 +221,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             )
 
     async def get_active_skills(self) -> list[Skill]:
-        """获取当前租户所有已激活的技能"""
+        """获取当前企业所有已激活的技能"""
         return await self.repo.get_active_skills()
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
@@ -233,7 +233,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     """
     管理端技能 Service
 
-    无租户隔离，供平台管理端全局 CRUD 使用
+    无企业隔离，供平台管理端全局 CRUD 使用
     """
 
     model = Skill

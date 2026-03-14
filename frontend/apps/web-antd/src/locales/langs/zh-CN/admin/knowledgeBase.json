@@ -1,7 +1,7 @@
 {
   "title": "知识库管理",
   "name": "知识库名称",
-  "pageDesc": "管理全平台知识库，支持创建全局/租户/管理端专属知识库，查看文档、分块和存储情况。",
+  "pageDesc": "管理全平台知识库，支持创建全局/企业/管理端专属知识库，查看文档、分块和存储情况。",
   "create": "创建知识库",
   "stats": {
     "totalKnowledgeBases": "知识库总数",
@@ -10,15 +10,15 @@
     "totalStorage": "总存储大小"
   },
   "field": {
-    "tenantName": "租户",
+    "tenantName": "企业",
     "name": "知识库名称",
     "description": "描述",
     "scope": "作用域",
     "visibility": "可见范围",
-    "tenantId": "所属租户",
-    "tenantIdPlaceholder": "请选择所属租户",
-    "assignedTenantIds": "指定可见租户",
-    "assignedTenantIdsPlaceholder": "请选择可访问的租户",
+    "tenantId": "所属企业",
+    "tenantIdPlaceholder": "请选择所属企业",
+    "assignedTenantIds": "指定可见企业",
+    "assignedTenantIdsPlaceholder": "请选择可访问的企业",
     "embeddingModel": "Embedding 模型",
     "visionModel": "Vision 模型",
     "visionModelAuto": "自动选择（平台首个可用 Vision 模型）",
@@ -35,14 +35,14 @@
     "searchMode": "检索模式"
   },
   "scope": {
-    "tenant": "租户专属",
+    "tenant": "企业专属",
     "global": "全局",
     "admin": "管理端"
   },
   "visibility": {
     "private": "仅管理端可见",
-    "all_tenants": "全部租户可见",
-    "assigned": "指定租户可见"
+    "all_tenants": "全部企业可见",
+    "assigned": "指定企业可见"
   },
   "searchMode": {
     "hybrid": "混合检索",
@@ -61,8 +61,8 @@
   "forceDelete": "强制删除",
   "forceDeleteConfirm": "确认删除知识库「{name}」？所有文档和分块数据将被永久删除。",
   "help": {
-    "scope": "决定知识库的使用范围：租户专属仅限指定租户使用，全局为管理端+所有租户共享，管理端为仅管理端可用",
-    "visibility": "控制管理端知识库对租户的可见范围",
+    "scope": "决定知识库的使用范围：企业专属仅限指定企业使用，全局为管理端+所有企业共享，管理端为仅管理端可用",
+    "visibility": "控制管理端知识库对企业的可见范围",
     "embeddingModel": "将文本转换为向量的模型。创建后不可更改，需重建知识库才能切换",
     "visionModel": "用于提取 PDF / 图片中图表内容的多模态模型，不填则自动选用平台首个可用 Vision 模型",
     "extractImages": "开启后，上传 PDF 时会自动调用 Vision 模型识别图片内容并加入知识库索引",

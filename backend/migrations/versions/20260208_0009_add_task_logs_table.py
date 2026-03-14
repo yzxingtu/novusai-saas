@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("finished_at", sa.DateTime(), nullable=True, comment="完成时间"),
         sa.Column("duration_ms", sa.Integer(), nullable=True, comment="耗时(毫秒)"),
         sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0", comment="重试次数"),
-        sa.Column("tenant_id", sa.Integer(), nullable=True, comment="租户ID(可选)"),
+        sa.Column("tenant_id", sa.Integer(), nullable=True, comment="企业ID(可选)"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now(), comment="创建时间"),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now(), comment="更新时间"),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false", index=True, comment="软删除标记"),

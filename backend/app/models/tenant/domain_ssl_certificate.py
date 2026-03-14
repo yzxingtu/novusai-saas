@@ -56,7 +56,7 @@ class DomainSslCertificate(BaseModel):
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="租户 ID",
+        comment="企业 ID",
     )
 
     # ==================== 证书类型与状态 ====================

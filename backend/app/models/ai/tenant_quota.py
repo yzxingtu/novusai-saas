@@ -1,7 +1,7 @@
 """
-租户 AI 配额配置模型 / Tenant AI Quota Model
+企业 AI 配额配置模型 / Tenant AI Quota Model
 
-存储租户的 Token 配额、预算和超额策略
+存储企业的 Token 配额、预算和超额策略
 Stores tenant token quota, budget and overage policy.
 """
 
@@ -17,9 +17,9 @@ from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
 
 class TenantQuota(TenantModel):
     """
-    租户 AI 配额配置
+    企业 AI 配额配置
 
-    为每个租户配置 Token 使用配额和超额策略
+    为每个企业配置 Token 使用配额和超额策略
     支持按模型配置，也支持全局配置（model_id 为 NULL）
     """
 
@@ -108,7 +108,7 @@ class TenantQuota(TenantModel):
         lazy="selectin",
     )
 
-    # 关联的租户
+    # 关联的企业
     tenant = relationship(
         "Tenant",
         lazy="selectin",

@@ -1,7 +1,7 @@
 /**
- * Tenant admin authentication store / 租户管理端认证 Store
+ * Tenant admin authentication store / 企业管理端认证 Store
  * Handles tenant admin login, logout, and user info management.
- * 专用于租户管理员的登录、登出、用户信息管理。
+ * 专用于企业管理员的登录、登出、用户信息管理。
  */
 import type { Recordable, UserInfo } from '@vben/types';
 
@@ -22,6 +22,7 @@ import { EndpointType } from '#/types/endpoint';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from '../shared/token-storage';
+import { useUserPreferenceStore } from '../shared/user-preference';
 
 export const useTenantAuthStore = defineStore('tenant-auth', () => {
   const accessStore = useAccessStore();
@@ -32,7 +33,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   const tenantAdminInfo = ref<null | TenantAdminInfo>(null);
 
   /**
-   * Tenant admin login / 租户管理员登录
+   * Tenant admin login / 企业管理员登录
    * @param params Login parameters / 登录参数
    * @param onSuccess Login success callback / 登录成功回调
    */
@@ -65,6 +66,10 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
 
         // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo();
+
+        // Load user preferences and sync to UI framework / 加载用户偏好并同步到 UI 框架
+        const preferenceStore = useUserPreferenceStore();
+        preferenceStore.loadPreferences('tenant').catch(() => {});
 
         // Convert to vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
@@ -106,7 +111,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * Tenant admin logout / 租户管理员登出
+   * Tenant admin logout / 企业管理员登出
    * @param redirect Whether to redirect to login page / 是否重定向到登录页
    */
   async function logout(redirect: boolean = true) {
@@ -131,6 +136,10 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
     userStore.setUserInfo(null);
     tenantAdminInfo.value = null;
 
+    // Clear preference cache / 清除偏好缓存
+    const preferenceStore = useUserPreferenceStore();
+    preferenceStore.clearPreferences();
+
     await router.replace({
       path: TENANT_LOGIN_PATH,
       query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
@@ -138,7 +147,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * Fetch tenant admin info / 获取租户管理员信息
+   * Fetch tenant admin info / 获取企业管理员信息
    * Note: Permission codes are fetched from menu API, not set here.
    * 注意：权限码从菜单接口获取。
    */
@@ -163,7 +172,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
   }
 
   /**
-   * Get current tenant ID / 获取当前租户 ID
+   * Get current tenant ID / 获取当前企业 ID
    */
   function getTenantId(): null | number | string {
     return tenantAdminInfo.value?.tenantId || null;

@@ -1,5 +1,5 @@
 /**
- * Tenant recycle bin management API / 租户端回收站管理 API
+ * Tenant recycle bin management API / 企业端回收站管理 API
  * Backend: /tenant/recycle-bin/*
  */
 import { requestClient } from '#/utils/request';

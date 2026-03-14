@@ -4,7 +4,7 @@ import type {
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 /**
- * Task log API (tenant side) / 任务日志 API（租户端）
+ * Task log API (tenant side) / 任务日志 API（企业端）
  * Backend: /tenant/tasks/* / 对接后端 /tenant/tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

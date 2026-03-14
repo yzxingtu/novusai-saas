@@ -1,7 +1,7 @@
 """
-租户管理员认证 API / Tenant Admin Authentication API
+企业管理员认证 API / Tenant Admin Authentication API
 
-提供租户管理员的登录、登出、Token 刷新等接口
+提供企业管理员的登录、登出、Token 刷新等接口
 Provides tenant admin login, logout, token refresh endpoints
 """
 
@@ -35,10 +35,10 @@ class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
 _audit_helper = _ImpersonateAuditLogger()
 
 
-router = APIRouter(prefix="/auth", tags=["租户管理员认证"])
+router = APIRouter(prefix="/auth", tags=["企业管理员认证"])
 
 
-@router.post("/login", summary="租户管理员登录")
+@router.post("/login", summary="企业管理员登录")
 @public
 async def tenant_admin_login(
     db: DbSession,
@@ -46,7 +46,7 @@ async def tenant_admin_login(
     login_data: TenantAdminLoginRequest,
 ):
     """
-    租户管理员登录 / Tenant admin login
+    企业管理员登录 / Tenant admin login
 
     - **username**: 用户名或邮箱 / Username or email
     - **password**: 密码 / Password
@@ -93,27 +93,27 @@ async def refresh_token(
     )
 
 
-@router.post("/logout", summary="租户管理员登出")
+@router.post("/logout", summary="企业管理员登出")
 @auth_only
 async def tenant_admin_logout(
     current_admin: ActiveTenantAdmin,
 ):
     """
-    租户管理员登出 / Tenant admin logout
+    企业管理员登出 / Tenant admin logout
     """
     return success(
         message=_("auth.logout_success"),
     )
 
 
-@router.get("/me", summary="获取当前租户管理员信息")
+@router.get("/me", summary="获取当前企业管理员信息")
 @auth_only
 async def get_current_tenant_admin_info(
     db: DbSession,
     current_admin: ActiveTenantAdmin,
 ):
     """
-    获取当前登录租户管理员的详细信息 / Get current logged-in tenant admin details
+    获取当前登录企业管理员的详细信息 / Get current logged-in tenant admin details
 
     响应中包含 has_plan 字段，前端据此判断是否显示“未分配套餐”提示。
     Response includes has_plan field for frontend to determine whether to show "no plan assigned" prompt.
@@ -148,7 +148,7 @@ async def change_password(
     password_data: TenantAdminChangePasswordRequest,
 ):
     """
-    修改当前租户管理员密码 / Change current tenant admin password
+    修改当前企业管理员密码 / Change current tenant admin password
     """
     auth_service = AuthService(db)
 
@@ -172,7 +172,7 @@ async def update_profile(
     profile_data: TenantAdminUpdateProfileRequest,
 ):
     """
-    修改当前租户管理员的个人信息 / Update current tenant admin profile
+    修改当前企业管理员的个人信息 / Update current tenant admin profile
 
     允许修改 / Allowed fields: nickname, avatar, email, phone
     """

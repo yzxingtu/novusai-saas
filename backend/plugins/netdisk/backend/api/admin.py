@@ -1,8 +1,8 @@
 """
-管理端网盘控制台 API — 跨租户视图 / 配额管理 / 分享审计
+管理端网盘控制台 API — 跨企业视图 / 配额管理 / 分享审计
 
 Handler 签名：(request, db, ctx)
-- 管理端路由： ctx.get_current_tenant_id() 返回 None，用于跨租户操作
+- 管理端路由： ctx.get_current_tenant_id() 返回 None，用于跨企业操作
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from ._schemas import node_schema as _node_schema
 
 
 async def list_tenant_files(request, db, ctx):
-    """浏览指定租户文件树（只读）"""
+    """浏览指定企业文件树（只读）"""
     tenant_id     = int(request.query_params["tenant_id"])
     parent_id_str = request.query_params.get("parent_id")
     parent_id     = int(parent_id_str) if parent_id_str else None
@@ -22,7 +22,7 @@ async def list_tenant_files(request, db, ctx):
 
 
 async def list_quotas(request, db, ctx):
-    """列出所有租户配额（统计在 Service 层）"""
+    """列出所有企业配额（统计在 Service 层）"""
     page = int(request.query_params.get("page", "1"))
     size = min(int(request.query_params.get("size", "20")), 100)
     from ..services.quota_service import QuotaService
@@ -37,7 +37,7 @@ async def list_quotas(request, db, ctx):
 
 
 async def update_quota(request, db, ctx):
-    """修改指定租户配额"""
+    """修改指定企业配额"""
     tenant_id   = int(request.path_params["tenant_id"])
     body        = await request.json()
     quota_bytes = int(body["quota_bytes"])
@@ -48,7 +48,7 @@ async def update_quota(request, db, ctx):
 
 
 async def recalculate_quota(request, db, ctx):
-    """重算指定租户 used_bytes"""
+    """重算指定企业 used_bytes"""
     tenant_id = int(request.path_params["tenant_id"])
     from ..services.quota_service import QuotaService
     svc    = QuotaService(db, tenant_id=tenant_id)

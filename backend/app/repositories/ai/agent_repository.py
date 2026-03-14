@@ -32,9 +32,9 @@ _ASSIGNED_SCOPES = (
 
 class AgentRepository(TenantRepository[Agent]):
     """
-    租户级智能体 Repository
+    企业级智能体 Repository
 
-    提供基于租户隔离的智能体数据访问。
+    提供基于企业隔离的智能体数据访问。
     查询时自动包含 scope=global 的全局智能体。
     """
 
@@ -45,13 +45,13 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局 + 全部租户可见 + 已分配的智能体"""
+        """根据 ID 获取智能体，允许访问全局 + 全部企业可见 + 已分配的智能体"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 全局共享（管理端 + 全部租户）
+            # 全局共享（管理端 + 全部企业）
             if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                 return instance
-            # 全部租户可见（平台创建的全局资源，tenant_id=null）
+            # 全部企业可见（平台创建的全局资源，tenant_id=null）
             if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             # 已分配 scope：检查 resource_tenant_assignments
@@ -63,7 +63,7 @@ class AgentRepository(TenantRepository[Agent]):
                 if await repo.check_assignment("agent", instance.id, self.tenant_id):
                     return instance
                 return None
-            # 同租户
+            # 同企业
             if instance.tenant_id == self.tenant_id:
                 return instance
             return None
@@ -77,7 +77,7 @@ class AgentRepository(TenantRepository[Agent]):
         include_deleted: bool = False,
     ) -> tuple[list[Agent], int]:
         """
-        租户级智能体列表查询
+        企业级智能体列表查询
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -89,13 +89,13 @@ class AgentRepository(TenantRepository[Agent]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部租户可见 + 已分配资源
+        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部企业可见 + 已分配资源
         assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+                # 平台创建的全局资源（tenant_id=null，对全部企业可见）
                 and_(
                     self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
                     self.model.tenant_id.is_(None),
@@ -141,7 +141,7 @@ class AgentRepository(TenantRepository[Agent]):
         """
         查询终端用户可访问的智能体列表
 
-        在 AgentRepository.query_list 的租户可见性规则基础上，增加用户访问控制过滤：
+        在 AgentRepository.query_list 的企业可见性规则基础上，增加用户访问控制过滤：
         - visibility != private → 允许
         - visibility == private:
           - 无 AgentAccess 记录 → 允许（默认 all_users）
@@ -333,7 +333,7 @@ class AgentRepository(TenantRepository[Agent]):
         exclude_id: int | None = None,
     ) -> Agent | None:
         """
-        按名称查找智能体（同租户内唯一性检查）
+        按名称查找智能体（同企业内唯一性检查）
 
         Args:
             name: 智能体名称
@@ -359,7 +359,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
     """
     管理端智能体 Repository
 
-    无租户隔离，供平台管理端全局查询使用
+    无企业隔离，供平台管理端全局查询使用
     """
 
     model = Agent

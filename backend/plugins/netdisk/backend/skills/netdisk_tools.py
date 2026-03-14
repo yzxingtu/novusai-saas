@@ -1,6 +1,6 @@
 """
 NetDisk Toolkit — AI Agent 可调用的文件查询工具
-安全约束：仅访问 ctx.tenant_id 下的文件，禁止跨租户
+安全约束：仅访问 ctx.tenant_id 下的文件，禁止跨企业
 禁止使用：os / subprocess / sys / sqlite3 等被安全扫描禁止的模块
 """
 
@@ -13,7 +13,7 @@ class Tools:
     """企业网盘文件查询工具包"""
 
     def __init__(self, ctx):
-        self.ctx = ctx  # 含 tenant_id，强制租户隔离
+        self.ctx = ctx  # 含 tenant_id，强制企业隔离
 
     async def list_files(
         self,

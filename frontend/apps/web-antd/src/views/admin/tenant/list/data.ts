@@ -1,5 +1,5 @@
 /**
- * 租户管理 - 表格列和表单配置
+ * 企业管理 - 表格列和表单配置
  * 遵循 vben-admin 规范
  */
 import type { VbenFormSchema } from '#/adapter/form';
@@ -237,7 +237,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
   return [
-    // Show tenant code in edit mode (readonly) / 编辑模式时显示租户编码（只读）
+    // Show tenant code in edit mode (readonly) / 编辑模式时显示企业编码（只读）
     ...(isEdit
       ? [inputField('code', $t('admin.tenant.code'), { disabled: true })]
       : []),
@@ -307,7 +307,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
 }
 
 /**
- * 重置租户管理员密码表单 Schema
+ * 重置企业管理员密码表单 Schema
  */
 export function useResetPasswordSchema(): VbenFormSchema[] {
   return [

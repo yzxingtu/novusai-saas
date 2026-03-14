@@ -47,7 +47,7 @@ class TrashService(TenantService):
         return node
 
     async def clear_trash(self) -> int:
-        """清空当前租户回收站（物理删除 + 回收存储）"""
+        """清空当前企业回收站（物理删除 + 回收存储）"""
         from sqlalchemy import delete, select
 
         from app.storage.manager import StorageManager

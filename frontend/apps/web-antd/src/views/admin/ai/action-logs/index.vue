@@ -2,7 +2,7 @@
 /**
  * 平台端 AI 操作审计日志列表页面
  *
- * 全局审计日志查询，支持跨租户筛选
+ * 全局审计日志查询，支持跨企业筛选
  */
 import type {
   AdminActionLogDetail,

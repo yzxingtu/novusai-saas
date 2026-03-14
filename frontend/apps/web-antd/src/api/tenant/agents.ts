@@ -1,5 +1,5 @@
 /**
- * Tenant agent management API / 租户端智能体管理 API
+ * Tenant agent management API / 企业端智能体管理 API
  * Backend: /tenant/ai/agents/* / 对接后端 /tenant/ai/agents/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -118,7 +118,7 @@ export interface AgentUpdateRequest {
   rag_config?: null | Record<string, unknown>;
 }
 
-/** Agent memory config (tenant side) / 智能体记忆配置（租户侧） */
+/** Agent memory config (tenant side) / 智能体记忆配置（企业侧） */
 export interface AgentMemoryConfig {
   agent_id: number;
   platform_default_memory_enabled: boolean;
@@ -331,7 +331,7 @@ export async function getAgentMemoryConfigApi(
   );
 }
 
-/** Update tenant-side memory override / 更新租户侧记忆覆盖 */
+/** Update tenant-side memory override / 更新企业侧记忆覆盖 */
 export async function updateAgentMemoryConfigApi(
   id: number,
   data: AgentMemoryUpdateRequest,

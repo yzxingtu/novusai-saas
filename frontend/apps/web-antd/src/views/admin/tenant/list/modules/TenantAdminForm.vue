@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 /**
- * 创建租户子管理员表单（Drawer）
+ * 创建企业子管理员表单（Drawer）
  *
- * 从租户列表的管理员展开面板中调用。
+ * 从企业列表的管理员展开面板中调用。
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
 

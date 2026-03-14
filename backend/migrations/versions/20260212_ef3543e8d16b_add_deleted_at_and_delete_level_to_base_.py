@@ -64,7 +64,7 @@ def upgrade() -> None:
         ))
         op.add_column(table, sa.Column(
             'delete_level', sa.String(length=20), nullable=True,
-            comment='删除层级: tenant=租户回收站, admin=管理端回收站',
+            comment='删除层级: tenant=企业回收站, admin=管理端回收站',
         ))
 
 

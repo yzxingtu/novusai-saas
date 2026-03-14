@@ -1,5 +1,5 @@
 """
-租户端智能体管理 API / Tenant Agent Management API
+企业端智能体管理 API / Tenant Agent Management API
 
 提供智能体的 CRUD、发布等接口
 Provides agent CRUD, publishing endpoints
@@ -32,10 +32,10 @@ from app.services.ai.agent_service import AgentService
 
 async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     """
-    确保智能体为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
+    确保智能体为企业自有（tenant_id 与当前企业匹配）才允许变更操作。
     Ensures the agent is tenant-owned (tenant_id matches current tenant) before allowing mutations.
 
-    平台创建的全局智能体（tenant_id=null）及其他租户的智能体对当前租户只读，
+    平台创建的全局智能体（tenant_id=null）及其他企业的智能体对当前企业只读，
     不允许编辑、发布、回滚、绑定技能等变更操作。
     Platform-created global agents (tenant_id=null) and other tenants' agents are read-only,
     edit/publish/rollback/bind skill mutations are not allowed.
@@ -73,7 +73,7 @@ def _build_agent_list_item(agent) -> dict:
 )
 class TenantAgentController(TenantController):
     """
-    租户智能体管理控制器 / Tenant Agent Management Controller
+    企业智能体管理控制器 / Tenant Agent Management Controller
 
     提供智能体 CRUD、发布等操作
     Provides agent CRUD, publishing operations
@@ -297,7 +297,7 @@ class TenantAgentController(TenantController):
             更新智能体访问权限配置 / Update agent access permission configuration
 
             权限 / Permission: agent:update_access
-            注：访问配置存储在 AgentAccess（租户级独立表），允许对平台分配的智能体配置。
+            注：访问配置存储在 AgentAccess（企业级独立表），允许对平台分配的智能体配置。
             Note: Access config stored in AgentAccess (tenant-level table), allows configuring platform-assigned agents.
             """
             service = AgentService(db, tenant_admin.tenant_id)
@@ -320,7 +320,7 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户侧智能体记忆配置状态 / Get tenant-side agent memory configuration status
+            获取企业侧智能体记忆配置状态 / Get tenant-side agent memory configuration status
 
             权限 / Permission: agent:detail
             """
@@ -328,7 +328,7 @@ class TenantAgentController(TenantController):
             config = await service.get_memory_config(agent_id)
             return success(data=config)
 
-        @router.put("/{agent_id}/memory", summary="设置租户侧记忆关闭覆盖")
+        @router.put("/{agent_id}/memory", summary="设置企业侧记忆关闭覆盖")
         @action_update("action.agent.update")
         async def update_memory_config(
             request: Request,
@@ -338,7 +338,7 @@ class TenantAgentController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            设置租户侧“关闭记忆/恢复默认” / Set tenant-side "disable memory / restore default"
+            设置企业侧“关闭记忆/恢复默认” / Set tenant-side "disable memory / restore default"
 
             权限 / Permission: agent:update
             """

@@ -1,7 +1,7 @@
 """add tenant_user_roles table and tenant_user role_id fk
 
 Creates:
-1. tenant_user_roles table - 租户用户角色表
+1. tenant_user_roles table - 企业用户角色表
 2. tenant_user_role_permissions association table - 角色权限关联表
 3. role_id FK column on tenant_users table
 

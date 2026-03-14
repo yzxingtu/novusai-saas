@@ -1,5 +1,5 @@
 /**
- * 租户端知识库管理 - 表格列、搜索配置、表单 Schema、辅助函数
+ * 企业端知识库管理 - 表格列、搜索配置、表单 Schema、辅助函数
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';

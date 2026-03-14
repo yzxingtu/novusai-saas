@@ -6,7 +6,7 @@
   "tokenTrend": "Token 消耗趋势",
   "modelDistribution": "模型调用分布",
   "providerPerformance": "供应商性能对比",
-  "tenantRanking": "租户使用排行",
+  "tenantRanking": "企业使用排行",
   "successRate": "成功率趋势",
   "latencyDistribution": "响应延迟分布",
   "chart": {

@@ -3,7 +3,7 @@
 
 提供面向终端用户（TenantUser）的 AI 对话接口。
 Provides AI chat endpoints for end users (TenantUser).
-所有 AI 用量（Token、配额、统计）自动归属用户所在的租户。
+所有 AI 用量（Token、配额、统计）自动归属用户所在的企业。
 All AI usage (tokens, quotas, statistics) is automatically attributed to the user's tenant.
 复用现有 AgentChatService / ConversationService / shared helpers。
 Reuses existing AgentChatService / ConversationService / shared helpers.
@@ -51,7 +51,7 @@ class UserAgentChatController(BaseController):
 
     所有端点使用 @auth_only（登录即可访问）。
     All endpoints use @auth_only (accessible after login).
-    计量通过 tenant_user.tenant_id 自动归属租户。
+    计量通过 tenant_user.tenant_id 自动归属企业。
     Metering is automatically attributed to the tenant via tenant_user.tenant_id.
     """
 

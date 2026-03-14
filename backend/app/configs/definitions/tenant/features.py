@@ -1,7 +1,7 @@
-"""Tenant feature toggle config items / 租户功能开关配置项
+"""Tenant feature toggle config items / 企业功能开关配置项
 
 Includes tenant-level feature module enable/disable configs.
-包含租户级的功能模块启用/禁用配置
+包含企业级的功能模块启用/禁用配置
 """
 
 from app.configs.definitions.groups import TENANT_FEATURES_GROUP

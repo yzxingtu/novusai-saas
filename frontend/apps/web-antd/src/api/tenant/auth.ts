@@ -1,5 +1,5 @@
 /**
- * Tenant backend auth API / 租户后台认证 API
+ * Tenant backend auth API / 企业后台认证 API
  * Backend: /tenant/auth/* / 对接后端 /tenant/auth/* 接口
  */
 import type {
@@ -24,7 +24,7 @@ import { baseRequestClient, requestClient } from '#/utils/request';
 const API_PREFIX = '/tenant/auth';
 
 /**
- * Tenant admin login / 租户管理员登录
+ * Tenant admin login / 企业管理员登录
  * Backend returns snake_case, converted to camelCase / 后端返回 snake_case，转换为 camelCase
  */
 export async function tenantLoginApi(
@@ -37,7 +37,7 @@ export async function tenantLoginApi(
     username: data.username,
   };
 
-  // Add tenant code (if present) / 添加租户编码
+  // Add tenant code (if present) / 添加企业编码
   if (data.tenantCode) {
     requestBody.tenant_code = data.tenantCode;
   }
@@ -90,7 +90,7 @@ export async function tenantRefreshTokenApi(
 }
 
 /**
- * Tenant admin logout / 租户管理员登出
+ * Tenant admin logout / 企业管理员登出
  * Uses baseRequestClient to avoid circular calls on 401 / 使用 baseRequestClient 避免循环调用
  */
 export async function tenantLogoutApi() {
@@ -108,7 +108,7 @@ export async function tenantLogoutApi() {
 }
 
 /**
- * Tenant admin info raw format from backend / 后端返回的租户管理员信息原始格式
+ * Tenant admin info raw format from backend / 后端返回的企业管理员信息原始格式
  */
 interface TenantAdminInfoRaw {
   id: number;
@@ -125,14 +125,14 @@ interface TenantAdminInfoRaw {
   created_at?: string;
   /** Permission code list / 权限码列表 */
   permissions?: string[];
-  /** Whether tenant has assigned plan / 租户是否已分配套餐 */
+  /** Whether tenant has assigned plan / 企业是否已分配套餐 */
   has_plan?: boolean;
   /** Plan name / 套餐名称 */
   plan_name?: string;
 }
 
 /**
- * Get current tenant admin info / 获取当前租户管理员信息
+ * Get current tenant admin info / 获取当前企业管理员信息
  * Convert backend snake_case to frontend camelCase / 将后端格式转换为前端格式
  */
 export async function getTenantAdminInfoApi(
@@ -188,7 +188,7 @@ export interface UpdateProfileParams {
 }
 
 /**
- * Update current tenant admin profile / 修改当前租户管理员个人信息
+ * Update current tenant admin profile / 修改当前企业管理员个人信息
  * PUT /tenant/auth/profile
  */
 export async function updateTenantProfileApi(

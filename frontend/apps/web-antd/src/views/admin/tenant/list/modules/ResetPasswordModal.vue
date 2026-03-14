@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 重置租户管理员密码弹窗
+ * 重置企业管理员密码弹窗
  */
 import { ref } from 'vue';
 
@@ -12,7 +12,7 @@ import { $t } from '#/locales';
 
 import { useResetPasswordSchema } from '../data';
 
-/** 重置密码所需的租户信息 */
+/** 重置密码所需的企业信息 */
 interface ResetPasswordTarget {
   id: number;
   name: string;
@@ -69,7 +69,7 @@ const [Modal, modalApi] = useVbenModal({
 
 /**
  * 打开弹窗
- * @param record 包含 id 和 name 的租户信息
+ * @param record 包含 id 和 name 的企业信息
  */
 function open(record: ResetPasswordTarget) {
   modalApi.setData(record).open();

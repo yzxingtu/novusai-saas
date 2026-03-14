@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 /**
- * 租户管理员展开面板
+ * 企业管理员展开面板
  *
- * 显示在租户列表的展开行中，展示该租户的管理员列表及在线状态。
+ * 显示在企业列表的展开行中，展示该企业的管理员列表及在线状态。
  * 支持创建子管理员、禁用/启用操作。
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
@@ -38,9 +38,9 @@ import TenantAdminResetPwdModal from './TenantAdminResetPwdModal.vue';
 defineOptions({ name: 'TenantAdminPanel' });
 
 const props = defineProps<{
-  /** 租户 ID */
+  /** 企业 ID */
   tenantId: number;
-  /** 租户名称 */
+  /** 企业名称 */
   tenantName: string;
 }>();
 

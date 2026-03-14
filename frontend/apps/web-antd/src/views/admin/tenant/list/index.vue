@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * Tenant list page
- * 租户列表页面
+ * 企业列表页面
  */
 import type { adminApi } from '#/api';
 
@@ -52,11 +52,11 @@ const isDev = computed(() => import.meta.env.DEV);
 
 /**
  * Build tenant origin URL
- * 构建租户端 origin URL
+ * 构建企业端 origin URL
  * Dev mode: tenant domain + current port
- * 开发模式下使用租户域名 + 当前端口
+ * 开发模式下使用企业域名 + 当前端口
  * Production: tenant primary domain
- * 生产模式下使用租户主域名
+ * 生产模式下使用企业主域名
  */
 function getTenantOrigin(domain: string): string {
   if (isDev.value) {
@@ -98,7 +98,7 @@ function onManageDomains(row: TenantInfo) {
 }
 
 /**
- * Reset tenant admin password / 重置租户管理员密码
+ * Reset tenant admin password / 重置企业管理员密码
  */
 function onResetPassword(row: TenantInfo) {
   resetPasswordModalRef.value?.open({
@@ -118,7 +118,7 @@ function onStorageConfig(row: TenantInfo) {
 }
 
 /**
- * One-click login to tenant backend (new window) / 一键登录租户后台(新窗口)
+ * One-click login to tenant backend (new window) / 一键登录企业后台(新窗口)
  */
 async function onImpersonate(row: TenantInfo) {
   const hideLoading = message.loading({
@@ -149,7 +149,7 @@ async function onImpersonate(row: TenantInfo) {
 }
 
 /**
- * One-click login to tenant backend (current tab) - dev mode only / 一键登录租户后台(当前标签页) - 仅开发模式
+ * One-click login to tenant backend (current tab) - dev mode only / 一键登录企业后台(当前标签页) - 仅开发模式
  */
 async function onImpersonateInCurrentTab(row: TenantInfo) {
   const hideLoading = message.loading({
@@ -286,11 +286,11 @@ onUnmounted(() => {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 租户管理员展开行 -->
+        <!-- 企业管理员展开行 -->
         <template #expand_content="{ row }">
           <TenantAdminPanel :tenant-id="row.id" :tenant-name="row.name" />
         </template>
-        <!-- 租户名称 + 账号列 -->
+        <!-- 企业名称 + 账号列 -->
         <template #name_cell="{ row }">
           <div class="flex flex-col gap-0.5">
             <span class="font-medium text-foreground">{{ row.name }}</span>

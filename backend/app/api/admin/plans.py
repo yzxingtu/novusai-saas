@@ -1,7 +1,7 @@
 """
 套餐管理 API / Plan Management API
 
-提供租户套餐 CRUD 接口（平台管理员专用）
+提供企业套餐 CRUD 接口（平台管理员专用）
 Provides tenant plan CRUD endpoints (platform admin only).
 """
 
@@ -63,7 +63,7 @@ def _translate_permission_name(name: str) -> str:
         icon="lucide:package",
         path="/tenant/plans",
         component="tenant/Plans",
-        parent="tenant_mgmt",  # 父菜单: 租户管理 / Parent menu: Tenant Management
+        parent="tenant_mgmt",  # 父菜单: 企业管理 / Parent menu: Tenant Management
         sort_order=20,
     ),
 )
@@ -162,7 +162,7 @@ class AdminPlanController(GlobalController):
             service = TenantPlanService(db)
             items, total = await service.query_list(spec, scope="admin")
 
-            # 批量获取租户数量（高效 COUNT 查询，避免加载全部租户对象） / Batch get tenant counts (efficient COUNT query, avoids loading all tenant objects)
+            # 批量获取企业数量（高效 COUNT 查询，避免加载全部企业对象） / Batch get tenant counts (efficient COUNT query, avoids loading all tenant objects)
             plan_ids = [item.id for item in items]
             tenant_counts = await service.repo.get_tenant_counts_batch(plan_ids)
             for item in items:
@@ -353,7 +353,7 @@ class AdminPlanController(GlobalController):
             """
             删除套餐（软删除） / Delete plan (soft delete)
 
-            - 如果有租户正在使用该套餐，则无法删除 / Cannot delete if tenants are using this plan
+            - 如果有企业正在使用该套餐，则无法删除 / Cannot delete if tenants are using this plan
 
             权限 / Permission: tenant_plan:delete
             """

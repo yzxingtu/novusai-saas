@@ -1,6 +1,6 @@
 /**
  * Tenant management route module
- * 租户管理端路由模块
+ * 企业管理端路由模块
  */
 import type { RouteRecordRaw } from 'vue-router';
 
@@ -9,7 +9,7 @@ import { $t } from '#/locales';
 const AuthPageLayout = () => import('#/layouts/tenant-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
-/** Tenant authentication routes / 租户管理端认证路由 */
+/** Tenant authentication routes / 企业管理端认证路由 */
 const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
@@ -39,7 +39,7 @@ const authRoutes: RouteRecordRaw = {
   ],
 };
 
-/** Tenant main layout routes / 租户管理端主布局路由 */
+/** Tenant main layout routes / 企业管理端主布局路由 */
 const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
@@ -84,7 +84,7 @@ const mainRoutes: RouteRecordRaw = {
         activePath: '/tenant/ai/agents',
       },
     },
-    // 个人中心：不在后端菜单中，必须静态注册
+    // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu
     {
       name: 'TenantProfile',
       path: '/tenant/profile',
@@ -94,10 +94,12 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('page.auth.profile'),
       },
     },
+    // 全局偏好设置由后端动态菜单注册，无需静态路由
+    // Global preferences registered via backend dynamic menu
   ],
 };
 
-/** Tenant routes / 租户管理端路由 */
+/** Tenant routes / 企业管理端路由 */
 export const tenantRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
 export { tenantCoreRouteNames } from './names';

@@ -1,7 +1,7 @@
-"""Tenant security settings config items / 租户安全设置配置项
+"""Tenant security settings config items / 企业安全设置配置项
 
 Includes tenant-level login security, password policy, etc.
-包含租户级的登录安全、密码策略等配置
+包含企业级的登录安全、密码策略等配置
 """
 
 from app.configs.definitions.groups import TENANT_GENERAL_GROUP
@@ -23,7 +23,7 @@ TENANT_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=10,
 )
 
-# Captcha driver (tenant) / 验证码驱动（租户端）
+# Captcha driver (tenant) / 验证码驱动（企业端）
 TENANT_CAPTCHA_PROVIDER = ConfigMeta(
     key="tenant_captcha_provider",
     name_key="config.tenant.captcha_provider.name",
@@ -40,7 +40,7 @@ TENANT_CAPTCHA_PROVIDER = ConfigMeta(
     ],
 )
 
-# Captcha difficulty (tenant) / 验证码难度（租户端）
+# Captcha difficulty (tenant) / 验证码难度（企业端）
 TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
     key="tenant_captcha_difficulty",
     name_key="config.tenant.captcha_difficulty.name",
@@ -107,7 +107,7 @@ TENANT_LOGIN_LOCKOUT_MINUTES = ConfigMeta(
     sort_order=40,
 )
 
-# Captcha enable threshold (tenant) / 验证码启用阈值（租户端）
+# Captcha enable threshold (tenant) / 验证码启用阈值（企业端）
 TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
     key="tenant_captcha_enable_threshold",
     name_key="config.tenant.captcha_enable_threshold.name",

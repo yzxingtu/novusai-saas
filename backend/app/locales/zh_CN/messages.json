@@ -39,9 +39,9 @@
     "impersonate_success": "一键登录成功",
     "profile_updated": "个人资料更新成功",
     "email_already_exists": "邮箱已被注册",
-    "tenant_code_required": "存在多个匹配账户，请指定租户编码",
-    "tenant_domain_required": "请通过租户专属域名访问登录页面",
-    "registration_disabled": "该租户暂未开放用户注册",
+    "tenant_code_required": "存在多个匹配账户，请指定企业编码",
+    "tenant_domain_required": "请通过企业专属域名访问登录页面",
+    "registration_disabled": "该企业暂未开放用户注册",
     "username_taken": "用户名已被占用",
     "email_taken": "邮箱已被注册",
     "phone_taken": "手机号已被注册",
@@ -82,19 +82,19 @@
     "super_admin_required": "需要超级管理员权限"
   },
   "tenant": {
-    "not_found": "租户不存在",
-    "code_exists": "租户编码已存在",
-    "disabled": "租户已禁用",
+    "not_found": "企业不存在",
+    "code_exists": "企业编码已存在",
+    "disabled": "企业已禁用",
     "quota_exceeded": "配额已超限",
-    "created": "租户创建成功",
-    "updated": "租户更新成功",
-    "deleted": "租户删除成功",
-    "status_updated": "租户状态更新成功",
-    "settings_updated": "租户设置更新成功",
-    "identification_failed": "无法识别租户",
-    "owner_not_found": "租户所有者不存在",
-    "owner_password_reset": "租户超级管理员密码重置成功",
-    "no_plan": "当前租户未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。"
+    "created": "企业创建成功",
+    "updated": "企业更新成功",
+    "deleted": "企业删除成功",
+    "status_updated": "企业状态更新成功",
+    "settings_updated": "企业设置更新成功",
+    "identification_failed": "无法识别企业",
+    "owner_not_found": "企业所有者不存在",
+    "owner_password_reset": "企业超级管理员密码重置成功",
+    "no_plan": "当前企业未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。"
   },
   "domain": {
     "instructions_header": "请在您的 DNS 服务商处添加以下记录",
@@ -112,7 +112,7 @@
     "created": "套餐创建成功",
     "updated": "套餐更新成功",
     "deleted": "套餐删除成功",
-    "has_tenants": "套餐正在被租户使用，无法删除",
+    "has_tenants": "套餐正在被企业使用，无法删除",
     "permissions_updated": "套餐权限更新成功",
     "invalid_billing_cycle": "无效的计费周期"
   },
@@ -339,7 +339,7 @@
       "no_valves_schema": "该技能包没有可配置项",
       "invalid_valves_config": "valves_config 必须是 JSON 对象",
       "invalid_export_format": "无效的技能包导出格式或版本不兼容",
-      "scope_tenant_id_required": "作用域为「指定租户」时必须选择租户",
+      "scope_tenant_id_required": "作用域为「指定企业」时必须选择企业",
       "valves_missing_required": "缺少必填配置项: {fields}"
     }
   },
@@ -485,31 +485,31 @@
   "platform_tool": {
     "get_dashboard_stats": {
       "name": "获取仪表盘统计",
-      "description": "获取租户仪表盘统计数据：总用户数、今日活跃用户、AI 调用次数、存储使用量"
+      "description": "获取企业仪表盘统计数据：总用户数、今日活跃用户、AI 调用次数、存储使用量"
     },
     "list_users": {
       "name": "查询用户列表",
-      "description": "查询租户终端用户列表，支持按邮箱、状态和日期范围筛选"
+      "description": "查询企业终端用户列表，支持按邮箱、状态和日期范围筛选"
     },
     "list_roles": {
       "name": "查询角色列表",
-      "description": "查询租户管理角色及层级关系"
+      "description": "查询企业管理角色及层级关系"
     },
     "list_agents": {
       "name": "查询智能体列表",
-      "description": "查询当前租户配置的 AI 智能体列表"
+      "description": "查询当前企业配置的 AI 智能体列表"
     },
     "create_role": {
       "name": "创建角色",
-      "description": "为租户创建新的管理角色"
+      "description": "为企业创建新的管理角色"
     },
     "update_user_status": {
       "name": "更新用户状态",
-      "description": "启用或禁用租户终端用户"
+      "description": "启用或禁用企业终端用户"
     },
     "delete_user": {
       "name": "删除用户",
-      "description": "删除租户终端用户（AI 不可直接执行，仅提供操作指引）"
+      "description": "删除企业终端用户（AI 不可直接执行，仅提供操作指引）"
     },
     "batch_modify": {
       "name": "批量修改",
@@ -728,7 +728,7 @@
       "document_not_found": "文档不存在",
       "document_exists": "相同内容的文档已存在",
       "document_not_error": "文档未处于失败状态，无法重试",
-      "readonly": "该知识库由管理端管理，租户无法修改"
+      "readonly": "该知识库由管理端管理，企业无法修改"
     },
     "document": {
       "uploaded": "文档上传成功",
@@ -769,15 +769,15 @@
       "avatar": "头像",
       "scope": "作用域",
       "visibility": "可见性",
-      "tenant_id": "租户 ID",
-      "assigned_tenant_ids": "指定租户 ID 列表",
+      "tenant_id": "企业 ID",
+      "assigned_tenant_ids": "指定企业 ID 列表",
       "embedding_model_id": "Embedding 模型",
       "embedding_model_name": "Embedding 模型名称",
       "embedding_dimensions": "Embedding 维度",
       "vision_model_id": "Vision 模型",
       "vision_model_name": "Vision 模型名称",
       "extract_images": "提取图片内容",
-      "tenant_ids": "分配租户 ID 列表",
+      "tenant_ids": "分配企业 ID 列表",
       "chunk_size": "分块大小",
       "chunk_overlap": "分块重叠",
       "chunk_strategy": "分块策略",
@@ -791,7 +791,7 @@
     },
     "tenant_access": {
       "knowledge_base_id": "知识库 ID",
-      "tenant_id": "租户 ID"
+      "tenant_id": "企业 ID"
     },
     "log": {
       "process_started": "文档处理已启动",
@@ -808,7 +808,7 @@
     "endpoint_not_declared": "接口未声明访问权限，拒绝访问",
     "role_required": "需要角色权限",
     "super_admin_required": "需要超级管理员权限",
-    "owner_required": "需要租户所有者权限",
+    "owner_required": "需要企业所有者权限",
     "invalid_permission": "无效的权限代码",
     "permission_not_found": "权限不存在",
     "cannot_access_resource": "无权访问该资源",
@@ -861,20 +861,20 @@
       "list": "查看权限列表"
     },
     "tenant": {
-      "list": "查看租户列表",
-      "detail": "查看租户详情",
-      "create": "创建租户",
-      "update": "更新租户",
-      "delete": "删除租户",
-      "toggle_status": "切换租户状态",
-      "impersonate": "一键登录租户后台",
-      "select": "租户远程下拉",
-      "reset_owner_password": "重置租户超级管理员密码",
+      "list": "查看企业列表",
+      "detail": "查看企业详情",
+      "create": "创建企业",
+      "update": "更新企业",
+      "delete": "删除企业",
+      "toggle_status": "切换企业状态",
+      "impersonate": "一键登录企业后台",
+      "select": "企业远程下拉",
+      "reset_owner_password": "重置企业超级管理员密码",
       "recycle_bin": "回收站"
     },
     "tenant_settings": {
-      "view": "查看租户设置",
-      "update": "更新租户设置",
+      "view": "查看企业设置",
+      "update": "更新企业设置",
       "domain_list": "查看域名列表",
       "domain_add": "添加自定义域名",
       "domain_detail": "查看域名详情",
@@ -977,7 +977,7 @@
       "download": "下载附件",
       "preview": "预览附件",
       "stats": "查看存储统计",
-      "stats_by_tenant": "查看租户存储统计",
+      "stats_by_tenant": "查看企业存储统计",
       "storage_quota": "查看存储配额",
       "upload_rules": "获取上传规则",
       "batch_upload": "批量上传附件",
@@ -1055,13 +1055,13 @@
       "export": "导出对话"
     },
     "ai_conversation": {
-      "list": "查看全租户对话列表",
+      "list": "查看全企业对话列表",
       "detail": "查看对话详情（审计）"
     },
     "tenant_agent_assignment": {
       "list": "查看智能体绑定列表",
-      "update": "设置租户覆盖绑定",
-      "delete": "删除租户覆盖绑定"
+      "update": "设置企业覆盖绑定",
+      "delete": "删除企业覆盖绑定"
     },
     "ai_action_log": {
       "list": "查看 AI 操作日志列表",
@@ -1232,7 +1232,7 @@
       "sync": "同步数据访问策略"
     },
     "ai_usage": {
-      "tenant_summary": "查看租户用量汇总",
+      "tenant_summary": "查看企业用量汇总",
       "model_summary": "查看模型用量汇总",
       "stats": "查看用量统计"
     },
@@ -1289,9 +1289,9 @@
       "versions": "查看插件版本",
       "upgrade": "升级插件",
       "rollback": "回滚插件版本",
-      "tenants": "查看插件租户",
-      "assign_tenants": "分配插件租户",
-      "unassign_tenant": "取消分配租户",
+      "tenants": "查看插件企业",
+      "assign_tenants": "分配插件企业",
+      "unassign_tenant": "取消分配企业",
       "view_license": "查看许可证",
       "activate_license": "激活许可证",
       "activate_trial": "激活试用",
@@ -1323,16 +1323,16 @@
       "update_status": "修改技能状态"
     },
     "tenant_admin": {
-      "list": "查看租户管理员列表",
-      "create": "创建租户管理员",
-      "update": "编辑租户管理员"
+      "list": "查看企业管理员列表",
+      "create": "创建企业管理员",
+      "update": "编辑企业管理员"
     }
   },
   "role": {
     "not_found": "角色不存在",
     "code_exists": "角色代码已存在",
     "created": "角色创建成功",
-    "tenant_root_description": "租户组织架构根节点，不可删除",
+    "tenant_root_description": "企业组织架构根节点，不可删除",
     "platform_root_description": "平台组织架构根节点，不可删除",
     "default_user_name": "默认用户",
     "default_user_description": "系统默认用户角色，新注册用户自动分配此角色",
@@ -1377,13 +1377,13 @@
     "password_reset": "密码重置成功",
     "status_updated": "管理员状态更新成功",
     "cannot_delete_self": "不能删除自己",
-    "cannot_delete_owner": "不能删除租户所有者",
+    "cannot_delete_owner": "不能删除企业所有者",
     "cannot_disable_self": "不能禁用自己",
-    "cannot_modify_owner": "不能修改租户所有者",
-    "owner_required": "需要租户所有者权限",
+    "cannot_modify_owner": "不能修改企业所有者",
+    "owner_required": "需要企业所有者权限",
     "role_not_found": "角色不存在",
-    "username_or_email_exists": "用户名或邮箱已被该租户下其他管理员使用",
-    "cannot_disable_owner": "不能禁用租户所有者"
+    "username_or_email_exists": "用户名或邮箱已被该企业下其他管理员使用",
+    "cannot_disable_owner": "不能禁用企业所有者"
   },
   "tenant_user": {
     "not_found": "用户不存在",
@@ -1493,8 +1493,8 @@
     },
     "attachment_source": {
       "platform_admin": "平台管理员",
-      "tenant_admin": "租户管理员",
-      "tenant_user": "租户用户",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
       "system": "系统"
     },
     "billing_cycle": {
@@ -1528,8 +1528,8 @@
     },
     "user_type": {
       "admin": "平台管理员",
-      "tenant_admin": "租户管理员",
-      "tenant_user": "租户用户",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
       "anonymous": "匿名用户"
     },
     "log_module": {
@@ -1537,9 +1537,9 @@
       "permission": "权限",
       "role": "角色",
       "admin_user": "平台用户",
-      "tenant": "租户",
-      "tenant_admin": "租户管理员",
-      "tenant_user": "租户用户",
+      "tenant": "企业",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户",
       "config": "配置",
       "plan": "套餐",
       "domain": "域名",
@@ -1548,7 +1548,7 @@
       "system": "系统",
       "operation_log": "操作日志",
       "system_log": "系统日志",
-      "tenant_plan": "租户套餐",
+      "tenant_plan": "企业套餐",
       "other": "其他"
     },
     "log_category": {
@@ -1628,7 +1628,7 @@
         "unknown": "未知"
       },
       "memory_channel": {
-        "tenant_chat": "租户对话",
+        "tenant_chat": "企业对话",
         "admin_chat": "管理端对话",
         "user_chat": "用户端对话",
         "plugin": "插件",
@@ -1636,7 +1636,7 @@
       },
       "memory_enabled": "记忆开关",
       "effective_memory_enabled": "记忆最终生效状态",
-      "memory_disabled_by_tenant": "租户侧已关闭记忆"
+      "memory_disabled_by_tenant": "企业侧已关闭记忆"
     },
     "action_level": {
       "read": "只读查询",
@@ -1655,16 +1655,16 @@
       "pending_confirm": "待确认"
     },
     "resource_scope": {
-      "tenant": "租户专属",
+      "tenant": "企业专属",
       "global": "全局共享",
       "admin": "仅管理端"
     },
     "scope": {
       "admin_only": "仅管理端",
-      "all_tenants": "全部租户",
+      "all_tenants": "全部企业",
       "admin_and_all": "全局共享",
-      "admin_and_assigned": "管理端+部分租户",
-      "assigned_tenants": "部分租户",
+      "admin_and_assigned": "管理端+部分企业",
+      "assigned_tenants": "部分企业",
       "tenant_user": "用户端"
     },
     "skill_bind_mode": {
@@ -1677,18 +1677,18 @@
       "reject": "禁止执行"
     },
     "delete_level": {
-      "tenant": "租户回收站",
+      "tenant": "企业回收站",
       "admin": "管理端回收站"
     },
     "user_role": {
       "platform_admin": "平台管理员",
-      "tenant_admin": "租户管理员",
-      "tenant_user": "租户用户"
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业用户"
     },
     "audience": {
       "all": "所有端",
       "admin_only": "仅管理端",
-      "admin_tenant": "管理端+租户端"
+      "admin_tenant": "管理端+企业端"
     },
     "tool_parameter_type": {
       "string": "字符串",
@@ -1701,7 +1701,7 @@
     "table_policy": {
       "scope": {
         "platform": "平台级",
-        "tenant": "租户级",
+        "tenant": "企业级",
         "all": "全部"
       }
     },
@@ -1716,7 +1716,7 @@
         "code_execution": "代码执行"
       },
       "scope": {
-        "tenant": "租户技能",
+        "tenant": "企业技能",
         "admin": "管理技能"
       }
     },
@@ -1735,8 +1735,8 @@
       },
       "visibility": {
         "private": "仅自身可见",
-        "all_tenants": "所有租户可见",
-        "assigned": "指定租户可见"
+        "all_tenants": "所有企业可见",
+        "assigned": "指定企业可见"
       },
       "document_type": {
         "pdf": "PDF 文档",
@@ -1820,10 +1820,10 @@
     },
     "plugin_scope": {
       "admin_only": "仅管理端",
-      "all_tenants": "全部租户",
-      "assigned_tenants": "指定租户",
-      "admin_and_all": "管理端 + 全部租户",
-      "admin_and_assigned": "管理端 + 指定租户"
+      "all_tenants": "全部企业",
+      "assigned_tenants": "指定企业",
+      "admin_and_all": "管理端 + 全部企业",
+      "admin_and_assigned": "管理端 + 指定企业"
     },
     "plugin_tier": {
       "official": "官方",
@@ -1954,7 +1954,7 @@
       },
       "tenant_storage": {
         "name": "存储设置",
-        "desc": "租户存储方案与云存储配置"
+        "desc": "企业存储方案与云存储配置"
       },
       "platform_ai_memory": {
         "name": "AI 记忆",
@@ -1987,8 +1987,8 @@
         "desc": "中国大陆地区需要的备案号"
       },
       "tenant_domain_suffix": {
-        "name": "租户默认域名后缀",
-        "desc": "租户默认域名格式为 {tenant_code}{suffix}，例如: demo.app.novusai.com"
+        "name": "企业默认域名后缀",
+        "desc": "企业默认域名格式为 {tenant_code}{suffix}，例如: demo.app.novusai.com"
       },
       "domain_verification_prefix": {
         "name": "域名验证 DNS 前缀",
@@ -2069,12 +2069,12 @@
         "desc": "图片压缩的默认质量（1-100）"
       },
       "tenant_storage_self_config_enabled": {
-        "name": "允许租户自主配置存储",
-        "desc": "开启后，租户可在租户端自行配置云存储（需同时开启租户单独开关）"
+        "name": "允许企业自主配置存储",
+        "desc": "开启后，企业可在企业端自行配置云存储（需同时开启企业单独开关）"
       },
       "storage_allowed_custom_drivers": {
         "name": "允许的自定义驱动",
-        "desc": "租户自主配置时允许选择的存储驱动列表"
+        "desc": "企业自主配置时允许选择的存储驱动列表"
       },
       "image_cache_max_variants_per_image": {
         "name": "单图缓存变体上限",
@@ -2200,7 +2200,7 @@
       },
       "ssl_allow_custom_cert": {
         "name": "允许自定义证书",
-        "desc": "是否允许租户上传自定义 SSL 证书"
+        "desc": "是否允许企业上传自定义 SSL 证书"
       },
       "dns_provider": {
         "name": "DNS 提供商",
@@ -2296,12 +2296,12 @@
     },
     "tenant": {
       "logo": {
-        "name": "租户 Logo",
-        "desc": "租户管理后台显示的 Logo"
+        "name": "企业 Logo",
+        "desc": "企业管理后台显示的 Logo"
       },
       "favicon": {
-        "name": "租户图标",
-        "desc": "租户页面浏览器标签图标"
+        "name": "企业图标",
+        "desc": "企业页面浏览器标签图标"
       },
       "login_bg": {
         "name": "登录页背景",
@@ -2321,7 +2321,7 @@
       },
       "captcha_enabled": {
         "name": "启用验证码",
-        "desc": "租户登录时是否需要验证码"
+        "desc": "企业登录时是否需要验证码"
       },
       "captcha_provider": {
         "name": "验证码驱动",
@@ -2330,7 +2330,7 @@
       },
       "captcha_difficulty": {
         "name": "验证码难度",
-        "desc": "租户登录验证码的难度级别",
+        "desc": "企业登录验证码的难度级别",
         "easy": "简单",
         "medium": "中等",
         "hard": "困难"
@@ -2434,8 +2434,8 @@
     },
     "storage": {
       "test_file_not_found": "存储连接测试失败：测试文件写入后未找到",
-      "self_config_not_enabled": "租户自主存储配置未开启，请联系平台管理员",
-      "local_not_allowed_for_tenant": "租户不能使用本地存储驱动",
+      "self_config_not_enabled": "企业自主存储配置未开启，请联系平台管理员",
+      "local_not_allowed_for_tenant": "企业不能使用本地存储驱动",
       "driver_not_allowed": "该存储驱动不在允许列表中",
       "mode": {
         "platform": "平台托管存储",
@@ -2596,7 +2596,7 @@
       "cannot_remove_super": "不能移除超级管理员"
     },
     "tenant_admin": {
-      "cannot_remove_owner": "不能移除租户所有者"
+      "cannot_remove_owner": "不能移除企业所有者"
     },
     "config": {
       "group_not_found": "配置分组不存在",
@@ -2677,14 +2677,14 @@
       "system_table_blocked": "禁止访问系统表"
     },
     "isolation": {
-      "no_table_ref": "SQL 中未找到表引用，无法注入租户隔离",
+      "no_table_ref": "SQL 中未找到表引用，无法注入企业隔离",
       "unknown_table": "未知的表: {table}",
-      "no_tenant_column": "表 {table} 缺少租户隔离列"
+      "no_tenant_column": "表 {table} 缺少企业隔离列"
     },
     "executor": {
       "readonly_not_configured": "只读数据库连接未配置，请设置 AI_READONLY_DB_URL",
       "missing_question": "缺少查询问题",
-      "missing_tenant": "缺少租户信息",
+      "missing_tenant": "缺少企业信息",
       "execution_error": "数据查询执行失败，请稍后重试",
       "no_accessible_tables": "当前权限无法查询任何数据表，请联系管理员"
     },
@@ -2726,12 +2726,12 @@
       "record_not_found": "表 '{table}' 中未找到 ID={id} 的记录",
       "blocked_columns_violation": "以下列禁止写入: {columns}",
       "permission_denied": "权限不足，无法对表 '{table}' 执行 {action} 操作",
-      "cross_tenant_denied": "禁止跨租户数据访问",
+      "cross_tenant_denied": "禁止跨企业数据访问",
       "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线",
       "invalid_column_names": "以下列名包含非法字符: {columns}，仅允许小写字母、数字和下划线",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
-      "no_tenant_isolation": "表 '{table}' 没有租户隔离列，租户用户无法访问此表"
+      "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -2782,7 +2782,7 @@
   },
   "ai_table_policy_override": {
     "not_found": "AI 表策略覆盖不存在",
-    "cannot_expand": "租户只能收紧策略，不能超出全局设置",
+    "cannot_expand": "企业只能收紧策略，不能超出全局设置",
     "field": {
       "policy_id": "策略 ID",
       "allow_read": "覆盖查询权限",
@@ -2799,7 +2799,7 @@
       "feature_code": "功能代码",
       "feature_name": "功能名称",
       "description": "描述",
-      "tenant_id": "租户 ID",
+      "tenant_id": "企业 ID",
       "agent_id": "绑定智能体",
       "config": "配置",
       "is_active": "启用状态"
@@ -2807,10 +2807,10 @@
     "error": {
       "not_found": "功能绑定不存在",
       "feature_code_exists": "功能代码已存在",
-      "override_not_found": "租户覆盖绑定不存在",
+      "override_not_found": "企业覆盖绑定不存在",
       "agent_not_found": "智能体不存在或已删除",
       "agent_not_published": "智能体尚未发布，无法绑定",
-      "agent_not_accessible": "该智能体不在当前租户的可见范围内"
+      "agent_not_accessible": "该智能体不在当前企业的可见范围内"
     }
   },
   "email_log": {
@@ -2843,14 +2843,14 @@
       "knowledge_document": "知识库文档",
       "table_policy": "表策略",
       "table_policy_override": "表策略覆盖",
-      "tenant_quota": "租户配额",
+      "tenant_quota": "企业配额",
       "tenant_rate_limit": "速率限制",
       "admin_role": "管理员角色",
       "admin": "管理员",
-      "tenant_admin_role": "租户角色",
-      "tenant_admin": "租户管理员",
-      "tenant_plan": "租户套餐",
-      "tenant": "租户",
+      "tenant_admin_role": "企业角色",
+      "tenant_admin": "企业管理员",
+      "tenant_plan": "企业套餐",
+      "tenant": "企业",
       "tenant_domain": "域名",
       "system_agent_assignment": "系统智能体绑定",
       "periodic_task": "定时任务"
@@ -2897,7 +2897,7 @@
   "config.tenant.user_terms_url.desc": "注册页面显示的服务条款链接地址，留空则不显示",
   "enum.agent_model.target_audience": "目标受众",
   "agent_access.admin_role_ids": "管理端角色授权",
-  "agent_access.tenant_role_ids": "租户端角色授权",
+  "agent_access.tenant_role_ids": "企业端角色授权",
   "agent_access.user_role_ids": "用户端角色授权",
   "skill_package.system.engine": "系统引擎技能包",
   "skill_package.system.data_management": "平台数据管理",

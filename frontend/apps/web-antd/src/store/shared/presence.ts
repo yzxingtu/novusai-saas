@@ -35,13 +35,13 @@ export const usePresenceStore = defineStore('presence', () => {
   /** Admin online ID set / 平台管理员在线 ID 集合 */
   const adminOnlineIds = reactive(new Set<number>());
 
-  /** Current tenant admin online ID set / 当前租户管理员在线 ID 集合 */
+  /** Current tenant admin online ID set / 当前企业管理员在线 ID 集合 */
   const tenantAdminOnlineIds = reactive(new Set<number>());
 
-  /** Current tenant user online ID set / 当前租户业务用户在线 ID 集合 */
+  /** Current tenant user online ID set / 当前企业业务用户在线 ID 集合 */
   const tenantUserOnlineIds = reactive(new Set<number>());
 
-  /** Tenant admin online map (when admin views tenant detail) / 指定租户的管理员在线 */
+  /** Tenant admin online map (when admin views tenant detail) / 指定企业的管理员在线 */
   const tenantPresenceMap = reactive(new Map<number, Set<number>>());
 
   /** Whether initialized / 是否已初始化 */
@@ -194,7 +194,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * Get online admin IDs for specified tenant / 获取指定租户的在线管理员 ID 列表
+   * Get online admin IDs for specified tenant / 获取指定企业的在线管理员 ID 列表
    */
   function getTenantOnlineIds(tenantId: number): number[] {
     const ids = tenantPresenceMap.get(tenantId);
@@ -224,7 +224,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * Load tenant admin presence / 加载指定租户的管理员在线状态
+   * Load tenant admin presence / 加载指定企业的管理员在线状态
    */
   async function loadTenantPresence(tenantId: number): Promise<void> {
     try {
@@ -244,7 +244,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * Load current tenant admin presence (tenant-side) / 加载当前租户管理员在线状态
+   * Load current tenant admin presence (tenant-side) / 加载当前企业管理员在线状态
    */
   async function loadCurrentTenantPresence(): Promise<void> {
     try {
@@ -263,7 +263,7 @@ export const usePresenceStore = defineStore('presence', () => {
   }
 
   /**
-   * Load tenant user presence (tenant-side) / 加载当前租户业务用户在线状态
+   * Load tenant user presence (tenant-side) / 加载当前企业业务用户在线状态
    */
   async function loadTenantUserPresence(): Promise<void> {
     try {

@@ -8,6 +8,10 @@ import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { getAIApiKeyDetailApi } from '#/api/admin/ai';
+import {
+  extractScopeFormValues,
+  extractScopePayload,
+} from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -32,11 +36,10 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       is_active: values.is_active ?? true,
       usage_limit: values.usage_limit || null,
     };
-    // Only pass api_key and provider_id on create / 仅创建时传 api_key 和 provider_id
     if (!isEdit.value) {
       data.provider_id = values.provider_id;
       data.api_key = values.api_key;
-      data.tenant_id = values.tenant_id || null;
+      Object.assign(data, extractScopePayload(values, 'scope', true));
     }
     return data;
   },
@@ -44,9 +47,9 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
     return {
       name: data.name,
       provider_id: data.provider_id,
-      tenant_id: data.tenant_id,
       is_active: data.is_active,
       usage_limit: data.usage_limit,
+      ...extractScopeFormValues(data),
     };
   },
   onSuccess: () => {

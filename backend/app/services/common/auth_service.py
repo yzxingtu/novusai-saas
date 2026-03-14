@@ -1,7 +1,7 @@
 """
 认证服务 / Authentication Service
 
-提供平台管理员、租户管理员、租户用户的认证逻辑
+提供平台管理员、企业管理员、企业用户的认证逻辑
 Provides authentication logic for platform admins, tenant admins and tenant users.
 """
 
@@ -44,8 +44,8 @@ class AuthService:
 
     提供：
     - 平台管理员认证 (Admin)
-    - 租户管理员认证 (TenantAdmin)
-    - 租户用户认证 (TenantUser)
+    - 企业管理员认证 (TenantAdmin)
+    - 企业用户认证 (TenantUser)
     - Token 刷新
     - 密码修改
     """
@@ -70,12 +70,12 @@ class AuthService:
 
         Args:
             password: 待验证的密码
-            tenant_id: 租户 ID（租户端优先使用租户配置，回退到平台配置）
+            tenant_id: 企业 ID（企业端优先使用企业配置，回退到平台配置）
 
         Raises:
             BusinessException: 密码不符合策略要求
         """
-        # 获取密码策略配置（租户端优先使用租户配置）
+        # 获取密码策略配置（企业端优先使用企业配置）
         if tenant_id:
             min_length = await self._config_service.get_tenant_config(
                 tenant_id, "tenant_password_min_length", default=None
@@ -250,12 +250,12 @@ class AuthService:
             username: 登录用户名
             client_ip: 客户端IP
             user_type: 用户类型 (admin/tenant_admin/tenant_user)
-            tenant_id: 租户 ID（租户端使用租户配置）
+            tenant_id: 企业 ID（企业端使用企业配置）
         """
         _ = client_ip
         from datetime import timedelta
 
-        # 获取登录失败配置（租户端优先使用租户配置，回退到平台配置）
+        # 获取登录失败配置（企业端优先使用企业配置，回退到平台配置）
         if tenant_id and user_type in ("tenant_admin", "tenant_user"):
             max_attempts = await self._config_service.get_tenant_config(
                 tenant_id, "tenant_login_max_attempts", default=5
@@ -283,7 +283,7 @@ class AuthService:
             )
             user = result.scalar_one_or_none()
         elif user_type == "tenant_admin":
-            # 处理租户管理员
+            # 处理企业管理员
             result = await self.db.execute(
                 select(TenantAdmin).where(
                     or_(TenantAdmin.username == username, TenantAdmin.email == username),
@@ -292,7 +292,7 @@ class AuthService:
             )
             user = result.scalar_one_or_none()
         elif user_type == "tenant_user":
-            # 处理租户用户
+            # 处理企业用户
             result = await self.db.execute(
                 select(TenantUser).where(
                     or_(TenantUser.username == username, TenantUser.email == username),
@@ -487,7 +487,7 @@ class AuthService:
 
         admin.password_hash = get_password_hash(new_password)
 
-    # ==================== 租户管理员认证 ====================
+    # ==================== 企业管理员认证 ====================
 
     async def authenticate_tenant_admin(
         self,
@@ -501,13 +501,13 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        租户管理员认证
+        企业管理员认证
 
         Args:
             username: 用户名或邮箱
             password: 密码
-            tenant_code: 租户编码（优先级最高）
-            tenant_id_from_ctx: 来自域名中间件的租户 ID（回退）
+            tenant_code: 企业编码（优先级最高）
+            tenant_id_from_ctx: 来自域名中间件的企业 ID（回退）
             client_ip: 客户端 IP
             captcha_challenge_id: 验证码挑战ID
             captcha_solution: 验证码解决方案
@@ -519,13 +519,13 @@ class AuthService:
         Raises:
             AuthenticationException: 认证失败
         """
-        # 租户域名隔离：必须通过租户域名或显式指定 tenant_code 访问
+        # 企业域名隔离：必须通过企业域名或显式指定 tenant_code 访问
         if not tenant_code and not tenant_id_from_ctx:
             raise AuthenticationException(
                 message=_("auth.tenant_domain_required"),
             )
 
-        # 查询租户管理员
+        # 查询企业管理员
         query = select(TenantAdmin).where(
             or_(
                 TenantAdmin.username == username,
@@ -534,7 +534,7 @@ class AuthService:
             TenantAdmin.is_deleted.is_(False),
         )
 
-        # 按优先级限定租户范围
+        # 按优先级限定企业范围
         if tenant_code:
             query = query.join(Tenant, TenantAdmin.tenant_id == Tenant.id).where(
                 Tenant.code == tenant_code,
@@ -600,7 +600,7 @@ class AuthService:
                 data={"captcha_required": captcha_required_after},
             )
 
-        # 检查租户状态
+        # 检查企业状态
         tenant_result = await self.db.execute(
             select(Tenant).where(Tenant.id == tenant_admin.tenant_id)
         )
@@ -616,7 +616,7 @@ class AuthService:
         tenant_admin.last_login_at = utc_now()
         tenant_admin.last_login_ip = client_ip
 
-        # 生成 Token（优先使用租户会话配置，回退到平台配置）
+        # 生成 Token（优先使用企业会话配置，回退到平台配置）
         session_timeout = await self._config_service.get_tenant_config(
             tenant_admin.tenant_id, "tenant_session_timeout", default=None
         )
@@ -634,7 +634,7 @@ class AuthService:
 
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
-        刷新租户管理员 Token
+        刷新企业管理员 Token
 
         Args:
             refresh_token: 刷新令牌
@@ -651,7 +651,7 @@ class AuthService:
         if admin_id is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
-        # 查询租户管理员
+        # 查询企业管理员
         result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.id == int(admin_id),
@@ -679,10 +679,10 @@ class AuthService:
         new_password: str,
     ) -> None:
         """
-        修改租户管理员密码
+        修改企业管理员密码
 
         Args:
-            tenant_admin: 租户管理员实例
+            tenant_admin: 企业管理员实例
             old_password: 旧密码
             new_password: 新密码
 
@@ -712,7 +712,7 @@ class AuthService:
 
         Raises:
             AuthenticationException: Token 无效
-            NotFoundException: 租户或所有者不存在
+            NotFoundException: 企业或所有者不存在
         """
         # 验证 impersonate token
         payload = verify_impersonate_token(impersonate_token, TOKEN_SCOPE_TENANT_ADMIN)
@@ -727,7 +727,7 @@ class AuthService:
         if admin_id is None:
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
 
-        # 验证租户状态
+        # 验证企业状态
         tenant_result = await self.db.execute(
             select(Tenant).where(
                 Tenant.id == target_tenant_id,
@@ -739,7 +739,7 @@ class AuthService:
         if tenant is None or not tenant.is_active:
             raise AuthenticationException(message=_("tenant.disabled"))
 
-        # 获取租户的所有者信息
+        # 获取企业的所有者信息
         owner_result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.tenant_id == target_tenant_id,
@@ -789,7 +789,7 @@ class AuthService:
 
         return tokens, audit_info
 
-    # ==================== 租户用户认证 ====================
+    # ==================== 企业用户认证 ====================
 
     async def authenticate_tenant_user(
         self,
@@ -803,13 +803,13 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        租户用户认证
+        企业用户认证
 
         Args:
             username: 用户名、邮箱或手机号
             password: 密码
-            tenant_code: 租户编码（优先级最高）
-            tenant_id_from_ctx: 来自域名中间件的租户 ID（回退）
+            tenant_code: 企业编码（优先级最高）
+            tenant_id_from_ctx: 来自域名中间件的企业 ID（回退）
             client_ip: 客户端 IP
 
         Returns:
@@ -818,7 +818,7 @@ class AuthService:
         Raises:
             AuthenticationException: 认证失败
         """
-        # 租户域名隔离：必须通过租户域名或显式指定 tenant_code 访问
+        # 企业域名隔离：必须通过企业域名或显式指定 tenant_code 访问
         if not tenant_code and not tenant_id_from_ctx:
             raise AuthenticationException(
                 message=_("auth.tenant_domain_required"),
@@ -834,7 +834,7 @@ class AuthService:
             TenantUser.is_deleted.is_(False),
         )
 
-        # 按优先级限定租户范围
+        # 按优先级限定企业范围
         if tenant_code:
             query = query.join(Tenant, TenantUser.tenant_id == Tenant.id).where(
                 Tenant.code == tenant_code,
@@ -907,7 +907,7 @@ class AuthService:
         user.last_login_at = utc_now()
         user.last_login_ip = client_ip
 
-        # 生成 Token（优先使用租户会话配置，回退到平台配置）
+        # 生成 Token（优先使用企业会话配置，回退到平台配置）
         session_timeout = await self._config_service.get_tenant_config(
             user.tenant_id, "tenant_session_timeout", default=None
         )
@@ -925,7 +925,7 @@ class AuthService:
 
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
         """
-        刷新租户用户 Token
+        刷新企业用户 Token
 
         Args:
             refresh_token: 刷新令牌
@@ -970,7 +970,7 @@ class AuthService:
         new_password: str,
     ) -> None:
         """
-        修改租户用户密码
+        修改企业用户密码
 
         Args:
             user: 用户实例
@@ -988,7 +988,7 @@ class AuthService:
 
         user.password_hash = get_password_hash(new_password)
 
-    # ==================== 租户用户注册 ====================
+    # ==================== 企业用户注册 ====================
 
     async def register_tenant_user(
         self,
@@ -1005,14 +1005,14 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        租户用户自助注册
+        企业用户自助注册
 
         Args:
             username: 用户名
             email: 邮箱
             password: 密码
-            tenant_code: 租户编码
-            tenant_id_from_ctx: 来自中间件的租户 ID
+            tenant_code: 企业编码
+            tenant_id_from_ctx: 来自中间件的企业 ID
             phone: 手机号
             nickname: 昵称
             client_ip: 客户端 IP
@@ -1026,7 +1026,7 @@ class AuthService:
         Raises:
             BusinessException: 注册未开放或参数错误
         """
-        # 确定租户
+        # 确定企业
         tenant_id = tenant_id_from_ctx
         if not tenant_id and tenant_code:
             result = await self.db.execute(
@@ -1182,7 +1182,7 @@ class AuthService:
             f"approval={approval_status}, active={is_active})"
         )
 
-        # 需要审批时通知租户管理员
+        # 需要审批时通知企业管理员
         if approval_status == ApprovalStatusEnum.PENDING.value:
             await self._notify_tenant_admins_pending(
                 tenant_id=tenant_id,
@@ -1214,10 +1214,10 @@ class AuthService:
         username: str,
         email: str,
     ) -> None:
-        """注册待审批时通知租户管理员"""
+        """注册待审批时通知企业管理员"""
         from app.services.common.notification_service import notify
 
-        # 获取租户所有活跃管理员
+        # 获取企业所有活跃管理员
         admins = (await self.db.execute(
             select(TenantAdmin).where(
                 and_(
@@ -1252,7 +1252,7 @@ class AuthService:
         email: str | None = None,
     ) -> TenantUser:
         """
-        更新租户用户个人资料
+        更新企业用户个人资料
 
         Args:
             user: 当前用户实例
@@ -1328,8 +1328,8 @@ class AuthService:
 
         Args:
             email: 邮箱
-            tenant_code: 租户编码
-            tenant_id_from_ctx: 来自中间件的租户 ID
+            tenant_code: 企业编码
+            tenant_id_from_ctx: 来自中间件的企业 ID
 
         Returns:
             结果信息
@@ -1337,7 +1337,7 @@ class AuthService:
         Raises:
             BusinessException: 频率限制或用户不存在
         """
-        # 确定租户
+        # 确定企业
         tenant_id = tenant_id_from_ctx
         if not tenant_id and tenant_code:
             result = await self.db.execute(
@@ -1403,19 +1403,19 @@ class AuthService:
         tenant_id_from_ctx: int | None = None,
     ) -> None:
         """
-        重置租户用户密码
+        重置企业用户密码
 
         Args:
             email: 邮箱
             code: 验证码
             new_password: 新密码
-            tenant_code: 租户编码
-            tenant_id_from_ctx: 来自中间件的租户 ID
+            tenant_code: 企业编码
+            tenant_id_from_ctx: 来自中间件的企业 ID
 
         Raises:
             BusinessException: 验证码无效或已过期
         """
-        # 确定租户
+        # 确定企业
         tenant_id = tenant_id_from_ctx
         if not tenant_id and tenant_code:
             result = await self.db.execute(

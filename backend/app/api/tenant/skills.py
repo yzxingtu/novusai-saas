@@ -1,9 +1,9 @@
 """
-租户端技能管理 API（只读） / Tenant Skill Management API (Read-only)
+企业端技能管理 API（只读） / Tenant Skill Management API (Read-only)
 
 提供技能的只读查询接口。
 Provides read-only query endpoints for skills.
-租户端不允许创建、编辑、删除技能（最小权限原则）。
+企业端不允许创建、编辑、删除技能（最小权限原则）。
 Tenant is not allowed to create, edit, or delete skills (least privilege principle).
 """
 
@@ -31,9 +31,9 @@ from app.services.ai.skill_service import SkillService
 )
 class TenantSkillController(TenantController):
     """
-    租户技能管理控制器（只读） / Tenant Skill Management Controller (Read-only)
+    企业技能管理控制器（只读） / Tenant Skill Management Controller (Read-only)
 
-    租户端不允许创建/编辑/删除技能，仅提供只读查询。
+    企业端不允许创建/编辑/删除技能，仅提供只读查询。
     Tenant is not allowed to create/edit/delete skills, only read-only queries.
     """
 

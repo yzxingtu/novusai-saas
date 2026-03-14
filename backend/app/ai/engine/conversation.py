@@ -228,7 +228,7 @@ class ConversationEngine(BaseEngine):
         Args:
             agent: Agent / 智能体
             messages: Message list / 消息列表
-            tenant_id: Tenant ID (for API Key retrieval) / 租户 ID
+            tenant_id: Tenant ID (for API Key retrieval) / 企业 ID
             route_result: ModelRouter route result (affects provider/model selection) / ModelRouter 路由结果
             tools: Tool definition list (for Function Calling) / 工具定义列表
 

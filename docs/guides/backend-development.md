@@ -37,20 +37,20 @@ backend/
 │   │   └── logging.py             # 分类日志 LogManager
 │   ├── api/                       # 路由层（按作用域分）
 │   │   ├── admin/                 # 平台管理 /admin/*
-│   │   ├── tenant/                # 租户管理 /tenant/*
+│   │   ├── tenant/                # 企业管理 /tenant/*
 │   │   ├── public/                # 公开接口 /api/public/*
 │   │   └── v1/                    # 业务 API  /api/v1/*
 │   ├── services/                  # 业务逻辑
 │   │   ├── common/                # 跨域共享服务
 │   │   ├── system/                # 平台级服务
-│   │   └── tenant/                # 租户级服务
+│   │   └── tenant/                # 企业级服务
 │   ├── repositories/              # 数据访问层
 │   │   ├── system/
 │   │   └── tenant/
 │   ├── models/                    # ORM 模型
 │   │   ├── auth/                  # 角色、权限
 │   │   ├── system/                # 管理员、配置、操作日志
-│   │   └── tenant/                # 租户、附件、套餐、域名
+│   │   └── tenant/                # 企业、附件、套餐、域名
 │   ├── schemas/                   # Pydantic Schema
 │   │   ├── common/                # 通用（查询、选项、排序）
 │   │   ├── public/
@@ -89,19 +89,19 @@ backend/
 
 ---
 
-## 多租户体系
+## 多企业体系
 
-项目为 SaaS 架构，每层均有租户专用基类：
+项目为 SaaS 架构，每层均有企业专用基类：
 
-| 基类 | 租户版 | 区别 |
+| 基类 | 企业版 | 区别 |
 |------|--------|------|
 | `BaseModel` | `TenantModel` | 自动带 `tenant_id` 字段 |
 | `BaseRepository` | `TenantRepository` | 查询自动注入 `tenant_id` 过滤 |
-| `BaseService` | `TenantService` | 自动获取并注入租户上下文 |
-| `BaseController` | `TenantController` | 自动解析租户上下文 |
-| — | `GlobalController` | 平台管理员专用，无租户隔离 |
+| `BaseService` | `TenantService` | 自动获取并注入企业上下文 |
+| `BaseController` | `TenantController` | 自动解析企业上下文 |
+| — | `GlobalController` | 平台管理员专用，无企业隔离 |
 
-租户识别方式：中间件从 `Host` 请求头解析子域名或自定义域名。
+企业识别方式：中间件从 `Host` 请求头解析子域名或自定义域名。
 
 ---
 
@@ -157,7 +157,7 @@ class NoticeResponse(BaseResponseSchema):
 > - `BaseCreateSchema` — 创建请求
 > - `BaseUpdateSchema` — 更新请求
 > - `BaseResponseSchema` — 通用响应（含 id, created_at, updated_at）
-> - `TenantResponseSchema` — 租户级响应（额外含 tenant_id）
+> - `TenantResponseSchema` — 企业级响应（额外含 tenant_id）
 > - `PageResponse` — 分页响应泛型
 
 ### 3. Repository `app/repositories/tenant/notice_repository.py`
@@ -347,11 +347,11 @@ class NoticeController(TenantController):
 | `CurrentAdmin` | 当前平台管理员（含未激活） |
 | `ActiveAdmin` | 当前活跃平台管理员 |
 | `SuperAdmin` | 超级管理员 |
-| `CurrentTenantAdmin` | 当前租户管理员（含未激活） |
-| `ActiveTenantAdmin` | 当前活跃租户管理员 |
-| `TenantOwner` | 租户所有者 |
-| `CurrentTenantUser` | 当前租户用户（含未激活） |
-| `ActiveTenantUser` | 当前活跃租户用户 |
+| `CurrentTenantAdmin` | 当前企业管理员（含未激活） |
+| `ActiveTenantAdmin` | 当前活跃企业管理员 |
+| `TenantOwner` | 企业所有者 |
+| `CurrentTenantUser` | 当前企业用户（含未激活） |
+| `ActiveTenantUser` | 当前活跃企业用户 |
 | `QueryParams` | JSON:API 查询参数 |
 
 ```python

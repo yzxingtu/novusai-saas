@@ -1,5 +1,5 @@
 /**
- * Platform tenant domain management API / 平台端租户域名管理 API
+ * Platform tenant domain management API / 平台端企业域名管理 API
  * Backend: /admin/tenants/{tenant_id}/domains/*
  */
 import type {
@@ -258,14 +258,14 @@ function transformDevHostMutationResponse(
 // ============================================================
 
 /**
- * Build tenant domain API prefix / 构建租户域名 API 前缀
+ * Build tenant domain API prefix / 构建企业域名 API 前缀
  */
 function getDomainApiPrefix(tenantId: number): string {
   return `/admin/tenants/${tenantId}/domains`;
 }
 
 /**
- * Get tenant domain list / 获取租户域名列表
+ * Get tenant domain list / 获取企业域名列表
  * GET /admin/tenants/{tenant_id}/domains
  */
 export async function getTenantDomainsApi(
@@ -594,7 +594,7 @@ export async function updateSslAutoRenewApi(
 }
 
 /**
- * Batch provision SSL for all tenant domains (Admin only) / 批量签发租户所有域名 SSL
+ * Batch provision SSL for all tenant domains (Admin only) / 批量签发企业所有域名 SSL
  * POST /admin/tenants/{tenant_id}/domains/ssl/batch-provision
  */
 export async function batchProvisionSslApi(

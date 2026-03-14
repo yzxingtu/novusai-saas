@@ -76,9 +76,9 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户上传规则（扩展名白名单、黑名单、大小限制） / Get tenant upload rules (extension whitelist, blacklist, size limits)
+            获取企业上传规则（扩展名白名单、黑名单、大小限制） / Get tenant upload rules (extension whitelist, blacklist, size limits)
 
-            优先使用租户配置，留空则回退平台配置。
+            优先使用企业配置，留空则回退平台配置。
             Uses tenant config first, falls back to platform config if empty.
 
             权限 / Permission: attachment:upload_rules
@@ -418,7 +418,7 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取当前租户存储配额使用情况 / Get current tenant storage quota usage
+            获取当前企业存储配额使用情况 / Get current tenant storage quota usage
 
             权限 / Permission: attachment:storage_quota
             """

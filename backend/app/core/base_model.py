@@ -4,7 +4,7 @@
 提供所有数据库模型的基类，包括：
 Provides base classes for all database models, including:
 - BaseModel: 通用模型基类 / Generic model base class
-- TenantModel: 租户级模型基类 / Tenant-scoped model base class
+- TenantModel: 企业级模型基类 / Tenant-scoped model base class
 """
 
 import re
@@ -161,9 +161,9 @@ class BaseModel(Base):
 
 class TenantModel(BaseModel):
     """
-    租户模型基类 / Tenant Model Base Class
+    企业模型基类 / Tenant Model Base Class
 
-    继承自 BaseModel，添加 tenant_id 字段用于多租户数据隔离
+    继承自 BaseModel，添加 tenant_id 字段用于多企业数据隔离
     Extends BaseModel with tenant_id field for multi-tenant data isolation.
     """
 
@@ -173,7 +173,7 @@ class TenantModel(BaseModel):
         Integer,
         nullable=False,
         index=True,
-        comment="租户ID / Tenant ID"
+        comment="企业ID / Tenant ID"
     )
 
     def __repr__(self) -> str:

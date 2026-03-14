@@ -3,7 +3,7 @@ User Menu Definitions
 用户端菜单定义
 
 Defines directory menu structure for tenant business user; leaf menus declared via controller decorators.
-定义租户业务用户端的目录型菜单结构，叶子菜单通过控制器装饰器声明。
+定义企业业务用户端的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
 Menu hierarchy example / 菜单层级示例:
 - Dashboard / 仪表板 (dashboard)

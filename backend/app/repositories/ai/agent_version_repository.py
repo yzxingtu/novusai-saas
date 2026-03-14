@@ -11,9 +11,9 @@ from app.models.ai.agent_version import AgentVersion
 
 class AgentVersionRepository(TenantRepository[AgentVersion]):
     """
-    租户级智能体版本 Repository
+    企业级智能体版本 Repository
 
-    提供基于租户隔离的版本数据访问
+    提供基于企业隔离的版本数据访问
     """
 
     model = AgentVersion

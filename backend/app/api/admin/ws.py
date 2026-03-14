@@ -39,21 +39,21 @@ async def get_admin_presence(
     })
 
 
-@router.get("/presence/tenant/{tenant_id}", summary="指定租户管理员在线状态")
+@router.get("/presence/tenant/{tenant_id}", summary="指定企业管理员在线状态")
 @auth_only
 async def get_tenant_admin_presence(
     tenant_id: int,
     admin: ActiveAdmin,
 ):
     """
-    获取指定租户的管理员在线状态
+    获取指定企业的管理员在线状态
     Get admin online presence for a specific tenant
 
-    平台管理员可查看任意租户的管理员在线情况。
+    平台管理员可查看任意企业的管理员在线情况。
     Platform admins can view admin online status for any tenant.
 
     Args:
-        tenant_id: 租户 ID / Tenant ID
+        tenant_id: 企业 ID / Tenant ID
     """
     details = await PresenceManager.get_online_details("tenant_admin", tenant_id)
     online_ids = list(details.keys())

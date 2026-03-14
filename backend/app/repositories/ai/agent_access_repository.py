@@ -1,7 +1,7 @@
 """
 智能体访问权限 Repository / Agent Access Repository
 
-提供 AgentAccess 的数据访问操作（基于租户隔离）
+提供 AgentAccess 的数据访问操作（基于企业隔离）
 """
 
 from typing import Any
@@ -14,7 +14,7 @@ from app.models.ai.agent_access import AgentAccess
 
 class AgentAccessRepository(TenantRepository[AgentAccess]):
     """
-    租户级智能体访问权限 Repository
+    企业级智能体访问权限 Repository
 
     提供 get_by_agent_id 和 upsert（按 agent_id 创建或更新）
     """

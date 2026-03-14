@@ -1,7 +1,7 @@
 """
-租户域名仓储 / Tenant Domain Repository
+企业域名仓储 / Tenant Domain Repository
 
-提供租户域名的数据访问操作（平台级，非租户隔离）
+提供企业域名的数据访问操作（平台级，非企业隔离）
 Provides tenant domain data access (platform-level, no tenant isolation).
 """
 
@@ -13,10 +13,10 @@ from app.models.tenant.tenant_domain import TenantDomain
 
 class TenantDomainRepository(BaseRepository[TenantDomain]):
     """
-    租户域名仓储
+    企业域名仓储
 
     提供域名特有的数据访问方法
-    注意：域名管理是平台级操作，不做租户隔离
+    注意：域名管理是平台级操作，不做企业隔离
     """
 
     model = TenantDomain
@@ -47,10 +47,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
 
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         """
-        获取租户的主域名
+        获取企业的主域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             主域名实例或 None
@@ -65,10 +65,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
 
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
         """
-        获取租户所有域名
+        获取企业所有域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             域名列表，主域名排在前面
@@ -114,10 +114,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
 
     async def count_tenant_domains(self, tenant_id: int) -> int:
         """
-        统计租户域名数量
+        统计企业域名数量
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             域名数量
@@ -126,10 +126,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
 
     async def has_primary_domain(self, tenant_id: int) -> bool:
         """
-        检查租户是否已有主域名
+        检查企业是否已有主域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             是否有主域名
@@ -139,12 +139,12 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
 
     async def clear_primary_flag(self, tenant_id: int) -> None:
         """
-        清除租户现有的主域名标记
+        清除企业现有的主域名标记
 
         在设置新的主域名之前调用，确保只有一个主域名
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         from sqlalchemy import update
 

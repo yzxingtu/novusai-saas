@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * T14: 租户 Top 10 水平柱状图
+ * T14: 企业 Top 10 水平柱状图
  */
 import type { EchartsUIType } from '@vben/plugins/echarts';
 

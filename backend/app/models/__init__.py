@@ -6,7 +6,7 @@ Exports all database models.
 
 目录结构 / Directory structure:
 - system/: 平台级模型 / Platform models (Admin)
-- tenant/: 租户级模型 / Tenant models (Tenant, TenantAdmin, TenantUser)
+- tenant/: 企业级模型 / Tenant models (Tenant, TenantAdmin, TenantUser)
 - auth/: RBAC 模型 / RBAC models (Permission, AdminRole, TenantAdminRole)
 - ai/: AI 网关模型 / AI gateway models (AIProvider, AIModel, ProviderApiKey, AICallLog)
 """
@@ -56,8 +56,11 @@ from app.models.auth import (
 from app.models.common.notification import Notification
 from app.models.common.notification_preference import NotificationPreference
 
-# 通知模型
+# 通知模型 / Notification models
 from app.models.common.notification_template import NotificationTemplate
+
+# 用户偏好 / User preferences
+from app.models.common.user_preference import UserPreference
 from app.models.system import (
     Admin,
     OperationLog,
@@ -76,7 +79,7 @@ from app.models.system import (
 # 系统模型（补充）
 from app.models.system.email_log import EmailLog
 
-# 租户级模型
+# 企业级模型
 from app.models.tenant import (
     Attachment,
     DomainSslCertificate,
@@ -97,7 +100,7 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
-    # 租户级
+    # 企业级
     "Tenant",
     "TenantAdmin",
     "TenantUser",
@@ -164,4 +167,6 @@ __all__ = [
     "NotificationTemplate",
     "Notification",
     "NotificationPreference",
+    # 用户偏好 / User preferences
+    "UserPreference",
 ]

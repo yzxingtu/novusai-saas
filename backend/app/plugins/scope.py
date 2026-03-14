@@ -4,7 +4,7 @@ Plugin scope determination.
 
 Determines plugin visibility for admins and tenants based on Plugin.scope.
 Delegates to app.core.scope.ScopeChecker for unified determination.
-/ 根据 Plugin.scope 判断插件对管理员和租户的可见性。
+/ 根据 Plugin.scope 判断插件对管理员和企业的可见性。
 委托给 app.core.scope.ScopeChecker 统一判定。
 """
 
@@ -30,7 +30,7 @@ async def is_visible_to_tenant(
 ) -> bool:
     """
     Whether the specified tenant can use this plugin.
-    / 指定租户是否能使用此插件。
+    / 指定企业是否能使用此插件。
 
     Delegates to ScopeChecker.is_visible_to_tenant().
     / 委托给 ScopeChecker.is_visible_to_tenant()。
@@ -45,5 +45,5 @@ async def is_visible_to_tenant(
 
 
 def requires_tenant_assignment(plugin: Plugin) -> bool:
-    """Whether manual tenant assignment is required / 是否需要手动分配租户"""
+    """Whether manual tenant assignment is required / 是否需要手动分配企业"""
     return ScopeChecker.requires_tenant_assignment(plugin.scope)

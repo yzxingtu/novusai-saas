@@ -78,7 +78,7 @@ class EmailChannel(NotificationChannel):
         """
         _ = data
         try:
-            # 租户级邮件通知开关检查
+            # 企业级邮件通知开关检查
             if tenant_id:
                 try:
                     from app.configs.service import ConfigService

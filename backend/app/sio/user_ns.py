@@ -3,7 +3,7 @@ Socket.IO /user Namespace
 
 Tenant business user real-time communication namespace.
 Handles connection auth, room management, and online status broadcast.
-租户业务用户实时通信 namespace。
+企业业务用户实时通信 namespace。
 处理连接认证、房间管理、在线状态广播。
 """
 
@@ -22,11 +22,11 @@ logger = LogManager.get_logger("app")
 
 class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
     """
-    /user namespace — Tenant business users / 租户业务用户
+    /user namespace — Tenant business users / 企业业务用户
 
     Rooms:
     - user:{user_id} — All devices of specified user / 指定用户的所有设备
-    - tenant:{tenant_id} — All online business users of this tenant / 该租户的所有在线业务用户
+    - tenant:{tenant_id} — All online business users of this tenant / 该企业的所有在线业务用户
     - page_session:{id} — Page operation targeting (dynamic join) / 页面操作定位（动态加入）
     """
 
@@ -81,7 +81,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
         if current_conn >= max_conn:
             raise ConnectionRefusedError("max_connections_exceeded")
 
-        # Query tenant user to get tenant_id / 查询租户用户获取 tenant_id
+        # Query tenant user to get tenant_id / 查询企业用户获取 tenant_id
         from sqlalchemy import select
 
         from app.core.database import async_session_factory
@@ -126,7 +126,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 room=f"tenant:{tenant_id}",
                 skip_sid=sid,
             )
-            # Notify /tenant namespace so tenant admins see business user online / 通知 /tenant namespace，让租户管理员看到业务用户上线
+            # Notify /tenant namespace so tenant admins see business user online / 通知 /tenant namespace，让企业管理员看到业务用户上线
             from app.core.socketio_server import get_sio
             await get_sio().emit(
                 "user_presence:online",
@@ -174,7 +174,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                         room=f"tenant:{tenant_id}",
                         skip_sid=sid,
                     )
-                    # Notify /tenant namespace so tenant admins see business user offline / 通知 /tenant namespace，让租户管理员看到业务用户下线
+                    # Notify /tenant namespace so tenant admins see business user offline / 通知 /tenant namespace，让企业管理员看到业务用户下线
                     from app.core.socketio_server import get_sio
                     await get_sio().emit(
                         "user_presence:offline",

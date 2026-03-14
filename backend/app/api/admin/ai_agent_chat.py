@@ -1,7 +1,7 @@
 """
 平台管理员 AI 智能体对话 API / Platform Admin AI Agent Chat API
 
-允许平台管理员与任何租户的已发布智能体进行对话，用于测试和支持。
+允许平台管理员与任何企业的已发布智能体进行对话，用于测试和支持。
 Allows platform administrators to chat with any tenant's published agents
 for testing and support purposes.
 """
@@ -76,7 +76,7 @@ class AdminAgentChatController(GlobalController):
     """
     平台管理员智能体对话控制器 / Platform Admin Agent Chat Controller
 
-    允许管理员测试/交互任何租户的已发布智能体，自动解析智能体的 tenant_id。
+    允许管理员测试/交互任何企业的已发布智能体，自动解析智能体的 tenant_id。
     Allows admins to test / interact with any tenant's published agents.
     The agent's own tenant_id is resolved automatically.
     """
@@ -226,7 +226,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:confirm
             """
-            # 该接口与具体智能体无关，使用租户哨兵值 0 / This endpoint is agent-agnostic, uses tenant sentinel value 0
+            # 该接口与具体智能体无关，使用企业哨兵值 0 / This endpoint is agent-agnostic, uses tenant sentinel value 0
             service = AgentChatService(db, 0)
             return await handle_confirm_or_cancel(
                 service, data, tenant_id=0, user_id=admin.id,

@@ -452,7 +452,7 @@ class EmailRateLimiter:
     Email Send Rate Limiter / 邮件发送频率限制器
 
     Uses Redis counter to limit send volume per tenant per hour.
-    基于 Redis 计数器，按租户/小时限制发送量。
+    基于 Redis 计数器，按企业/小时限制发送量。
     """
 
     PREFIX = "ai:email_rate:"
@@ -467,10 +467,10 @@ class EmailRateLimiter:
         max_per_hour: int = DEFAULT_MAX_PER_HOUR,
     ) -> None:
         """
-        Check tenant email send rate / 检查租户邮件发送频率
+        Check tenant email send rate / 检查企业邮件发送频率
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             max_per_hour: Max sends per hour / 每小时最大发送量
 
         Raises:

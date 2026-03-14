@@ -29,7 +29,7 @@ from app.models import (
     TaskLog,
     PeriodicTask,
     SystemAgentAssignment,
-    # 租户级模型
+    # 企业级模型
     Tenant,
     TenantAdmin,
     TenantUser,
@@ -87,6 +87,7 @@ from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.skill_call_log import SkillCallLog
 from app.models.system.email_log import EmailLog
+from app.models.common.user_preference import UserPreference
 
 # Dynamic plugin model discovery (Alembic autogenerate needs models registered on Base.metadata)
 # Scans plugins/*/backend/models/__init__.py — no hardcoded plugin names

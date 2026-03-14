@@ -16,7 +16,7 @@ class QuotaService(TenantService):
         self.tenant_id = tenant_id
 
     async def get_quota(self) -> dict:
-        """获取当前租户配额信息（Controller 通过此方法，不直接查 DB）"""
+        """获取当前企业配额信息（Controller 通过此方法，不直接查 DB）"""
         from ..repositories.quota_repository import QuotaRepository
         repo = QuotaRepository(self.db, self.tenant_id)
         quota = await repo.get_or_create()
@@ -59,10 +59,10 @@ class QuotaService(TenantService):
         await self.db.commit()
         return actual
 
-    # ── 管理端：统计所有租户配额（在 Service 层查询，Controller 不查 DB）
+    # ── 管理端：统计所有企业配额（在 Service 层查询，Controller 不查 DB）
 
     async def admin_list_quotas(self, page: int = 1, size: int = 20) -> dict:
-        """管理端：分页列出所有租户配额"""
+        """管理端：分页列出所有企业配额"""
         from sqlalchemy import func, select
 
         from ..models.quota import Quota
@@ -80,7 +80,7 @@ class QuotaService(TenantService):
         return {"items": items, "total": total}
 
     async def admin_update_quota(self, tenant_id: int, quota_bytes: int) -> None:
-        """管理端：修改指定租户配额"""
+        """管理端：修改指定企业配额"""
         from sqlalchemy import update
 
         from app.core.base_model import utc_now

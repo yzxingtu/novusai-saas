@@ -1,7 +1,7 @@
 """
 AnalyticsService + TenantAnalyticsService 单元测试
 
-覆盖：调用趋势、模型分布、供应商性能、租户排行、延迟分布、成功率趋势。
+覆盖：调用趋势、模型分布、供应商性能、企业排行、延迟分布、成功率趋势。
 """
 
 from __future__ import annotations

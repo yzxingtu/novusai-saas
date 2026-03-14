@@ -1,7 +1,7 @@
 """
-租户配置管理 API / Tenant Configuration Management API
+企业配置管理 API / Tenant Configuration Management API
 
-提供租户级配置管理接口（租户管理员专用）
+提供企业级配置管理接口（企业管理员专用）
 Provides tenant-level configuration management endpoints (tenant admin only)
 """
 
@@ -81,10 +81,10 @@ async def _inject_role_options(
     configs: list[dict],
 ) -> None:
     """
-    为 user_default_role_id 配置项动态注入当前租户的角色选项。
+    为 user_default_role_id 配置项动态注入当前企业的角色选项。
     Dynamically injects current tenant's role options for user_default_role_id config.
 
-    在静态的「不分配角色」选项之后，追加租户的所有活跃角色。
+    在静态的「不分配角色」选项之后，追加企业的所有活跃角色。
     Appends all active tenant roles after the static "no role" option.
     """
     for cfg in configs:
@@ -182,9 +182,9 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 )
 class TenantConfigController(TenantController):
     """
-    租户配置管理控制器 / Tenant Configuration Management Controller
+    企业配置管理控制器 / Tenant Configuration Management Controller
 
-    提供租户级配置的查看和修改接口
+    提供企业级配置的查看和修改接口
     Provides tenant-level configuration viewing and editing endpoints
     """
 
@@ -203,9 +203,9 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户配置分组列表 / Get tenant config group list
+            获取企业配置分组列表 / Get tenant config group list
 
-            返回所有租户级配置分组（不含具体配置项）
+            返回所有企业级配置分组（不含具体配置项）
             Returns all tenant-level config groups (without config items)
 
             权限 / Permission: tenant_config:groups
@@ -376,7 +376,7 @@ class TenantConfigController(TenantController):
             )
 
 
-        @router.get("/storage/status", summary="获取租户存储状态")
+        @router.get("/storage/status", summary="获取企业存储状态")
         @action_read("action.tenant_config.groups")
         async def get_tenant_storage_status(
             request: Request,
@@ -384,7 +384,7 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户当前存储状态（有效模式、驱动信息、自配置权限等） / Get tenant storage status (effective mode, driver info, self-config permission)
+            获取企业当前存储状态（有效模式、驱动信息、自配置权限等） / Get tenant storage status (effective mode, driver info, self-config permission)
 
             权限 / Permission: tenant_config:groups
             """
@@ -399,12 +399,12 @@ class TenantConfigController(TenantController):
 
             effective_mode = await resolver.get_storage_mode(tenant_id)
 
-            # 逐租户自主配置开关（不依赖全局开关） / Per-tenant self-config toggle (independent of global toggle)
+            # 逐企业自主配置开关（不依赖全局开关） / Per-tenant self-config toggle (independent of global toggle)
             tenant_self_config_enabled = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
 
-            # 当前租户配置值 / Current tenant config values
+            # 当前企业配置值 / Current tenant config values
             tenant_mode = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_mode", default="platform"
             )
@@ -438,7 +438,7 @@ class TenantConfigController(TenantController):
             }
 
             if effective_mode == "admin_override":
-                # 管理员帮配模式：展示脱敏后的配置信息（租户只读） / Admin override mode: show masked config info (tenant read-only)
+                # 管理员帮配模式：展示脱敏后的配置信息（企业只读） / Admin override mode: show masked config info (tenant read-only)
                 response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
@@ -446,7 +446,7 @@ class TenantConfigController(TenantController):
                     tenant_options or {}
                 )
             elif effective_mode == "custom":
-                # 自定义模式：返回租户自己填写的配置（密钥同样脱敏） / Custom mode: return tenant's own config (credentials also masked)
+                # 自定义模式：返回企业自己填写的配置（密钥同样脱敏） / Custom mode: return tenant's own config (credentials also masked)
                 response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
                 response_data["tenant_storage_root_path"] = str(tenant_root_path)
                 response_data["tenant_storage_base_url"] = str(tenant_base_url)
@@ -462,7 +462,7 @@ class TenantConfigController(TenantController):
 
             return success(data=response_data)
 
-        @router.put("/storage", summary="保存租户存储配置")
+        @router.put("/storage", summary="保存企业存储配置")
         @action_update("action.tenant_config.update")
         async def save_tenant_storage_config(
             request: Request,
@@ -471,7 +471,7 @@ class TenantConfigController(TenantController):
             data: dict = Body(...),
         ):
             """
-            租户保存自主存储配置（Mode 3） / Tenant saves self-managed storage config (Mode 3)
+            企业保存自主存储配置（Mode 3） / Tenant saves self-managed storage config (Mode 3)
 
             权限 / Permission: tenant_config:update
             """
@@ -480,7 +480,7 @@ class TenantConfigController(TenantController):
             tenant_id = current_admin.tenant_id
             config_service = ConfigService(db)
 
-            # 检查逐租户自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
+            # 检查逐企业自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
             tenant_enabled = await config_service.get_tenant_config(
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
@@ -542,7 +542,7 @@ class TenantConfigController(TenantController):
             await db.commit()
             return success(message=_("config.updated"))
 
-        @router.post("/storage/test-connection", summary="测试租户存储连接")
+        @router.post("/storage/test-connection", summary="测试企业存储连接")
         @action_update("action.tenant_config.update")
         async def test_tenant_storage_connection(
             request: Request,
@@ -554,7 +554,7 @@ class TenantConfigController(TenantController):
             config: dict = Body({}, embed=True),
         ):
             """
-            测试租户自主存储连接（Mode 3） / Test tenant self-managed storage connection (Mode 3)
+            测试企业自主存储连接（Mode 3） / Test tenant self-managed storage connection (Mode 3)
 
             权限 / Permission: tenant_config:update
             """
@@ -565,7 +565,7 @@ class TenantConfigController(TenantController):
             from app.storage import storage_manager
             from app.storage.base import StorageConfig
 
-            # 检查逐租户自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
+            # 检查逐企业自主配置开关（不依赖全局开关） / Check per-tenant self-config switch (independent of global switch)
             config_service = ConfigService(db)
             tenant_enabled = await config_service.get_tenant_config(
                 current_admin.tenant_id,
@@ -619,7 +619,7 @@ class TenantConfigController(TenantController):
             except Exception as e:
                 return success(data={"success": False, "errors": [str(e)]})
 
-        @router.get("/storage/drivers", summary="获取租户允许的存储驱动列表")
+        @router.get("/storage/drivers", summary="获取企业允许的存储驱动列表")
         @action_read("action.tenant_config.groups")
         async def list_tenant_storage_drivers(
             request: Request,
@@ -627,7 +627,7 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户允许选择的存储驱动列表（受平台白名单限制，标记插件启用状态） / Get allowed storage driver list for tenant (restricted by platform whitelist, marks plugin enabled status)
+            获取企业允许选择的存储驱动列表（受平台白名单限制，标记插件启用状态） / Get allowed storage driver list for tenant (restricted by platform whitelist, marks plugin enabled status)
 
             权限 / Permission: tenant_config:groups
             """

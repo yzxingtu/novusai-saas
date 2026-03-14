@@ -20,7 +20,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     """
-    租户端技能包 Service
+    企业端技能包 Service
 
     提供技能包的创建、更新、删除等业务逻辑
     """
@@ -64,14 +64,14 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能包不可删除、租户自有包保护"""
+        """删除前校验：系统技能包不可删除、企业自有包保护"""
         await super()._before_delete(id)
 
         pkg = await self.repo.get_by_id(id)
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        # 租户端只能删除自有包（tenant_id 与当前租户匹配）
+        # 企业端只能删除自有包（tenant_id 与当前企业匹配）
         if pkg.tenant_id != self.tenant_id:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -116,7 +116,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         return await self.repo.get_skill_counts_batch(package_ids)
 
     async def get_active_packages(self) -> list[SkillPackage]:
-        """获取当前租户所有已激活的技能包"""
+        """获取当前企业所有已激活的技能包"""
         return await self.repo.get_active_packages()
 
 
@@ -124,7 +124,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
     """
     管理端技能包 Service
 
-    无租户隔离，供平台管理端全局查询和 CRUD 使用
+    无企业隔离，供平台管理端全局查询和 CRUD 使用
     """
 
     model = SkillPackage

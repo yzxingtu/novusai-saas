@@ -42,7 +42,7 @@ export function inferCategory(mimeType?: null | string): AttachmentCategory {
  * Attachment info (backend raw format snake_case)
  * Corresponds to backend AttachmentResponse (admin) / AttachmentSafeResponse (tenant/user)
  * 附件信息（后端原始格式 snake_case）
- * 对应后端 AttachmentResponse（管理端）/ AttachmentSafeResponse（租户端/用户端）
+ * 对应后端 AttachmentResponse（管理端）/ AttachmentSafeResponse（企业端/用户端）
  *
  * Fields marked optional with `?` are only present in admin (full) responses.
  * Tenant/user Safe responses omit: tenant_id, path, hash, driver, base_url
@@ -192,7 +192,7 @@ export interface AttachmentStats {
 
 /**
  * Stats by tenant
- * 按租户统计
+ * 按企业统计
  */
 export interface AttachmentStatsByTenant {
   tenant_id: number;

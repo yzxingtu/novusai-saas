@@ -178,7 +178,7 @@ GET /calendar/rooms
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `room_level_id` | string | 否 | 层级 ID，为空时返回租户所有会议室 |
+| `room_level_id` | string | 否 | 层级 ID，为空时返回企业所有会议室 |
 | `page_size` | int | 否 | 每页数量，默认 20 |
 | `page_token` | string | 否 | 分页标记 |
 

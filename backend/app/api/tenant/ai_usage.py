@@ -1,7 +1,7 @@
 """
 AI 使用量统计 API (Tenant) / AI Usage Statistics API (Tenant)
 
-提供租户级使用量统计查询接口
+提供企业级使用量统计查询接口
 Provides tenant-level usage statistics query endpoints
 """
 
@@ -37,9 +37,9 @@ from app.services.ai import MeteringService
 )
 class TenantAIUsageController(TenantController):
     """
-    租户 AI 使用量控制器 / Tenant AI Usage Controller
+    企业 AI 使用量控制器 / Tenant AI Usage Controller
 
-    提供租户级使用量统计查询
+    提供企业级使用量统计查询
     Provides tenant-level usage statistics query
     """
 
@@ -50,7 +50,7 @@ class TenantAIUsageController(TenantController):
         """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/summary", summary="获取当前租户使用量汇总")
+        @router.get("/summary", summary="获取当前企业使用量汇总")
         @action_read("action.ai_tenant_usage.summary")
         async def get_tenant_usage_summary(
             request: Request,
@@ -60,7 +60,7 @@ class TenantAIUsageController(TenantController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取当前租户使用量汇总 / Get current tenant usage summary
+            获取当前企业使用量汇总 / Get current tenant usage summary
 
             权限 / Permission: ai_tenant_usage:summary
             """
@@ -84,7 +84,7 @@ class TenantAIUsageController(TenantController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取租户下指定用户的使用量汇总 / Get usage summary for specified user under tenant
+            获取企业下指定用户的使用量汇总 / Get usage summary for specified user under tenant
 
             权限 / Permission: ai_tenant_usage:user_summary
             """

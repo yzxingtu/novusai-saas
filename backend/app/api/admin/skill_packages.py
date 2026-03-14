@@ -155,7 +155,7 @@ class AdminSkillPackageController(GlobalController):
                 for p in pkgs
             ])
 
-        @router.get("", summary="全租户技能包列表")
+        @router.get("", summary="全企业技能包列表")
         @action_read("action.ai_skill_package.list")
         async def list_packages(
             request: Request,
@@ -164,7 +164,7 @@ class AdminSkillPackageController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全租户技能包列表
+            获取全企业技能包列表
             Get cross-tenant skill package list
 
             支持 JSON:API 风格筛选、排序、分页
@@ -547,7 +547,7 @@ class AdminSkillPackageController(GlobalController):
             - data: 导出的 JSON 数据 / Exported JSON data
             - conflict_mode (in data): skip / rename（同名技能包处理方式） / Conflict resolution for same-name packages
             - target_scope (in data): 目标作用域 (admin/tenant/global) / Target scope
-            - target_tenant_id (in data): 目标租户 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
+            - target_tenant_id (in data): 目标企业 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
             """
             from app.api.shared._skill_package_export import import_skill_package
 
@@ -572,7 +572,7 @@ class AdminSkillPackageController(GlobalController):
             参数： / Parameters:
             - new_name: 新技能包名称（可选，默认追加 " (Copy)"） / New name (optional, defaults to append " (Copy)")
             - target_scope: 目标作用域 (admin/tenant/global) / Target scope
-            - target_tenant_id: 目标租户 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
+            - target_tenant_id: 目标企业 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
             """
             from app.api.shared._skill_package_export import (
                 export_skill_package,

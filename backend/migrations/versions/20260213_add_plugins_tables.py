@@ -56,10 +56,10 @@ def upgrade() -> None:
 
     op.create_table(
         'tenant_plugins',
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='租户 ID'),
+        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业 ID'),
         sa.Column('plugin_id', sa.Integer(), nullable=False, comment='插件 ID'),
         sa.Column('is_active', sa.Boolean(), nullable=False, comment='是否启用'),
-        sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='租户自定义配置'),
+        sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=True, comment='企业自定义配置'),
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),

@@ -1,7 +1,7 @@
 """
 平台端附件服务 / Admin Attachment Service
 
-提供跨租户的附件管理能力（平台管理员专用）
+提供跨企业的附件管理能力（平台管理员专用）
 Provides cross-tenant attachment management (platform admin only).
 """
 
@@ -37,7 +37,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     """
     平台端附件服务
 
-    提供跨租户的附件管理能力
+    提供跨企业的附件管理能力
     """
 
     model = Attachment
@@ -67,10 +67,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         平台端上传文件
 
-        不受租户配额限制，使用平台存储配置
+        不受企业配额限制，使用平台存储配置
 
         Args:
-            tenant_id: 目标租户 ID
+            tenant_id: 目标企业 ID
             content: 文件内容
             filename: 文件名
             file_size: 文件大小
@@ -94,7 +94,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         temp_path, _size, file_hash = await self._save_to_temp(content)
 
-        # 检查同租户是否已存在相同哈希的文件（同时匹配当前存储驱动）
+        # 检查同企业是否已存在相同哈希的文件（同时匹配当前存储驱动）
         existing = await self.repo.get_by_hash(
             file_hash, tenant_id=tenant_id, driver=storage_config.driver
         )
@@ -140,7 +140,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         预检查文件是否已存在（秒传）
 
         Args:
-            tenant_id: 目标租户 ID
+            tenant_id: 目标企业 ID
             file_hash: 文件哈希（纯 hex digest）
             filename: 文件名
             size: 文件大小
@@ -446,7 +446,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         构建存储路径（管理端始终使用平台存储 / 共享 Bucket）
 
         - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
-        - tenant_id>0: 租户附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
+        - tenant_id>0: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
@@ -598,7 +598,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         Args:
             driver_name: 存储驱动名称（local / qiniu / s3 等）
             path: 文件存储路径
-            tenant_id: 租户 ID（用于解析存储配置）
+            tenant_id: 企业 ID（用于解析存储配置）
         """
         from app.core.logging import LogManager
         logger = LogManager.get_logger("storage")
@@ -628,7 +628,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         获取存储统计
 
         Args:
-            tenant_id: 可选的租户 ID，不传则统计所有租户
+            tenant_id: 可选的企业 ID，不传则统计所有企业
 
         Returns:
             存储统计信息
@@ -637,10 +637,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按租户分组的存储统计
+        获取按企业分组的存储统计
 
         Returns:
-            各租户存储统计列表
+            各企业存储统计列表
         """
         return await self.repo.get_storage_stats_by_tenant()
 

@@ -103,7 +103,7 @@ class ToolSandbox:
     ):
         """
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             config: Sandbox configuration / 沙箱配置
             user_id: Current user ID (optional, passed to ExecutionContext) / 当前操作用户 ID

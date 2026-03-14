@@ -1,5 +1,5 @@
 """
-租户端知识库管理 API / Tenant Knowledge Base Management API
+企业端知识库管理 API / Tenant Knowledge Base Management API
 
 提供知识库 CRUD、文档管理、检索测试等接口
 Provides knowledge base CRUD, document management, search testing endpoints
@@ -47,10 +47,10 @@ async def _ensure_tenant_owned_kb(
     kb_id: int,
 ):
     """
-    确保知识库为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
+    确保知识库为企业自有（tenant_id 与当前企业匹配）才允许变更操作。
     Ensures the knowledge base is tenant-owned (tenant_id matches current tenant) before allowing mutations.
 
-    平台创建的全局 KB（tenant_id=null）及其他租户的 KB 对当前租户只读，
+    平台创建的全局 KB（tenant_id=null）及其他企业的 KB 对当前企业只读，
     不允许上传文档、删除文档等变更操作。
     Platform-created global KBs (tenant_id=null) and other tenants' KBs are read-only,
     upload/delete document mutations are not allowed.
@@ -98,7 +98,7 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 )
 class TenantKnowledgeBaseController(TenantController):
     """
-    租户知识库管理控制器 / Tenant Knowledge Base Management Controller
+    企业知识库管理控制器 / Tenant Knowledge Base Management Controller
 
     提供知识库 CRUD、文档上传/管理、检索测试
     Provides knowledge base CRUD, document upload/management, search testing
@@ -130,9 +130,9 @@ class TenantKnowledgeBaseController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户端可 @ 选择的知识库列表 / Get tenant selectable knowledge base list
+            获取企业端可 @ 选择的知识库列表 / Get tenant selectable knowledge base list
 
-            返回 scope=tenant(本租户) + scope=global 的知识库（精简字段）
+            返回 scope=tenant(本企业) + scope=global 的知识库（精简字段）
             Returns scope=tenant (current tenant) + scope=global knowledge bases (compact fields)
 
             权限 / Permission: knowledge_base:selectable
@@ -152,14 +152,14 @@ class TenantKnowledgeBaseController(TenantController):
                 .where(
                     KnowledgeBase.is_deleted.is_(False),
                     or_(
-                        # 本租户创建的 KB / KBs created by current tenant
+                        # 本企业创建的 KB / KBs created by current tenant
                         and_(
                             KnowledgeBase.scope == ResourceScopeEnum.ALL_TENANTS.value,
                             KnowledgeBase.tenant_id == tenant_id,
                         ),
-                        # 全局共享的 KB（admin 创建，所有租户可见） / Global shared KBs (admin-created, visible to all tenants)
+                        # 全局共享的 KB（admin 创建，所有企业可见） / Global shared KBs (admin-created, visible to all tenants)
                         KnowledgeBase.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                        # 已分配给当前租户的 KB / KBs assigned to current tenant
+                        # 已分配给当前企业的 KB / KBs assigned to current tenant
                         and_(
                             KnowledgeBase.scope.in_([
                                 ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -412,7 +412,7 @@ class TenantKnowledgeBaseController(TenantController):
             from app.enums.attachment import AttachmentSource, AttachmentVisibility
             from app.services.tenant.attachment_service import AttachmentService
 
-            # 验证知识库存在且为租户自有 / Verify KB exists and is tenant-owned
+            # 验证知识库存在且为企业自有 / Verify KB exists and is tenant-owned
             await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             # 配额检查 / Quota check

@@ -49,7 +49,7 @@ defineOptions({ name: 'FilePicker' });
 const props = withDefaults(
   defineProps<{
     accept?: string;
-    /** API endpoint type: admin uses platform attachment API, tenant uses tenant attachment API. Auto-detected from URL by default. / API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+    /** API endpoint type: admin uses platform attachment API, tenant uses tenant attachment API. Auto-detected from URL by default. / API 端类型：admin 使用平台附件 API，tenant 使用企业附件 API。默认根据 URL 自动检测。 */
     endpoint?: 'admin' | 'tenant';
     imageOnly?: boolean;
     maxConcurrency?: number;

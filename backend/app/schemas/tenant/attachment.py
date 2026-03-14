@@ -16,7 +16,7 @@ class AttachmentAccessUrlResponse(BaseSchema):
 class AttachmentResponse(BaseSchema):
     """附件详情响应（管理端完整版，含内部存储字段）"""
     id: int = Field(..., description="附件 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
     path: str = Field(..., description="存储路径")
@@ -39,7 +39,7 @@ class AttachmentResponse(BaseSchema):
 
 
 class AttachmentSafeResponse(BaseSchema):
-    """附件安全响应（租户端/用户端，隐藏内部存储细节）"""
+    """附件安全响应（企业端/用户端，隐藏内部存储细节）"""
     id: int = Field(..., description="附件 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
@@ -60,7 +60,7 @@ class AttachmentSafeResponse(BaseSchema):
 class AttachmentListItem(BaseSchema):
     """附件列表项响应（管理端完整版）"""
     id: int = Field(..., description="附件 ID")
-    tenant_id: int | None = Field(None, description="租户 ID")
+    tenant_id: int | None = Field(None, description="企业 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
     path: str = Field(..., description="存储路径")
@@ -77,7 +77,7 @@ class AttachmentListItem(BaseSchema):
 
 
 class AttachmentSafeListItem(BaseSchema):
-    """附件列表项安全响应（租户端/用户端，隐藏内部存储细节）"""
+    """附件列表项安全响应（企业端/用户端，隐藏内部存储细节）"""
     id: int = Field(..., description="附件 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
@@ -92,7 +92,7 @@ class AttachmentSafeListItem(BaseSchema):
 
 
 class TenantStorageQuotaResponse(BaseSchema):
-    """租户存储配额响应"""
+    """企业存储配额响应"""
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
     limit_bytes: int = Field(..., description="存储限制（字节），0 表示无限制")
     limit_gb: int = Field(..., description="存储限制（GB），0 表示无限制")
@@ -113,7 +113,7 @@ class AttachmentUploadResponse(BaseSchema):
 
 
 class AttachmentSafeUploadResponse(BaseSchema):
-    """附件上传响应（租户端安全版，隐藏内部存储细节）"""
+    """附件上传响应（企业端安全版，隐藏内部存储细节）"""
     attachment: AttachmentSafeResponse = Field(..., description="附件信息")
     url: str = Field(..., description="访问 URL")
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
@@ -156,7 +156,7 @@ class ChunkUploadProgressResponse(BaseSchema):
 
 class AdminChunkUploadInitRequest(BaseSchema):
     """平台端分片上传初始化请求"""
-    tenant_id: int = Field(0, ge=0, description="目标租户 ID，0 表示平台附件")
+    tenant_id: int = Field(0, ge=0, description="目标企业 ID，0 表示平台附件")
     filename: str = Field(..., min_length=1, max_length=255, description="文件名")
     total_size: int = Field(..., gt=0, description="文件总大小（字节）")
     chunk_size: int = Field(5 * 1024 * 1024, gt=0, description="分片大小（字节），默认 5MB")
@@ -183,7 +183,7 @@ class AttachmentPreflightResponse(BaseSchema):
 
 
 class AttachmentSafePreflightResponse(BaseSchema):
-    """附件预检响应（租户端安全版）"""
+    """附件预检响应（企业端安全版）"""
     exists: bool = Field(..., description="文件是否已存在")
     attachment: AttachmentSafeResponse | None = Field(None, description="已存在的附件信息")
     url: str | None = Field(None, description="已存在附件的访问 URL")
@@ -200,7 +200,7 @@ class BatchUploadItem(BaseSchema):
 
 
 class BatchSafeUploadItem(BaseSchema):
-    """批量上传单文件结果（租户端安全版）"""
+    """批量上传单文件结果（企业端安全版）"""
     filename: str = Field(..., description="原始文件名")
     success: bool = Field(..., description="是否上传成功")
     attachment: AttachmentSafeResponse | None = Field(None, description="附件信息（成功时）")
@@ -213,11 +213,11 @@ class BatchUploadResponse(BaseSchema):
     items: list[BatchUploadItem] = Field(..., description="每个文件的上传结果")
     success_count: int = Field(..., description="成功数量")
     failure_count: int = Field(..., description="失败数量")
-    used_bytes: int = Field(0, description="已使用存储空间（字节），租户端有效")
+    used_bytes: int = Field(0, description="已使用存储空间（字节），企业端有效")
 
 
 class BatchSafeUploadResponse(BaseSchema):
-    """批量上传响应（租户端安全版）"""
+    """批量上传响应（企业端安全版）"""
     items: list[BatchSafeUploadItem] = Field(..., description="每个文件的上传结果")
     success_count: int = Field(..., description="成功数量")
     failure_count: int = Field(..., description="失败数量")

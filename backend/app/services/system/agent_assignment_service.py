@@ -38,11 +38,11 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, agent_id: int | None, tenant_id: int | None = None
     ) -> None:
         """
-        校验 agent_id 有效性：存在 + 已发布 + 对租户可见。
+        校验 agent_id 有效性：存在 + 已发布 + 对企业可见。
 
         Args:
             agent_id: 要校验的智能体 ID，None 时跳过（清除绑定）
-            tenant_id: 租户 ID，None 表示 admin 端（不做 scope 校验）
+            tenant_id: 企业 ID，None 表示 admin 端（不做 scope 校验）
         """
         if agent_id is None:
             return
@@ -75,7 +75,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         if tenant_id is None:
             return
 
-        # 租户端校验 target_audience：租户端不能绑定 admin_only 的智能体
+        # 企业端校验 target_audience：企业端不能绑定 admin_only 的智能体
         from app.enums.common import AudienceEnum
         target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
         if target_audience == AudienceEnum.ADMIN_ONLY.value:
@@ -83,7 +83,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 message=_("system_agent_assignment.error.agent_not_accessible"),
             )
 
-        # 租户端校验 scope 可见性
+        # 企业端校验 scope 可见性
         scope = agent.scope
         if scope in (
             ResourceScopeEnum.ADMIN_AND_ALL.value,
@@ -97,7 +97,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
         if agent.tenant_id == tenant_id:
-            return  # 同租户
+            return  # 同企业
 
         # assigned scope：检查 ResourceTenantAssignment
         if scope in (
@@ -140,7 +140,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认
         """
         return await self.repo.resolve_for_tenant(feature_code, tenant_id)
 
@@ -149,14 +149,14 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         return await self.repo.get_all_global()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取租户的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定"""
         return await self.repo.get_all_for_tenant(tenant_id)
 
     async def set_tenant_override(
         self, feature_code: str, tenant_id: int, agent_id: int | None, config: dict | None = None
     ) -> SystemAgentAssignment:
         """
-        创建或更新租户覆盖绑定
+        创建或更新企业覆盖绑定
         """
         await self.validate_agent_id(agent_id, tenant_id=tenant_id)
 
@@ -200,7 +200,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
     async def delete_tenant_override(self, feature_code: str, tenant_id: int) -> bool:
-        """删除租户覆盖（恢复全局默认）
+        """删除企业覆盖（恢复全局默认）
 
         使用硬删除，因为覆盖是配置记录而非用户数据，
         且 UniqueConstraint 不含 is_deleted 过滤，软删除后无法重建。

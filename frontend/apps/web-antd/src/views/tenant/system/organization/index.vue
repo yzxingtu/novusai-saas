@@ -3,7 +3,7 @@
 import type { TenantRoleType } from '#/api/tenant/role';
 /**
  * Tenant organization management page
- * 租户端组织架构管理页面
+ * 企业端组织架构管理页面
  * Left org tree + right detail/member panel
  * 左侧组织树 + 右侧详情/成员面板
  */

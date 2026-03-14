@@ -31,18 +31,18 @@
 
     "tenants": {
       "_status": "全部使用中",
-      "GET /admin/tenants": "获取租户列表 [views/admin/tenant/list/data.ts - useCrudPage]",
-      "GET /admin/tenants/{tenant_id}": "获取租户详情（useCrudDrawer 编辑）",
-      "POST /admin/tenants": "创建租户（useCrudDrawer 新建）",
-      "PUT /admin/tenants/{tenant_id}": "更新租户（useCrudDrawer 保存）",
-      "DELETE /admin/tenants/{tenant_id}": "删除租户（useCrudPage 删除）",
-      "POST /admin/tenants/{tenant_id}/impersonate": "一键登录租户后台 [views/admin/tenant/list/index.vue]"
+      "GET /admin/tenants": "获取企业列表 [views/admin/tenant/list/data.ts - useCrudPage]",
+      "GET /admin/tenants/{tenant_id}": "获取企业详情（useCrudDrawer 编辑）",
+      "POST /admin/tenants": "创建企业（useCrudDrawer 新建）",
+      "PUT /admin/tenants/{tenant_id}": "更新企业（useCrudDrawer 保存）",
+      "DELETE /admin/tenants/{tenant_id}": "删除企业（useCrudPage 删除）",
+      "POST /admin/tenants/{tenant_id}/impersonate": "一键登录企业后台 [views/admin/tenant/list/index.vue]"
     },
 
     "tenant_domains": {
       "_status": "全部使用中",
       "_note": "domains-modal.vue 使用",
-      "GET /admin/tenants/{tenant_id}/domains": "获取租户域名列表",
+      "GET /admin/tenants/{tenant_id}/domains": "获取企业域名列表",
       "GET /admin/tenants/{tenant_id}/domains/{domain_id}": "获取域名详情",
       "POST /admin/tenants/{tenant_id}/domains": "添加自定义域名",
       "PUT /admin/tenants/{tenant_id}/domains/{domain_id}": "更新域名",
@@ -109,14 +109,14 @@
   },
 
   "tenant": {
-    "_description": "租户管理端 API（/tenant/*）",
+    "_description": "企业管理端 API（/tenant/*）",
 
     "auth": {
       "_status": "部分使用",
-      "POST /tenant/auth/login": "租户管理员登录 [store/tenant/auth.ts]",
+      "POST /tenant/auth/login": "企业管理员登录 [store/tenant/auth.ts]",
       "POST /tenant/auth/refresh": "刷新 Token [request 拦截器]",
-      "POST /tenant/auth/logout": "租户管理员登出 [store/tenant/auth.ts]",
-      "GET /tenant/auth/me": "获取当前租户管理员信息 [store/tenant/auth.ts, impersonate.vue]",
+      "POST /tenant/auth/logout": "企业管理员登出 [store/tenant/auth.ts]",
+      "GET /tenant/auth/me": "获取当前企业管理员信息 [store/tenant/auth.ts, impersonate.vue]",
       "POST /tenant/auth/impersonate": "平台管理员一键登录验证 [views/tenant/authentication/impersonate.vue]",
       "_未使用": {
         "PUT /tenant/auth/password": "修改密码 - 已定义但未使用"
@@ -162,7 +162,7 @@
     "permissions": {
       "_status": "部分使用",
       "GET /tenant/permissions": "获取权限树 [permission-preview.vue]",
-      "GET /tenant/permissions/menus": "获取当前租户管理员菜单列表 [router/access.ts]",
+      "GET /tenant/permissions/menus": "获取当前企业管理员菜单列表 [router/access.ts]",
       "_未使用": {
         "GET /tenant/permissions/list": "获取权限列表（平铺）- 已定义但未使用"
       }

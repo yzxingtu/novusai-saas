@@ -39,7 +39,7 @@ class AttachmentDownloadService:
         )
 
     async def get_attachment(self, attachment_id: int) -> Attachment:
-        """按租户上下文读取附件并进行归属校验"""
+        """按企业上下文读取附件并进行归属校验"""
         if self.repo:
             attachment = await self.repo.get_by_id(attachment_id)
         else:

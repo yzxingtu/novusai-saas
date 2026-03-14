@@ -97,12 +97,12 @@ class FileValidator:
         file_size: int | None = None,
     ) -> FileValidationResult:
         """
-        租户端文件验证
+        企业端文件验证
 
-        优先使用租户配置，如果租户未配置则使用平台配置
+        优先使用企业配置，如果企业未配置则使用平台配置
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             filename: 文件名
             file_size: 文件大小（字节），可选
 
@@ -112,11 +112,11 @@ class FileValidator:
         _ = file_size
         extension = self._get_extension(filename)
 
-        # 获取租户配置（留空则使用平台配置）
+        # 获取企业配置（留空则使用平台配置）
         tenant_allowed = await self._get_tenant_allowed_extensions(tenant_id)
         tenant_denied = await self._get_tenant_denied_extensions(tenant_id)
 
-        # 如果租户未配置，则使用平台配置
+        # 如果企业未配置，则使用平台配置
         if not tenant_allowed:
             tenant_allowed = await self._get_platform_allowed_extensions()
         if not tenant_denied:
@@ -233,7 +233,7 @@ class FileValidator:
         return self._platform_max_size_mb
 
     async def _get_tenant_allowed_extensions(self, tenant_id: int) -> set[str]:
-        """获取租户允许的扩展名"""
+        """获取企业允许的扩展名"""
         value = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_allowed_extensions",
@@ -242,7 +242,7 @@ class FileValidator:
         return self._parse_extensions(str(value))
 
     async def _get_tenant_denied_extensions(self, tenant_id: int) -> set[str]:
-        """获取租户禁止的扩展名"""
+        """获取企业禁止的扩展名"""
         value = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_denied_extensions",

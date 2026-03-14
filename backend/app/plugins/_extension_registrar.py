@@ -184,7 +184,7 @@ def register_all_extensions(
         if scope == "admin_and_all":
             # admin_and_all → Always split into two independent permissions (admin + tenant),
             # each can be configured with different parent menu directories
-            # / admin_and_all → 始终拆分为两条独立权限（管理端 + 租户端），
+            # / admin_and_all → 始终拆分为两条独立权限（管理端 + 企业端），
             # 分别可配置不同的父级菜单目录
             admin_parent = override.get("parent", menu_ext.parent)
             # tenant_parent falls back to admin parent if not configured / tenant_parent 未配置时沿用 admin parent（降级）

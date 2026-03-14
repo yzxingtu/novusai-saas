@@ -6,7 +6,7 @@
  * 每个模块使用 searchInput 构建轻量搜索 Schema
  * whose ApiSelect would trigger unrelated API requests in recycle bin context).
  * Tenant-level modules additionally append a "tenant" dropdown.
- * 租户级模块额外追加「所属租户」下拉。
+ * 企业级模块额外追加「所属企业」下拉。
  */
 import type { VbenFormSchema } from '#/adapter/form';
 
@@ -14,7 +14,7 @@ import { searchInput, select, statusSelect } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-// ── Tenant selector / 租户选择器 ──
+// ── Tenant selector / 企业选择器 ──
 function tenantSelect(): VbenFormSchema {
   return select('filter[tenant_id]', $t('admin.system.recycleBin.tenant'), {
     api: getTenantSelectApi,
@@ -108,7 +108,7 @@ const COLUMN_LABELS: Record<string, () => string> = {
   // Plans / 套餐
   'tenant_plans:name': () => $t('admin.tenant.plan.name'),
   'tenant_plans:code': () => $t('admin.tenant.plan.code'),
-  // Tenants / 租户
+  // Tenants / 企业
   'tenants:name': () => $t('admin.tenant.name'),
   'tenants:code': () => $t('admin.tenant.code'),
   // Domains / 域名

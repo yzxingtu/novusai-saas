@@ -1,7 +1,7 @@
 """
 AuthService 单元测试
 
-覆盖：管理员登录、租户管理员登录、Token 刷新、密码修改、密码策略、账户锁定。
+覆盖：管理员登录、企业管理员登录、Token 刷新、密码修改、密码策略、账户锁定。
 """
 
 from __future__ import annotations

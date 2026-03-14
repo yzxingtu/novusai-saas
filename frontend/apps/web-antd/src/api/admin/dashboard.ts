@@ -57,7 +57,7 @@ export interface PluginOverview {
   error_count: number;
 }
 
-/** Tenant growth item / 租户增长项 */
+/** Tenant growth item / 企业增长项 */
 export interface TenantGrowthItem {
   date: string;
   count: number;
@@ -117,7 +117,7 @@ export async function getPluginOverviewApi(): Promise<PluginOverview> {
   return requestClient.get<PluginOverview>(`${API_PREFIX}/plugin-overview`);
 }
 
-/** Get tenant growth trend / 获取租户增长趋势 */
+/** Get tenant growth trend / 获取企业增长趋势 */
 export async function getTenantGrowthApi(
   days = 30,
 ): Promise<TenantGrowthItem[]> {

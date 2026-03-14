@@ -353,7 +353,7 @@ extensions:
         icon: "lucide:file-text"
         sort_order: 30
         scope: "all_tenants"
-        parent: "tenant_workspace"  # 默认挂载到租户工作台（管理员可覆盖）
+        parent: "tenant_workspace"  # 默认挂载到企业工作台（管理员可覆盖）
         title:
           zh-CN: "文档"
           en: "Documents"

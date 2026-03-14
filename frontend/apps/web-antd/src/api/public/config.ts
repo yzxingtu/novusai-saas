@@ -1,6 +1,6 @@
 /**
  * Public config API / 公开配置 API
- * Get platform/tenant public config, no auth required / 获取平台/租户公开配置，无需认证
+ * Get platform/tenant public config, no auth required / 获取平台/企业公开配置，无需认证
  */
 import { getProcessedImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
@@ -147,13 +147,13 @@ export interface PlatformPublicConfig {
   platformDomains: string[];
 }
 
-/** Tenant public config / 租户公开配置 */
+/** Tenant public config / 企业公开配置 */
 export interface TenantPublicConfig {
-  /** Tenant ID / 租户 ID */
+  /** Tenant ID / 企业 ID */
   tenantId: number;
-  /** Tenant code / 租户编码 */
+  /** Tenant code / 企业编码 */
   tenantCode: string;
-  /** Tenant name / 租户名称 */
+  /** Tenant name / 企业名称 */
   tenantName: string;
   /** Brand config / 品牌配置 */
   brand: BrandConfig;
@@ -419,9 +419,9 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
 }
 
 /**
- * Get tenant public config / 获取租户公开配置
+ * Get tenant public config / 获取企业公开配置
  * GET /api/public/tenant/config
- * No auth required, tenant auto-detected by domain middleware / 无需认证，自动识别租户
+ * No auth required, tenant auto-detected by domain middleware / 无需认证，自动识别企业
  */
 export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
   const response = await baseRequestClient.get<

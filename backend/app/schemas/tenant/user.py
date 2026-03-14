@@ -1,7 +1,7 @@
 """
-租户用户相关 Schema / Tenant User Schema
+企业用户相关 Schema / Tenant User Schema
 
-定义租户用户（C端用户）API 的请求和响应数据结构
+定义企业用户（C端用户）API 的请求和响应数据结构
 Defines tenant user (end-user) API request and response data structures.
 """
 
@@ -13,21 +13,21 @@ from app.core.base_schema import BaseSchema
 
 
 class TenantUserLoginRequest(BaseSchema):
-    """租户用户登录请求"""
+    """企业用户登录请求"""
 
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
-    tenant_code: str | None = Field(None, max_length=50, description="租户编码（用于限定登录范围）")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码（用于限定登录范围）")
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
 
 
 class TenantUserResponse(BaseSchema):
-    """租户用户信息响应"""
+    """企业用户信息响应"""
 
     id: int = Field(..., description="用户 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     username: str = Field(..., description="用户名")
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -44,7 +44,7 @@ class TenantUserResponse(BaseSchema):
 
 
 class TenantUserCreateRequest(BaseSchema):
-    """创建租户用户请求"""
+    """创建企业用户请求"""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -56,7 +56,7 @@ class TenantUserCreateRequest(BaseSchema):
 
 
 class TenantUserUpdateRequest(BaseSchema):
-    """更新租户用户请求"""
+    """更新企业用户请求"""
 
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -68,14 +68,14 @@ class TenantUserUpdateRequest(BaseSchema):
 
 
 class TenantUserChangePasswordRequest(BaseSchema):
-    """租户用户修改密码请求"""
+    """企业用户修改密码请求"""
 
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class TenantUserRegisterRequest(BaseSchema):
-    """租户用户注册请求"""
+    """企业用户注册请求"""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., max_length=255, description="邮箱")
@@ -83,7 +83,7 @@ class TenantUserRegisterRequest(BaseSchema):
     confirm_password: str = Field(..., min_length=6, max_length=50, description="确认密码")
     phone: str | None = Field(None, max_length=20, description="手机号")
     nickname: str | None = Field(None, max_length=100, description="昵称")
-    tenant_code: str | None = Field(None, max_length=50, description="租户编码")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码")
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
@@ -96,7 +96,7 @@ class TenantUserRegisterRequest(BaseSchema):
 
 
 class TenantUserProfileUpdateRequest(BaseSchema):
-    """租户用户资料更新请求"""
+    """企业用户资料更新请求"""
 
     nickname: str | None = Field(None, max_length=100, description="昵称")
     avatar: str | None = Field(None, max_length=500, description="头像 URL")
@@ -109,7 +109,7 @@ class ForgotPasswordRequest(BaseSchema):
     """忘记密码请求"""
 
     email: str = Field(..., max_length=255, description="邮箱")
-    tenant_code: str | None = Field(None, max_length=50, description="租户编码")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码")
     channel: str = Field("email", description="发送渠道: email/sms")
 
 
@@ -120,7 +120,7 @@ class ResetPasswordRequest(BaseSchema):
     code: str = Field(..., min_length=4, max_length=10, description="验证码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
     confirm_password: str = Field(..., min_length=6, max_length=50, description="确认密码")
-    tenant_code: str | None = Field(None, max_length=50, description="租户编码")
+    tenant_code: str | None = Field(None, max_length=50, description="企业编码")
 
     @model_validator(mode="after")
     def passwords_match(self) -> "ResetPasswordRequest":

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端对话管理列表页面
+ * 企业端对话管理列表页面
  */
 import type { ConversationInfo } from '#/api/tenant/conversations';
 

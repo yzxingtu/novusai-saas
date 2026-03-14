@@ -96,7 +96,7 @@ async def inject_rag_context(
         db: Database session / 数据库会话
         agent: Agent model instance / 智能体模型实例
         messages: Built message list (first is system) / 已构建的消息列表（第一条为 system）
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         kb_ids: KB ID list (merged Agent binding + user @ selection) / 知识库 ID 列表（已合并 Agent 绑定 + 用户 @ 选择）
         rag_config: RAG config (from agent.rag_config) / RAG 配置（来自 agent.rag_config）
         kb_weights: {kb_id: weight} mapping from AgentKnowledgeBaseBinding / {kb_id: weight} 映射，来自 AgentKnowledgeBaseBinding
@@ -121,7 +121,7 @@ async def inject_rag_context(
 
         # Get knowledge bases (for Embedding model config) / 获取知识库（用于 Embedding 模型配置）
         # Tenant scenario: KnowledgeBaseRepository ensures tenant isolation (visibility controls cross-tenant access)
-        # 租户场景：使用 KnowledgeBaseRepository 确保租户隔离（visibility 控制跨租户访问）
+        # 企业场景：使用 KnowledgeBaseRepository 确保企业隔离（visibility 控制跨企业访问）
         # Admin scenario: AdminKnowledgeBaseRepository (no tenant_id restriction)
         # 平台管理员场景：使用 AdminKnowledgeBaseRepository（无 tenant_id 限制）
         if tenant_id:
@@ -130,7 +130,7 @@ async def inject_rag_context(
             kb_repo = AdminKnowledgeBaseRepository(db)
 
         # Security check: verify all kb_ids belong to current tenant (prevent cross-tenant data leak)
-        # 安全校验：验证所有 kb_ids 均属于当前租户（防止跨租户数据泄露）
+        # 安全校验：验证所有 kb_ids 均属于当前企业（防止跨企业数据泄露）
         # Only KBs passing tenant-scoped repo validation are allowed for retrieval
         # 只有通过 tenant-scoped repo 校验的 KB 才允许检索
         validated_kb_ids: list[int] = []

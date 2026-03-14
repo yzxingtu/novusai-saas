@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-多租户 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
+多企业 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
 ## 全局禁令
 
@@ -37,7 +37,7 @@
 - **禁止手写 CRUD 数据管理**（手动 loading/list/page/total + fetchList + watch 分页 + 手写删除确认 + 手写回收站）
 - 软删除资源的列表页开启 `recycleBin: true`，`useCrudList`/`useCrudPage` 自动处理回收站切换
 
-### 租户端资源操作按鈕显示规则
+### 企业端资源操作按鈕显示规则
 
 **禁止仅检查 `scope === 'all_tenants'`**，必须同时检查 `tenant_id !== null`：
 
@@ -100,12 +100,12 @@ const canEdit = row.scope === 'all_tenants';
 - Repository：数据访问、查询构建
 - Model：表结构定义
 
-### 多租户
+### 多企业
 
-- 租户模型继承 `TenantModel`（自动含 `tenant_id`）
-- 租户仓库继承 `TenantRepository`（自动注入 `tenant_id` 过滤）
-- 租户服务继承 `TenantService`
-- 租户控制器继承 `TenantController`
+- 企业模型继承 `TenantModel`（自动含 `tenant_id`）
+- 企业仓库继承 `TenantRepository`（自动注入 `tenant_id` 过滤）
+- 企业服务继承 `TenantService`
+- 企业控制器继承 `TenantController`
 - 平台管理用 `GlobalController`
 - `TenantController.get_service(db, tenant_id)` — 第二参数是 int
 - `BaseController.get_service(db)` — 只需 db
@@ -151,7 +151,7 @@ error(message, code, status_code)         # 自定义错误
 
 - `DbSession` — AsyncSession
 - `ActiveAdmin` — 活跃平台管理员
-- `ActiveTenantAdmin` — 活跃租户管理员
+- `ActiveTenantAdmin` — 活跃企业管理员
 - `QueryParams` — JSON:API 查询参数
 - `SuperAdmin` — 超级管理员
 - `ActiveUser` — 活跃用户（用户端接口）
@@ -160,9 +160,9 @@ error(message, code, status_code)         # 自定义错误
 
 | 场景 | 继承 |
 |------|------|
-| 租户级资源 | `TenantService` |
-| 平台级资源（无租户隔离） | `GlobalService` |
-| 跨租户共享 | `BaseService` |
+| 企业级资源 | `TenantService` |
+| 平台级资源（无企业隔离） | `GlobalService` |
+| 跨企业共享 | `BaseService` |
 
 ### Service 钩子方法（写操作保护必用）
 
@@ -177,7 +177,7 @@ async def _before_delete_check(self, obj) -> None:
     """DELETE 前提前检查（不修改数据）"""
 ```
 
-**Scope 保护模式**（租户端必须在 `_before_update` / `_before_delete` 中实现）：
+**Scope 保护模式**（企业端必须在 `_before_update` / `_before_delete` 中实现）：
 
 ```python
 # 必须同时检查 tenant_id（不能只检查 scope）

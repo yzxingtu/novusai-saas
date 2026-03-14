@@ -1,5 +1,5 @@
 /**
- * Tenant knowledge base management API / 租户端知识库管理 API
+ * Tenant knowledge base management API / 企业端知识库管理 API
  * Backend: /tenant/ai/knowledge-bases/* / 对接后端 /tenant/ai/knowledge-bases/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

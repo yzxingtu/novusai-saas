@@ -287,7 +287,7 @@ class PluginContext:
         return config
 
     async def get_tenant_config(self, tenant_id: int) -> dict:
-        """Get tenant-level config / 获取租户级配置"""
+        """Get tenant-level config / 获取企业级配置"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
@@ -967,7 +967,7 @@ class PluginContext:
         return settings.APP_VERSION
 
     def get_current_tenant_id(self) -> int | None:
-        """Get current request's tenant ID (injected from RequestContext) / 获取当前请求的租户 ID（从 RequestContext 注入）"""
+        """Get current request's tenant ID (injected from RequestContext) / 获取当前请求的企业 ID（从 RequestContext 注入）"""
         if self._request_context:
             return self._request_context.tenant_id
         return None

@@ -1,7 +1,7 @@
 """
-租户管理员角色服务 / Tenant Admin Role Service
+企业管理员角色服务 / Tenant Admin Role Service
 
-提供租户角色的业务逻辑，支持层级结构和权限继承（租户隔离）
+提供企业角色的业务逻辑，支持层级结构和权限继承（企业隔离）
 Provides tenant role business logic with hierarchy and permission inheritance (tenant-isolated).
 """
 
@@ -23,9 +23,9 @@ from app.services.common.role_tree_mixin import MAX_ROLE_DEPTH, RoleTreeMixin
 
 class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository], RoleTreeMixin[TenantAdminRole]):
     """
-    租户管理员角色服务
+    企业管理员角色服务
 
-    提供角色的 CRUD 操作和层级结构管理，自动注入租户隔离
+    提供角色的 CRUD 操作和层级结构管理，自动注入企业隔离
     """
 
     model = TenantAdminRole
@@ -33,7 +33,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_by_code(self, code: str) -> TenantAdminRole | None:
         """
-        根据代码获取角色（租户内）
+        根据代码获取角色（企业内）
 
         Args:
             code: 角色代码
@@ -59,7 +59,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         allow_members: bool = True,
     ) -> TenantAdminRole:
         """
-        创建角色（租户内）
+        创建角色（企业内）
 
         Args:
             name: 角色名称
@@ -128,7 +128,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         data: dict[str, Any],
     ) -> TenantAdminRole:
         """
-        更新角色（租户内）
+        更新角色（企业内）
 
         Args:
             role_id: 角色 ID
@@ -153,9 +153,9 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             )
 
         # 移除不允许直接更新的字段
-        data.pop("tenant_id", None)  # 租户 ID 不允许修改
+        data.pop("tenant_id", None)  # 企业 ID 不允许修改
 
-        # 检查代码是否已被其他角色使用（租户内唯一）
+        # 检查代码是否已被其他角色使用（企业内唯一）
         if (
             "code" in data
             and data["code"]
@@ -205,7 +205,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def delete_role(self, role_id: int) -> bool:
         """
-        删除角色（租户内） / Delete role (tenant-scoped)
+        删除角色（企业内） / Delete role (tenant-scoped)
 
         通过 BaseService.delete() 统一处理 __delete_deps__ 依赖检查。
         Uses BaseService.delete() for unified __delete_deps__ checking.
@@ -239,7 +239,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         permission_ids: list[int],
     ) -> TenantAdminRole:
         """
-        分配权限给角色（租户内）
+        分配权限给角色（企业内）
 
         Args:
             role_id: 角色 ID
@@ -272,7 +272,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_root_roles(self) -> list[TenantAdminRole]:
         """
-        获取所有顶级角色（租户内）
+        获取所有顶级角色（企业内）
 
         Returns:
             顶级角色列表
@@ -310,7 +310,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         leader_id: int | None,
     ) -> TenantAdminRole:
         """
-        设置节点负责人（租户内）
+        设置节点负责人（企业内）
 
         Args:
             role_id: 角色/节点 ID
@@ -334,7 +334,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_ONLY_DEPARTMENT_CAN_SET_LEADER,
             )
 
-        # 验证负责人是否存在（租户内）
+        # 验证负责人是否存在（企业内）
         if leader_id:
             query = select(TenantAdmin).where(
                 TenantAdmin.id == leader_id,
@@ -351,7 +351,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_organization_root_nodes(self) -> list[TenantAdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树，租户内）
+        获取组织架构根节点列表（用于按需加载树，企业内）
 
         Returns:
             根节点列表（level=1），每个节点包含 has_children 标记
@@ -360,7 +360,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_organization_children(self, parent_id: int) -> list[TenantAdminRole]:
         """
-        获取指定节点的直接子节点（用于按需加载，租户内）
+        获取指定节点的直接子节点（用于按需加载，企业内）
 
         Args:
             parent_id: 父节点 ID
@@ -376,11 +376,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        添加成员到节点（租户内）
+        添加成员到节点（企业内）
 
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
 
         Returns:
             更新后的角色
@@ -400,7 +400,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
             )
 
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -430,11 +430,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        删除节点成员（租户内，软删除）
+        删除节点成员（企业内，软删除）
 
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
 
         Returns:
             更新后的角色
@@ -447,7 +447,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
 
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -474,7 +474,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                     code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
                 )
 
-        # 保护租户所有者：不允许删除
+        # 保护企业所有者：不允许删除
         if admin.is_owner:
             raise BusinessException(
                 message=_(ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER.message_key),
@@ -500,7 +500,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         include_descendants: bool = True,
     ) -> tuple[list[TenantAdmin], int]:
         """
-        获取节点成员列表（租户内，分页 + 搜索 + 递归子节点）
+        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）
 
         Args:
             role_id: 角色/节点 ID
@@ -538,7 +538,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool = True,
     ) -> TenantAdmin:
         """
-        在节点下创建新成员（租户内）
+        在节点下创建新成员（企业内）
 
         Args:
             role_id: 角色/节点 ID
@@ -550,7 +550,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             is_active: 是否激活
 
         Returns:
-            创建的租户管理员
+            创建的企业管理员
 
         Raises:
             NotFoundException: 角色不存在
@@ -596,11 +596,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        更新节点成员信息（租户内）
+        更新节点成员信息（企业内）
 
         Args:
             role_id: 当前角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             email: 邮箱
             phone: 手机号
             nickname: 昵称
@@ -609,7 +609,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             new_role_id: 新角色 ID（调整所属角色）
 
         Returns:
-            更新后的租户管理员
+            更新后的企业管理员
 
         Raises:
             NotFoundException: 角色或管理员不存在
@@ -621,7 +621,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
 
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -686,11 +686,11 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_password: str,
     ) -> bool:
         """
-        重置节点成员密码（租户内）
+        重置节点成员密码（企业内）
 
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             new_password: 新密码
 
         Returns:
@@ -706,7 +706,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
 
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
@@ -743,15 +743,15 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool,
     ) -> TenantAdmin:
         """
-        切换节点成员状态（租户内）
+        切换节点成员状态（企业内）
 
         Args:
             role_id: 角色/节点 ID
-            admin_id: 租户管理员 ID
+            admin_id: 企业管理员 ID
             is_active: 是否激活
 
         Returns:
-            更新后的租户管理员
+            更新后的企业管理员
 
         Raises:
             NotFoundException: 角色或管理员不存在
@@ -763,7 +763,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
 
-        # 获取管理员（租户内）
+        # 获取管理员（企业内）
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,

@@ -22,7 +22,7 @@ def upgrade() -> None:
             sa.Integer(),
             sa.ForeignKey("tenants.id", ondelete="CASCADE"),
             nullable=True,
-            comment="所属租户ID（NULL表示平台级任务）",
+            comment="所属企业ID（NULL表示平台级任务）",
         ),
     )
     op.create_index("ix_periodic_tasks_tenant_id", "periodic_tasks", ["tenant_id"])

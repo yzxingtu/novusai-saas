@@ -170,12 +170,13 @@
   },
   "apiKey": {
     "title": "API Key 管理",
-    "pageDesc": "管理平台级和租户级 API Key。留空租户则为平台级，所有租户共享。",
+    "pageDesc": "管理 AI 供应商的 API Key。通过作用域控制 Key 的可用范围：「仅管理端」Key 仅管理端 AI 调用可用；「全部企业」Key 供企业共享或指定给特定企业。企业调用时优先使用专用 Key，无专用 Key 则回退到平台共享 Key。",
     "name": "Key 名称",
     "providerId": "所属供应商",
     "providerName": "所属供应商",
-    "tenantId": "关联租户",
-    "tenantName": "关联租户",
+    "providerModels": "{count} 个模型",
+    "tenantId": "关联企业",
+    "tenantName": "关联企业",
     "apiKey": "API Key",
     "keyPreview": "Key 预览",
     "isActive": "启用状态",
@@ -187,22 +188,17 @@
     "lastUsedAt": "最后使用",
     "expiresAt": "过期时间",
     "create": "添加 API Key",
-    "scope": {
-      "platform": "平台级",
-      "tenant": "租户级"
-    },
     "placeholder": {
       "searchName": "搜索 Key 名称",
       "inputName": "请输入 Key 名称",
       "inputApiKey": "请输入 API Key",
       "selectProvider": "请选择供应商",
-      "selectTenant": "选择租户（留空为平台级）",
       "allProviders": "全部供应商",
       "inputUsageLimit": "留空不限制"
     },
     "help": {
       "apiKey": "从供应商获取的 API 密钥，系统会加密存储。创建后不可查看完整 Key",
-      "tenantId": "留空表示平台级 Key（所有租户共享）。选择租户则为该租户专用",
+      "scope": "「仅管理端」Key 只在管理端 AI 调用中使用，企业无法回退到此 Key。「全部企业」Key 可被所有企业共享（平台级）或指定给特定企业（企业专用）",
       "usageLimit": "该 Key 的最大调用次数。达到上限后自动标记为不可用。留空表示不限制",
       "isActive": "手动禁用后该 Key 不参与负载均衡。可用于临时停用某个 Key"
     },
@@ -224,7 +220,7 @@
   },
   "callLog": {
     "title": "调用日志",
-    "pageDesc": "查看所有租户的 AI 调用记录，包括 Token 用量、费用和响应时间。",
+    "pageDesc": "查看所有企业的 AI 调用记录，包括 Token 用量、费用和响应时间。",
     "requestType": "请求类型",
     "inputTokens": "输入 Tokens",
     "outputTokens": "输出 Tokens",
@@ -232,7 +228,7 @@
     "cost": "费用",
     "latency": "延迟 (ms)",
     "status": "状态",
-    "tenantName": "租户",
+    "tenantName": "企业",
     "modelName": "模型",
     "providerName": "供应商",
     "userId": "用户 ID",
@@ -269,10 +265,10 @@
   },
   "usage": {
     "title": "使用量统计",
-    "pageDesc": "按日统计各租户和模型的调用量、Token 消耗和费用。",
+    "pageDesc": "按日统计各企业和模型的调用量、Token 消耗和费用。",
     "statDate": "统计日期",
-    "tenantId": "租户",
-    "tenantName": "租户名称",
+    "tenantId": "企业",
+    "tenantName": "企业名称",
     "modelId": "模型",
     "modelName": "模型名称",
     "requestType": "请求类型",
@@ -292,7 +288,7 @@
       "image": "图像"
     },
     "placeholder": {
-      "selectTenant": "全部租户",
+      "selectTenant": "全部企业",
       "selectModel": "全部模型",
       "startDate": "开始日期",
       "endDate": "结束日期"
@@ -306,9 +302,9 @@
   },
   "quota": {
     "title": "配额管理",
-    "pageDesc": "为租户设置 Token 用量配额。软限制仅告警，硬限制达额后拒绝请求。",
-    "tenantId": "租户",
-    "tenantName": "租户名称",
+    "pageDesc": "为企业设置 Token 用量配额。软限制仅告警，硬限制达额后拒绝请求。",
+    "tenantId": "企业",
+    "tenantName": "企业名称",
     "modelId": "模型",
     "modelName": "模型名称",
     "period": "周期",
@@ -332,23 +328,23 @@
       "hard": "硬限制"
     },
     "placeholder": {
-      "selectTenant": "请选择租户",
+      "selectTenant": "请选择企业",
       "selectModel": "选择模型（留空为全局配额）",
       "selectPeriod": "请选择周期",
       "selectType": "请选择配额类型",
       "inputLimit": "Token 数量限制",
       "inputThreshold": "如 80",
       "inputDescription": "请输入描述",
-      "allTenants": "全部租户",
+      "allTenants": "全部企业",
       "allPeriods": "全部周期",
       "allTypes": "全部类型"
     }
   },
   "rateLimit": {
     "title": "速率限制",
-    "tenantId": "租户",
-    "tenantName": "租户名称",
-    "tenantLabel": "租户",
+    "tenantId": "企业",
+    "tenantName": "企业名称",
+    "tenantLabel": "企业",
     "modelId": "模型",
     "rpmLimit": "RPM 限制",
     "tpmLimit": "TPM 限制",
@@ -358,7 +354,7 @@
     "noLimit": "不限制",
     "confirmDelete": "确认删除该速率限制配置？",
     "placeholder": {
-      "selectTenant": "请选择租户",
+      "selectTenant": "请选择企业",
       "selectModel": "请选择模型",
       "inputRpm": "每分钟最大请求数",
       "inputTpm": "每分钟最大 Token 数",
@@ -367,7 +363,7 @@
   },
   "agent": {
     "title": "智能体管理",
-    "pageDesc": "管理全平台智能体，支持创建全局/租户/管理端专属智能体。可发布、禁用或删除。",
+    "pageDesc": "管理全平台智能体，支持创建全局/企业/管理端专属智能体。可发布、禁用或删除。",
     "detail": {
       "title": "智能体详情",
       "overview": "概览",
@@ -433,7 +429,7 @@
     "targetAudience": "目标受众",
     "executionMode": "执行模式",
     "modelName": "关联模型",
-    "tenantId": "租户",
+    "tenantId": "企业",
     "version": "版本",
     "systemPrompt": "系统提示词",
     "temperature": "温度",
@@ -482,14 +478,14 @@
     "audience_options": {
       "all": "所有端",
       "admin_only": "仅管理端",
-      "admin_tenant": "管理端+租户端"
+      "admin_tenant": "管理端+企业端"
     },
     "placeholder": {
       "searchName": "搜索智能体名称",
       "allStatuses": "全部状态",
       "allModes": "全部模式",
-      "allTenants": "全部租户",
-      "tenantId": "请输入租户 ID",
+      "allTenants": "全部企业",
+      "tenantId": "请输入企业 ID",
       "allTypes": "全部类型",
       "selectSkillPackages": "选择要绑定的技能包",
       "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
@@ -535,7 +531,7 @@
     "specificUsers": "指定用户",
     "roleAccess": "角色权限控制",
     "adminRoleAccess": "管理端角色权限",
-    "tenantRoleAccess": "租户端角色权限",
+    "tenantRoleAccess": "企业端角色权限",
     "userRoleAccess": "用户端角色权限",
     "roleMode": {
       "all": "全部可用",
@@ -572,10 +568,10 @@
   },
   "conversation": {
     "title": "对话管理",
-    "pageDesc": "监控所有租户的 AI 对话记录，查看对话详情和费用统计。",
+    "pageDesc": "监控所有企业的 AI 对话记录，查看对话详情和费用统计。",
     "agentName": "智能体",
-    "tenantId": "租户",
-    "tenantName": "租户",
+    "tenantId": "企业",
+    "tenantName": "企业",
     "user": "用户",
     "status": "状态",
     "tokenCount": "Token 数量",
@@ -593,7 +589,7 @@
     "placeholder": {
       "agentId": "智能体 ID",
       "allStatuses": "全部状态",
-      "allTenants": "全部租户"
+      "allTenants": "全部企业"
     }
   },
   "actionLog": {
@@ -603,7 +599,7 @@
     "actionType": "操作类型",
     "actionLevel": "安全等级",
     "status": "状态",
-    "tenantId": "租户 ID",
+    "tenantId": "企业 ID",
     "agentName": "智能体",
     "operatorId": "操作者",
     "executionTime": "耗时",
@@ -695,15 +691,15 @@
       "inputName": "请输入技能包名称",
       "inputDescription": "请输入描述",
       "selectScope": "请选择作用域",
-      "selectTenant": "请选择租户",
-      "selectAssignedTenants": "请选择要分配的租户",
+      "selectTenant": "请选择企业",
+      "selectAssignedTenants": "请选择要分配的企业",
       "allScopes": "全部作用域"
     },
-    "tenantId": "所属租户",
-    "assignedTenants": "分配租户",
+    "tenantId": "所属企业",
+    "assignedTenants": "分配企业",
     "help": {
-      "scope": "仅管理端：仅管理端可见；指定租户：仅该租户可见；全局共享：管理端和所有租户都可见",
-      "assignedTenants": "选择允许使用此技能包的租户"
+      "scope": "仅管理端：仅管理端可见；指定企业：仅该企业可见；全局共享：管理端和所有企业都可见",
+      "assignedTenants": "选择允许使用此技能包的企业"
     },
     "sourcePlugin": "插件",
     "uploadZip": "上传技能包",
@@ -740,7 +736,7 @@
       "yes": "是",
       "no": "否",
       "sourcePlugin": "来源插件",
-      "tenantName": "所属租户",
+      "tenantName": "所属企业",
       "platformManaged": "平台管理",
       "skillName": "技能名称",
       "skillType": "技能类型",
@@ -774,7 +770,7 @@
     "type": "技能类型",
     "scope": "作用域",
     "isActive": "启用状态",
-    "tenantId": "所属租户",
+    "tenantId": "所属企业",
     "timeout": "超时 (s)",
     "sortOrder": "排序",
     "create": "添加技能",
@@ -789,7 +785,7 @@
     },
     "filter": {
       "adminOnly": "仅管理端",
-      "tenantOnly": "仅租户"
+      "tenantOnly": "仅企业"
     },
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
@@ -935,12 +931,12 @@
       "searchName": "搜索技能名称",
       "allTypes": "全部类型",
       "allScopes": "全部作用域",
-      "allTenants": "全部租户",
+      "allTenants": "全部企业",
       "inputName": "请输入技能名称",
       "inputDescription": "请输入描述",
       "selectType": "请选择技能类型",
       "selectScope": "请选择作用域",
-      "selectTenant": "请选择租户",
+      "selectTenant": "请选择企业",
       "inputTimeout": "超时秒数",
       "inputConfig": "JSON 格式的技能配置",
       "inputSchema": "JSON 格式的输入参数定义"
@@ -948,7 +944,7 @@
     "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
     "help": {
       "type": "Toolkit: Python 工具；知识库: RAG 问答；数据智能: 数据库查询；HTTP: 外部 API；邮件: 发送邮件；代码执行: 沙箱运行代码",
-      "scope": "平台技能全局可用，租户技能仅限所属租户",
+      "scope": "平台技能全局可用，企业技能仅限所属企业",
       "config": "技能运行时的配置信息",
       "inputSchema": "定义技能接收的参数结构",
       "timeout": "技能执行的最大等待时间"
@@ -974,7 +970,7 @@
   "tablePolicy": {
     "title": "AI 表策略管理",
     "create": "新建表策略",
-    "pageDesc": "管理 AI 数据查询可访问的表及其 CRUD 权限、行数限制、列屏蔽等策略配置。策略由系统自动发现并创建，管理员可编辑调整。管理端拥有所有表的完整操作权限，租户端仅可访问租户作用域的表。",
+    "pageDesc": "管理 AI 数据查询可访问的表及其 CRUD 权限、行数限制、列屏蔽等策略配置。策略由系统自动发现并创建，管理员可编辑调整。管理端拥有所有表的完整操作权限，企业端仅可访问企业作用域的表。",
     "tableName": "表名",
     "label": "显示名称",
     "description": "描述",
@@ -1023,7 +1019,7 @@
     },
     "saveSuccess": "绑定已更新",
     "noAgent": "未分配",
-    "toggleActiveConfirm": "确认{action}此功能绑定？此操作将影响所有租户。",
+    "toggleActiveConfirm": "确认{action}此功能绑定？此操作将影响所有企业。",
     "columns": {
       "featureName": "功能名称",
       "featureCode": "功能代码",

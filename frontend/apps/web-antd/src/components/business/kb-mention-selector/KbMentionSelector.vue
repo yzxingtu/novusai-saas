@@ -6,7 +6,7 @@
  * Displays selected KB tags in chat input area, click @ button to show selectable KB list.
  * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
  * Shares between admin and tenant endpoints by passing different API functions via props.fetchApi.
- * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
+ * 通过 props.fetchApi 传入不同的 API 函数，管理端和企业端共用。
  *
  * Note: Primary KB binding has migrated to Agent-level junction table (AgentKnowledgeBaseBinding),
  * this component serves as an auxiliary feature, allowing users to temporarily attach extra KBs.

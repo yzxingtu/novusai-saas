@@ -1356,7 +1356,7 @@ class BaseRepository(Generic[ModelType]):
 
 class TenantRepository(BaseRepository[ModelType]):
     """
-    租户级仓储基类 / Tenant Repository Base Class
+    企业级仓储基类 / Tenant Repository Base Class
 
     自动在查询中添加 tenant_id 过滤
     Automatically adds tenant_id filtering to queries.
@@ -1364,11 +1364,11 @@ class TenantRepository(BaseRepository[ModelType]):
 
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
-        初始化租户仓储 / Initialize tenant repository
+        初始化企业仓储 / Initialize tenant repository
 
         Args:
             db: 异步数据库会话 / Async database session
-            tenant_id: 租户 ID / Tenant ID (None for global/admin resources)
+            tenant_id: 企业 ID / Tenant ID (None for global/admin resources)
         """
         super().__init__(db)
         self.tenant_id = tenant_id
@@ -1381,7 +1381,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> list[ModelType]:
-        """获取租户级记录列表 / Get tenant-scoped record list"""
+        """获取企业级记录列表 / Get tenant-scoped record list"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_list(
             skip=skip,
@@ -1396,12 +1396,12 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> int:
-        """统计租户级记录数量 / Count tenant-scoped records"""
+        """统计企业级记录数量 / Count tenant-scoped records"""
         filters["tenant_id"] = self.tenant_id
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建租户级记录 / Create tenant-scoped record"""
+        """创建企业级记录 / Create tenant-scoped record"""
         data["tenant_id"] = self.tenant_id
         return await super().create(data)
 
@@ -1410,9 +1410,9 @@ class TenantRepository(BaseRepository[ModelType]):
         id: int,
         include_deleted: bool = False,
     ) -> ModelType | None:
-        """根据 ID 获取租户级记录 / Get tenant-scoped record by ID"""
+        """根据 ID 获取企业级记录 / Get tenant-scoped record by ID"""
         instance = await super().get_by_id(id, include_deleted)
-        # 验证租户归属 / Verify tenant ownership
+        # 验证企业归属 / Verify tenant ownership
         if instance and hasattr(instance, "tenant_id") and instance.tenant_id != self.tenant_id:
             return None
         return instance
@@ -1422,7 +1422,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         include_deleted: bool = False,
     ) -> list[ModelType]:
-        """根据 ID 列表获取租户级记录，自动过滤非本租户数据 / Get tenant records by IDs, auto-filter non-tenant data"""
+        """根据 ID 列表获取企业级记录，自动过滤非本企业数据 / Get tenant records by IDs, auto-filter non-tenant data"""
         instances = await super().get_by_ids(ids, include_deleted)
         return [
             inst for inst in instances
@@ -1434,7 +1434,7 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
         **filters: Any,
     ) -> ModelType | None:
-        """根据条件获取租户级单条记录，自动注入 tenant_id / Get single tenant record by conditions, auto-inject tenant_id"""
+        """根据条件获取企业级单条记录，自动注入 tenant_id / Get single tenant record by conditions, auto-inject tenant_id"""
         filters["tenant_id"] = self.tenant_id
         return await super().get_one_by(include_deleted=include_deleted, **filters)
 
@@ -1446,12 +1446,12 @@ class TenantRepository(BaseRepository[ModelType]):
         include_deleted: bool = False,
     ) -> tuple[list[ModelType], int]:
         """
-        租户级通用列表查询 / Tenant-scoped generic list query
+        企业级通用列表查询 / Tenant-scoped generic list query
 
         自动注入 tenant_id 过滤条件
         Automatically injects tenant_id filter condition.
         """
-        # 强制添加租户过滤 / Force add tenant filter
+        # 强制添加企业过滤 / Force add tenant filter
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
 
@@ -1473,7 +1473,7 @@ class TenantRepository(BaseRepository[ModelType]):
         page_size: int = 20,
     ) -> tuple[list[SelectOption], int]:
         """
-        租户级下拉选项列表
+        企业级下拉选项列表
 
         自动注入 tenant_id 过滤，支持列表和树型两种模式
 
@@ -1489,7 +1489,7 @@ class TenantRepository(BaseRepository[ModelType]):
         Returns:
             (SelectOption 列表, 总数)
         """
-        # 自动添加租户过滤
+        # 自动添加企业过滤
         all_filters = filters.copy() if filters else {}
         all_filters["tenant_id"] = self.tenant_id
 
@@ -1510,7 +1510,7 @@ class TenantRepository(BaseRepository[ModelType]):
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
-        """租户级回收站查询，自动注入 tenant_id / Tenant recycle bin query, auto-inject tenant_id"""
+        """企业级回收站查询，自动注入 tenant_id / Tenant recycle bin query, auto-inject tenant_id"""
         tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
         all_forced = [tenant_filter] + (forced_filters or [])
         return await super().query_deleted(
@@ -1524,7 +1524,7 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         delete_level: str | None = None,
     ) -> int:
-        """租户级回收站计数，自动注入 tenant_id / Tenant recycle bin count, auto-inject tenant_id"""
+        """企业级回收站计数，自动注入 tenant_id / Tenant recycle bin count, auto-inject tenant_id"""
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True),
             self.model.tenant_id == self.tenant_id,
@@ -1540,7 +1540,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         data: dict[str, Any],
     ) -> int:
-        """租户级批量更新，自动注入 tenant_id 防止跨租户操作 / Tenant batch update, auto-inject tenant_id to prevent cross-tenant operations"""
+        """企业级批量更新，自动注入 tenant_id 防止跨企业操作 / Tenant batch update, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1561,7 +1561,7 @@ class TenantRepository(BaseRepository[ModelType]):
         ids: list[int],
         soft: bool = True,
     ) -> int:
-        """租户级批量删除，自动注入 tenant_id 防止跨租户操作 / Tenant batch delete, auto-inject tenant_id to prevent cross-tenant operations"""
+        """企业级批量删除，自动注入 tenant_id 防止跨企业操作 / Tenant batch delete, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1585,7 +1585,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_restore(self, ids: list[int]) -> int:
-        """租户级批量恢复，自动注入 tenant_id 防止跨租户操作 / Tenant batch restore, auto-inject tenant_id to prevent cross-tenant operations"""
+        """企业级批量恢复，自动注入 tenant_id 防止跨企业操作 / Tenant batch restore, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 
@@ -1607,7 +1607,7 @@ class TenantRepository(BaseRepository[ModelType]):
         return result.rowcount
 
     async def batch_permanent_delete(self, ids: list[int]) -> int:
-        """租户级批量物理删除，自动注入 tenant_id 防止跨租户操作 / Tenant batch permanent delete, auto-inject tenant_id to prevent cross-tenant operations"""
+        """企业级批量物理删除，自动注入 tenant_id 防止跨企业操作 / Tenant batch permanent delete, auto-inject tenant_id to prevent cross-tenant operations"""
         if not ids:
             return 0
 

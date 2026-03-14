@@ -23,14 +23,14 @@ export const ADMIN_TOKEN_KEY = 'admin_token';
 /** Admin refresh token key / 平台管理端 Refresh Token Key */
 export const ADMIN_REFRESH_TOKEN_KEY = 'admin_refresh_token';
 
-/** Tenant admin token key / 租户管理端 Token Key */
+/** Tenant admin token key / 企业管理端 Token Key */
 export const TENANT_ADMIN_TOKEN_KEY = 'tenant_admin_token';
-/** Tenant admin refresh token key / 租户管理端 Refresh Token Key */
+/** Tenant admin refresh token key / 企业管理端 Refresh Token Key */
 export const TENANT_ADMIN_REFRESH_TOKEN_KEY = 'tenant_admin_refresh_token';
 
-/** Tenant user token key / 租户用户端 Token Key */
+/** Tenant user token key / 企业用户端 Token Key */
 export const TENANT_USER_TOKEN_KEY = 'tenant_user_token';
-/** Tenant user refresh token key / 租户用户端 Refresh Token Key */
+/** Tenant user refresh token key / 企业用户端 Refresh Token Key */
 export const TENANT_USER_REFRESH_TOKEN_KEY = 'tenant_user_refresh_token';
 
 // ============================================================

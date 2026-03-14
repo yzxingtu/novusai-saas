@@ -75,6 +75,7 @@ export interface AIProviderUpdateRequest {
 export interface AIApiKeyInfo {
   id: number;
   provider_id: number;
+  scope: string;
   tenant_id: null | number;
   name: string;
   is_active: boolean;
@@ -84,6 +85,7 @@ export interface AIApiKeyInfo {
   expires_at: null | string;
   provider_name: null | string;
   provider_icon?: null | string;
+  provider_model_count: number;
   tenant_name: null | string;
   is_available: boolean;
   key_preview: null | string;
@@ -94,6 +96,7 @@ export interface AIApiKeyInfo {
 /** Create API Key request / 创建 API Key 请求 */
 export interface AIApiKeyCreateRequest {
   provider_id: number;
+  scope?: string;
   tenant_id?: null | number;
   name: string;
   api_key: string;
@@ -171,6 +174,13 @@ interface PageResponse<T> {
 // ============================================================
 
 const PROVIDER_PREFIX = '/admin/ai/providers';
+
+/** Get provider select options / 获取供应商下拉选项 */
+export async function getAIProviderSelectApi(
+  params?: Record<string, unknown>,
+) {
+  return requestClient.get(`${PROVIDER_PREFIX}/select`, { params });
+}
 
 /** Get provider list / 获取供应商列表 */
 export async function getAIProviderListApi(

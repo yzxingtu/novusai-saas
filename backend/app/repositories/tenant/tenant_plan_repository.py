@@ -1,7 +1,7 @@
 """
-租户套餐仓储 / Tenant Plan Repository
+企业套餐仓储 / Tenant Plan Repository
 
-提供套餐的数据访问操作（平台级，非租户隔离）
+提供套餐的数据访问操作（平台级，非企业隔离）
 Provides plan data access operations (platform-level, no tenant isolation).
 """
 
@@ -15,10 +15,10 @@ from app.models.tenant.tenant_plan import TenantPlan
 
 class TenantPlanRepository(BaseRepository[TenantPlan]):
     """
-    租户套餐仓储
+    企业套餐仓储
 
     提供套餐特有的数据访问方法
-    注意：套餐是平台级数据，不做租户隔离
+    注意：套餐是平台级数据，不做企业隔离
     """
 
     model = TenantPlan
@@ -101,13 +101,13 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_with_tenants(self, plan_id: int) -> TenantPlan | None:
         """
-        获取套餐及其关联租户
+        获取套餐及其关联企业
 
         Args:
             plan_id: 套餐 ID
 
         Returns:
-            套餐实例（含租户）或 None
+            套餐实例（含企业）或 None
         """
         query = (
             select(self.model)
@@ -139,7 +139,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_tenant_counts_batch(self, plan_ids: list[int]) -> dict[int, int]:
         """
-        批量获取套餐的租户数量
+        批量获取套餐的企业数量
 
         Args:
             plan_ids: 套餐 ID 列表

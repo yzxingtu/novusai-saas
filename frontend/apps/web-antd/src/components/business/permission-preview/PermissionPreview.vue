@@ -54,7 +54,7 @@ async function loadPermissions() {
     let permIds: number[] = [];
 
     if (props.apiPrefix === 'tenant') {
-      // Tenant API / 租户端 API
+      // Tenant API / 企业端 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
       // Prefer permissionIds, otherwise extract from permissions / 优先使用 permissionIds
       permIds =

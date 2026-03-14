@@ -15,7 +15,7 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
     """
     AI 表策略 Repository
 
-    继承 BaseRepository（平台级资源，无租户隔离）
+    继承 BaseRepository（平台级资源，无企业隔离）
     """
 
     model = AITablePolicy

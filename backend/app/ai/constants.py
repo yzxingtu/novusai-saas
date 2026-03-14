@@ -13,7 +13,7 @@ Centralized Redis key prefixes, TTLs, default limits, and other constants.
 
 # Key pattern: ai:action_rate:{tenant_id}:{action_name}
 # Limits per-tenant call frequency for a specific Action
-# 用于限制单个租户对某个 Action 的调用频率
+# 用于限制单个企业对某个 Action 的调用频率
 ACTION_RATE_KEY_PREFIX = "ai:action_rate:"
 ACTION_RATE_LIMIT_TTL = 60          # Action rate limit window / Action 频率限制窗口
 
@@ -45,7 +45,7 @@ def action_confirm_key(confirm_id: str) -> str:
 
 # Key pattern: ai:schema:{tenant_id}
 # Caches tenant DB schema info for Text-to-SQL
-# 缓存租户的数据库 Schema 信息，供 Text-to-SQL 使用
+# 缓存企业的数据库 Schema 信息，供 Text-to-SQL 使用
 SCHEMA_CACHE_KEY_PREFIX = "ai:schema:"
 SCHEMA_CACHE_TTL = 3600             # Schema cache 1 hour / Schema 缓存 1 小时缓存
 

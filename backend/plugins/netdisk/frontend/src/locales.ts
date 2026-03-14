@@ -83,7 +83,7 @@ export const zhCN: Record<string, string> = {
   "error.unknown_batch_action":   "未知批量操作",
 
   "admin.title":       "网盘管理",
-  "admin.quotas":      "租户配额",
+  "admin.quotas":      "企业配额",
   "admin.shares":      "分享审计",
   "admin.stats":       "统计概览",
   "admin.totalFiles":  "总文件数",
@@ -125,7 +125,7 @@ export const zhCN: Record<string, string> = {
   "error.network_error": "网络错误",
   "error.quota_insufficient": "存储空间不足",
 
-  "admin.tenantCol":   "租户",
+  "admin.tenantCol":   "企业",
   "admin.permCol":     "权限",
   "admin.accessCol":   "访问次数",
   "admin.statusCol":   "状态",

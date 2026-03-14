@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-租户域名管理 API 测试模块
+企业域名管理 API 测试模块
 
 测试 /admin/tenants/{tenant_id}/domains/* 接口
 """
@@ -24,25 +24,25 @@ from tests.api.base import (
 
 
 class ManualTestAdminTenantDomains(BaseAPITest):
-    """租户域名管理测试"""
+    """企业域名管理测试"""
 
-    module_name = "租户域名管理 (/admin/tenants/{tenant_id}/domains)"
+    module_name = "企业域名管理 (/admin/tenants/{tenant_id}/domains)"
 
     def setup(self) -> None:
-        """测试前登录并创建测试租户"""
+        """测试前登录并创建测试企业"""
         self._do_login()
         # 生成唯一的测试数据
         timestamp = int(time.time())
-        self._test_data["tenant_name"] = f"测试租户_{timestamp}"
+        self._test_data["tenant_name"] = f"测试企业_{timestamp}"
         self._test_data["custom_domain"] = f"test{timestamp}.example.com"
         self._test_data["custom_domain_2"] = f"test{timestamp}b.example.com"
 
-        # 创建测试租户
+        # 创建测试企业
         self._create_test_tenant()
 
     def teardown(self) -> None:
         """测试后清理"""
-        # 尝试删除测试创建的租户
+        # 尝试删除测试创建的企业
         tenant_id = self._test_data.get("created_tenant_id")
         if tenant_id:
             with contextlib.suppress(Exception):
@@ -52,15 +52,15 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         """运行所有测试"""
         # ========== 列表和查询测试 ==========
 
-        # 1. 获取租户域名列表（应包含默认域名）
-        self.run_test("获取租户域名列表", self.test_list_domains)
+        # 1. 获取企业域名列表（应包含默认域名）
+        self.run_test("获取企业域名列表", self.test_list_domains)
 
         # 2. 获取域名列表 - 分页
         self.run_test("获取域名列表 - 分页", self.test_list_domains_pagination)
 
         # ========== 创建测试 ==========
 
-        # 3. 为租户添加自定义域名
+        # 3. 为企业添加自定义域名
         self.run_test("添加自定义域名", self.test_create_custom_domain)
 
         # 4. 添加重复域名
@@ -109,18 +109,18 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         # 15. 删除域名 - 不存在
         self.run_test("删除域名 - 不存在", self.test_delete_domain_not_found)
 
-        # ========== 租户验证测试 ==========
+        # ========== 企业验证测试 ==========
 
-        # 16. 操作不存在的租户
-        self.run_test("操作不存在的租户域名 - 应失败", self.test_tenant_not_found)
+        # 16. 操作不存在的企业
+        self.run_test("操作不存在的企业域名 - 应失败", self.test_tenant_not_found)
 
     # ========== 列表和查询测试 ==========
 
     def test_list_domains(self) -> None:
-        """测试获取租户域名列表"""
+        """测试获取企业域名列表"""
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.get(f"/admin/tenants/{tenant_id}/domains")
-        data = assert_success(resp, "获取租户域名列表失败")
+        data = assert_success(resp, "获取企业域名列表失败")
 
         assert_has_keys(data["data"], ["items", "total", "page", "page_size", "pages"])
         assert_true(isinstance(data["data"]["items"], list), "items 应为列表")
@@ -142,7 +142,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
             f"/admin/tenants/{tenant_id}/domains",
             params={"page[number]": 1, "page[size]": 5}
         )
-        data = assert_success(resp, "获取租户域名列表失败")
+        data = assert_success(resp, "获取企业域名列表失败")
 
         assert_equals(data["data"]["page"], 1)
         assert_equals(data["data"]["page_size"], 5)
@@ -350,10 +350,10 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         resp = self.client.delete(f"/admin/tenants/{tenant_id}/domains/999999")
         assert_error(resp, 404, "应返回 404 错误")
 
-    # ========== 租户验证测试 ==========
+    # ========== 企业验证测试 ==========
 
     def test_tenant_not_found(self) -> None:
-        """测试操作不存在的租户域名"""
+        """测试操作不存在的企业域名"""
         resp = self.client.get("/admin/tenants/999999/domains")
         assert_error(resp, 404, "应返回 404 错误")
 
@@ -369,7 +369,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         self.client.set_token(data["data"]["access_token"])
 
     def _create_test_tenant(self) -> None:
-        """创建测试租户"""
+        """创建测试企业"""
         resp = self.client.post("/admin/tenants", data={
             "name": self._test_data["tenant_name"],
             "contact_name": "测试联系人",
@@ -380,7 +380,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         })
         data = resp.json()
         if data.get("code") != 0:
-            raise AssertionError(f"创建测试租户失败: {data.get('message')}")
+            raise AssertionError(f"创建测试企业失败: {data.get('message')}")
 
         self._test_data["created_tenant_id"] = data["data"]["id"]
         self._test_data["created_tenant_code"] = data["data"]["code"]

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端知识库新建/编辑表单抽屉
+ * 企业端知识库新建/编辑表单抽屉
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 

@@ -1,7 +1,7 @@
 """
-租户管理后台 API 路由模块
+企业管理后台 API 路由模块
 
-聚合所有租户管理后台的 API 路由
+聚合所有企业管理后台的 API 路由
 
 控制器类使用 @permission_resource 装饰器定义资源权限，
 导入控制器类时会自动注册权限到 PermissionRegistry。
@@ -45,6 +45,7 @@ from app.api.tenant.knowledge_bases import router as knowledge_bases_router
 from app.api.tenant.notification_preferences import (
     router as notification_preferences_router,
 )
+from app.api.tenant.preferences import router as preferences_router
 from app.api.tenant.notifications import router as notifications_router
 from app.api.tenant.operation_logs import TenantOperationLogController
 from app.api.tenant.operation_logs import router as operation_logs_router
@@ -69,7 +70,7 @@ from app.api.tenant.users import TenantUserController
 from app.api.tenant.users import router as users_router
 from app.api.tenant.ws import router as ws_router
 
-# 创建租户管理后台路由器
+# 创建企业管理后台路由器
 tenant_router = APIRouter()
 
 # 注册子路由
@@ -114,7 +115,9 @@ tenant_router.include_router(ws_router)
 tenant_router.include_router(notifications_router)
 # 通知偏好
 tenant_router.include_router(notification_preferences_router)
-# 插件（租户端只读列表，按 scope + 分配过滤）
+# 偏好设置 / User preferences
+tenant_router.include_router(preferences_router)
+# 插件（企业端只读列表，按 scope + 分配过滤）
 tenant_router.include_router(plugins_router)
 # 数据分析
 tenant_router.include_router(analytics_router)

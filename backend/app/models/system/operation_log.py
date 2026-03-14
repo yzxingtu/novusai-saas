@@ -18,14 +18,14 @@ class OperationLog(BaseModel):
 
     记录所有 API 调用的审计日志，支持：
     - 平台端操作（tenant_id 为空）
-    - 租户端操作（tenant_id 不为空）
+    - 企业端操作（tenant_id 不为空）
     """
 
     __tablename__ = "operation_logs"
 
     # 表级索引
     __table_args__ = (
-        # 复合索引：租户 + 时间，用于租户日志查询
+        # 复合索引：企业 + 时间，用于企业日志查询
         Index("ix_operation_logs_tenant_created", "tenant_id", "created_at"),
         # 复合索引：用户类型 + 用户ID，用于用户操作追溯
         Index("ix_operation_logs_user", "user_type", "user_id"),
@@ -54,13 +54,13 @@ class OperationLog(BaseModel):
 
     # ==================== 用户信息 ====================
 
-    # 租户ID（平台操作时为空）
+    # 企业ID（平台操作时为空）
     tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="租户ID（平台操作为空）"
+        comment="企业ID（平台操作为空）"
     )
 
     # 用户类型: admin / tenant_admin / tenant_user

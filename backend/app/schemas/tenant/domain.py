@@ -1,5 +1,5 @@
 """
-租户域名 Schema / Tenant Domain Schema
+企业域名 Schema / Tenant Domain Schema
 
 定义域名管理相关的请求和响应数据结构
 Defines domain management request and response data structures.
@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 
 class TenantDomainSimpleResponse(BaseSchema):
-    """域名简略响应（用于租户响应嵌套）"""
+    """域名简略响应（用于企业响应嵌套）"""
 
     id: int = Field(..., description="域名 ID")
     domain: str = Field(..., description="域名")
@@ -33,10 +33,10 @@ class TenantDomainVerificationInfo(BaseSchema):
 
 
 class TenantDomainResponse(BaseSchema):
-    """租户域名响应"""
+    """企业域名响应"""
 
     id: int = Field(..., description="域名 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int = Field(..., description="企业 ID")
     domain: str = Field(..., description="域名")
     domain_type: str = Field("custom", description="域名类型: default/custom")
     is_verified: bool = Field(..., description="是否已验证")
@@ -77,7 +77,7 @@ class DevHostDomainStatus(BaseSchema):
 
 
 class DevHostsStatusResponse(BaseSchema):
-    """租户全部域名的 Dev Hosts 状态总览 / Dev Hosts overview for all tenant domains"""
+    """企业全部域名的 Dev Hosts 状态总览 / Dev Hosts overview for all tenant domains"""
 
     runtime: DevHostsRuntimeInfo = Field(..., description="运行时信息")
     domains: list[DevHostDomainStatus] = Field(default_factory=list, description="域名状态列表")
@@ -147,11 +147,11 @@ class TenantDomainVerifyRequest(BaseSchema):
 
 
 class TenantSettingsResponse(BaseSchema):
-    """租户设置响应"""
+    """企业设置响应"""
 
-    tenant_id: int = Field(..., description="租户 ID")
-    tenant_code: str = Field(..., description="租户代码")
-    tenant_name: str = Field(..., description="租户名称")
+    tenant_id: int = Field(..., description="企业 ID")
+    tenant_code: str = Field(..., description="企业代码")
+    tenant_name: str = Field(..., description="企业名称")
 
     # 品牌设置
     logo_url: str | None = Field(None, description="Logo URL")
@@ -166,14 +166,14 @@ class TenantSettingsResponse(BaseSchema):
     )
 
     # 域名信息
-    subdomain: str = Field(..., description="租户子域名")
+    subdomain: str = Field(..., description="企业子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")
     max_custom_domains: int = Field(0, description="最大自定义域名数量")
     custom_domain_count: int = Field(0, description="已绑定自定义域名数量")
 
 
 class TenantSettingsUpdateRequest(BaseSchema):
-    """更新租户设置请求"""
+    """更新企业设置请求"""
 
     # 品牌设置
     logo_url: str | None = Field(None, description="Logo URL")

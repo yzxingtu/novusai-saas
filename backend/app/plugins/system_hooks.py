@@ -30,22 +30,22 @@ class SystemHookPoint:
     """Standard system hook point constants (used in plugin manifest hooks.point)
     / 标准系统钩子点常量"""
 
-    # ── Tenant lifecycle / 租户生命周期 ──
+    # ── Tenant lifecycle / 企业生命周期 ──
     TENANT_CREATED = "system.tenant.created"
     """Fired after tenant creation. context: {tenant_id, tenant_name, admin_id}
-    / 租户创建后触发"""
+    / 企业创建后触发"""
     TENANT_UPDATED = "system.tenant.updated"
     """Fired after tenant info update. context: {tenant_id, changed_fields}
-    / 租户信息更新后触发"""
+    / 企业信息更新后触发"""
     TENANT_DELETED = "system.tenant.deleted"
     """Fired after tenant soft-delete. context: {tenant_id, tenant_name}
-    / 租户软删除后触发"""
+    / 企业软删除后触发"""
     TENANT_ENABLED = "system.tenant.enabled"
     """Fired after tenant enabled. context: {tenant_id}
-    / 租户启用后触发"""
+    / 企业启用后触发"""
     TENANT_DISABLED = "system.tenant.disabled"
     """Fired after tenant disabled. context: {tenant_id, reason}
-    / 租户禁用后触发"""
+    / 企业禁用后触发"""
 
     # ── User lifecycle / 用户生命周期 ──
     USER_CREATED = "system.user.created"

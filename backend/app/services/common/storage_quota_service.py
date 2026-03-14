@@ -1,7 +1,7 @@
 """
 存储配额服务 / Storage Quota Service
 
-提供租户存储配额的统一计算逻辑，供平台端和租户端共用
+提供企业存储配额的统一计算逻辑，供平台端和企业端共用
 Provides unified tenant storage quota calculation logic, shared by platform and tenant endpoints.
 """
 
@@ -33,10 +33,10 @@ class StorageQuotaService:
 
     async def get_tenant_storage_stats(self, tenant_id: int) -> dict[str, Any]:
         """
-        获取单个租户的存储统计信息
+        获取单个企业的存储统计信息
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             存储统计信息
@@ -55,7 +55,7 @@ class StorageQuotaService:
         used_bytes = int(row.used_bytes)
         file_count = int(row.file_count)
 
-        # 获取租户配额限制
+        # 获取企业配额限制
         tenant = await self._get_tenant_with_plan(tenant_id)
         limit_gb = 0
         max_file_size_mb = 0
@@ -74,13 +74,13 @@ class StorageQuotaService:
         self, tenant_ids: list[int]
     ) -> dict[int, dict[str, Any]]:
         """
-        批量获取租户存储统计信息
+        批量获取企业存储统计信息
 
         Args:
-            tenant_ids: 租户 ID 列表
+            tenant_ids: 企业 ID 列表
 
         Returns:
-            租户 ID 到存储统计的映射
+            企业 ID 到存储统计的映射
         """
         if not tenant_ids:
             return {}
@@ -106,7 +106,7 @@ class StorageQuotaService:
                 "file_count": int(row.file_count),
             }
 
-        # 批量获取租户配额信息
+        # 批量获取企业配额信息
         tenants = await self._get_tenants_with_plan(tenant_ids)
 
         result_map: dict[int, dict[str, Any]] = {}
@@ -122,7 +122,7 @@ class StorageQuotaService:
                 max_file_size_mb=max_file_size_mb,
             )
 
-        # 确保所有请求的租户都有统计数据（默认值）
+        # 确保所有请求的企业都有统计数据（默认值）
         for tid in tenant_ids:
             if tid not in result_map:
                 result_map[tid] = self._build_stats_response(
@@ -136,10 +136,10 @@ class StorageQuotaService:
 
     async def get_used_bytes(self, tenant_id: int) -> int:
         """
-        获取租户已使用的存储空间
+        获取企业已使用的存储空间
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             已使用字节数
@@ -154,10 +154,10 @@ class StorageQuotaService:
 
     async def get_file_count(self, tenant_id: int) -> int:
         """
-        获取租户附件总数
+        获取企业附件总数
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
             附件数量
@@ -172,13 +172,13 @@ class StorageQuotaService:
 
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取租户信息（含套餐关联）
+        获取企业信息（含套餐关联）
 
         Args:
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
 
         Returns:
-            租户实例或 None
+            企业实例或 None
         """
         result = await self.db.execute(
             select(Tenant)
@@ -192,13 +192,13 @@ class StorageQuotaService:
 
     async def _get_tenants_with_plan(self, tenant_ids: list[int]) -> list[Tenant]:
         """
-        批量获取租户信息（含套餐关联）
+        批量获取企业信息（含套餐关联）
 
         Args:
-            tenant_ids: 租户 ID 列表
+            tenant_ids: 企业 ID 列表
 
         Returns:
-            租户列表
+            企业列表
         """
         result = await self.db.execute(
             select(Tenant)

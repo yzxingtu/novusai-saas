@@ -102,7 +102,7 @@
       "slug": "data-analytics",
       "name": "data-analytics",
       "display_name": "数据分析仪表板",
-      "description": "为租户提供可视化数据分析面板，支持自定义图表、数据导出、定时报告。基于 ECharts。",
+      "description": "为企业提供可视化数据分析面板，支持自定义图表、数据导出、定时报告。基于 ECharts。",
       "version": "0.9.0",
       "author": "DevGenius",
       "tier": "verified",

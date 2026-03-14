@@ -1482,7 +1482,7 @@ class PluginLifecycle:
         mode_config_id = config_id_map.get("tenant_storage_mode")
 
         if driver_config_id:
-            # Get all tenants' driver configs / 获取所有租户的驱动配置
+            # Get all tenants' driver configs / 获取所有企业的驱动配置
             driver_values_result = await self._db.execute(
                 select(SystemConfigValue.tenant_id, SystemConfigValue.value).where(
                     and_(
@@ -1491,7 +1491,7 @@ class PluginLifecycle:
                     )
                 )
             )
-            # Get all tenants' storage mode configs (one-shot batch) / 获取所有租户的存储模式配置（一次性批量）
+            # Get all tenants' storage mode configs (one-shot batch) / 获取所有企业的存储模式配置（一次性批量）
             mode_by_tenant: dict[int, str] = {}
             if mode_config_id:
                 mode_values_result = await self._db.execute(

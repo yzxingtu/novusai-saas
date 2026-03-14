@@ -4,7 +4,7 @@
 聚合展示所有模块的已删除记录，支持按模块筛选、恢复、升级、永久删除。
 Aggregate display of all modules' deleted records, supports filtering by module, restore, upgrade, permanent delete.
 支持：/ Supports：
-- 区分管理端/租户级记录（is_tenant + tenant_name） / Distinguish admin/tenant-level records
+- 区分管理端/企业级记录（is_tenant + tenant_name） / Distinguish admin/tenant-level records
 - 继承原模块 __filterable__/__sortable__ 搜索能力 / Inherit original module __filterable__/__sortable__ search capabilities
 """
 
@@ -166,11 +166,11 @@ def _get_model(module_code: str):
 def _get_service(module_code: str, db: Any):
     """获取模块对应的 Service 实例 / Get the Service instance for the module
 
-    TenantService 子类需要 tenant_id，但管理端总回收站跨租户查询，
+    TenantService 子类需要 tenant_id，但管理端总回收站跨企业查询，
     TenantService subclasses require tenant_id, but admin recycle bin queries across tenants,
     因此对 TenantService 子类动态构建基于 BaseRepository 的
     so for TenantService subclasses, dynamically build a BaseRepository-based
-    GlobalService（无租户隔离），并继承原模型的 __filterable__ /
+    GlobalService（无企业隔离），并继承原模型的 __filterable__ /
     GlobalService (no tenant isolation), inheriting original model's __filterable__ /
     __sortable__ 搜索能力，同时额外开放 tenant_id 过滤。
     __sortable__ search capabilities, with additional tenant_id filter.
@@ -270,7 +270,7 @@ async def recycle_bin_modules(
     for code, config in RECYCLABLE_MODULES.items():
         model_cls = _get_model(code)
         filterable = getattr(model_cls, "__filterable__", {})
-        # 对租户模型额外开放 tenant_id / Additionally expose tenant_id for tenant models
+        # 对企业模型额外开放 tenant_id / Additionally expose tenant_id for tenant models
         if config.get("is_tenant") and "tenant_id" not in filterable:
             filterable = {**filterable, "tenant_id": "tenant_id"}
         result[code] = {
@@ -338,7 +338,7 @@ async def recycle_bin_list(
 
     搜索/排序继承原模块的 __filterable__ / __sortable__ 定义。
     Search/sort inherits the original module's __filterable__ / __sortable__ definitions.
-    租户级记录自动附带 tenant_id / tenant_name。
+    企业级记录自动附带 tenant_id / tenant_name。
     Tenant-level records automatically include tenant_id / tenant_name.
     支持 delete_level 筛选。 / Supports delete_level filtering.
     """
@@ -357,7 +357,7 @@ async def recycle_bin_list(
 
     result = [_model_to_dict(item, columns) for item in items]
 
-    # 批量解析租户名称 / Batch resolve tenant names
+    # 批量解析企业名称 / Batch resolve tenant names
     if is_tenant:
         tenant_ids = {r["tenant_id"] for r in result if r.get("tenant_id")}
         name_map = await _batch_resolve_tenant_names(db, tenant_ids)

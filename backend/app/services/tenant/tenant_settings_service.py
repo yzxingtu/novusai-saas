@@ -1,7 +1,7 @@
 """
-租户设置服务 / Tenant Settings Service
+企业设置服务 / Tenant Settings Service
 
-提供租户设置和自定义域名管理的业务逻辑
+提供企业设置和自定义域名管理的业务逻辑
 Provides tenant settings and custom domain management business logic.
 """
 
@@ -24,10 +24,10 @@ from app.repositories.system.tenant_repository import TenantRepository
 
 class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     """
-    租户设置服务
+    企业设置服务
 
     提供：
-    - 租户设置读取和更新
+    - 企业设置读取和更新
     - 自定义域名 CRUD
     - 域名验证
 
@@ -43,7 +43,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         # 注意：这里不调用 super().__init__，因为 TenantRepository 不是 TenantRepository
         # 而是继承自 BaseRepository，不需要 tenant_id
@@ -51,17 +51,17 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         self.tenant_id = tenant_id
         self.repo = TenantRepository(db)
 
-    # ==================== 租户设置 ====================
+    # ==================== 企业设置 ====================
 
     async def get_tenant(self) -> Tenant:
         """
-        获取当前租户
+        获取当前企业
 
         Returns:
-            租户实例
+            企业实例
 
         Raises:
-            NotFoundException: 租户不存在
+            NotFoundException: 企业不存在
         """
         result = await self.db.execute(
             select(Tenant).where(Tenant.id == self.tenant_id)
@@ -75,10 +75,10 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def get_settings(self) -> dict[str, Any]:
         """
-        获取租户设置
+        获取企业设置
 
         Returns:
-            包含租户设置信息的字典
+            包含企业设置信息的字典
         """
         tenant = await self.get_tenant()
 
@@ -106,7 +106,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def update_settings(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        更新租户设置
+        更新企业设置
 
         Args:
             data: 更新数据（logo_url, favicon_url, theme_color, captcha_enabled, login_methods）

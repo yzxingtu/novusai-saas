@@ -134,7 +134,7 @@ class AdminAITablePolicyController(GlobalController):
             await db.commit()
             await db.refresh(policy)
 
-            # 清除 Redis schema 缓存（所有租户） / Clear Redis schema cache (all tenants)
+            # 清除 Redis schema 缓存（所有企业） / Clear Redis schema cache (all tenants)
             from app.ai.data_intelligence.schema_provider import SchemaProvider
             await SchemaProvider.invalidate_cache(0)
 

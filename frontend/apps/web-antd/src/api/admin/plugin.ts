@@ -80,7 +80,7 @@ export interface PluginVersionInfo {
   rolled_back_at: null | string;
 }
 
-/** Tenant assignment / 租户分配 */
+/** Tenant assignment / 企业分配 */
 export interface PluginTenantAssignmentInfo {
   id: number;
   plugin_id: number;
@@ -305,16 +305,16 @@ export function rollbackPluginApi(id: number, targetVersion: string) {
   });
 }
 
-// ── Tenant assignment / 租户分配 ──
+// ── Tenant assignment / 企业分配 ──
 
-/** Get plugin tenants / 获取插件租户分配 */
+/** Get plugin tenants / 获取插件企业分配 */
 export function getPluginTenantsApi(id: number) {
   return requestClient.get<PluginTenantAssignmentInfo[]>(
     `${BASE_URL}/${id}/tenants`,
   );
 }
 
-/** Assign plugin to tenants / 分配插件到租户 */
+/** Assign plugin to tenants / 分配插件到企业 */
 export function assignPluginTenantsApi(id: number, tenantIds: number[]) {
   return requestClient.post(`${BASE_URL}/${id}/tenants`, {
     tenant_ids: tenantIds,

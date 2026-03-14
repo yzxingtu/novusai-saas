@@ -20,7 +20,7 @@ const multiAuthStore = useMultiAuthStore();
 // Captcha component ref / 验证码组件引用
 const captchaRef = ref<CaptchaAdapterExpose>();
 
-// Load tenant public config on first visit / 首次访问加载租户公开配置
+// Load tenant public config on first visit / 首次访问加载企业公开配置
 onMounted(() => {
   publicConfigStore.loadTenantConfig();
 });

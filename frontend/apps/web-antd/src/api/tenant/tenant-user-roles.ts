@@ -1,5 +1,5 @@
 /**
- * Tenant user role management API / 租户用户角色管理 API
+ * Tenant user role management API / 企业用户角色管理 API
  * Backend: /tenant/user-roles/* / 对接后端 /tenant/user-roles/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

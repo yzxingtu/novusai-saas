@@ -65,7 +65,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     @property
     def tenant_admin_repo(self) -> "TenantAdminRepository":
-        """获取租户管理员 Repository（延迟创建）"""
+        """获取企业管理员 Repository（延迟创建）"""
         if not hasattr(self, "_tenant_admin_repo"):
             from app.repositories.tenant.tenant_admin_repository import (
                 TenantAdminRepository,
@@ -85,7 +85,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         Args:
             items: 对话 ORM 对象列表
-            include_user_info: 是否附加 user_info（租户端管理页使用）
+            include_user_info: 是否附加 user_info（企业端管理页使用）
         """
         user_map: dict[int, dict] = {}
         if include_user_info:

@@ -4,8 +4,8 @@
  *
  * 支持：
  * - 多级菜单树形选择（TreeSelect）
- * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 租户端目录
- * - admin_and_all scope：同时配置管理端和租户端父级
+ * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 企业端目录
+ * - admin_and_all scope：同时配置管理端和企业端父级
  */
 import type {
   MenuOverrideItem,
@@ -38,7 +38,7 @@ interface MenuEditRow {
   scope: string;
   /** 管理端父级（admin_only / admin_and_all） */
   adminParent: string;
-  /** 租户端父级（all_tenants / admin_and_all） */
+  /** 企业端父级（all_tenants / admin_and_all） */
   tenantParent: string;
 }
 
@@ -156,7 +156,7 @@ const adminRows = computed(() =>
     (r) => r.scope === 'admin_only' || r.scope === 'admin_and_all',
   ),
 );
-/** 需要展示租户端区块的行 */
+/** 需要展示企业端区块的行 */
 const tenantRows = computed(() =>
   rows.value.filter(
     (r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all',
@@ -224,7 +224,7 @@ defineExpose({ open });
           </div>
         </div>
 
-        <!-- ── 租户端菜单 ── -->
+        <!-- ── 企业端菜单 ── -->
         <div v-if="tenantRows.length > 0">
           <div class="mb-2 flex items-center gap-2">
             <IconifyIcon icon="lucide:users" class="size-3.5 text-success" />

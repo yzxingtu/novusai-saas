@@ -50,7 +50,7 @@ class AdminAIUsageController(GlobalController):
         """注册路由 / Register routes"""
         router = self.router
 
-        @router.get("/summary/tenant/{tenant_id}", summary="获取租户使用量汇总")
+        @router.get("/summary/tenant/{tenant_id}", summary="获取企业使用量汇总")
         @action_read("action.ai_usage.tenant_summary")
         async def get_tenant_usage_summary(
             request: Request,
@@ -61,7 +61,7 @@ class AdminAIUsageController(GlobalController):
             end_date: date | None = Query(None, description="结束日期"),
         ):
             """
-            获取指定租户的使用量汇总 / Get usage summary for specified tenant
+            获取指定企业的使用量汇总 / Get usage summary for specified tenant
 
             权限 / Permission: ai_usage:tenant_summary
             """

@@ -6,7 +6,7 @@ Import all config definitions and register to global ConfigRegistry.
 """
 
 # Import platform configs (triggers config registration to groups) / 导入平台配置（触发配置项注册到分组）
-# Import tenant configs (triggers config registration to groups) / 导入租户配置（触发配置项注册到分组）
+# Import tenant configs (triggers config registration to groups) / 导入企业配置（触发配置项注册到分组）
 from app.configs.definitions import platform, tenant
 
 # Import group definitions / 导入分组定义

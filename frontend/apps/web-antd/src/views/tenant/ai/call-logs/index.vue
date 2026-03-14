@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端 AI 调用日志列表页面
+ * 企业端 AI 调用日志列表页面
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 

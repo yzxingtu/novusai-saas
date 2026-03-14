@@ -10,7 +10,7 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
@@ -70,20 +70,6 @@ export function getQuotaTypeText(type: string | undefined): string {
   }
 }
 
-/**
- * 获取模型下拉选项
- */
-async function getModelSelectOptions() {
-  const response = await getAIModelListApi({
-    'page[size]': 200,
-    sort: 'name',
-    'filter[is_active]': true,
-  });
-  return response.items.map((item) => ({
-    label: `${item.name} (${item.provider_name || '-'})`,
-    value: item.id,
-  }));
-}
 
 /**
  * 表单 Schema
@@ -98,7 +84,7 @@ export function useFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.ai.quota.placeholder.selectTenant'),
     }),
     select('model_id', $t('admin.ai.quota.modelId'), {
-      api: getModelSelectOptions,
+      api: getAIModelSelectApi,
       placeholder: $t('admin.ai.quota.placeholder.selectModel'),
     }),
 
@@ -160,7 +146,7 @@ export function getRateLimitFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.ai.rateLimit.placeholder.selectTenant'),
     }),
     select('model_id', $t('admin.ai.rateLimit.modelId'), {
-      api: getModelSelectOptions,
+      api: getAIModelSelectApi,
       required: true,
       placeholder: $t('admin.ai.rateLimit.placeholder.selectModel'),
     }),

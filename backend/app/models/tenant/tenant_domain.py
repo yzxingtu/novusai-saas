@@ -1,7 +1,7 @@
 """
-租户域名模型 / Tenant Domain Model
+企业域名模型 / Tenant Domain Model
 
-管理租户的自定义域名绑定
+管理企业的自定义域名绑定
 Manages tenant custom domain bindings.
 """
 
@@ -17,10 +17,10 @@ from app.enums.domain import DomainSslStatus, DomainType
 
 class TenantDomain(BaseModel):
     """
-    租户域名模型
+    企业域名模型
 
-    - 每个租户可以绑定多个自定义域名
-    - 用户通过 CNAME 将自定义域名解析到租户子域名
+    - 每个企业可以绑定多个自定义域名
+    - 用户通过 CNAME 将自定义域名解析到企业子域名
     - 域名需要验证所有权后才能使用
     """
 
@@ -57,13 +57,13 @@ class TenantDomain(BaseModel):
         "extra": ["is_primary", "is_verified", "ssl_status"],
     }
 
-    # 关联租户
+    # 关联企业
     tenant_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="租户 ID",
+        comment="企业 ID",
     )
 
     # 域名（全局唯一）
@@ -89,7 +89,7 @@ class TenantDomain(BaseModel):
         comment="验证时间",
     )
 
-    # 是否主域名（每个租户只能有一个主域名）
+    # 是否主域名（每个企业只能有一个主域名）
     is_primary: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
@@ -126,7 +126,7 @@ class TenantDomain(BaseModel):
 
     # ==================== 关系 ====================
 
-    # 关联的租户
+    # 关联的企业
     tenant = relationship(
         "Tenant",
         back_populates="domains",
@@ -144,7 +144,7 @@ class TenantDomain(BaseModel):
     # ==================== 索引 ====================
 
     __table_args__ = (
-        # 复合索引：租户ID + 是否主域名
+        # 复合索引：企业ID + 是否主域名
         Index("ix_tenant_domains_tenant_primary", "tenant_id", "is_primary"),
     )
 
@@ -169,7 +169,7 @@ class TenantDomain(BaseModel):
         """
         获取 CNAME 解析目标
 
-        需要从关联的租户获取子域名
+        需要从关联的企业获取子域名
         """
         if self.tenant:
             from app.core.config import settings

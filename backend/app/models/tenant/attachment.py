@@ -20,8 +20,8 @@ class Attachment(TenantModel):
                     label_field="file_name", i18n_key="knowledge_document"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无租户归属）
-    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无企业归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="企业ID")
 
     # 支持过滤字段
     __filterable__ = {

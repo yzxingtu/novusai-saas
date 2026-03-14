@@ -104,7 +104,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         获取统计信息
 
         Args:
-            tenant_id: 租户 ID (可选)
+            tenant_id: 企业 ID (可选)
             start_date: 开始日期
             end_date: 结束日期
             group_by: 分组维度 (daily/model/user)
@@ -145,7 +145,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         stmt = select(*select_columns)
 
-        # 租户筛选
+        # 企业筛选
         if tenant_id:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
@@ -196,7 +196,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
         Args:
             request_hash: 请求哈希
-            tenant_id: 租户 ID (可选)
+            tenant_id: 企业 ID (可选)
 
         Returns:
             AICallLog 实例或 None
@@ -225,7 +225,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         获取最近的调用日志
 
         Args:
-            tenant_id: 租户 ID (可选)
+            tenant_id: 企业 ID (可选)
             limit: 返回数量
             offset: 偏移量
 
@@ -253,7 +253,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         获取失败的调用日志
 
         Args:
-            tenant_id: 租户 ID (可选)
+            tenant_id: 企业 ID (可选)
             start_date: 开始日期
             limit: 返回数量
 

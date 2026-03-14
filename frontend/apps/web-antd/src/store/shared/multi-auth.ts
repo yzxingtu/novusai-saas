@@ -1,7 +1,7 @@
 /**
  * Multi-endpoint authentication store / 多端认证 Store
  * Supports admin, tenant, and user authentication modes.
- * 支持平台管理端、租户后台、租户用户端三种认证模式。
+ * 支持平台管理端、企业后台、企业用户端三种认证模式。
  *
  * Token storage strategy / Token 存储策略：
  * - Uses TokenStorage for endpoint-separated storage; tokens don't interfere across endpoints.
@@ -29,6 +29,7 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
 import { TokenStorage } from './token-storage';
+import { useUserPreferenceStore } from './user-preference';
 
 // Re-export for backward compatibility (guard.ts, impersonate.vue etc.)
 export { HOME_PATHS, LOGIN_PATHS };
@@ -141,6 +142,11 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         // Fetch user info / 获取用户信息
         userInfo = await fetchUserInfo(ep);
 
+        // Load user preferences and sync to UI framework / 加载用户偏好并同步到 UI 框架
+        const prefSide = ep === 'admin' ? 'admin' : 'tenant';
+        const preferenceStore = useUserPreferenceStore();
+        preferenceStore.loadPreferences(prefSide as 'admin' | 'tenant').catch(() => {});
+
         // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
@@ -244,6 +250,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     accessStore.setIsAccessChecked(false);
     userStore.setUserInfo(null);
 
+    // Clear preference cache / 清除偏好缓存
+    const preferenceStore = useUserPreferenceStore();
+    preferenceStore.clearPreferences();
+
     await router.replace({
       path: loginPath,
       query: redirect
@@ -262,7 +272,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const api = getAuthApi(endpoint);
     const userInfo = await api.getUserInfo();
 
-    // Tenant: check plan status, warn if no plan / 租户端：检查套餐状态
+    // Tenant: check plan status, warn if no plan / 企业端：检查套餐状态
     const ep = endpoint || currentEndpoint.value;
     if (
       ep === 'tenant' &&

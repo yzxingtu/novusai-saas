@@ -1,7 +1,7 @@
 """
-租户管理员角色 API / Tenant Admin Role API
+企业管理员角色 API / Tenant Admin Role API
 
-提供租户端角色 CRUD、权限分配、层级管理等接口
+提供企业端角色 CRUD、权限分配、层级管理等接口
 Provides tenant role CRUD, permission assignment, hierarchy management endpoints
 """
 
@@ -62,7 +62,7 @@ from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 )
 class TenantRoleController(TenantController):
     """
-    租户组织架构控制器 / Tenant Organization Controller
+    企业组织架构控制器 / Tenant Organization Controller
 
     提供组织架构 CRUD、权限分配、层级管理等接口
     Provides organization CRUD, permission assignment, hierarchy management endpoints
@@ -86,14 +86,14 @@ class TenantRoleController(TenantController):
             获取角色树形结构 / Get role tree structure
 
             层级权限控制： / Hierarchical permission control:
-            - 租户所有者可以看到完整角色树 / Tenant owner can see the full role tree
+            - 企业所有者可以看到完整角色树 / Tenant owner can see the full role tree
             - 普通管理员只能看到以自己角色为根的子树 / Regular admin can only see subtree rooted at their own role
 
             权限 / Permission: role:tree
             """
             service = TenantAdminRoleService(db, current_admin.tenant_id)
 
-            # 租户所有者可以看到完整树 / Tenant owner can see the full tree
+            # 企业所有者可以看到完整树 / Tenant owner can see the full tree
             if current_admin.is_owner:
                 tree = await service.get_tree()
                 return success(data=tree, message=_("common.success"))
@@ -116,7 +116,7 @@ class TenantRoleController(TenantController):
             获取组织架构根节点列表（按需加载） / Get organization root node list (lazy load)
 
             层级权限控制： / Hierarchical permission control:
-            - 租户所有者：返回 level=1 的系统根节点 / Tenant owner: returns level=1 system root nodes
+            - 企业所有者：返回 level=1 的系统根节点 / Tenant owner: returns level=1 system root nodes
             - 普通管理员：返回自己所在角色作为根节点 / Regular admin: returns own role as root node
 
             前端可通过 GET /roles/{id}/children 按需加载子节点。
@@ -126,7 +126,7 @@ class TenantRoleController(TenantController):
             """
             service = TenantAdminRoleService(db, current_admin.tenant_id)
 
-            # 租户所有者可以看到完整组织架构 / Tenant owner can see the full organization
+            # 企业所有者可以看到完整组织架构 / Tenant owner can see the full organization
             if current_admin.is_owner:
                 roles = await service.get_organization_root_nodes()
                 return success(
@@ -178,7 +178,7 @@ class TenantRoleController(TenantController):
             Receives ordered ID list and reassigns sort values accordingly.
 
             层级权限控制： / Hierarchical permission control:
-            - 租户所有者：可重排所有节点 / Tenant owner: can reorder all nodes
+            - 企业所有者：可重排所有节点 / Tenant owner: can reorder all nodes
             - 普通管理员：只能重排自己可管理的节点 / Regular admin: can only reorder manageable nodes
 
             请求示例 / Request example:
@@ -365,10 +365,10 @@ class TenantRoleController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            创建租户角色 / Create tenant role
+            创建企业角色 / Create tenant role
 
             层级权限控制： / Hierarchical permission control:
-            - 租户所有者可以在任何位置创建角色 / Tenant owner can create roles anywhere
+            - 企业所有者可以在任何位置创建角色 / Tenant owner can create roles anywhere
             - 普通管理员只能在自己角色或其下级角色下创建 / Regular admin can only create under own or subordinate roles
             - 只能分配自己已拥有的权限 / Can only assign permissions already owned
 
@@ -405,9 +405,9 @@ class TenantRoleController(TenantController):
                     allow_members=data.allow_members,
                 )
 
-                # 分配权限（只能分配租户端权限，且必须是自己拥有的） / Assign permissions (tenant-scope only, must be owned)
+                # 分配权限（只能分配企业端权限，且必须是自己拥有的） / Assign permissions (tenant-scope only, must be owned)
                 if data.permission_ids:
-                    # 过滤只保留租户端权限 / Filter to keep only tenant-scope permissions
+                    # 过滤只保留企业端权限 / Filter to keep only tenant-scope permissions
                     perm_result = await db.execute(
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
@@ -459,7 +459,7 @@ class TenantRoleController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            更新租户角色 / Update tenant role
+            更新企业角色 / Update tenant role
 
             层级权限控制： / Hierarchical permission control:
             - 只能更新自己的下级角色 / Can only update own subordinate roles
@@ -510,7 +510,7 @@ class TenantRoleController(TenantController):
 
                 role = await service.update_role(role_id, update_data)
 
-                # 更新权限（只能分配租户端权限，且必须是自己拥有的） / Update permissions (tenant-scope only, must be owned)
+                # 更新权限（只能分配企业端权限，且必须是自己拥有的） / Update permissions (tenant-scope only, must be owned)
                 if data.permission_ids is not None:
                     perm_result = await db.execute(
                         select(Permission.id).where(
@@ -561,7 +561,7 @@ class TenantRoleController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            删除租户角色（软删除） / Delete tenant role (soft delete)
+            删除企业角色（软删除） / Delete tenant role (soft delete)
 
             层级权限控制：只能删除自己的下级角色 / Hierarchical: can only delete own subordinate roles
 
@@ -845,7 +845,7 @@ class TenantRoleController(TenantController):
             """
             在节点下创建新成员 / Create new member under node
 
-            创建新的租户管理员并直接关联到指定节点。
+            创建新的企业管理员并直接关联到指定节点。
             Creates a new tenant admin and directly associates with the specified node.
 
             权限 / Permission: organization:create_member

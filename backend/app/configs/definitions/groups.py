@@ -1,7 +1,7 @@
 """Config group definitions / 配置分组定义
 
 Defines platform-level and tenant-level config groups.
-定义平台级和租户级的配置分组
+定义平台级和企业级的配置分组
 
 Icon convention / 图标规范:
 Uses Lucide icon library / 使用 Lucide 图标库: https://lucide.dev/icons
@@ -59,10 +59,10 @@ PLATFORM_STORAGE_GROUP = ConfigGroupMeta(
 
 
 # ==========================================
-# Tenant config groups / 租户配置分组
+# Tenant config groups / 企业配置分组
 # ==========================================
 
-# Tenant general settings group / 租户通用设置分组
+# Tenant general settings group / 企业通用设置分组
 TENANT_GENERAL_GROUP = ConfigGroupMeta(
     code="tenant_general",
     name_key="config.group.tenant_general.name",
@@ -72,7 +72,7 @@ TENANT_GENERAL_GROUP = ConfigGroupMeta(
     sort_order=10,
 )
 
-# Tenant appearance settings group / 租户外观设置分组
+# Tenant appearance settings group / 企业外观设置分组
 TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     code="tenant_appearance",
     name_key="config.group.tenant_appearance.name",
@@ -82,7 +82,7 @@ TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     sort_order=20,
 )
 
-# Tenant features settings group / 租户功能设置分组
+# Tenant features settings group / 企业功能设置分组
 TENANT_FEATURES_GROUP = ConfigGroupMeta(
     code="tenant_features",
     name_key="config.group.tenant_features.name",
@@ -158,7 +158,7 @@ PLATFORM_CONFIG_GROUPS = [
     PLATFORM_WEBSOCKET_GROUP,
 ]
 
-# All tenant config groups / 所有租户配置分组
+# All tenant config groups / 所有企业配置分组
 TENANT_CONFIG_GROUPS = [
     TENANT_GENERAL_GROUP,
     TENANT_APPEARANCE_GROUP,
@@ -181,7 +181,7 @@ __all__ = [
     "PLATFORM_AI_MEMORY_GROUP",
     "PLATFORM_WEBSOCKET_GROUP",
     "PLATFORM_CONFIG_GROUPS",
-    # Tenant groups / 租户分组
+    # Tenant groups / 企业分组
     "TENANT_GENERAL_GROUP",
     "TENANT_APPEARANCE_GROUP",
     "TENANT_FEATURES_GROUP",

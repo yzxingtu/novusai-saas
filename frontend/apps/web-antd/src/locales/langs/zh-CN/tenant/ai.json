@@ -5,7 +5,7 @@
   },
   "model": {
     "title": "可用模型",
-    "pageDesc": "查看平台分配给当前租户的可用 AI 模型及其能力和定价。",
+    "pageDesc": "查看平台分配给当前企业的可用 AI 模型及其能力和定价。",
     "name": "模型名称",
     "code": "模型代码",
     "type": "类型",
@@ -40,7 +40,7 @@
   },
   "usage": {
     "title": "用量统计",
-    "pageDesc": "查看租户的 AI 调用量、Token 消耗和费用趋势图表。",
+    "pageDesc": "查看企业的 AI 调用量、Token 消耗和费用趋势图表。",
     "summary": {
       "totalTokens": "总 Tokens",
       "totalCost": "总费用",
@@ -61,7 +61,7 @@
   },
   "callLog": {
     "title": "调用日志",
-    "pageDesc": "查看租户内所有 AI 调用记录，包括状态、用量和错误详情。",
+    "pageDesc": "查看企业内所有 AI 调用记录，包括状态、用量和错误详情。",
     "requestType": "请求类型",
     "inputTokens": "输入 Tokens",
     "outputTokens": "输出 Tokens",
@@ -163,11 +163,11 @@
     },
     "memory": {
       "title": "会话记忆",
-      "desc": "租户可对自有智能体关闭会话记忆，关闭后仅影响当前租户。",
+      "desc": "企业可对自有智能体关闭会话记忆，关闭后仅影响当前企业。",
       "readonlyHint": "当前智能体不可修改记忆开关",
       "platformDefault": "平台默认",
       "adminSwitch": "管理端开关",
-      "tenantSwitch": "租户开关",
+      "tenantSwitch": "企业开关",
       "effective": "最终生效",
       "restoreDefault": "恢复默认",
       "enabled": "开启",
@@ -204,7 +204,7 @@
     "targetAudience": "目标受众",
     "audience_options": {
       "all": "所有端",
-      "admin_tenant": "管理端+租户端"
+      "admin_tenant": "管理端+企业端"
     },
     "modelName": "关联模型",
     "systemPrompt": "系统提示词",
@@ -419,22 +419,22 @@
         "specific_users": "指定用户",
         "api_only": "仅 API"
       },
-      "tenantRoleAccess": "租户管理员角色权限",
+      "tenantRoleAccess": "企业管理员角色权限",
       "userRoleAccess": "用户端角色权限",
       "placeholder": {
         "selectOrgNodes": "请选择组织节点",
         "inputUserIds": "输入用户 ID，多个用英文逗号分隔",
-        "selectTenantRoles": "请选择租户管理员角色",
+        "selectTenantRoles": "请选择企业管理员角色",
         "selectUserRoles": "请选择用户角色"
       },
       "messages": {
         "updateSuccess": "访问权限更新成功"
       },
       "hint": {
-        "public": "所有租户用户均可使用此智能体",
+        "public": "所有企业用户均可使用此智能体",
         "private": "仅授权用户可使用此智能体",
         "roleOnly": "通过角色控制哪些用户可以使用此智能体。选择「全部可用」则不限制角色。",
-        "all_users": "租户内所有登录用户可访问",
+        "all_users": "企业内所有登录用户可访问",
         "org_node": "仅指定组织节点下的用户可访问",
         "specific_users": "仅指定用户可访问",
         "api_only": "仅通过 API 调用可访问，前端用户不可见"
@@ -714,7 +714,7 @@
     "create": "添加技能",
     "testBtn": "测试",
     "testFailed": "测试请求失败，请稍后重试",
-    "scopeTenant": "租户",
+    "scopeTenant": "企业",
     "scopeAdmin": "平台",
     "type_options": {
       "toolkit": "Toolkit 工具包",

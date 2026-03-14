@@ -39,7 +39,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
 
     Args:
         batch_run_id: Batch run ID / 批量运行 ID
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
 
     Returns:
         Execution summary / 执行摘要
@@ -89,7 +89,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
 
                 # Resolve skills bound to Agent / 解析 Agent 绑定的技能
                 # Batch task initiated by tenant admin, default tenant_admin role for target_audience filtering
-                # batch 任务由租户管理员发起，默认 tenant_admin 角色进行 target_audience 过滤
+                # batch 任务由企业管理员发起，默认 tenant_admin 角色进行 target_audience 过滤
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
                     from app.enums.common import UserRoleEnum

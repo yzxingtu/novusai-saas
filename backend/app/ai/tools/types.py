@@ -198,10 +198,10 @@ class ExecutionContext:
 
     Encapsulates tenant, user, permission info of the current execution environment,
     used by TextToSQLExecutor / CRUD Executor and other executors.
-    封装当前执行环境的租户、用户、权限等信息。
+    封装当前执行环境的企业、用户、权限等信息。
 
     Attributes:
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         agent_id: Agent ID / 智能体 ID
         user_id: Current user ID (None for anonymous/API calls) / 当前操作用户 ID
         user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色

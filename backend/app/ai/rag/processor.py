@@ -220,7 +220,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
     每个阶段实时上报 Redis 进度，完成后清除。
 
     Args:
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         document_id: Document ID / 文档 ID
 
     Returns:

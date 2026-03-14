@@ -1,5 +1,5 @@
 /**
- * Tenant dashboard API / 租户端仪表盘 API
+ * Tenant dashboard API / 企业端仪表盘 API
  * Backend: /tenant/dashboard/* / 对接后端 /tenant/dashboard/* 接口
  */
 import { requestClient } from '#/utils/request';

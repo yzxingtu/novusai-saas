@@ -1,5 +1,5 @@
 /**
- * Tenant attachment management API / 租户端附件管理 API
+ * Tenant attachment management API / 企业端附件管理 API
  * Backend: /tenant/attachments/* / 对接后端 /tenant/attachments/* 接口
  *
  * @module api/tenant/attachment

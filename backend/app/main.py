@@ -1,4 +1,4 @@
-﻿"""
+"""
 FastAPI Application Entry Point
 FastAPI 应用入口
 
@@ -528,7 +528,7 @@ def create_application() -> FastAPI:
     app.add_middleware(AccessControlMiddleware)
 
     # Tenant identification middleware (resolves tenant from Host header)
-    # 租户识别中间件（基于 Host 头解析租户）
+    # 企业识别中间件（基于 Host 头解析企业）
     app.add_middleware(TenantMiddleware)
 
     # CORS middleware — must be registered last (= outermost layer),
@@ -536,7 +536,7 @@ def create_application() -> FastAPI:
     # CORS 中间件 — 必须最后注册（= 最外层），
     # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
     # ⚠️  In DEBUG mode, allows all Origins to support tenant domain (e.g. demo.app.local:5666) cross-origin access
-    # ⚠️  DEBUG 模式下允许所有 Origin，支持租户域名（如 demo.app.local:5666）跨域访问
+    # ⚠️  DEBUG 模式下允许所有 Origin，支持企业域名（如 demo.app.local:5666）跨域访问
     cors_origins: list[str] = ["*"] if settings.DEBUG else settings.CORS_ORIGINS
     app.add_middleware(
         CORSMiddleware,
@@ -703,7 +703,7 @@ def create_application() -> FastAPI:
     from app.plugins.webhook_dispatcher import webhook_router
     app.include_router(webhook_router)
 
-    # Register tenant admin routes (/tenant/*) / 注册租户管理后台路由 (/tenant/*)
+    # Register tenant admin routes (/tenant/*) / 注册企业管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
     app.include_router(tenant_router, prefix="/tenant")
 
@@ -712,7 +712,7 @@ def create_application() -> FastAPI:
     app.include_router(user_router, prefix="/api/user")
 
     # Register public API routes (/api/public/*) - no auth required, for tenant login page config
-    # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
+    # 注册公共 API 路由 (/api/public/*) - 无需认证，用于企业登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
 

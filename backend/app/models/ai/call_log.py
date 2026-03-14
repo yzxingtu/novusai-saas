@@ -20,7 +20,7 @@ class AICallLog(TenantModel):
     AI 调用日志模型
 
     记录每次 AI 调用的详细信息，包括：
-    - 租户和用户信息
+    - 企业和用户信息
     - 使用的供应商和模型
     - Token 使用量和费用
     - 调用状态和错误信息
@@ -171,7 +171,7 @@ class AICallLog(TenantModel):
     # ==================== 索引 ====================
 
     __table_args__ = (
-        # 租户 + 创建时间复合索引（用于按租户查询最近记录）
+        # 企业 + 创建时间复合索引（用于按企业查询最近记录）
         Index("idx_ai_call_logs_tenant_created", "tenant_id", "created_at"),
         # 用户 + 状态复合索引（用于用户调用统计）
         Index("idx_ai_call_logs_user_status", "user_id", "status"),

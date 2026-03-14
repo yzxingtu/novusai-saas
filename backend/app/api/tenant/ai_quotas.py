@@ -1,7 +1,7 @@
 """
-租户端 AI 配额和速率限制配置 API / Tenant AI Quota and Rate Limit Config API
+企业端 AI 配额和速率限制配置 API / Tenant AI Quota and Rate Limit Config API
 
-提供租户级配额管理和速率限制配置接口
+提供企业级配额管理和速率限制配置接口
 Provides tenant-level quota management and rate limit configuration endpoints
 """
 
@@ -50,7 +50,7 @@ from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 )
 class TenantAIQuotaController(TenantController):
     """
-    租户 AI 配额和速率限制控制器 / Tenant AI Quota and Rate Limit Controller
+    企业 AI 配额和速率限制控制器 / Tenant AI Quota and Rate Limit Controller
 
     提供配额管理和速率限制配置接口
     Provides quota management and rate limit configuration endpoints
@@ -76,7 +76,7 @@ class TenantAIQuotaController(TenantController):
             include_usage: bool = Query(False, description="是否包含使用量"),
         ):
             """
-            获取租户配额配置列表 / Get tenant quota config list
+            获取企业配额配置列表 / Get tenant quota config list
 
             权限 / Permission: ai_quota:list_quotas
             """

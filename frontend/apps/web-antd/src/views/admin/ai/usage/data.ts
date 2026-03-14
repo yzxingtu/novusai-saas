@@ -6,7 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AIUsageStatInfo } from '#/api/admin/ai';
 
 import { searchDateRange, select } from '#/adapter/form';
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
@@ -120,20 +120,6 @@ export function useColumns(
   ];
 }
 
-/**
- * 获取模型下拉选项
- */
-async function getModelSelectOptions() {
-  const response = await getAIModelListApi({
-    'page[size]': 200,
-    sort: 'name',
-    'filter[is_active]': true,
-  });
-  return response.items.map((item) => ({
-    label: `${item.name} (${item.provider_name || '-'})`,
-    value: item.id,
-  }));
-}
 
 /**
  * 搜索表单 Schema
@@ -146,7 +132,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.ai.usage.placeholder.selectTenant'),
     }),
     select('filter[model_id]', $t('admin.ai.usage.modelName'), {
-      api: getModelSelectOptions,
+      api: getAIModelSelectApi,
       placeholder: $t('admin.ai.usage.placeholder.selectModel'),
     }),
     select('filter[request_type][eq]', $t('admin.ai.usage.requestType'), {

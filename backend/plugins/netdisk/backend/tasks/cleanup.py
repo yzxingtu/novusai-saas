@@ -25,7 +25,7 @@ def netdisk_cleanup(self: BaseTask, retention_days: int = 0) -> dict:
     合并任务（原 clean_trash + sync_quota）：
     1. 物理删除超时回收站节点（px_netdisk_nodes）
     2. 调用 StorageManager 删除真实文件
-    3. 重算各受影响租户的 used_bytes
+    3. 重算各受影响企业的 used_bytes
 
     Args:
         retention_days: 回收站保留天数，默认从插件 config 读取，此处为 fallback
@@ -112,7 +112,7 @@ def netdisk_cleanup(self: BaseTask, retention_days: int = 0) -> dict:
                 break
             cleaned_count += batch_count
 
-        # ── 步骤 4：重算受影响租户的 used_bytes
+        # ── 步骤 4：重算受影响企业的 used_bytes
         for tenant_id in affected_tenants:
             actual = session.execute(
                 select(func.coalesce(func.sum(FileNode.size_bytes), 0)).where(

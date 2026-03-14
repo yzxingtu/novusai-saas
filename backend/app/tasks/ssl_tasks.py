@@ -297,7 +297,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
     Single platform certificate renewal / 单个平台证书续期
 
     Uses default queue, triggered by task_check_ssl_renewals or manually from admin/tenant side.
-    走 default 队列，由 task_check_ssl_renewals 或管理端/租户端手动触发
+    走 default 队列，由 task_check_ssl_renewals 或管理端/企业端手动触发
     Only platform type certificates can be renewed.
     仅 platform 类型可续期
     """
@@ -409,7 +409,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | None:
     """
     Query domain + tenant contact email from domain_id (explicit query, avoid ORM lazy loading)
-    从 domain_id 查询域名 + 租户联系邮箱（显式查询，避免 ORM 懒加载）
+    从 domain_id 查询域名 + 企业联系邮箱（显式查询，避免 ORM 懒加载）
 
     Returns:
         {"domain": str, "email": str, "tenant_id": int} or None

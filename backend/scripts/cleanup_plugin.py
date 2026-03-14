@@ -144,7 +144,7 @@ def clean_db() -> None:
         "permissions",
     )
 
-    # 7. 租户资源分配（插件菜单/配置分配）
+    # 7. 企业资源分配（插件菜单/配置分配）
     execute_step(cur, conn,
         f"DELETE FROM resource_tenant_assignments "
         f"WHERE resource_type = 'plugin' AND resource_id IN ("

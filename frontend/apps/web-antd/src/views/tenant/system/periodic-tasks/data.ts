@@ -1,5 +1,5 @@
 /**
- * 租户端定时任务管理 - 表格列、搜索和表单配置
+ * 企业端定时任务管理 - 表格列、搜索和表单配置
  * 复用 admin 端 data.ts 的辅助函数
  */
 import type { VbenFormSchema } from '#/adapter/form';

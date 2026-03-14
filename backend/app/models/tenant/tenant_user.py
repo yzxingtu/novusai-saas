@@ -1,7 +1,7 @@
 """
-租户业务用户模型 / Tenant User Model
+企业业务用户模型 / Tenant User Model
 
-租户的终端用户（C端用户/业务用户）
+企业的终端用户（C端用户/业务用户）
 Tenant end-users (C-side users / business users).
 """
 
@@ -19,11 +19,11 @@ from app.enums.common import ApprovalStatusEnum
 
 class TenantUser(TenantModel):
     """
-    租户业务用户模型
+    企业业务用户模型
 
-    - 属于特定租户
-    - 租户的终端用户（客户、会员等）
-    - 与租户管理员（TenantAdmin）独立
+    - 属于特定企业
+    - 企业的终端用户（客户、会员等）
+    - 与企业管理员（TenantAdmin）独立
     """
 
     __tablename__ = "tenant_users"

@@ -1,7 +1,7 @@
 """
 AI 网关调用 API (Tenant) / AI Gateway API (Tenant)
 
-提供租户端 AI 代理调用接口，支持配额和限流检查
+提供企业端 AI 代理调用接口，支持配额和限流检查
 Provides tenant AI proxy call endpoints with quota and rate limit checks
 """
 
@@ -42,7 +42,7 @@ class TenantAIGatewayController(TenantController):
     """
     AI 网关控制器 (Tenant) / AI Gateway Controller (Tenant)
 
-    租户端 AI 网关调用接口，支持配额和限流检查
+    企业端 AI 网关调用接口，支持配额和限流检查
     Tenant AI gateway call endpoints with quota and rate limit checks
     """
 

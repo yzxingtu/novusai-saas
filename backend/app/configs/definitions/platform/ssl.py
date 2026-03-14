@@ -85,7 +85,7 @@ SSL_AUTO_RENEW_DAYS = ConfigMeta(
     sort_order=60,
 )
 
-# Allow tenants to upload custom certificates / 是否允许租户上传自定义证书
+# Allow tenants to upload custom certificates / 是否允许企业上传自定义证书
 SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
     key="ssl_allow_custom_cert",
     name_key="config.platform.ssl_allow_custom_cert.name",

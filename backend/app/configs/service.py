@@ -2,7 +2,7 @@
 Configuration read/write service / 配置读写服务
 
 Provides CRUD operations for configs, supporting platform and tenant configs.
-提供配置的 CRUD 操作，支持平台配置和租户配置
+提供配置的 CRUD 操作，支持平台配置和企业配置
 """
 
 import json
@@ -51,7 +51,7 @@ class ConfigService:
 
         await service.set_platform_config("site_name", "My SaaS")
 
-        # Get tenant config (falls back to platform default) / 获取租户配置（会回退到平台默认值）
+        # Get tenant config (falls back to platform default) / 获取企业配置（会回退到平台默认值）
 
         value = await service.get_tenant_config(tenant_id, "theme_color")
     """
@@ -130,7 +130,7 @@ class ConfigService:
         )
 
     # ==========================================
-    # Tenant config operations / 租户配置操作
+    # Tenant config operations / 企业配置操作
     # ==========================================
 
     async def get_tenant_config(
@@ -139,24 +139,24 @@ class ConfigService:
         key: str,
         default: Any = None,
     ) -> Any:
-        """Get tenant config value / 获取租户配置值
+        """Get tenant config value / 获取企业配置值
 
         Falls back in order if tenant has not set the config:
-        如果租户未设置该配置，会依次回退：
-        1. Tenant-set value / 租户设置的值
+        如果企业未设置该配置，会依次回退：
+        1. Tenant-set value / 企业设置的值
         2. Platform default (for tenant scope) / 平台设置的默认值
         3. Code-defined default / 代码定义的默认值
         4. Passed-in default param / 传入的 default 参数
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             key: Config key / 配置键名
             default: Default value / 默认值
 
         Returns:
             Config value (deserialized) / 配置值（已反序列化）
         """
-        # Try to get tenant-set value first / 先尝试获取租户设置的值
+        # Try to get tenant-set value first / 先尝试获取企业设置的值
         value = await self._get_config_value(
             key=key,
             tenant_id=tenant_id,
@@ -181,10 +181,10 @@ class ConfigService:
         key: str,
         value: Any,
     ) -> None:
-        """Set tenant config value / 设置租户配置值
+        """Set tenant config value / 设置企业配置值
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             key: Config key / 配置键名
             value: Config value / 配置值
         """
@@ -199,10 +199,10 @@ class ConfigService:
         tenant_id: int,
         group_code: str,
     ) -> dict[str, Any]:
-        """Get all config values under a tenant config group / 获取租户配置分组下的所有配置值
+        """Get all config values under a tenant config group / 获取企业配置分组下的所有配置值
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             group_code: Group code / 分组代码
 
         Returns:
@@ -214,20 +214,20 @@ class ConfigService:
         )
 
     async def ensure_tenant_configs(self, tenant_id: int) -> int:
-        """Ensure tenant configs are initialized / 确保租户配置已初始化
+        """Ensure tenant configs are initialized / 确保企业配置已初始化
 
         Creates default value records for all tenant-scoped configs.
-        为租户创建所有 tenant 作用域配置的默认值记录
+        为企业创建所有 tenant 作用域配置的默认值记录
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
 
         Returns:
             Number of config values created / 创建的配置值数量
         """
         created_count = 0
 
-        # Get all tenant-scoped configs / 获取所有租户作用域的配置
+        # Get all tenant-scoped configs / 获取所有企业作用域的配置
         tenant_configs = self.registry.get_configs_by_scope(ConfigScope.ALL_TENANTS)
 
         for config_meta in tenant_configs:
@@ -279,7 +279,7 @@ class ConfigService:
 
         Args:
             scope: Scope / 作用域
-            tenant_id: Tenant ID (required for tenant scope) / 租户 ID
+            tenant_id: Tenant ID (required for tenant scope) / 企业 ID
             group_code: Group code (optional) / 分组代码
 
         Returns:
@@ -322,7 +322,7 @@ class ConfigService:
 
         Args:
             scope: Scope / 作用域
-            tenant_id: Tenant ID (required for tenant scope) / 租户 ID
+            tenant_id: Tenant ID (required for tenant scope) / 企业 ID
 
         Returns:
             Group list with group info and config items / 分组列表

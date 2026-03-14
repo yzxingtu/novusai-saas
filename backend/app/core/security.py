@@ -22,8 +22,8 @@ TOKEN_TYPE_IMPERSONATE = "impersonate"  # 一键登录临时 Token / One-click l
 
 # Token 作用域常量（用户类型） / Token scope constants (user types)
 TOKEN_SCOPE_ADMIN = "admin"             # 平台管理员 / Platform admin
-TOKEN_SCOPE_TENANT_ADMIN = "tenant_admin"  # 租户管理员 / Tenant admin
-TOKEN_SCOPE_TENANT_USER = "tenant_user"    # 租户业务用户 / Tenant business user
+TOKEN_SCOPE_TENANT_ADMIN = "tenant_admin"  # 企业管理员 / Tenant admin
+TOKEN_SCOPE_TENANT_USER = "tenant_user"    # 企业业务用户 / Tenant business user
 
 # Impersonate Token 过期时间（秒） / Impersonate token expiry (seconds)
 IMPERSONATE_TOKEN_EXPIRE_SECONDS = 60
@@ -286,13 +286,13 @@ def create_impersonate_token(
     """
     创建一键登录临时 Token / Create one-click login temporary token
 
-    用于平台管理员一键登录租户后台或租户管理员一键登录用户端
+    用于平台管理员一键登录企业后台或企业管理员一键登录用户端
     Used for admin one-click login to tenant backend or tenant admin one-click login to user side.
 
     Args:
-        admin_id: 发起者 ID（平台管理员或租户管理员） / Initiator ID (admin or tenant admin)
+        admin_id: 发起者 ID（平台管理员或企业管理员） / Initiator ID (admin or tenant admin)
         target_scope: 目标 scope（tenant_admin 或 tenant_user） / Target scope
-        target_tenant_id: 目标租户 ID / Target tenant ID
+        target_tenant_id: 目标企业 ID / Target tenant ID
         target_role_id: 目标角色 ID（可选） / Target role ID (optional)
         expires_seconds: 过期时间（秒），默认 60 秒 / Expiry in seconds, default 60
 

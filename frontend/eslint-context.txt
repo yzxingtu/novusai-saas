@@ -190,7 +190,7 @@ E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\co
 ---
 E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\file-picker\FilePicker.vue:48 [vue/require-default-prop] Prop 'endpoint' requires default value to be set.
    46:     accept?: string;
-   47:     /** API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+   47:     /** API 端类型：admin 使用平台附件 API，tenant 使用企业附件 API。默认根据 URL 自动检测。 */
    48:     endpoint?: 'admin' | 'tenant';
    49:     imageOnly?: boolean;
    50:     maxConcurrency?: number;

@@ -29,7 +29,7 @@
   "plugin.storage-migration.task.concurrency": "并发数",
   "plugin.storage-migration.task.scope": "迁移范围",
   "plugin.storage-migration.task.scope_all": "全部文件",
-  "plugin.storage-migration.task.scope_tenant": "租户 {id} 的文件",
+  "plugin.storage-migration.task.scope_tenant": "企业 {id} 的文件",
   "plugin.storage-migration.task.started_at": "开始时间",
   "plugin.storage-migration.task.completed_at": "完成时间",
   "plugin.storage-migration.action.start": "开始迁移",

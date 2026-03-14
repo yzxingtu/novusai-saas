@@ -326,7 +326,7 @@ class BaseEngine(ABC):
             agent: Agent (with model config) / 智能体（含模型配置）
             messages: Message list / 消息列表
             tools: Tool definition list / 工具定义列表
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             user_id: User ID / 用户 ID
             route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
         """

@@ -1,5 +1,5 @@
 /**
- * Tenant permission management API / 租户权限管理 API
+ * Tenant permission management API / 企业权限管理 API
  * Backend: /tenant/permissions/* / 对接后端 /tenant/permissions/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

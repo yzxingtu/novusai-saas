@@ -179,7 +179,7 @@ def query_freebusy(req: FreebusyRequest) -> dict:
 
 @router.get("/rooms", summary="查询会议室列表")
 def list_rooms(
-    room_level_id: str | None = Query(None, description="层级 ID，为空时返回租户所有会议室"),
+    room_level_id: str | None = Query(None, description="层级 ID，为空时返回企业所有会议室"),
     page_size: int = Query(20, description="每页数量"),
     page_token: str | None = Query(None, description="分页标记"),
 ) -> dict:

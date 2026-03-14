@@ -1,7 +1,7 @@
 """
-租户端 AI 调用日志 API / Tenant AI Call Log API
+企业端 AI 调用日志 API / Tenant AI Call Log API
 
-提供租户端 AI 调用日志查询接口（自动按 tenant_id 过滤）
+提供企业端 AI 调用日志查询接口（自动按 tenant_id 过滤）
 Provides tenant AI call log query endpoints (auto-filtered by tenant_id)
 """
 
@@ -37,9 +37,9 @@ from app.repositories.ai import AICallLogRepository
 )
 class TenantAICallLogController(TenantController):
     """
-    租户 AI 调用日志控制器 / Tenant AI Call Log Controller
+    企业 AI 调用日志控制器 / Tenant AI Call Log Controller
 
-    提供租户端调用日志查询（自动按 tenant_id 过滤）
+    提供企业端调用日志查询（自动按 tenant_id 过滤）
     Provides tenant call log query (auto-filtered by tenant_id)
     """
 
@@ -59,7 +59,7 @@ class TenantAICallLogController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            查询当前租户的 AI 调用日志列表 / Query current tenant AI call log list
+            查询当前企业的 AI 调用日志列表 / Query current tenant AI call log list
 
             自动按 tenant_id 过滤，支持 JSON:API 筛选 / Auto-filtered by tenant_id, supports JSON:API filtering:
             - filter[model_id]: 模型 ID / model ID
@@ -107,7 +107,7 @@ class TenantAICallLogController(TenantController):
             """
             获取调用日志详情（含完整请求和响应体） / Get call log details (with full request and response body)
 
-            仅允许查看自己租户的日志
+            仅允许查看自己企业的日志
             Only allows viewing own tenant's logs
 
             权限 / Permission: ai_tenant_call_log:detail
@@ -118,7 +118,7 @@ class TenantAICallLogController(TenantController):
             if not log:
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))
 
-            # 确保只能看自己租户的日志 / Ensure can only view own tenant's logs
+            # 确保只能看自己企业的日志 / Ensure can only view own tenant's logs
             if log.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 

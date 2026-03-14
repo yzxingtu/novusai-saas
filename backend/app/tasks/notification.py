@@ -40,7 +40,7 @@ def send_notification_email(
         html_body: HTML body / HTML 正文
         text_body: Plain text body / 纯文本正文
         triggered_by: Trigger source (notification template code, e.g. system.password_reset) / 触发来源（通知模板编码，如 system.password_reset）
-        tenant_id: Associated tenant ID / 关联租户 ID
+        tenant_id: Associated tenant ID / 关联企业 ID
 
     Returns:
         Send result dict / 发送结果 dict

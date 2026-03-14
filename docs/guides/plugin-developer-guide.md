@@ -94,7 +94,7 @@ class MyPlugin(PluginBase):
 
 ```python
 config = await ctx.get_config()                         # 读取配置（自动解密敏感字段）
-tenant_config = await ctx.get_tenant_config(tenant_id) # 读取租户配置
+tenant_config = await ctx.get_tenant_config(tenant_id) # 读取企业配置
 await ctx.update_config(config)                         # 更新配置（需 config:write）
 db = ctx.get_db()                                       # 获取 DB 代理（需 db:own_tables）
 logger = ctx.get_logger()                               # 获取专属 Logger

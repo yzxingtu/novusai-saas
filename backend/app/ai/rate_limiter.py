@@ -100,7 +100,7 @@ class RateLimiter:
         TPM: Lua 脚本原子执行 预扣减→检查超限。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             rpm_limit: RPM limit (requests per minute) / RPM 限制(每分钟请求数)
             tpm_limit: TPM limit (tokens per minute) / TPM 限制(每分钟 Token 数)
@@ -187,7 +187,7 @@ class RateLimiter:
         响应后调整 TPM：从预估值调整为实际值。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             estimated_tokens: Estimated tokens (pre-deducted) / 预估 Token 数量（已预扣）
             actual_tokens: Actual token count / 实际 Token 数量
@@ -253,7 +253,7 @@ class RateLimiter:
 
         Args:
             redis: Redis client / Redis 客户端
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
             current_time: Current timestamp / 当前时间戳
 
@@ -288,7 +288,7 @@ class RateLimiter:
         获取当前使用量。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             model_id: Model ID / 模型 ID
 
         Returns:

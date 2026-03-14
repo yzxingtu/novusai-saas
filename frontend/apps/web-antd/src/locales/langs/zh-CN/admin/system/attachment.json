@@ -16,8 +16,8 @@
   "uploadedBy": "上传者",
   "uploadedAt": "上传时间",
   "createdAt": "创建时间",
-  "tenantId": "租户ID",
-  "tenantName": "租户名称",
+  "tenantId": "企业ID",
+  "tenantName": "企业名称",
   "visibilityType": {
     "public": "公开",
     "private": "私有"
@@ -35,7 +35,7 @@
     "totalCount": "总文件数",
     "totalSize": "总大小",
     "byCategory": "按分类统计",
-    "byTenant": "按租户统计",
+    "byTenant": "按企业统计",
     "byDriver": "按存储驱动统计"
   },
   "quota": {
@@ -75,8 +75,8 @@
     "searchName": "搜索文件名",
     "allCategory": "全部分类",
     "allVisibility": "全部可见性",
-    "allTenant": "全部租户",
-    "selectTenant": "请选择租户"
+    "allTenant": "全部企业",
+    "selectTenant": "请选择企业"
   },
   "empty": {
     "title": "暂无附件",

@@ -15,11 +15,11 @@ tests/api/
 ├── test_admin_permissions.py # 平台权限管理测试
 ├── test_admin_roles.py     # 平台角色管理测试
 ├── test_admin_admins.py    # 平台管理员管理测试
-├── test_admin_tenants.py   # 租户管理测试
+├── test_admin_tenants.py   # 企业管理测试
 ├── test_captcha_flow.py    # 验证码最小化自测
-├── test_tenant_auth.py     # 租户管理员认证测试
-├── test_tenant_roles.py    # 租户角色管理测试
-└── test_tenant_admins.py   # 租户管理员管理测试
+├── test_tenant_auth.py     # 企业管理员认证测试
+├── test_tenant_roles.py    # 企业角色管理测试
+└── test_tenant_admins.py   # 企业管理员管理测试
 ```
 
 ## 配置
@@ -33,7 +33,7 @@ class TestConfig:
     BASE_URL = "http://localhost:8000"
     ADMIN_USERNAME = "admin"
     ADMIN_PASSWORD = "admin123456"
-    TENANT_ADMIN_USERNAME = ""  # 如需测试租户端，请配置
+    TENANT_ADMIN_USERNAME = ""  # 如需测试企业端，请配置
     TENANT_ADMIN_PASSWORD = ""
 ```
 
@@ -66,7 +66,7 @@ python -m tests.api.run_all
 # 只运行平台管理端测试
 python -m tests.api.run_all --module admin
 
-# 只运行租户管理端测试
+# 只运行企业管理端测试
 python -m tests.api.run_all --module tenant
 ```
 
@@ -88,16 +88,16 @@ python -m tests.api.test_admin_roles
 # 平台管理员管理
 python -m tests.api.test_admin_admins
 
-# 租户管理
+# 企业管理
 python -m tests.api.test_admin_tenants
 
-# 租户管理员认证
+# 企业管理员认证
 python -m tests.api.test_tenant_auth
 
-# 租户角色管理
+# 企业角色管理
 python -m tests.api.test_tenant_roles
 
-# 租户管理员管理
+# 企业管理员管理
 python -m tests.api.test_tenant_admins
 ```
 
@@ -128,14 +128,14 @@ python -m tests.api.test_tenant_admins
 | 管理员 | PUT /admin/admins/{id}/status | 切换状态 |
 | 管理员 | PUT /admin/admins/{id}/reset-password | 重置密码 |
 | 管理员 | DELETE /admin/admins/{id} | 删除、删除自己 |
-| 租户 | GET /admin/tenants | 列表、分页、过滤 |
-| 租户 | POST /admin/tenants | 创建、重复代码 |
-| 租户 | GET /admin/tenants/{id} | 详情、不存在 |
-| 租户 | PUT /admin/tenants/{id} | 更新 |
-| 租户 | PUT /admin/tenants/{id}/status | 切换状态 |
-| 租户 | DELETE /admin/tenants/{id} | 删除 |
+| 企业 | GET /admin/tenants | 列表、分页、过滤 |
+| 企业 | POST /admin/tenants | 创建、重复代码 |
+| 企业 | GET /admin/tenants/{id} | 详情、不存在 |
+| 企业 | PUT /admin/tenants/{id} | 更新 |
+| 企业 | PUT /admin/tenants/{id}/status | 切换状态 |
+| 企业 | DELETE /admin/tenants/{id} | 删除 |
 
-### 租户管理端 (/tenant)
+### 企业管理端 (/tenant)
 
 | 模块 | 接口 | 测试项 |
 |------|------|--------|

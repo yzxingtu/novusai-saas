@@ -1,7 +1,7 @@
 """
-知识库租户访问关联表 / Knowledge Base Tenant Access Model
+知识库企业访问关联表 / Knowledge Base Tenant Access Model
 
-当 KnowledgeBase.visibility='assigned' 时，通过此表控制哪些租户可以访问该知识库。
+当 KnowledgeBase.visibility='assigned' 时，通过此表控制哪些企业可以访问该知识库。
 Controls which tenants can access a KB when KnowledgeBase.visibility='assigned'.
 """
 
@@ -14,9 +14,9 @@ from app.core.i18n import _
 
 class KnowledgeBaseTenantAccess(BaseModel):
     """
-    知识库租户访问关联表
+    知识库企业访问关联表
 
-    用于 visibility='assigned' 的知识库，指定哪些租户可以访问。
+    用于 visibility='assigned' 的知识库，指定哪些企业可以访问。
     """
 
     __tablename__ = "knowledge_base_tenant_access"

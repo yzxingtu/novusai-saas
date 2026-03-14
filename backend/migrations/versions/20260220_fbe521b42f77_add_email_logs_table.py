@@ -30,13 +30,13 @@ def upgrade() -> None:
     sa.Column('triggered_by', sa.String(), nullable=False, comment='触发来源（manual/task_failure/password_reset/test/welcome/ssl_expiry）'),
     sa.Column('error_message', sa.Text(), nullable=True, comment='错误信息'),
     sa.Column('sent_at', sa.DateTime(), nullable=True, comment='实际发送时间'),
-    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='关联租户ID（可选）'),
+    sa.Column('tenant_id', sa.Integer(), nullable=True, comment='关联企业ID（可选）'),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
     sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
     sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='软删除标记'),
     sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
-    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=租户回收站, admin=管理端回收站'),
+    sa.Column('delete_level', sa.String(length=20), nullable=True, comment='删除层级: tenant=企业回收站, admin=管理端回收站'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )

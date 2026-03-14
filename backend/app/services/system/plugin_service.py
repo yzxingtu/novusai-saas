@@ -1,7 +1,7 @@
 """
 插件 Service / Plugin Service
 
-封装插件安装/启停/卸载/配置/租户分配等业务逻辑。
+封装插件安装/启停/卸载/配置/企业分配等业务逻辑。
 Encapsulates plugin install/enable/disable/uninstall/config/tenant assignment business logic.
 """
 
@@ -257,13 +257,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         await self.db.flush()
         return plugin
 
-    # ── 租户分配 ──
+    # ── 企业分配 ──
 
     async def assign_tenants(
         self, plugin_id: int, tenant_ids: list[int]
     ) -> int:
         """
-        批量分配租户
+        批量分配企业
 
         Returns:
             实际新增的分配数量
@@ -305,7 +305,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         return count
 
     async def unassign_tenant(self, plugin_id: int, tenant_id: int) -> None:
-        """取消租户分配"""
+        """取消企业分配"""
         from sqlalchemy import delete
 
         from app.models.system.resource_tenant_assignment import (
@@ -324,7 +324,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def toggle_tenant_assignment(
         self, plugin_id: int, tenant_id: int, is_active: bool
     ) -> None:
-        """切换租户分配启用状态"""
+        """切换企业分配启用状态"""
         from sqlalchemy import update
 
         from app.models.system.resource_tenant_assignment import (
@@ -375,14 +375,14 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     async def get_tenant_visible_plugin_names(self, tenant_id: int) -> set[str]:
         """
-        获取当前租户可见的已启用插件名称集合。
+        获取当前企业可见的已启用插件名称集合。
 
         过滤规则（基于 ResourceScopeEnum）：
-        - ADMIN_ONLY        → 租户端不可见
-        - ALL_TENANTS       → 所有租户可见
-        - ADMIN_AND_ALL     → 所有租户可见
-        - ASSIGNED_TENANTS  → 仅分配了当前租户的插件
-        - ADMIN_AND_ASSIGNED→ 仅分配了当前租户的插件
+        - ADMIN_ONLY        → 企业端不可见
+        - ALL_TENANTS       → 所有企业可见
+        - ADMIN_AND_ALL     → 所有企业可见
+        - ASSIGNED_TENANTS  → 仅分配了当前企业的插件
+        - ADMIN_AND_ASSIGNED→ 仅分配了当前企业的插件
         """
         from sqlalchemy import select
 
@@ -392,7 +392,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             ResourceTenantAssignment,
         )
 
-        # 查询当前租户被分配的插件 ID
+        # 查询当前企业被分配的插件 ID
         assignment_result = await self.db.execute(
             select(ResourceTenantAssignment.resource_id).where(
                 ResourceTenantAssignment.resource_type == "plugin",

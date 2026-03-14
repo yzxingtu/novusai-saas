@@ -1,5 +1,5 @@
 /**
- * Tenant conversation management API / 租户端对话管理 API
+ * Tenant conversation management API / 企业端对话管理 API
  * Backend: /tenant/ai/conversations/* / 对接后端 /tenant/ai/conversations/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';

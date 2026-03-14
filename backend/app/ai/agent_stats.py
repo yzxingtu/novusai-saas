@@ -81,7 +81,7 @@ class AgentStatsManager:
         避免并发请求在日期切换时丢失计数。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
             tokens: Tokens consumed in this conversation / 本次消耗的 Token 数量
         """
@@ -107,7 +107,7 @@ class AgentStatsManager:
         获取智能体用量统计。
 
         Args:
-            tenant_id: Tenant ID / 租户 ID
+            tenant_id: Tenant ID / 企业 ID
             agent_id: Agent ID / 智能体 ID
 
         Returns:

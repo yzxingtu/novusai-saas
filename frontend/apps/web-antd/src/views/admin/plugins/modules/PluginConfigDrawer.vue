@@ -899,7 +899,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- Tenant assignment (only shown for assigned_tenants / admin_and_assigned) / 租户分配（仅 assigned_tenants / admin_and_assigned 显示） -->
+      <!-- Tenant assignment (only shown for assigned_tenants / admin_and_assigned) / 企业分配（仅 assigned_tenants / admin_and_assigned 显示） -->
       <div v-if="needsTenantAssignment" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">
@@ -911,7 +911,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- Tenant selection / 租户选择 -->
+        <!-- Tenant selection / 企业选择 -->
         <div v-if="showTenantSelect" class="mb-3 flex items-center gap-2">
           <Select
             v-model:value="selectedTenantIds"
@@ -933,7 +933,7 @@ defineExpose({ open });
           </Button>
         </div>
 
-        <!-- Assigned tenants list / 已分配租户列表 -->
+        <!-- Assigned tenants list / 已分配企业列表 -->
         <div v-if="tenantAssignments.length > 0" class="flex flex-wrap gap-1.5">
           <Tag
             v-for="assignment in tenantAssignments"

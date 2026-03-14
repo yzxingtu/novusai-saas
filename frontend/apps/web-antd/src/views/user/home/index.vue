@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 公开首页 — 游客/登录用户均可访问
- * 游客：显示平台/租户品牌 + 登录/注册入口
+ * 游客：显示平台/企业品牌 + 登录/注册入口
  * 已登录：显示工作台仪表板（欢迎信息 + 快捷操作）
  */
 import { computed, onMounted } from 'vue';
@@ -94,7 +94,7 @@ const platformLogo = computed(() => {
   );
 });
 
-// ── 租户域名品牌 ──────────────────────────────────────────
+// ── 企业域名品牌 ──────────────────────────────────────────
 const tenantName = computed(() => {
   return (
     publicConfigStore.tenantBrand?.siteName ||
@@ -218,7 +218,7 @@ onMounted(() => {
     </div>
   </div>
 
-  <!-- ═══════ 租户域名：租户专属落地页 ═══════ -->
+  <!-- ═══════ 企业域名：企业专属落地页 ═══════ -->
   <div v-else-if="isTenantDomain" class="flex flex-col items-center gap-10 py-6">
     <!-- Hero -->
     <div

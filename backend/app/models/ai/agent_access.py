@@ -80,7 +80,7 @@ class AgentAccess(TenantModel):
         comment=_("agent_access.admin_role_ids"),
     )
 
-    # 租户端角色 ID 列表（tenant 端限制访问时使用）
+    # 企业端角色 ID 列表（tenant 端限制访问时使用）
     tenant_role_ids: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,

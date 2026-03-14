@@ -91,10 +91,10 @@ SITE_ICP = ConfigMeta(
 
 
 # ==========================================
-# Tenant domain config / 租户域名配置
+# Tenant domain config / 企业域名配置
 # ==========================================
 
-# Tenant default domain suffix / 租户默认域名后缀
+# Tenant default domain suffix / 企业默认域名后缀
 TENANT_DOMAIN_SUFFIX = ConfigMeta(
     key="tenant_domain_suffix",
     name_key="config.platform.tenant_domain_suffix.name",

@@ -1,7 +1,7 @@
 """
-租户管理员仓储 / Tenant Admin Repository
+企业管理员仓储 / Tenant Admin Repository
 
-提供租户管理员的数据访问操作（租户隔离）
+提供企业管理员的数据访问操作（企业隔离）
 Provides tenant admin data access operations (tenant-isolated).
 """
 
@@ -13,22 +13,22 @@ from app.models.tenant.tenant_admin import TenantAdmin
 
 class TenantAdminRepository(TenantRepository[TenantAdmin]):
     """
-    租户管理员仓储
+    企业管理员仓储
 
-    提供租户管理员特有的数据访问方法，自动过滤租户 ID
+    提供企业管理员特有的数据访问方法，自动过滤企业 ID
     """
 
     model = TenantAdmin
 
     # 按 scope 限制可过滤字段
     _scope_fields = {
-        # 平台管理员查看租户管理员列表
+        # 平台管理员查看企业管理员列表
         "admin": {
             "id", "tenant_id", "username", "email", "phone",
             "is_active", "is_owner", "nickname", "role_id",
             "created_at", "updated_at",
         },
-        # 租户管理员查看本租户管理员列表
+        # 企业管理员查看本企业管理员列表
         "tenant": {
             "id", "username", "email", "phone",
             "is_active", "is_owner", "nickname", "role_id",
@@ -38,25 +38,25 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
 
     async def get_by_username(self, username: str) -> TenantAdmin | None:
         """
-        根据用户名获取租户管理员（租户内）
+        根据用户名获取企业管理员（企业内）
 
         Args:
             username: 用户名
 
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         return await self.get_one_by(username=username, tenant_id=self.tenant_id)
 
     async def get_by_email(self, email: str) -> TenantAdmin | None:
         """
-        根据邮箱获取租户管理员（租户内）
+        根据邮箱获取企业管理员（企业内）
 
         Args:
             email: 邮箱
 
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         return await self.get_one_by(email=email, tenant_id=self.tenant_id)
 
@@ -65,13 +65,13 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         username_or_email: str,
     ) -> TenantAdmin | None:
         """
-        根据用户名或邮箱获取租户管理员（用于登录）
+        根据用户名或邮箱获取企业管理员（用于登录）
 
         Args:
             username_or_email: 用户名或邮箱
 
         Returns:
-            租户管理员实例或 None
+            企业管理员实例或 None
         """
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
@@ -90,7 +90,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查用户名是否已存在（租户内唯一）
+        检查用户名是否已存在（企业内唯一）
 
         Args:
             username: 用户名
@@ -116,7 +116,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查邮箱是否已存在（租户内唯一）
+        检查邮箱是否已存在（企业内唯一）
 
         Args:
             email: 邮箱
@@ -142,7 +142,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查手机号是否已存在（租户内唯一）
+        检查手机号是否已存在（企业内唯一）
 
         Args:
             phone: 手机号
@@ -170,7 +170,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         user_ids: set[int],
     ) -> dict[int, dict]:
         """
-        批量加载租户管理员摘要信息
+        批量加载企业管理员摘要信息
 
         Args:
             user_ids: 用户 ID 集合
@@ -200,10 +200,10 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
 
     async def get_owner(self) -> TenantAdmin | None:
         """
-        获取租户所有者
+        获取企业所有者
 
         Returns:
-            租户所有者或 None
+            企业所有者或 None
         """
         return await self.get_one_by(is_owner=True, tenant_id=self.tenant_id)
 

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * Tenant create/edit form drawer
- * 租户新建/编辑表单抽屉
+ * 企业新建/编辑表单抽屉
  *
  * Uses fields option to simplify field mapping, auto-handles:
  * 使用 fields 简化字段映射，自动处理：

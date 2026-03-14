@@ -1,5 +1,5 @@
 /**
- * Tenant AI config & usage API / 租户端 AI 配置与用量 API
+ * Tenant AI config & usage API / 企业端 AI 配置与用量 API
  * Backend: /tenant/ai/* / 对接后端 /tenant/ai/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -35,7 +35,7 @@ export interface TenantAIModelInfo {
 // Type definitions - API Key / 类型定义 - API Key
 // ============================================================
 
-/** Tenant API Key info / 租户 API Key 信息 */
+/** Tenant API Key info / 企业 API Key 信息 */
 export interface TenantAIApiKeyInfo {
   id: number;
   provider_id: number;
@@ -238,7 +238,7 @@ export async function getTenantAICallLogDetailApi(
 // Type definitions - Quota management / 类型定义 - 配额管理
 // ============================================================
 
-/** Tenant quota info / 租户配额信息 */
+/** Tenant quota info / 企业配额信息 */
 export interface TenantQuotaInfo {
   id: number;
   tenant_id: number;
@@ -288,7 +288,7 @@ export interface TenantQuotaUpdateRequest {
 // Type definitions - Rate limiting / 类型定义 - 速率限制
 // ============================================================
 
-/** Tenant rate limit info / 租户速率限制信息 */
+/** Tenant rate limit info / 企业速率限制信息 */
 export interface TenantRateLimitInfo {
   id: number;
   tenant_id: number;
@@ -432,7 +432,7 @@ export async function deleteTenantRateLimitApi(
  * 从可用模型列表中提取供应商下拉选项（去重）
  *
  * No standalone provider list API on tenant side; extracted from model list.
- * 租户端无独立供应商 API，通过模型列表提取。
+ * 企业端无独立供应商 API，通过模型列表提取。
  */
 export async function getTenantProviderSelectOptions(): Promise<
   TenantProviderOption[]
@@ -491,7 +491,7 @@ export interface TablePolicyOverrideRequest {
   is_active?: boolean;
 }
 
-/** Get current tenant effective policies / 获取当前租户的有效策略列表 */
+/** Get current tenant effective policies / 获取当前企业的有效策略列表 */
 export async function getTenantTablePoliciesApi() {
   return requestClient.get<EffectiveTablePolicy[]>('/tenant/ai/table-policies');
 }

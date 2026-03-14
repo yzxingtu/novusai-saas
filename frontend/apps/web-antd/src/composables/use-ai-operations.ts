@@ -472,6 +472,46 @@ export function clearRemoteOptionsCache(resource?: string): void {
   }
 }
 
+// ============ Dot-path helpers for nested form fields / 点号路径工具函数 ============
+
+/**
+ * Convert flat dot-notation keys to a nested object structure.
+ * Non-dot keys are kept as-is.
+ * e.g. { 'quota.max_users': 5, name: 'x' } => { quota: { max_users: 5 }, name: 'x' }
+ */
+function expandDotKeys(flat: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(flat)) {
+    if (!key.includes('.')) {
+      result[key] = value;
+      continue;
+    }
+    const parts = key.split('.');
+    let current = result as Record<string, any>;
+    for (let i = 0; i < parts.length - 1; i++) {
+      current[parts[i]!] = current[parts[i]!] ?? {};
+      current = current[parts[i]!];
+    }
+    current[parts[parts.length - 1]!] = value;
+  }
+  return result;
+}
+
+/**
+ * Read a value from a nested object using a dot-separated path.
+ * e.g. getByDotPath({ quota: { max_users: 5 } }, 'quota.max_users') => 5
+ */
+function getByDotPath(obj: Record<string, unknown>, path: string): unknown {
+  if (!path.includes('.')) return obj[path];
+  const parts = path.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current == null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
 // ============ Fill-form read-back verification / fill_form 读回验证 ============
 
 interface FieldFeedback {
@@ -507,7 +547,7 @@ async function buildFillFormFeedback(
   const feedback: Record<string, FieldFeedback> = {};
   let mismatchCount = 0;
   for (const [key, requested] of Object.entries(requestedValues)) {
-    const actual = actualValues[key];
+    const actual = getByDotPath(actualValues, key);
     const match = actual === requested
       || (actual == null && requested == null)
       || JSON.stringify(actual) === JSON.stringify(requested);
@@ -730,7 +770,7 @@ export function createStandardOperations(
           .setData({
             mode: 'add',
             _resource: resource,
-            _defaults: { ...defaults, ...overrides },
+            _defaults: expandDotKeys({ ...defaults, ...overrides }),
             ...(optsPageKey ? { _aiPageKey: optsPageKey } : {}),
           })
           .open();
@@ -798,13 +838,17 @@ export function createStandardOperations(
           if (params[key] !== undefined) overrides[key] = params[key];
         }
 
+        const expandedOverrides = Object.keys(overrides).length > 0
+          ? expandDotKeys(overrides)
+          : undefined;
+
         formPopupApi
           .setData({
             ...record,
-            ...overrides,
             mode: 'edit',
             _resource: resource,
             ...(optsPageKey ? { _aiPageKey: optsPageKey } : {}),
+            ...(expandedOverrides ? { _overrides: expandedOverrides } : {}),
           })
           .open();
 
@@ -944,7 +988,7 @@ export function createStandardOperations(
         }
 
         try {
-          trackedApi.setValues(validFields);
+          trackedApi.setValues(expandDotKeys(validFields));
           await new Promise<void>((r) => setTimeout(r, 100));
         } catch {
           return { success: false, message: 'Failed to set form values / 设置表单值失败' };

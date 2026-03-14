@@ -5,7 +5,7 @@ Plugin Socket.IO auth wrapper.
 Provides unified JWT authentication, tenant isolation, and connection rate limiting
 for plugin-registered Socket.IO namespaces. Wraps plugin-custom AsyncNamespace
 via proxy pattern, injecting auth logic before on_connect.
-/ 为插件注册的 Socket.IO namespace 提供统一的 JWT 认证、租户隔离、连接限流能力。
+/ 为插件注册的 Socket.IO namespace 提供统一的 JWT 认证、企业隔离、连接限流能力。
 """
 
 from __future__ import annotations

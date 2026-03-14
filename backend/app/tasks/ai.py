@@ -102,7 +102,7 @@ def log_ai_call_task(
     不使用异步 Service，避免 asyncio 在同步环境中的问题。
 
     Args:
-        tenant_id: Tenant ID / 租户 ID
+        tenant_id: Tenant ID / 企业 ID
         model_id: Model ID / 模型 ID
         provider_id: Provider ID / 供应商 ID
         request_type: Request type / 请求类型

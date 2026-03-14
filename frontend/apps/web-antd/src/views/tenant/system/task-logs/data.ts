@@ -1,5 +1,5 @@
 /**
- * 租户端任务日志管理 - 表格列和搜索配置
+ * 企业端任务日志管理 - 表格列和搜索配置
  * 复用 admin 端 data.ts 的列/状态定义
  */
 import type { VbenFormSchema } from '#/adapter/form';

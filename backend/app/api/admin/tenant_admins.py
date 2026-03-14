@@ -1,9 +1,9 @@
 """
-租户管理员管理 API（平台端） / Tenant Admin Management API (Platform)
+企业管理员管理 API（平台端） / Tenant Admin Management API (Platform)
 
-平台管理员查看/创建/管理指定租户的管理员。
+平台管理员查看/创建/管理指定企业的管理员。
 Platform admins view/create/manage admins for specified tenants.
-使用独立资源码 tenant_admin，权限与租户资源分离。
+使用独立资源码 tenant_admin，权限与企业资源分离。
 Uses independent resource code tenant_admin, permissions separated from tenant resource.
 """
 
@@ -31,7 +31,7 @@ from app.services.system import TenantService
 # ==========================================
 
 class TenantAdminCreateRequest(BaseModel):
-    """创建租户管理员请求 / Create tenant admin request"""
+    """创建企业管理员请求 / Create tenant admin request"""
     username: str = Field(..., min_length=2, max_length=50)
     email: str = Field(..., max_length=255)
     password: str = Field(..., min_length=6, max_length=100)
@@ -40,7 +40,7 @@ class TenantAdminCreateRequest(BaseModel):
 
 
 class TenantAdminUpdateRequest(BaseModel):
-    """更新租户管理员请求（平台端重置密码等） / Update tenant admin request (platform-side password reset etc.)"""
+    """更新企业管理员请求（平台端重置密码等） / Update tenant admin request (platform-side password reset etc.)"""
     password: str | None = Field(None, min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
     role_id: int | None = Field(None)
@@ -65,9 +65,9 @@ class TenantAdminStatusRequest(BaseModel):
 )
 class AdminTenantAdminController(GlobalController):
     """
-    租户管理员管理控制器 / Tenant Admin Management Controller
+    企业管理员管理控制器 / Tenant Admin Management Controller
 
-    平台管理员可查看/创建/禁用指定租户的管理员。
+    平台管理员可查看/创建/禁用指定企业的管理员。
     Platform admins can view/create/disable admins for specified tenants.
     路由嵌套在 /admin/tenants/{tenant_id}/admins 下。
     Routes nested under /admin/tenants/{tenant_id}/admins.
@@ -81,7 +81,7 @@ class AdminTenantAdminController(GlobalController):
         router = self.router
 
         async def _verify_tenant(db: DbSession, tenant_id: int):
-            """验证租户存在 / Verify tenant exists"""
+            """验证企业存在 / Verify tenant exists"""
             tenant_service = TenantService(db)
             tenant = await tenant_service.get_by_id(tenant_id)
             if tenant is None:
@@ -91,7 +91,7 @@ class AdminTenantAdminController(GlobalController):
                 )
             return tenant
 
-        @router.get("", summary="获取租户管理员列表")
+        @router.get("", summary="获取企业管理员列表")
         @action_read("action.tenant_admin.list")
         async def list_tenant_admins(
             request: Request,
@@ -100,7 +100,7 @@ class AdminTenantAdminController(GlobalController):
             tenant_id: int,
         ):
             """
-            获取指定租户下所有管理员列表 / Get all admin list for specified tenant
+            获取指定企业下所有管理员列表 / Get all admin list for specified tenant
 
             返回管理员基本信息、角色名、在线状态相关字段。
             Returns admin basic info, role name, and online status related fields.
@@ -142,7 +142,7 @@ class AdminTenantAdminController(GlobalController):
 
             return success(data=items)
 
-        @router.post("", summary="为租户创建管理员")
+        @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")
         async def create_tenant_admin(
             request: Request,
@@ -152,10 +152,10 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminCreateRequest,
         ):
             """
-            为指定租户创建新管理员 / Create new admin for specified tenant
+            为指定企业创建新管理员 / Create new admin for specified tenant
 
             - 自动设置 tenant_id 和 is_owner=False / Auto-set tenant_id and is_owner=False
-            - 验证用户名/邮箱在该租户内唯一 / Validate username/email uniqueness within the tenant
+            - 验证用户名/邮箱在该企业内唯一 / Validate username/email uniqueness within the tenant
             """
             await _verify_tenant(db, tenant_id)
 
@@ -222,7 +222,7 @@ class AdminTenantAdminController(GlobalController):
                 "is_active": new_admin.is_active,
             })
 
-        @router.put("/{admin_id}", summary="更新租户管理员")
+        @router.put("/{admin_id}", summary="更新企业管理员")
         @action_update("action.tenant_admin.update")
         async def update_tenant_admin(
             request: Request,
@@ -233,9 +233,9 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminUpdateRequest,
         ):
             """
-            更新租户管理员信息（含重置密码） / Update tenant admin info (including password reset)
+            更新企业管理员信息（含重置密码） / Update tenant admin info (including password reset)
 
-            平台管理员可修改租户管理员的密码、昵称、角色、状态。
+            平台管理员可修改企业管理员的密码、昵称、角色、状态。
             Platform admin can modify tenant admin's password, nickname, role, and status.
             至少需要一个字段有值。
             At least one field must have a value.
@@ -295,9 +295,9 @@ class AdminTenantAdminController(GlobalController):
             data: TenantAdminStatusRequest,
         ):
             """
-            切换租户管理员的启用/禁用状态 / Toggle tenant admin enable/disable status
+            切换企业管理员的启用/禁用状态 / Toggle tenant admin enable/disable status
 
-            不可禁用租户所有者（is_owner=True）。
+            不可禁用企业所有者（is_owner=True）。
             Cannot disable tenant owner (is_owner=True).
             """
             await _verify_tenant(db, tenant_id)

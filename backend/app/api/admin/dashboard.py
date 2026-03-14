@@ -6,7 +6,7 @@
 - A2: AI 使用概览 / AI usage overview
 - A3: 存储使用概览 / Storage usage overview
 - A4: 插件状态概览 / Plugin status overview
-- A5: 租户增长趋势 / Tenant growth trend
+- A5: 企业增长趋势 / Tenant growth trend
 - A6: 近期活动时间线 / Recent activity timeline
 """
 
@@ -28,9 +28,9 @@ async def get_dashboard_stats(
 ):
     """
     获取平台管理端仪表盘统计 / Get platform admin dashboard statistics:
-    - total_tenants: 租户总数 / Total tenants
-    - active_tenants: 活跃租户数 / Active tenants
-    - total_users: 租户管理员总数 / Total tenant admins
+    - total_tenants: 企业总数 / Total tenants
+    - active_tenants: 活跃企业数 / Active tenants
+    - total_users: 企业管理员总数 / Total tenant admins
     - today_login: 今日登录数 / Today's logins
     """
     service = AdminDashboardService(db)
@@ -86,14 +86,14 @@ async def get_plugin_overview(
     return success(data=data)
 
 
-@router.get("/tenant-growth", summary="租户增长趋势")
+@router.get("/tenant-growth", summary="企业增长趋势")
 @auth_only
 async def get_tenant_growth(
     db: DbSession,
     _current_admin: ActiveAdmin,
     days: int = Query(30, ge=1, le=365, description="天数"),
 ):
-    """A5: 近 N 天每日新增租户数 / Daily new tenants in last N days"""
+    """A5: 近 N 天每日新增企业数 / Daily new tenants in last N days"""
     service = AdminDashboardService(db)
     data = await service.get_tenant_growth(days=days)
     return success(data=data)

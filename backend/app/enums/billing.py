@@ -1,7 +1,7 @@
 """
 计费相关枚举模块 / Billing Enum Module
 
-定义租户套餐计费相关的枚举
+定义企业套餐计费相关的枚举
 Defines tenant plan billing related enums.
 """
 

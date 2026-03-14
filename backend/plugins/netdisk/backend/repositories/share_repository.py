@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class ShareRepository(TenantRepository["Share"]):
 
     async def get_by_token(self, token: str) -> Share | None:
-        """按 share_token 查询（公开访问，不限租户）"""
+        """按 share_token 查询（公开访问，不限企业）"""
         from ..models.share import Share
         result = await self.db.execute(
             select(Share).where(Share.share_token == token, Share.is_active.is_(True))

@@ -27,8 +27,8 @@ class SystemAgentAssignment(BaseModel):
     系统智能体绑定模型
 
     每条记录表示一个功能代码绑定了一个智能体。
-    全局默认记录 tenant_id=NULL，租户覆盖记录 tenant_id=<id>。
-    Resolve 顺序：租户覆盖 → 全局默认。
+    全局默认记录 tenant_id=NULL，企业覆盖记录 tenant_id=<id>。
+    Resolve 顺序：企业覆盖 → 全局默认。
     """
 
     __tablename__ = "system_agent_assignments"

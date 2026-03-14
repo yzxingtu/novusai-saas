@@ -7,7 +7,7 @@
 export interface LoginParams {
   username: string;
   password: string;
-  /** Tenant code (optional, for scoping login) / 租户编码 */
+  /** Tenant code (optional, for scoping login) / 企业编码 */
   tenantCode?: string;
   /** Captcha challenge ID (optional) / 验证码挑战 ID */
   captchaChallengeId?: string;
@@ -76,7 +76,7 @@ export interface AdminUserInfo extends BaseUserInfo {
   isSuperAdmin?: boolean;
 }
 
-/** Tenant admin info / 租户管理员信息 */
+/** Tenant admin info / 企业管理员信息 */
 export interface TenantAdminInfo extends BaseUserInfo {
   tenantId: number | string;
   tenantName?: string;
@@ -85,7 +85,7 @@ export interface TenantAdminInfo extends BaseUserInfo {
   planName?: string;
 }
 
-/** Tenant user info / 租户用户信息 */
+/** Tenant user info / 企业用户信息 */
 export interface TenantUserInfo extends BaseUserInfo {
   tenantId: number | string;
   email?: string;

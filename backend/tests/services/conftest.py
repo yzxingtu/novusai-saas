@@ -83,7 +83,7 @@ def sample_admin_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_tenant_data() -> dict[str, Any]:
-    """租户样本数据"""
+    """企业样本数据"""
     return {
         "id": 1,
         "name": "Test Tenant",
@@ -98,7 +98,7 @@ def sample_tenant_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_tenant_admin_data() -> dict[str, Any]:
-    """租户管理员样本数据"""
+    """企业管理员样本数据"""
     return {
         "id": 1,
         "tenant_id": 1,

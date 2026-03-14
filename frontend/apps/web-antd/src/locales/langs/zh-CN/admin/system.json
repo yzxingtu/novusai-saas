@@ -317,7 +317,7 @@
     "finishedAt": "完成时间",
     "retry": "重试",
     "cancel": "取消",
-    "tenantName": "所属租户",
+    "tenantName": "所属企业",
     "basicInfo": "基本信息",
     "timeInfo": "时间信息",
     "paramsInfo": "参数信息",
@@ -375,7 +375,7 @@
       "searchTaskName": "搜索任务名称",
       "searchQueue": "搜索队列",
       "allStatus": "全部状态",
-      "allTenant": "全部租户"
+      "allTenant": "全部企业"
     }
   },
   "periodicTask": {
@@ -408,7 +408,7 @@
       "failed": "失败",
       "avgDuration": "平均耗时"
     },
-    "tenantName": "所属租户",
+    "tenantName": "所属企业",
     "scopeLabel": "作用范围",
     "isLocked": "保护（禁止删除）",
     "isEditable": "允许编辑",
@@ -454,10 +454,10 @@
       "inputCron": "Cron 表达式（如 0 2 * * *）",
       "inputInterval": "间隔秒数（最小 10）",
       "inputDescription": "请输入描述（可选）",
-      "allTenant": "全部租户",
+      "allTenant": "全部企业",
       "allScopes": "全部范围",
       "selectScope": "请选择作用范围",
-      "selectTenant": "请选择租户",
+      "selectTenant": "请选择企业",
       "inputMaxRetries": "0-10 次",
       "inputRetryDelay": "1-3600 秒",
       "inputTimeout": "10-86400 秒",
@@ -483,7 +483,7 @@
       "notification": "系统通知",
       "password_reset": "密码重置",
       "welcome": "欢迎邮件",
-      "tenant_welcome": "租户创建",
+      "tenant_welcome": "企业创建",
       "security_alert": "安全警告",
       "task_failure": "任务失败",
       "ssl_expiry": "SSL到期",
@@ -496,7 +496,7 @@
         "security_alert": "安全警告",
         "welcome": "欢迎邮件",
         "password_reset": "密码重置",
-        "tenant_welcome": "租户创建",
+        "tenant_welcome": "企业创建",
         "task_failure": "任务失败",
         "ssl_expiry": "SSL到期"
       },
@@ -518,7 +518,7 @@
         "import_failed": "导入失败"
       },
       "biz": {
-        "tenant_created": "租户创建",
+        "tenant_created": "企业创建",
         "tenant_expired": "套餐到期",
         "plan_changed": "套餐变更",
         "plugin_installed": "插件安装",
@@ -612,13 +612,13 @@
     "cleanupConfirm": "确定要清理超过 30 天的过期记录吗？此操作不可恢复。",
     "cleanupTriggered": "清理任务已提交",
     "noModule": "请选择左侧模块",
-    "tenant": "所属租户",
+    "tenant": "所属企业",
     "deleteLevel": "删除层级",
     "levelAll": "全部",
     "levelAdmin": "管理端",
-    "levelTenant": "租户端",
+    "levelTenant": "企业端",
     "searchPlaceholder": "搜索已删除记录…",
-    "allTenants": "全部租户",
+    "allTenants": "全部企业",
     "modules": "数据模块",
     "clearModule": "清空当前模块",
     "clearModuleConfirm": "确定要永久删除「{module}」中所有回收站记录吗？此操作不可恢复。",

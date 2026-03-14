@@ -32,7 +32,7 @@
     "concurrency": "并发数",
     "scope": "迁移范围",
     "scopeAll": "全部文件",
-    "scopeTenant": "租户 {id} 的文件",
+    "scopeTenant": "企业 {id} 的文件",
     "startedAt": "开始时间",
     "completedAt": "完成时间",
     "activeListTitle": "进行中的任务",

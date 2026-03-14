@@ -1,5 +1,5 @@
 """
-租户存储配额模型
+企业存储配额模型
 """
 
 from __future__ import annotations

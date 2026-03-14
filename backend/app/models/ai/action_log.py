@@ -144,7 +144,7 @@ class AIActionLog(TenantModel):
     __table_args__ = (
         # 操作类型 + 创建时间复合索引（用于按类型查询审计记录）
         Index("idx_ai_action_logs_type_created", "action_type", "created_at"),
-        # 租户 + 创建时间复合索引（用于按租户查询最近记录）
+        # 企业 + 创建时间复合索引（用于按企业查询最近记录）
         Index("idx_ai_action_logs_tenant_created", "tenant_id", "created_at"),
         # 操作者 + 创建时间复合索引（用于按操作者追溯记录）
         Index("idx_ai_action_logs_operator_created", "operator_id", "created_at"),

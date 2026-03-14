@@ -10,13 +10,13 @@ from app.models.ai.agent_memory_override import AgentMemoryOverride
 
 class AgentMemoryOverrideRepository(TenantRepository[AgentMemoryOverride]):
     """
-    租户级智能体记忆开关覆盖仓储
+    企业级智能体记忆开关覆盖仓储
     """
 
     model = AgentMemoryOverride
 
     async def get_by_agent_id(self, agent_id: int) -> AgentMemoryOverride | None:
-        """获取当前租户对指定 agent 的覆盖记录"""
+        """获取当前企业对指定 agent 的覆盖记录"""
         result = await self.db.execute(
             select(self.model).where(
                 and_(

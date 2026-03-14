@@ -75,7 +75,7 @@ class AgentChatService:
         """
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
         """
         self.db = db
         self.tenant_id = tenant_id
@@ -378,7 +378,7 @@ class AgentChatService:
 
         规则：
         1) 非 ai_chat_page/admin_chat 场景直接关闭
-        2) 允许场景下叠加平台/管理端/租户三层开关
+        2) 允许场景下叠加平台/管理端/企业三层开关
         """
         if not scene_enabled:
             return False
@@ -1077,7 +1077,7 @@ class AgentChatService:
 
         Args:
             confirm_id: 确认 ID（不再使用）
-            tenant_id: 租户 ID
+            tenant_id: 企业 ID
             user_id: 用户 ID
 
         Returns:

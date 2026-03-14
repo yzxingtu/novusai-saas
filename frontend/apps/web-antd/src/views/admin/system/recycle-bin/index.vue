@@ -14,7 +14,7 @@ import type {
  * - Dynamic columns: renders different columns based on module metadata
  * - 动态列：根据模块元数据渲染不同列
  * - Tenant distinction: tenant-level modules show "Tenant" column
- * - 租户区分：租户级模块展示「所属租户」列
+ * - 企业区分：企业级模块展示「所属企业」列
  */
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
@@ -485,8 +485,8 @@ onUnmounted(() => {
 
         <!-- 右侧内容区 -->
         <div class="recycle-table-wrap min-w-0 flex-1">
-          <!-- 删除层级筛选 + 搜索 + 提示 -->
-          <div class="mb-3 flex flex-wrap items-center gap-3">
+          <!-- 删除层级筛选 + 提示 -->
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-1 rounded-lg border border-border/50 p-0.5">
               <button
                 v-for="lvl in [
@@ -501,9 +501,6 @@ onUnmounted(() => {
               >
                 {{ lvl.label }}
               </button>
-            </div>
-            <div class="flex-1">
-              <SearchForm />
             </div>
             <div class="flex shrink-0 items-center gap-3">
               <div
@@ -524,6 +521,11 @@ onUnmounted(() => {
                 {{ $t('admin.system.recycleBin.clearModule') }}
               </Button>
             </div>
+          </div>
+
+          <!-- 搜索表单 -->
+          <div class="mb-3">
+            <SearchForm />
           </div>
 
           <!-- 表格 -->

@@ -63,7 +63,7 @@ class AdminAICallLogController(GlobalController):
             查询 AI 调用日志列表 / Query AI call log list
 
             支持 JSON:API 风格筛选 / Supports JSON:API style filtering:
-            - filter[tenant_id]: 租户 ID / Tenant ID
+            - filter[tenant_id]: 企业 ID / Tenant ID
             - filter[model_id]: 模型 ID / Model ID
             - filter[status]: 调用状态 / Call status
             - filter[created_at][gte]: 创建时间 >= / Created at >=
@@ -90,7 +90,7 @@ class AdminAICallLogController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
             start_date: date | None = Query(None, description="开始日期"),
             end_date: date | None = Query(None, description="结束日期"),
             group_by: str | None = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
@@ -127,7 +127,7 @@ class AdminAICallLogController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="租户 ID"),
+            tenant_id: int | None = Query(None, description="企业 ID"),
             start_date: date | None = Query(None, description="开始日期"),
             limit: int = Query(100, ge=1, le=1000, description="返回数量"),
         ):

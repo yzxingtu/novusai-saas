@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
  * Tenant agent management list page — useCrudList + card grid
- * 租户端智能体管理列表页面 — useCrudList + 卡片网格
+ * 企业端智能体管理列表页面 — useCrudList + 卡片网格
  *
  * useCrudList manages: list/pagination/search/delete/recycle bin
  * useCrudList 管理：列表/分页/搜索/删除/回收站

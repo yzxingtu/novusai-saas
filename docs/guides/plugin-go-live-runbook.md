@@ -32,15 +32,15 @@ python -m pytest tests/test_plugin_api_dispatcher_security.py tests/test_plugin_
   - weather-widget 配置与天气查询路径
 - 观察 30 分钟，关键指标无异常再进入 Phase 1
 
-### Phase 1：生产灰度（10% 流量 / 单租户组）
+### Phase 1：生产灰度（10% 流量 / 单企业组）
 
-- 仅放量给白名单租户
+- 仅放量给白名单企业
 - 观察 60 分钟
 - 若指标稳定，进入 Phase 2
 
 ### Phase 2：生产扩容（50% 流量）
 
-- 扩到半量租户
+- 扩到半量企业
 - 观察 60 分钟
 - 若稳定，进入 Phase 3
 
