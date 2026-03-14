@@ -1,272 +1,542 @@
 <script lang="ts" setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { Button, Input, Empty, Spin, Dropdown, Menu, Modal, Tag, Tooltip } from 'ant-design-vue';
-import { IconifyIcon, $t } from '@novus/plugin-shared';
-import { useRoute, useRouter } from 'vue-router';
+/**
+ * NovusDoc document list page — left sidebar (folders) + main content area (doc grid/list)
+ * Reused for both tenant (/tenant/plugins/novusdoc) and admin (/admin/plugins/novusdoc)
+ */
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import type { DocItem, Folder } from '../types';
+import { listDocs, listFolders, createDoc, deleteDoc, createFolder, deleteFolder, searchDocs } from '../api/novusdoc';
 
-import type { DocItem, FolderItem } from '../api/docs';
-import {
-  listDocsApi,
-  createDocApi,
-  deleteDocApi,
-  listFoldersApi,
-  createFolderApi,
-  deleteFolderApi,
-} from '../api/docs';
+const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
+  $t?: (k: string) => string;
+  router?: { push: (to: string) => void };
+  registerPageContext?: (key: string, resolver: () => unknown) => () => void;
+  registerPageOperations?: (key: string, ops: unknown[]) => () => void;
+} | undefined;
 
-const route = useRoute();
-const router = useRouter();
+const $t = (key: string) => {
+  return shared?.$t?.(key) ?? key.split('.').pop() ?? key;
+};
 
-const loading = ref(false);
 const docs = ref<DocItem[]>([]);
+const folders = ref<Folder[]>([]);
 const total = ref(0);
 const page = ref(1);
 const size = ref(20);
-const searchQuery = ref('');
+const loading = ref(false);
 const activeFolderId = ref<number | null>(null);
-const folders = ref<FolderItem[]>([]);
-const folderTree = ref<FolderItem[]>([]);
+const searchQuery = ref('');
+const searchActive = ref(false);
 
-function getRouteBase(): string {
-  const path = route.path;
-  if (path.startsWith('/admin')) return '/admin/plugins/novusdoc';
-  return '/tenant/plugins/novusdoc';
-}
+const isAdmin = computed(() => location.pathname.includes('/admin/'));
 
-function openDocEditor(docId: number) {
-  router.push(`${getRouteBase()}/docs/${docId}`);
+async function loadFolders() {
+  try {
+    const res = await listFolders();
+    folders.value = res.items;
+  } catch {
+    folders.value = [];
+  }
 }
 
 async function loadDocs() {
   loading.value = true;
   try {
-    const params: Record<string, string> = {
-      'page[number]': String(page.value),
-      'page[size]': String(size.value),
-      sort: '-updated_at',
-    };
-    if (activeFolderId.value !== null) {
-      params['filter[folder_id][eq]'] = String(activeFolderId.value);
+    if (searchActive.value && searchQuery.value.trim()) {
+      const res = await searchDocs(searchQuery.value.trim(), { page: page.value, size: size.value });
+      docs.value = res.items;
+      total.value = res.total;
+    } else {
+      const res = await listDocs({
+        page: page.value,
+        size: size.value,
+        folder_id: activeFolderId.value,
+      });
+      docs.value = res.items;
+      total.value = res.total;
     }
-    if (searchQuery.value.trim()) {
-      params['filter[title][ilike]'] = searchQuery.value.trim();
-    }
-    const res = await listDocsApi(params) as unknown as Record<string, unknown>;
-    docs.value = (res.items as DocItem[]) || [];
-    total.value = (res.total as number) || 0;
   } catch {
-    // handled by global interceptor
+    docs.value = [];
+    total.value = 0;
   } finally {
     loading.value = false;
   }
 }
 
-async function loadFolders() {
-  try {
-    const res = await listFoldersApi() as unknown as Record<string, unknown>;
-    folders.value = (res.items as FolderItem[]) || [];
-    folderTree.value = (res.tree as FolderItem[]) || [];
-  } catch {
-    // handled by global interceptor
+watch([page, activeFolderId], () => {
+  if (!searchActive.value) loadDocs();
+});
+
+// ── Page Awareness / 页面感知 ──
+const pageKey = computed(() =>
+  isAdmin.value ? 'admin.plugins.novusdoc' : 'tenant.plugins.novusdoc',
+);
+
+let cleanupContext: (() => void) | undefined;
+let cleanupOps: (() => void) | undefined;
+
+function setupPageAwareness() {
+  cleanupContext?.();
+  cleanupOps?.();
+
+  if (shared?.registerPageContext) {
+    cleanupContext = shared.registerPageContext(pageKey.value, () => ({
+      page_key: pageKey.value,
+      page_title: $t('plugin.novusdoc.doc.title'),
+      page_data: {
+        entity_name: $t('plugin.novusdoc.doc.title'),
+        entity_description: $t('plugin.novusdoc.description') || 'Document management with folders, tags and full-text search',
+        list_summary: {
+          total_rows: total.value,
+          page_size: size.value,
+          current_page: page.value,
+          sample_rows: docs.value.slice(0, 5).map(d => ({
+            id: d.id,
+            title: d.title,
+            status: d.status,
+            word_count: d.word_count,
+            updated_at: d.updated_at,
+          })),
+        },
+        active_folder: activeFolderId.value,
+        folder_count: folders.value.length,
+        search_active: searchActive.value,
+        search_query: searchQuery.value,
+      },
+    }));
+  }
+
+  if (shared?.registerPageOperations) {
+    cleanupOps = shared.registerPageOperations(pageKey.value, [
+      {
+        name: 'refresh_list',
+        label: $t('plugin.novusdoc.op.refresh') || 'Refresh document list',
+        description: 'Reload documents and folders',
+        readonly: true,
+        handler: async () => {
+          await Promise.all([loadFolders(), loadDocs()]);
+          return { success: true, message: `Loaded ${docs.value.length} documents` };
+        },
+      },
+      {
+        name: 'search',
+        label: $t('plugin.novusdoc.op.search') || 'Search documents',
+        description: 'Search documents by keyword',
+        readonly: true,
+        params: { query: { type: 'string', description: 'Search keyword' } },
+        handler: async (params: Record<string, unknown>) => {
+          searchQuery.value = String(params.query || '');
+          searchActive.value = true;
+          page.value = 1;
+          await loadDocs();
+          return { success: true, message: `Found ${total.value} results for "${searchQuery.value}"` };
+        },
+      },
+      {
+        name: 'clear_search',
+        label: $t('plugin.novusdoc.op.clearSearch') || 'Clear search',
+        description: 'Clear search filter and show all documents',
+        readonly: true,
+        handler: async () => {
+          clearSearch();
+          return { success: true, message: 'Search cleared' };
+        },
+      },
+      {
+        name: 'create_document',
+        label: $t('plugin.novusdoc.doc.newDoc') || 'Create new document',
+        description: 'Create a new document and open editor',
+        readonly: false,
+        params: {
+          title: { type: 'string', description: 'Document title (optional)' },
+          folder_id: { type: 'number', description: 'Folder ID to place in (optional)' },
+        },
+        handler: async (params: Record<string, unknown>) => {
+          const res = await createDoc({
+            title: (params.title as string) || $t('plugin.novusdoc.doc.untitled'),
+            folder_id: (params.folder_id as number) || activeFolderId.value,
+            status: 'draft',
+          });
+          const doc = res.document;
+          navigateToEditor(doc.id);
+          return { success: true, message: `Created document "${doc.title}" (id: ${doc.id})` };
+        },
+      },
+      {
+        name: 'select_folder',
+        label: $t('plugin.novusdoc.op.selectFolder') || 'Select folder',
+        description: 'Filter documents by folder. Pass null to show all.',
+        readonly: true,
+        params: { folder_id: { type: 'number', description: 'Folder ID or null for all' } },
+        handler: async (params: Record<string, unknown>) => {
+          const fid = params.folder_id as number | null;
+          selectFolder(fid);
+          await loadDocs();
+          return { success: true, message: fid ? `Filtered by folder ${fid}` : 'Showing all documents' };
+        },
+      },
+    ]);
   }
 }
 
-async function handleCreateDoc() {
-  try {
-    const res = await createDocApi({ title: '', status: 'draft' }) as unknown as DocItem;
-    if (res?.id) {
-      openDocEditor(res.id);
-    }
-  } catch {
-    // handled by global interceptor
+onMounted(async () => {
+  await Promise.all([loadFolders(), loadDocs()]);
+  setupPageAwareness();
+});
+
+function selectFolder(fid: number | null) {
+  activeFolderId.value = fid;
+  page.value = 1;
+  searchActive.value = false;
+  searchQuery.value = '';
+}
+
+function onSearch() {
+  if (searchQuery.value.trim()) {
+    searchActive.value = true;
+    page.value = 1;
+    loadDocs();
+  } else {
+    searchActive.value = false;
+    loadDocs();
   }
 }
 
-async function handleDeleteDoc(doc: DocItem) {
-  Modal.confirm({
-    title: $t('plugin.novusdoc.doc.delete'),
-    content: $t('plugin.novusdoc.doc.deleteConfirm'),
-    okType: 'danger',
-    async onOk() {
-      await deleteDocApi(doc.id);
-      await loadDocs();
-    },
-  });
+function clearSearch() {
+  searchQuery.value = '';
+  searchActive.value = false;
+  page.value = 1;
+  loadDocs();
 }
 
-const folderModalVisible = ref(false);
+async function onNewDoc() {
+  try {
+    const res = await createDoc({
+      title: $t('plugin.novusdoc.doc.untitled'),
+      folder_id: activeFolderId.value,
+      status: 'draft',
+    });
+    const doc = res.document;
+    navigateToEditor(doc.id);
+  } catch {
+    // silently fail
+  }
+}
+
+function navigateToEditor(docId: number) {
+  const base = isAdmin.value ? '/admin/plugins/novusdoc' : '/tenant/plugins/novusdoc';
+  const target = `${base}/editor/${docId}`;
+  if (shared?.router) {
+    shared.router.push(target);
+  } else {
+    window.location.href = target;
+  }
+}
+
+// ── Folder management ─────────────────────────────────────
+
+const newFolderVisible = ref(false);
 const newFolderName = ref('');
+const newFolderSaving = ref(false);
 
-function handleCreateFolder() {
-  newFolderName.value = '';
-  folderModalVisible.value = true;
+async function confirmNewFolder() {
+  if (!newFolderName.value.trim()) return;
+  newFolderSaving.value = true;
+  try {
+    await createFolder({ name: newFolderName.value.trim(), parent_id: null });
+    newFolderVisible.value = false;
+    newFolderName.value = '';
+    await loadFolders();
+  } finally {
+    newFolderSaving.value = false;
+  }
 }
 
-async function confirmCreateFolder() {
-  if (!newFolderName.value.trim()) return;
+// ── Delete ────────────────────────────────────────────────
+
+const deleteConfirmVisible = ref(false);
+const deleteTarget = ref<DocItem | null>(null);
+const deleteLoading = ref(false);
+
+function askDelete(doc: DocItem) {
+  deleteTarget.value = doc;
+  deleteConfirmVisible.value = true;
+}
+
+async function confirmDeleteDoc() {
+  if (!deleteTarget.value) return;
+  deleteLoading.value = true;
   try {
-    await createFolderApi({ name: newFolderName.value.trim() });
-    folderModalVisible.value = false;
+    await deleteDoc(deleteTarget.value.id);
+    deleteConfirmVisible.value = false;
+    deleteTarget.value = null;
+    await loadDocs();
+  } finally {
+    deleteLoading.value = false;
+  }
+}
+
+const deleteFolderConfirmVisible = ref(false);
+const deleteFolderTarget = ref<Folder | null>(null);
+
+function askDeleteFolder(f: Folder) {
+  deleteFolderTarget.value = f;
+  deleteFolderConfirmVisible.value = true;
+}
+
+async function confirmDeleteFolder() {
+  if (!deleteFolderTarget.value) return;
+  try {
+    await deleteFolder(deleteFolderTarget.value.id);
+    deleteFolderConfirmVisible.value = false;
+    if (activeFolderId.value === deleteFolderTarget.value.id) {
+      activeFolderId.value = null;
+    }
+    deleteFolderTarget.value = null;
     await loadFolders();
   } catch {
-    // handled by global interceptor
+    // silently fail
   }
 }
 
-function selectFolder(id: number | null) {
-  activeFolderId.value = id;
-  page.value = 1;
+function formatDate(iso: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return dateStr;
-  }
-}
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)));
 
-watch([activeFolderId, page], () => loadDocs());
-
-onMounted(() => {
-  loadDocs();
-  loadFolders();
+onUnmounted(() => {
+  cleanupContext?.();
+  cleanupOps?.();
 });
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 max-md:flex-col">
-    <!-- Sidebar: Folder tree -->
-    <aside class="flex w-[240px] min-w-[240px] flex-col border-r border-border bg-background py-4 max-lg:w-[200px] max-lg:min-w-[200px] max-md:w-full max-md:min-w-0 max-md:max-h-[140px] max-md:border-b max-md:border-r-0 max-md:py-2">
-      <div class="flex items-center justify-between px-4 pb-3 pt-1">
-        <span class="font-semibold text-sm text-foreground">
-          <IconifyIcon icon="lucide:folder" class="mr-1 inline size-4" />
-          {{ $t('plugin.novusdoc.folder.all') }}
-        </span>
-        <Tooltip :title="$t('plugin.novusdoc.folder.create')">
-          <Button size="small" type="text" @click="handleCreateFolder">
-            <IconifyIcon icon="lucide:folder-plus" class="size-4" />
-          </Button>
-        </Tooltip>
+  <div class="flex h-full bg-background text-foreground">
+    <!-- ── Left Sidebar: Folders ── -->
+    <aside class="w-56 shrink-0 border-r border-border flex flex-col bg-card">
+      <div class="px-4 py-3 flex items-center justify-between border-b border-border">
+        <span class="text-sm font-semibold">{{ $t('plugin.novusdoc.folder.title') }}</span>
+        <button
+          class="w-6 h-6 flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+          :title="$t('plugin.novusdoc.folder.newFolder')"
+          @click="newFolderVisible = true"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-2 max-md:flex max-md:gap-1 max-md:overflow-x-auto">
-        <div
-          class="nd-fitem flex cursor-pointer items-center rounded-md px-3 py-2 text-[13px] text-foreground transition-all hover:bg-accent max-md:shrink-0 max-md:whitespace-nowrap max-md:py-1.5"
-          :class="{ 'bg-primary/10 !text-primary font-semibold': activeFolderId === null }"
+      <nav class="flex-1 overflow-y-auto py-1">
+        <button
+          class="w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors"
+          :class="activeFolderId === null && !searchActive ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent/50 text-muted-foreground'"
           @click="selectFolder(null)"
         >
-          <IconifyIcon icon="lucide:files" class="size-4 mr-2 text-muted-foreground" />
-          <span>{{ $t('plugin.novusdoc.folder.all') }}</span>
-        </div>
-
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" /></svg>
+          {{ $t('plugin.novusdoc.folder.allDocs') }}
+        </button>
         <div
-          v-for="folder in folderTree"
-          :key="folder.id"
-          class="nd-fitem flex cursor-pointer items-center rounded-md px-3 py-2 text-[13px] text-foreground transition-all hover:bg-accent max-md:shrink-0 max-md:whitespace-nowrap max-md:py-1.5"
-          :class="{ 'bg-primary/10 !text-primary font-semibold': activeFolderId === folder.id }"
-          @click="selectFolder(folder.id)"
+          v-for="f in folders"
+          :key="f.id"
+          role="button"
+          tabindex="0"
+          class="group w-full cursor-pointer px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors"
+          :class="activeFolderId === f.id ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-accent/50 text-muted-foreground'"
+          @click="selectFolder(f.id)"
+          @keydown.enter="selectFolder(f.id)"
         >
-          <IconifyIcon icon="lucide:folder" class="size-4 mr-2 text-muted-foreground" />
-          <span>{{ folder.name }}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" /></svg>
+          <span class="flex-1 truncate">{{ f.name }}</span>
+          <button
+            class="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive"
+            :title="$t('plugin.novusdoc.folder.delete')"
+            @click.stop="askDeleteFolder(f)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          </button>
         </div>
-      </div>
+      </nav>
     </aside>
 
-    <!-- Main content -->
-    <main class="flex flex-1 flex-col overflow-y-auto bg-background px-7 py-5 min-w-0 max-md:px-4 max-md:py-3">
+    <!-- ── Main Area ── -->
+    <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
       <!-- Toolbar -->
-      <div class="mb-5 flex items-center justify-between gap-3 max-md:mb-3 max-md:flex-wrap max-md:gap-2">
-        <Button type="primary" @click="handleCreateDoc">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
-          {{ $t('plugin.novusdoc.doc.create') }}
-        </Button>
-
-        <Input.Search
-          v-model:value="searchQuery"
-          :placeholder="$t('plugin.novusdoc.doc.search')"
-          allow-clear
-          style="width: 260px"
-          @search="loadDocs"
-        />
-      </div>
-
-      <!-- Document grid -->
-      <Spin :spinning="loading">
-        <div v-if="docs.length === 0 && !loading" class="flex justify-center py-20 opacity-80">
-          <Empty :description="$t('plugin.novusdoc.doc.empty')">
-            <Button type="primary" @click="handleCreateDoc">
-              <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
-              {{ $t('plugin.novusdoc.doc.create') }}
-            </Button>
-          </Empty>
+      <header class="px-4 py-3 flex items-center gap-3 border-b border-border bg-card shrink-0">
+        <!-- Search -->
+        <div class="relative flex-1 max-w-sm">
+          <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input
+            v-model="searchQuery"
+            class="w-full pl-8 pr-8 py-1.5 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            :placeholder="$t('plugin.novusdoc.search.placeholder')"
+            @keyup.enter="onSearch"
+          />
+          <button
+            v-if="searchQuery"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            @click="clearSearch"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
         </div>
 
-        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 max-lg:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] max-lg:gap-3 max-md:grid-cols-1 max-md:gap-2.5">
+        <div class="flex-1" />
+
+        <!-- New document button -->
+        <button
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          @click="onNewDoc"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          {{ $t('plugin.novusdoc.doc.newDoc') }}
+        </button>
+      </header>
+
+      <!-- Document grid -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <div v-if="loading" class="flex items-center justify-center h-32 text-muted-foreground text-sm">
+          <svg class="animate-spin mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+          {{ $t('common.loading') }}
+        </div>
+
+        <div v-else-if="docs.length === 0" class="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+          {{ searchActive ? $t('plugin.novusdoc.search.noResults') : $t('plugin.novusdoc.search.noResults') }}
+        </div>
+
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <div
             v-for="doc in docs"
             :key="doc.id"
-            class="nd-dcard relative cursor-pointer rounded-[10px] border border-border bg-card p-[18px_20px] transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md max-md:p-[14px_16px]"
-            @click="openDocEditor(doc.id)"
+            class="group relative border border-border rounded-lg p-4 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer bg-card"
+            @click="navigateToEditor(doc.id)"
           >
-            <div class="flex items-start justify-between gap-2">
-              <h3 class="m-0 line-clamp-2 text-sm font-semibold leading-normal text-foreground">
-                {{ doc.title || $t('plugin.novusdoc.doc.untitled') }}
-              </h3>
-              <Dropdown>
-                <template #overlay>
-                  <Menu>
-                    <Menu.Item key="star">
-                      <IconifyIcon :icon="doc.is_starred ? 'lucide:star-off' : 'lucide:star'" class="mr-1 size-4" />
-                      {{ doc.is_starred ? $t('plugin.novusdoc.doc.unstar') : $t('plugin.novusdoc.doc.star') }}
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item key="delete" danger @click.stop="handleDeleteDoc(doc)">
-                      <IconifyIcon icon="lucide:trash-2" class="mr-1 size-4" />
-                      {{ $t('plugin.novusdoc.doc.delete') }}
-                    </Menu.Item>
-                  </Menu>
-                </template>
-                <Button size="small" type="text" @click.stop>
-                  <IconifyIcon icon="lucide:more-horizontal" class="size-4" />
-                </Button>
-              </Dropdown>
+            <!-- Pin indicator -->
+            <div v-if="doc.is_pinned" class="absolute top-2 right-2 text-amber-500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z" /></svg>
             </div>
 
-            <div class="mt-3.5 flex justify-between border-t border-border/50 pt-3">
-              <span class="flex items-center gap-1">
-                <IconifyIcon icon="lucide:file-text" class="size-3 text-muted-foreground" />
-                <span class="text-muted-foreground text-xs">{{ doc.word_count }} {{ $t('plugin.novusdoc.doc.chars') }}</span>
+            <!-- Title -->
+            <h3 class="text-sm font-medium truncate pr-6">{{ doc.title }}</h3>
+
+            <!-- Meta row -->
+            <div class="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+              <span
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium"
+                :class="doc.status === 'published' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'"
+              >
+                {{ doc.status === 'published' ? $t('plugin.novusdoc.status.published') : $t('plugin.novusdoc.status.draft') }}
               </span>
-              <span class="text-muted-foreground text-xs">{{ formatDate(doc.updated_at) }}</span>
+              <span>{{ doc.word_count }} {{ $t('plugin.novusdoc.doc.wordCount') }}</span>
             </div>
 
-            <div v-if="doc.is_starred" class="absolute right-2.5 top-2.5">
-              <IconifyIcon icon="lucide:star" class="size-3.5 text-warning" />
+            <!-- Date -->
+            <p class="mt-1.5 text-xs text-muted-foreground/70">
+              {{ formatDate(doc.updated_at) }}
+            </p>
+
+            <!-- Actions (hover) -->
+            <div class="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <button
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                :title="$t('plugin.novusdoc.doc.deleteDoc')"
+                @click.stop="askDelete(doc)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+              </button>
             </div>
           </div>
         </div>
-      </Spin>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="mt-4 flex items-center justify-center gap-2">
+          <button
+            :disabled="page <= 1"
+            class="px-3 py-1 text-sm rounded border border-input hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+            @click="page--"
+          >
+            ‹
+          </button>
+          <span class="text-sm text-muted-foreground">{{ page }} / {{ totalPages }}</span>
+          <button
+            :disabled="page >= totalPages"
+            class="px-3 py-1 text-sm rounded border border-input hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+            @click="page++"
+          >
+            ›
+          </button>
+        </div>
+      </div>
     </main>
 
-    <!-- Folder creation Modal -->
-    <Modal
-      v-model:open="folderModalVisible"
-      :title="$t('plugin.novusdoc.folder.create')"
-      :ok-text="$t('plugin.novusdoc.folder.create')"
-      :cancel-text="$t('plugin.novusdoc.common.cancel')"
-      @ok="confirmCreateFolder"
-      :ok-button-props="{ disabled: !newFolderName.trim() }"
-    >
-      <Input
-        v-model:value="newFolderName"
-        :placeholder="$t('plugin.novusdoc.folder.namePrompt')"
-        @pressEnter="confirmCreateFolder"
-        autofocus
-        class="mt-2"
-      />
-    </Modal>
+    <!-- ── New Folder Modal ── -->
+    <teleport to="body">
+      <div v-if="newFolderVisible" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50" @click.self="newFolderVisible = false">
+        <div class="bg-card rounded-lg shadow-lg p-6 w-80">
+          <h3 class="text-base font-semibold mb-4">{{ $t('plugin.novusdoc.folder.newFolder') }}</h3>
+          <input
+            v-model="newFolderName"
+            class="w-full px-3 py-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            :placeholder="$t('plugin.novusdoc.folder.title')"
+            @keyup.enter="confirmNewFolder"
+          />
+          <div class="mt-4 flex justify-end gap-2">
+            <button class="px-3 py-1.5 text-sm rounded border border-input hover:bg-accent" @click="newFolderVisible = false">{{ $t('common.cancel') }}</button>
+            <button
+              class="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              :disabled="!newFolderName.trim() || newFolderSaving"
+              @click="confirmNewFolder"
+            >
+              {{ newFolderSaving ? '...' : $t('common.confirm') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- ── Delete Doc Confirm Modal ── -->
+    <teleport to="body">
+      <div v-if="deleteConfirmVisible" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50" @click.self="deleteConfirmVisible = false">
+        <div class="bg-card rounded-lg shadow-lg p-6 w-80">
+          <h3 class="text-base font-semibold mb-2">{{ $t('plugin.novusdoc.doc.deleteDoc') }}</h3>
+          <p class="text-sm text-muted-foreground mb-4">{{ $t('plugin.novusdoc.doc.deleteConfirm') }}</p>
+          <div class="flex justify-end gap-2">
+            <button class="px-3 py-1.5 text-sm rounded border border-input hover:bg-accent" @click="deleteConfirmVisible = false">{{ $t('common.cancel') }}</button>
+            <button
+              class="px-3 py-1.5 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              :disabled="deleteLoading"
+              @click="confirmDeleteDoc"
+            >
+              {{ deleteLoading ? '...' : $t('common.delete') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- ── Delete Folder Confirm Modal ── -->
+    <teleport to="body">
+      <div v-if="deleteFolderConfirmVisible" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50" @click.self="deleteFolderConfirmVisible = false">
+        <div class="bg-card rounded-lg shadow-lg p-6 w-80">
+          <h3 class="text-base font-semibold mb-2">{{ $t('plugin.novusdoc.folder.delete') }}</h3>
+          <p class="text-sm text-muted-foreground mb-4">{{ $t('plugin.novusdoc.doc.deleteConfirm') }}</p>
+          <div class="flex justify-end gap-2">
+            <button class="px-3 py-1.5 text-sm rounded border border-input hover:bg-accent" @click="deleteFolderConfirmVisible = false">{{ $t('common.cancel') }}</button>
+            <button
+              class="px-3 py-1.5 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              @click="confirmDeleteFolder"
+            >
+              {{ $t('common.delete') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>

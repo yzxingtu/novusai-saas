@@ -39,7 +39,7 @@ const emit = defineEmits<{
 }>();
 
 // ============================================================
-// State
+// State / 状态
 // ============================================================
 
 const loading = ref(false);
@@ -50,7 +50,7 @@ const expandedKeys = ref<number[]>([]);
 const halfCheckedKeys = ref<number[]>([]);
 
 // ============================================================
-// Tree node type
+// Tree node type / 树节点类型
 // ============================================================
 
 interface TreeNode {
@@ -63,7 +63,7 @@ interface TreeNode {
 }
 
 // ============================================================
-// Computed
+// Computed / 计算属性
 // ============================================================
 
 const drawerTitle = computed(() => {
@@ -72,7 +72,7 @@ const drawerTitle = computed(() => {
 });
 
 // ============================================================
-// Load data
+// Load data / 加载数据
 // ============================================================
 
 function transformToTreeNodes(nodes: TenantPermissionNode[]): TreeNode[] {
@@ -137,7 +137,7 @@ function filterLeafKeys(nodes: TreeNode[], idSet: Set<number>): number[] {
 }
 
 // ============================================================
-// Actions
+// Actions / 操作
 // ============================================================
 
 function onCheck(
@@ -181,7 +181,7 @@ function onCollapseAll() {
 }
 
 // ============================================================
-// Watch
+// Watch / 监听
 // ============================================================
 
 watch(
@@ -194,7 +194,7 @@ watch(
 );
 
 // ============================================================
-// Permission type helpers
+// Permission type helpers / 权限类型辅助
 // ============================================================
 
 function getTypeIcon(type: string): string {

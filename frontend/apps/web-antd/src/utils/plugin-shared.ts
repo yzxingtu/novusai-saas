@@ -20,12 +20,6 @@
 import * as Vue from 'vue';
 import * as VueRouter from 'vue-router';
 
-// ── novusdoc plugin: lowlight global ──────────────────────────────────────
-// The novusdoc dist/index.js externalises lowlight with Rollup global name
-// "lowlight$1". Expose it here so the module-level createLowlight() call
-// doesn't crash on UMD load. @tiptap/* is bundled directly into the UMD.
-import * as lowlightLib from 'lowlight';
-// ───────────────────────────────────────────────────────────────────────────
 
 import * as VbenCommonUi from '@vben/common-ui';
 import * as VbenIcons from '@vben/icons';
@@ -35,6 +29,15 @@ import { useUserStore } from '@vben/stores';
 
 import * as AntDesignVue from 'ant-design-vue';
 
+import {
+  listPageOperations,
+  registerPageContext,
+  registerPageOperations,
+} from '#/components/business/ai-slide-panel';
+import {
+  mountRichTextEditor,
+  RichTextEditor,
+} from '#/components/business/rich-text-editor';
 import { $t } from '#/locales';
 import { getCurrentEndpoint } from '#/router/access';
 import { router } from '#/router';
@@ -49,7 +52,12 @@ export {
   getAuthToken,
   getCurrentUser,
   IconifyIcon,
+  listPageOperations,
+  mountRichTextEditor,
+  registerPageContext,
+  registerPageOperations,
   requestClient,
+  RichTextEditor,
   usePluginExtensionsStore,
   usePluginSlotsStore,
 };
@@ -85,7 +93,7 @@ function getCurrentUser(): {
       };
     }
   } catch {
-    /* store not ready */
+    /* store not ready / 存储未就绪 */
   }
   return { id: null, username: '', name: '' };
 }
@@ -97,6 +105,10 @@ export interface NovusPluginSharedAPI {
   $t: typeof $t;
   /** Icon component / 图标组件 */
   IconifyIcon: typeof IconifyIcon;
+  /** Platform-level rich text editor component / 平台级富文本编辑器组件 */
+  RichTextEditor: typeof RichTextEditor;
+  /** Imperative mount API for rich text editor / 富文本编辑器命令式挂载 API */
+  mountRichTextEditor: typeof mountRichTextEditor;
   /** Plugin slots store (UI slots: headerWidgets / floatingPanels, etc.) / 插件槽位 Store（UI 插槽：headerWidgets / floatingPanels 等） */
   usePluginSlotsStore: typeof usePluginSlotsStore;
   /** Plugin extensions store (editor extensions / panels / commands) / 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
@@ -113,6 +125,12 @@ export interface NovusPluginSharedAPI {
   getCurrentUser: () => { id: null | number; name: string; username: string };
   /** Vue Router instance (for plugin in-page navigation) / Vue Router 实例（供插件页面内导航使用） */
   router: typeof router;
+  /** Register page context for AI awareness / 注册页面上下文供 AI 感知 */
+  registerPageContext: typeof registerPageContext;
+  /** Register page operations for AI invocation / 注册页面操作供 AI 调用 */
+  registerPageOperations: typeof registerPageOperations;
+  /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
+  listPageOperations: typeof listPageOperations;
 }
 
 /**
@@ -135,20 +153,22 @@ export function exposePluginShared(): void {
   w.VbenCommonUi = VbenCommonUi;
   w.VbenIcons = VbenIcons;
 
-  // novusdoc: lowlight (module-level createLowlight call at UMD load time)
-  w['lowlight$1'] = lowlightLib;
-
   // NovusAI 插件共享 API
   w.NovusPluginShared = {
     requestClient,
     $t,
     IconifyIcon,
+    RichTextEditor,
+    mountRichTextEditor,
     usePluginSlotsStore,
     usePluginExtensionsStore,
     registerLocale: _registerPluginLocale,
     getAuthToken,
     getCurrentUser,
     router,
+    listPageOperations,
+    registerPageContext,
+    registerPageOperations,
   } satisfies NovusPluginSharedAPI;
 }
 

@@ -16,6 +16,7 @@ from app.api.admin.agents import AdminAgentController
 from app.api.admin.agents import router as ai_agents_router
 from app.api.admin.ai_action_logs import AdminAIActionLogController
 from app.api.admin.ai_action_logs import router as ai_action_logs_router
+from app.api.admin.ai_writing import router as ai_writing_router
 from app.api.admin.ai_agent_chat import AdminAgentChatController
 from app.api.admin.ai_agent_chat import router as ai_agent_chat_router
 from app.api.admin.ai_api_keys import AdminAIApiKeyController
@@ -149,6 +150,8 @@ admin_router.include_router(preferences_router)
 admin_router.include_router(notification_templates_router)
 # 插件管理 / Plugin management
 admin_router.include_router(plugins_router)
+# AI 写作 / AI Writing
+admin_router.include_router(ai_writing_router)
 # 缓存管理 / Cache management
 admin_router.include_router(cache_router)
 

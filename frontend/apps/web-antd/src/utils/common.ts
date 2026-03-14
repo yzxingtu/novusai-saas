@@ -93,22 +93,22 @@ export function generateCode(options: GenerateCodeOptions = {}): string {
     suffix = '',
   } = options;
 
-  // 构建字符集
+  // 构建字符集 / Build charset
   let charset = '';
   if (lowercase) charset += SAFE_CHARS.lowercase;
   if (uppercase) charset += SAFE_CHARS.uppercase;
   if (numbers) charset += SAFE_CHARS.numbers;
 
-  // 如果没有选择任何字符类型，使用全部
+  // 如果没有选择任何字符类型，使用全部 / If no type selected, use all
   if (!charset) {
     charset = SAFE_CHARS.lowercase + SAFE_CHARS.uppercase + SAFE_CHARS.numbers;
   }
 
-  // 生成随机字符
+  // 生成随机字符 / Generate random char
   let code = '';
   const charsetLength = charset.length;
 
-  // 使用 crypto API 生成更安全的随机数（如果可用）
+  // 使用 crypto API 生成更安全的随机数（如果可用）/ Use crypto API for secure random if available
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     const randomValues = new Uint32Array(length);
     crypto.getRandomValues(randomValues);
@@ -117,13 +117,13 @@ export function generateCode(options: GenerateCodeOptions = {}): string {
       code += charset[randomValues[i]! % charsetLength];
     }
   } else {
-    // 降级到 Math.random
+    // 降级到 Math.random / Fallback to Math.random
     for (let i = 0; i < length; i++) {
       code += charset[Math.floor(Math.random() * charsetLength)];
     }
   }
 
-  // 添加分隔符
+  // 添加分隔符 / Add separator
   if (separator && separatorInterval > 0) {
     const parts: string[] = [];
     for (let i = 0; i < code.length; i += separatorInterval) {
@@ -148,7 +148,7 @@ export function generateUUID(): string {
     return crypto.randomUUID();
   }
 
-  // 降级实现
+  // 降级实现 / Fallback impl
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replaceAll(/[xy]/g, (c) => {
     const r = Math.trunc(Math.random() * 16);
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -203,7 +203,7 @@ export function formatDate(
   date: Date | null | number | string | undefined,
   options: FormatDateOptions | string = {},
 ): string {
-  // 支持直接传入格式字符串
+  // 支持直接传入格式字符串 / Support format string directly
   const opts: FormatDateOptions =
     typeof options === 'string' ? { format: options } : options;
   const { format = 'YYYY-MM-DD HH:mm:ss', fallback = '-' } = opts;
@@ -212,7 +212,7 @@ export function formatDate(
 
   const d = date instanceof Date ? date : new Date(date);
 
-  // 检查日期有效性
+  // 检查日期有效性 / Validate date
   if (Number.isNaN(d.getTime())) return fallback;
 
   const year = d.getFullYear();
@@ -244,7 +244,7 @@ export function formatDate(
     a: hours < 12 ? 'am' : 'pm',
   };
 
-  // 按长度降序排列 key，确保先替换长的（如 YYYY 优先于 YY）
+  // 按长度降序排列 key，确保先替换长的（如 YYYY 优先于 YY）/ Sort keys by length desc for replacement order
   const sortedKeys = Object.keys(replacements).toSorted(
     (a, b) => b.length - a.length,
   );
@@ -343,7 +343,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-    // 降级方案
+    // 降级方案 / Fallback
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -437,18 +437,18 @@ export function buildTree<T extends TreeNodeBase>(
   const { sortField = 'sortOrder' as keyof T, childrenField = 'children' } =
     options;
 
-  // 使用 Record 类型以支持动态字段名
+  // 使用 Record 类型以支持动态字段名 / Use Record for dynamic field names
   type TreeNode = Record<string, any> & T;
   const map = new Map<number, TreeNode>();
   const roots: TreeNode[] = [];
 
-  // 创建所有节点的映射
+  // 创建所有节点的映射 / Create node map
   for (const item of items) {
     const node: TreeNode = { ...item, [childrenField]: [] };
     map.set(item.id, node);
   }
 
-  // 构建树形结构
+  // 构建树形结构 / Build tree
   for (const item of items) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const node = map.get(item.id)!;
@@ -461,7 +461,7 @@ export function buildTree<T extends TreeNodeBase>(
     }
   }
 
-  // 递归排序
+  // 递归排序 / Recursive sort
   const sortNodes = (nodes: TreeNode[]) => {
     nodes.sort((a, b) => {
       const aVal = (a[sortField] as number) ?? 0;
@@ -510,7 +510,7 @@ export function useTreeExpand<T extends { id: number }>(
 ): TreeExpandReturn {
   const expandedIds = ref<Set<number>>(new Set()) as Ref<Set<number>>;
 
-  // 初始化时如果需要默认展开
+  // 初始化时如果需要默认展开 / Default expand on init if needed
   if (defaultExpanded) {
     const items = getItems();
     if (items.length > 0) {
@@ -598,7 +598,7 @@ export function confirmDelete<T extends Record<string, any>>(
   const name = String(row[nameField] || '');
   const id = row[idField] as number;
 
-  // 支持自定义 i18n 或使用通用文案
+  // 支持自定义 i18n 或使用通用文案 / Support custom i18n or generic copy
   const titleKey = i18nPrefix
     ? `${i18nPrefix}.messages.deleteTitle`
     : 'shared.common.deleteTitle';

@@ -70,7 +70,7 @@ async function loadTenantRoleTree() {
     const tree = await getTenantRoleTreeApi();
     tenantRoleTreeData.value = roleInfoToTreeData(tree);
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     tenantRoleTreeLoading.value = false;
   }
@@ -85,7 +85,7 @@ async function loadUserRoleOptions() {
       value: r.id,
     }));
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     userRoleLoading.value = false;
   }
@@ -130,7 +130,7 @@ async function loadAccessConfig() {
     userRoleMode.value = idsToMode(config.user_role_ids ?? null);
     userRoleIds.value = config.user_role_ids ?? [];
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -150,7 +150,7 @@ async function onSave() {
     message.success($t('tenant.ai.agent.access.messages.updateSuccess'));
     drawerApi.close();
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = false;
   }

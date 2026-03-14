@@ -59,7 +59,7 @@ async function loadStats() {
   try {
     stats.value = await getKnowledgeBaseStatsApi();
   } catch {
-    // handled
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 

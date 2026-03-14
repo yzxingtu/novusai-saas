@@ -94,7 +94,7 @@ export function useAIChat(options: UseAIChatOptions) {
             : res.items[0]!.id;
       }
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     } finally {
       agentsLoading.value = false;
     }
@@ -148,7 +148,7 @@ export function useAIChat(options: UseAIChatOptions) {
         await loadConversationMessages(initConvId);
       }
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     } finally {
       if (reqSeq === conversationsRequestSeq) {
         conversationsLoading.value = false;
@@ -183,7 +183,7 @@ export function useAIChat(options: UseAIChatOptions) {
       }
       await loadConversations();
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     }
   }
 
@@ -220,7 +220,7 @@ export function useAIChat(options: UseAIChatOptions) {
       lastMemoryUpdated.value = merged.some((m) => m.memoryUpdated);
       scrollToBottom(true);
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     }
   }
 
@@ -458,7 +458,7 @@ export function useAIChat(options: UseAIChatOptions) {
   function _saveVarsToStorage(agentId: number, vars: Record<string, string>) {
     try {
       localStorage.setItem(_varsLocalKey(agentId), JSON.stringify(vars));
-    } catch { /* quota exceeded or private mode */ }
+    } catch { /* quota exceeded or private mode / 配额超限或隐私模式 */ }
   }
 
   function _loadVarsFromStorage(agentId: number): Record<string, string> | null {

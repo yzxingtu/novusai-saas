@@ -88,7 +88,7 @@ class MaintenanceMiddleware:
 
             async with async_session_factory() as db:
                 service = ConfigService(db)
-                value = await service.get_platform_value("maintenance_mode")
+                value = await service.get_platform_config("maintenance_mode")
 
             result = bool(value) if value is not None else False
 
@@ -121,7 +121,7 @@ class MaintenanceMiddleware:
 
             async with async_session_factory() as db:
                 service = ConfigService(db)
-                message = await service.get_platform_value("maintenance_message")
+                message = await service.get_platform_config("maintenance_message")
 
             result = str(message) if message else "System is under maintenance. Please try again later."
 

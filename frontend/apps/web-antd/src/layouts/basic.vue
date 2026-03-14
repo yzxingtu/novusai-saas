@@ -538,7 +538,7 @@ watch(
 </template>
 
 <style scoped>
-/* 隐藏 UserDropdown trigger 中 VbenAvatar 自带的绿点，改用连接状态点 */
+/* 隐藏 UserDropdown trigger 中 VbenAvatar 自带的绿点，改用连接状态点 / Hide VbenAvatar green dot, use connection status dot */
 .user-dropdown-wrapper :deep(.size-8 > span.absolute) {
   display: none;
 }

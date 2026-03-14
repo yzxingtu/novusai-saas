@@ -519,7 +519,7 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Mask transition */
+/* Mask transition / 遮罩过渡 */
 .command-bar-mask-enter-active {
   transition: opacity 0.2s ease-out;
 }
@@ -533,7 +533,7 @@ defineExpose({
   opacity: 0;
 }
 
-/* Bar transition */
+/* Bar transition / 栏位过渡 */
 .command-bar-enter-active {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }

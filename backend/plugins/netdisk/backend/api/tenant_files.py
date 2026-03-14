@@ -12,7 +12,7 @@ from __future__ import annotations
 from app.core.i18n import _
 from ._schemas import node_schema as _node_schema
 
-# ── 文件节点 ──────────────────────────────────────────────────────────────
+# ── 文件节点 / File nodes ──────────────────────────────────────────────────────────────
 
 async def list_nodes(request, db, ctx):
     parent_id_str = request.query_params.get("parent_id")

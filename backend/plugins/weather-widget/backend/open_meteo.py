@@ -20,7 +20,7 @@ from app.core.logging import get_logger
 
 logger = get_logger("plugin.weather-widget")
 
-# ── API 端点 ──
+# ── API 端点 / API endpoints ──
 _BASE_URL = "https://api.open-meteo.com/v1/forecast"
 _AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 _GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"

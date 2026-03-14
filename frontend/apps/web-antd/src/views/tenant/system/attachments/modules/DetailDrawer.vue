@@ -60,7 +60,7 @@ async function loadDetail(id: number) {
   try {
     detail.value = await getAttachmentDetailApi(id);
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -84,7 +84,7 @@ async function onDownload() {
     link.remove();
     message.success($t('tenant.system.attachment.messages.downloadStarted'));
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 

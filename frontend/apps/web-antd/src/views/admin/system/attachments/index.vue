@@ -107,7 +107,7 @@ async function onDownload(row: AttachmentInfo) {
     link.remove();
     message.success($t('admin.system.attachment.messages.downloadStarted'));
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 

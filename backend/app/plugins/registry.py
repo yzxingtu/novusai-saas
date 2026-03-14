@@ -18,8 +18,7 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Shared event loop (for running async plugin tasks in Celery worker)
-# / 共享事件循环（Celery worker 中运行异步插件任务用）
+# Shared event loop (for running async plugin tasks in Celery worker) / 共享事件循环（Celery worker 中运行异步插件任务用）
 _bg_loop = None
 _bg_thread = None
 _bg_lock = None  # Lazy init to avoid creating thread objects at module import / 延迟初始化
@@ -101,17 +100,17 @@ class ExtensionRegistry:
         self._plugin_webhooks: dict[str, dict[str, Any]] = {}
         self._plugin_notifications: dict[str, dict[str, Any]] = {}
         self._plugin_permissions: dict[str, dict[str, Any]] = {}
-        # slot_type 取値见 FrontendSlotTypeEnum
+        # slot_type 取値见 FrontendSlotTypeEnum / slot_type values: see FrontendSlotTypeEnum
         self._plugin_frontend_slots: dict[str, list[dict[str, Any]]] = {}
-        # consumer: plugin_name -> list of consumer info dicts
+        # consumer: plugin_name -> list of consumer info dicts / 消费者：插件名 -> 消费者信息列表
         self._plugin_consumers: dict[str, list[dict[str, Any]]] = {}
-        # custom: plugin_name -> list of custom extension dicts
+        # custom: plugin_name -> list of custom extension dicts / 自定义：插件名 -> 扩展列表
         self._plugin_custom_extensions: dict[str, list[dict[str, Any]]] = {}
-        # middleware: plugin_name -> list of middleware class refs
+        # middleware: plugin_name -> list of middleware class refs / 中间件：插件名 -> 中间件类引用列表
         self._plugin_middlewares: dict[str, list[dict[str, Any]]] = {}
-        # menu: plugin_name -> list of menu registration dicts
+        # menu: plugin_name -> list of menu registration dicts / 菜单：插件名 -> 菜单注册列表
         self._plugin_menus: dict[str, list[dict[str, Any]]] = {}
-        # menu i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}}
+        # menu i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}} / 菜单 i18n 回退
         self._plugin_menu_titles: dict[str, dict[str, dict[str, str]]] = {}
 
     @classmethod
@@ -230,7 +229,7 @@ class ExtensionRegistry:
         """
         self._plugin_skill_resolvers[plugin_name] = resolver
         if executor:
-            # Class → instantiate and cache, avoid creating new instance on every tool call
+            # Class → instantiate and cache, avoid creating new instance on every tool call / 类→实例化并缓存，避免每次调用新建
             # / 类 → 实例化后缓存
             if isinstance(executor, type):
                 try:
@@ -322,7 +321,7 @@ class ExtensionRegistry:
         ensuring generated full_path matches webhook_dispatcher.py lookup format.
         / 路径规范化：自动补齐 /。
         """
-        # Normalize: ensure path starts with / (eliminate /plugins/{name}path inconsistency risk)
+        # Normalize: ensure path starts with / (eliminate /plugins/{name}path inconsistency risk) / 规范化路径，确保以 / 开头
         # / 规范化
         normalized_path = path if path.startswith("/") else f"/{path}"
         full_path = f"/plugins/{plugin_name}{normalized_path}"
@@ -574,13 +573,72 @@ class ExtensionRegistry:
 
         if title:
             titles = self._plugin_menu_titles.setdefault(plugin_name, {})
-            titles[name] = title
+            safe_name = plugin_name.replace("-", "_")
+            i18n_key = f"{safe_name}.{name}.title"
+            titles[i18n_key] = title
 
         self._track(plugin_name, "menu", name, menu_entry)
+
+        # Bridge to permission_registry so sync_plugin_permissions() can write to DB / 桥接到 permission_registry 以便写入 DB
+        self._register_menu_permission(plugin_name, name, path, icon, parent, sort_order, scope, component, hidden)
+
         logger.info(
             "Plugin %s registered menu: %s (parent=%s, scope=%s)",
             plugin_name, name, parent, scope,
         )
+
+    def _register_menu_permission(
+        self,
+        plugin_name: str,
+        name: str,
+        path: str,
+        icon: str,
+        parent: str,
+        sort_order: int,
+        scope: str,
+        component: str,
+        hidden: bool,
+    ) -> None:
+        """
+        Bridge plugin menu entry to permission_registry as PermissionMeta.
+        / 将插件菜单条目桥接到 permission_registry，生成 PermissionMeta。
+
+        Permission code format: menu:{admin|tenant}.plugin_{safe_name}_{menu_name}
+        Must match the prefix pattern used by sync_plugin_permissions() and
+        _set_plugin_permissions_enabled() in lifecycle.py.
+        """
+        from app.enums.rbac import PermissionScope, PermissionType
+        from app.rbac.decorators import PermissionMeta
+        from app.rbac.registry import permission_registry
+
+        safe_name = plugin_name.replace("-", "_")
+
+        if scope == "admin_only":
+            scope_prefix = "admin"
+            perm_scope = PermissionScope.ADMIN_ONLY
+        else:
+            scope_prefix = "tenant"
+            perm_scope = PermissionScope.ALL_TENANTS
+
+        perm_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
+        parent_code = f"menu:{scope_prefix}.{parent}" if parent else None
+        i18n_key = f"{safe_name}.{name}.title"
+
+        perm_meta = PermissionMeta(
+            code=perm_code,
+            name=i18n_key,
+            type=PermissionType.MENU,
+            scope=perm_scope,
+            resource="menu",
+            action=f"{scope_prefix}.plugin_{safe_name}_{name}",
+            icon=icon,
+            path=path,
+            component=component,
+            parent_code=parent_code,
+            sort_order=sort_order,
+            hidden=hidden,
+        )
+        permission_registry.register(perm_meta)
 
     def _unregister_menu(self, ext: RegisteredExtension) -> None:
         """Remove plugin menu registration / 移除插件菜单注册"""
@@ -592,7 +650,16 @@ class ExtensionRegistry:
                 if m.get("name") != name
             ]
         if plugin_name in self._plugin_menu_titles:
-            self._plugin_menu_titles[plugin_name].pop(name, None)
+            safe_name = plugin_name.replace("-", "_")
+            i18n_key = f"{safe_name}.{name}.title"
+            self._plugin_menu_titles[plugin_name].pop(i18n_key, None)
+
+        # Unregister from permission_registry (try both scope prefixes) / 从 permission_registry 反注册
+        from app.rbac.registry import permission_registry
+
+        safe_name = plugin_name.replace("-", "_")
+        permission_registry.unregister(f"menu:admin.plugin_{safe_name}_{name}")
+        permission_registry.unregister(f"menu:tenant.plugin_{safe_name}_{name}")
 
     def get_plugin_menus(
         self, plugin_name: str | None = None, scope: str | None = None,
@@ -691,8 +758,7 @@ class ExtensionRegistry:
 
             sio = get_sio()
             full_ns = ext.key
-            # python-socketio has no native unregister_namespace,
-            # manually remove from namespace_handlers
+            # python-socketio has no native unregister_namespace, manually remove from namespace_handlers / 手动从 namespace_handlers 移除
             # / 手动从 namespace_handlers 移除
             if hasattr(sio, "namespace_handlers") and full_ns in sio.namespace_handlers:
                 del sio.namespace_handlers[full_ns]
@@ -729,7 +795,7 @@ class ExtensionRegistry:
         dedup_key = f"{slot_type}:{data.get('name', '')}"
 
         slots = self._plugin_frontend_slots.setdefault(plugin_name, [])
-        # Remove old entry with same key, then append new entry (upsert semantics)
+        # Remove old entry with same key, then append new entry (upsert semantics) / 移除同 key 旧条目再追加（upsert）
         # / 移除同 key 的旧条目，再追加新条目
         self._plugin_frontend_slots[plugin_name] = [
             s for s in slots
@@ -779,7 +845,7 @@ class ExtensionRegistry:
                     continue
                 if scope:
                     slot_scope = slot.get("scope", "")
-                    # Filter slot visibility by request side:
+                    # Filter slot visibility by request side: / 按请求端过滤插槽可见性
                     # - slot_scope="tenant"    → visible only on tenant side
                     # - slot_scope="admin"/"admin_only" → visible only on admin side
                     # - others (empty/all_tenants/admin_and_all etc.) → visible on both sides
@@ -875,7 +941,7 @@ class ExtensionRegistry:
                     "owner": owner or "system",
                 })
 
-        # Check skill conflicts (match by plugin_name, consistent with register_skill key)
+        # Check skill conflicts (match by plugin_name, consistent with register_skill key) / 检查技能冲突
         # / 检查技能冲突
         plugin_name = getattr(manifest, "name", "")
         if plugin_name and plugin_name in self._plugin_skill_resolvers:
@@ -1063,7 +1129,7 @@ class ExtensionRegistry:
         }
         key = f"{ext_type}:{name}"
         customs = self._plugin_custom_extensions.setdefault(plugin_name, [])
-        # upsert
+        # upsert / 插入或更新（同 key 覆盖）
         self._plugin_custom_extensions[plugin_name] = [
             c for c in customs if f"{c['type']}:{c['name']}" != key
         ]
@@ -1140,8 +1206,7 @@ class ExtensionRegistry:
             if key:
                 result[key].append(slot)
 
-        # All slot types sorted by sort_order ascending for consistent frontend rendering order
-        # / 所有插槽类型统一按 sort_order 升序排序
+        # All slot types sorted by sort_order ascending for consistent frontend rendering order / 所有插槽类型统一按 sort_order 升序排序
         for slots in result.values():
             slots.sort(key=lambda x: x.get("sort_order", 100))
         return result

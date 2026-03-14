@@ -62,7 +62,7 @@ async function loadAgentOptions() {
     const res = await getPublishedAgentsApi('/tenant');
     agentOptions.value = res.items.map((a) => ({ label: a.name, value: a.id }));
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -80,7 +80,7 @@ async function setOverride(featureCode: string, agentId: null | number) {
     message.success($t(`${T}.saveSuccess`));
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = null;
   }
@@ -93,7 +93,7 @@ async function restoreDefault(featureCode: string) {
     message.success($t(`${T}.restoreSuccess`));
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = null;
   }

@@ -69,7 +69,7 @@ async function onBatchDelete() {
     selectedRows.value = [];
     onRefresh();
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 

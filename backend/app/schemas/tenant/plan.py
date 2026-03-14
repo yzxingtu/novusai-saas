@@ -16,10 +16,10 @@ from app.core.base_schema import BaseSchema
 from app.core.i18n import _
 from app.enums import BillingCycle
 
-# ==================== 配额结构 ====================
+# ==================== 配额结构 / Quota Structure ====================
 
 class QuotaSchema(BaseSchema):
-    """配额结构定义"""
+    """配额结构定义 / Quota structure definition"""
 
     storage_limit_gb: int | None = Field(None, ge=0, description="存储限制(GB)")
     max_users: int | None = Field(None, ge=0, description="最大用户数")
@@ -30,12 +30,12 @@ class QuotaSchema(BaseSchema):
     max_file_size_mb: int | None = Field(None, ge=0, description="最大文件大小(MB)")
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典，仅包含非空值"""
+        """转换为字典，仅包含非空值 / Convert to dict, non-null values only"""
         return {k: v for k, v in self.model_dump().items() if v is not None}
 
 
 class FeaturesSchema(BaseSchema):
-    """特性标记结构定义"""
+    """特性标记结构定义 / Features structure definition"""
 
     ai_enabled: bool | None = Field(None, description="是否启用AI功能")
     advanced_analytics: bool | None = Field(None, description="是否启用高级分析")
@@ -43,14 +43,14 @@ class FeaturesSchema(BaseSchema):
     priority_support: bool | None = Field(None, description="是否优先支持")
 
     def to_dict(self) -> dict[str, Any]:
-        """转换为字典，仅包含非空值"""
+        """转换为字典，仅包含非空值 / Convert to dict, non-null values only"""
         return {k: v for k, v in self.model_dump().items() if v is not None}
 
 
-# ==================== 响应 Schema ====================
+# ==================== 响应 Schema / Response Schemas ====================
 
 class TenantPlanResponse(BaseSchema):
-    """套餐响应"""
+    """套餐响应 / Plan response"""
 
     id: int = Field(..., description="套餐 ID")
     code: str = Field(..., description="套餐代码")
@@ -69,7 +69,7 @@ class TenantPlanResponse(BaseSchema):
 
     @classmethod
     def from_model(cls, plan) -> "TenantPlanResponse":
-        """从模型创建响应"""
+        """从模型创建响应 / Build response from model"""
         return cls(
             id=plan.id,
             code=plan.code,
@@ -89,7 +89,7 @@ class TenantPlanResponse(BaseSchema):
 
 
 class PermissionSimpleResponse(BaseSchema):
-    """权限简要响应（用于套餐详情）"""
+    """权限简要响应（用于套餐详情） / Permission simple response (for plan detail)"""
 
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")

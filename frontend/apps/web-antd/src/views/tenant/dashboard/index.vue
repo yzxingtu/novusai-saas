@@ -96,7 +96,7 @@ const methodColors: Record<string, string> = {
   PATCH: 'purple',
 };
 
-// B5: 统计卡片
+// B5: 统计卡片 / B5: Stats cards
 const statCards = computed(() => [
   {
     key: 'agents',
@@ -148,7 +148,7 @@ const statCards = computed(() => [
   },
 ]);
 
-// B6: AI 趋势
+// B6: AI 趋势 / B6: AI trend
 const aiTrendChartRef = ref<EchartsUIType>();
 const { renderEcharts: renderAiTrendChart } = useEcharts(aiTrendChartRef);
 

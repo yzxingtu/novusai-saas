@@ -1,9 +1,7 @@
-/**
- * 插件前端 UMD 构建配置
- */
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
 import { resolve } from 'node:path';
+
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [vue()],
@@ -17,10 +15,7 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: [
-        'vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared', '@vben/common-ui', '@vben/icons',
-        // @tiptap/* and lowlight are bundled directly into the UMD to avoid host globals complexity
-      ],
+      external: ['vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared', '@vben/common-ui', '@vben/icons'],
       output: {
         globals: {
           vue: 'Vue',

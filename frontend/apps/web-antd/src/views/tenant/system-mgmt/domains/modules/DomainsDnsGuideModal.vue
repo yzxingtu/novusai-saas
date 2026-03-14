@@ -28,7 +28,7 @@ import { verifyTenantDomainApi } from '#/api/tenant/domain';
 import { $t } from '#/locales';
 import { copyToClipboard } from '#/utils/common';
 
-// Emits
+// Emits / 事件
 const emits = defineEmits<{
   success: [];
 }>();
@@ -38,7 +38,7 @@ const guideData = ref<DnsGuideData | null>(null);
 const currentStep = ref(0);
 const verifying = ref(false);
 
-// Modal
+// Modal / 弹窗
 const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {

@@ -754,7 +754,4 @@ export function iconField(
 }
 
 // ============ Business Presets / 业务预设 ============
-// Note: Business-specific helpers (e.g. planSelect) should be defined in business code,
-// 注意：业务特定的 helper (如 planSelect) 应在业务代码中定义，
-// to avoid Adapter layer depending on specific business APIs.
-// 避免 Adapter 层依赖具体业务 API。
+// Note: Business-specific helpers (e.g. planSelect) should be defined in business code, to avoid Adapter layer depending on specific business APIs / 注意：业务特定 helper 应在业务代码中定义，避免 Adapter 层依赖具体业务 API

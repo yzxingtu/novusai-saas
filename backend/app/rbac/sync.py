@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import LoggerMixin
+from app.enums.rbac import PermissionType
 from app.models.auth.permission import Permission
 from app.rbac.decorators import PermissionMeta
 from app.rbac.registry import permission_registry
@@ -195,12 +196,42 @@ class PermissionSyncService(LoggerMixin):
             f"权限同步完成: 新增 {created_count}, 更新 {updated_count}, 禁用 {disabled_count}"
         )
 
+        self._validate_menu_components(registered_permissions)
+
         return {
             "created": created_count,
             "updated": updated_count,
             "disabled": disabled_count,
         }
 
+
+    def _validate_menu_components(self, permissions: list[PermissionMeta]) -> None:
+        """
+        Validate menu component paths for common issues.
+        校验菜单组件路径是否存在常见错误。
+
+        Runs after sync_permissions, logs warnings only (never blocks startup).
+        在 sync_permissions 后运行，只记录警告，不会阻断启动。
+        """
+        menus = [p for p in permissions if p.type == PermissionType.MENU and p.component]
+        issues: list[str] = []
+
+        for menu in menus:
+            if menu.component.endswith(".vue"):
+                issues.append(
+                    f"  {menu.code}: component 不应包含 .vue 后缀 -> '{menu.component}'"
+                )
+            if menu.parent_code and menu.parent_code not in permission_registry:
+                issues.append(
+                    f"  {menu.code}: parent_code '{menu.parent_code}' 未在 registry 中注册"
+                )
+
+        if issues:
+            self.logger.warning(
+                "菜单组件路径校验发现 %d 个问题:\n%s",
+                len(issues),
+                "\n".join(issues),
+            )
 
     async def sync_plugin_permissions(self, plugin_name: str) -> int:
         """

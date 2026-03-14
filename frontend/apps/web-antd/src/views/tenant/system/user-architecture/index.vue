@@ -172,7 +172,7 @@ async function handleToggleRoleStatus(role: TenantUserRoleInfo) {
     message.success($t('ui.actionMessage.operationSuccess'));
     await loadRoles();
   } catch {
-    // error handled by request client
+    // error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -228,7 +228,7 @@ async function onApproveUser(row: TenantUserInfo) {
     message.success($t('tenant.system.user.messages.approveSuccess'));
     onMemberRefresh();
   } catch {
-    // error handled by request client
+    // error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -238,7 +238,7 @@ async function onRejectUser(row: TenantUserInfo) {
     message.success($t('tenant.system.user.messages.rejectSuccess'));
     onMemberRefresh();
   } catch {
-    // error handled by request client
+    // error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -254,7 +254,7 @@ async function handleBatchApprove() {
     clearSelection(memberGridApi?.grid);
     onMemberRefresh();
   } catch {
-    // error handled by request client
+    // error handled by request client / 错误由请求拦截器处理
   }
 }
 
@@ -270,7 +270,7 @@ async function handleBatchReject() {
     clearSelection(memberGridApi?.grid);
     onMemberRefresh();
   } catch {
-    // error handled by request client
+    // error handled by request client / 错误由请求拦截器处理
   }
 }
 

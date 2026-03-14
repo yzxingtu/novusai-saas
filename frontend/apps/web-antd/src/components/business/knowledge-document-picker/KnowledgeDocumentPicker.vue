@@ -50,7 +50,7 @@ async function handleUpload(file: File) {
     await props.uploadFn(file);
     emit('success');
   } catch {
-    // handled by global interceptor
+    // handled by global interceptor / 错误由请求拦截器处理
   } finally {
     uploading.value = false;
   }
@@ -79,7 +79,7 @@ async function handleSubmitText() {
     textModalVisible.value = false;
     emit('success');
   } catch {
-    // handled by global interceptor
+    // handled by global interceptor / 错误由请求拦截器处理
   } finally {
     textSubmitting.value = false;
   }
@@ -107,7 +107,7 @@ async function handleSubmitQA() {
     qaModalVisible.value = false;
     emit('success');
   } catch {
-    // handled by global interceptor
+    // handled by global interceptor / 错误由请求拦截器处理
   } finally {
     qaSubmitting.value = false;
   }
@@ -139,7 +139,7 @@ async function handleSubmitUrls() {
     urlModalVisible.value = false;
     emit('success');
   } catch {
-    // handled by global interceptor
+    // handled by global interceptor / 错误由请求拦截器处理
   } finally {
     urlSubmitting.value = false;
   }
@@ -163,7 +163,7 @@ async function handleQABatchUpload(file: File) {
     );
     emit('success');
   } catch {
-    // handled by global interceptor
+    // handled by global interceptor / 错误由请求拦截器处理
   } finally {
     qaBatchUploading.value = false;
   }

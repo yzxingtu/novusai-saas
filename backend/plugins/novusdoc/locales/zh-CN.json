@@ -1,41 +1,54 @@
 {
-  "plugin.novusdoc.name": "AI 文档编辑器",
-  "plugin.novusdoc.description": "基于 Tiptap 的现代化 AI 富文本编辑器，支持文档管理、AI 写作、全文搜索",
-  "plugin.novusdoc.doc.create": "新建文档",
-  "plugin.novusdoc.doc.untitled": "无标题文档",
-  "plugin.novusdoc.doc.delete": "删除文档",
-  "plugin.novusdoc.doc.deleteConfirm": "确定要删除此文档吗？",
-  "plugin.novusdoc.doc.search": "搜索文档…",
-  "plugin.novusdoc.doc.empty": "暂无文档，点击新建开始写作",
-  "plugin.novusdoc.doc.saved": "已保存",
-  "plugin.novusdoc.doc.saving": "保存中…",
-  "plugin.novusdoc.doc.wordCount": "{count} 字",
-  "plugin.novusdoc.folder.create": "新建文件夹",
-  "plugin.novusdoc.folder.rename": "重命名",
-  "plugin.novusdoc.folder.delete": "删除文件夹",
-  "plugin.novusdoc.folder.all": "全部文档",
-  "plugin.novusdoc.tag.create": "新建标签",
-  "plugin.novusdoc.tag.manage": "管理标签",
-  "plugin.novusdoc.export.html": "导出 HTML",
-  "plugin.novusdoc.export.markdown": "导出 Markdown",
-  "plugin.novusdoc.ai.generating": "AI 生成中…",
-  "plugin.novusdoc.ai.thinking": "思考中…",
-  "plugin.novusdoc.ai.accept": "采纳",
-  "plugin.novusdoc.ai.dismiss": "丢弃",
-  "plugin.novusdoc.ai.continue": "续写",
-  "plugin.novusdoc.ai.optimize": "优化",
-  "plugin.novusdoc.ai.proofread": "校对",
-  "plugin.novusdoc.ai.expand": "扩写",
-  "plugin.novusdoc.ai.rewrite": "改写",
-  "plugin.novusdoc.ai.summarize": "摘要",
-  "plugin.novusdoc.ai.translate": "翻译",
-  "plugin.novusdoc.ai.lang.english": "English",
-  "plugin.novusdoc.ai.lang.chinese": "中文",
-  "plugin.novusdoc.ai.lang.japanese": "日本語",
-  "plugin.novusdoc.ai.lang.korean": "한국어",
-  "plugin.novusdoc.ai.custom": "自定义指令",
-  "plugin.novusdoc.ai.customPlaceholder": "输入你的指令…",
-  "plugin.novusdoc.ai.assistant": "AI 助手",
-  "plugin.novusdoc.ai.askPlaceholder": "询问文档相关问题…",
-  "plugin.novusdoc.ai.emptyChat": "向 AI 提问关于你的文档的问题…"
+  "plugin": {
+    "novusdoc": {
+      "name": "文档管理",
+      "description": "轻量文档管理，支持文件夹、标签、搜索和导出",
+      "doc": {
+        "title": "标题",
+        "untitled": "无标题文档",
+        "newDoc": "新建文档",
+        "editDoc": "编辑文档",
+        "deleteDoc": "删除文档",
+        "deleteConfirm": "确定删除此文档？",
+        "saved": "已保存",
+        "saving": "保存中...",
+        "autoSave": "自动保存",
+        "wordCount": "字数",
+        "export": "导出",
+        "exportHTML": "导出 HTML",
+        "exportMarkdown": "导出 Markdown"
+      },
+      "folder": {
+        "title": "文件夹",
+        "newFolder": "新建文件夹",
+        "allDocs": "所有文档",
+        "rename": "重命名",
+        "delete": "删除文件夹"
+      },
+      "tag": {
+        "title": "标签",
+        "newTag": "新建标签",
+        "manage": "管理标签"
+      },
+      "search": {
+        "placeholder": "搜索文档...",
+        "noResults": "未找到文档"
+      },
+      "status": {
+        "draft": "草稿",
+        "published": "已发布"
+      },
+      "op": {
+        "refresh": "刷新文档列表",
+        "search": "搜索文档",
+        "clearSearch": "清除搜索",
+        "selectFolder": "选择文件夹",
+        "getContent": "获取文档内容",
+        "save": "保存文档",
+        "toggleStatus": "切换发布状态",
+        "updateTitle": "更新标题",
+        "export": "导出文档"
+      }
+    }
+  }
 }

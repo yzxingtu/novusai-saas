@@ -28,7 +28,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
     # ==================== 全局默认查询 (tenant_id IS NULL) ====================
 
     async def get_by_feature_code(self, feature_code: str) -> SystemAgentAssignment | None:
-        """按功能代码获取全局默认绑定"""
+        """按功能代码获取全局默认绑定 / Get global default binding by feature code"""
         stmt = (
             select(self.model)
             .where(self.model.feature_code == feature_code)
@@ -39,7 +39,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         return result.scalar_one_or_none()
 
     async def get_active_by_feature_code(self, feature_code: str) -> SystemAgentAssignment | None:
-        """获取启用的全局默认绑定"""
+        """获取启用的全局默认绑定 / Get active global default binding"""
         stmt = (
             select(self.model)
             .where(self.model.feature_code == feature_code)
@@ -51,7 +51,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         return result.scalar_one_or_none()
 
     async def get_all_global(self) -> list[SystemAgentAssignment]:
-        """获取所有全局默认绑定"""
+        """获取所有全局默认绑定 / Get all global default bindings"""
         stmt = (
             select(self.model)
             .where(self.model.tenant_id.is_(None))
@@ -66,7 +66,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
     async def get_tenant_override(
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
-        """获取企业覆盖绑定"""
+        """获取企业覆盖绑定 / Get tenant override binding"""
         stmt = (
             select(self.model)
             .where(self.model.feature_code == feature_code)
@@ -77,7 +77,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         return result.scalar_one_or_none()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取企业的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定 / Get all override bindings for tenant"""
         stmt = (
             select(self.model)
             .where(self.model.tenant_id == tenant_id)

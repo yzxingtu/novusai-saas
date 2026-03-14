@@ -300,7 +300,7 @@ class S3StorageDriver(StorageDriver):
             return False
         return await self.delete(source)
 
-    # ========== Image Processing ==========
+    # ========== Image Processing / 图片处理 ==========
 
     def _get_image_process_provider(self) -> str | None:
         return self.config.options.get("image_process_provider")

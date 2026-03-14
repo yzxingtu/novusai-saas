@@ -223,7 +223,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
       const res = await getChatAgentsApi<AgentItem>(prefix);
       agents.value = res.items;
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     } finally {
       agentsLoading.value = false;
     }
@@ -249,7 +249,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
       const res = await getGlobalConversationsApi<ConversationItem>(prefix, 7);
       recentConversations.value = res.items.slice(0, 7);
     } catch {
-      // handled by interceptor
+      // handled by interceptor / 错误由请求拦截器处理
     } finally {
       recentLoading.value = false;
     }

@@ -55,14 +55,14 @@ function onToggleActive(row: AIProviderInfo) {
         message.success($t('admin.ai.provider.messages.toggleSuccess'));
         onRefresh();
       } catch {
-        // Error handled by request interceptor
+        // Error handled by request interceptor / 错误由请求拦截器处理
       }
     },
   });
 }
 
 // ============================================================
-// CRUD Grid
+// CRUD Grid / CRUD 表格
 // ============================================================
 
 const { Grid, FormDrawer, formAiOperations, gridApi, onRefresh, onCreate } = useCrudPage<AIProviderInfo>({

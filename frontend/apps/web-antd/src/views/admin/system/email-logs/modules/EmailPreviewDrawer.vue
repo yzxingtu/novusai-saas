@@ -37,7 +37,7 @@ async function loadDetail(id: number) {
   try {
     detail.value = await getEmailLogDetailApi(id);
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }

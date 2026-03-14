@@ -314,7 +314,7 @@ class OssStorageDriver(StorageDriver):
             return False
         return await self.delete(source)
 
-    # ========== Image Processing ==========
+    # ========== Image Processing / 图片处理 ==========
 
     def _build_oss_process_params(self, params: ImageProcessParams) -> str:
         operations: list[str] = []

@@ -97,7 +97,7 @@ const {
   applyVariables,
 } = chat;
 
-// Template ref bindings
+// Template ref bindings / 模板 ref 绑定
 void messagesContainer;
 void fileInput;
 void handleMessagesScroll;
@@ -288,7 +288,7 @@ function openVarsModal(vars: InputVariable[], agentId: number, agentName: string
 }
 
 function onVarsConfirm() {
-  // Validate required fields
+  // Validate required fields / 校验必填字段
   const required = varsModalAgent.value?.vars.filter((v) => v.required) ?? [];
   const missing = required.filter((v) => !varsFormValues[v.name]?.trim());
   if (missing.length > 0) {
@@ -320,13 +320,13 @@ watch(selectedAgentId, (agentId) => {
     const agent = agents.value.find((a) => a.id === agentId);
     const vars = agent?.input_variables;
     if (vars && vars.length > 0) {
-      // Load saved vars from localStorage
+      // Load saved vars from localStorage / 从 localStorage 加载已保存变量
       ensureAgentVarsLoaded(agentId);
       const savedVars = allAgentsVariables.value[agentId] ?? {};
       const missingRequired = vars.filter(
         (v) => v.required && !savedVars[v.name]?.trim(),
       );
-      // Only open modal if there are required vars not yet filled
+      // Only open modal if there are required vars not yet filled / 仅当有必填变量未填时打开弹窗
       if (missingRequired.length > 0) {
         openVarsModal(vars, agentId, agent?.name ?? '');
       }
@@ -1132,7 +1132,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Fade transition */
+/* Fade transition / 淡入淡出 */
 .fade-enter-active {
   transition: opacity 0.2s ease-out;
 }
@@ -1146,7 +1146,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Float animation for empty state */
+/* Float animation for empty state / 空状态浮动动画 */
 @keyframes float {
   0%,
   100% {
@@ -1183,7 +1183,7 @@ onUnmounted(() => {
   }
 }
 
-/* Streaming progress bar */
+/* Streaming progress bar / 流式进度条 */
 .streaming-bar {
   width: 30%;
   background: linear-gradient(

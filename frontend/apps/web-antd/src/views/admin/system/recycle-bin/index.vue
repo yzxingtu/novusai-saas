@@ -169,7 +169,7 @@ async function handleRestore(record: RecycleBinItem) {
     await loadList();
     await loadSummary();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -197,7 +197,7 @@ async function handleCleanup() {
     await triggerRecycleBinCleanupApi(30);
     message.success($t('admin.system.recycleBin.cleanupTriggered'));
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 

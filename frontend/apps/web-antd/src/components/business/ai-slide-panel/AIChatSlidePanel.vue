@@ -198,7 +198,7 @@ function onVarsConfirm() {
   const agentId = varsModalAgent.value!.id;
   applyVariables(agentId, { ...varsFormValues }, varsPersist.value);
   varsModalVisible.value = false;
-  // Execute deferred send if this modal was triggered by missing vars
+  // Execute deferred send if this modal was triggered by missing vars / 若弹窗由缺失变量触发则执行延迟发送
   if (pendingSendContext.value) {
     const { agentId: pendingAgentId, pageContext } = pendingSendContext.value;
     pendingSendContext.value = null;
@@ -220,7 +220,7 @@ function openMultiVarsEditor() {
   for (const a of agentsWithVarsInConversation.value) {
     ensureAgentVarsLoaded(a.id);
     multiVarsFormValues[a.id] = { ...allAgentsVariables.value[a.id] };
-    // Fill defaults for any vars not yet set
+    // Fill defaults for any vars not yet set / 为未设置的变量填充默认值
     for (const v of (a.input_variables ?? [])) {
       if (!multiVarsFormValues[a.id]![v.name]) {
         multiVarsFormValues[a.id]![v.name] = v.default ?? '';
@@ -241,7 +241,7 @@ function onMultiVarsConfirm() {
   multiVarsModalVisible.value = false;
 }
 
-// Template ref bindings
+// Template ref bindings / 模板 ref 绑定
 void messagesContainer;
 void fileInput;
 void handleMessagesScroll;
@@ -252,7 +252,7 @@ void scrollToBottom;
 function isAgentSwitch(idx: number): boolean {
   const msg = chatMessages.value[idx];
   if (!msg || msg.role !== 'assistant' || !msg.agent_id) return false;
-  // Find previous assistant message
+  // Find previous assistant message / 查找上一条助手消息
   for (let i = idx - 1; i >= 0; i--) {
     const prev = chatMessages.value[i];
     if (prev?.role === 'assistant') {
@@ -349,7 +349,7 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
   let size = new TextEncoder().encode(JSON.stringify(data)).length;
   if (size <= MAX_PAGE_DATA_BYTES) return data;
 
-  // Step 1: reduce list_summary sample_rows
+  // Step 1: reduce list_summary sample_rows / 步骤 1：精简 list_summary sample_rows
   const ls = data.list_summary as Record<string, unknown> | undefined;
   if (ls?.sample_rows && Array.isArray(ls.sample_rows) && ls.sample_rows.length > 0) {
     data = { ...data, list_summary: { ...ls, sample_rows: (ls.sample_rows as unknown[]).slice(0, 2) } };
@@ -360,7 +360,7 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
     if (size <= MAX_PAGE_DATA_BYTES) return data;
   }
 
-  // Step 2: drop form_fields entirely
+  // Step 2: drop form_fields entirely / 步骤 2：完全移除 form_fields
   if (data.form_fields) {
     const { form_fields: _ff, ...rest } = data;
     data = rest;
@@ -381,9 +381,9 @@ function enrichPageContextWithOperations(
   if (!ctx) return ctx;
   const ops = listPageOperations(ctx.page_key);
 
-  // When form is open, prefer live fieldDescriptors from formStateTracker
+  // When form is open, prefer live fieldDescriptors from formStateTracker / 表单打开时优先使用 formStateTracker 的实时 fieldDescriptors
   // (refreshed each time the drawer opens) over the static version registered
-  // at page mount. This handles dynamic schemas (conditional fields, permissions).
+  // at page mount. This handles dynamic schemas (conditional fields, permissions) / 页面挂载时；处理动态 schema（条件字段、权限）
   // 表单打开时，优先使用 formStateTracker 的实时字段描述（每次 drawer 打开时刷新），
   // 而非页面挂载时注册的静态版本，以支持动态 schema（条件字段、权限变化）。
   let liveFormFields = ctx.page_data?.form_fields;
@@ -464,7 +464,7 @@ async function handleSendMessage() {
       );
     }
 
-    // Check if routed agent has required vars not yet filled
+    // Check if routed agent has required vars not yet filled / 检查路由到的 agent 是否有必填变量未填
     const routedAgent = agents.value.find((a) => a.id === result.agentId);
     const requiredVars = routedAgent?.input_variables?.filter((v) => v.required) ?? [];
     if (requiredVars.length > 0) {
@@ -472,7 +472,7 @@ async function handleSendMessage() {
       const agentVars = allAgentsVariables.value[result.agentId] ?? {};
       const missing = requiredVars.filter((v) => !agentVars[v.name]?.trim());
       if (missing.length > 0) {
-        // Defer send: open modal and wait for vars to be filled
+        // Defer send: open modal and wait for vars to be filled / 延迟发送：打开弹窗等待变量填写
         pendingSendContext.value = { agentId: result.agentId, pageContext };
         openVarsModal(routedAgent!.input_variables!, result.agentId, routedAgent!.name);
         return;
@@ -695,7 +695,7 @@ async function handleScreenshot() {
 // ============ Welcome & Suggested Questions ============
 
 const effectiveWelcomeMessage = computed(() => {
-  // Use pinned agent's welcome if pinned, otherwise show generic welcome
+  // Use pinned agent's welcome if pinned, otherwise show generic welcome / 置顶时用置顶 agent 的欢迎语，否则通用欢迎
   if (isPinned.value && selectedAgent.value?.welcome_message) {
     return selectedAgent.value.welcome_message;
   }
@@ -757,7 +757,7 @@ function loadSavedWidth() {
       if (w >= MIN_WIDTH && w <= MAX_WIDTH) panelWidth.value = w;
     }
   } catch {
-    /* ignore */
+    /* ignore / 忽略 */
   }
   aiPanelStore.panelWidth = panelWidth.value;
 }
@@ -766,7 +766,7 @@ function saveWidth() {
   try {
     localStorage.setItem(STORAGE_KEY, String(panelWidth.value));
   } catch {
-    /* ignore */
+    /* ignore / 忽略 */
   }
 }
 
@@ -849,7 +849,7 @@ watch(
 watch(selectedAgentId, (agentId) => {
   if (agentId) {
     loadAgentKBBindings(agentId);
-    // Pre-load vars from localStorage (no modal on switch)
+    // Pre-load vars from localStorage (no modal on switch) / 从 localStorage 预加载变量（切换时无需弹窗）
     ensureAgentVarsLoaded(agentId);
   }
 });
@@ -1890,7 +1890,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Slide panel transition */
+/* Slide panel transition / 滑出面板过渡 */
 .slide-panel-enter-active {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1904,7 +1904,7 @@ onUnmounted(() => {
   transform: translateX(100%);
 }
 
-/* Fade transition for route notice */
+/* Fade transition for route notice / 路由提示淡入淡出 */
 .fade-enter-active {
   transition: opacity 0.2s ease-out;
 }
@@ -1918,7 +1918,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Bubble transition */
+/* Bubble transition / 气泡过渡 */
 .bubble-enter-active {
   animation: bubble-in 0.3s ease-out;
 }
@@ -1939,7 +1939,7 @@ onUnmounted(() => {
   }
 }
 
-/* Float animation for empty state avatar */
+/* Float animation for empty state avatar / 空状态头像浮动动画 */
 @keyframes float {
   0%,
   100% {
@@ -1955,7 +1955,7 @@ onUnmounted(() => {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Attachment pop transition */
+/* Attachment pop transition / 附件弹出过渡 */
 .att-pop-enter-active {
   animation: att-in 0.25s ease-out;
 }
@@ -1976,7 +1976,7 @@ onUnmounted(() => {
   }
 }
 
-/* Routing shimmer effect */
+/* Routing shimmer effect / 路由闪烁效果 */
 .routing-shimmer {
   background: linear-gradient(
     90deg,
@@ -1997,7 +1997,7 @@ onUnmounted(() => {
   }
 }
 
-/* Routing dots animation */
+/* Routing dots animation / 路由点点动画 */
 .routing-dot {
   animation: routing-pulse 0.8s ease-in-out infinite;
 }
@@ -2015,7 +2015,7 @@ onUnmounted(() => {
   }
 }
 
-/* Streaming progress bar animation (T5) */
+/* Streaming progress bar animation (T5) / 流式进度条动画 */
 .streaming-bar {
   width: 30%;
   background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), hsl(var(--primary)), hsl(var(--primary) / 0.6), transparent);

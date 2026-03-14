@@ -60,7 +60,7 @@ async function open(source: string, target: string) {
   try {
     analysis.value = await getImpactAnalysisApi(source, target);
   } catch {
-    // handled by request interceptor
+    // handled by request interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }

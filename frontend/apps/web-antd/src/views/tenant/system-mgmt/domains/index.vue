@@ -45,12 +45,12 @@ defineOptions({ name: 'TenantDomains' });
 
 const t = (key: string) => $t(`tenant.system.domain.${key}`);
 
-// State
+// State / 状态
 const domains = ref<TenantDomainInfo[]>([]);
 const loading = ref(false);
 const refreshing = ref(false);
 
-// Refs
+// Refs / 引用
 const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
 const detailDrawerRef = ref<InstanceType<typeof DomainsDetailDrawer>>();
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
@@ -64,12 +64,12 @@ function onOpenSsl(domain: TenantDomainInfo) {
   });
 }
 
-// Lifecycle
+// Lifecycle / 生命周期
 onMounted(() => {
   loadDomains();
 });
 
-// Actions
+// Actions / 操作
 async function loadDomains() {
   loading.value = true;
   try {

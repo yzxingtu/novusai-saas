@@ -96,7 +96,7 @@ async function loadSummary() {
       avg_latency_ms: (res.avg_latency_ms as number) || 0,
     };
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     summaryLoading.value = false;
   }

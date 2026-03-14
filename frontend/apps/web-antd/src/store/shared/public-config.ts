@@ -24,7 +24,7 @@ import {
  * 更新页面 Head 信息
  */
 function updateHead(brand: BrandConfig) {
-  // Update Favicon
+  // Update Favicon / 更新 Favicon
   if (brand.favicon) {
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (!link) {
@@ -35,7 +35,7 @@ function updateHead(brand: BrandConfig) {
     link.href = brand.favicon;
   }
 
-  // Update Meta Description
+  // Update Meta Description / 更新 Meta Description
   if (brand.siteDescription) {
     let meta = document.querySelector(
       "meta[name='description']",

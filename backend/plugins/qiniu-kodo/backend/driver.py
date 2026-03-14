@@ -280,7 +280,7 @@ class KodoStorageDriver(StorageDriver):
 
         return await anyio.to_thread.run_sync(_move)
 
-    # ========== Image Processing ==========
+    # ========== Image Processing / 图片处理 ==========
 
     def _build_kodo_process_params(self, params: ImageProcessParams) -> str:
         """Build Kodo image processing URL suffix.

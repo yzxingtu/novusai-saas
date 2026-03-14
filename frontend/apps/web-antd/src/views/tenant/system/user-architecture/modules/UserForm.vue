@@ -63,7 +63,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
       });
       api.setState({ schema: updatedSchema });
     } catch {
-      // error handled by request client
+      // error handled by request client / 错误由请求拦截器处理
     }
   },
 });

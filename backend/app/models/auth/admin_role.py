@@ -25,12 +25,12 @@ admin_role_permissions = Table(
 
 class AdminRole(BaseModel):
     """
-    平台管理员角色模型
+    平台管理员角色模型 / Platform admin role model
 
-    - 用于平台管理员的权限控制
-    - 与 Permission 多对多关联
-    - 支持多级角色层级结构（父子关系）
-    - 子角色自动继承父角色的权限
+    - 用于平台管理员的权限控制 / For admin permission control
+    - 与 Permission 多对多关联 / Many-to-many with Permission
+    - 支持多级角色层级结构（父子关系） / Supports multi-level role hierarchy
+    - 子角色自动继承父角色的权限 / Child roles inherit parent permissions
     """
 
     __tablename__ = "admin_roles"
@@ -202,39 +202,39 @@ class AdminRole(BaseModel):
 
     @property
     def children_count(self) -> int:
-        """获取子角色数量"""
+        """获取子角色数量 / Get children count"""
         return len([c for c in self.children if not c.is_deleted])
 
     @property
     def permissions_count(self) -> int:
-        """获取权限数量"""
+        """获取权限数量 / Get permissions count"""
         return len(self.permissions)
 
     @property
     def has_children(self) -> bool:
-        """是否有子角色"""
+        """是否有子角色 / Has children"""
         return self.children_count > 0
 
     @property
     def has_admins(self) -> bool:
-        """是否有关联的管理员"""
+        """是否有关联的管理员 / Has admins"""
         return len([a for a in self.admins if not a.is_deleted]) > 0
 
     @property
     def member_count(self) -> int:
-        """获取节点成员数量"""
+        """获取节点成员数量 / Get node members count"""
         return len([a for a in self.admins if not a.is_deleted])
 
     @property
     def leader_name(self) -> str | None:
-        """获取负责人名称"""
+        """获取负责人名称 / Get leader name"""
         if self.leader and not self.leader.is_deleted:
             return self.leader.nickname or self.leader.username
         return None
 
     @property
     def type_enum(self) -> RoleType | None:
-        """获取节点类型枚举"""
+        """获取节点类型枚举 / Get node type enum"""
         return RoleType.from_value(self.type)
 
     def has_permission(self, permission_code: str) -> bool:

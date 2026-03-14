@@ -92,13 +92,13 @@ async function onDownload(row: AttachmentInfo) {
     link.remove();
     message.success($t('tenant.system.attachment.messages.downloadStarted'));
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 
 const pickerRef = ref<InstanceType<typeof FilePicker> | null>(null);
 
-// CRUD 页面
+// CRUD 页面 / CRUD page
 const { Grid, gridApi, onRefresh } = useCrudPage<AttachmentInfo>({
   api: {
     list: getAttachmentListApi,

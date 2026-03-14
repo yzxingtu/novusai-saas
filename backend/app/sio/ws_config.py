@@ -64,7 +64,7 @@ async def get_ws_config(key: str) -> Any:
 
         async with async_session_factory() as db:
             service = ConfigService(db)
-            value = await service.get_platform_value(key)
+            value = await service.get_platform_config(key)
 
         if value is not None:
             # Write to cache / 写入缓存

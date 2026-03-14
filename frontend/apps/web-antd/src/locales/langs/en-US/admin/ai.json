@@ -1041,6 +1041,12 @@
       "translation": {
         "name": "AI Translation",
         "description": "Multi-language text translation (e.g. i18n field auto-translation)"
+      },
+      "system": {
+        "ai_writing": {
+          "name": "Document Writing Assistant",
+          "description": "AI writing agent for rich text editors. Supports continue, optimize, proofread, translate, summarize, expand, and rewrite operations."
+        }
       }
     }
   }

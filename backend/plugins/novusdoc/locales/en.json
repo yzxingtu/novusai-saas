@@ -1,41 +1,54 @@
 {
-  "plugin.novusdoc.name": "AI Document Editor",
-  "plugin.novusdoc.description": "Modern AI-powered rich text editor based on Tiptap, with document management, AI writing, full-text search",
-  "plugin.novusdoc.doc.create": "New Document",
-  "plugin.novusdoc.doc.untitled": "Untitled",
-  "plugin.novusdoc.doc.delete": "Delete Document",
-  "plugin.novusdoc.doc.deleteConfirm": "Are you sure you want to delete this document?",
-  "plugin.novusdoc.doc.search": "Search documents…",
-  "plugin.novusdoc.doc.empty": "No documents yet. Click New to start writing.",
-  "plugin.novusdoc.doc.saved": "Saved",
-  "plugin.novusdoc.doc.saving": "Saving…",
-  "plugin.novusdoc.doc.wordCount": "{count} words",
-  "plugin.novusdoc.folder.create": "New Folder",
-  "plugin.novusdoc.folder.rename": "Rename",
-  "plugin.novusdoc.folder.delete": "Delete Folder",
-  "plugin.novusdoc.folder.all": "All Documents",
-  "plugin.novusdoc.tag.create": "New Tag",
-  "plugin.novusdoc.tag.manage": "Manage Tags",
-  "plugin.novusdoc.export.html": "Export HTML",
-  "plugin.novusdoc.export.markdown": "Export Markdown",
-  "plugin.novusdoc.ai.generating": "AI generating…",
-  "plugin.novusdoc.ai.thinking": "Thinking…",
-  "plugin.novusdoc.ai.accept": "Accept",
-  "plugin.novusdoc.ai.dismiss": "Dismiss",
-  "plugin.novusdoc.ai.continue": "Continue",
-  "plugin.novusdoc.ai.optimize": "Optimize",
-  "plugin.novusdoc.ai.proofread": "Proofread",
-  "plugin.novusdoc.ai.expand": "Expand",
-  "plugin.novusdoc.ai.rewrite": "Rewrite",
-  "plugin.novusdoc.ai.summarize": "Summarize",
-  "plugin.novusdoc.ai.translate": "Translate",
-  "plugin.novusdoc.ai.lang.english": "English",
-  "plugin.novusdoc.ai.lang.chinese": "Chinese",
-  "plugin.novusdoc.ai.lang.japanese": "Japanese",
-  "plugin.novusdoc.ai.lang.korean": "Korean",
-  "plugin.novusdoc.ai.custom": "Custom prompt",
-  "plugin.novusdoc.ai.customPlaceholder": "Enter your instruction…",
-  "plugin.novusdoc.ai.assistant": "AI Assistant",
-  "plugin.novusdoc.ai.askPlaceholder": "Ask about your document…",
-  "plugin.novusdoc.ai.emptyChat": "Ask AI about your document…"
+  "plugin": {
+    "novusdoc": {
+      "name": "Documents",
+      "description": "Lightweight document manager with folders, tags, search and export",
+      "doc": {
+        "title": "Title",
+        "untitled": "Untitled Document",
+        "newDoc": "New Document",
+        "editDoc": "Edit Document",
+        "deleteDoc": "Delete Document",
+        "deleteConfirm": "Are you sure you want to delete this document?",
+        "saved": "Saved",
+        "saving": "Saving...",
+        "autoSave": "Auto-save",
+        "wordCount": "Words",
+        "export": "Export",
+        "exportHTML": "Export HTML",
+        "exportMarkdown": "Export Markdown"
+      },
+      "folder": {
+        "title": "Folders",
+        "newFolder": "New Folder",
+        "allDocs": "All Documents",
+        "rename": "Rename",
+        "delete": "Delete Folder"
+      },
+      "tag": {
+        "title": "Tags",
+        "newTag": "New Tag",
+        "manage": "Manage Tags"
+      },
+      "search": {
+        "placeholder": "Search documents...",
+        "noResults": "No documents found"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published"
+      },
+      "op": {
+        "refresh": "Refresh document list",
+        "search": "Search documents",
+        "clearSearch": "Clear search",
+        "selectFolder": "Select folder",
+        "getContent": "Get document content",
+        "save": "Save document",
+        "toggleStatus": "Toggle publish status",
+        "updateTitle": "Update title",
+        "export": "Export document"
+      }
+    }
+  }
 }

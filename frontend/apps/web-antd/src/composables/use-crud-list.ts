@@ -66,7 +66,7 @@ import { createStandardOperations, extractFormParams } from './use-ai-operations
 import { formStateTracker } from './use-form-state-tracker';
 
 // ============================================================
-// Dependency block types & imperative modal
+// Dependency block types & imperative modal / 依赖块类型与命令式弹窗
 // 依赖阻止类型 & 命令式弹窗
 // ============================================================
 
@@ -550,7 +550,7 @@ function defaultResponseAdapter<T>(data: unknown): {
 }
 
 // ============================================================
-// Date range processing (reused from useCrudPage)
+// Date range processing (reused from useCrudPage) / 日期范围处理（复用自 useCrudPage）
 // 日期范围处理（复用自 useCrudPage）
 // ============================================================
 function processFormValues(
@@ -775,11 +775,11 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   }
 
   // ==================== AI page operations / AI 页面操作自动注册 ====================
-  // Auto-register standard CRUD operations if ai config is provided
+  // Auto-register standard CRUD operations if ai config is provided / 若提供 ai 配置则自动注册标准 CRUD 操作
   // 如果提供了 ai 配置，自动注册标准 CRUD 操作
   let cleanupAiOps: (() => void) | null = null;
 
-  // Resolved AI page key (shared between operations and form tracking)
+  // Resolved AI page key (shared between operations and form tracking) / 解析后的 AI 页面 key（操作与表单追踪共用）
   // 解析后的 AI 页面标识（在操作注册和表单追踪间共享）
   let resolvedAiPageKey: string | undefined;
   let cleanupAiContext: (() => void) | null = null;
@@ -813,7 +813,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
     cleanupAiOps = registerPageOperations(pageKey, standardOps);
 
-    // Auto-register enhanced page context with semantic info
+    // Auto-register enhanced page context with semantic info / 自动注册带语义信息的增强页面上下文
     // 自动注册含语义信息的增强页面上下文
     const routeTitle = route.meta?.title as string | undefined;
     const entityName = ai.entityName ?? routeTitle ?? '';
@@ -825,7 +825,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       : undefined;
 
     cleanupAiContext = registerPageContext(pageKey, () => {
-      // Build list_summary: top-5 rows with up to 6 fields each
+      // Build list_summary: top-5 rows with up to 6 fields each / 构建 list_summary：前 5 行，每行最多 6 字段
       let listSummary: Record<string, unknown> | undefined;
       const rows = list.value;
       if (rows.length > 0) {
@@ -1121,7 +1121,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     openRecycleBin,
     recycleBinCount,
 
-    // AI
+    // AI / AI
     aiPageKey: resolvedAiPageKey,
 
     // Utilities / 辅助

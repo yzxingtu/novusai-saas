@@ -116,7 +116,7 @@ async function loadDocuments() {
     startWsListener();
     fetchInitialProgress();
   } catch {
-    // handled by global interceptor
+    // handled by interceptor / 错误由请求拦截器处理 by global interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -169,7 +169,7 @@ async function handleRetryDoc(doc: KnowledgeDocumentItem) {
     message.success($t('common.operationSuccess'));
     await loadDocuments();
   } catch {
-    // handled
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -359,7 +359,7 @@ async function handleSearch() {
       search_mode: searchMode.value,
     });
   } catch {
-    // handled
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     searchLoading.value = false;
   }

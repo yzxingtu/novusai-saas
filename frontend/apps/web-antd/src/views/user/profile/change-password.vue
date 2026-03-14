@@ -89,7 +89,7 @@ async function handleSubmit() {
     formRef.value?.resetFields();
     router.push('/settings/profile');
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = false;
   }

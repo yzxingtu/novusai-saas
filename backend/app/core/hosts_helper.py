@@ -31,7 +31,7 @@ from app.core.logging import LogManager
 logger = LogManager.get_logger("app")
 
 # ──────────────────────────────────────────────
-# 常量
+# 常量 / Constants
 # ──────────────────────────────────────────────
 
 MARKER = "# NovusAI-Dev"
@@ -64,12 +64,12 @@ class HostEntryStatus(TypedDict):
 
 
 # ──────────────────────────────────────────────
-# 环境检测
+# 环境检测 / Environment detection
 # ──────────────────────────────────────────────
 
 
 def _get_hosts_path() -> Path | None:
-    """返回当前操作系统的 hosts 文件路径，不支持则返回 None"""
+    """返回当前操作系统的 hosts 文件路径，不支持则返回 None / Return hosts file path for current OS, or None if unsupported"""
     return _HOSTS_PATHS.get(platform.system())
 
 
@@ -88,12 +88,12 @@ def is_dev_local() -> bool:
 
 
 # ──────────────────────────────────────────────
-# 底层文件读写
+# 底层文件读写 / Low-level file I/O
 # ──────────────────────────────────────────────
 
 
 def _read_lines() -> list[str]:
-    """读取 hosts 文件所有行（含换行符），文件不存在返回空列表"""
+    """读取 hosts 文件所有行（含换行符），文件不存在返回空列表 / Read all hosts lines (with newlines), return [] if file missing"""
     path = _get_hosts_path()
     if not path or not path.exists():
         return []
@@ -101,7 +101,7 @@ def _read_lines() -> list[str]:
 
 
 def _write_lines(lines: list[str]) -> None:
-    """将行列表写回 hosts 文件，自动补末尾换行"""
+    """将行列表写回 hosts 文件，自动补末尾换行 / Write lines back to hosts file, auto-append trailing newline"""
     path = _get_hosts_path()
     if not path:
         return
@@ -112,12 +112,12 @@ def _write_lines(lines: list[str]) -> None:
 
 
 # ──────────────────────────────────────────────
-# 行解析工具
+# 行解析工具 / Line parsing utils
 # ──────────────────────────────────────────────
 
 
 def _is_managed(line: str) -> bool:
-    """是否为本工具管理的条目（含 MARKER 注释）"""
+    """是否为本工具管理的条目（含 MARKER 注释）/ Whether this line is a managed entry (contains MARKER)"""
     return MARKER in line
 
 
@@ -145,7 +145,7 @@ def _parse_hosts_line(line: str) -> tuple[str, list[str]] | None:
 
 
 def _extract_domain(line: str) -> str | None:
-    """从 hosts 行提取域名，不是托管行则返回 None"""
+    """从 hosts 行提取域名，不是托管行则返回 None / Extract domain from hosts line, None if not managed"""
     if not _is_managed(line):
         return None
     parsed = _parse_hosts_line(line)
@@ -199,7 +199,7 @@ def _inspect_entry(lines: list[str], domain: str) -> HostEntryStatus:
 
 
 def _make_entry(domain: str) -> str:
-    """生成标准格式的 hosts 条目行（含换行符）"""
+    """生成标准格式的 hosts 条目行（含换行符）/ Generate standard hosts entry line (with newline)"""
     return f"{LOOPBACK_IP}  {domain}  {MARKER}\n"
 
 
@@ -253,7 +253,7 @@ def get_domain_entry_status(domain: str) -> HostEntryStatus:
 
 
 # ──────────────────────────────────────────────
-# 核心操作（同步，供 to_thread 使用）
+# 核心操作（同步，供 to_thread 使用）/ Core ops (sync, for to_thread)
 # ──────────────────────────────────────────────
 
 
@@ -451,7 +451,7 @@ def cleanup_all_entries() -> int:
 
 
 # ──────────────────────────────────────────────
-# 异步包装（供 Service 层 asyncio 上下文使用）
+# 异步包装（供 Service 层 asyncio 上下文使用）/ Async wrapper (for Service asyncio)
 # ──────────────────────────────────────────────
 
 
@@ -481,7 +481,7 @@ async def async_get_domain_entry_status(domain: str) -> HostEntryStatus:
 
 
 # ──────────────────────────────────────────────
-# 权限错误提示
+# 权限错误提示 / Permission error message
 # ──────────────────────────────────────────────
 
 
@@ -543,7 +543,7 @@ def _print_permission_warning(action: str, target: str, hosts_path: Path | None)
 
 
 # ──────────────────────────────────────────────
-# CLI 入口（python -m app.core.hosts_helper）
+# CLI 入口（python -m app.core.hosts_helper）/ CLI entry
 # ──────────────────────────────────────────────
 
 

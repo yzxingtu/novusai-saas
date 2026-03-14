@@ -34,7 +34,7 @@ logger = LogManager.get_logger("dashboard")
 
 
 class AdminDashboardService:
-    """平台端仪表盘统计服务"""
+    """平台端仪表盘统计服务 / Platform dashboard statistics service"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -58,7 +58,7 @@ class AdminDashboardService:
             "today_login": today_login,
         }
 
-    # ── A1: 系统健康状态 ──
+    # ── A1: 系统健康状态 / System health ──
 
     async def get_system_health(self) -> dict[str, Any]:
         """
@@ -80,7 +80,7 @@ class AdminDashboardService:
         if not db_ok:
             overall = "unhealthy"
 
-        # 内存使用 + 进程运行时间（复用同一个 Process 对象）
+        # 内存使用 + 进程运行时间（复用同一个 Process 对象）/ Memory usage + process uptime (reuse Process)
         memory_mb = 0.0
         uptime_seconds = 0
         try:
@@ -127,7 +127,7 @@ class AdminDashboardService:
         except Exception:
             return False
 
-    # ── A2: AI 使用概览 ──
+    # ── A2: AI 使用概览 / AI usage overview ──
 
     async def get_ai_overview(self) -> dict[str, Any]:
         """
@@ -139,7 +139,7 @@ class AdminDashboardService:
         """
         from app.enums.ai import CallStatusEnum
 
-        # 总体统计
+        # 总体统计 / Overall stats
         total_row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("total_calls"),
@@ -153,7 +153,7 @@ class AdminDashboardService:
         )
         row = total_row.one()
 
-        # 今日统计
+        # 今日统计 / Today stats
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_row = await self.db.execute(
             select(
@@ -177,7 +177,7 @@ class AdminDashboardService:
             "success_rate": success_rate,
         }
 
-    # ── A3: 存储使用概览 ──
+    # ── A3: 存储使用概览 / Storage usage overview ──
 
     async def get_storage_overview(self) -> dict[str, Any]:
         """
@@ -186,7 +186,7 @@ class AdminDashboardService:
         Returns:
             {"total_files", "total_size_bytes", "total_size_mb", "driver_distribution"}
         """
-        # 总体统计
+        # 总体统计 / Overall stats
         total_row = await self.db.execute(
             select(
                 func.count(Attachment.id).label("total_files"),
@@ -196,7 +196,7 @@ class AdminDashboardService:
         row = total_row.one()
         total_size = int(row.total_size)
 
-        # 驱动分布
+        # 驱动分布 / Driver distribution
         driver_rows = await self.db.execute(
             select(
                 Attachment.driver,
@@ -218,7 +218,7 @@ class AdminDashboardService:
             "driver_distribution": driver_distribution,
         }
 
-    # ── A4: 插件状态概览 ──
+    # ── A4: 插件状态概览 / Plugin status overview ──
 
     async def get_plugin_overview(self) -> dict[str, Any]:
         """
@@ -252,7 +252,7 @@ class AdminDashboardService:
             "error_count": int(r.with_errors or 0),
         }
 
-    # ── A5: 企业增长趋势 ──
+    # ── A5: 企业增长趋势 / Tenant growth trend ──
 
     async def get_tenant_growth(self, days: int = 30) -> list[dict[str, Any]]:
         """
@@ -278,7 +278,7 @@ class AdminDashboardService:
             for r in rows.all()
         ]
 
-    # ── A6: 近期活动时间线 ──
+    # ── A6: 近期活动时间线 / Recent activity timeline ──
 
     async def get_recent_activities(self, limit: int = 20) -> list[dict[str, Any]]:
         """
@@ -322,10 +322,10 @@ class AdminDashboardService:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.isoformat()
 
-    # ── private helpers ──
+    # ── private helpers / 私有辅助 ──
 
     async def _count(self, model, *extra_filters) -> int:
-        """通用计数查询（自动排除软删除）"""
+        """通用计数查询（自动排除软删除）/ Generic count query (excludes soft-deleted)"""
         query = select(func.count()).select_from(model).where(
             model.deleted_at.is_(None),
             *extra_filters,
@@ -333,7 +333,7 @@ class AdminDashboardService:
         return (await self.db.execute(query)).scalar() or 0
 
     async def _today_login_count(self) -> int:
-        """今日登录数"""
+        """今日登录数 / Today's login count"""
         today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
         query = select(func.count()).select_from(TenantAdmin).where(
             TenantAdmin.deleted_at.is_(None),
@@ -343,7 +343,7 @@ class AdminDashboardService:
 
 
 class TenantDashboardService:
-    """企业端仪表盘统计服务"""
+    """企业端仪表盘统计服务 / Tenant dashboard statistics service"""
 
     def __init__(self, db: AsyncSession, tenant_id: int) -> None:
         self.db = db
@@ -368,13 +368,13 @@ class TenantDashboardService:
             TenantAdmin.last_login_at >= thirty_days_ago,
         )
 
-        # B1: 真实 AI 调用统计
+        # B1: 真实 AI 调用统计 / B1: Real AI call stats
         ai_stats = await self._get_ai_stats()
 
-        # 存储使用量
+        # 存储使用量 / Storage usage
         storage_used = await self._get_storage_used()
 
-        # B5: 智能体 & 知识库 & 对话统计
+        # B5: 智能体 & 知识库 & 对话统计 / B5: Agent & KB & conversation stats
         total_agents = await self._count_tenant_model(Agent)
         total_knowledge_bases = await self._count_tenant_model(KnowledgeBase)
         total_kb_documents = await self._count_tenant_model(KnowledgeDocument)
@@ -397,10 +397,10 @@ class TenantDashboardService:
             "monthly_conversations": monthly_conversations,
         }
 
-    # ── B1: 真实 AI 调用统计 ──
+    # ── B1: 真实 AI 调用统计 / Real AI call stats ──
 
     async def _get_ai_stats(self) -> dict[str, Any]:
-        """企业级 AI 调用汇总"""
+        """企业级 AI 调用汇总 / Tenant-level AI call summary"""
         row = await self.db.execute(
             select(
                 func.count(AICallLog.id).label("total_calls"),
@@ -415,7 +415,7 @@ class TenantDashboardService:
             "total_cost": float(r.total_cost),
         }
 
-    # ── B2: AI 使用趋势 ──
+    # ── B2: AI 使用趋势 / AI usage trend ──
 
     async def get_ai_trend(self, days: int = 7) -> list[dict[str, Any]]:
         """
@@ -442,7 +442,7 @@ class TenantDashboardService:
             for r in rows.all()
         ]
 
-    # ── B3: 存储使用详情 ──
+    # ── B3: 存储使用详情 / Storage usage detail ──
 
     async def get_storage_detail(self) -> dict[str, Any]:
         """
@@ -464,7 +464,7 @@ class TenantDashboardService:
         row = total_row.one()
         total_size = int(row.total_size)
 
-        # 按 MIME 类型分布
+        # 按 MIME 类型分布 / By MIME type distribution
         type_rows = await self.db.execute(
             select(
                 Attachment.mime_type,
@@ -488,10 +488,10 @@ class TenantDashboardService:
             ],
         }
 
-    # ── B4: 近期活动 ──
+    # ── B4: 近期活动 / Recent activity ──
 
     async def get_recent_activities(self, limit: int = 20) -> list[dict[str, Any]]:
-        """企业级近期操作日志"""
+        """企业级近期操作日志 / Tenant recent operation logs"""
         rows = await self.db.execute(
             select(OperationLog)
             .where(
@@ -519,7 +519,7 @@ class TenantDashboardService:
         ]
 
     async def _get_storage_used(self) -> int:
-        """企业存储总占用"""
+        """企业存储总占用 / Tenant total storage usage"""
         result = await self.db.execute(
             select(func.coalesce(func.sum(Attachment.size), 0)).where(
                 Attachment.tenant_id == self.tenant_id,
@@ -529,7 +529,7 @@ class TenantDashboardService:
         return int(result.scalar() or 0)
 
     async def _count_admins(self, *extra_filters) -> int:
-        """企业下管理员计数"""
+        """企业下管理员计数 / Tenant admin count"""
         query = select(func.count()).select_from(TenantAdmin).where(
             TenantAdmin.deleted_at.is_(None),
             TenantAdmin.tenant_id == self.tenant_id,
@@ -538,7 +538,7 @@ class TenantDashboardService:
         return (await self.db.execute(query)).scalar() or 0
 
     async def _count_tenant_model(self, model, *extra_filters) -> int:
-        """通用企业模型计数（模型须含 tenant_id + deleted_at）"""
+        """通用企业模型计数（模型须含 tenant_id + deleted_at）/ Generic tenant model count"""
         query = select(func.count()).select_from(model).where(
             model.deleted_at.is_(None),
             model.tenant_id == self.tenant_id,

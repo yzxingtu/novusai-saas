@@ -34,7 +34,7 @@ import {
 defineOptions({ name: 'AdminAIUsage' });
 
 // ============================================================
-// Summary statistics
+// Summary statistics / 汇总统计
 // ============================================================
 
 interface SummaryData {
@@ -104,7 +104,7 @@ async function loadSummary() {
       success_calls: (res.success_calls as number) || 0,
     };
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     summaryLoading.value = false;
   }
@@ -113,7 +113,7 @@ async function loadSummary() {
 onMounted(loadSummary);
 
 // ============================================================
-// ECharts trend charts
+// ECharts trend charts / ECharts 趋势图表
 // ============================================================
 
 const callChartRef = ref<EchartsUIType>();
@@ -129,7 +129,7 @@ async function loadTrend() {
   try {
     trendData.value = await getCallTrendApi();
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     trendLoading.value = false;
   }
@@ -229,7 +229,7 @@ watch(trendData, renderCharts);
 onMounted(loadTrend);
 
 // ============================================================
-// Grid
+// Grid / 表格
 // ============================================================
 
 const { Grid, onRefresh, gridApi } = useCrudPage({

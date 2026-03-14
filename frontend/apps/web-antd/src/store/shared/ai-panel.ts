@@ -250,7 +250,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   }
 
   return {
-    // State
+    // State / 状态
     visible,
     mode,
     minimized,
@@ -263,7 +263,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingAgentId,
     hasUnread,
 
-    // Panel actions
+    // Panel actions / 面板操作
     open,
     close,
     toggle,
@@ -274,32 +274,32 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     toggleMode,
     toggleDock,
 
-    // Conversation
+    // Conversation / 会话
     setConversation,
     resetConversation,
 
-    // Pin
+    // Pin / 置顶
     pinAgent,
     unpinAgent,
     togglePin,
 
-    // External
+    // External / 外部
     openWithAgent,
     consumePendingAgentId,
     markUnread,
 
-    // Page operation confirmation
+    // Page operation confirmation / 页面操作确认
     pendingPageOps,
     requestPageOpConfirmation,
     resolvePageOp,
     clearResolvedPageOps,
 
-    // Tool calls
+    // Tool calls / 工具调用
     registerToolCallHandler,
     unregisterToolCallHandler,
     dispatchToolCall,
 
-    // Reset
+    // Reset / 重置
     $reset,
   };
 });

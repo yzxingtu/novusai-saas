@@ -3,14 +3,14 @@
 NovusAI License Key 生成工具
 
 用法:
-  # 生成永久 License
-  python scripts/generate_license_key.py --plugin novusdoc-pro --email admin@example.com
+  # 生成永久 License / Generate perpetual license
+  python scripts/generate_license_key.py --plugin weather-widget --email admin@example.com
 
-  # 生成 365 天有效期 License
-  python scripts/generate_license_key.py --plugin novusdoc-pro --email admin@example.com --days 365
+  # 生成 365 天有效期 License / Generate 365-day license
+  python scripts/generate_license_key.py --plugin weather-widget --email admin@example.com --days 365
 
-  # 使用已有密钥对
-  python scripts/generate_license_key.py --plugin novusdoc-pro --private-key <base64>
+  # 使用已有密钥对 / Use existing keypair
+  python scripts/generate_license_key.py --plugin weather-widget --private-key <base64>
 
   # 生成新密钥对（首次使用）
   python scripts/generate_license_key.py --gen-keys
@@ -81,7 +81,7 @@ def main() -> None:
         description="NovusAI License Key Generator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--plugin", type=str, help="Plugin name (e.g. novusdoc-pro)")
+    parser.add_argument("--plugin", type=str, help="Plugin name (e.g. weather-widget)")
     parser.add_argument("--email", type=str, default="", help="Buyer email")
     parser.add_argument("--scope", type=str, default="*", help="Version scope (default: *)")
     parser.add_argument("--days", type=int, default=None, help="License validity in days (default: perpetual)")

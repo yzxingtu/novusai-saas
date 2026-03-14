@@ -1,490 +1,350 @@
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { Button, Tooltip, Spin, message } from 'ant-design-vue';
-import { IconifyIcon, $t } from '@novus/plugin-shared';
-import type { JSONContent } from '@tiptap/core';
-import { useRoute, useRouter } from 'vue-router';
+/**
+ * NovusDoc document editor — full-page editor using platform RichTextEditor (mode=full)
+ * NovusDoc 文档编辑器 — 使用平台 RichTextEditor 的全页编辑模式
+ * Auto-saves content with debounce. Provides title editing, status toggle, and export.
+ * 防抖自动保存。支持标题编辑、状态切换和导出。
+ */
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import type { DocDetail } from '../types';
+import { getDoc, updateDoc, getExportUrl } from '../api/novusdoc';
 
-import NovusEditor from '../components/NovusEditor.vue';
-import EditorToolbar from '../components/EditorToolbar.vue';
-import AIBubbleMenu from '../components/AIBubbleMenu.vue';
-import AISidebar from '../components/AISidebar.vue';
-import type { DocItem } from '../api/docs';
-import { getDocApi, updateDocApi } from '../api/docs';
-import { useDocAI } from '../composables/useDocAI';
-import { useCollab } from '../composables/useCollab';
-import { useProFeatures } from '../composables/useProFeatures';
+const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
+  $t?: (k: string) => string;
+  router?: { push: (to: string) => void; currentRoute?: { value?: { params?: Record<string, string> } } };
+  listPageOperations?: (key: string) => readonly { name: string; label?: string; description?: string; readonly?: boolean; params?: unknown; handler?: (p: Record<string, unknown>) => unknown }[];
+  registerPageContext?: (key: string, resolver: () => unknown) => () => void;
+  registerPageOperations?: (key: string, ops: unknown[]) => () => void;
+} | undefined;
 
-const route = useRoute();
-const router = useRouter();
+const $t = (key: string) => {
+  return shared?.$t?.(key) ?? key.split('.').pop() ?? key;
+};
 
+const props = defineProps<{ id: string | number }>();
+const docId = computed(() => Number(props.id));
+
+const doc = ref<DocDetail | null>(null);
 const loading = ref(true);
 const saving = ref(false);
-const doc = ref<DocItem | null>(null);
-const editorRef = ref<InstanceType<typeof NovusEditor> | null>(null);
-const titleInput = ref('');
-const saveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
-const lastSavedAt = ref('');
-const showAISidebar = ref(false);
-const aiSidebarRef = ref<InstanceType<typeof AISidebar> | null>(null);
+const saved = ref(false);
+const title = ref('');
+const wordCount = ref(0);
 
-const docAI = useDocAI(
-  () => getDocIdFromRoute() ?? 0,
-  () => editorRef.value?.editor,
-);
+const editorContainer = ref<HTMLElement | null>(null);
+const mountedEditor = shallowRef<{
+  getJSON(): unknown;
+  getHTML(): string;
+  getText(): string;
+  setContent(content: unknown): void;
+  focus(): void;
+  destroy(): void;
+} | null>(null);
 
-// NovusDoc Pro 协作集成
-const collab = useCollab(getDocIdFromRoute() ?? 0);
+const isAdmin = computed(() => location.pathname.includes('/admin/'));
 
-// NovusDoc Pro 功能检测
-const pro = useProFeatures();
-const showVersionDrawer = ref(false);
-const showCommentDrawer = ref(false);
-
-function getDocIdFromRoute(): number | null {
-  const raw = route.params.docId;
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return null;
-  }
-  return parsed;
-}
-
-async function loadDoc() {
-  const docId = getDocIdFromRoute();
-  if (!docId) {
-    message.error($t('plugin.novusdoc.doc.invalidId'));
-    router.push(`${getRouteBase()}/docs`);
-    return;
-  }
-
+async function loadDocument() {
   loading.value = true;
   try {
-    const data = await getDocApi(docId) as unknown as DocItem;
-    doc.value = data;
-    titleInput.value = data.title || '';
-    // In collaboration mode, editor content comes from Yjs document (via Collaboration extension).
-    // Only set content from REST API when collaboration is NOT active.
-    if (editorRef.value && data.content && collab.collabExtensions.length === 0) {
-      editorRef.value.setContent(data.content as JSONContent);
-    }
+    const res = await getDoc(docId.value);
+    doc.value = res.document;
+    title.value = res.document.title;
+    wordCount.value = res.document.word_count;
   } catch {
-    message.error($t('plugin.novusdoc.doc.loadFailed'));
-    router.push(`${getRouteBase()}/docs`);
+    doc.value = null;
   } finally {
     loading.value = false;
   }
 }
 
-async function saveDoc() {
-  if (!doc.value || saving.value) return;
+function mountEditor() {
+  if (!editorContainer.value || !doc.value) return;
+
+  const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
+    mountRichTextEditor: (
+      target: HTMLElement,
+      options: Record<string, unknown>,
+    ) => {
+      getJSON(): unknown;
+      getHTML(): string;
+      getText(): string;
+      setContent(content: unknown): void;
+      focus(): void;
+      destroy(): void;
+    };
+  } | undefined;
+
+  if (!shared?.mountRichTextEditor) return;
+
+  mountedEditor.value = shared.mountRichTextEditor(editorContainer.value, {
+    content: doc.value.content,
+    mode: 'full',
+    ai: true,
+    upload: true,
+    editable: true,
+    placeholder: $t('plugin.novusdoc.doc.untitled'),
+    contextTitle: title.value,
+    pageKey: editorPageKey.value,
+    onChange: (_json: unknown, _html: string, text: string) => {
+      wordCount.value = text.trim() ? text.trim().split(/\s+/).length : 0;
+      debounceSave();
+    },
+  });
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const AUTO_SAVE_MS = 3000;
+
+function debounceSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saved.value = false;
+  saveTimer = setTimeout(() => {
+    saveNow();
+  }, AUTO_SAVE_MS);
+}
+
+async function saveNow() {
+  if (!mountedEditor.value || !doc.value) return;
   saving.value = true;
   try {
-    const json = editorRef.value?.getJSON();
-    await updateDocApi(doc.value.id, {
-      title: titleInput.value,
+    const json = mountedEditor.value.getJSON();
+    const html = mountedEditor.value.getHTML();
+    const text = mountedEditor.value.getText();
+    await updateDoc(doc.value.id, {
+      title: title.value,
       content: json,
+      content_html: html,
+      content_text: text,
+      word_count: wordCount.value,
     });
-    lastSavedAt.value = new Date().toLocaleTimeString();
+    saved.value = true;
   } catch {
-    // handled by global interceptor
+    saved.value = false;
   } finally {
     saving.value = false;
   }
 }
 
-function scheduleAutoSave() {
-  if (saveTimer.value) {
-    clearTimeout(saveTimer.value);
-  }
-  saveTimer.value = setTimeout(() => {
-    saveDoc();
-  }, 3000);
+function onTitleChange() {
+  debounceSave();
 }
 
-function handleEditorUpdate(_json: JSONContent, _text: string, wordCount: number) {
-  if (doc.value) {
-    doc.value.word_count = wordCount;
-  }
-  scheduleAutoSave();
-}
-
-function handleTitleChange() {
-  scheduleAutoSave();
-}
-
-function getRouteBase(): string {
-  return route.path.startsWith('/admin') ? '/admin/plugins/novusdoc' : '/tenant/plugins/novusdoc';
-}
-
-function handleBack() {
-  if (saveTimer.value) {
-    clearTimeout(saveTimer.value);
-    saveDoc();
-  }
-  router.push(`${getRouteBase()}/docs`);
-}
-
-async function handleCreateVersion() {
-  const docId = getDocIdFromRoute();
-  if (!docId || !doc.value) return;
-  await saveDoc();
-  await pro.createVersion(docId, {
-    title: titleInput.value,
-    content: editorRef.value?.getJSON(),
-    content_text: editorRef.value?.getText(),
-    word_count: doc.value.word_count ?? 0,
-    version_note: 'manual',
-  });
-  await pro.loadVersions(docId);
-  message.success($t('plugin.novusdoc.pro.createVersion'));
-}
-
-async function handleRestoreVersion(versionId: number) {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  const ok = await pro.restoreVersion(docId, versionId);
-  if (ok) {
-    await loadDoc();
-    showVersionDrawer.value = false;
-    message.success($t('plugin.novusdoc.pro.restoreVersion'));
+async function toggleStatus() {
+  if (!doc.value) return;
+  const newStatus = doc.value.status === 'draft' ? 'published' : 'draft';
+  try {
+    const res = await updateDoc(doc.value.id, { status: newStatus });
+    doc.value = { ...doc.value, ...res.document };
+  } catch {
+    // fail silently
   }
 }
 
-async function handleShare() {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  const token = await pro.createShare(docId);
-  if (token) {
-    const shareUrl = `${window.location.origin}/api/public/plugins/novusdoc-pro/api/share/${token}`;
-    await navigator.clipboard.writeText(shareUrl);
-    message.success($t('plugin.novusdoc.pro.shareCopied'));
+function goBack() {
+  const base = isAdmin.value ? '/admin/plugins/novusdoc' : '/tenant/plugins/novusdoc';
+  if (shared?.router) {
+    shared.router.push(base);
+  } else {
+    window.location.href = base;
   }
 }
 
-async function handleExportWord() {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  await pro.exportWord(docId, titleInput.value);
+function onExport(format: 'html' | 'md') {
+  if (!doc.value) return;
+  window.open(getExportUrl(doc.value.id, format), '_blank');
 }
 
-async function handleExportPdf() {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  await pro.exportPdf(docId, titleInput.value);
-}
+watch(title, onTitleChange);
 
-async function openVersionDrawer() {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  showVersionDrawer.value = true;
-  await pro.loadVersions(docId);
-}
+// ── Page Awareness / 页面感知 ──
+const editorPageKey = computed(() =>
+  isAdmin.value ? 'admin.plugins.novusdoc.editor' : 'tenant.plugins.novusdoc.editor',
+);
 
-async function openCommentDrawer() {
-  const docId = getDocIdFromRoute();
-  if (!docId) return;
-  showCommentDrawer.value = true;
-  await pro.loadComments(docId);
-}
+let cleanupContext: (() => void) | undefined;
+let cleanupOps: (() => void) | undefined;
 
-function handleKeyboard(e: KeyboardEvent) {
-  const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key === 's') {
-    e.preventDefault();
-    saveDoc();
+const documentOps = [
+  {
+    name: 'save_document',
+    label: $t('plugin.novusdoc.doc.saving') || 'Save document',
+    description: 'Save the current document immediately',
+    readonly: false,
+    handler: async () => {
+      await saveNow();
+      return { success: true, message: `Document "${title.value}" saved` };
+    },
+  },
+  {
+    name: 'toggle_status',
+    label: 'Toggle publish status',
+    description: 'Switch between draft and published status',
+    readonly: false,
+    handler: async () => {
+      await toggleStatus();
+      return { success: true, message: `Status changed to ${doc.value?.status}` };
+    },
+  },
+  {
+    name: 'update_title',
+    label: 'Update document title',
+    description: 'Change the document title',
+    readonly: false,
+    params: { title: { type: 'string', description: 'New document title' } },
+    handler: async (params: Record<string, unknown>) => {
+      title.value = String(params.title || '');
+      debounceSave();
+      return { success: true, message: `Title updated to "${title.value}"` };
+    },
+  },
+  {
+    name: 'export_document',
+    label: $t('plugin.novusdoc.doc.exportHTML') || 'Export document',
+    description: 'Export document in HTML or Markdown format',
+    readonly: true,
+    params: { format: { type: 'string', enum: ['html', 'md'], description: 'Export format' } },
+    handler: async (params: Record<string, unknown>) => {
+      const fmt = (params.format as 'html' | 'md') || 'html';
+      onExport(fmt);
+      return { success: true, message: `Export initiated in ${fmt} format` };
+    },
+  },
+];
+
+const EDITOR_CAPABILITIES_DESC =
+  'Rich text document editor. No form on this page (do not use get_form_state). '
+  + 'Content ops: get_editor_text, get_editor_html, get_selection, insert_content, replace_content, append_content; '
+  + 'format: format_text (bold|italic|underline|strike|code|highlight), clear_formatting; '
+  + 'blocks: set_heading, toggle_list, toggle_blockquote, toggle_code_block, set_text_align; '
+  + 'links/tables: manage_link, insert_table. Document ops: save_document, toggle_status, update_title, export_document.';
+
+function setupEditorPageAwareness() {
+  cleanupContext?.();
+  cleanupOps?.();
+
+  if (shared?.registerPageContext) {
+    cleanupContext = shared.registerPageContext(editorPageKey.value, () => ({
+      page_key: editorPageKey.value,
+      page_title: title.value || $t('plugin.novusdoc.doc.untitled'),
+      page_data: {
+        entity_name: $t('plugin.novusdoc.doc.title'),
+        entity_description: EDITOR_CAPABILITIES_DESC,
+        document_id: docId.value,
+        document_title: title.value,
+        document_status: doc.value?.status,
+        word_count: wordCount.value,
+        is_saving: saving.value,
+        has_editor: !!mountedEditor.value,
+      },
+    }));
   }
-  if (mod && e.shiftKey && e.key === 'a') {
-    e.preventDefault();
-    showAISidebar.value = !showAISidebar.value;
+
+  if (shared?.registerPageOperations) {
+    const existing = shared.listPageOperations?.(editorPageKey.value) ?? [];
+    cleanupOps = shared.registerPageOperations(editorPageKey.value, [
+      ...existing,
+      ...documentOps,
+    ]);
   }
 }
 
 onMounted(async () => {
-  loadDoc();
-  document.addEventListener('keydown', handleKeyboard);
-  // 连接协作服务（如果 Pro 已加载）
-  if (collab.collabExtensions.length > 0) {
-    await collab.connect();
+  await loadDocument();
+  if (doc.value) {
+    await nextTickMount();
+    // Defer so RichTextEditor's useEditorPageOps can register first; we then merge editor ops + document ops.
+    await nextTick();
+    setupEditorPageAwareness();
   }
 });
 
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyboard);
-  if (saveTimer.value) clearTimeout(saveTimer.value);
-  collab.disconnect();
-});
-
-watch(() => route.params.docId, () => {
-  loadDoc();
-});
-
-function handleAIAction(feature: string, extra?: Record<string, string>) {
-  docAI.runAIFeature(feature as Parameters<typeof docAI.runAIFeature>[0], extra);
+async function nextTickMount() {
+  await new Promise(r => setTimeout(r, 50));
+  mountEditor();
 }
 
-async function handleAISidebarSend(
-  msg: string,
-  history: Array<{ role: string; content: string }>,
-) {
-  const reply = await docAI.aiChat(msg, history);
-  if (reply && aiSidebarRef.value) {
-    aiSidebarRef.value.addAssistantMessage(reply);
+onBeforeUnmount(() => {
+  cleanupContext?.();
+  cleanupOps?.();
+  if (saveTimer) clearTimeout(saveTimer);
+  if (mountedEditor.value) {
+    saveNow();
+    mountedEditor.value.destroy();
   }
-}
+});
+
+const saveStatusText = computed(() => {
+  if (saving.value) return $t('plugin.novusdoc.doc.saving');
+  if (saved.value) return $t('plugin.novusdoc.doc.saved');
+  return '';
+});
 </script>
 
 <template>
-  <div class="flex h-full max-h-full flex-col overflow-hidden bg-background">
-    <!-- Top nav bar -->
-    <header class="flex min-h-12 items-center justify-between border-b border-border bg-background/85 px-4 py-2 backdrop-blur-sm z-10 max-md:flex-wrap max-md:gap-2 max-md:px-3 max-md:py-1.5">
-      <div class="flex items-center gap-2">
-        <Tooltip :title="$t('plugin.novusdoc.toolbar.back')">
-          <Button size="small" type="text" @click="handleBack">
-            <IconifyIcon icon="lucide:arrow-left" class="size-4" />
-          </Button>
-        </Tooltip>
+  <div class="flex flex-col h-full bg-background text-foreground">
+    <!-- ── Header bar ── -->
+    <header class="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
+      <!-- Back -->
+      <button
+        class="w-8 h-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+        @click="goBack"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
 
-        <IconifyIcon icon="lucide:file-text" class="size-4 text-muted-foreground" />
+      <!-- Title input -->
+      <input
+        v-model="title"
+        class="flex-1 text-base font-medium bg-transparent border-none outline-none placeholder:text-muted-foreground"
+        :placeholder="$t('plugin.novusdoc.doc.untitled')"
+      />
 
-        <input
-          v-model="titleInput"
-          class="w-[300px] border-none bg-transparent px-2.5 py-1 text-[15px] font-semibold text-foreground outline-none rounded-md transition-colors focus:bg-accent placeholder:text-muted-foreground max-md:w-full max-md:min-w-0 max-md:text-sm"
-          :placeholder="$t('plugin.novusdoc.doc.untitled')"
-          @input="handleTitleChange"
-          @keydown.enter="editorRef?.focus()"
-        />
-      </div>
+      <!-- Word count -->
+      <span class="text-xs text-muted-foreground whitespace-nowrap">
+        {{ wordCount }} {{ $t('plugin.novusdoc.doc.wordCount') }}
+      </span>
 
-      <div class="flex items-center gap-3">
-        <span v-if="saving" class="text-xs text-muted-foreground">
-          {{ $t('plugin.novusdoc.doc.saving') }}
-        </span>
-        <span v-else-if="lastSavedAt" class="text-xs text-muted-foreground">
-          {{ $t('plugin.novusdoc.doc.saved') }} {{ lastSavedAt }}
-        </span>
+      <!-- Save status -->
+      <span v-if="saveStatusText" class="text-xs" :class="saved ? 'text-green-600' : 'text-muted-foreground'">
+        {{ saveStatusText }}
+      </span>
 
-        <span class="text-xs text-muted-foreground">
-          {{ doc?.word_count ?? 0 }} {{ $t('plugin.novusdoc.doc.chars') }}
-        </span>
+      <!-- Status badge -->
+      <button
+        v-if="doc"
+        class="inline-flex items-center px-2 py-1 rounded text-xs font-medium transition-colors"
+        :class="doc.status === 'published' ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
+        @click="toggleStatus"
+      >
+        {{ doc.status === 'published' ? $t('plugin.novusdoc.status.published') : $t('plugin.novusdoc.status.draft') }}
+      </button>
 
-        <Tooltip :title="saving ? $t('plugin.novusdoc.doc.saving') : $t('plugin.novusdoc.doc.saved')">
-          <Button size="small" @click="saveDoc" :loading="saving">
-            <IconifyIcon icon="lucide:save" class="mr-1 size-4" />
-            {{ saving ? $t('plugin.novusdoc.doc.saving') : $t('plugin.novusdoc.doc.saved') }}
-          </Button>
-        </Tooltip>
-
-        <!-- Pro 功能按钮（仅当 novusdoc-pro 已安装时显示） -->
-        <template v-if="pro.proAvailable.value">
-          <Tooltip :title="$t('plugin.novusdoc.pro.versionHistory')">
-            <Button size="small" type="text" @click="openVersionDrawer">
-              <IconifyIcon icon="lucide:history" class="size-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip :title="$t('plugin.novusdoc.pro.comments')">
-            <Button size="small" type="text" @click="openCommentDrawer">
-              <IconifyIcon icon="lucide:message-square" class="size-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip :title="$t('plugin.novusdoc.pro.share')">
-            <Button size="small" type="text" @click="handleShare">
-              <IconifyIcon icon="lucide:share-2" class="size-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip :title="$t('plugin.novusdoc.pro.exportWord')">
-            <Button size="small" type="text" @click="handleExportWord">
-              <IconifyIcon icon="lucide:file-text" class="size-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip :title="$t('plugin.novusdoc.pro.exportPdf')">
-            <Button size="small" type="text" @click="handleExportPdf">
-              <IconifyIcon icon="lucide:file-down" class="size-4" />
-            </Button>
-          </Tooltip>
-        </template>
-
-        <!-- 在线协作用户（Pro） -->
-        <div v-if="collab.collabEnabled.value && collab.onlineUsers.value.length > 0" class="flex items-center gap-1">
-          <div
-            v-for="(u, idx) in collab.onlineUsers.value.slice(0, 5)"
-            :key="u.userId ?? idx"
-            class="relative z-[1] flex size-6 shrink-0 cursor-default items-center justify-center rounded-full border-2 border-background text-[11px] font-semibold text-white"
-            :style="{ backgroundColor: u.color, marginLeft: idx > 0 ? '-4px' : '0' }"
-            :title="u.username || 'Anonymous'"
-          >
-            {{ (u.username || '?').charAt(0).toUpperCase() }}
-          </div>
-          <span v-if="collab.onlineUsers.value.length > 5" class="text-xs text-muted-foreground ml-1">
-            +{{ collab.onlineUsers.value.length - 5 }}
-          </span>
+      <!-- Export dropdown -->
+      <div class="relative group">
+        <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+        </button>
+        <div class="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-popover border border-border rounded-md shadow-md py-1 min-w-[140px] z-10">
+          <button class="px-3 py-1.5 text-sm text-left hover:bg-accent" @click="onExport('html')">
+            {{ $t('plugin.novusdoc.doc.exportHTML') }}
+          </button>
+          <button class="px-3 py-1.5 text-sm text-left hover:bg-accent" @click="onExport('md')">
+            {{ $t('plugin.novusdoc.doc.exportMarkdown') }}
+          </button>
         </div>
-
-        <Tooltip :title="$t('plugin.novusdoc.ai.assistant')">
-          <Button
-            size="small"
-            :type="showAISidebar ? 'primary' : 'text'"
-            @click="showAISidebar = !showAISidebar"
-          >
-            <IconifyIcon icon="lucide:sparkles" class="size-4" />
-          </Button>
-        </Tooltip>
       </div>
     </header>
 
-    <!-- Toolbar -->
-    <EditorToolbar :editor="editorRef?.editor" />
-
-    <!-- Editor content + AI panels -->
-    <div class="flex flex-1 min-h-0">
-      <Spin :spinning="loading" class="flex-1 overflow-y-auto">
-        <div class="mx-auto w-full max-w-[760px] min-h-0 p-4 md:px-8 md:py-6 lg:px-16 lg:py-9">
-          <NovusEditor
-            ref="editorRef"
-            :content="doc?.content as JSONContent"
-            :editable="!loading"
-            :extra-extensions="collab.collabExtensions"
-            :disable-history="collab.collabExtensions.length > 0"
-            @update="handleEditorUpdate"
-          />
-        </div>
-
-        <!-- AI BubbleMenu (floats above selected text - action buttons only) -->
-        <AIBubbleMenu
-          v-if="editorRef?.editor && !loading && !docAI.ghostText.value && !docAI.loading.value"
-          :editor="editorRef.editor"
-          :loading="false"
-          ghost-text=""
-          error=""
-          @action="handleAIAction"
-          @accept="docAI.acceptGhostText()"
-          @dismiss="docAI.dismissGhostText()"
-          @cancel="docAI.cancel()"
-        />
-
-        <!-- AI Result Panel (inside scroll area, sticky at bottom) -->
-        <div v-if="docAI.loading.value || docAI.ghostText.value || docAI.error.value" class="sticky bottom-0 left-0 right-0 z-10 border-t border-border bg-background px-4 py-2">
-          <div v-if="docAI.loading.value" class="flex items-center gap-2 py-1.5">
-            <span class="flex gap-0.5">
-              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
-              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
-              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
-            </span>
-            <span class="text-xs text-muted-foreground">{{ $t('plugin.novusdoc.ai.generating') }}</span>
-            <Button size="small" type="text" @click="docAI.cancel()">
-              <IconifyIcon icon="lucide:x" class="size-3" />
-            </Button>
-          </div>
-          <div v-else-if="docAI.ghostText.value" class="flex flex-col gap-2">
-            <div class="max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 text-[13px] leading-relaxed text-foreground">{{ docAI.ghostText.value.slice(0, 300) }}{{ docAI.ghostText.value.length > 300 ? '...' : '' }}</div>
-            <div class="flex justify-end gap-2">
-              <Button size="small" type="primary" @click="docAI.acceptGhostText()">
-                <IconifyIcon icon="lucide:check" class="mr-1 size-3" />
-                {{ $t('plugin.novusdoc.ai.accept') }}
-              </Button>
-              <Button size="small" @click="docAI.dismissGhostText()">
-                <IconifyIcon icon="lucide:x" class="mr-1 size-3" />
-                {{ $t('plugin.novusdoc.ai.dismiss') }}
-              </Button>
-            </div>
-          </div>
-          <div v-else-if="docAI.error.value" class="flex items-center gap-2 py-1.5 text-destructive">
-            <IconifyIcon icon="lucide:alert-circle" class="size-4" />
-            <span class="text-xs">{{ docAI.error.value }}</span>
-            <Button size="small" type="text" @click="docAI.dismissGhostText()">
-              <IconifyIcon icon="lucide:x" class="size-3" />
-            </Button>
-          </div>
-        </div>
-      </Spin>
-
-      <!-- AI Sidebar (right panel) -->
-      <AISidebar
-        v-if="showAISidebar"
-        ref="aiSidebarRef"
-        :loading="docAI.loading.value"
-        :error="docAI.error.value"
-        @send="handleAISidebarSend"
-        @action="handleAIAction"
-        @close="showAISidebar = false"
-      />
+    <!-- ── Editor area ── -->
+    <div v-if="loading" class="flex-1 flex items-center justify-center text-muted-foreground">
+      <svg class="animate-spin mr-2" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+      {{ $t('common.loading') }}
     </div>
 
-    <!-- Pro: 版本历史抽屉 -->
-    <div v-if="showVersionDrawer" class="nd-pro-drawer absolute bottom-0 right-0 top-0 z-20 flex w-[360px] flex-col border-l border-border bg-background shadow-lg">
-      <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <span class="font-semibold">{{ $t('plugin.novusdoc.pro.versionHistory') }}</span>
-        <Button size="small" type="text" @click="showVersionDrawer = false">
-          <IconifyIcon icon="lucide:x" class="size-4" />
-        </Button>
-      </div>
-      <div class="border-b border-border px-4 py-2">
-        <Button size="small" @click="handleCreateVersion">
-          <IconifyIcon icon="lucide:plus" class="mr-1 size-3" />
-          {{ $t('plugin.novusdoc.pro.createVersion') }}
-        </Button>
-      </div>
-      <div class="flex-1 overflow-y-auto py-2">
-        <Spin :spinning="pro.loading.value">
-          <div
-            v-for="v in pro.versions.value"
-            :key="v.id"
-            class="border-b border-border/50 px-4 py-2.5 transition-colors hover:bg-accent/50"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">{{ v.title || $t('plugin.novusdoc.doc.untitled') }}</span>
-              <Button size="small" type="link" @click="handleRestoreVersion(v.id)">
-                {{ $t('plugin.novusdoc.pro.restoreVersion') }}
-              </Button>
-            </div>
-            <div class="text-xs text-muted-foreground">
-              {{ v.creator_name || '' }} · {{ v.created_at ? new Date(v.created_at).toLocaleString() : '' }}
-              <span v-if="v.version_note" class="ml-1">· {{ v.version_note }}</span>
-            </div>
-          </div>
-          <div v-if="pro.versions.value.length === 0 && !pro.loading.value" class="p-4 text-center text-sm text-muted-foreground">
-            {{ $t('plugin.novusdoc.doc.empty') }}
-          </div>
-        </Spin>
-      </div>
+    <div v-else-if="!doc" class="flex-1 flex items-center justify-center text-muted-foreground">
+      {{ $t('common.noData') }}
     </div>
 
-    <!-- Pro: 评论抽屉 -->
-    <div v-if="showCommentDrawer" class="nd-pro-drawer absolute bottom-0 right-0 top-0 z-20 flex w-[360px] flex-col border-l border-border bg-background shadow-lg">
-      <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <span class="font-semibold">{{ $t('plugin.novusdoc.pro.comments') }}</span>
-        <Button size="small" type="text" @click="showCommentDrawer = false">
-          <IconifyIcon icon="lucide:x" class="size-4" />
-        </Button>
-      </div>
-      <div class="flex-1 overflow-y-auto py-2">
-        <Spin :spinning="pro.loading.value">
-          <div
-            v-for="c in pro.comments.value"
-            :key="c.id"
-            class="border-b border-border/50 px-4 py-2.5 transition-colors hover:bg-accent/50"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">{{ c.creator_name || $t('plugin.novusdoc.pro.anonymous') }}</span>
-              <span class="text-xs text-muted-foreground">{{ c.created_at ? new Date(c.created_at).toLocaleString() : '' }}</span>
-            </div>
-            <div v-if="c.quoted_text" class="mt-1 rounded border-l-2 border-warning/50 bg-warning/5 px-2 py-1 text-xs text-muted-foreground">
-              {{ c.quoted_text }}
-            </div>
-            <div class="mt-1 text-sm">{{ c.content }}</div>
-            <div v-if="c.is_resolved" class="mt-1 text-xs text-success">
-              ✓ {{ $t('plugin.novusdoc.pro.resolved') }}
-            </div>
-          </div>
-          <div v-if="pro.comments.value.length === 0 && !pro.loading.value" class="p-4 text-center text-sm text-muted-foreground">
-            {{ $t('plugin.novusdoc.doc.empty') }}
-          </div>
-        </Spin>
-      </div>
-    </div>
+    <div v-else ref="editorContainer" class="flex-1 min-h-0 overflow-hidden" />
   </div>
 </template>

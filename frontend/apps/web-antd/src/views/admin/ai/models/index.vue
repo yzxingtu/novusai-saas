@@ -64,7 +64,7 @@ function onToggleModelActive(row: AIModelInfo) {
         message.success($t('admin.ai.model.messages.toggleSuccess'));
         onRefresh();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });

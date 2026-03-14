@@ -1,58 +1,49 @@
-"""
-NovusDoc 标签服务
-
-负责标签 CRUD 业务逻辑，handler 层不直接操作 DB。
-"""
+"""NovusDoc tag service / NovusDoc 标签服务"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.tag import NovusdocTag
 
+async def list_tags(
+    db: AsyncSession, tenant_id: int,
+) -> list[dict[str, Any]]:
+    from ..models.tag import NovusdocTag
 
-async def list_tags(db, tenant_id: int) -> list[dict[str, Any]]:
-    """标签列表"""
     result = await db.execute(
         select(NovusdocTag).where(
             NovusdocTag.tenant_id == tenant_id,
             NovusdocTag.is_deleted.is_(False),
         ).order_by(NovusdocTag.name)
     )
-    rows = result.scalars().all()
-    return [{"id": t.id, "name": t.name, "color": t.color} for t in rows]
+    tags = result.scalars().all()
+    return [{"id": t.id, "name": t.name, "color": t.color} for t in tags]
 
 
 async def create_tag(
-    db, tenant_id: int, *, name: str, color: str | None = None
-) -> dict[str, Any] | None:
-    """
-    创建标签。
+    db: AsyncSession, tenant_id: int, data: dict[str, Any],
+) -> dict[str, Any]:
+    from ..models.tag import NovusdocTag
 
-    Returns:
-        标签 dict，若已存在同名标签则返回 None。
-    """
-    existing = await db.execute(
-        select(NovusdocTag).where(
-            NovusdocTag.tenant_id == tenant_id,
-            NovusdocTag.name == name,
-            NovusdocTag.is_deleted.is_(False),
-        )
+    tag = NovusdocTag(
+        tenant_id=tenant_id,
+        name=data["name"],
+        color=data.get("color"),
     )
-    if existing.scalar_one_or_none():
-        return None
-
-    tag = NovusdocTag(tenant_id=tenant_id, name=name, color=color)
     db.add(tag)
     await db.flush()
     await db.refresh(tag)
     return {"id": tag.id, "name": tag.name, "color": tag.color}
 
 
-async def delete_tag(db, tenant_id: int, tag_id: int) -> bool:
-    """软删除标签"""
+async def delete_tag(
+    db: AsyncSession, tenant_id: int, tag_id: int,
+) -> bool:
+    from ..models.tag import NovusdocTag
+
     result = await db.execute(
         select(NovusdocTag).where(
             NovusdocTag.id == tag_id,
@@ -63,6 +54,7 @@ async def delete_tag(db, tenant_id: int, tag_id: int) -> bool:
     tag = result.scalar_one_or_none()
     if not tag:
         return False
-    tag.soft_delete(level="tenant")
+
+    tag.is_deleted = True
     await db.flush()
     return True

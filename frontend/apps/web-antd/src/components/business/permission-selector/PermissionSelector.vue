@@ -27,7 +27,7 @@ import {
   transformToAntTreeData,
 } from './types';
 
-// Props
+// Props / 属性
 const props = withDefaults(
   defineProps<{
     /** Default expanded level / 默认展开层级 */
@@ -58,7 +58,7 @@ const props = withDefaults(
   },
 );
 
-// Emits
+// Emits / 事件
 const emit = defineEmits<{
   change: [value: number[]];
   'update:modelValue': [value: number[]];

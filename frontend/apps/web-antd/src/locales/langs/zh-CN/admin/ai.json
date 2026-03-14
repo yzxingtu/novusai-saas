@@ -1042,6 +1042,12 @@
       "translation": {
         "name": "AI 翻译",
         "description": "多语言文本翻译（如 i18n 字段自动翻译）"
+      },
+      "system": {
+        "ai_writing": {
+          "name": "文档写作助手",
+          "description": "富文本编辑器中的 AI 写作智能体，支持续写、优化、校对、翻译、摘要、扩写、重写等文档操作"
+        }
       }
     }
   }

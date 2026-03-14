@@ -238,7 +238,7 @@ async function loadFiles() {
       params['filter[name][ilike]'] = searchKeyword.value;
     }
     // Filter by category/file type: prefer user-selected category, then imageOnly, finally MIME type from accept prop / 按分类/文件类型筛选：优先用户选择的分类，其次 imageOnly，最后 accept prop 推导的 MIME 大类
-    // Uses ilike operator, backend auto-wraps with %...%, no need for manual wildcards
+    // Uses ilike operator, backend auto-wraps with %...%, no need for manual wildcards / 使用 ilike，后端自动加 %，无需手动通配符
     if (categoryFilter.value) {
       params['filter[mime_type][ilike]'] = `${categoryFilter.value}/`;
     } else if (props.imageOnly) {

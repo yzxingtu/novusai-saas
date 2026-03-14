@@ -72,7 +72,7 @@ export async function ensurePluginRoutes(
   const extensionsStore = usePluginExtensionsStore();
 
   try {
-    // Fetch first, only clear after success to avoid losing existing routes on failure
+    // Fetch first, only clear after success to avoid losing existing routes on failure / 先拉取，成功后再清空，避免失败时丢失现有路由
     // / 先 fetch，成功后再清理，避免失败时丢失现有路由
     await slotsStore.fetchSlots(side);
 
@@ -194,7 +194,7 @@ export function usePluginFrontendInit(endpoint: string = '/admin') {
 
   async function initPluginSlots() {
     // Phase 1: Fetch slot data via unified /plugins/slots API (M51-T9)
-    // Backend already filters by scope + tenant assignment, no frontend filtering needed
+    // Backend already filters by scope + tenant assignment, no frontend filtering needed / 后端已按 scope 与分配过滤，前端无需再过滤
     await slotsStore.fetchSlots(side);
 
     // Phase 2: Register standalone_pages dynamic routes / 注册 standalone_pages 动态路由

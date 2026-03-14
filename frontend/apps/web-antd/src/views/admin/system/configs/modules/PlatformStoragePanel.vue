@@ -56,7 +56,7 @@ const credentials = ref({
 });
 const credentialsVersion = ref(0);
 
-// Impact analysis modal
+// Impact analysis modal / 影响分析弹窗
 const impactModalRef = ref<InstanceType<typeof StorageSwitchImpactModal>>();
 const originalDriver = ref<string | undefined>(undefined);
 

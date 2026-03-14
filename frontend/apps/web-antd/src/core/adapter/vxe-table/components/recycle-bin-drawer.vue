@@ -125,7 +125,7 @@ async function handleRestore(record: Record<string, unknown>) {
     await fetchList();
     await refreshCount();
   } catch {
-    // error handled by interceptor
+    // error handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -169,7 +169,7 @@ async function handleBatchRestore() {
     await fetchList();
     await refreshCount();
   } catch {
-    // error handled by interceptor
+    // error handled by interceptor / 错误由请求拦截器处理
   }
 }
 

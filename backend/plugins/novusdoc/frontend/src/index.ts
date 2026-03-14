@@ -1,13 +1,13 @@
 /**
+ * NovusDoc plugin frontend entry point
  * NovusDoc 插件前端入口
- *
- * 禁止 export default — 插件 index.ts 只使用命名导出
- * 禁止 import from '#/xxx' — 使用 @novus/plugin-shared
  */
 import type { NovusPluginSharedAPI } from './types';
 
+import DocumentList from './views/DocumentList.vue';
+import DocumentEditor from './views/DocumentEditor.vue';
 import { zhCN, enUS } from './locales';
-import './novusdoc.css';
+import { NOVUSDOC_STYLES } from './styles';
 
 export function setup(): void {
   const shared = (window as unknown as Record<string, unknown>)
@@ -20,8 +20,17 @@ export function setup(): void {
     shared.registerLocale('en', 'plugin.novusdoc', enUS);
   }
 
+  if (!document.getElementById('novusdoc-plugin-styles')) {
+    const style = document.createElement('style');
+    style.id = 'novusdoc-plugin-styles';
+    style.textContent = NOVUSDOC_STYLES;
+    document.head.appendChild(style);
+  }
 }
 
-// Phase A: 页面组件（通过插件菜单路由加载）
-export { default as DocumentList } from './views/DocumentList.vue';
-export { default as DocumentEditor } from './views/DocumentEditor.vue';
+export {
+  DocumentList as NovusDocPage,
+  DocumentList as NovusDocAdminPage,
+  DocumentEditor as NovusDocEditor,
+  DocumentEditor as NovusDocAdminEditor,
+};

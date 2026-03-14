@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TenantQuotaBase(BaseModel):
-    """企业配额配置基础 Schema"""
+    """企业配额配置基础 Schema / Tenant quota base schema"""
 
     model_id: int | None = Field(None, description="模型 ID（None 表示全局配额）")
     period: str = Field(default="monthly", description="周期（daily/monthly）")
@@ -21,19 +21,19 @@ class TenantQuotaBase(BaseModel):
 
 
 class TenantQuotaCreate(TenantQuotaBase):
-    """创建企业配额配置"""
+    """创建企业配额配置 / Create tenant quota"""
 
     pass
 
 
 class AdminTenantQuotaCreate(TenantQuotaBase):
-    """平台管理员创建企业配额（含 tenant_id）"""
+    """平台管理员创建企业配额（含 tenant_id） / Admin create tenant quota (with tenant_id)"""
 
     tenant_id: int = Field(..., description="企业 ID")
 
 
 class TenantQuotaUpdate(BaseModel):
-    """更新企业配额配置"""
+    """更新企业配额配置 / Update tenant quota"""
 
     limit: int | None = Field(None, gt=0, description="配额限制")
     quota_type: str | None = Field(None, description="配额类型")
@@ -43,7 +43,7 @@ class TenantQuotaUpdate(BaseModel):
 
 
 class TenantQuotaResponse(TenantQuotaBase):
-    """企业配额配置响应"""
+    """企业配额配置响应 / Tenant quota response"""
 
     id: int
     tenant_id: int
@@ -57,7 +57,7 @@ class TenantQuotaResponse(TenantQuotaBase):
 
     @classmethod
     def from_orm_model(cls, obj) -> TenantQuotaResponse:
-        """从 ORM 对象构建响应，自动提取关联 model_name"""
+        """从 ORM 对象构建响应，自动提取关联 model_name / Build response from ORM, extract model_name"""
         model_name = None
         try:
             model_obj = getattr(obj, "model", None)
@@ -83,7 +83,7 @@ class TenantQuotaResponse(TenantQuotaBase):
 
 
 class TenantQuotaWithUsage(BaseModel):
-    """企业配额配置及使用量响应"""
+    """企业配额配置及使用量响应 / Tenant quota with usage response"""
 
     quota: TenantQuotaResponse
     usage: int = Field(..., description="已使用 Token 数")

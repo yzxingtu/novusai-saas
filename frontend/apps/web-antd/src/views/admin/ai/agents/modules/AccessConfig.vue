@@ -61,7 +61,7 @@ async function loadRoleTree() {
     const tree = await getRoleTreeApi();
     roleTreeData.value = roleInfoToTreeData(tree);
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     roleTreeLoading.value = false;
   }
@@ -104,7 +104,7 @@ async function loadAccessConfig() {
     adminRoleMode.value = idsToMode(config.admin_role_ids ?? null);
     adminRoleIds.value = config.admin_role_ids ?? [];
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -121,7 +121,7 @@ async function onSave() {
     message.success($t('admin.ai.agent.messages.accessUpdated'));
     drawerApi.close();
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = false;
   }

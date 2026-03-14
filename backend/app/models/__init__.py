@@ -43,7 +43,7 @@ from app.models.ai import (
     UsageStat,
 )
 
-# RBAC 模型
+# RBAC 模型 / RBAC models
 from app.models.auth import (
     AdminRole,
     Permission,
@@ -76,10 +76,10 @@ from app.models.system import (
     TaskLog,
 )
 
-# 系统模型（补充）
+# 系统模型（补充）/ System models (supplement)
 from app.models.system.email_log import EmailLog
 
-# 企业级模型
+# 企业级模型 / Tenant models
 from app.models.tenant import (
     Attachment,
     DomainSslCertificate,
@@ -92,7 +92,7 @@ from app.models.tenant import (
 )
 
 __all__ = [
-    # 平台级
+    # 平台级 / Platform
     "Admin",
     "SystemConfigGroup",
     "SystemConfig",
@@ -100,7 +100,7 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
-    # 企业级
+    # 企业级 / Tenant
     "Tenant",
     "TenantAdmin",
     "TenantUser",
@@ -109,7 +109,7 @@ __all__ = [
     "TenantPlan",
     "tenant_plan_permissions",
     "Attachment",
-    # RBAC
+    # RBAC / RBAC
     "Permission",
     "AdminRole",
     "admin_role_permissions",
@@ -129,41 +129,41 @@ __all__ = [
     "Agent",
     "AgentConversation",
     "ConversationMessage",
-    # 批量运行
+    # 批量运行 / Batch run
     "BatchRun",
-    # 智能体版本
+    # 智能体版本 / Agent versions
     "AgentVersion",
-    # 智能体访问权限
+    # 智能体访问权限 / Agent access
     "AgentAccess",
     "AgentMemoryOverride",
-    # AI 操作审计日志
+    # AI 操作审计日志 / AI action logs
     "AIActionLog",
-    # AI 表策略
+    # AI 表策略 / AI table policies
     "AITablePolicy",
     "AITablePolicyOverride",
-    # 技能包 & 技能
+    # 技能包 & 技能 / Skill packages & skills
     "SkillPackage",
     "Skill",
     "AgentKnowledgeBaseBinding",
     "AgentSkillBinding",
     "SkillCallLog",
-    # 知识库
+    # 知识库 / Knowledge bases
     "KnowledgeBase",
     "KnowledgeBaseTenantAccess",
     "KnowledgeDocument",
     "DocumentChunk",
-    # AI 查询日志
+    # AI 查询日志 / AI query logs
     "AIQueryLog",
-    # 系统智能体绑定
+    # 系统智能体绑定 / System agent assignments
     "SystemAgentAssignment",
-    # 邮件日志
+    # 邮件日志 / Email logs
     "EmailLog",
-    # 插件
+    # 插件 / Plugins
     "Plugin",
     "PluginVersion",
     "PluginLicense",
     "ResourceTenantAssignment",
-    # 通知
+    # 通知 / Notifications
     "NotificationTemplate",
     "Notification",
     "NotificationPreference",

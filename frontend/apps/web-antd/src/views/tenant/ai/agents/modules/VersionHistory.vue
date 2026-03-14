@@ -81,7 +81,7 @@ async function loadVersions() {
   try {
     versions.value = await getAgentVersionsApi(agentId.value);
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -101,7 +101,7 @@ async function onRollback(version: number) {
         emits('success');
         drawerApi.close();
       } catch {
-        // error handled by global interceptor
+        // error handled by global interceptor / 错误由请求拦截器处理 / 错误由请求拦截器处理
       }
     },
   });
@@ -117,7 +117,7 @@ async function onDiff() {
       diffV2.value,
     );
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     diffLoading.value = false;
   }

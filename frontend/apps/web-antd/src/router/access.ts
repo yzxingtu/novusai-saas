@@ -67,7 +67,7 @@ async function generateAccess(
   const currentEndpoint = endpoint || getCurrentEndpoint();
   const menuApi = getMenuWithPermissionsApi(currentEndpoint);
 
-  return await generateAccessible(preferences.app.accessMode, {
+  return generateAccessible(preferences.app.accessMode, {
     ...options,
     fetchMenuListAsync: async () => {
       message.loading({
@@ -78,7 +78,6 @@ async function generateAccess(
       const { menus, permissions } = await menuApi();
       // 设置权限码到 accessStore
       accessStore.setAccessCodes(permissions);
-
       return menus;
     },
     // 可以指定没有权限跳转403页面

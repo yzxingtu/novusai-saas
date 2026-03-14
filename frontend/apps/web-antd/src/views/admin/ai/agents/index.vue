@@ -221,7 +221,7 @@ async function onPublishConfirm() {
     publishModalOpen.value = false;
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     publishLoading.value = false;
   }
@@ -239,7 +239,7 @@ async function onToggleStatus(agent: AIAgentInfo) {
     message.success($t('admin.ai.agent.messages.toggleSuccess'));
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 

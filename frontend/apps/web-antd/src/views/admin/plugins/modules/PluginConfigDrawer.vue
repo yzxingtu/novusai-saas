@@ -104,7 +104,7 @@ const tenantLoading = ref(false);
 const showTenantSelect = ref(false);
 const selectedTenantIds = ref<number[]>([]);
 
-// License
+// License / 许可证
 const licenseInfo = ref<null | PluginLicenseInfo>(null);
 const licenseLoading = ref(false);
 const licenseKeyInput = ref('');

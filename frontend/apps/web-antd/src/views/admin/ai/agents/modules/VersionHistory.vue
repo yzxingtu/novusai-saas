@@ -60,7 +60,7 @@ async function loadVersions() {
   try {
     versions.value = await getAIAgentVersionsApi(agentId.value);
   } catch {
-    // error handled by global interceptor
+    // error handled by global interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -77,7 +77,7 @@ async function onRollback(version: number) {
         emits('success');
         drawerApi.close();
       } catch {
-        // error handled by global interceptor
+        // error handled by global interceptor / 错误由请求拦截器处理 / 错误由请求拦截器处理
       }
     },
   });

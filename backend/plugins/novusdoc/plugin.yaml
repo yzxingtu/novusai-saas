@@ -1,460 +1,115 @@
 name: novusdoc
-version: "1.0.0"
+version: "2.0.0"
 display_name:
-  zh-CN: "AI 文档编辑器"
-  en: "AI Document Editor"
+  zh-CN: "文档管理"
+  en: "Document Manager"
 description:
-  zh-CN: "基于 Tiptap 的现代化 AI 富文本编辑器，支持文档管理、文件夹、标签、全文搜索、图片上传、HTML/Markdown 导出"
-  en: "Modern AI-powered rich text editor based on Tiptap, with document management, folders, tags, full-text search, image upload, HTML/Markdown export"
+  zh-CN: "轻量文档管理插件，支持文件夹、标签、全文搜索和导出。编辑器和 AI 能力由平台提供。"
+  en: "Lightweight document management plugin with folders, tags, full-text search and export. Editor and AI powered by platform."
 author: "NovusAI"
-icon: "icon.png"
-icon_color: "#8B5CF6"
-scope: admin_and_all
-tags: ["editor", "ai", "documents"]
+icon: "lucide:file-text"
+scope: admin_and_assigned
 
 capabilities:
   - db:own_tables
   - storage:read
   - storage:write
-  - ai:call
   - config:write
-  - notifications:send
 
-# AI 功能需求（Phase B 实现，此处先声明以便安装时创建 AgentAssignment）
-ai_requirements:
-  features:
-    - feature_code: "ai_writer"
-      display_name:
-        zh-CN: "AI 写作助手"
-        en: "AI Writing Assistant"
-      description:
-        zh-CN: "智能续写、改写、扩展文档内容"
-        en: "Smart writing, rewriting and content expansion"
-    - feature_code: "ai_translator"
-      display_name:
-        zh-CN: "AI 翻译"
-        en: "AI Translator"
-      description:
-        zh-CN: "将文档内容翻译为目标语言"
-        en: "Translate document content to target language"
-    - feature_code: "ai_proofreader"
-      display_name:
-        zh-CN: "AI 校对"
-        en: "AI Proofreader"
-      description:
-        zh-CN: "检查拼写、语法和表达问题"
-        en: "Check spelling, grammar and expression issues"
-    - feature_code: "ai_summarizer"
-      display_name:
-        zh-CN: "AI 摘要"
-        en: "AI Summarizer"
-      description:
-        zh-CN: "自动生成文档摘要和要点提取"
-        en: "Auto-generate document summary and key points"
-    - feature_code: "ai_image"
-      display_name:
-        zh-CN: "AI 配图"
-        en: "AI Image"
-      description:
-        zh-CN: "根据文档内容智能生成配图"
-        en: "Generate images based on document content"
+pricing:
+  type: free
+
+config_schema:
+  type: object
+  required: []
+  properties:
+    auto_save_interval_ms:
+      type: integer
+      default: 3000
+      minimum: 1000
+      maximum: 30000
+      title: "Auto-save interval (ms)"
+      description: "Auto-save debounce interval in milliseconds"
 
 extensions:
-  # ── Phase A: 文档 + 文件夹 CRUD + 搜索 + 上传 ──
   api:
     tenant_routes:
-      # 文档 CRUD
-      - method: GET
-        path: "docs"
-        handler: "api.documents.list_docs"
-        summary: "文档列表"
-        auth: required
-      - method: POST
-        path: "docs"
-        handler: "api.documents.create_doc"
-        summary: "创建文档"
-        auth: required
-      - method: GET
-        path: "docs/{doc_id}"
-        handler: "api.documents.get_doc"
-        summary: "获取文档详情"
-        auth: required
-      - method: PUT
-        path: "docs/{doc_id}"
-        handler: "api.documents.update_doc"
-        summary: "更新文档"
-        auth: required
-      - method: DELETE
-        path: "docs/{doc_id}"
-        handler: "api.documents.delete_doc"
-        summary: "删除文档"
-        auth: required
-      # 文件夹 CRUD
-      - method: GET
-        path: "folders"
-        handler: "api.folders.list_folders"
-        summary: "文件夹列表"
-        auth: required
-      - method: POST
-        path: "folders"
-        handler: "api.folders.create_folder"
-        summary: "创建文件夹"
-        auth: required
-      - method: PUT
-        path: "folders/{id}"
-        handler: "api.folders.update_folder"
-        summary: "更新文件夹"
-        auth: required
-      - method: DELETE
-        path: "folders/{id}"
-        handler: "api.folders.delete_folder"
-        summary: "删除文件夹"
-        auth: required
-      # 搜索
-      - method: GET
-        path: "search"
-        handler: "api.search.search_docs"
-        summary: "全文搜索文档"
-        auth: required
-      # 图片上传
-      - method: POST
-        path: "upload"
-        handler: "api.upload.upload_file"
-        summary: "上传图片/附件"
-        auth: required
-      # 导出（Free 版：HTML/Markdown）
-      - method: GET
-        path: "docs/{doc_id}/export/html"
-        handler: "api.export.export_html"
-        summary: "导出 HTML"
-        auth: required
-      - method: GET
-        path: "docs/{doc_id}/export/markdown"
-        handler: "api.export.export_markdown"
-        summary: "导出 Markdown"
-        auth: required
-      # 标签
-      - method: GET
-        path: "tags"
-        handler: "api.tags.list_tags"
-        summary: "标签列表"
-        auth: required
-      - method: POST
-        path: "tags"
-        handler: "api.tags.create_tag"
-        summary: "创建标签"
-        auth: required
-      - method: DELETE
-        path: "tags/{id}"
-        handler: "api.tags.delete_tag"
-        summary: "删除标签"
-        auth: required
-      # ── Phase B: AI 功能 (SSE 流式) ──
-      - method: POST
-        path: "docs/{doc_id}/ai/continue"
-        handler: "api.ai_features.ai_continue"
-        summary: "AI 续写"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/optimize"
-        handler: "api.ai_features.ai_optimize"
-        summary: "AI 优化"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/proofread"
-        handler: "api.ai_features.ai_proofread"
-        summary: "AI 校对"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/translate"
-        handler: "api.ai_features.ai_translate"
-        summary: "AI 翻译"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/summarize"
-        handler: "api.ai_features.ai_summarize"
-        summary: "AI 摘要"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/expand"
-        handler: "api.ai_features.ai_expand"
-        summary: "AI 扩写"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/rewrite"
-        handler: "api.ai_features.ai_rewrite"
-        summary: "AI 改写"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/image"
-        handler: "api.ai_features.ai_image"
-        summary: "AI 配图"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/custom"
-        handler: "api.ai_features.ai_custom"
-        summary: "AI 自定义 Prompt"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/chat"
-        handler: "api.ai_features.ai_sidebar_chat"
-        summary: "AI 侧边对话"
-        auth: required
+      - { method: GET,    path: "docs",                handler: "api.documents.list_docs" }
+      - { method: POST,   path: "docs",                handler: "api.documents.create_doc" }
+      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc" }
+      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc" }
+      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc" }
+      - { method: GET,    path: "folders",              handler: "api.folders.list_folders" }
+      - { method: POST,   path: "folders",              handler: "api.folders.create_folder" }
+      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder" }
+      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder" }
+      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags" }
+      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag" }
+      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag" }
+      - { method: GET,    path: "search",               handler: "api.search.search_docs" }
+      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc" }
 
     admin_routes:
-      # 管理员文档 CRUD (platform tenant_id=0)
-      - method: GET
-        path: "docs"
-        handler: "api.documents.list_docs"
-        summary: "文档列表（管理员）"
-        auth: required
-      - method: POST
-        path: "docs"
-        handler: "api.documents.create_doc"
-        summary: "创建文档（管理员）"
-        auth: required
-      - method: GET
-        path: "docs/{doc_id}"
-        handler: "api.documents.get_doc"
-        summary: "文档详情（管理员）"
-        auth: required
-      - method: PUT
-        path: "docs/{doc_id}"
-        handler: "api.documents.update_doc"
-        summary: "更新文档（管理员）"
-        auth: required
-      - method: DELETE
-        path: "docs/{doc_id}"
-        handler: "api.documents.delete_doc"
-        summary: "删除文档（管理员）"
-        auth: required
-      - method: GET
-        path: "folders"
-        handler: "api.folders.list_folders"
-        summary: "文件夹列表（管理员）"
-        auth: required
-      - method: POST
-        path: "folders"
-        handler: "api.folders.create_folder"
-        summary: "创建文件夹（管理员）"
-        auth: required
-      - method: PUT
-        path: "folders/{id}"
-        handler: "api.folders.update_folder"
-        summary: "更新文件夹（管理员）"
-        auth: required
-      - method: DELETE
-        path: "folders/{id}"
-        handler: "api.folders.delete_folder"
-        summary: "删除文件夹（管理员）"
-        auth: required
-      - method: GET
-        path: "search"
-        handler: "api.search.search_docs"
-        summary: "搜索文档（管理员）"
-        auth: required
-      - method: POST
-        path: "upload"
-        handler: "api.upload.upload_file"
-        summary: "上传文件（管理员）"
-        auth: required
-      - method: GET
-        path: "docs/{doc_id}/export/html"
-        handler: "api.export.export_html"
-        summary: "导出 HTML（管理员）"
-        auth: required
-      - method: GET
-        path: "docs/{doc_id}/export/markdown"
-        handler: "api.export.export_markdown"
-        summary: "导出 Markdown（管理员）"
-        auth: required
-      - method: GET
-        path: "tags"
-        handler: "api.tags.list_tags"
-        summary: "标签列表（管理员）"
-        auth: required
-      - method: POST
-        path: "tags"
-        handler: "api.tags.create_tag"
-        summary: "创建标签（管理员）"
-        auth: required
-      - method: DELETE
-        path: "tags/{id}"
-        handler: "api.tags.delete_tag"
-        summary: "删除标签（管理员）"
-        auth: required
-      # AI features (admin)
-      - method: POST
-        path: "docs/{doc_id}/ai/continue"
-        handler: "api.ai_features.ai_continue"
-        summary: "AI 续写（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/optimize"
-        handler: "api.ai_features.ai_optimize"
-        summary: "AI 优化（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/proofread"
-        handler: "api.ai_features.ai_proofread"
-        summary: "AI 校对（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/translate"
-        handler: "api.ai_features.ai_translate"
-        summary: "AI 翻译（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/summarize"
-        handler: "api.ai_features.ai_summarize"
-        summary: "AI 摘要（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/expand"
-        handler: "api.ai_features.ai_expand"
-        summary: "AI 扩写（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/rewrite"
-        handler: "api.ai_features.ai_rewrite"
-        summary: "AI 改写（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/image"
-        handler: "api.ai_features.ai_image"
-        summary: "AI 配图（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/custom"
-        handler: "api.ai_features.ai_custom"
-        summary: "AI 自定义（管理员）"
-        auth: required
-      - method: POST
-        path: "docs/{doc_id}/ai/chat"
-        handler: "api.ai_features.ai_sidebar_chat"
-        summary: "AI 侧边对话（管理员）"
-        auth: required
-
-  # Phase A 暂不注册 skill（Phase B 才需要）
-  skills: []
-
-  # 定时清理自动保存
-  tasks:
-    - name: "auto_save_cleanup"
-      handler: "services.document_service.cleanup_auto_saves"
-      schedule_type: "interval"
-      interval_seconds: 3600
+      - { method: GET,    path: "docs",                handler: "api.documents.list_docs" }
+      - { method: POST,   path: "docs",                handler: "api.documents.create_doc" }
+      - { method: GET,    path: "docs/{doc_id}",       handler: "api.documents.get_doc" }
+      - { method: PUT,    path: "docs/{doc_id}",       handler: "api.documents.update_doc" }
+      - { method: DELETE, path: "docs/{doc_id}",       handler: "api.documents.delete_doc" }
+      - { method: GET,    path: "folders",              handler: "api.folders.list_folders" }
+      - { method: POST,   path: "folders",              handler: "api.folders.create_folder" }
+      - { method: PUT,    path: "folders/{folder_id}",  handler: "api.folders.update_folder" }
+      - { method: DELETE, path: "folders/{folder_id}",  handler: "api.folders.delete_folder" }
+      - { method: GET,    path: "tags",                 handler: "api.tags.list_tags" }
+      - { method: POST,   path: "tags",                 handler: "api.tags.create_tag" }
+      - { method: DELETE, path: "tags/{tag_id}",        handler: "api.tags.delete_tag" }
+      - { method: GET,    path: "search",               handler: "api.search.search_docs" }
+      - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc" }
 
   frontend:
-    # 菜单声明：驱动侧边栏条目 + 权限注册
     menus:
-      - name: "novusdoc_docs_tenant"
-        path: "/tenant/plugins/novusdoc/docs"
+      - name: novusdoc_tenant
+        path: /tenant/plugins/novusdoc
         icon: "lucide:file-text"
-        sort_order: 30
-        scope: "all_tenants"
-        parent: "tenant_workspace"  # 默认挂载到企业工作台（管理员可覆盖）
+        sort_order: 50
+        scope: all_tenants
         title:
-          zh-CN: "文档"
+          zh-CN: "文档管理"
           en: "Documents"
-
-      - name: "novusdoc_docs_admin"
-        path: "/admin/plugins/novusdoc/docs"
+      - name: novusdoc_admin
+        path: /admin/plugins/novusdoc
         icon: "lucide:file-text"
-        sort_order: 30
-        scope: "admin_only"
-        parent: "system_mgmt"  # 默认挂载到系统管理（管理员可覆盖）
+        sort_order: 50
+        scope: admin_only
         title:
           zh-CN: "文档管理"
           en: "Documents"
 
-    # 页面路由声明：仅注册路由，不产生菜单条目
     standalone_pages:
-      - name: "novusdoc_docs_list_tenant"
-        path: "/tenant/plugins/novusdoc/docs"
-        component: "DocumentList"
+      - name: novusdoc-tenant
+        path: /tenant/plugins/novusdoc
+        component: "NovusDocPage"
+        icon: "lucide:file-text"
         title:
-          zh-CN: "文档列表"
+          zh-CN: "文档管理"
           en: "Documents"
-
-      - name: "novusdoc_editor_tenant"
-        path: "/tenant/plugins/novusdoc/docs/:docId"
-        component: "DocumentEditor"
+      - name: novusdoc-tenant-editor
+        path: /tenant/plugins/novusdoc/editor/:id
+        component: "NovusDocEditor"
+        icon: "lucide:edit-3"
         title:
           zh-CN: "编辑文档"
           en: "Edit Document"
-
-      - name: "novusdoc_docs_list_admin"
-        path: "/admin/plugins/novusdoc/docs"
-        component: "DocumentList"
+      - name: novusdoc-admin
+        path: /admin/plugins/novusdoc
+        component: "NovusDocAdminPage"
+        icon: "lucide:file-text"
         title:
-          zh-CN: "文档列表"
+          zh-CN: "文档管理"
           en: "Documents"
-
-      - name: "novusdoc_editor_admin"
-        path: "/admin/plugins/novusdoc/docs/:docId"
-        component: "DocumentEditor"
+      - name: novusdoc-admin-editor
+        path: /admin/plugins/novusdoc/editor/:id
+        component: "NovusDocAdminEditor"
+        icon: "lucide:edit-3"
         title:
           zh-CN: "编辑文档"
           en: "Edit Document"
-
-    npm_dependencies:
-      - "@tiptap/core"
-      - "@tiptap/vue-3"
-      - "@tiptap/starter-kit"
-      - "@tiptap/extension-placeholder"
-      - "@tiptap/extension-character-count"
-      - "@tiptap/extension-code-block-lowlight"
-      - "@tiptap/extension-color"
-      - "@tiptap/extension-image"
-      - "@tiptap/extension-link"
-      - "@tiptap/extension-subscript"
-      - "@tiptap/extension-superscript"
-      - "@tiptap/extension-text-style"
-      - "@tiptap/extension-underline"
-      - "@tiptap/extension-text-align"
-      - "@tiptap/extension-highlight"
-      - "@tiptap/extension-table"
-      - "@tiptap/extension-table-row"
-      - "@tiptap/extension-table-cell"
-      - "@tiptap/extension-table-header"
-      - "@tiptap/extension-task-list"
-      - "@tiptap/extension-task-item"
-      - "lowlight"
-
-    tenant:
-      entry: "src/index.ts"
-      styles: ["novusdoc.css"]
-
-    admin:
-      entry: "src/index.ts"
-      styles: ["novusdoc.css"]
-
-config_schema:
-  type: object
-  properties:
-    auto_save_interval:
-      type: integer
-      title: "自动保存间隔（秒） / Auto Save Interval (seconds)"
-      description: "编辑器自动保存间隔，0 表示禁用 / Editor auto-save interval, 0 to disable"
-      minimum: 0
-      maximum: 300
-      default: 30
-    max_doc_size_kb:
-      type: integer
-      title: "文档最大体积（KB） / Max Document Size (KB)"
-      minimum: 100
-      maximum: 10240
-      default: 2048
-    enable_ai:
-      type: boolean
-      title: "启用 AI 功能 / Enable AI Features"
-      description: "是否在编辑器中显示 AI 功能按钮 / Whether to show AI feature buttons in editor"
-      default: true
-
-dependencies:
-  python: []
-  plugins: []
-
-pricing:
-  type: free

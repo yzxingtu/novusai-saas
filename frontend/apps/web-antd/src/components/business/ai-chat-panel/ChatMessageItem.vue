@@ -764,7 +764,7 @@ const emit = defineEmits<{
   }
 }
 
-/* Skeleton line pulse animation */
+/* Skeleton line pulse animation / 骨架线脉冲动画 */
 .skeleton-line {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
@@ -780,7 +780,7 @@ const emit = defineEmits<{
   }
 }
 
-/* Thinking glow ring */
+/* Thinking glow ring / 思考光环 */
 .thinking-glow::before {
   position: absolute;
   inset: -2px;
@@ -803,7 +803,7 @@ const emit = defineEmits<{
   }
 }
 
-/* Typing dots animation */
+/* Typing dots animation / 打字点点动画 */
 .typing-dots {
   display: inline-flex;
   gap: 3px;
@@ -841,7 +841,7 @@ const emit = defineEmits<{
   }
 }
 
-/* Tool call timeline dot pulse (running state) */
+/* Tool call timeline dot pulse (running state) / 工具调用时间线点脉冲 */
 .tc-dot-pulse {
   animation: tc-pulse 1.5s ease-in-out infinite;
   box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
@@ -860,7 +860,7 @@ const emit = defineEmits<{
   }
 }
 
-/* Tool call pill pulse (running status badge) */
+/* Tool call pill pulse (running status badge) / 工具调用药丸脉冲 */
 .tc-pill-pulse {
   animation: tc-pill-glow 2s ease-in-out infinite;
 }

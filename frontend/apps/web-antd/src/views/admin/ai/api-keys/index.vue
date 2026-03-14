@@ -47,7 +47,7 @@ function onToggleActive(row: AIApiKeyInfo) {
         message.success($t('admin.ai.apiKey.messages.toggleSuccess'));
         onRefresh();
       } catch {
-        // Error handled by request interceptor
+        // Error handled by request interceptor / 错误由请求拦截器处理
       }
     },
   });

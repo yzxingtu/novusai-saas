@@ -394,6 +394,7 @@ export type ComponentType =
   | 'RadioGroup'
   | 'RangePicker'
   | 'Rate'
+  | 'RichText'
   | 'Select'
   | 'Space'
   | 'Switch'
@@ -468,6 +469,9 @@ async function initComponentAdapter() {
     RadioGroup,
     RangePicker,
     Rate,
+    RichText: defineAsyncComponent(
+      () => import('#/components/business/rich-text-editor/RichTextEditor.vue'),
+    ),
     ToolkitEditor: defineAsyncComponent(
       () => import('#/components/business/toolkit-editor/ToolkitEditor.vue'),
     ),

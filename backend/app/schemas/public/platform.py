@@ -4,7 +4,7 @@ from app.core.base_schema import BaseSchema
 
 
 class StoragePublicConfig(BaseSchema):
-    """存储公开配置"""
+    """存储公开配置 / Storage public config"""
     driver: str | None = Field(None, description="存储引擎")
     base_url: str | None = Field(None, description="文件访问基础 URL")
     chunk_size_mb: int | None = Field(None, description="默认分片大小（MB）")

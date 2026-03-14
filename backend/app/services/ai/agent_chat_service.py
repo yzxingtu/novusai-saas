@@ -82,7 +82,7 @@ class AgentChatService:
         self.conversation_svc = ConversationService(db, tenant_id)
 
     # ========================================
-    # 内部方法：Agent 校验
+    # 内部方法：Agent 校验 / Internal: Agent validation
     # ========================================
 
     async def _validate_agent(self, agent_id: int) -> "Agent":
@@ -139,7 +139,7 @@ class AgentChatService:
 
         try:
             async with async_session_factory() as llm_db:
-                # 优先使用平台配置的记忆提取专用模型（成本更低）
+                # 优先使用平台配置的记忆提取专用模型（成本更低）/ Prefer platform memory-extraction model (lower cost)
                 from app.configs.service import ConfigService
                 cfg = ConfigService(llm_db)
                 cfg_provider = await cfg.get_platform_config(
@@ -153,7 +153,7 @@ class AgentChatService:
                     provider_code = cfg_provider
                     model_code = cfg_model
                 else:
-                    # 降级：使用 Agent 自身绑定的模型
+                    # 降级：使用 Agent 自身绑定的模型 / Fallback: use Agent's bound model
                     if self.tenant_id == 0:
                         from app.repositories.ai.agent_repository import AdminAgentRepository
                         agent_repo = AdminAgentRepository(llm_db)
@@ -203,7 +203,7 @@ class AgentChatService:
                 )
 
                 content = (llm_response.message.content or "").strip()
-                # 处理 markdown 代码块包裹
+                # 处理 markdown 代码块包裹 / Strip markdown code block wrapper
                 if content.startswith("```"):
                     lines = content.split("\n")
                     content = "\n".join(lines[1:])
@@ -403,7 +403,7 @@ class AgentChatService:
             )
             return enabled
         except Exception as exc:
-            # 记忆开关解析失败时降级，不影响主对话链路
+            # 记忆开关解析失败时降级，不影响主对话链路 / Memory switch parse fail: degrade silently, no impact on main flow
             logger.warning(
                 "Resolve session memory switch degraded: tenant=%s agent=%s scene=%s err=%s",
                 self.tenant_id,
@@ -414,7 +414,7 @@ class AgentChatService:
             return False
 
     # ========================================
-    # 非流式对话
+    # 非流式对话 / Non-streaming chat
     # ========================================
 
     async def chat(
@@ -460,10 +460,10 @@ class AgentChatService:
         start = time.perf_counter()
         variables = PageContext.normalize_variables(variables, page_context)
 
-        # 0. 加载并校验 Agent（必须已发布）
+        # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
 
-        # 1. 获取或创建对话
+        # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
@@ -472,7 +472,7 @@ class AgentChatService:
             first_message=message,
         )
 
-        # 1.5 新对话时递增每日对话计数（用于 conversations_per_day 配额）
+        # 1.5 新对话时递增每日对话计数（用于 conversations_per_day 配额）/ Increment daily conversation count for new convos
         if is_new_conversation:
             await AgentQuotaManager.record_conversation(
                 tenant_id=self.tenant_id,
@@ -480,7 +480,7 @@ class AgentChatService:
                 user_id=user_id,
             )
 
-        # 2. 加载历史消息 → 转换为 ChatMessage（受 agent.context_config 控制）
+        # 2. 加载历史消息 → 转换为 ChatMessage（受 agent.context_config 控制）/ Load history and convert to ChatMessage
         ctx_cfg = agent.context_config or {}
         history_messages = await self.conversation_svc.load_chat_history(
             conversation_id=conversation.id,
@@ -488,14 +488,14 @@ class AgentChatService:
             max_tokens=ctx_cfg.get("max_history_tokens", 0),
         )
 
-        # 3. 追加新用户消息（含附件）
+        # 3. 追加新用户消息（含附件）/ Append new user message (with attachments)
         user_msg = ChatMessage(
             role="user", content=message,
             attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
         )
         all_messages = [*history_messages, user_msg]
 
-        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
+        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）/ BEFORE_AGENT_CHAT hook
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
             hook_ctx = await hook_registry.trigger(
@@ -509,7 +509,7 @@ class AgentChatService:
                 raise BusinessException(message=hook_ctx.get("block_reason", _("agent_chat.error.blocked_by_hook")))
             all_messages = hook_ctx.get("messages", all_messages)
 
-        # 4. 构建执行请求
+        # 4. 构建执行请求 / Build execution request
         normalized_scene, normalized_channel, normalized_source, memory_enabled = self._resolve_memory_context(
             memory_scene=memory_scene,
             memory_channel=memory_channel,
@@ -539,23 +539,23 @@ class AgentChatService:
             page_session_id=page_session_id,
         )
 
-        # 4.1 会话记忆注入（仅 ai_chat_page 生效）
+        # 4.1 会话记忆注入（仅 ai_chat_page 生效）/ Session memory injection (ai_chat_page only)
         mem_text = await self._load_session_memory_context(request=request)
         if mem_text:
-            # system 消息优先，其次插入首位
+            # system 消息优先，其次插入首位 / System message first, else insert at head
             if request.messages and request.messages[0].role == "system":
                 request.messages[0].content = f"{request.messages[0].content}\n\n{mem_text}"
             else:
                 request.messages.insert(0, ChatMessage(role="system", content=mem_text))
 
-        # 5. 调用分发器（传入已校验的 agent，避免 Dispatcher 内二次 DB 查询）
+        # 5. 调用分发器（传入已校验的 agent，避免 Dispatcher 内二次 DB 查询）/ Call dispatcher with validated agent
         dispatcher = ExecutionDispatcher(self.db)
         result = await dispatcher.dispatch(request, pre_loaded_agent=agent)
 
         if not result.success:
             raise BusinessException(message=result.error or _("agent_chat.error.execution_failed"))
 
-        # 5.5 AFTER_AGENT_CHAT 钩子（插件可修改响应/触发后续动作）
+        # 5.5 AFTER_AGENT_CHAT 钩子（插件可修改响应/触发后续动作）/ AFTER_AGENT_CHAT hook
         if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
             hook_ctx = await hook_registry.trigger(
                 HookPoint.AFTER_AGENT_CHAT,
@@ -567,7 +567,7 @@ class AgentChatService:
             if "response" in hook_ctx and hook_ctx["response"] != result.output:
                 result.output = hook_ctx["response"]
 
-        # 6. 持久化新消息（用户消息 + 引擎生成的消息）
+        # 6. 持久化新消息（用户消息 + 引擎生成的消息）/ Persist new messages (user + engine)
         history_count = len(history_messages)
         tool_calls_collected = await self.conversation_svc.persist_chat_messages(
             conversation=conversation,
@@ -576,7 +576,7 @@ class AgentChatService:
             agent_id=agent_id,
         )
 
-        # 7. 更新对话统计 + 智能体用量统计
+        # 7. 更新对话统计 + 智能体用量统计 / Update conversation stats and agent usage
         await self.conversation_svc.update_stats(
             conversation,
             result,
@@ -588,7 +588,7 @@ class AgentChatService:
             tokens=result.total_tokens,
         )
 
-        # 7.1 写入会话记忆（非阻塞主流程，失败仅告警）
+        # 7.1 写入会话记忆（非阻塞主流程，失败仅告警）/ Write session memory (non-blocking, fail-safe)
         try:
             memory_delta = await self._persist_session_memory(
                 request=request,
@@ -626,7 +626,7 @@ class AgentChatService:
         )
 
     # ========================================
-    # 流式对话（M16-T3-2 实现）
+    # 流式对话（M16-T3-2 实现）/ Streaming chat
     # ========================================
 
     async def stream_chat(
@@ -667,10 +667,10 @@ class AgentChatService:
         """
         variables = PageContext.normalize_variables(variables, page_context)
 
-        # 0. 加载并校验 Agent（必须已发布）
+        # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
 
-        # 1. 获取或创建对话
+        # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
@@ -687,10 +687,10 @@ class AgentChatService:
                 user_id=user_id,
             )
 
-        # 1.6 提交对话创建，确保 on_stream_complete 回调的独立 session 能看到它
+        # 1.6 提交对话创建，确保 on_stream_complete 回调的独立 session 能看到它 / Commit conv creation for stream callback
         await self.db.commit()
 
-        # 2. 加载历史消息（使用 agent 的 context_config 窗口控制）
+        # 2. 加载历史消息（使用 agent 的 context_config 窗口控制）/ Load history (agent context_config window)
         ctx_cfg = agent.context_config or {}
         history_messages = await self.conversation_svc.load_chat_history(
             conversation_id=conversation.id,
@@ -698,14 +698,14 @@ class AgentChatService:
             max_tokens=ctx_cfg.get("max_history_tokens", 0),
         )
 
-        # 3. 追加新用户消息（含附件）
+        # 3. 追加新用户消息（含附件）/ Append new user message (with attachments)
         user_msg = ChatMessage(
             role="user", content=message,
             attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
         )
         all_messages = [*history_messages, user_msg]
 
-        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
+        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）/ BEFORE_AGENT_CHAT hook
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
             hook_ctx = await hook_registry.trigger(
@@ -719,7 +719,7 @@ class AgentChatService:
                 raise BusinessException(message=hook_ctx.get("block_reason", _("agent_chat.error.blocked_by_hook")))
             all_messages = hook_ctx.get("messages", all_messages)
 
-        # 4. 构建执行请求（标记为流式）
+        # 4. 构建执行请求 / Build execution request（标记为流式）
         normalized_scene, normalized_channel, normalized_source, memory_enabled = self._resolve_memory_context(
             memory_scene=memory_scene,
             memory_channel=memory_channel,
@@ -750,7 +750,7 @@ class AgentChatService:
             page_session_id=page_session_id,
         )
 
-        # 4.1 会话记忆注入（仅 ai_chat_page 生效）
+        # 4.1 会话记忆注入（仅 ai_chat_page 生效）/ Session memory injection (ai_chat_page only)
         mem_text = await self._load_session_memory_context(request=request)
         if mem_text:
             if request.messages and request.messages[0].role == "system":
@@ -758,18 +758,18 @@ class AgentChatService:
             else:
                 request.messages.insert(0, ChatMessage(role="system", content=mem_text))
 
-        # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）
+        # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）/ Quota/concurrency/hook pre-check
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
         lock_token: str = ""
 
-        # 预估输入 Token 以启用原子预扣减（与 dispatcher 一致）
+        # 预估输入 Token 以启用原子预扣减（与 dispatcher 一致）/ Estimate input tokens for atomic pre-deduction
         estimated_tokens = max(
             sum(estimate_tokens(m.content or "") for m in all_messages),
             100,  # 至少 100 tokens（system prompt + 生成开销）
         )
 
         try:
-            # 并发控制
+            # 并发控制 / Concurrency control
             if quota_config.max_concurrent > 0 or quota_config.tenant_max_concurrent > 0:
                 lock_token = await AgentConcurrencyLimiter.acquire(
                     tenant_id=self.tenant_id,
@@ -778,7 +778,7 @@ class AgentChatService:
                     tenant_max_concurrent=quota_config.tenant_max_concurrent,
                 )
 
-            # 配额检查（含原子预扣减，防止并发超限）
+            # 配额检查（含原子预扣减，防止并发超限）/ Quota check (atomic pre-deduction)
             await AgentQuotaManager.check_quota(
                 tenant_id=self.tenant_id,
                 agent_id=agent_id,
@@ -793,7 +793,7 @@ class AgentChatService:
                     config=quota_config,
                 )
 
-            # 套餐月 API 调用次数配额检查（与 dispatcher 对等）
+            # 套餐月 API 调用次数配额检查（与 dispatcher 对等）/ Plan monthly API quota check
             if self.tenant_id:
                 from app.enums import ErrorCode
                 from app.services.tenant.quota_service import QuotaService
@@ -806,7 +806,7 @@ class AgentChatService:
                         code=ErrorCode.CONFLICT,
                     )
 
-            # BEFORE_EXECUTE 钩子（hook_registry 已在 step 3.5 获取）
+            # BEFORE_EXECUTE 钩子（hook_registry 已在 step 3.5 获取）/ BEFORE_EXECUTE hook
             hook_context = await hook_registry.trigger(
                 HookPoint.BEFORE_EXECUTE,
                 tenant_id=self.tenant_id,
@@ -818,11 +818,11 @@ class AgentChatService:
                 reason = hook_context.get("block_reason", _("agent.error.blocked_by_hook"))
                 raise BusinessException(message=reason)
 
-            # ExecutionStarted 事件
+            # ExecutionStarted 事件 / ExecutionStarted event
             await BaseEngine._publish_execution_started(request, agent)
 
         except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
-            # 释放并发锁后重新抛出
+            # 释放并发锁后重新抛出 / Release concurrency lock then re-raise
             if lock_token:
                 await AgentConcurrencyLimiter.release(
                     tenant_id=self.tenant_id,
@@ -831,10 +831,10 @@ class AgentChatService:
                 )
             raise
 
-        # 6. 创建 Gateway
+        # 6. 创建 Gateway / Create Gateway
         gateway = AIGateway(self.db)
 
-        # 6.1 检测是否为生图模型 → 使用 ImageGenerationEngine
+        # 6.1 检测是否为生图模型 → 使用 ImageGenerationEngine / Use ImageGenerationEngine for image models
         model_obj = getattr(agent, "model", None)
         is_image_model = (
             model_obj is not None
@@ -846,7 +846,7 @@ class AgentChatService:
             engine = ImageGenerationEngine(gateway=gateway)
             skill_result = None
         else:
-            # 解析 Skill（在 Service 层完成，不在 Engine 内部查 DB）
+            # 解析 Skill（在 Service 层完成，不在 Engine 内部查 DB）/ Resolve Skill in Service layer
             from app.ai.skills.resolver import resolve_for_agent
             try:
                 skill_result = await resolve_for_agent(
@@ -861,7 +861,7 @@ class AgentChatService:
                 )
                 skill_result = None
 
-            # 读取平台 Toolkit 安全配置
+            # 读取平台 Toolkit 安全配置 / Read platform Toolkit security config
             from app.configs.service import ConfigService
             _cfg = ConfigService(self.db)
             _toolkit_security_level = await _cfg.get_platform_config(
@@ -891,7 +891,7 @@ class AgentChatService:
                 sandbox=sandbox,
             )
 
-        # 7. 创建持久化回调（流式完成后调用，含配额记录+并发释放+钩子）
+        # 7. 创建持久化回调（流式完成后调用，含配额记录+并发释放+钩子）/ Create persist callback for stream complete
         history_count = len(history_messages)
 
         async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
@@ -908,7 +908,7 @@ class AgentChatService:
             extra: dict[str, Any] = {}
             try:
                 if result.success:
-                    # 独立 session：不依赖 DI session 生命周期
+                    # 独立 session：不依赖 DI session 生命周期 / Standalone session for callback
                     async with async_session_factory() as cb_db:
                         try:
                             cb_conv_svc = ConversationService(cb_db, self.tenant_id)
@@ -932,7 +932,7 @@ class AgentChatService:
                                 tokens=result.total_tokens,
                             )
 
-                            # 写入会话记忆（流式完成后）
+                            # 写入会话记忆（流式完成后）/ Write session memory after stream complete
                             try:
                                 memory_delta = await self._persist_session_memory(
                                     request=request,
@@ -957,7 +957,7 @@ class AgentChatService:
                             await cb_db.rollback()
                             raise
 
-                # 配额调整：从预估调整为实际（与 dispatcher 对等）
+                # 配额调整：从预估调整为实际（与 dispatcher 对等）/ Adjust quota from estimate to actual
                 actual_tokens = result.total_tokens or 0
                 await AgentQuotaManager.adjust_usage(
                     tenant_id=self.tenant_id,
@@ -967,7 +967,7 @@ class AgentChatService:
                     config=quota_config,
                 )
 
-                # 用户级用量记录
+                # 用户级用量记录 / User-level usage record
                 if user_id and actual_tokens > 0:
                     await AgentQuotaManager.record_user_usage(
                         tenant_id=self.tenant_id,
@@ -988,7 +988,7 @@ class AgentChatService:
                     if "response" in hook_ctx and hook_ctx["response"] != result.output:
                         result.output = hook_ctx["response"]
 
-                # AFTER_EXECUTE 钩子
+                # AFTER_EXECUTE 钩子 / AFTER_EXECUTE hook
                 await hook_registry.trigger(
                     HookPoint.AFTER_EXECUTE,
                     tenant_id=self.tenant_id,
@@ -996,7 +996,7 @@ class AgentChatService:
                     result=result,
                 )
 
-                # 发布执行完成/失败事件（流式模式绕过 dispatcher，需手动发布）
+                # 发布执行完成/失败事件（流式模式绕过 dispatcher，需手动发布）/ Emit execution complete/fail event
                 if result.success:
                     await BaseEngine._publish_execution_completed(
                         request, agent, result,
@@ -1006,7 +1006,7 @@ class AgentChatService:
                         request, agent, result.error or "",
                     )
             finally:
-                # 释放并发锁
+                # 释放并发锁 / Release concurrency lock
                 if lock_token:
                     await AgentConcurrencyLimiter.release(
                         tenant_id=self.tenant_id,
@@ -1031,7 +1031,135 @@ class AgentChatService:
             )
 
     # ========================================
-    # 操作确认/取消
+    # 轻量级流式调用（无对话记录）/ Lightweight streaming (no conversation record)
+    # ========================================
+
+    async def stream_chat_ephemeral(
+        self,
+        agent_id: int,
+        message: str,
+        variables: dict[str, Any] | None = None,
+        user_id: int | None = None,
+        knowledge_base_ids: list[int] | None = None,
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        permissions: set[str] | None = None,
+    ) -> StreamingResponse:
+        """
+        轻量级流式调用（无对话记录，无消息持久化）。
+
+        适用于富文本写作操作（续写、优化、校对等），不需要对话上下文。
+        与 stream_chat 的区别：
+        - 不创建 AgentConversation 记录
+        - 不保存消息历史
+        - 不注入会话记忆
+        - 仍保留配额检查和统计
+        """
+        agent = await self._validate_agent(agent_id)
+
+        user_msg = ChatMessage(role="user", content=message)
+        all_messages = [user_msg]
+
+        request = ExecutionRequest(
+            agent_id=agent_id,
+            tenant_id=self.tenant_id,
+            user_id=user_id,
+            messages=all_messages,
+            input_variables=variables or {},
+            execution_mode=AgentExecutionModeEnum.CONVERSATION.value,
+            stream=True,
+            conversation_id=0,
+            knowledge_base_ids=knowledge_base_ids,
+            skip_persistence=True,
+            user_role=user_role,
+            permissions=permissions,
+            memory_scene="ephemeral",
+            memory_channel=MEMORY_CHANNEL_SYSTEM,
+            memory_source="system.ai_writing",
+            memory_enabled=False,
+        )
+
+        quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
+        estimated_tokens = max(estimate_tokens(message), 100)
+        lock_token: str = ""
+
+        try:
+            if quota_config.max_concurrent > 0 or quota_config.tenant_max_concurrent > 0:
+                lock_token = await AgentConcurrencyLimiter.acquire(
+                    tenant_id=self.tenant_id,
+                    agent_id=agent_id,
+                    max_concurrent=quota_config.max_concurrent,
+                    tenant_max_concurrent=quota_config.tenant_max_concurrent,
+                )
+
+            await AgentQuotaManager.check_quota(
+                tenant_id=self.tenant_id,
+                agent_id=agent_id,
+                config=quota_config,
+                estimated_tokens=estimated_tokens,
+            )
+
+            if self.tenant_id:
+                from app.enums import ErrorCode
+                from app.services.tenant.quota_service import QuotaService
+                api_check = await QuotaService.check_api_quota_for_tenant_id(
+                    self.db, self.tenant_id
+                )
+                if not api_check.allowed:
+                    raise BusinessException(
+                        message=api_check.message or _("quota.api_calls_exceeded"),
+                        code=ErrorCode.CONFLICT,
+                    )
+
+        except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
+            if lock_token:
+                await AgentConcurrencyLimiter.release(
+                    tenant_id=self.tenant_id,
+                    agent_id=agent_id,
+                    lock_token=lock_token,
+                )
+            raise
+
+        async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
+            try:
+                actual_tokens = result.total_tokens or 0
+                await AgentQuotaManager.adjust_usage(
+                    tenant_id=self.tenant_id,
+                    agent_id=agent_id,
+                    estimated_tokens=estimated_tokens,
+                    actual_tokens=actual_tokens,
+                    config=quota_config,
+                )
+                if user_id and actual_tokens > 0:
+                    await AgentQuotaManager.record_user_usage(
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        user_id=user_id,
+                        tokens=actual_tokens,
+                    )
+                await AgentStatsManager.record_chat(
+                    tenant_id=self.tenant_id,
+                    agent_id=agent_id,
+                    tokens=result.total_tokens,
+                )
+            finally:
+                if lock_token:
+                    await AgentConcurrencyLimiter.release(
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        lock_token=lock_token,
+                    )
+            return None
+
+        gateway = AIGateway(self.db)
+        engine = ConversationEngine(db=self.db, gateway=gateway, sandbox=None)
+        return await engine.stream_execute(
+            agent=agent,
+            request=request,
+            on_complete=on_stream_complete,
+        )
+
+    # ========================================
+    # 操作确认/取消 / Operation confirm/cancel
     # ========================================
 
     @staticmethod

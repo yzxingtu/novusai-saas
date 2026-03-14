@@ -30,7 +30,6 @@ export function useGlobalPreferencePage(side: Side) {
   const saving = ref(false);
 
   let vbenSnapshot: PreferencesData = {};
-  let saved = false;
   let loaded = false;
 
   async function loadData() {
@@ -56,7 +55,6 @@ export function useGlobalPreferencePage(side: Side) {
       );
       if (result) {
         formData.value = { ...result };
-        saved = true;
         vbenSnapshot = getVbenSnapshot();
         message.success($t('common.preference.saveSuccess'));
       } else {
@@ -97,9 +95,7 @@ export function useGlobalPreferencePage(side: Side) {
   });
 
   onBeforeUnmount(() => {
-    if (!saved) {
-      revertToSnapshot();
-    }
+    revertToSnapshot();
     preferenceStore.globalPreviewActive = false;
   });
 

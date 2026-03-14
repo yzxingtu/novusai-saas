@@ -17,6 +17,7 @@ from app.api.tenant.agents import TenantAgentController
 from app.api.tenant.agents import router as agents_router
 from app.api.tenant.ai_action_logs import TenantAIActionLogController
 from app.api.tenant.ai_action_logs import router as ai_action_logs_router
+from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.ai_call_logs import TenantAICallLogController
 from app.api.tenant.ai_call_logs import router as ai_call_logs_router
 from app.api.tenant.ai_config import TenantAIConfigController
@@ -70,10 +71,10 @@ from app.api.tenant.users import TenantUserController
 from app.api.tenant.users import router as users_router
 from app.api.tenant.ws import router as ws_router
 
-# 创建企业管理后台路由器
+# 创建企业管理后台路由器 / Create tenant admin router
 tenant_router = APIRouter()
 
-# 注册子路由
+# 注册子路由 / Register sub-routers
 tenant_router.include_router(auth_router)
 tenant_router.include_router(dashboard_router)
 tenant_router.include_router(configs_router)
@@ -86,48 +87,50 @@ tenant_router.include_router(users_router)
 tenant_router.include_router(user_roles_router)
 tenant_router.include_router(tasks_router)
 tenant_router.include_router(periodic_tasks_router)
-# AI 网关相关
+# AI 网关相关 / AI gateway
 tenant_router.include_router(ai_config_router)
 tenant_router.include_router(ai_gateway_router)
 tenant_router.include_router(ai_quotas_router)
 tenant_router.include_router(ai_usage_router)
 tenant_router.include_router(ai_call_logs_router)
-# 智能体
+# 智能体 / Agents
 tenant_router.include_router(agents_router)
-# 智能体绑定
+# 智能体 / Agents绑定
 tenant_router.include_router(agent_assignments_router)
-# 对话管理
+# 对话管理 / Conversations
 tenant_router.include_router(conversations_router)
-# AI 对话
+# AI 对话 / AI chat
 tenant_router.include_router(agent_chat_router)
-# AI 操作审计
+# AI 操作审计 / AI action logs
 tenant_router.include_router(ai_action_logs_router)
-# 知识库
+# 知识库 / Knowledge bases
 tenant_router.include_router(knowledge_bases_router)
-# AI 表策略覆盖
+# AI 表策略覆盖 / AI table policies
 tenant_router.include_router(ai_table_policies_router)
-# 技能包 & 技能管理
+# 技能包 & 技能管理 / Skill packages & skills
 tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
-# WebSocket 在线状态
+# WebSocket 在线状态 / WebSocket online status
 tenant_router.include_router(ws_router)
 # 通知
 tenant_router.include_router(notifications_router)
-# 通知偏好
+# 通知偏好 / Notification preferences
 tenant_router.include_router(notification_preferences_router)
 # 偏好设置 / User preferences
 tenant_router.include_router(preferences_router)
-# 插件（企业端只读列表，按 scope + 分配过滤）
+# 插件（企业端只读列表，按 scope + 分配过滤）/ Plugins (tenant read-only, scope+assignment)
 tenant_router.include_router(plugins_router)
-# 数据分析
+# 数据分析 / Analytics
 tenant_router.include_router(analytics_router)
-# 回收站
+# AI 写作 / AI Writing
+tenant_router.include_router(ai_writing_router)
+# 回收站 / Recycle bin
 tenant_router.include_router(recycle_bin_router)
 
 
 __all__ = [
     "tenant_router",
-    # 导出控制器类，确保权限装饰器被执行
+    # 导出控制器类，确保权限装饰器被执行 / Export controllers for permission decorators
     "TenantConfigController",
     "TenantAttachmentController",
     "TenantDomainController",
@@ -138,29 +141,29 @@ __all__ = [
     "TenantTaskLogController",
     "TenantUserController",
     "TenantUserRoleController",
-    # AI 网关
+    # AI 网关 / AI gateway
     "TenantAIConfigController",
     "TenantAIGatewayController",
     "TenantAIQuotaController",
     "TenantAIUsageController",
     "TenantAICallLogController",
-    # 智能体
+    # 智能体 / Agents
     "TenantAgentController",
-    # 智能体绑定
+    # 智能体 / Agents绑定
     "TenantAgentAssignmentController",
-    # 对话管理
+    # 对话管理 / Conversations
     "TenantConversationController",
-    # AI 对话
+    # AI 对话 / AI chat
     "TenantAgentChatController",
-    # AI 操作审计
+    # AI 操作审计 / AI action logs
     "TenantAIActionLogController",
-    # 知识库
+    # 知识库 / Knowledge bases
     "TenantKnowledgeBaseController",
-    # AI 表策略覆盖
+    # AI 表策略覆盖 / AI table policies
     "TenantAITablePolicyController",
-    # 技能包 & 技能管理
+    # 技能包 & 技能管理 / Skill packages & skills
     "TenantSkillPackageController",
     "TenantSkillController",
-    # 回收站
+    # 回收站 / Recycle bin
     "TenantRecycleBinController",
 ]

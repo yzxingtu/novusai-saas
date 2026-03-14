@@ -6,7 +6,7 @@ from app.core.base_schema import BaseSchema
 
 
 class AttachmentAccessUrlResponse(BaseSchema):
-    """附件访问 URL 响应"""
+    """附件访问 URL 响应 / Attachment access URL response"""
     attachment_id: int = Field(..., description="附件 ID")
     url: str = Field(..., description="访问 URL")
     expires_in: int = Field(..., description="有效期（秒）")
@@ -14,7 +14,7 @@ class AttachmentAccessUrlResponse(BaseSchema):
 
 
 class AttachmentResponse(BaseSchema):
-    """附件详情响应（管理端完整版，含内部存储字段）"""
+    """附件详情响应（管理端完整版，含内部存储字段） / Attachment detail response (admin full, with internal storage fields)"""
     id: int = Field(..., description="附件 ID")
     tenant_id: int = Field(..., description="企业 ID")
     name: str = Field(..., description="文件名")
@@ -39,7 +39,7 @@ class AttachmentResponse(BaseSchema):
 
 
 class AttachmentSafeResponse(BaseSchema):
-    """附件安全响应（企业端/用户端，隐藏内部存储细节）"""
+    """附件安全响应（企业端/用户端，隐藏内部存储细节） / Attachment safe response (tenant/user, hides internal storage)"""
     id: int = Field(..., description="附件 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
@@ -58,7 +58,7 @@ class AttachmentSafeResponse(BaseSchema):
 
 
 class AttachmentListItem(BaseSchema):
-    """附件列表项响应（管理端完整版）"""
+    """附件列表项响应（管理端完整版） / Attachment list item (admin full)"""
     id: int = Field(..., description="附件 ID")
     tenant_id: int | None = Field(None, description="企业 ID")
     name: str = Field(..., description="文件名")
@@ -77,7 +77,7 @@ class AttachmentListItem(BaseSchema):
 
 
 class AttachmentSafeListItem(BaseSchema):
-    """附件列表项安全响应（企业端/用户端，隐藏内部存储细节）"""
+    """附件列表项安全响应（企业端/用户端，隐藏内部存储细节） / Attachment list item safe (tenant/user, hides internal storage)"""
     id: int = Field(..., description="附件 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
@@ -92,7 +92,7 @@ class AttachmentSafeListItem(BaseSchema):
 
 
 class TenantStorageQuotaResponse(BaseSchema):
-    """企业存储配额响应"""
+    """企业存储配额响应 / Tenant storage quota response"""
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
     limit_bytes: int = Field(..., description="存储限制（字节），0 表示无限制")
     limit_gb: int = Field(..., description="存储限制（GB），0 表示无限制")
@@ -103,24 +103,24 @@ class TenantStorageQuotaResponse(BaseSchema):
     unlimited: bool = Field(..., description="是否无限制")
 
 
-# ==================== 上传相关 Schema ====================
+# ==================== 上传相关 Schema / Upload-related Schemas ====================
 
 class AttachmentUploadResponse(BaseSchema):
-    """附件上传响应（管理端完整版）"""
+    """附件上传响应（管理端完整版） / Attachment upload response (admin full)"""
     attachment: AttachmentResponse = Field(..., description="附件信息")
     url: str = Field(..., description="访问 URL")
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
 
 
 class AttachmentSafeUploadResponse(BaseSchema):
-    """附件上传响应（企业端安全版，隐藏内部存储细节）"""
+    """附件上传响应（企业端安全版，隐藏内部存储细节） / Attachment upload response (tenant safe)"""
     attachment: AttachmentSafeResponse = Field(..., description="附件信息")
     url: str = Field(..., description="访问 URL")
     used_bytes: int = Field(..., description="已使用存储空间（字节）")
 
 
 class ChunkUploadInitRequest(BaseSchema):
-    """分片上传初始化请求"""
+    """分片上传初始化请求 / Chunk upload init request"""
     filename: str = Field(..., min_length=1, max_length=255, description="文件名")
     total_size: int = Field(..., gt=0, description="文件总大小（字节）")
     chunk_size: int = Field(5 * 1024 * 1024, gt=0, description="分片大小（字节），默认 5MB")
@@ -131,7 +131,7 @@ class ChunkUploadInitRequest(BaseSchema):
 
 
 class ChunkUploadInitResponse(BaseSchema):
-    """分片上传初始化响应"""
+    """分片上传初始化响应 / Chunk upload init response"""
     upload_id: str = Field(..., description="上传会话 ID")
     filename: str = Field(..., description="文件名")
     total_size: int = Field(..., description="文件总大小")
@@ -143,7 +143,7 @@ class ChunkUploadInitResponse(BaseSchema):
 
 
 class ChunkUploadProgressResponse(BaseSchema):
-    """分片上传进度响应"""
+    """分片上传进度响应 / Chunk upload progress response"""
     upload_id: str = Field(..., description="上传会话 ID")
     filename: str = Field(..., description="文件名")
     total_size: int = Field(..., description="文件总大小")
@@ -155,7 +155,7 @@ class ChunkUploadProgressResponse(BaseSchema):
 
 
 class AdminChunkUploadInitRequest(BaseSchema):
-    """平台端分片上传初始化请求"""
+    """平台端分片上传初始化请求 / Admin chunk upload init request"""
     tenant_id: int = Field(0, ge=0, description="目标企业 ID，0 表示平台附件")
     filename: str = Field(..., min_length=1, max_length=255, description="文件名")
     total_size: int = Field(..., gt=0, description="文件总大小（字节）")
@@ -167,7 +167,7 @@ class AdminChunkUploadInitRequest(BaseSchema):
 
 
 class AttachmentPreflightRequest(BaseSchema):
-    """附件预检请求（秒传检查）"""
+    """附件预检请求（秒传检查） / Attachment preflight request (instant upload check)"""
     hash: str = Field(..., min_length=10, max_length=128, description="文件哈希，格式: sha256:{hex_digest}")
     filename: str = Field(..., min_length=1, max_length=255, description="文件名")
     size: int = Field(..., gt=0, description="文件大小（字节）")
@@ -175,7 +175,7 @@ class AttachmentPreflightRequest(BaseSchema):
 
 
 class AttachmentPreflightResponse(BaseSchema):
-    """附件预检响应（管理端完整版）"""
+    """附件预检响应（管理端完整版） / Attachment preflight response (admin full)"""
     exists: bool = Field(..., description="文件是否已存在")
     attachment: AttachmentResponse | None = Field(None, description="已存在的附件信息")
     url: str | None = Field(None, description="已存在附件的访问 URL")
@@ -183,7 +183,7 @@ class AttachmentPreflightResponse(BaseSchema):
 
 
 class AttachmentSafePreflightResponse(BaseSchema):
-    """附件预检响应（企业端安全版）"""
+    """附件预检响应（企业端安全版） / Attachment preflight response (tenant safe)"""
     exists: bool = Field(..., description="文件是否已存在")
     attachment: AttachmentSafeResponse | None = Field(None, description="已存在的附件信息")
     url: str | None = Field(None, description="已存在附件的访问 URL")
@@ -191,7 +191,7 @@ class AttachmentSafePreflightResponse(BaseSchema):
 
 
 class BatchUploadItem(BaseSchema):
-    """批量上传单文件结果（管理端完整版）"""
+    """批量上传单文件结果（管理端完整版） / Batch upload single item (admin full)"""
     filename: str = Field(..., description="原始文件名")
     success: bool = Field(..., description="是否上传成功")
     attachment: AttachmentResponse | None = Field(None, description="附件信息（成功时）")
@@ -200,7 +200,7 @@ class BatchUploadItem(BaseSchema):
 
 
 class BatchSafeUploadItem(BaseSchema):
-    """批量上传单文件结果（企业端安全版）"""
+    """批量上传单文件结果（企业端安全版） / Batch upload single item (tenant safe)"""
     filename: str = Field(..., description="原始文件名")
     success: bool = Field(..., description="是否上传成功")
     attachment: AttachmentSafeResponse | None = Field(None, description="附件信息（成功时）")
@@ -209,7 +209,7 @@ class BatchSafeUploadItem(BaseSchema):
 
 
 class BatchUploadResponse(BaseSchema):
-    """批量上传响应（管理端完整版）"""
+    """批量上传响应（管理端完整版） / Batch upload response (admin full)"""
     items: list[BatchUploadItem] = Field(..., description="每个文件的上传结果")
     success_count: int = Field(..., description="成功数量")
     failure_count: int = Field(..., description="失败数量")
@@ -217,7 +217,7 @@ class BatchUploadResponse(BaseSchema):
 
 
 class BatchSafeUploadResponse(BaseSchema):
-    """批量上传响应（企业端安全版）"""
+    """批量上传响应（企业端安全版） / Batch upload response (tenant safe)"""
     items: list[BatchSafeUploadItem] = Field(..., description="每个文件的上传结果")
     success_count: int = Field(..., description="成功数量")
     failure_count: int = Field(..., description="失败数量")

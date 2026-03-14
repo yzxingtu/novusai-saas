@@ -315,7 +315,7 @@ class CosStorageDriver(StorageDriver):
             return False
         return await self.delete(source)
 
-    # ========== Image Processing ==========
+    # ========== Image Processing / 图片处理 ==========
 
     def _build_cos_process_params(self, params: ImageProcessParams) -> str:
         """Build COS imageMogr2 URL suffix.

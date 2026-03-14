@@ -99,7 +99,7 @@ watch(recordId, async (newId) => {
         },
       ]);
     } catch {
-      // column load failed silently
+      // column load failed silently / 列加载失败时静默处理
     }
   }
 });

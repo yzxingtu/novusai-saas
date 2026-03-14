@@ -9,7 +9,6 @@ import pytest
 
 from app.plugins.context import PluginContext
 from app.plugins.manifest import PluginManifest
-from app.plugins.module_loader import load_plugin_module
 
 
 class _ResultWithFirst:
@@ -59,25 +58,3 @@ async def test_plugin_context_license_query_uses_first_record() -> None:
 
     assert status["is_valid"] is True
     assert status["status"] == "active"
-
-
-@pytest.mark.asyncio
-async def test_novusdoc_pro_license_service_uses_first_record() -> None:
-    module = load_plugin_module("novusdoc-pro", "services.license_service")
-    assert module is not None
-
-    license_record = SimpleNamespace(
-        license_type="standard",
-        is_valid=True,
-        license_key="NDOC-STD-XXXX-XXXX-XXXX-ABCD",
-        activated_at=None,
-        trial_expires_at=None,
-    )
-
-    db = AsyncMock()
-    db.execute = AsyncMock(return_value=_ResultWithFirst(license_record))
-
-    status = await module.get_license_status(db, plugin_id=1)
-
-    assert status["is_valid"] is True
-    assert status["status"] == module.LicenseStatus.ACTIVE

@@ -169,7 +169,7 @@ function transformMenuItem(
   endpoint: ApiEndpoint,
 ): RouteRecordStringComponent {
   // Build meta object / 构建 meta 对象
-  // Backend 'name' is display name, used as meta.title (required for framework $t())
+  // Backend 'name' is display name, used as meta.title (required for framework $t()) / 后端 name 为展示名，用作 meta.title
   // 后端 name 是显示名称，作为 meta.title（框架 $t() 必须）
   const meta: Record<
     string,
@@ -225,7 +225,7 @@ function transformMenuItem(
   const route: RouteRecordStringComponent = {
     name: routeName,
     path: routePath,
-    // Empty component path (e.g. plugin menus) uses undefined instead of '' to avoid Vue Router warning
+    // Empty component path (e.g. plugin menus) uses undefined instead of '' to avoid Vue Router warning / 空组件路径用 undefined 避免 Vue Router 警告
     // 空组件路径用 undefined 而非 '' 避免 Vue Router 警告
     component: transformedComponent || undefined,
     meta,
@@ -356,30 +356,30 @@ function transformMenuItemWithCheck(
 }
 
 /**
- * Print missing components warning / 输出缺失组件的警告信息
+ * Print missing components warning (forward check).
+ * Uses console.error in DEV for high visibility (red highlight in devtools).
  */
 function printMissingComponentsWarning(
   missingComponents: MissingComponentInfo[],
   endpoint: ApiEndpoint,
 ): void {
-  let endpointName: string;
-  if (endpoint === 'admin') {
-    endpointName = 'Admin';
-  } else if (endpoint === 'tenant') {
-    endpointName = 'Tenant';
-  } else {
-    endpointName = 'User';
-  }
+  const endpointName =
+    endpoint === 'admin' ? 'Admin' : endpoint === 'tenant' ? 'Tenant' : 'User';
 
   const componentList = missingComponents
     .map(({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`)
     .join('\n');
 
-  console.warn(
-    `${LOG_TAG} ${endpointName}: ${missingComponents.length} menu component(s) not found:\n` +
-      `Please create the corresponding Vue component files:\n${componentList}\n` +
-      `Note: these menus will show as 404 pages until the components are created.`,
-  );
+  const msg =
+    `${LOG_TAG} [CRITICAL] ${endpointName}: ${missingComponents.length} menu component(s) not found:\n` +
+    `Please create the corresponding Vue component files:\n${componentList}\n` +
+    `Note: these menus will show as 404 pages until the components are created.`;
+
+  if (import.meta.env.DEV) {
+    console.error(msg);
+  } else {
+    console.warn(msg);
+  }
 }
 
 /**
@@ -395,6 +395,79 @@ function generateRouteName(path: string, endpoint: ApiEndpoint): string {
 }
 
 /**
+ * Recursively collect all component paths from transformed menu routes.
+ * 从转换后的菜单路由中递归收集所有组件路径。
+ */
+export function collectMenuComponentPaths(
+  routes: RouteRecordStringComponent[],
+): Set<string> {
+  const paths = new Set<string>();
+  function traverse(items: RouteRecordStringComponent[]) {
+    for (const route of items) {
+      if (
+        route.component &&
+        typeof route.component === 'string' &&
+        route.component !== 'BasicLayout' &&
+        route.component !== 'IFrameView'
+      ) {
+        paths.add(route.component.toLowerCase());
+      }
+      if (route.children && route.children.length > 0) {
+        traverse(route.children as RouteRecordStringComponent[]);
+      }
+    }
+  }
+  traverse(routes);
+  return paths;
+}
+
+/** Patterns for views that are legitimately hidden (no menu entry needed). */
+const ORPHAN_EXCLUDED_PATTERNS: RegExp[] = [
+  /authentication\//,
+  /_core\//,
+  /modules\//,
+  /profile\//,
+  /dashboard\//,
+  /analytics\//,
+  /detail\.vue$/,
+  /impersonate/,
+  /(?:modal|drawer|wizard|progress)\.vue$/,
+];
+
+/**
+ * Reverse check: detect view files that have no menu entry or static route.
+ * Only runs in DEV mode.
+ * 反向校验：检测存在但无菜单入口/静态路由的页面文件（仅 DEV 模式）。
+ */
+export function checkOrphanedViews(
+  menuComponentPaths: Set<string>,
+  staticRoutePaths: Set<string>,
+  endpoint: ApiEndpoint,
+): void {
+  if (!import.meta.env.DEV || !cachedExistingPaths) return;
+
+  const orphaned: string[] = [];
+  for (const viewPath of cachedExistingPaths) {
+    if (!viewPath.startsWith(`/${endpoint}/`)) continue;
+    if (ORPHAN_EXCLUDED_PATTERNS.some((p) => p.test(viewPath))) continue;
+    if (menuComponentPaths.has(viewPath)) continue;
+    if (staticRoutePaths.has(viewPath)) continue;
+    orphaned.push(viewPath);
+  }
+
+  if (orphaned.length > 0) {
+    const endpointName =
+      endpoint === 'admin' ? 'Admin' : endpoint === 'tenant' ? 'Tenant' : 'User';
+    console.warn(
+      `[MenuCheck] ${endpointName}: ${orphaned.length} view(s) have no menu entry or static route:\n` +
+        orphaned.map((p) => `  - src/views${p}`).join('\n') +
+        `\nThese pages exist but cannot be accessed from the sidebar. ` +
+        `Register them in backend menu definitions or frontend static routes.`,
+    );
+  }
+}
+
+/**
  * Check if backend menu data needs transformation / 判断菜单是否需要转换
  * If data is already in camelCase format, no conversion needed
  * @param menus Menu data / 菜单数据
@@ -407,7 +480,7 @@ export function needsTransform(menus: unknown[]): boolean {
 
   const firstItem = menus[0] as Record<string, unknown>;
 
-  // Check for snake_case fields
+  // Check for snake_case fields / 检查 snake_case 字段
   return (
     'parent_id' in firstItem ||
     'sort_order' in firstItem ||

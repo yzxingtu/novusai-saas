@@ -230,7 +230,7 @@ function getPluginMenus(plugin: PluginInfo): MenuDeclItem[] {
   const extensions = (manifest.extensions || {}) as Record<string, unknown>;
   const frontend = (extensions.frontend || {}) as Record<string, unknown>;
   const all = (frontend.menus || []) as MenuDeclItem[];
-  // Exclude hidden routes (those belong in standalone_pages)
+  // Exclude hidden routes (those belong in standalone_pages) / 排除隐藏路由（归属 standalone_pages）
   return all.filter((m) => !m.hidden);
 }
 
@@ -258,13 +258,13 @@ function doEnable(plugin: PluginInfo, menuOverrides?: MenuOverrideItem[]) {
       progressStore.startOperation(plugin.display_name, 'enable');
       withProcessing(plugin.id, async () => {
         await enablePluginApi(plugin.id, menuOverrides);
-        // SIO fallback: if no Socket.IO events arrived, mark complete via HTTP success
+        // SIO fallback: if no Socket.IO events arrived, mark complete via HTTP success / SIO 兜底：无 Socket.IO 事件时按 HTTP 成功标记完成
         progressStore.markComplete();
         message.success($t('admin.plugin.messages.enableSuccess'));
         await loadPlugins();
         await refreshAdminMenusAndPluginRoutes();
       }).catch((error: unknown) => {
-        // SIO fallback: if no Socket.IO error event arrived, show error from HTTP
+        // SIO fallback: if no Socket.IO error event arrived, show error from HTTP / SIO 兜底：无 Socket.IO 错误事件时展示 HTTP 错误
         const msg =
           (error as { message?: string })?.message ||
           $t('admin.plugin.messages.enableFailed');

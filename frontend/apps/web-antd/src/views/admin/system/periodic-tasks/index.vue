@@ -55,7 +55,7 @@ async function onTriggerTask(row: PeriodicTaskInfo) {
     message.success($t('admin.system.periodicTask.messages.triggerSuccess'));
     onRefresh();
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -65,7 +65,7 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
     message.success($t('admin.system.periodicTask.messages.toggleSuccess'));
     onRefresh();
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   }
 }
 

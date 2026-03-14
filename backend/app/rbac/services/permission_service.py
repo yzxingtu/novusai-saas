@@ -897,7 +897,9 @@ class PermissionService:
 
                 # Skip empty directory menus: no component (pure directory) + no children + no operation permissions / 跳过空目录菜单
                 # Typical scenario: parent directory becomes empty shell after plugin disabled / 典型场景：插件禁用后其父目录变为空壳
-                if not perm.component and not children and not menu_permissions:
+                # Exception: plugin menus use dynamic standalone pages, not static view components / 插件菜单使用动态独立页面，不走静态视图组件
+                is_plugin_menu = perm.code and ".plugin_" in perm.code
+                if not perm.component and not children and not menu_permissions and not is_plugin_menu:
                     continue
 
                 tree.append(MenuResponse(

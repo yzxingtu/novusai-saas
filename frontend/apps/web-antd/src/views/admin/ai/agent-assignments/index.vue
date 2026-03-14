@@ -69,7 +69,7 @@ async function loadAgentOptions() {
     const res = await getPublishedAgentsApi('/admin');
     agentOptions.value = res.items.map((a) => ({ label: a.name, value: a.id }));
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -87,7 +87,7 @@ async function updateAssignment(featureCode: string, agentId: null | number) {
     message.success($t('admin.ai.agentAssignment.saveSuccess'));
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = null;
   }
@@ -101,7 +101,7 @@ async function toggleActive(featureCode: string, isActive: boolean) {
     });
     await loadList();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   } finally {
     saving.value = null;
   }

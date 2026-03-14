@@ -135,7 +135,7 @@ async function onExportPackage(pkg: AdminSkillPackageInfo) {
     URL.revokeObjectURL(url);
     message.success($t('admin.ai.skillPackage.messages.exportSuccess'));
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -241,7 +241,7 @@ async function onDeletePackage(pkg: AdminSkillPackageInfo) {
         await loadPackages();
         recycleBinRef.value?.refreshCount();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });
@@ -259,7 +259,7 @@ async function onTogglePackageStatus(pkg: AdminSkillPackageInfo) {
         message.success($t('admin.ai.skillPackage.messages.toggleSuccess'));
         await loadPackages();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });
@@ -300,7 +300,7 @@ async function onClonePackage(pkg: AdminSkillPackageInfo) {
     );
     await loadPackages();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -402,7 +402,7 @@ async function onToggleSkillStatus(row: AdminSkillInfo) {
     await loadSkills();
     await loadPackages();
   } catch {
-    // handled by interceptor
+    // handled by interceptor / 错误由请求拦截器处理
   }
 }
 
@@ -416,7 +416,7 @@ async function onDeleteSkill(row: AdminSkillInfo) {
         await loadSkills();
         await loadPackages();
       } catch {
-        // handled by interceptor
+        // handled by interceptor / 错误由请求拦截器处理
       }
     },
   });
@@ -1207,5 +1207,5 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Remove Card import warning — Card is no longer used in template */
+/* Remove Card import warning — Card is no longer used in template / 移除 Card 导入警告 */
 </style>

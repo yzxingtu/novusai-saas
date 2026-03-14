@@ -200,8 +200,7 @@ export function enablePluginApi(
 export function disablePluginApi(id: number, force = false) {
   return requestClient.post(`${BASE_URL}/${id}/disable`, null, {
     params: force ? { force: true } : undefined,
-    // When not force-disabling, disable auto toast, let onDisable handle force-disable confirm dialog
-    // 当不是强制禁用时，关闭自动 toast
+    // When not force-disabling, disable auto toast, let onDisable handle force-disable confirm dialog / 当不是强制禁用时，关闭自动 toast
     showCodeMessage: force,
   });
 }

@@ -85,7 +85,7 @@
   border-bottom: 1px solid hsl(var(--border) / 30%);
 }
 
-/* Vben 搜索表单内部间距 */
+/* Vben 搜索表单内部间距 / Vben search form inner spacing */
 .vxe-grid--form-wrapper .ant-form {
   gap: 8px;
 }

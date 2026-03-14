@@ -106,8 +106,7 @@ async def _run_subprocess_async(
     )
 
 
-# Plugin-level distributed lock (prevent concurrent enable/disable/uninstall)
-# / 插件级分布式锁（防止并发 enable/disable/uninstall）
+# Plugin-level distributed lock (prevent concurrent enable/disable/uninstall) / 插件级分布式锁（防止并发 enable/disable/uninstall）
 _LOCK_PREFIX = "plugin:lifecycle:lock:"
 _LOCK_TTL = 900  # seconds, covers long pip/npm/migration flows to prevent premature lock expiry / 秒，覆盖 pip/npm/迁移等长流程，避免锁提前过期导致并发操作
 _UNLOCK_IF_OWNER_LUA = """
@@ -207,7 +206,7 @@ class PluginLifecycle:
         return list(dict.fromkeys(prefixes))
 
     # ================================================================
-    # install
+    # install / 安装
     # ================================================================
 
     async def install(
@@ -252,13 +251,13 @@ class PluginLifecycle:
                 message=f"Plugin '{plugin_name}' is already being installed by another operation. Please retry later.",
             )
 
-        # completed_steps / emitter initialized outside try to ensure except can always access them
+        # completed_steps / emitter initialized outside try to ensure except can always access them / completed_steps 在 try 外初始化以便 except 可访问
         # / completed_steps / emitter 在 try 外初始化，确保 except 始终能访问
         completed_steps: list[str] = []
         emitter = None
 
         try:
-            # If source_path is already target_dir (upload endpoint already copied), skip copy
+            # If source_path is already target_dir (upload endpoint already copied), skip copy / 若已就位则跳过复制
             # / 如果 source_path 就是 target_dir（上传端点已复制好），跳过复制
             source_resolved = source_path.resolve()
             target_resolved = target_dir.resolve()
@@ -283,8 +282,7 @@ class PluginLifecycle:
                     shutil.rmtree(target_dir, ignore_errors=True)
                 shutil.copytree(source_path, target_dir)
                 logger.info("Copied plugin to %s", target_dir)
-                # Only mark "copy" if we actually copied — rollback deletes the dir
-                # when "copy" is in completed_steps; already_in_place must NOT be deleted
+                # Only mark "copy" if we actually copied — rollback deletes the dir when "copy" in completed_steps / 仅实际复制后才标记 copy，避免误删
                 completed_steps.append("copy")
             else:
                 # Files already in place, only check if already installed / 文件已就位，仅检查是否已安装
@@ -550,7 +548,7 @@ class PluginLifecycle:
                     await _redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _install_lock_key, _install_owner)
 
     # ================================================================
-    # enable
+    # enable / 启用
     # ================================================================
 
     async def enable(self, plugin_id: int, *, operator_id: int | None = None) -> None:
@@ -585,7 +583,7 @@ class PluginLifecycle:
         emitter = PluginProgressEmitter(operator_id, plugin_name, "enable")
         manifest = self._loader.load_manifest(plugin_name)
 
-        # DEBUG mode: sync key fields from disk plugin.yaml to DB (scope/manifest etc.)
+        # DEBUG mode: sync key fields from disk plugin.yaml to DB (scope/manifest etc.) / DEBUG 模式：从磁盘 plugin.yaml 同步到 DB
         # / DEBUG 模式：同步磁盘 plugin.yaml 的关键字段到 DB（scope/manifest 等）
         from app.core.config import settings
         if settings.DEBUG:
@@ -677,10 +675,9 @@ class PluginLifecycle:
                 )
 
         # Alembic migration (ensure plugin tables are created) / Alembic 迁移（确保插件表已创建）
-        # fail-close: mark ERROR and abort enable on migration failure, prevent plugin running without DB tables
+        # fail-close: mark ERROR and abort enable on migration failure / 迁移失败时标记 ERROR 并中止启用
         # / fail-close：迁移失败则标记 ERROR 并中止 enable，防止插件在 DB 表缺失时运行。
-        # Note: startup.restore_enabled_plugins calls run_alembic_upgrade directly (ignores this branch),
-        # keeping non-blocking fail-open behavior to prevent single plugin migration failure from blocking startup.
+        # Note: startup.restore_enabled_plugins calls run_alembic_upgrade directly / 启动时 restore 直接调用 upgrade，单插件迁移失败不阻塞
         # / 注意：startup.restore_enabled_plugins 直接调用 run_alembic_upgrade（忽略此分支），
         #   保持非阻塞 fail-open 行为，避免单个插件迁移失败阻止服务启动。
         migrations_dir = self._loader.plugins_dir / plugin_name / "backend" / "migrations" / "versions"
@@ -746,7 +743,7 @@ class PluginLifecycle:
         menu_overrides = (plugin.config or {}).get("menu_overrides")
         register_all_extensions(registry, manifest, plugin_name, menu_overrides=menu_overrides)
 
-        # fail-close: rollback registration and mark error if critical extension load failed
+        # fail-close: rollback registration and mark error if critical extension load failed / 关键扩展加载失败时回滚并标记错误
         # / fail-close：若有关键扩展加载失败，回滚注册并标记 error
         failed = get_failed_extensions(plugin_name)
         if failed:
@@ -770,19 +767,16 @@ class PluginLifecycle:
                 plugin_name, manifest, ext.skills, active=True,
             )
 
-        # M50-T12: Ensure SystemAgentAssignment records exist for AI features
-        # Only created once during install; restore/enable needs to rebuild after DB reset
-        # / M50-T12: 确保 AI features 对应的 SystemAgentAssignment 记录存在
-        # install 阶段只创建一次，DB 重置后 restore/enable 需重建
+        # M50-T12: Ensure SystemAgentAssignment records exist for AI features; only created once during install, restore/enable needs to rebuild after DB reset / M50-T12: 确保 AI features 对应的 SystemAgentAssignment 记录存在；install 阶段只创建一次，DB 重置后 restore/enable 需重建
         if manifest.ai_requirements and manifest.ai_requirements.features:
             await self._ensure_plugin_ai_features(plugin_name, manifest.ai_requirements.features)
 
-        # M50-T1: Notification template DB sync — enable NotificationService.send() to find templates
+        # M50-T1: Notification template DB sync — enable NotificationService.send() to find templates / 通知模板 DB 同步
         # / M50-T1: 通知模板 DB 同步 — 使 NotificationService.send() 可正常查到模板
         if ext.notifications:
             await self._sync_plugin_notification_templates(plugin_name, ext.notifications)
 
-        # M50-T2: Periodic task DB sync — enable Celery Beat to schedule plugin tasks
+        # M50-T2: Periodic task DB sync — enable Celery Beat to schedule plugin tasks / 周期任务 DB 同步
         # / M50-T2: 定时任务 DB 同步 — 使 Celery Beat 可正常调度插件任务
         if ext.tasks:
             await self._sync_plugin_periodic_tasks(plugin_name, ext.tasks)
@@ -821,10 +815,7 @@ class PluginLifecycle:
         plugin.error_count = 0
         await self._db.flush()
 
-        # Write in-memory permission_registry menu permissions to DB (flush, no commit, preserves outer txn)
-        # _set_plugin_permissions_enabled only does UPDATE (depends on existing DB records),
-        # on first enable DB has no permission records for this plugin, must sync first.
-        # / 将 permission_registry 内存中的菜单权限写入 DB（flush，不 commit，不破坏外层事务）
+        # Write in-memory permission_registry menu permissions to DB (flush, no commit, preserves outer txn); _set_plugin_permissions_enabled only does UPDATE; on first enable must sync first / 将 permission_registry 内存中的菜单权限写入 DB；首次 enable 须先 sync
         # _set_plugin_permissions_enabled 只做 UPDATE（依赖 DB 记录已存在），
         # 首次 enable 时 DB 尚无该插件权限记录，必须先 sync 才能写入。
         try:
@@ -834,9 +825,16 @@ class PluginLifecycle:
         except Exception as exc:
             logger.warning("Plugin %s: failed to sync menu permissions to DB: %s", plugin_name, exc)
 
-        # Enable plugin menu permissions in DB so menu API immediately returns plugin menus
+        # Enable plugin menu permissions in DB so menu API immediately returns plugin menus / 启用 DB 中插件菜单权限
         # / 启用 DB 中的插件菜单权限，使菜单 API 立即返回该插件菜单
         await self._set_plugin_permissions_enabled(plugin_name, True)
+
+        # Auto-grant tenant-scoped plugin menu permissions to all active plans / 自动授予企业端插件菜单权限给所有活跃套餐
+        # / 将企业端插件菜单权限自动关联到所有活跃套餐
+        try:
+            await self._auto_grant_plugin_menus_to_plans(plugin_name)
+        except Exception as exc:
+            logger.warning("Plugin %s: failed to auto-grant menus to plans: %s", plugin_name, exc)
 
         # Clear route regex cache (routes may change in DEBUG mode) / 清除路由正则缓存（DEBUG 模式下路由可能变化）
         from app.plugins.api_dispatcher import _compile_route_regex
@@ -845,7 +843,7 @@ class PluginLifecycle:
         await emitter.emit_done(f"Plugin {plugin_name} enabled successfully")
         logger.info("Plugin %s enabled", plugin_name)
 
-        # T4: Trigger system hook point, other plugins can subscribe to PLUGIN_ENABLED
+        # T4: Trigger system hook point, other plugins can subscribe to PLUGIN_ENABLED / T4: 触发系统钩子点
         # / T4: 触发系统钩子点，其他插件可订阅 PLUGIN_ENABLED
         try:
             from app.plugins.system_hooks import SystemHookPoint, trigger_hook
@@ -857,7 +855,7 @@ class PluginLifecycle:
             logger.warning("system_hook PLUGIN_ENABLED failed: %s", exc)
 
     # ================================================================
-    # disable
+    # disable / 禁用
     # ================================================================
 
     async def disable(self, plugin_id: int, *, force: bool = False, operator_id: int | None = None) -> None:
@@ -928,12 +926,11 @@ class PluginLifecycle:
             logger.warning("Plugin %s on_disable failed: %s", plugin_name, exc)
             await emitter.emit_step("on_disable", "success", f"Disable hook warning: {exc}")
 
-        # Disable does not uninstall deps — deps only cleaned on uninstall
-        # So re-enable doesn't require re-installation
+        # Disable does not uninstall deps — deps only cleaned on uninstall / 禁用不卸载依赖，重新启用无需重装
         # / 禁用不卸载依赖 — 依赖仅在 uninstall 时清理
         # 这样用户重新启用时无需等待重新安装
 
-        # M50-T2: Mark plugin periodic tasks as inactive, Celery Beat auto-stops scheduling after next refresh
+        # M50-T2: Mark plugin periodic tasks as inactive / 标记插件周期任务为非活跃，Beat 下次刷新后停止调度
         # / M50-T2: 将插件定时任务标记为非活跃，Celery Beat 下次刺新后自动停止调度
         await emitter.emit_step("tasks", "running", "Deactivating scheduled tasks...")
         await self._deactivate_plugin_periodic_tasks(plugin_name)
@@ -944,10 +941,18 @@ class PluginLifecycle:
         plugin.enabled_at = None
         await self._db.flush()
 
-        # Sync-disable plugin menu permissions in DB so menu API no longer returns plugin menus
+        # Sync-disable plugin menu permissions in DB so menu API no longer returns plugin menus / 同步禁用 DB 中插件菜单权限
         # / 同步禁用 DB 中的插件菜单权限，使菜单 API 立即不再返回该插件菜单
         await emitter.emit_step("permissions", "running", "Disabling menu permissions...")
         await self._set_plugin_permissions_enabled(plugin_name, False)
+
+        # Revoke tenant-scoped plugin menu permissions from all plans / 从所有套餐撤销企业端插件菜单权限
+        # / 从所有套餐中移除企业端插件菜单权限
+        try:
+            await self._revoke_plugin_menus_from_plans(plugin_name)
+        except Exception as exc:
+            logger.warning("Plugin %s: failed to revoke menus from plans: %s", plugin_name, exc)
+
         await emitter.emit_step("permissions", "success", "Menu permissions disabled")
 
         await emitter.emit_done(f"Plugin {plugin_name} disabled successfully")
@@ -964,7 +969,7 @@ class PluginLifecycle:
             logger.warning("system_hook PLUGIN_DISABLED failed: %s", exc)
 
     # ================================================================
-    # dependencies
+    # dependencies / 依赖
     # ================================================================
 
     async def install_dependencies(
@@ -1098,7 +1103,7 @@ class PluginLifecycle:
             }
 
     # ================================================================
-    # uninstall
+    # uninstall / 卸载
     # ================================================================
 
     async def uninstall(
@@ -1418,6 +1423,84 @@ class PluginLifecycle:
         action = "enabled" if is_enabled else "disabled"
         logger.info("Plugin %s: %s menu permissions in DB", plugin_name, action)
 
+    async def _auto_grant_plugin_menus_to_plans(self, plugin_name: str) -> None:
+        """
+        Auto-grant tenant-scoped plugin menu permissions to all active plans.
+        Uses INSERT ... ON CONFLICT DO NOTHING (idempotent).
+        / 将企业端插件菜单权限自动关联到所有活跃套餐（幂等）。
+        """
+        from sqlalchemy import select, text
+
+        from app.models.auth.permission import Permission
+        from app.models.tenant.tenant_plan import TenantPlan
+
+        safe_name = plugin_name.replace("-", "_")
+        tenant_prefix = f"menu:tenant.plugin_{safe_name}_%"
+
+        perm_ids = (await self._db.execute(
+            select(Permission.id).where(
+                Permission.code.like(tenant_prefix),
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
+            )
+        )).scalars().all()
+        if not perm_ids:
+            return
+
+        plan_ids = (await self._db.execute(
+            select(TenantPlan.id).where(TenantPlan.is_active.is_(True))
+        )).scalars().all()
+        if not plan_ids:
+            return
+
+        pairs = [(pid, perm_id) for pid in plan_ids for perm_id in perm_ids]
+        await self._db.execute(
+            text(
+                "INSERT INTO tenant_plan_permissions (plan_id, permission_id) "
+                "VALUES (:plan_id, :permission_id) "
+                "ON CONFLICT DO NOTHING"
+            ),
+            [{"plan_id": p, "permission_id": perm} for p, perm in pairs],
+        )
+        await self._db.flush()
+        logger.info(
+            "Plugin %s: auto-granted %d menu permission(s) to %d plan(s)",
+            plugin_name, len(perm_ids), len(plan_ids),
+        )
+
+    async def _revoke_plugin_menus_from_plans(self, plugin_name: str) -> None:
+        """
+        Revoke tenant-scoped plugin menu permissions from all plans on disable.
+        / 插件禁用时，从所有套餐中移除企业端插件菜单权限。
+        """
+        from sqlalchemy import select
+
+        from app.models.auth.permission import Permission
+        from app.models.tenant.tenant_plan import tenant_plan_permissions
+
+        safe_name = plugin_name.replace("-", "_")
+        tenant_prefix = f"menu:tenant.plugin_{safe_name}_%"
+
+        perm_ids = (await self._db.execute(
+            select(Permission.id).where(
+                Permission.code.like(tenant_prefix),
+                Permission.is_deleted.is_(False),
+            )
+        )).scalars().all()
+        if not perm_ids:
+            return
+
+        await self._db.execute(
+            tenant_plan_permissions.delete().where(
+                tenant_plan_permissions.c.permission_id.in_(perm_ids)
+            )
+        )
+        await self._db.flush()
+        logger.info(
+            "Plugin %s: revoked %d menu permission(s) from all plans",
+            plugin_name, len(perm_ids),
+        )
+
     async def _check_storage_driver_in_use(
         self, plugin_name: str, manifest_data: dict, *, force: bool = False
     ) -> None:
@@ -1442,7 +1525,7 @@ class PluginLifecycle:
 
         config_service = ConfigService(self._db)
 
-        # Check platform storage driver
+        # Check platform storage driver / 检查平台存储驱动
         platform_driver = await config_service.get_platform_config(
             "platform_storage_driver", default="local"
         )
@@ -1461,7 +1544,7 @@ class PluginLifecycle:
             )
             await config_service.set_platform_config("platform_storage_driver", "local")
 
-        # Check tenant storage drivers — batch query to avoid N+1
+        # Check tenant storage drivers — batch query to avoid N+1 / 检查企业存储驱动（批量查询避免 N+1）
         from sqlalchemy import and_, select
 
         from app.models.system.config import SystemConfig, SystemConfigValue
@@ -1562,12 +1645,12 @@ class PluginLifecycle:
             """Build likely import module names for a requirement."""
             names: list[str] = []
 
-            # Heuristic fallback: `foo-bar` -> `foo_bar`
+            # Heuristic fallback: `foo-bar` -> `foo_bar` / 启发式回退：包名转模块名
             fallback = req_name.replace("-", "_").replace(".", "_").strip()
             if fallback and fallback.isidentifier():
                 names.append(fallback)
 
-            # Preferred source: top_level.txt from wheel metadata
+            # Preferred source: top_level.txt from wheel metadata / 优先来源：wheel 元数据中的 top_level.txt
             if dist is not None:
                 with suppress(Exception):
                     top_level = dist.read_text("top_level.txt")
@@ -1707,8 +1790,7 @@ class PluginLifecycle:
                     message=f"Failed to install {normalized_req}: {result.stderr.strip()}",
                 )
 
-            # Post-install conservative verification: only strongly verify importability when metadata provides top_level,
-            # to avoid false positives from distribution/import name mismatch (e.g. Pillow -> PIL).
+            # Post-install conservative verification: only strongly verify importability when metadata provides top_level, to avoid false positives from distribution/import name mismatch (e.g. Pillow -> PIL) / 安装后保守校验：仅当元数据提供 top_level 时强校验可导入性，避免分发名与导入名不一致的误报
             # / 安装后做一次保守校验：仅当 metadata 能提供 top_level 时才强校验 importability，
             # 避免因发行名/导入名不一致导致误报（如 Pillow -> PIL）。
             post_top_level = ""
@@ -1733,12 +1815,7 @@ class PluginLifecycle:
             logger.info("Installed %s for plugin %s", normalized_req, plugin_name)
 
         if needs_cache_refresh:
-            # Ensure newly installed packages are immediately importable (no restart needed), refresh:
-            # 1. sys.path entries (site-packages may have new paths)
-            # 2. importlib internal FileFinder cache
-            # / 确保新安装的包立即可 import（无需重启），刷新：
-            # 1. sys.path 条目（site-packages 可能新增路径）
-            # 2. importlib 内部的 FileFinder 缓存
+            # Ensure newly installed packages are immediately importable (no restart needed), refresh sys.path and importlib cache / 确保新安装的包立即可导入（无需重启），刷新 sys.path 与 importlib 缓存
             for sp in site.getsitepackages():
                 if sp not in sys.path:
                     sys.path.insert(0, sp)
@@ -1820,7 +1897,7 @@ class PluginLifecycle:
         env = os.environ.copy()
         current_path = env.get("PATH", "")
 
-        # Fast path: already available.
+        # Fast path: already available. / 快速路径：已可用则直接返回
         if shutil.which("cargo", path=current_path):
             return env
 
@@ -1844,7 +1921,7 @@ class PluginLifecycle:
                     for cargo_path in cache_root.rglob(cargo_bin_name):
                         candidate_dirs.append(cargo_path.parent)
 
-        # Keep only existing dirs containing cargo binary, and de-duplicate.
+        # Keep only existing dirs containing cargo binary, and de-duplicate / 仅保留含 cargo 二进制且存在的目录，并去重
         resolved_dirs: list[str] = []
         seen: set[str] = set()
         for p in candidate_dirs:
@@ -1944,10 +2021,9 @@ class PluginLifecycle:
                     )
                     continue
 
-                # Parse package name: strip version specifier
+                # Parse package name: strip version specifier / 解析包名：去除版本限定符
                 # @scope/name@^1.0 → @scope/name
-                # name@^1.0 → name
-                # @scope/name → @scope/name (no version)
+                # name@^1.0 → name; @scope/name → @scope/name (no version) / 去除版本限定符
                 # / 解析包名：去掉版本号
                 if raw_name.startswith("@"):
                     # With scope: prefer @scope/name (last @ may be version separator)
@@ -2088,17 +2164,17 @@ class PluginLifecycle:
             if not pkg:
                 continue
 
-            # Check 1: other plugin needs it
+            # Check 1: other plugin needs it / 检查 1：其他插件需要
             if pkg in other_plugin_deps:
                 logger.info("Kept %s (still needed by other plugins)", pkg)
                 continue
 
-            # Check 2: main project needs it
+            # Check 2: main project needs it / 检查 2：主项目需要
             if pkg in project_deps:
                 logger.info("Kept %s (declared in project requirements.txt)", pkg)
                 continue
 
-            # Check 3: pip reverse dependency check
+            # Check 3: pip reverse dependency check / 检查 3：pip 反向依赖检查
             try:
                 pip_result = await _run_subprocess_async(
                     pip_python, "-m", "pip", "show", pkg,
@@ -2115,7 +2191,7 @@ class PluginLifecycle:
                                 )
                                 break
                     else:
-                        # No Required-by found or empty → safe to remove
+                        # No Required-by found or empty → safe to remove / 无 Required-by 或为空 → 可安全移除
                         await _run_subprocess_async(
                             pip_python, "-m", "pip", "uninstall", pkg, "-y", "--quiet",
                             timeout=60,
@@ -2668,7 +2744,7 @@ except Exception as exc:
                 logger.info("Rollback: removed plugin directory %s", target_dir)
 
     # ================================================================
-    # Plugin skill record management (SkillPackage + Skill)
+    # Plugin skill record management (SkillPackage + Skill) / 插件技能记录管理（SkillPackage + Skill）
     # / 插件技能记录管理（SkillPackage + Skill）
     # ================================================================
 
@@ -2712,7 +2788,7 @@ except Exception as exc:
 
         if not package:
             # 创建平台级技能包：tenant_id=NULL，可见性由 target_audience 默认值 'all' 控制
-            # Create platform-level package: tenant_id=NULL, visibility controlled by target_audience default 'all'
+            # Create platform-level package: tenant_id=NULL, visibility controlled by target_audience default 'all' / 创建平台级包：tenant_id=NULL，可见性由 target_audience 默认 'all' 控制
             package = SkillPackage(
                 name=display_name,
                 description=resolve_i18n(manifest.description) if manifest.description else None,

@@ -34,8 +34,6 @@
     "@tiptap/extension-character-count": "^3.20.0",
     "@tiptap/extension-code": "^3.20.0",
     "@tiptap/extension-code-block-lowlight": "^3.20.0",
-    "@tiptap/extension-collaboration": "^3.20.0",
-    "@tiptap/extension-collaboration-cursor": "^2.26.2",
     "@tiptap/extension-color": "^3.20.0",
     "@tiptap/extension-document": "^3.20.0",
     "@tiptap/extension-dropcursor": "^3.20.0",
@@ -110,9 +108,7 @@
     "vue-router": "catalog:",
     "vxe-table": "catalog:",
     "xe-utils": "^4.0.1",
-    "xlsx": "^0.18.5",
-    "y-protocols": "^1.0.7",
-    "yjs": "^13.6.29"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.85",

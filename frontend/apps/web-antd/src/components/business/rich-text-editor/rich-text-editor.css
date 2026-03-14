@@ -1,0 +1,116 @@
+/* ── Platform Rich Text Editor styles ── */
+
+/* ── ProseMirror overrides (3rd-party DOM, Tailwind cannot target) ── */
+.rte-editor .ProseMirror { outline: none; flex: 1; cursor: text; }
+.rte-editor-content > div { display: flex; flex-direction: column; flex: 1; }
+.rte-editor .ProseMirror p { margin: 0.25rem 0; }
+.rte-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.rte-editor .ProseMirror h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.3; margin: 1rem 0 0.5rem; }
+.rte-editor .ProseMirror h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.35; margin: 0.875rem 0 0.5rem; }
+.rte-editor .ProseMirror h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; margin: 0.75rem 0 0.375rem; }
+.rte-editor .ProseMirror h4 { font-size: 1.1rem; font-weight: 600; line-height: 1.45; margin: 0.625rem 0 0.25rem; }
+.rte-editor .ProseMirror ul { list-style-type: disc; padding-left: 1.5em; margin: 0.5rem 0; }
+.rte-editor .ProseMirror ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5rem 0; }
+.rte-editor .ProseMirror li { margin: 0.25rem 0; }
+.rte-editor .ProseMirror li p { margin: 0; }
+.rte-editor .ProseMirror hr { border: none; border-top: 2px solid hsl(var(--border)); margin: 1.5rem 0; }
+.rte-editor .ProseMirror blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 16px; margin-left: 0; color: hsl(var(--muted-foreground)); }
+.rte-editor .ProseMirror pre { background: hsl(var(--accent)); border-radius: 8px; padding: 12px 16px; overflow-x: auto; }
+.rte-editor .ProseMirror table { border-collapse: collapse; width: 100%; }
+.rte-editor .ProseMirror td,
+.rte-editor .ProseMirror th { border: 1px solid hsl(var(--border)); padding: 8px 12px; text-align: left; }
+.rte-editor .ProseMirror th { background: hsl(var(--accent)); font-weight: 600; }
+.rte-editor .ProseMirror a { color: hsl(var(--primary)); text-decoration: underline; }
+.rte-editor .ProseMirror img.rte-image { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+.rte-editor .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
+.rte-editor .ProseMirror ul[data-type="taskList"] li > label { margin-top: 3px; }
+
+/* ── Toolbar button ── */
+.rte-tbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.rte-tbtn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.rte-tbtn.active { background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); }
+.rte-tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── compact mode outer frame ── */
+.rte-compact { border: 1px solid hsl(var(--input)); border-radius: var(--radius); background: hsl(var(--background)); }
+.rte-compact:focus-within { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1); }
+
+/* ── Tippy.js overrides (portal on body) ── */
+.tippy-box[data-theme="none"] { background: transparent !important; border: none !important; box-shadow: none !important; border-radius: 0 !important; }
+.tippy-box[data-theme="none"] .tippy-content { padding: 0 !important; }
+.tippy-box[data-theme="none"] .tippy-arrow { display: none !important; }
+
+/* ── AI animations ── */
+.rte-ai-dot { animation: rte-dot-anim 1.4s infinite ease-in-out; }
+.rte-ai-dot:nth-child(2) { animation-delay: 0.2s; }
+.rte-ai-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes rte-dot-anim {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.rte-ai-msg { animation: rte-fade-in 200ms ease; }
+@keyframes rte-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── AI result panel markdown ── */
+.rte-ai-result-content p { margin: 0.25rem 0; }
+.rte-ai-result-content code { background: hsl(var(--accent)); padding: 0.125rem 0.25rem; border-radius: 3px; font-size: 0.875em; }
+.rte-ai-result-content pre { background: hsl(var(--accent)); padding: 0.5rem; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; }
+.rte-ai-result-content pre code { background: transparent; padding: 0; }
+.rte-ai-result-content ul { list-style-type: disc; padding-left: 1.5em; }
+.rte-ai-result-content ol { list-style-type: decimal; padding-left: 1.5em; }
+.rte-ai-result-content strong { font-weight: 600; }
+
+/* ── AIResultPanel slide-up entrance ── */
+@keyframes rte-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rte-result-enter { animation: rte-slide-up 250ms cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ── BubbleMenu fade-scale entrance ── */
+@keyframes rte-bubble-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.tippy-box[data-theme="none"] .rounded-\[10px\] {
+  animation: rte-bubble-enter 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Button click scale feedback ── */
+.rte-tbtn:active:not(:disabled) { transform: scale(0.92); }
+
+/* ── AIResultPanel button hover enhancement ── */
+.rte-result-enter .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ── A11y focus-visible ── */
+.rte-tbtn:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; border-radius: 6px; }
+
+/* ── Touch-friendly ── */
+@media (pointer: coarse) {
+  .rte-tbtn { width: 36px; height: 36px; min-width: 36px; }
+}

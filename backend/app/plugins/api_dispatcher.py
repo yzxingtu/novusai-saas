@@ -101,10 +101,8 @@ async def _dispatch_plugin_api(
     manifest_data = row[3] or {}
     granted_capabilities = row[4] or []
 
-    # Dev mode: read routes from disk plugin.yaml in real-time (no need to re-disable/enable after yaml changes)
-    # Prod mode: read from DB manifest snapshot (better performance)
-    # / 开发模式：从磁盘 plugin.yaml 实时读取路由（改了 yaml 不需要重新禁用/启用）
-    # 生产模式：从 DB manifest 快照读取（性能更好）
+    # Dev mode: read routes from disk plugin.yaml in real-time (no need to re-disable/enable after yaml changes) / 开发模式：从磁盘 plugin.yaml 实时读取路由（改了 yaml 不需要重新禁用/启用）
+    # Prod mode: read from DB manifest snapshot (better performance) / 生产模式：从 DB manifest 快照读取（性能更好）
     if settings.DEBUG:
         try:
             live_manifest = _get_plugin_loader().load_manifest(plugin_name)
@@ -158,17 +156,13 @@ async def _dispatch_plugin_api(
             content={"code": 4040, "message": "Route not found"},
         )
 
-    # Inject extracted path params (e.g. {doc_id}=123) into request.path_params
-    # so handler can access via request.path_params.get("doc_id")
-    # / 注入提取到的路径参数（如 {doc_id}=123）到 request.path_params
-    # 这样 handler 可以通过 request.path_params.get("doc_id") 访问
+    # Inject extracted path params (e.g. {doc_id}=123) into request.path_params so handler can access via request.path_params.get("doc_id") / 注入提取到的路径参数到 request.path_params，供 handler 访问
     if path_params:
         existing = dict(request.path_params)
         existing.update(path_params)
         request.scope["path_params"] = existing
 
-    # Permission action gating: if route declares a permission field, check user has that action permission
-    # / 权限动作门控：若路由声明了 permission 字段，校验用户是否拥有该动作权限
+    # Permission action gating: if route declares a permission field, check user has that action permission / 权限动作门控：若路由声明了 permission 字段，校验用户是否拥有该动作权限
     route_permission = matched_route.get("permission", "")
     if route_permission and not allow_public_only:
         has_perm = await _check_plugin_permission(
@@ -375,7 +369,7 @@ def _match_route_path(route_pattern: str, actual_path: str) -> tuple[bool, dict[
     Returns: (True, {'id': '42'})
     """
     if "{" not in route_pattern:
-        # No parameters — exact match
+        # No parameters — exact match / 无参数时精确匹配
         return (route_pattern == actual_path, {})
 
     m = _compile_route_regex(route_pattern).match(actual_path)
@@ -430,7 +424,7 @@ async def _check_plugin_permission(
     Check if user has the permission action required by the plugin route.
     / 检查用户是否拥有插件路由要求的权限动作。
 
-    route_permission format / 格式: "permission_code:action" (e.g. "novusdoc-pro:comment")
+    route_permission format / 格式: "permission_code:action" (e.g. "novusdoc:list")
     - Admin users have all plugin permissions by default (superset) / admin 用户默认拥有所有插件权限（超集）
     - tenant_admin checked via RBAC / tenant_admin 通过 RBAC 权限检查
 
@@ -524,10 +518,8 @@ def _build_plugin_context(
     from app.plugins.context_factory import create_plugin_context
     from app.plugins.manifest import PluginManifest
 
-    # Prod mode: use DB manifest snapshot to prevent disk changes from bypassing auth boundaries
-    # DEBUG mode: allow hot-loading disk manifest for better dev experience
-    # / 生产模式：以 DB manifest 快照为准，避免磁盘变更突破授权边界
-    # DEBUG 模式：允许热加载磁盘 manifest，提升开发体验
+    # Prod mode: use DB manifest snapshot to prevent disk changes from bypassing auth boundaries / 生产模式：以 DB manifest 快照为准，避免磁盘变更突破授权边界
+    # DEBUG mode: allow hot-loading disk manifest for better dev experience / DEBUG 模式：允许热加载磁盘 manifest，提升开发体验
     if settings.DEBUG:
         try:
             manifest = _get_plugin_loader().load_manifest(plugin_name)

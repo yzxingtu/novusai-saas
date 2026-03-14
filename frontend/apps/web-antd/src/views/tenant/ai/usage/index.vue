@@ -94,7 +94,7 @@ async function loadSummary() {
     }
     summary.value = await getTenantAIUsageSummaryApi(params);
   } catch {
-    // Error handled by request interceptor
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }
@@ -148,7 +148,7 @@ async function loadCharts() {
     if (ct.status === 'fulfilled') trendData.value = ct.value;
     if (md.status === 'fulfilled') modelData.value = md.value;
   } catch {
-    /* handled */
+    /* handled / 已处理 */
   }
 }
 

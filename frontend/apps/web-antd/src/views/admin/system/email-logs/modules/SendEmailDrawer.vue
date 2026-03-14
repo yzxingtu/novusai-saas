@@ -53,7 +53,7 @@ async function handleSend() {
       message.error(result.error || result.message);
     }
   } catch {
-    // handled by request interceptor
+    // handled by request interceptor / 错误由请求拦截器处理
   } finally {
     loading.value = false;
   }

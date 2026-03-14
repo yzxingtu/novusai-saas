@@ -14,7 +14,7 @@ from app.core.base_schema import BaseSchema
 
 
 class TaskLogResponse(BaseSchema):
-    """任务日志响应"""
+    """任务日志响应 / Task log response"""
 
     id: int = Field(..., description="ID")
     task_id: str = Field(..., description="Celery Task ID")
@@ -34,13 +34,13 @@ class TaskLogResponse(BaseSchema):
 
 
 class TaskLogDetailResponse(TaskLogResponse):
-    """任务日志详情响应（含堆栈）"""
+    """任务日志详情响应（含堆栈） / Task log detail response (with traceback)"""
 
     traceback: str | None = Field(None, description="异常堆栈")
 
 
 class TaskStatsResponse(BaseSchema):
-    """任务统计响应"""
+    """任务统计响应 / Task stats response"""
 
     status: str = Field(..., description="任务状态")
     count: int = Field(0, description="数量")
@@ -48,13 +48,13 @@ class TaskStatsResponse(BaseSchema):
 
 
 class TaskRetryRequest(BaseSchema):
-    """任务重试请求"""
+    """任务重试请求 / Task retry request"""
 
     queue: str | None = Field(None, description="指定队列（留空使用原队列）")
 
 
 class ActiveTaskResponse(BaseSchema):
-    """活跃任务响应"""
+    """活跃任务响应 / Active task response"""
 
     task_id: str = Field(..., description="Task ID")
     task_name: str = Field(..., description="任务名称")
