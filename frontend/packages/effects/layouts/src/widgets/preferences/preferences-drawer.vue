@@ -16,13 +16,9 @@ import type { SegmentedItem } from '@vben-core/shadcn-ui';
 
 import { computed, ref } from 'vue';
 
-import { Copy, Pin, PinOff, RotateCw } from '@vben/icons';
-import { $t, loadLocaleMessages } from '@vben/locales';
-import {
-  preferences,
-  resetPreferences,
-  usePreferences,
-} from '@vben/preferences';
+import { Pin, PinOff, RotateCw } from '@vben/icons';
+import { $t } from '@vben/locales';
+import { preferences, usePreferences } from '@vben/preferences';
 
 import { useVbenDrawer } from '@vben-core/popup-ui';
 import {
@@ -30,10 +26,6 @@ import {
   VbenIconButton,
   VbenSegmented,
 } from '@vben-core/shadcn-ui';
-import { globalShareState } from '@vben-core/shared/global-state';
-
-import { useClipboard } from '@vueuse/core';
-
 import {
   Animation,
   Block,
@@ -56,9 +48,10 @@ import {
   Widget,
 } from './blocks';
 
-const emit = defineEmits<{ clearPreferencesAndLogout: [] }>();
-
-const message = globalShareState.getMessage();
+const emit = defineEmits<{
+  clearPreferencesAndLogout: [];
+  resetPreferences: [];
+}>();
 
 const appLocale = defineModel<SupportedLanguagesType>('appLocale');
 const appDynamicTitle = defineModel<boolean>('appDynamicTitle');
@@ -180,7 +173,6 @@ const {
   isSideMode,
   isSideNav,
 } = usePreferences();
-const { copy } = useClipboard({ legacy: true });
 
 const [Drawer] = useVbenDrawer();
 
@@ -216,25 +208,12 @@ const showBreadcrumbConfig = computed(() => {
   );
 });
 
-async function handleCopy() {
-  await copy(JSON.stringify(diffPreference.value, null, 2));
-
-  message.copyPreferencesSuccess?.(
-    $t('preferences.copyPreferencesSuccessTitle'),
-    $t('preferences.copyPreferencesSuccess'),
-  );
-}
-
 async function handleClearCache() {
   emit('clearPreferencesAndLogout');
 }
 
 async function handleReset() {
-  if (!diffPreference.value) {
-    return;
-  }
-  resetPreferences();
-  await loadLocaleMessages(preferences.app.locale);
+  emit('resetPreferences');
 }
 </script>
 
@@ -297,6 +276,7 @@ async function handleReset() {
                 v-model:app-locale="appLocale"
                 v-model:app-watermark="appWatermark"
                 v-model:app-watermark-content="appWatermarkContent"
+                :show-watermark="false"
               />
             </Block>
 
@@ -458,17 +438,7 @@ async function handleReset() {
 
       <template #footer>
         <VbenButton
-          :disabled="!diffPreference"
           class="mx-4 w-full"
-          size="sm"
-          variant="default"
-          @click="handleCopy"
-        >
-          <Copy class="mr-2 size-3" />
-          {{ $t('preferences.copyPreferences') }}
-        </VbenButton>
-        <VbenButton
-          class="mr-4 w-full"
           size="sm"
           variant="ghost"
           @click="handleClearCache"

@@ -107,3 +107,6 @@ export function getApiEndpoint(path: string): ApiEndpoint {
   }
   return 'user';
 }
+
+/** 偏好 JSON 对象 / Preferences JSON object */
+export type PreferencesData = Record<string, boolean | number | string>;

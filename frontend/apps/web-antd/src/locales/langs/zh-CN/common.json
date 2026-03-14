@@ -449,6 +449,8 @@
     "resetConfirm": "确定要恢复全局默认偏好吗？您的个人设置将被清除。",
     "resetSuccess": "已恢复全局默认",
     "saveSuccess": "偏好设置已保存",
+    "saveFailed": "偏好设置保存失败",
+    "loadFailed": "偏好设置加载失败",
     "globalSaveHint": "保存后将清除管理员对已变更项的个人覆盖",
     "usingGlobal": "跟随全局",
     "customized": "已自定义",

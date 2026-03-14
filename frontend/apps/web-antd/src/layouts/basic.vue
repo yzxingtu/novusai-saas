@@ -14,7 +14,7 @@ import {
   TimezoneButton,
   UserDropdown,
 } from '@vben/layouts';
-import { preferences } from '@vben/preferences';
+import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
@@ -174,7 +174,8 @@ watch(
 );
 
 onMounted(async () => {
-  // Socket.IO: 登录后自动连接
+  updatePreferences({ copyright: { settingShow: false } });
+
   socketIOStore.connect();
   // 设置通知端类型后再加载未读数（避免默认 admin 端导致 401）
   const ep = router.currentRoute.value.path.startsWith('/admin')
@@ -217,6 +218,15 @@ const menus = computed(() => [
     text: $t('common.preference.resetToGlobal'),
   },
 ]);
+
+async function handleResetPreferences() {
+  const result = await preferenceStore.resetMyPreferences();
+  if (result) {
+    skipSync();
+    initSnapshot();
+    message.success($t('common.preference.resetSuccess'));
+  }
+}
 
 const avatar = computed(() => {
   return userStore.userInfo?.avatar ?? preferences.app.defaultAvatar;
@@ -328,6 +338,7 @@ watch(
     :panel-right-offset="aiPanelRightOffset"
     @clear-preferences-and-logout="() => cacheClearModalRef?.open()"
     @locale-change="handleLocaleChange"
+    @reset-preferences="handleResetPreferences"
   >
     <template #sidebar-bottom>
       <div

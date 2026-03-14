@@ -5,14 +5,24 @@ import { VbenIconButton } from '@vben-core/shadcn-ui';
 
 import Preferences from './preferences.vue';
 
-const emit = defineEmits<{ clearPreferencesAndLogout: [] }>();
+const emit = defineEmits<{
+  clearPreferencesAndLogout: [];
+  resetPreferences: [];
+}>();
 
 function clearPreferencesAndLogout() {
   emit('clearPreferencesAndLogout');
 }
+
+function resetPreferencesHandler() {
+  emit('resetPreferences');
+}
 </script>
 <template>
-  <Preferences @clear-preferences-and-logout="clearPreferencesAndLogout">
+  <Preferences
+    @clear-preferences-and-logout="clearPreferencesAndLogout"
+    @reset-preferences="resetPreferencesHandler"
+  >
     <VbenIconButton
       class="hover:animate-[shrink_0.3s_ease-in-out]"
     >

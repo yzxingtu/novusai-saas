@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
- * Global/Personal preference form using Vben's built-in preference blocks.
- * Watermark section only visible in global mode.
- * 使用 Vben 内置偏好块组件的全局/个人偏好表单。水印区块仅全局模式可见。
+ * Global preference form using Vben's built-in preference blocks.
+ * 使用 Vben 内置偏好块组件的全局偏好表单。
  */
 import type {
   BreadcrumbStyleType,
@@ -12,10 +11,11 @@ import type {
   LayoutHeaderModeType,
   LayoutType,
   NavigationStyleType,
+  PreferencesButtonPositionType,
   ThemeModeType,
 } from '@vben/types';
 
-import type { PreferencesData } from '#/api/admin/preferences';
+import type { PreferencesData } from '#/api/shared/types';
 
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
@@ -32,11 +32,13 @@ import {
   Content,
   FontSize,
   Footer,
+  GlobalShortcutKeys,
   Header,
   Layout,
   Navigation,
   Radius,
   Sidebar,
+  SwitchItem,
   Tabbar,
   Theme,
   VbenSegmented,
@@ -50,12 +52,10 @@ import { $t } from '#/locales';
 interface Props {
   modelValue: PreferencesData;
   readonly?: boolean;
-  mode?: 'global' | 'personal';
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonly: false,
-  mode: 'global',
 });
 
 const emit = defineEmits<{
@@ -78,8 +78,6 @@ function onFieldChange() {
   emit('update:modelValue', { ...form });
 }
 
-const isGlobal = computed(() => props.mode === 'global');
-
 const {
   isDark,
   isFullContent,
@@ -96,6 +94,7 @@ const activeTab = ref('appearance');
 const tabs = computed((): SegmentedItem[] => [
   { label: $t('preferences.appearance'), value: 'appearance' },
   { label: $t('preferences.layout'), value: 'layout' },
+  { label: $t('preferences.shortcutKeys.title'), value: 'shortcutKey' },
   { label: $t('preferences.general'), value: 'general' },
 ]);
 
@@ -137,6 +136,8 @@ const sidebarCollapsed = bridge<boolean>('sidebar_collapsed');
 const sidebarCollapsedShowTitle = bridge<boolean>('sidebar_collapsed_show_title');
 const sidebarAutoActivateChild = bridge<boolean>('sidebar_auto_activate_child');
 const sidebarExpandOnHover = bridge<boolean>('sidebar_expand_on_hover');
+const sidebarCollapsedButton = bridge<boolean>('sidebar_collapsed_button');
+const sidebarFixedButton = bridge<boolean>('sidebar_fixed_button');
 const headerEnable = bridge<boolean>('header_enable');
 const headerMode = bridge<LayoutHeaderModeType>('header_mode');
 const headerMenuAlign = bridge<LayoutHeaderMenuAlignType>('header_menu_align');
@@ -166,10 +167,16 @@ const widgetThemeToggle = bridge<boolean>('widget_theme_toggle');
 const widgetSidebarToggle = bridge<boolean>('widget_sidebar_toggle');
 const widgetLockScreen = bridge<boolean>('widget_lock_screen');
 const widgetRefresh = bridge<boolean>('widget_refresh');
+const widgetPreferencesButtonPosition = bridge<PreferencesButtonPositionType>('widget_preferences_button_position');
 const footerEnable = bridge<boolean>('footer_enable');
 const footerFixed = bridge<boolean>('footer_fixed');
 
 const appLocale = bridge<string>('locale');
+const dynamicTitle = bridge<boolean>('dynamic_title');
+const shortcutKeysEnable = bridge<boolean>('shortcut_keys_enable');
+const shortcutKeysGlobalSearch = bridge<boolean>('shortcut_keys_global_search');
+const shortcutKeysGlobalLogout = bridge<boolean>('shortcut_keys_global_logout');
+const shortcutKeysGlobalLockScreen = bridge<boolean>('shortcut_keys_global_lock_screen');
 const transitionEnable = bridge<boolean>('transition_enable');
 const transitionLoading = bridge<boolean>('transition_loading');
 const transitionProgress = bridge<boolean>('transition_progress');
@@ -257,6 +264,8 @@ function insertWatermarkVar(varKey: string) {
             v-model:sidebar-enable="sidebarEnable"
             v-model:sidebar-expand-on-hover="sidebarExpandOnHover"
             v-model:sidebar-width="sidebarWidth"
+            v-model:sidebar-collapsed-button="sidebarCollapsedButton"
+            v-model:sidebar-fixed-button="sidebarFixedButton"
             :current-layout="appLayout"
             :disabled="!isSideMode"
           />
@@ -307,6 +316,7 @@ function insertWatermarkVar(varKey: string) {
         </Block>
         <Block :title="$t('preferences.widget.title')">
           <Widget
+            v-model:app-preferences-button-position="widgetPreferencesButtonPosition"
             v-model:widget-fullscreen="widgetFullscreen"
             v-model:widget-global-search="widgetGlobalSearch"
             v-model:widget-language-toggle="widgetLanguageToggle"
@@ -321,6 +331,18 @@ function insertWatermarkVar(varKey: string) {
           <Footer
             v-model:footer-enable="footerEnable"
             v-model:footer-fixed="footerFixed"
+          />
+        </Block>
+      </template>
+
+      <!-- ===== Shortcut Keys ===== -->
+      <template #shortcutKey>
+        <Block :title="$t('preferences.shortcutKeys.global')">
+          <GlobalShortcutKeys
+            v-model:shortcut-keys-enable="shortcutKeysEnable"
+            v-model:shortcut-keys-global-search="shortcutKeysGlobalSearch"
+            v-model:shortcut-keys-lock-screen="shortcutKeysGlobalLockScreen"
+            v-model:shortcut-keys-logout="shortcutKeysGlobalLogout"
           />
         </Block>
       </template>
@@ -344,6 +366,9 @@ function insertWatermarkVar(varKey: string) {
                 <option value="en">English</option>
               </select>
             </div>
+            <SwitchItem v-model="dynamicTitle">
+              {{ $t('preferences.dynamicTitle') }}
+            </SwitchItem>
           </div>
         </Block>
         <Block :title="$t('preferences.animation.title')">
@@ -355,11 +380,7 @@ function insertWatermarkVar(varKey: string) {
           />
         </Block>
 
-        <!-- Watermark: global mode only -->
-        <Block
-          v-if="isGlobal"
-          :title="$t('common.preference.category.watermark')"
-        >
+        <Block :title="$t('common.preference.category.watermark')">
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
@@ -368,7 +389,7 @@ function insertWatermarkVar(varKey: string) {
               <Switch
                 :checked="watermarkEnable"
                 size="small"
-                @update:checked="watermarkEnable = $event"
+                @update:checked="watermarkEnable = !!$event"
               />
             </div>
             <div v-if="watermarkEnable" class="flex flex-col gap-2">

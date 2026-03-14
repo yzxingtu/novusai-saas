@@ -2,12 +2,12 @@
  * Tenant preferences API / 租户端偏好设置 API
  * Backend: /tenant/preferences/*
  */
+import type { PreferencesData } from '#/api/shared/types';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 偏好 JSON 对象 / Preferences JSON object */
-export type PreferencesData = Record<string, boolean | number | string>;
+export type { PreferencesData };
 
 /** 获取租户全局偏好 / Get tenant global preferences */
 export async function getTenantGlobalPreferencesApi(
@@ -63,12 +63,3 @@ export async function resetTenantMyPreferencesApi(
   );
 }
 
-/** 获取系统默认偏好 / Get system default preferences */
-export async function getTenantDefaultPreferencesApi(
-  options?: ApiRequestOptions,
-): Promise<PreferencesData> {
-  return await requestClient.get<PreferencesData>(
-    '/tenant/preferences/defaults',
-    options,
-  );
-}

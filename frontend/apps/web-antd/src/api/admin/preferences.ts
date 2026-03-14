@@ -2,12 +2,12 @@
  * Platform admin preferences API / 平台管理端偏好设置 API
  * Backend: /admin/preferences/*
  */
+import type { PreferencesData } from '#/api/shared/types';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
-/** 偏好 JSON 对象 / Preferences JSON object */
-export type PreferencesData = Record<string, boolean | number | string>;
+export type { PreferencesData };
 
 /** 获取平台全局偏好 / Get platform global preferences */
 export async function getAdminGlobalPreferencesApi(
@@ -63,12 +63,3 @@ export async function resetAdminMyPreferencesApi(
   );
 }
 
-/** 获取系统默认偏好 / Get system default preferences */
-export async function getAdminDefaultPreferencesApi(
-  options?: ApiRequestOptions,
-): Promise<PreferencesData> {
-  return await requestClient.get<PreferencesData>(
-    '/admin/preferences/defaults',
-    options,
-  );
-}

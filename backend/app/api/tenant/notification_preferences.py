@@ -9,11 +9,15 @@ from fastapi import APIRouter
 
 from app.core.deps import ActiveTenantAdmin, DbSession, TenantOwner
 from app.core.i18n import _
+from app.core.logging import LogManager
 from app.core.response import success
+from app.core.socketio_server import sio
 from app.rbac.decorators import auth_only
 from app.services.common.notification_preference_service import (
     NotificationPreferenceService,
 )
+
+logger = LogManager.get_logger("app")
 
 router = APIRouter(prefix="/notification-preferences", tags=["通知偏好"])
 
@@ -49,6 +53,16 @@ async def update_global_preferences(
         "tenant_global", tenant_id=tenant_admin.tenant_id, data=data,
     )
     await db.commit()
+
+    room = f"tenant:{tenant_admin.tenant_id}"
+    await sio.emit(
+        "notification_preference:global_updated",
+        {},
+        room=room,
+        namespace="/tenant",
+    )
+    logger.info("Emitted notification_preference:global_updated to room=%s", room)
+
     return success(message=_("common.success"))
 
 

@@ -58,20 +58,22 @@ async def update_global_preferences(
     Update tenant global preferences; changed keys are cleared from all tenant admin individual overrides
     """
     service = UserPreferenceService(db)
-    data = await service.update_global(SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id, body.preferences)
+    data, changed = await service.update_global(SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id, body.preferences)
     await db.commit()
 
-    room = f"tenant:{tenant_admin.tenant_id}"
-    await sio.emit(
-        "preference:global_updated",
-        {"preferences": data},
-        room=room,
-        namespace="/tenant",
-    )
-    logger.info(
-        "Emitted preference:global_updated to room=%s namespace=/tenant",
-        room,
-    )
+    if changed:
+        room = f"tenant:{tenant_admin.tenant_id}"
+        await sio.emit(
+            "preference:global_updated",
+            {"preferences": changed},
+            room=room,
+            namespace="/tenant",
+        )
+        logger.info(
+            "Emitted preference:global_updated to room=%s (%d keys)",
+            room,
+            len(changed),
+        )
 
     return success(data=data, message=_("common.success"))
 

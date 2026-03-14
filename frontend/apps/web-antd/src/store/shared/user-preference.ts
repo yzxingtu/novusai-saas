@@ -10,7 +10,7 @@ import type { DeepPartial } from '@vben/types';
 
 import type { Preferences } from '@vben/preferences';
 
-import type { PreferencesData } from '#/api/admin/preferences';
+import type { PreferencesData } from '#/api/shared/types';
 
 import { preferences as vbenPreferences, updatePreferences } from '@vben/preferences';
 
@@ -44,6 +44,8 @@ interface UserPreferenceState {
   loading: boolean;
   /** 当前端 / Current endpoint side */
   side: EndpointSide | null;
+  /** 全局偏好页面正在实时预览中，阻止个人偏好同步 */
+  globalPreviewActive: boolean;
 }
 
 /**
@@ -71,6 +73,8 @@ const FLAT_TO_VBEN_MAP: Record<string, [string, string]> = {
   layout_mode: ['app', 'layout'],
   content_compact: ['app', 'contentCompact'],
   locale: ['app', 'locale'],
+  // General / 通用
+  dynamic_title: ['app', 'dynamicTitle'],
   // Sidebar / 侧栏
   sidebar_enable: ['sidebar', 'enable'],
   sidebar_collapsed: ['sidebar', 'collapsed'],
@@ -78,6 +82,8 @@ const FLAT_TO_VBEN_MAP: Record<string, [string, string]> = {
   sidebar_collapsed_show_title: ['sidebar', 'collapsedShowTitle'],
   sidebar_auto_activate_child: ['sidebar', 'autoActivateChild'],
   sidebar_width: ['sidebar', 'width'],
+  sidebar_collapsed_button: ['sidebar', 'collapsedButton'],
+  sidebar_fixed_button: ['sidebar', 'fixedButton'],
   // Header / 顶栏
   header_enable: ['header', 'enable'],
   header_mode: ['header', 'mode'],
@@ -112,9 +118,15 @@ const FLAT_TO_VBEN_MAP: Record<string, [string, string]> = {
   widget_lock_screen: ['widget', 'lockScreen'],
   widget_sidebar_toggle: ['widget', 'sidebarToggle'],
   widget_refresh: ['widget', 'refresh'],
+  widget_preferences_button_position: ['widget', 'preferencesButtonPosition'],
   // Footer / 页脚
   footer_enable: ['footer', 'enable'],
   footer_fixed: ['footer', 'fixed'],
+  // Shortcut Keys / 快捷键
+  shortcut_keys_enable: ['shortcutKeys', 'enable'],
+  shortcut_keys_global_search: ['shortcutKeys', 'globalSearch'],
+  shortcut_keys_global_logout: ['shortcutKeys', 'globalLogout'],
+  shortcut_keys_global_lock_screen: ['shortcutKeys', 'globalLockScreen'],
   // Transition / 动画
   transition_enable: ['transition', 'enable'],
   transition_loading: ['transition', 'loading'],
@@ -198,6 +210,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
     loaded: false,
     loading: false,
     side: null,
+    globalPreviewActive: false,
   }),
 
   getters: {
@@ -267,8 +280,13 @@ export const useUserPreferenceStore = defineStore('userPreference', {
     },
 
     /**
-     * 更新全局偏好
-     * Update global preferences
+     * 更新全局偏好并立即应用到本地 UI
+     * Update global preferences and immediately apply to local UI
+     *
+     * 保存后同时更新 this.preferences + Vben 状态，确保操作者自身
+     * 立即看到变更（水印、主题等），无需等待 WS 事件到达。
+     * WS 事件在 ~ms 级到达后会设置 skipNextSync，阻止防抖回调
+     * 将这些值误写为个人偏好。
      */
     async updateGlobalPreferences(
       side: EndpointSide,
@@ -282,6 +300,12 @@ export const useUserPreferenceStore = defineStore('userPreference', {
 
         const prefs = await updateGlobalApi(data);
         this.globalPreferences = prefs;
+
+        if (this.preferences) {
+          this.preferences = { ...this.preferences, ...prefs };
+        }
+        this._applyToVben(prefs);
+
         return prefs;
       } catch (error) {
         console.error(

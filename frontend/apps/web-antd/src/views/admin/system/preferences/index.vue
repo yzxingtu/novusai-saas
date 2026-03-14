@@ -1,61 +1,22 @@
 <script setup lang="ts">
-/**
- * Platform global preferences page / 平台全局偏好设置页面
- *
- * Super admin can set default preferences for all platform admins.
- * 超级管理员可为所有平台管理员设置默认偏好。
- */
-import type { PreferencesData } from '#/api/admin/preferences';
-
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Button, Card, message, Spin } from 'ant-design-vue';
+import { Alert, Button, Card, Spin } from 'ant-design-vue';
 
 import NotificationSettings from '#/components/business/notification-panel/NotificationSettings.vue';
 import { PreferenceForm } from '#/components/business/preference-form';
+import { useGlobalPreferencePage } from '#/composables/use-global-preference-page';
 import { $t } from '#/locales';
-import { useUserPreferenceStore } from '#/store/shared';
 
 defineOptions({ name: 'AdminGlobalPreferences' });
 
-const preferenceStore = useUserPreferenceStore();
+const { formData, loading, saving, onSave } = useGlobalPreferencePage('admin');
+
 const notifSettingsRef = ref<InstanceType<typeof NotificationSettings>>();
-
-const formData = ref<PreferencesData>({});
-const loading = ref(false);
-const saving = ref(false);
 const notifSaving = ref(false);
-
-async function loadData() {
-  loading.value = true;
-  try {
-    const data = await preferenceStore.loadGlobalPreferences('admin');
-    if (data) {
-      formData.value = { ...data };
-    }
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function onSave() {
-  saving.value = true;
-  try {
-    const result = await preferenceStore.updateGlobalPreferences(
-      'admin',
-      formData.value,
-    );
-    if (result) {
-      formData.value = { ...result };
-      message.success($t('common.preference.saveSuccess'));
-    }
-  } finally {
-    saving.value = false;
-  }
-}
 
 async function onSaveNotif() {
   notifSaving.value = true;
@@ -65,10 +26,6 @@ async function onSaveNotif() {
     notifSaving.value = false;
   }
 }
-
-onMounted(() => {
-  loadData();
-});
 </script>
 
 <template>
@@ -100,7 +57,7 @@ onMounted(() => {
             show-icon
             class="mb-4"
           />
-          <PreferenceForm v-model="formData" mode="global" />
+          <PreferenceForm v-model="formData" />
         </Spin>
       </Card>
 

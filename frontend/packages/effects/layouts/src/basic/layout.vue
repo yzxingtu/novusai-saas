@@ -47,6 +47,7 @@ const emit = defineEmits<{
   clearPreferencesAndLogout: [];
   clickLogo: [];
   localeChange: [string];
+  resetPreferences: [];
 }>();
 
 const {
@@ -161,6 +162,10 @@ function toggleSidebar() {
 
 function clearPreferencesAndLogout() {
   emit('clearPreferencesAndLogout');
+}
+
+function resetPreferencesHandler() {
+  emit('resetPreferences');
 }
 
 function clickLogo() {
@@ -304,6 +309,7 @@ const headerSlots = computed(() => {
       <LayoutHeader
         :theme="theme"
         @clear-preferences-and-logout="clearPreferencesAndLogout"
+        @reset-preferences="resetPreferencesHandler"
       >
         <template
           v-if="!showHeaderNav && preferences.breadcrumb.enable"
@@ -451,6 +457,7 @@ const headerSlots = computed(() => {
         <Preferences
           class="z-100 fixed bottom-20 right-0"
           @clear-preferences-and-logout="clearPreferencesAndLogout"
+          @reset-preferences="resetPreferencesHandler"
         />
       </template>
       <VbenBackTop />

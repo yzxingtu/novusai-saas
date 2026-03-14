@@ -53,11 +53,20 @@ const BRAND_CONFIG_CACHE_KEY = '__applied_brand_config__';
 
 /**
  * Apply brand config to global preferences / 应用品牌配置到全局偏好设置
- * Only overrides preferences when backend brand config changes,
- * avoiding overwriting user's custom settings on every page refresh.
- * 仅在后端品牌配置变化时才覆盖。
+ *
+ * Brand identity (logo, name, copyright) is ALWAYS written — these are not
+ * user-customizable preferences. Primary color uses a cache check so that
+ * a user's custom theme color is not overwritten on every navigation.
+ *
+ * 品牌标识（logo、站点名、版权）始终写入；主题色使用缓存对比以保留用户自定义。
  */
 function applyBrandConfig(brand: BrandConfig) {
+  updatePreferences({
+    app: { name: brand.siteName },
+    logo: { source: brand.logo, sourceDark: brand.logoDark },
+    copyright: { companyName: brand.copyright, icp: brand.icp },
+  });
+
   const brandSnapshot = JSON.stringify({
     copyright: brand.copyright,
     icp: brand.icp,
@@ -66,26 +75,11 @@ function applyBrandConfig(brand: BrandConfig) {
     primaryColor: brand.primaryColor,
     siteName: brand.siteName,
   });
-
   const lastApplied = localStorage.getItem(BRAND_CONFIG_CACHE_KEY);
-
   if (lastApplied !== brandSnapshot) {
-    updatePreferences({
-      app: {
-        name: brand.siteName,
-      },
-      logo: {
-        source: brand.logo,
-        sourceDark: brand.logoDark,
-      },
-      copyright: {
-        companyName: brand.copyright,
-        icp: brand.icp,
-      },
-      ...(brand.primaryColor
-        ? { theme: { colorPrimary: brand.primaryColor } }
-        : {}),
-    });
+    if (brand.primaryColor) {
+      updatePreferences({ theme: { colorPrimary: brand.primaryColor } });
+    }
     localStorage.setItem(BRAND_CONFIG_CACHE_KEY, brandSnapshot);
   }
 

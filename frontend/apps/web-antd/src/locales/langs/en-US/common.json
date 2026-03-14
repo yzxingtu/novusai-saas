@@ -449,6 +449,8 @@
     "resetConfirm": "Are you sure you want to reset to global defaults? Your personal settings will be cleared.",
     "resetSuccess": "Reset to global defaults",
     "saveSuccess": "Preferences saved",
+    "saveFailed": "Failed to save preferences",
+    "loadFailed": "Failed to load preferences",
     "globalSaveHint": "Saving will clear admin overrides for changed items",
     "usingGlobal": "Using global",
     "customized": "Customized",

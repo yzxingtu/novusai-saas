@@ -5,7 +5,7 @@
  * Listens for WebSocket global preference updates and applies them.
  * 监听 Vben 偏好变更并防抖同步到后端，监听 WS 全局偏好更新并应用。
  */
-import type { PreferencesData } from '#/api/admin/preferences';
+import type { PreferencesData } from '#/api/shared/types';
 
 import { onUnmounted, watch } from 'vue';
 
@@ -26,16 +26,6 @@ interface GlobalUpdatedPayload {
 }
 
 const GLOBAL_ONLY_KEYS = new Set(['watermark_enable', 'watermark_content']);
-
-function isEqual(
-  a: Record<string, boolean | number | string>,
-  b: Record<string, boolean | number | string>,
-): boolean {
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  return keysA.every((k) => a[k] === b[k]);
-}
 
 /**
  * 提取差异 key / Extract diff keys between two preference objects
@@ -58,11 +48,13 @@ function getDiff(
   return hasDiff ? diff : null;
 }
 
+const WS_SKIP_WINDOW_MS = 500;
+
 export function usePreferenceSync() {
   const preferenceStore = useUserPreferenceStore();
   const sioStore = useSocketIOStore();
 
-  let skipNextSync = false;
+  let lastWsTimestamp = 0;
   let serverSnapshot: PreferencesData = {};
 
   /**
@@ -77,12 +69,12 @@ export function usePreferenceSync() {
    * 将 Vben 当前偏好同步到后端 / Sync current Vben preferences to backend
    */
   async function syncToBackend() {
-    if (skipNextSync) {
-      skipNextSync = false;
+    if (Date.now() - lastWsTimestamp < WS_SKIP_WINDOW_MS) {
       return;
     }
 
     if (!preferenceStore.loaded || !preferenceStore.side) return;
+    if (preferenceStore.globalPreviewActive) return;
 
     const current = mapFromVbenPreferences(
       vbenPreferences as Parameters<typeof mapFromVbenPreferences>[0],
@@ -100,31 +92,10 @@ export function usePreferenceSync() {
   const debouncedSync = useDebounceFn(syncToBackend, 2000);
 
   const stopWatcher = watch(
-    () => {
-      const p = vbenPreferences;
-      return {
-        theme: { ...p.theme },
-        app: {
-          layout: p.app.layout,
-          contentCompact: p.app.contentCompact,
-          locale: p.app.locale,
-          colorWeakMode: p.app.colorWeakMode,
-          colorGrayMode: p.app.colorGrayMode,
-        },
-        sidebar: { ...p.sidebar },
-        header: {
-          enable: p.header.enable,
-          mode: p.header.mode,
-          menuAlign: p.header.menuAlign,
-        },
-        navigation: { ...p.navigation },
-        breadcrumb: { ...p.breadcrumb },
-        tabbar: { ...p.tabbar },
-        widget: { ...p.widget },
-        footer: { ...p.footer },
-        transition: { ...p.transition },
-      };
-    },
+    () =>
+      mapFromVbenPreferences(
+        vbenPreferences as Parameters<typeof mapFromVbenPreferences>[0],
+      ),
     () => {
       debouncedSync();
     },
@@ -135,7 +106,7 @@ export function usePreferenceSync() {
    * WebSocket 全局偏好更新处理 / WebSocket global preference update handler
    */
   const onGlobalUpdated = (data: GlobalUpdatedPayload) => {
-    skipNextSync = true;
+    lastWsTimestamp = Date.now();
 
     if (preferenceStore.preferences) {
       preferenceStore.preferences = {
@@ -159,7 +130,7 @@ export function usePreferenceSync() {
    * Set skip flag, used after initial load on login
    */
   function skipSync() {
-    skipNextSync = true;
+    lastWsTimestamp = Date.now();
   }
 
   function cleanup() {

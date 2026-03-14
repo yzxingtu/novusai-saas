@@ -59,16 +59,17 @@ async def update_global_preferences(
     Update platform global preferences; changed keys are cleared from all admin individual overrides
     """
     service = UserPreferenceService(db)
-    data = await service.update_global(SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID, body.preferences)
+    data, changed = await service.update_global(SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID, body.preferences)
     await db.commit()
 
-    await sio.emit(
-        "preference:global_updated",
-        {"preferences": data},
-        room="admins",
-        namespace="/admin",
-    )
-    logger.info("Emitted preference:global_updated to room=admins namespace=/admin")
+    if changed:
+        await sio.emit(
+            "preference:global_updated",
+            {"preferences": changed},
+            room="admins",
+            namespace="/admin",
+        )
+        logger.info("Emitted preference:global_updated to room=admins (%d keys)", len(changed))
 
     return success(data=data, message=_("common.success"))
 

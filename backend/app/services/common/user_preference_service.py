@@ -104,6 +104,18 @@ SYSTEM_DEFAULTS: dict[str, Any] = {
     # ── 日期时间 / DateTime ──
     "timezone": "Asia/Shanghai",
     "date_format": "YYYY-MM-DD",
+    # ── 通用 / General ──
+    "dynamic_title": True,
+    # ── 快捷键 / Shortcut Keys ──
+    "shortcut_keys_enable": True,
+    "shortcut_keys_global_search": True,
+    "shortcut_keys_global_logout": True,
+    "shortcut_keys_global_lock_screen": True,
+    # ── 侧栏额外 / Sidebar Extra ──
+    "sidebar_collapsed_button": True,
+    "sidebar_fixed_button": True,
+    # ── 小部件位置 / Widget Position ──
+    "widget_preferences_button_position": "auto",
     # ── 动画 / Animation ──
     "transition_enable": True,
     "transition_loading": True,
@@ -201,16 +213,16 @@ class UserPreferenceService:
         scope: str,
         tenant_id: int,
         data: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         更新全局偏好 + 精确清除个人覆盖中已变更的 key
         Update global preferences + precisely clear changed keys from individual overrides
 
-        Returns: 更新后的全局偏好 / Updated global preferences
+        Returns: (完整全局偏好, 仅变更部分) / (full global prefs, changed portion only)
         """
         filtered = self._filter_valid_keys(data)
         if not filtered:
-            return await self.get_global_with_defaults(scope, tenant_id)
+            return await self.get_global_with_defaults(scope, tenant_id), {}
 
         record = await self._get_record(scope, tenant_id, user_id=None)
         old_prefs: dict[str, Any] = {}
@@ -242,7 +254,8 @@ class UserPreferenceService:
 
         result = dict(SYSTEM_DEFAULTS)
         result.update(new_prefs)
-        return result
+        changed_data = {k: result[k] for k in changed_keys}
+        return result, changed_data
 
     async def update_individual(
         self,
