@@ -4,6 +4,8 @@ import type { MountedEditor, MountOptions } from './types';
 
 import { createApp, defineComponent, h } from 'vue';
 
+import { i18n } from '@vben/locales';
+
 import RichTextEditor from './RichTextEditor.vue';
 
 export { RichTextEditor };
@@ -79,6 +81,7 @@ export function mountRichTextEditor(
   });
 
   app = createApp(Wrapper);
+  app.use(i18n);
   app.mount(container as Element);
 
   return {

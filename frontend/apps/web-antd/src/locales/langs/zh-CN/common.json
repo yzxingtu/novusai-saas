@@ -177,6 +177,8 @@
   "setTextAlign": "设置对齐",
   "manageLink": "管理链接",
   "insertTable": "插入表格",
+  "sourceCode": "源码模式",
+  "wysiwyg": "可视化编辑",
   "startConversation": "发送消息开始对话",
   "typeMessage": "输入消息...",
   "invalidJson": "无效的 JSON 格式",

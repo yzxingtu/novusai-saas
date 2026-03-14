@@ -157,9 +157,10 @@ function onExport(format: 'html' | 'md') {
 watch(title, onTitleChange);
 
 // ── Page Awareness / 页面感知 ──
-const editorPageKey = computed(() =>
-  isAdmin.value ? 'admin.plugins.novusdoc.editor' : 'tenant.plugins.novusdoc.editor',
-);
+const editorPageKey = computed(() => {
+  const base = isAdmin.value ? 'admin.plugins.novusdoc.editor' : 'tenant.plugins.novusdoc.editor';
+  return docId.value ? `${base}.${docId.value}` : base;
+});
 
 let cleanupContext: (() => void) | undefined;
 let cleanupOps: (() => void) | undefined;
@@ -211,32 +212,42 @@ const documentOps = [
   },
 ];
 
+const DOCUMENT_BODY_EXCERPT_LEN = 3500;
+
 const EDITOR_CAPABILITIES_DESC =
-  'Rich text document editor. No form on this page (do not use get_form_state). '
-  + 'Content ops: get_editor_text, get_editor_html, get_selection, insert_content, replace_content, append_content; '
-  + 'format: format_text (bold|italic|underline|strike|code|highlight), clear_formatting; '
-  + 'blocks: set_heading, toggle_list, toggle_blockquote, toggle_code_block, set_text_align; '
-  + 'links/tables: manage_link, insert_table. Document ops: save_document, toggle_status, update_title, export_document.';
+  'HTML rich text editor. Body excerpt in document_body_text; full HTML via get_editor_html. '
+  + 'Content params MUST be HTML, NOT Markdown. '
+  + 'PARTIAL EDIT: get_editor_html → replace_section(old_html="...", new_html="...") to change one section only. '
+  + 'FULL REWRITE: replace_content replaces the ENTIRE document — use only when rewriting everything. '
+  + 'APPEND/INSERT: append_content adds to end, insert_content at cursor. '
+  + 'Document ops: save_document, toggle_status, update_title, export_document.';
 
 function setupEditorPageAwareness() {
   cleanupContext?.();
   cleanupOps?.();
 
   if (shared?.registerPageContext) {
-    cleanupContext = shared.registerPageContext(editorPageKey.value, () => ({
-      page_key: editorPageKey.value,
-      page_title: title.value || $t('plugin.novusdoc.doc.untitled'),
-      page_data: {
-        entity_name: $t('plugin.novusdoc.doc.title'),
-        entity_description: EDITOR_CAPABILITIES_DESC,
-        document_id: docId.value,
-        document_title: title.value,
-        document_status: doc.value?.status,
-        word_count: wordCount.value,
-        is_saving: saving.value,
-        has_editor: !!mountedEditor.value,
-      },
-    }));
+    cleanupContext = shared.registerPageContext(editorPageKey.value, () => {
+      const fullText = mountedEditor.value?.getText?.() ?? '';
+      const documentBodyText = fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN);
+      const documentBodyLength = fullText.length;
+      return {
+        page_key: editorPageKey.value,
+        page_title: title.value || $t('plugin.novusdoc.doc.untitled'),
+        page_data: {
+          entity_name: $t('plugin.novusdoc.doc.title'),
+          entity_description: EDITOR_CAPABILITIES_DESC,
+          document_id: docId.value,
+          document_title: title.value,
+          document_status: doc.value?.status,
+          word_count: wordCount.value,
+          is_saving: saving.value,
+          has_editor: !!mountedEditor.value,
+          document_body_text: documentBodyText,
+          document_body_length: documentBodyLength,
+        },
+      };
+    });
   }
 
   if (shared?.registerPageOperations) {

@@ -51,16 +51,6 @@ class PageOperationExecutor(BaseToolExecutor):
         """Send operation via WebSocket and wait for result / 通过 WebSocket 下发操作并等待结果"""
         start = time.perf_counter()
 
-        # Check page_session_id / 检查 page_session_id
-        if not context or not context.page_session_id:
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                name=definition.name,
-                success=False,
-                error="No page_session_id available. Cannot invoke page operation without an active page session.",
-                duration_ms=int((time.perf_counter() - start) * 1000),
-            )
-
         page_key = arguments.get("page_key", "")
         operation_name = arguments.get("operation_name", "")
         params = arguments.get("params") or {}
@@ -75,16 +65,34 @@ class PageOperationExecutor(BaseToolExecutor):
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # Send operation via WebSocket / 通过 WebSocket 下发操作
-        from app.sio.page_session import invoke_page_operation
+        # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect)
+        from app.sio.page_session import get_active_session_id, invoke_page_operation
+
+        session_id = None
+        if context:
+            fresh_id = get_active_session_id(
+                context.user_id,
+                page_key,
+                context.user_role,
+            )
+            session_id = fresh_id or context.page_session_id
+
+        if not session_id:
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error="No page_session_id available. Cannot invoke page operation without an active page session.",
+                duration_ms=int((time.perf_counter() - start) * 1000),
+            )
 
         logger.info(
             "Invoking page operation: page_key=%s op=%s page_session=%s",
-            page_key, operation_name, context.page_session_id,
+            page_key, operation_name, session_id,
         )
 
         result = await invoke_page_operation(
-            page_session_id=context.page_session_id,
+            page_session_id=session_id,
             page_key=page_key,
             operation_name=operation_name,
             params=params,
@@ -138,7 +146,12 @@ class PageOperationExecutor(BaseToolExecutor):
         )
         error_msg = f"Operation '{operation_name}' failed on page '{page_key}'."
         if error_type == "timeout":
-            error_msg = f"Operation '{operation_name}' timed out. The user may not be on page '{page_key}'."
+            error_msg = (
+                f"Operation '{operation_name}' timed out (30s). "
+                f"The WebSocket connection to page '{page_key}' may be broken. "
+                "Do NOT retry this operation — tell the user the operation failed "
+                "and suggest they refresh the page, then try again."
+            )
         elif error_type == "pending_confirmation":
             error_msg = f"Operation '{operation_name}' requires user confirmation. Awaiting user approval."
         elif message:

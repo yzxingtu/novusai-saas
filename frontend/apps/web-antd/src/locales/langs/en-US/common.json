@@ -178,6 +178,8 @@
   "setTextAlign": "Set text align",
   "manageLink": "Manage link",
   "insertTable": "Insert table",
+  "sourceCode": "Source Code",
+  "wysiwyg": "WYSIWYG",
   "startConversation": "Send a message to start",
   "typeMessage": "Type a message...",
   "invalidJson": "Invalid JSON format",

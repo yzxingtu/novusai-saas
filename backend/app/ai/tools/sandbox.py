@@ -36,6 +36,7 @@ from app.ai.tools.security import (
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
 
@@ -46,6 +47,42 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.sandbox")
+
+# Heuristic mapping: params key signatures -> probable operation_name.
+# Used when LLM omits operation_name in parallel tool calls.
+_PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
+    (frozenset({"title"}), "update_title"),
+    (frozenset({"command"}), "format_text"),
+    (frozenset({"level"}), "set_heading"),
+    (frozenset({"type"}), "toggle_list"),
+    (frozenset({"align"}), "set_text_align"),
+    (frozenset({"action", "href"}), "manage_link"),
+    (frozenset({"action"}), "manage_link"),
+    (frozenset({"rows", "cols"}), "insert_table"),
+    (frozenset({"rows"}), "insert_table"),
+    (frozenset({"cols"}), "insert_table"),
+    (frozenset({"field_name"}), "get_form_options"),
+    (frozenset({"format"}), "export_document"),
+    (frozenset({"status"}), "toggle_status"),
+]
+
+_RESERVED_ARG_KEYS = frozenset({"page_key", "operation_name", "params"})
+
+
+def _infer_operation_name(params: dict[str, Any]) -> str:
+    """Best-effort inference of operation_name from params keys.
+
+    No available_ops restriction -- let the execution phase validate.
+    """
+    if not params:
+        return ""
+    keys = frozenset(params.keys())
+    for sig, op in _PARAM_KEY_TO_OP:
+        if sig <= keys:
+            return op
+    if "content" in keys:
+        return "replace_content"
+    return ""
 
 
 @dataclass
@@ -209,6 +246,18 @@ class ToolSandbox:
 
         # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)
+
+        # 1.1 Redirect: LLM may call an operation name directly as a tool
+        # (e.g. "get_editor_text" instead of invoke_page_operation).
+        # When the name matches an available page operation, rewrite to
+        # invoke_page_operation transparently.
+        if not definition and definitions:
+            redirect_target = self._try_redirect_to_page_op(
+                name, arguments, definitions,
+            )
+            if redirect_target is not None:
+                name, arguments, definition = redirect_target
+
         if not definition:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -216,6 +265,80 @@ class ToolSandbox:
                 success=False,
                 error=_("tool.error.not_found", name=name),
             )
+
+        # For invoke_page_operation: auto-fill missing page_key and
+        # return an actionable error when operation_name is absent.
+        if name == "invoke_page_operation":
+            variables = self.input_variables or {}
+            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+
+            if not (arguments.get("page_key") or "").strip():
+                if isinstance(page_ctx, dict):
+                    pk = (page_ctx.get("page_key") or "").strip()
+                    if pk:
+                        arguments["page_key"] = pk
+
+            if not (arguments.get("operation_name") or "").strip():
+                nested_params: dict[str, Any] = arguments.get("params") or {}
+                extra_keys = {
+                    k: v for k, v in arguments.items()
+                    if k not in _RESERVED_ARG_KEYS
+                }
+                effective_params = nested_params if nested_params else extra_keys
+
+                inferred = _infer_operation_name(effective_params)
+                if inferred:
+                    arguments["operation_name"] = inferred
+                    if extra_keys and not nested_params:
+                        arguments["params"] = effective_params
+                        for k in extra_keys:
+                            arguments.pop(k, None)
+                    logger.info(
+                        "invoke_page_operation: inferred operation_name=%s "
+                        "from params keys=%s",
+                        inferred,
+                        list(effective_params.keys()),
+                    )
+                else:
+                    available_ops: list[str] = []
+                    if isinstance(page_ctx, dict):
+                        pd = page_ctx.get("page_data")
+                        if isinstance(pd, dict):
+                            ops = pd.get("available_operations")
+                            if isinstance(ops, list):
+                                available_ops = [
+                                    o.get("name", "") for o in ops
+                                    if isinstance(o, dict) and o.get("name")
+                                ]
+                    pk = (arguments.get("page_key") or "").strip()
+                    logger.warning(
+                        "invoke_page_operation: could not infer operation_name. "
+                        "raw_argument_keys=%s nested_params_keys=%s extra_keys=%s",
+                        list(arguments.keys()),
+                        list(nested_params.keys()),
+                        list(extra_keys.keys()),
+                    )
+                    ops_hint = (
+                        f" Available operations: {', '.join(available_ops)}."
+                        if available_ops else ""
+                    )
+                    example = (
+                        f' Example: invoke_page_operation('
+                        f'page_key="{pk}", '
+                        f'operation_name="replace_content", '
+                        f'params={{"content": "<h1>Title</h1><p>Body</p>"}})'
+                    ) if pk else ""
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=name,
+                        success=False,
+                        error=(
+                            "Missing required parameter: operation_name. "
+                            "You MUST specify operation_name in every "
+                            "invoke_page_operation call."
+                            f"{ops_hint}{example}"
+                        ),
+                    )
 
         # 1.5 Security check: input validation + call count limit / 安全检查
         try:
@@ -473,6 +596,71 @@ class ToolSandbox:
                     return d
 
         return None
+
+    def _try_redirect_to_page_op(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        definitions: list[ToolDefinition],
+    ) -> tuple[str, dict[str, Any], ToolDefinition] | None:
+        """Redirect a bare operation name to ``invoke_page_operation``.
+
+        Some LLMs call enum values (e.g. ``get_editor_text``) as standalone
+        function names instead of wrapping them in ``invoke_page_operation``.
+        When *name* matches one of the available page operations, rewrite the
+        call transparently.
+
+        Returns ``(new_name, new_arguments, definition)`` or ``None``.
+        """
+        page_op_def: ToolDefinition | None = None
+        for d in definitions:
+            if d.name == "invoke_page_operation":
+                page_op_def = d
+                break
+        if page_op_def is None:
+            return None
+
+        op_names: set[str] = set()
+        for param in page_op_def.parameters:
+            if param.name == "operation_name" and param.enum:
+                op_names = set(param.enum)
+                break
+
+        if not op_names:
+            variables = self.input_variables or {}
+            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            if isinstance(page_ctx, dict):
+                pd = page_ctx.get("page_data")
+                if isinstance(pd, dict):
+                    raw = pd.get("available_operations")
+                    if isinstance(raw, list):
+                        op_names = {
+                            o["name"]
+                            for o in raw
+                            if isinstance(o, dict) and o.get("name")
+                        }
+
+        if name not in op_names:
+            return None
+
+        new_args: dict[str, Any] = {
+            "operation_name": name,
+            "params": arguments if arguments else {},
+        }
+
+        page_ctx2 = (self.input_variables or {}).get(PAGE_CONTEXT_KEY)
+        if isinstance(page_ctx2, dict):
+            pk = (page_ctx2.get("page_key") or "").strip()
+            if pk:
+                new_args["page_key"] = pk
+
+        logger.info(
+            "Redirecting bare tool call '%s' → invoke_page_operation "
+            "(operation_name=%s)",
+            name,
+            name,
+        )
+        return "invoke_page_operation", new_args, page_op_def
 
 
 __all__ = [

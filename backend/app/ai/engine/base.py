@@ -157,6 +157,7 @@ class BaseEngine(ABC):
     def _inject_tool_awareness(
         messages: list[ChatMessage],
         tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
     ) -> None:
         """
         Inject available tool summary into system message tail.
@@ -180,9 +181,66 @@ class BaseEngine(ABC):
             "you MUST call the appropriate tool instead of generating text-only responses. "
             "Do NOT say you cannot access the database or perform actions — use your tools."
         )
+
+        page_hint = BaseEngine._build_page_operations_hint(input_variables)
+        if page_hint:
+            hint += page_hint
+
         messages[0] = ChatMessage(
             role="system",
             content=messages[0].content + hint,
+        )
+
+    @staticmethod
+    def _build_page_operations_hint(
+        input_variables: dict[str, Any] | None,
+    ) -> str:
+        """Build a PAGE OPERATIONS hint when page context has available operations."""
+        if not input_variables:
+            return ""
+        from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
+        page_ctx = input_variables.get(PAGE_CONTEXT_KEY)
+        if not isinstance(page_ctx, dict):
+            return ""
+
+        page_key = (page_ctx.get("page_key") or "").strip()
+        page_data = page_ctx.get("page_data")
+        if not isinstance(page_data, dict) or not page_key:
+            return ""
+
+        raw_ops = page_data.get("available_operations")
+        if not isinstance(raw_ops, list) or not raw_ops:
+            return ""
+
+        op_names = [o["name"] for o in raw_ops if isinstance(o, dict) and o.get("name")]
+        if not op_names:
+            return ""
+
+        entity_desc = page_data.get("entity_description", "")
+        desc_line = f"\nPage entity: {entity_desc}\n" if entity_desc else "\n"
+
+        has_replace_section = "replace_section" in op_names
+        section_example = ""
+        if has_replace_section:
+            section_example = (
+                f'\nPartial edit: invoke_page_operation(page_key="{page_key}", '
+                f'operation_name="replace_section", '
+                f'params={{"old_html": "<h2>Old heading</h2>", '
+                f'"new_html": "<h2>New heading</h2><p>Updated text</p>"}})'
+            )
+
+        return (
+            f"\n\n[PAGE OPERATIONS]\n"
+            f"Current page: {page_key}{desc_line}"
+            f"Available operations: {', '.join(op_names)}\n"
+            f"Call format: invoke_page_operation("
+            f'page_key="{page_key}", '
+            f'operation_name="<pick one>", '
+            f"params={{...}})\n"
+            f'Read: invoke_page_operation(page_key="{page_key}", '
+            f'operation_name="get_editor_html", params={{}})'
+            f"{section_example}"
         )
 
     @staticmethod
@@ -273,9 +331,14 @@ class BaseEngine(ABC):
             if not opt.skipped:
                 optimize_event = {"total": opt.total, "selected": opt.selected}
 
+        # 4.5 Enhance tool schemas with page context (enum/default) / 用页面上下文增强工具 Schema
+        if tools:
+            from app.ai.tools.enhancer import enhance_tools_with_page_context
+            enhance_tools_with_page_context(tools, request.input_variables)
+
         # 5. Inject tool awareness hint / 注入工具感知提示
         if tools:
-            self._inject_tool_awareness(messages, tools)
+            self._inject_tool_awareness(messages, tools, request.input_variables)
 
         # 6. Extract consent_modes / 提取 consent_modes
         tool_consent_modes = (

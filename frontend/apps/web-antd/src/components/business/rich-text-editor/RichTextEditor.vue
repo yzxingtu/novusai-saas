@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { JSONContent } from '@tiptap/core';
 
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { EditorContent } from '@tiptap/vue-3';
 
@@ -105,6 +105,20 @@ const {
 
 useEditorPageOps(editor, props.pageKey);
 
+const sourceMode = ref(false);
+const sourceCode = ref('');
+
+function toggleSourceMode() {
+  if (!editor.value) return;
+  if (!sourceMode.value) {
+    sourceCode.value = editor.value.getHTML();
+    sourceMode.value = true;
+  } else {
+    editor.value.commands.setContent(sourceCode.value, false);
+    sourceMode.value = false;
+  }
+}
+
 function focusEditorEnd() {
   if (editor.value) {
     editor.value.commands.focus('end');
@@ -130,10 +144,14 @@ defineExpose({
       v-if="toolbar !== false"
       :editor="editor"
       :upload="upload"
+      :source-mode="sourceMode"
+      @toggle-source="toggleSourceMode"
     />
 
     <div class="flex min-h-0 flex-1">
+      <!-- WYSIWYG view -->
       <div
+        v-if="!sourceMode"
         class="flex flex-1 flex-col overflow-y-auto"
         :style="{ minHeight: minH }"
         @click.self="focusEditorEnd"
@@ -149,6 +167,15 @@ defineExpose({
           />
         </div>
       </div>
+
+      <!-- Source code view -->
+      <textarea
+        v-else
+        v-model="sourceCode"
+        class="rte-source-code flex-1 resize-none bg-background p-4 font-mono text-sm text-foreground outline-none"
+        :style="{ minHeight: minH }"
+        spellcheck="false"
+      />
     </div>
 
     <AIBubbleMenu

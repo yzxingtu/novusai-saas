@@ -11,6 +11,11 @@ Backend dispatches page_operation_invoke events to specified page_session_id roo
 via invoke_page_operation(), frontend executes and returns results via page_operation_result.
 后端通过 invoke_page_operation() 向指定 page_session_id 房间
 下发 page_operation_invoke 事件，前端执行后通过 page_operation_result 回传结果。
+
+Active session tracking: (scope, user_id, page_key) -> page_session_id.
+When frontend reconnects, executor can use get_active_session_id() to find the latest session.
+活跃会话追踪：(scope, user_id, page_key) -> page_session_id。
+前端重连后，执行器可通过 get_active_session_id() 获取最新会话。
 """
 
 from __future__ import annotations
@@ -28,8 +33,45 @@ logger = LogManager.get_logger("app")
 # invoke_id → Future mapping, for awaiting frontend result callback / invoke_id → Future 映射，用于等待前端回传结果
 _pending_invocations: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
+# (scope, user_id, page_key) -> page_session_id, for recovering stale session after reconnect
+# scope: "/admin" | "/tenant" | "/user" (Socket.IO namespace)
+_active_sessions: dict[tuple[str, int, str], str] = {}
+
 # Default operation timeout (seconds) / 默认操作超时（秒）
 PAGE_OPERATION_TIMEOUT = 30
+
+
+def _user_role_to_scope(user_role: str) -> str:
+    """Map ExecutionContext.user_role to Socket.IO namespace / 将 user_role 映射到 Socket.IO namespace"""
+    if user_role == "platform_admin":
+        return "/admin"
+    if user_role == "tenant_admin":
+        return "/tenant"
+    if user_role == "tenant_user":
+        return "/user"
+    return "/tenant"  # default
+
+
+def get_active_session_id(user_id: int | None, page_key: str, user_role: str = "tenant_admin") -> str | None:
+    """
+    Get the latest page_session_id for (user_id, page_key) from active session tracking.
+    Used when context.page_session_id may be stale (e.g. after WebSocket reconnect).
+    从活跃会话映射中获取 (user_id, page_key) 对应的最新 page_session_id。
+    当 context.page_session_id 可能已过期（如 WebSocket 重连后）时使用。
+
+    Args:
+        user_id: Current user ID / 当前用户 ID
+        page_key: Page identifier (pageContextKey) / 页面标识
+        user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
+
+    Returns:
+        Latest page_session_id or None if not found / 最新 page_session_id，未找到则 None
+    """
+    if not user_id or not page_key:
+        return None
+    scope = _user_role_to_scope(user_role)
+    key = (scope, user_id, page_key)
+    return _active_sessions.get(key)
 
 
 class PageSessionMixin:
@@ -54,6 +96,24 @@ class PageSessionMixin:
         page_session_id = str(data["page_session_id"])[:64]
         room = f"page_session:{page_session_id}"
         await self.enter_room(sid, room)
+
+        # Track active session for executor to recover stale session after reconnect
+        page_key = (data.get("page_key") or "").strip()[:128]
+        if page_key:
+            try:
+                session = await self.get_session(sid)
+                user_id = session.get("user_id") if session else None
+                if user_id is not None:
+                    scope = self.namespace or "/tenant"
+                    key = (scope, int(user_id), page_key)
+                    _active_sessions[key] = page_session_id
+                    logger.debug(
+                        "SIO %s active_session stored scope=%s user_id=%s page_key=%s -> %s",
+                        self.namespace, scope, user_id, page_key, page_session_id,
+                    )
+            except Exception as e:
+                logger.debug("SIO %s get_session for active_session failed: %s", self.namespace, e)
+
         logger.debug(
             "SIO %s sid=%s joined room %s",
             self.namespace, sid, room,
@@ -70,6 +130,12 @@ class PageSessionMixin:
         page_session_id = str(data["page_session_id"])[:64]
         room = f"page_session:{page_session_id}"
         await self.leave_room(sid, room)
+
+        # Remove from active session tracking
+        to_remove = [k for k, v in _active_sessions.items() if v == page_session_id]
+        for k in to_remove:
+            _active_sessions.pop(k, None)
+
         logger.debug(
             "SIO %s sid=%s left room %s",
             self.namespace, sid, room,
@@ -151,7 +217,7 @@ async def invoke_page_operation(
 
     try:
         # Send to specified namespace or all namespaces / 发送到指定 namespace 或所有 namespace
-        namespaces = [namespace] if namespace else ["/admin", "/tenant"]
+        namespaces = [namespace] if namespace else ["/admin", "/tenant", "/user"]
         for ns in namespaces:
             await sio.emit(
                 "page_operation_invoke",

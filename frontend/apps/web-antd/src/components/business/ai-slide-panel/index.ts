@@ -21,5 +21,6 @@ export type {
   PageOperationHandler,
   PageOperationResult,
 } from './page-operation-registry';
+export { normalizePageKey } from './page-key-utils';
 export { ROUTED_BY, useAgentRouter } from './use-agent-router';
 export type { RouteResult, UseAgentRouterOptions } from './use-agent-router';

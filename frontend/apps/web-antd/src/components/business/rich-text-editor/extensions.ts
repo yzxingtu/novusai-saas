@@ -39,6 +39,8 @@ export function buildExtensions(
   return [
     StarterKit.configure({
       codeBlock: false,
+      link: false,
+      underline: false,
     }),
     Underline,
     Link.configure({ openOnClick: false }),

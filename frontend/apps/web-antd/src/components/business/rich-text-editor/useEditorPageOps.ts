@@ -12,17 +12,30 @@ import type { ShallowRef } from 'vue';
 import { onBeforeUnmount, watch } from 'vue';
 
 import { $t } from '@vben/locales';
+import MarkdownIt from 'markdown-it';
 
 import {
   registerPageContext,
   registerPageOperations,
 } from '#/components/business/ai-slide-panel';
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+
+const md = new MarkdownIt({ html: true, breaks: true });
+
+const MD_PATTERNS = /^#{1,6}\s|^\*\*|^\- |\*\*.*\*\*|^\d+\.\s|^>\s|```/m;
+
+function ensureHtml(content: string): string {
+  if (/<[a-z][\s\S]*>/i.test(content)) return content;
+  if (MD_PATTERNS.test(content)) return md.render(content);
+  return content;
+}
 
 export function useEditorPageOps(
   editorRef: ShallowRef<Editor | undefined>,
-  pageKey: string | undefined,
+  pageKey?: string | undefined,
 ) {
-  if (!pageKey) return;
+  const effectiveKey = pageKey || normalizePageKey(window.location.pathname);
+  if (!effectiveKey) return;
 
   let cleanupOps: (() => void) | undefined;
   let cleanupCtx: (() => void) | undefined;
@@ -33,24 +46,32 @@ export function useEditorPageOps(
     const editor = editorRef.value;
     if (!editor) return;
 
-    cleanupCtx = registerPageContext(pageKey!, () => ({
-      page_key: pageKey!,
-      page_title: 'Rich Text Editor',
-      page_data: {
-        entity_name: 'Rich Text Editor',
-        entity_description:
-          '富文本编辑器，支持通过 Ctrl+K AI 助手执行以下操作。\n'
-          + '【内容读写】get_editor_text, get_editor_html, get_selection, insert_content, replace_content, append_content\n'
-          + '【选区与历史】select_all, undo, redo\n'
-          + '【文本格式】format_text (command: bold|italic|underline|strike|code|highlight), clear_formatting\n'
-          + '【块级】set_heading (level 1-3), toggle_list (type bullet|ordered), toggle_blockquote, toggle_code_block, insert_horizontal_rule, set_text_align (align left|center|right|justify)\n'
-          + '【链接与表格】manage_link (action set|unset, href?), insert_table (rows?, cols?)',
-        has_editor: true,
-        word_count: editor.storage.characterCount?.words?.() ?? 0,
-      },
-    }));
+    const DOCUMENT_BODY_EXCERPT_LEN = 3500;
 
-    cleanupOps = registerPageOperations(pageKey!, [
+    cleanupCtx = registerPageContext(effectiveKey, () => {
+      const fullText = editor.getText?.() ?? '';
+      const documentBodyText = fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN);
+      const documentBodyLength = fullText.length;
+      return {
+        page_key: effectiveKey,
+        page_title: 'Rich Text Editor',
+        page_data: {
+          entity_name: 'Rich Text Editor',
+          entity_description:
+            'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
+            + 'content 参数必须是 HTML（如 <h1>标题</h1><p>正文</p>），不要发送 Markdown。\n'
+            + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
+            + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
+            + '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
+          has_editor: true,
+          word_count: editor.storage.characterCount?.words?.() ?? 0,
+          document_body_text: documentBodyText,
+          document_body_length: documentBodyLength,
+        },
+      };
+    });
+
+    cleanupOps = registerPageOperations(effectiveKey, [
       {
         name: 'get_editor_text',
         label: $t('common.getEditorText'),
@@ -86,27 +107,23 @@ export function useEditorPageOps(
         name: 'insert_content',
         label: $t('common.insertContent'),
         description:
-          'Insert content at the current cursor position. Supports plain text or HTML.',
+          'Insert content at cursor. Content MUST be HTML (e.g. <h2>Title</h2><p>Body</p>). Markdown is auto-converted but HTML is preferred.',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'Content to insert',
-          },
-          format: {
-            type: 'string',
-            enum: ['text', 'html'],
-            description: 'text (default) or html',
+            description: 'HTML content to insert (e.g. <h2>Title</h2><p>text</p>)',
           },
         },
         handler: async (params: Record<string, unknown>) => {
-          const content = String(params.content || '');
-          if (!content)
+          const raw = String(params.content || '');
+          if (!raw)
             return { success: false, message: 'No content provided' };
-          editor.chain().focus().insertContent(content).run();
+          const html = ensureHtml(raw);
+          editor.chain().focus().insertContent(html).run();
           return {
             success: true,
-            message: `Inserted ${content.length} characters`,
+            message: `Inserted ${raw.length} characters`,
           };
         },
       },
@@ -114,43 +131,91 @@ export function useEditorPageOps(
         name: 'replace_content',
         label: $t('common.replaceContent'),
         description:
-          'Replace ALL editor content. WARNING: overwrites everything.',
+          'Replace ALL editor content with new HTML. Use ONLY when you intend to rewrite the ENTIRE document. For partial edits prefer replace_section.',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'New content to replace everything',
+            description: 'Complete HTML content for the full document',
           },
         },
         handler: async (params: Record<string, unknown>) => {
-          const content = String(params.content || '');
-          editor.commands.setContent(content);
+          const raw = String(params.content || '');
+          const html = ensureHtml(raw);
+          editor.commands.setContent(html);
           return {
             success: true,
-            message: `Content replaced (${content.length} chars)`,
+            message: `Full content replaced (${raw.length} chars)`,
+          };
+        },
+      },
+      {
+        name: 'replace_section',
+        label: 'Replace section',
+        description:
+          'Find a section by its old HTML snippet and replace it with new HTML. '
+          + 'Use this for partial edits — only the matched section is replaced, '
+          + 'the rest of the document is untouched. '
+          + 'old_html should be a short unique HTML fragment from get_editor_html output.',
+        readonly: false,
+        params: {
+          old_html: {
+            type: 'string',
+            description:
+              'Existing HTML snippet to find (must be a unique substring of current content)',
+          },
+          new_html: {
+            type: 'string',
+            description: 'Replacement HTML',
+          },
+        },
+        handler: async (params: Record<string, unknown>) => {
+          const oldSnippet = String(params.old_html || '').trim();
+          const newSnippet = String(params.new_html || '').trim();
+          if (!oldSnippet)
+            return { success: false, message: 'old_html is required' };
+          if (!newSnippet)
+            return { success: false, message: 'new_html is required' };
+
+          const currentHtml = editor.getHTML();
+          if (!currentHtml.includes(oldSnippet)) {
+            return {
+              success: false,
+              message:
+                'old_html not found in current content. Use get_editor_html to see the exact HTML, then copy a unique substring.',
+            };
+          }
+
+          const updatedHtml = currentHtml.replace(oldSnippet, ensureHtml(newSnippet));
+          editor.commands.setContent(updatedHtml);
+          return {
+            success: true,
+            message: `Section replaced (old ${oldSnippet.length} → new ${newSnippet.length} chars)`,
           };
         },
       },
       {
         name: 'append_content',
         label: $t('common.appendContent'),
-        description: 'Append content to the end of the document.',
+        description:
+          'Append content to the end. Content MUST be HTML. Markdown is auto-converted but HTML is preferred.',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'Content to append at the end',
+            description: 'HTML content to append (e.g. <p>new paragraph</p>)',
           },
         },
         handler: async (params: Record<string, unknown>) => {
-          const content = String(params.content || '');
-          if (!content)
+          const raw = String(params.content || '');
+          if (!raw)
             return { success: false, message: 'No content provided' };
+          const html = ensureHtml(raw);
           const endPos = editor.state.doc.content.size;
-          editor.chain().focus().insertContentAt(endPos, content).run();
+          editor.chain().focus().insertContentAt(endPos, html).run();
           return {
             success: true,
-            message: `Appended ${content.length} chars`,
+            message: `Appended ${raw.length} chars`,
           };
         },
       },

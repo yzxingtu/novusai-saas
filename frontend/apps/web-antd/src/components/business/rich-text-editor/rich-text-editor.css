@@ -49,6 +49,20 @@
 .rte-tbtn.active { background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); }
 .rte-tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Source code editor ── */
+.rte-source-code {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: none;
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent) / 0.3);
+}
+.rte-source-code:focus { outline: none; background: hsl(var(--accent) / 0.5); }
+
 /* ── compact mode outer frame ── */
 .rte-compact { border: 1px solid hsl(var(--input)); border-radius: var(--radius); background: hsl(var(--background)); }
 .rte-compact:focus-within { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1); }

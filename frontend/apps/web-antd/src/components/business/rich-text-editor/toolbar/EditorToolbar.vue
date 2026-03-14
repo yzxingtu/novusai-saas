@@ -14,6 +14,11 @@ import ToolbarButton from './ToolbarButton.vue';
 const props = defineProps<{
   editor: Editor | undefined;
   upload?: boolean;
+  sourceMode?: boolean;
+}>();
+
+const emit = defineEmits<{
+  toggleSource: [];
 }>();
 
 const isActive = (name: string | Record<string, unknown>, attrs?: Record<string, unknown>) =>
@@ -246,6 +251,16 @@ function onInsertLink() {
       icon="lucide:unlink"
       :title="$t('common.removeLink')"
       @click="editor?.chain().focus().unsetLink().run()"
+    />
+
+    <span class="mx-1 h-5 w-px shrink-0 bg-border" />
+
+    <!-- Source code / 源码模式 -->
+    <ToolbarButton
+      icon="lucide:code-xml"
+      :title="sourceMode ? $t('common.wysiwyg') || 'WYSIWYG' : $t('common.sourceCode') || 'HTML'"
+      :active="sourceMode"
+      @click="emit('toggleSource')"
     />
   </div>
 </template>

@@ -10,11 +10,14 @@
  * - Mutation operations (readonly=false) show confirmation dialog / 变更操作弹出确认框
  * - Auto-updates room on route change / 路由变化时自动更新房间
  *
- * Call once in layout component / 在 layout 组件中调用一次即可。
+ * Call once in layout component. Watchers and handler are recreated on remount
+ * so room join/switch logic works correctly after layout unmount/remount.
+ * 在 layout 组件中调用一次。重新挂载时会重建 watchers 和 handler，确保房间加入/切换逻辑正确。
  */
 
-import { watch } from 'vue';
+import { onScopeDispose, watch } from 'vue';
 
+import { normalizePageKey } from '#/components/business/ai-slide-panel';
 import {
   executePageOperation,
   findPageOperation,
@@ -51,11 +54,8 @@ export interface PageOperationResultEvent {
   error_type?: string;
 }
 
-/** Currently joined page_session room / 当前已加入的 page_session room */
+/** Currently joined page_session room (per composable instance) / 当前已加入的 page_session room */
 let currentJoinedRoom = '';
-
-/** Prevent duplicate handler registration on layout remount / 防止 layout 重新挂载时重复注册 */
-let _initialized = false;
 
 /**
  * Agent Loop: track recently confirmed mutation operations per page key.
@@ -113,9 +113,6 @@ function emitResult(
  * 5. Send back page_operation_result / 回传结果
  */
 export function usePageOperationChannel(): void {
-  if (_initialized) return;
-  _initialized = true;
-
   const socketIOStore = useSocketIOStore();
 
   /**
@@ -243,25 +240,38 @@ export function usePageOperationChannel(): void {
     handleInvoke as (data: unknown) => void,
   );
 
+  function leavePageSessionRoom() {
+    if (!currentJoinedRoom) return;
+    socketIOStore.emit('page_session_leave', {
+      page_session_id: currentJoinedRoom,
+    });
+    currentJoinedRoom = '';
+  }
+
   // Join page_session room / 加入 page_session 房间
   function joinPageSessionRoom() {
     const pageSessionId = getActivePageSessionId();
     if (!pageSessionId || !socketIOStore.isConnected) return;
     if (currentJoinedRoom === pageSessionId) return;
 
-    // Leave old room / 离开旧 room
-    if (currentJoinedRoom) {
-      socketIOStore.emit('page_session_leave', {
-        page_session_id: currentJoinedRoom,
-      });
-    }
+    leavePageSessionRoom();
 
     // Join new room / 加入新 room
+    const pageKey = normalizePageKey(window.location.pathname);
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
+      page_key: pageKey,
     });
     currentJoinedRoom = pageSessionId;
   }
+
+  onScopeDispose(() => {
+    leavePageSessionRoom();
+    socketIOStore.unregisterHandler(
+      'page_operation_invoke',
+      handleInvoke as (data: unknown) => void,
+    );
+  });
 
   // Join room when connection status changes / 连接状态变化时加入房间
   watch(

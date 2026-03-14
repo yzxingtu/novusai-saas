@@ -11,18 +11,6 @@ import { useEditor } from '@tiptap/vue-3';
 
 import { buildExtensions } from './extensions';
 
-/** Deduplicate extensions by name; first occurrence wins. Prevents TipTap "Duplicate extension names" warning. */
-function deduplicateByName(extensions: AnyExtension[]): AnyExtension[] {
-  const seen = new Set<string>();
-  return extensions.filter((ext) => {
-    const name = (ext as { name?: string }).name ?? (ext as { spec?: { name?: string } }).spec?.name;
-    if (!name) return true;
-    if (seen.has(name)) return false;
-    seen.add(name);
-    return true;
-  });
-}
-
 export interface UseRichTextEditorOptions {
   content?: JSONContent | null;
   editable?: boolean;
@@ -69,7 +57,7 @@ export function useRichTextEditor(options: UseRichTextEditorOptions = {}) {
     ...(options.extensions || []),
   ];
   const editor = useEditor({
-    extensions: deduplicateByName(baseExtensions),
+    extensions: baseExtensions,
     content: options.content || {
       type: 'doc',
       content: [{ type: 'paragraph' }],
