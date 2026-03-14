@@ -357,7 +357,8 @@
       "send_email_task": "Send Email",
       "send_notification_email": "Notification Email",
       "log_ai_call": "AI Call Logging",
-      "process_document": "Knowledge Base Document Processing"
+      "process_document": "Knowledge Base Document Processing",
+      "sync_litellm_registry": "LiteLLM Model Registry Sync"
     },
     "queueNames": {
       "default": "Default",
@@ -613,11 +614,15 @@
     "noModule": "Please select a module from the left",
     "tenant": "Tenant",
     "deleteLevel": "Delete Level",
+    "levelAll": "All",
     "levelAdmin": "Admin",
     "levelTenant": "Tenant",
     "searchPlaceholder": "Search deleted records...",
     "allTenants": "All Tenants",
-    "modules": "Modules"
+    "modules": "Modules",
+    "clearModule": "Clear Module",
+    "clearModuleConfirm": "Are you sure you want to permanently delete all records in \"{module}\"? This action cannot be undone.",
+    "clearModuleSuccess": "Module recycle bin cleared, {count} records permanently deleted"
   },
   "cache": {
     "title": "Cache Management",

@@ -10,6 +10,7 @@ from fastapi import Request
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
+from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
@@ -171,6 +172,12 @@ class TenantPeriodicTaskController(TenantController):
                 data={"triggered_task_id": triggered_task_id},
                 message=_("common.success"),
             )
+
+        register_tenant_recycle_bin_routes(
+            router=router,
+            service_class=TenantPeriodicTaskService,
+            resource_name="periodic_task",
+        )
 
 
 router = TenantPeriodicTaskController.get_router()

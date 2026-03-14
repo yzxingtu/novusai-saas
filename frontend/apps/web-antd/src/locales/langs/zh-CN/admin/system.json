@@ -357,7 +357,8 @@
       "send_email_task": "发送邮件",
       "send_notification_email": "通知邮件发送",
       "log_ai_call": "AI 调用日志记录",
-      "process_document": "知识库文档处理"
+      "process_document": "知识库文档处理",
+      "sync_litellm_registry": "LiteLLM 模型注册表同步"
     },
     "queueNames": {
       "default": "默认队列",
@@ -613,11 +614,15 @@
     "noModule": "请选择左侧模块",
     "tenant": "所属租户",
     "deleteLevel": "删除层级",
+    "levelAll": "全部",
     "levelAdmin": "管理端",
     "levelTenant": "租户端",
     "searchPlaceholder": "搜索已删除记录…",
     "allTenants": "全部租户",
-    "modules": "数据模块"
+    "modules": "数据模块",
+    "clearModule": "清空当前模块",
+    "clearModuleConfirm": "确定要永久删除「{module}」中所有回收站记录吗？此操作不可恢复。",
+    "clearModuleSuccess": "已清空当前模块回收站，共删除 {count} 条记录"
   },
   "cache": {
     "title": "缓存管理",

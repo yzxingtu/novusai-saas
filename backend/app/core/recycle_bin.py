@@ -156,7 +156,6 @@ def register_tenant_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db, tenant_admin.tenant_id)
-        # 逐个升级，因为 batch_permanent_delete 是物理删除 / Escalate one by one since batch_permanent_delete is hard delete
         count = 0
         for item_id in ids:
             result = await svc.escalate_delete(item_id)
@@ -164,6 +163,18 @@ def register_tenant_recycle_bin_routes(
                 count += 1
         await db.commit()
         return success(data={"count": count}, message=_("recycle_bin.escalated"))
+
+    @router.get("/{item_id}/delete-preview", summary="删除影响预览")
+    @action_delete(f"action.{resource_name}.delete")
+    async def delete_preview(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        tenant_admin: ActiveTenantAdmin,
+    ):
+        svc = service_class(db, tenant_admin.tenant_id)
+        preview = await svc.preview_delete(item_id)
+        return success(data=preview)
 
 
 def register_admin_recycle_bin_routes(
@@ -281,6 +292,18 @@ def register_admin_recycle_bin_routes(
         count = await svc.batch_permanent_delete(ids)
         await db.commit()
         return success(data={"count": count}, message=_("recycle_bin.permanently_deleted"))
+
+    @router.get("/{item_id}/delete-preview", summary="删除影响预览")
+    @action_delete(f"action.{resource_name}.delete")
+    async def delete_preview(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        admin: ActiveAdmin,
+    ):
+        svc = service_class(db)
+        preview = await svc.preview_delete(item_id)
+        return success(data=preview)
 
 
 def _serialize_with_delete_meta(instance: Any, serialize_fn: Callable) -> dict:

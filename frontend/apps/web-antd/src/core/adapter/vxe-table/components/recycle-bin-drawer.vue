@@ -32,6 +32,7 @@ defineOptions({ name: 'RecycleBinDrawer' });
 const props = withDefaults(defineProps<Props>(), {
   nameField: 'name',
   columns: undefined,
+  side: undefined,
 });
 
 // Emit for parent to know if restored
@@ -46,7 +47,17 @@ interface Props {
   nameField?: string;
   /** Custom column config / 自定义列配置 */
   columns?: Array<{ dataIndex: string; title: string; width?: number }>;
+  /** Side: admin=permanent delete, tenant=escalate to admin / 端侧：admin=永久删除，tenant=升级到管理端 */
+  side?: 'admin' | 'tenant';
 }
+
+// Auto-detect side from resource path when not explicitly set / 未显式设置时从资源路径自动检测端侧
+const resolvedSide = computed(() => {
+  if (props.side) return props.side;
+  return props.resource.startsWith('/tenant') ? 'tenant' : 'admin';
+});
+
+const isTenantSide = computed(() => resolvedSide.value === 'tenant');
 
 const visible = ref(false);
 const loading = ref(false);
@@ -118,18 +129,26 @@ async function handleRestore(record: Record<string, unknown>) {
   }
 }
 
-/** Permanently delete single record / 永久删除单条记录 */
-function handlePermanentDelete(record: Record<string, unknown>) {
+/** Delete single record (permanent on admin side, escalate on tenant side) / 删除单条记录（管理端永久删除，租户端升级到管理端） */
+function handleDelete(record: Record<string, unknown>) {
   const displayName = String(record[props.nameField] || record.id);
+  const title = isTenantSide.value
+    ? $t('common.recycleBin.escalate')
+    : $t('common.recycleBin.permanentDelete');
+  const content = isTenantSide.value
+    ? $t('common.recycleBin.confirmEscalate', { name: displayName })
+    : $t('common.recycleBin.confirmPermanentDelete', { name: displayName });
+  const successMsg = isTenantSide.value
+    ? $t('common.recycleBin.escalateSuccess')
+    : $t('common.recycleBin.deleteSuccess');
+
   Modal.confirm({
-    title: $t('common.recycleBin.permanentDelete'),
-    content: $t('common.recycleBin.confirmPermanentDelete', {
-      name: displayName,
-    }),
+    title,
+    content,
     okType: 'danger',
     onOk: async () => {
       await requestClient.delete(`${props.resource}/recycle-bin/${record.id}`);
-      message.success($t('common.recycleBin.deleteSuccess'));
+      message.success(successMsg);
       page.value = 1;
       await fetchList();
       await refreshCount();
@@ -154,20 +173,32 @@ async function handleBatchRestore() {
   }
 }
 
-/** Batch permanent delete / 批量永久删除 */
-function handleBatchPermanentDelete() {
+/** Batch delete (permanent on admin side, escalate on tenant side) / 批量删除（管理端永久删除，租户端升级到管理端） */
+function handleBatchDelete() {
   if (selectedRowKeys.value.length === 0) return;
+  const title = isTenantSide.value
+    ? $t('common.recycleBin.escalate')
+    : $t('common.recycleBin.permanentDelete');
+  const content = isTenantSide.value
+    ? $t('common.recycleBin.confirmBatchEscalate', {
+        count: selectedRowKeys.value.length,
+      })
+    : $t('common.recycleBin.confirmBatchPermanentDelete', {
+        count: selectedRowKeys.value.length,
+      });
+  const successMsg = isTenantSide.value
+    ? $t('common.recycleBin.escalateSuccess')
+    : $t('common.recycleBin.deleteSuccess');
+
   Modal.confirm({
-    title: $t('common.recycleBin.permanentDelete'),
-    content: $t('common.recycleBin.confirmBatchPermanentDelete', {
-      count: selectedRowKeys.value.length,
-    }),
+    title,
+    content,
     okType: 'danger',
     onOk: async () => {
       await requestClient.delete(`${props.resource}/recycle-bin/batch`, {
         data: { ids: selectedRowKeys.value },
       });
-      message.success($t('common.recycleBin.deleteSuccess'));
+      message.success(successMsg);
       page.value = 1;
       await fetchList();
       await refreshCount();
@@ -275,7 +306,7 @@ defineExpose({ open, close, refreshCount, deletedCount });
           </template>
           {{ $t('common.recycleBin.batchRestore') }}
         </Button>
-        <Button size="small" danger @click="handleBatchPermanentDelete">
+        <Button size="small" danger @click="handleBatchDelete">
           <template #icon>
             <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
           </template>
@@ -288,6 +319,10 @@ defineExpose({ open, close, refreshCount, deletedCount });
     <div class="mb-3 flex items-center gap-1 text-xs text-muted-foreground/70">
       <IconifyIcon icon="lucide:info" class="size-3.5" />
       <span>{{ $t('common.recycleBin.retentionDays', { days: 30 }) }}</span>
+      <template v-if="isTenantSide">
+        <span class="mx-1">·</span>
+        <span>{{ $t('common.recycleBin.escalateHint') }}</span>
+      </template>
     </div>
 
     <!-- Table / 表格 -->
@@ -324,12 +359,18 @@ defineExpose({ open, close, refreshCount, deletedCount });
                   </template>
                 </Button>
               </Tooltip>
-              <Tooltip :title="$t('common.recycleBin.permanentDelete')">
+              <Tooltip
+                :title="
+                  isTenantSide
+                    ? $t('common.recycleBin.escalate')
+                    : $t('common.recycleBin.permanentDelete')
+                "
+              >
                 <Button
                   type="link"
                   size="small"
                   danger
-                  @click="handlePermanentDelete(record)"
+                  @click="handleDelete(record)"
                 >
                   <template #icon>
                     <IconifyIcon icon="lucide:x" class="size-4" />

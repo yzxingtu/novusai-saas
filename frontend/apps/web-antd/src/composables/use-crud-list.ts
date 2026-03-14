@@ -81,9 +81,86 @@ interface DependencyGroup {
   items: DependencyItem[];
 }
 
+interface DeletePreviewResult {
+  blocked: boolean;
+  blockers: DependencyGroup[];
+  cascade_soft: DependencyGroup[];
+  cascade_delete: DependencyGroup[];
+  nullify: DependencyGroup[];
+}
+
 const DEP_MAX_PREVIEW = 5;
 
-/** Imperatively show dependency block modal (no component ref needed) / 命令式显示依赖阻止弹窗 */
+type StrategyType = 'blocked' | 'cascade_delete' | 'cascade_soft' | 'nullify';
+
+const STRATEGY_CONFIG: Record<
+  StrategyType,
+  { color: string; labelKey: string }
+> = {
+  blocked: { color: '#f5222d', labelKey: 'common.dependency.strategyBlocked' },
+  cascade_soft: {
+    color: '#fa8c16',
+    labelKey: 'common.dependency.strategyCascadeSoft',
+  },
+  cascade_delete: {
+    color: '#f5222d',
+    labelKey: 'common.dependency.strategyCascadeDelete',
+  },
+  nullify: { color: '#1677ff', labelKey: 'common.dependency.strategyNullify' },
+};
+
+function _renderDepCard(dep: DependencyGroup, strategy: StrategyType) {
+  const cfg = STRATEGY_CONFIG[strategy];
+  return h(
+    'div',
+    {
+      key: `${strategy}-${dep.type}`,
+      class: 'mb-2 rounded-lg border border-border/50 bg-accent/5 px-4 py-3',
+    },
+    [
+      h(
+        'div',
+        { class: 'mb-1 flex items-center justify-between text-sm font-medium' },
+        [
+          h('span', {}, $t(`common.dependency.model.${dep.type}`)),
+          h('span', { class: 'flex items-center gap-1.5' }, [
+            h(
+              'span',
+              {
+                class: 'inline-block rounded px-1.5 py-0.5 text-xs text-white',
+                style: `background:${cfg.color}`,
+              },
+              $t(cfg.labelKey),
+            ),
+            h(
+              'span',
+              { class: 'text-xs text-muted-foreground' },
+              $t('common.dependency.itemCount', { count: dep.count }),
+            ),
+          ]),
+        ],
+      ),
+      ...(dep.items || []).slice(0, DEP_MAX_PREVIEW).map((item) =>
+        h(
+          'div',
+          { key: item.id, class: 'pl-2 text-xs text-muted-foreground' },
+          `• ${item.label || `#${item.id}`}`,
+        ),
+      ),
+      dep.count > DEP_MAX_PREVIEW
+        ? h(
+            'div',
+            { class: 'pl-2 text-xs italic text-muted-foreground/60' },
+            $t('common.dependency.moreItems', {
+              count: dep.count - DEP_MAX_PREVIEW,
+            }),
+          )
+        : null,
+    ],
+  );
+}
+
+/** Imperatively show dependency block modal (backward compat) / 命令式显示依赖阻止弹窗 */
 function showDependencyBlock(deps: DependencyGroup[], name: string) {
   const title = name
     ? `${$t('common.dependency.title')}「${name}」`
@@ -103,48 +180,7 @@ function showDependencyBlock(deps: DependencyGroup[], name: string) {
           },
           $t('common.dependency.blocked'),
         ),
-        ...deps.map((dep) =>
-          h(
-            'div',
-            {
-              key: dep.type,
-              class:
-                'mb-2 rounded-lg border border-border/50 bg-accent/5 px-4 py-3',
-            },
-            [
-              h(
-                'div',
-                {
-                  class:
-                    'mb-1 flex items-center justify-between text-sm font-medium',
-                },
-                [
-                  h('span', {}, $t(`common.dependency.model.${dep.type}`)),
-                  h('span', { class: 'text-xs text-warning' }, `${dep.count}`),
-                ],
-              ),
-              ...(dep.items || []).slice(0, DEP_MAX_PREVIEW).map((item) =>
-                h(
-                  'div',
-                  {
-                    key: item.id,
-                    class: 'pl-2 text-xs text-muted-foreground',
-                  },
-                  `• ${item.label || `#${item.id}`}`,
-                ),
-              ),
-              dep.count > DEP_MAX_PREVIEW
-                ? h(
-                    'div',
-                    { class: 'pl-2 text-xs italic text-muted-foreground/60' },
-                    $t('common.dependency.moreItems', {
-                      count: dep.count - DEP_MAX_PREVIEW,
-                    }),
-                  )
-                : null,
-            ],
-          ),
-        ),
+        ...deps.map((dep) => _renderDepCard(dep, 'blocked')),
         h(
           'div',
           {
@@ -154,6 +190,66 @@ function showDependencyBlock(deps: DependencyGroup[], name: string) {
           $t('common.dependency.description'),
         ),
       ]),
+  });
+}
+
+/**
+ * Imperatively show unified dependency preview (supports both blocked & cascade).
+ * Returns false if blocked, Promise<boolean> for cascade mode.
+ * 命令式显示统一依赖预览（支持阻止和级联）。
+ */
+function showDependencyPreview(
+  preview: DeletePreviewResult,
+  name: string,
+): Promise<boolean> {
+  if (preview.blocked) {
+    showDependencyBlock(preview.blockers ?? [], name);
+    return Promise.resolve(false);
+  }
+
+  const title = $t('common.dependency.confirmDeleteTitle', { name });
+  const cards: ReturnType<typeof h>[] = [];
+  for (const dep of preview.cascade_soft ?? []) {
+    cards.push(_renderDepCard(dep, 'cascade_soft'));
+  }
+  for (const dep of preview.cascade_delete ?? []) {
+    cards.push(_renderDepCard(dep, 'cascade_delete'));
+  }
+  for (const dep of preview.nullify ?? []) {
+    cards.push(_renderDepCard(dep, 'nullify'));
+  }
+
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title,
+      icon: null,
+      width: 520,
+      centered: true,
+      okType: 'danger',
+      okText: $t('common.dependency.cascadeConfirm'),
+      content: () =>
+        h('div', {}, [
+          h(
+            'div',
+            {
+              class:
+                'mb-3 rounded-lg bg-warning/10 px-4 py-3 text-sm text-foreground',
+            },
+            $t('common.dependency.cascadeWarning'),
+          ),
+          ...cards,
+          h(
+            'div',
+            {
+              class:
+                'mt-3 rounded-lg bg-warning/5 px-4 py-2.5 text-xs text-muted-foreground',
+            },
+            $t('common.dependency.cascadeDescription'),
+          ),
+        ]),
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
   });
 }
 
@@ -795,12 +891,45 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   }
 
   // ==================== Delete / 删除 ====================
+
   async function onDelete(row: T) {
     const rowId = getRowKey(row);
     if (isProcessing(rowId)) return;
 
     setProcessing(rowId, true);
     try {
+      let preview: DeletePreviewResult | null = null;
+      try {
+        const res = await requestClient.get(
+          `${api.resource}/${rowId}/delete-preview`,
+          { showCodeMessage: false },
+        );
+        preview = (res?.data ?? res) as DeletePreviewResult;
+      } catch (err: unknown) {
+        const status = (
+          (err as Record<string, unknown>)?.response as
+            | Record<string, unknown>
+            | undefined
+        )?.status as number | undefined;
+        if (status !== undefined && status !== 404) {
+          return;
+        }
+      }
+
+      if (preview) {
+        const hasAnyDeps =
+          (preview.blocked as boolean) ||
+          ((preview.cascade_soft as unknown[])?.length ?? 0) > 0 ||
+          ((preview.cascade_delete as unknown[])?.length ?? 0) > 0 ||
+          ((preview.nullify as unknown[])?.length ?? 0) > 0;
+
+        if (hasAnyDeps) {
+          const displayName = String(row[nameField] || rowId);
+          const confirmed = await showDependencyPreview(preview, displayName);
+          if (!confirmed) return;
+        }
+      }
+
       await (api.delete
         ? api.delete(rowId as number)
         : requestClient.delete(`${api.resource}/${rowId}`, {

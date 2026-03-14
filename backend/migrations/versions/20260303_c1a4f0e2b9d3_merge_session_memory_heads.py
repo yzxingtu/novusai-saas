@@ -1,4 +1,7 @@
-"""merge_session_memory_heads
+"""[MERGE] merge_session_memory_heads
+
+Merges two branches: agent_memory_switch (9f2d1e34c7a1), sess_mem_cleanup.
+No schema changes.
 
 Revision ID: c1a4f0e2b9d3
 Revises: 9f2d1e34c7a1, 20260302_sess_mem_cleanup

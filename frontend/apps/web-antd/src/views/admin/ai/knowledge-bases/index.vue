@@ -329,15 +329,17 @@ function onDetailSuccess() {
         class="w-36"
         @change="doSearch"
       />
-      <Tooltip :title="$t('common.recycleBin.title')">
-        <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
-          <Button @click="openRecycleBin">
-            <template #icon>
-              <IconifyIcon icon="lucide:trash-2" class="size-4" />
-            </template>
-          </Button>
-        </Badge>
-      </Tooltip>
+      <span v-access:code="['ai_knowledge_base:recycle_bin']">
+        <Tooltip :title="$t('common.recycleBin.title')">
+          <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+            <Button @click="openRecycleBin">
+              <template #icon>
+                <IconifyIcon icon="lucide:trash-2" class="size-4" />
+              </template>
+            </Button>
+          </Badge>
+        </Tooltip>
+      </span>
       <div class="flex-1"></div>
       <Button
         v-access:code="['ai_knowledge_base:create']"

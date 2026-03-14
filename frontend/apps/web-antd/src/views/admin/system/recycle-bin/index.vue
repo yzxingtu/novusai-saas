@@ -37,6 +37,7 @@ import {
 
 import { useVbenForm } from '#/adapter/form';
 import {
+  clearRecycleBinModuleApi,
   getRecycleBinListApi,
   getRecycleBinModulesApi,
   getRecycleBinSummaryApi,
@@ -59,6 +60,7 @@ const items = ref<RecycleBinItem[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(20);
+const deleteLevelFilter = ref('');
 
 // ==================== Search form / 搜索表单 ====================
 const [SearchForm, searchFormApi] = useVbenForm({
@@ -145,6 +147,9 @@ async function loadList() {
         params[key] = val;
       }
     }
+    if (deleteLevelFilter.value) {
+      params.delete_level = deleteLevelFilter.value;
+    }
     const res = await getRecycleBinListApi(activeModule.value, params);
     items.value = res?.items ?? [];
     total.value = res?.total ?? 0;
@@ -196,6 +201,29 @@ async function handleCleanup() {
   }
 }
 
+function handleClearModule() {
+  if (!activeModule.value) return;
+  const currentSummary = summary.value.find(
+    (s) => s.module === activeModule.value,
+  );
+  const moduleName = currentSummary?.label ?? activeModule.value;
+  Modal.confirm({
+    title: $t('admin.system.recycleBin.clearModule'),
+    content: $t('admin.system.recycleBin.clearModuleConfirm', {
+      module: moduleName,
+    }),
+    okType: 'danger',
+    onOk: async () => {
+      const res = await clearRecycleBinModuleApi(activeModule.value);
+      const count = res?.count ?? 0;
+      message.success(
+        $t('admin.system.recycleBin.clearModuleSuccess', { count }),
+      );
+      await loadSummary();
+    },
+  });
+}
+
 async function onTabChange(key: number | string) {
   activeModule.value = String(key);
   currentPage.value = 1;
@@ -210,6 +238,12 @@ async function onTabChange(key: number | string) {
 function onPageChange(p: number, ps: number) {
   currentPage.value = p;
   pageSize.value = ps;
+  loadList();
+}
+
+function onDeleteLevelChange(level: string) {
+  deleteLevelFilter.value = level;
+  currentPage.value = 1;
   loadList();
 }
 
@@ -451,18 +485,44 @@ onUnmounted(() => {
 
         <!-- 右侧内容区 -->
         <div class="recycle-table-wrap min-w-0 flex-1">
-          <!-- 搜索 + 提示（紧凑单行） -->
+          <!-- 删除层级筛选 + 搜索 + 提示 -->
           <div class="mb-3 flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-1 rounded-lg border border-border/50 p-0.5">
+              <button
+                v-for="lvl in [
+                  { key: '', label: $t('admin.system.recycleBin.levelAll') },
+                  { key: 'admin', label: $t('admin.system.recycleBin.levelAdmin') },
+                  { key: 'tenant', label: $t('admin.system.recycleBin.levelTenant') },
+                ]"
+                :key="lvl.key"
+                class="rounded-md px-3 py-1 text-xs font-medium transition-all"
+                :class="deleteLevelFilter === lvl.key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                @click="onDeleteLevelChange(lvl.key)"
+              >
+                {{ lvl.label }}
+              </button>
+            </div>
             <div class="flex-1">
               <SearchForm />
             </div>
-            <div
-              class="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground"
-            >
-              <IconifyIcon icon="lucide:clock" class="size-3" />
-              <span>{{
-                $t('common.recycleBin.retentionDays', { days: 30 })
-              }}</span>
+            <div class="flex shrink-0 items-center gap-3">
+              <div
+                class="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+              >
+                <IconifyIcon icon="lucide:clock" class="size-3" />
+                <span>{{
+                  $t('common.recycleBin.retentionDays', { days: 30 })
+                }}</span>
+              </div>
+              <Button
+                v-if="items.length > 0"
+                size="small"
+                danger
+                @click="handleClearModule"
+              >
+                <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3.5" />
+                {{ $t('admin.system.recycleBin.clearModule') }}
+              </Button>
             </div>
           </div>
 

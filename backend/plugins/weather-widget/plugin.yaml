@@ -45,6 +45,16 @@ extensions:
         summary: "获取天气预报"
         auth: required
       - method: GET
+        path: "hourly"
+        handler: "api.handlers.get_hourly"
+        summary: "获取小时预报"
+        auth: required
+      - method: GET
+        path: "air-quality"
+        handler: "api.handlers.get_air_quality"
+        summary: "获取空气质量"
+        auth: required
+      - method: GET
         path: "geocoding"
         handler: "api.handlers.search_city"
         summary: "城市搜索"
@@ -64,6 +74,16 @@ extensions:
         path: "forecast"
         handler: "api.handlers.get_forecast"
         summary: "获取天气预报（管理端）"
+        auth: required
+      - method: GET
+        path: "hourly"
+        handler: "api.handlers.get_hourly"
+        summary: "获取小时预报（管理端）"
+        auth: required
+      - method: GET
+        path: "air-quality"
+        handler: "api.handlers.get_air_quality"
+        summary: "获取空气质量（管理端）"
         auth: required
       - method: GET
         path: "geocoding"

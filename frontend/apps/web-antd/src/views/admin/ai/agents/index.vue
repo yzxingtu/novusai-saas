@@ -439,16 +439,18 @@ const stats = computed(() => {
         </span>
       </div>
 
-      <!-- Recycle bin -->
-      <Tooltip :title="$t('common.recycleBin.title')">
-        <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
-          <Button @click="openRecycleBin">
-            <template #icon>
-              <IconifyIcon icon="lucide:trash-2" class="size-4" />
-            </template>
-          </Button>
-        </Badge>
-      </Tooltip>
+      <!-- Recycle bin / 回收站 -->
+      <span v-access:code="['ai_agent:recycle_bin']">
+        <Tooltip :title="$t('common.recycleBin.title')">
+          <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+            <Button @click="openRecycleBin">
+              <template #icon>
+                <IconifyIcon icon="lucide:trash-2" class="size-4" />
+              </template>
+            </Button>
+          </Badge>
+        </Tooltip>
+      </span>
 
       <!-- Create button -->
       <Button

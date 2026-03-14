@@ -204,6 +204,14 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
                     if isinstance(em, dict) and em.get("id") and em["id"] not in existing_ids:
                         remote_models.append(em)
 
+        # Enrich with LiteLLM capabilities (graceful degradation)
+        # 通过 LiteLLM 注册表附加模型能力（优雅降级）
+        try:
+            from app.services.ai.model_capability_lookup import enrich_remote_models
+            remote_models = await enrich_remote_models(remote_models)
+        except Exception as e:
+            _logger.warning("LiteLLM capability enrichment skipped: %s", str(e))
+
         return remote_models
 
 

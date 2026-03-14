@@ -351,8 +351,8 @@ class BaseEngine(ABC):
 
         # Non-vision model: remove image attachments to avoid API errors
         # Don't filter when routed to vision model (is_vision=True)
-        # 非视觉模型：移除图片附件，避免 API 报错
-        if is_vision is False:
+        # 非视觉模型：移除图片附件，避免 API 报错（使用 not 而非 is False，防止 None 值绕过过滤）
+        if not is_vision:
             for msg in messages:
                 if msg.attachments:
                     msg.attachments = [
@@ -371,6 +371,7 @@ class BaseEngine(ABC):
             tools=openai_tools,
             tenant_id=tenant_id,
             user_id=user_id,
+            supports_vision=bool(is_vision),
         )
 
         return response

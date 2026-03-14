@@ -66,6 +66,7 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = use
   nameField: 'name',
   defaultSort: '-created_at',
   createPermission: 'ai_api_key:create',
+  recycleBin: true,
   ai: { pageKey: 'admin.ai.api-keys', formSchema: useFormSchema },
 });
 

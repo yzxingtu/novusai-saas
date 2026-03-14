@@ -246,7 +246,8 @@
       "batch_too_large": "Batch size exceeded",
       "invalid_module": "Invalid module code"
     },
-    "cleanup_triggered": "Cleanup task submitted"
+    "cleanup_triggered": "Cleanup task submitted",
+    "module_cleared": "Module recycle bin cleared"
   },
   "agent": {
     "created": "Agent created successfully",
@@ -600,6 +601,7 @@
       "model_not_found": "Model not found or unavailable",
       "context_length_exceeded": "Input exceeds model context length limit",
       "content_filtered": "Content blocked by safety policy",
+      "vision_not_supported": "Current model does not support images. Please switch to a vision-capable model.",
       "quota_not_found": "Quota configuration not found",
       "fallback_self_reference": "Fallback model cannot reference itself",
       "embedding_empty_result": "Embedding returned empty result",
@@ -2832,7 +2834,8 @@
       "tenant_plan": "Tenant Plan",
       "tenant": "Tenant",
       "tenant_domain": "Domain",
-      "system_agent_assignment": "System Agent Assignment"
+      "system_agent_assignment": "System Agent Assignment",
+      "periodic_task": "Periodic Task"
     }
   },
   "periodic_task": {

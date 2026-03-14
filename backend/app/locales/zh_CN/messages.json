@@ -246,7 +246,8 @@
       "batch_too_large": "批量操作数量超限",
       "invalid_module": "无效的模块代码"
     },
-    "cleanup_triggered": "清理任务已提交"
+    "cleanup_triggered": "清理任务已提交",
+    "module_cleared": "已清空当前模块回收站"
   },
   "agent": {
     "created": "智能体创建成功",
@@ -600,6 +601,7 @@
       "model_not_found": "模型不存在或不可用",
       "context_length_exceeded": "输入内容超出模型上下文长度限制",
       "content_filtered": "内容被安全策略拦截",
+      "vision_not_supported": "当前模型不支持图片，请切换到支持视觉的模型",
       "quota_not_found": "配额配置不存在",
       "fallback_self_reference": "备用模型不能指向自身",
       "embedding_empty_result": "Embedding 返回空结果",
@@ -2850,7 +2852,8 @@
       "tenant_plan": "租户套餐",
       "tenant": "租户",
       "tenant_domain": "域名",
-      "system_agent_assignment": "系统智能体绑定"
+      "system_agent_assignment": "系统智能体绑定",
+      "periodic_task": "定时任务"
     }
   },
   "periodic_task": {

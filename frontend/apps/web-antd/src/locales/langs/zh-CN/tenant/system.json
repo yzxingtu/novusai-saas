@@ -483,7 +483,8 @@
       "send_email_task": "发送邮件",
       "send_notification_email": "通知邮件发送",
       "log_ai_call": "AI 调用日志记录",
-      "process_document": "知识库文档处理"
+      "process_document": "知识库文档处理",
+      "sync_litellm_registry": "LiteLLM 模型注册表同步"
     },
     "queueNames": {
       "default": "默认队列",

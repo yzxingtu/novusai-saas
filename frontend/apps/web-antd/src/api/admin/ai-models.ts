@@ -33,6 +33,9 @@ export interface AIModelInfo {
   max_image_size_mb: null | number;
   is_active: boolean;
   config: null | Record<string, unknown>;
+  fallback_model_id: null | number;
+  fallback_model_name: null | string;
+  tier: null | string;
   provider_name: null | string;
   provider_icon?: null | string;
   created_at: string;
@@ -58,6 +61,8 @@ export interface AIModelCreateRequest {
   max_image_size_mb?: null | number;
   is_active?: boolean;
   config?: null | Record<string, unknown>;
+  fallback_model_id?: null | number;
+  tier?: null | string;
 }
 
 /** Update model request / 更新模型请求 */
@@ -79,10 +84,25 @@ export interface AIModelUpdateRequest {
   max_image_size_mb?: null | number;
   is_active?: boolean | null;
   config?: null | Record<string, unknown>;
+  fallback_model_id?: null | number;
+  tier?: null | string;
+}
+
+/** Remote model capabilities from LiteLLM registry / 远程模型能力（来自 LiteLLM 注册表） */
+export interface RemoteModelCapabilities {
+  context_window?: null | number;
+  input_price_per_1k?: null | number;
+  max_output_tokens?: null | number;
+  model_type?: null | string;
+  output_price_per_1k?: null | number;
+  supports_function_calling?: boolean | null;
+  supports_streaming?: boolean | null;
+  supports_vision?: boolean | null;
 }
 
 /** Remote model info (fetched from provider API) / 远程模型信息 */
 export interface RemoteModelInfo {
+  capabilities?: null | RemoteModelCapabilities;
   id: string;
   owned_by: null | string;
 }

@@ -1,4 +1,7 @@
-"""merge_three_heads
+"""[MERGE] merge_three_heads
+
+Merges three branches: approval, backfill_roles, init_audience.
+No schema changes.
 
 Revision ID: 05f5370dfb35
 Revises: 20260307_approval, 20260307_backfill_roles, 20260308_init_audience

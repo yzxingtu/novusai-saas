@@ -25,7 +25,6 @@ from app.enums.agent import MemoryChannelEnum, MemorySceneEnum
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    MenuConfig,
     auth_only,
     permission_resource,
 )
@@ -45,13 +44,6 @@ from app.services.ai.conversation_service import ConversationService
     name="menu.user.ai_chat",
     scope=PermissionScope.TENANT_USER,
     parent_resource="menu",
-    menu=MenuConfig(
-        icon="lucide:message-square",
-        path="/ai-chat",
-        parent="menu",
-        sort_order=20,
-        hidden=True,
-    ),
 )
 class UserAgentChatController(BaseController):
     """

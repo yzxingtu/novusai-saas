@@ -447,6 +447,13 @@ class AdminPluginController(GlobalController):
                 plugin.marketplace_slug = slug
                 await db.flush()
 
+                from app.services.common.notification_service import notify
+                await notify(
+                    db, "biz.plugin_installed",
+                    [("admin", admin.id)],
+                    data={"plugin_name": plugin.display_name or plugin.name, "version": plugin.version or "1.0.0"},
+                )
+
                 return created(data=plugin.to_dict())
             finally:
                 shutil.rmtree(zip_path.parent, ignore_errors=True)
@@ -676,6 +683,14 @@ class AdminPluginController(GlobalController):
                 # lifecycle.install() 内部会把 plugin_dir -> plugins/{name}/ 完成文件复制 / lifecycle.install() copies plugin_dir -> plugins/{name}/ internally
                 service = self.get_service(db)
                 plugin = await service.install_from_path(plugin_dir, operator_id=admin.id)
+
+                from app.services.common.notification_service import notify
+                await notify(
+                    db, "biz.plugin_installed",
+                    [("admin", admin.id)],
+                    data={"plugin_name": plugin.display_name or plugin.name, "version": plugin.version or "1.0.0"},
+                )
+
                 return created(data=plugin.to_dict())
             finally:
                 shutil.rmtree(staging_dir, ignore_errors=True)
@@ -707,6 +722,15 @@ class AdminPluginController(GlobalController):
                 await db.flush()
 
             await service.enable_plugin(plugin_id, operator_id=admin.id)
+
+            plugin = await service.get_by_id(plugin_id)
+            from app.services.common.notification_service import notify
+            await notify(
+                db, "biz.plugin_enabled",
+                [("admin", admin.id)],
+                data={"plugin_name": plugin.display_name or plugin.name},
+            )
+
             return success(data={"message": "Plugin enabled"})
 
         @self.router.post("/{plugin_id}/disable")
@@ -718,7 +742,18 @@ class AdminPluginController(GlobalController):
             force: bool = False,
         ):
             service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            plugin_display = plugin.display_name or plugin.name
+
             await service.disable_plugin(plugin_id, force=force, operator_id=admin.id)
+
+            from app.services.common.notification_service import notify
+            await notify(
+                db, "biz.plugin_disabled",
+                [("admin", admin.id)],
+                data={"plugin_name": plugin_display},
+            )
+
             return success(data={"message": "Plugin disabled"})
 
         @self.router.put("/{plugin_id}/menu-config")
@@ -796,12 +831,24 @@ class AdminPluginController(GlobalController):
             cleanup_dependencies: bool = False,
         ):
             service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            plugin_display = plugin.display_name or plugin.name
+            plugin_version = plugin.version or "1.0.0"
+
             await service.uninstall_plugin(
                 plugin_id,
                 confirm_data_delete,
                 cleanup_dependencies=cleanup_dependencies,
                 operator_id=admin.id,
             )
+
+            from app.services.common.notification_service import notify
+            await notify(
+                db, "biz.plugin_uninstalled",
+                [("admin", admin.id)],
+                data={"plugin_name": plugin_display, "version": plugin_version},
+            )
+
             return deleted()
 
         @self.router.post("/{plugin_id}/repair")

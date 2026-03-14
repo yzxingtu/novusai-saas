@@ -1,8 +1,5 @@
 /**
  * 天气插件内联国际化消息
- *
- * 插件自带翻译，通过 setup() 注册到宿主 i18n。
- * 不依赖宿主 locale 文件。
  */
 
 export const zhCN: Record<string, Record<string, string>> = {
@@ -11,9 +8,14 @@ export const zhCN: Record<string, Record<string, string>> = {
   },
   ui: {
     temperature: '温度',
+    feels_like: '体感温度',
     humidity: '湿度',
     wind_speed: '风速',
     uv_index: '紫外线',
+    aqi: '空气质量',
+    sunrise: '日出',
+    sunset: '日落',
+    hourly_forecast: '小时预报',
     forecast: '未来预报',
     change_city: '切换城市',
     search_city: '搜索城市...',
@@ -27,6 +29,7 @@ export const zhCN: Record<string, Record<string, string>> = {
     today: '今天',
     tomorrow: '明天',
     day_after: '后天',
+    now: '现在',
     weekday_0: '周日',
     weekday_1: '周一',
     weekday_2: '周二',
@@ -34,11 +37,22 @@ export const zhCN: Record<string, Record<string, string>> = {
     weekday_4: '周四',
     weekday_5: '周五',
     weekday_6: '周六',
+    data_stale: '数据可能已过期',
   },
   error: {
     city_not_found: '未找到该城市',
     api_timeout: '天气服务请求超时',
     network: '网络错误，请稍后重试',
+    locate_failed: '定位失败，请检查权限',
+    locate_fallback: '无法识别城市，使用坐标定位',
+  },
+  aqi_level: {
+    good: '优',
+    moderate: '良',
+    unhealthy_sensitive: '轻度',
+    unhealthy: '中度',
+    very_unhealthy: '重度',
+    hazardous: '严重',
   },
 };
 
@@ -48,9 +62,14 @@ export const enUS: Record<string, Record<string, string>> = {
   },
   ui: {
     temperature: 'Temperature',
+    feels_like: 'Feels Like',
     humidity: 'Humidity',
-    wind_speed: 'Wind Speed',
+    wind_speed: 'Wind',
     uv_index: 'UV Index',
+    aqi: 'Air Quality',
+    sunrise: 'Sunrise',
+    sunset: 'Sunset',
+    hourly_forecast: 'Hourly',
     forecast: 'Forecast',
     change_city: 'Change City',
     search_city: 'Search city...',
@@ -64,6 +83,7 @@ export const enUS: Record<string, Record<string, string>> = {
     today: 'Today',
     tomorrow: 'Tomorrow',
     day_after: 'Day After',
+    now: 'Now',
     weekday_0: 'Sun',
     weekday_1: 'Mon',
     weekday_2: 'Tue',
@@ -71,10 +91,21 @@ export const enUS: Record<string, Record<string, string>> = {
     weekday_4: 'Thu',
     weekday_5: 'Fri',
     weekday_6: 'Sat',
+    data_stale: 'Data may be outdated',
   },
   error: {
     city_not_found: 'City not found',
     api_timeout: 'Weather service timed out',
     network: 'Network error, please try again',
+    locate_failed: 'Location failed, check permissions',
+    locate_fallback: 'Could not identify city, using coordinates',
+  },
+  aqi_level: {
+    good: 'Good',
+    moderate: 'Moderate',
+    unhealthy_sensitive: 'Sensitive',
+    unhealthy: 'Unhealthy',
+    very_unhealthy: 'Very Unhealthy',
+    hazardous: 'Hazardous',
   },
 };

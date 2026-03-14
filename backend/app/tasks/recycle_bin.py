@@ -57,17 +57,17 @@ def _import_model(model_path: str):
 
 @register_task(
     queue="scheduled",
-    description="Clean up expired recycle bin records (physically delete soft-deleted records exceeding retention days) / 清理回收站过期记录（物理删除超过保留天数的软删除记录）",
+    description="Clean up expired recycle bin records (escalate tenant → admin, physically delete admin-level expired) / 清理回收站过期记录（租户级升级到管理级，管理级物理删除）",
     max_retries=1,
 )
 def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
     """
-    Clean up expired recycle bin records / 清理回收站过期记录
+    Clean up expired recycle bin records (two-phase) / 清理回收站过期记录（两阶段）
 
-    Scans all registered Models, physically deletes records with deleted_at exceeding retention_days.
-    扫描所有注册的 Model，物理删除 deleted_at 超过 retention_days 天的记录。
-    Processes in batches of 100 to avoid long transactions.
-    分批处理，每批 100 条，避免长事务。
+    Phase 1: Escalate tenant-level expired records to admin level (reset deleted_at).
+    Phase 2: Physically delete admin-level expired records.
+    第一阶段：将租户级过期记录升级到管理级（重置 deleted_at）。
+    第二阶段：物理删除管理级过期记录。
 
     Args:
         retention_days: Retention days, default 30 / 保留天数，默认 30
@@ -75,14 +75,82 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
     from datetime import timedelta
 
     from sqlalchemy import delete as sa_delete
-    from sqlalchemy import select
+    from sqlalchemy import select, update as sa_update
 
     start = time.monotonic()
-    total_cleaned = 0
-    results = {}
+    total_escalated = 0
+    total_deleted = 0
+    escalate_results = {}
+    delete_results = {}
 
     cutoff = utc_now() - timedelta(days=retention_days)
+    now = utc_now()
 
+    # ── Phase 1: Escalate tenant-level expired → admin level ──
+    for model_path in RECYCLABLE_MODELS:
+        session = None
+        try:
+            model_class = _import_model(model_path)
+            model_name = model_class.__name__
+
+            if not hasattr(model_class, "is_deleted") or not hasattr(model_class, "delete_level"):
+                continue
+
+            session = sync_session_factory()
+            batch_size = 100
+            model_escalated = 0
+
+            while True:
+                sub = (
+                    select(model_class.id)
+                    .where(
+                        model_class.is_deleted.is_(True),
+                        model_class.deleted_at.is_not(None),
+                        model_class.deleted_at < cutoff,
+                        model_class.delete_level == "tenant",
+                    )
+                    .limit(batch_size)
+                    .subquery()
+                )
+
+                batch_stmt = (
+                    sa_update(model_class)
+                    .where(model_class.id.in_(select(sub.c.id)))
+                    .values(delete_level="admin", deleted_at=now, updated_at=now)
+                    .execution_options(synchronize_session=False)
+                )
+
+                result = session.execute(batch_stmt)
+                batch_count = result.rowcount
+                session.commit()
+
+                if batch_count == 0:
+                    break
+
+                model_escalated += batch_count
+
+            if model_escalated > 0:
+                escalate_results[model_name] = model_escalated
+                total_escalated += model_escalated
+                logger.info(
+                    "Recycle bin escalated tenant→admin model=%s count=%d",
+                    model_name,
+                    model_escalated,
+                )
+
+        except Exception as e:
+            logger.error(
+                "%s error=%s",
+                _("task.log.recycle_bin_cleanup_failed"),
+                f"escalate {model_path}: {e}",
+            )
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
+
+    # ── Phase 2: Physically delete admin-level expired records ──
     for model_path in RECYCLABLE_MODELS:
         session = None
         try:
@@ -97,19 +165,18 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
             model_cleaned = 0
 
             while True:
-                # Limit batch processing count / 限制每批处理数量
                 sub = (
                     select(model_class.id)
                     .where(
                         model_class.is_deleted.is_(True),
                         model_class.deleted_at.is_not(None),
                         model_class.deleted_at < cutoff,
+                        model_class.delete_level == "admin",
                     )
                     .limit(batch_size)
                     .subquery()
                 )
 
-                # Clean disk storage before physically deleting skill packages / 技能包物理删除前清理磁盘存储
                 if model_name == "SkillPackage":
                     ids_to_delete = session.execute(
                         select(sub.c.id)
@@ -141,8 +208,8 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                 model_cleaned += batch_count
 
             if model_cleaned > 0:
-                results[model_name] = model_cleaned
-                total_cleaned += model_cleaned
+                delete_results[model_name] = model_cleaned
+                total_deleted += model_cleaned
                 logger.info(
                     "%s model=%s count=%d",
                     _("task.log.recycle_bin_cleaned"),
@@ -154,7 +221,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
             logger.error(
                 "%s error=%s",
                 _("task.log.recycle_bin_cleanup_failed"),
-                f"{model_path}: {e}",
+                f"delete {model_path}: {e}",
             )
             if session:
                 session.rollback()
@@ -164,15 +231,18 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
 
     elapsed = time.monotonic() - start
     logger.info(
-        "%s total=%d elapsed=%.2fs",
+        "%s escalated=%d deleted=%d elapsed=%.2fs",
         _("task.log.recycle_bin_cleanup_total"),
-        total_cleaned,
+        total_escalated,
+        total_deleted,
         elapsed,
     )
 
     return {
-        "total_cleaned": total_cleaned,
-        "details": results,
+        "total_escalated": total_escalated,
+        "total_deleted": total_deleted,
+        "escalate_details": escalate_results,
+        "delete_details": delete_results,
         "retention_days": retention_days,
         "elapsed_seconds": round(elapsed, 2),
     }

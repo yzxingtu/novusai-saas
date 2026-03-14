@@ -22,7 +22,7 @@ logger = LogManager.get_logger("app")
 # title_template / body_template support {variable} placeholders, rendered by NotificationService._render_template
 # title_template / body_template 支持 {variable} 占位符，由 NotificationService._render_template 渲染
 SEED_TEMPLATES: list[dict] = [
-    # ===== system (9) =====
+    # ===== system (7) =====
     {
         "code": "system.announcement",
         "category": "system",
@@ -40,28 +40,12 @@ SEED_TEMPLATES: list[dict] = [
         "priority": "high",
     },
     {
-        "code": "system.version_update",
-        "category": "system",
-        "title_template": "系统已更新到 {version}",
-        "body_template": "系统已更新到版本 {version}，请查看更新日志了解新功能。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
         "code": "system.security_alert",
         "category": "system",
         "title_template": "安全警告",
         "body_template": "{message}",
         "channels": ["ws", "inbox", "email"],
         "priority": "urgent",
-    },
-    {
-        "code": "system.welcome",
-        "category": "system",
-        "title_template": "欢迎使用平台",
-        "body_template": "您的账号已创建成功，欢迎使用！如需帮助请联系管理员。",
-        "channels": ["inbox"],
-        "priority": "normal",
     },
     {
         "code": "system.password_reset",
@@ -95,23 +79,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["inbox", "email"],
         "priority": "high",
     },
-    # ===== ai (10) =====
-    {
-        "code": "ai.chat_complete",
-        "category": "ai",
-        "title_template": "AI 对话已完成",
-        "body_template": "您的 AI 对话已完成处理。",
-        "channels": ["ws"],
-        "priority": "normal",
-    },
-    {
-        "code": "ai.image_ready",
-        "category": "ai",
-        "title_template": "AI 图片已生成",
-        "body_template": "您请求的 AI 图片已生成完成，可前往查看。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
+    # ===== ai (5) =====
     {
         "code": "ai.batch_progress",
         "category": "ai",
@@ -137,14 +105,6 @@ SEED_TEMPLATES: list[dict] = [
         "priority": "high",
     },
     {
-        "code": "ai.kb_index_progress",
-        "category": "ai",
-        "title_template": "知识库索引进度更新",
-        "body_template": "知识库 {kb_name} 索引进度：{progress}%",
-        "channels": ["ws"],
-        "priority": "normal",
-    },
-    {
         "code": "ai.kb_index_complete",
         "category": "ai",
         "title_template": "知识库索引完成",
@@ -160,39 +120,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
-    {
-        "code": "ai.quota_warning",
-        "category": "ai",
-        "title_template": "AI 配额即将用尽",
-        "body_template": "模型 {model_name} 的 Token 配额已使用 {usage_percent}%，请注意用量。",
-        "channels": ["ws", "inbox"],
-        "priority": "high",
-    },
-    {
-        "code": "ai.quota_exhausted",
-        "category": "ai",
-        "title_template": "AI 配额已用尽",
-        "body_template": "模型 {model_name} 的 Token 配额已用尽，后续请求将被拒绝。请联系管理员调整配额。",
-        "channels": ["ws", "inbox", "email"],
-        "priority": "urgent",
-    },
-    {
-        "code": "ai.chat_reply",
-        "category": "ai",
-        "title_template": "AI 助手已回复您的消息",
-        "body_template": "AI 助手已完成回复，点击查看对话详情。",
-        "channels": ["ws"],
-        "priority": "normal",
-    },
-    # ===== task (5) =====
-    {
-        "code": "task.completed",
-        "category": "task",
-        "title_template": "任务已完成：{task_name}",
-        "body_template": "任务 {task_name} 已成功完成。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
+    # ===== task (1) =====
     {
         "code": "task.failed",
         "category": "task",
@@ -201,55 +129,7 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
-    {
-        "code": "task.export_ready",
-        "category": "task",
-        "title_template": "数据导出已完成",
-        "body_template": "您请求的数据导出已完成，文件 {filename} 已准备就绪。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "task.import_complete",
-        "category": "task",
-        "title_template": "数据导入已完成",
-        "body_template": "数据导入已完成，共导入 {count} 条记录。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "task.import_failed",
-        "category": "task",
-        "title_template": "数据导入失败",
-        "body_template": "数据导入失败，错误信息：{error}",
-        "channels": ["ws", "inbox"],
-        "priority": "high",
-    },
-    # ===== biz (8) =====
-    {
-        "code": "biz.tenant_created",
-        "category": "biz",
-        "title_template": "新租户已创建：{tenant_name}",
-        "body_template": "新租户 {tenant_name} 已创建成功。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "biz.tenant_expired",
-        "category": "biz",
-        "title_template": "租户套餐即将到期：{tenant_name}",
-        "body_template": "租户 {tenant_name} 的套餐将在 {days_remaining} 天后到期，请及时续费。",
-        "channels": ["ws", "inbox", "email"],
-        "priority": "high",
-    },
-    {
-        "code": "biz.plan_changed",
-        "category": "biz",
-        "title_template": "套餐已变更",
-        "body_template": "租户 {tenant_name} 的套餐已从 {old_plan} 变更为 {new_plan}。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
+    # ===== biz (7) =====
     {
         "code": "biz.plugin_installed",
         "category": "biz",
@@ -259,38 +139,29 @@ SEED_TEMPLATES: list[dict] = [
         "priority": "normal",
     },
     {
-        "code": "biz.plugin_update_available",
+        "code": "biz.plugin_enabled",
         "category": "biz",
-        "title_template": "插件有新版本：{plugin_name}",
-        "body_template": "插件 {plugin_name} 有新版本 {new_version} 可用，当前版本 {current_version}。",
+        "title_template": "插件已启用：{plugin_name}",
+        "body_template": "插件 {plugin_name} 已启用成功。",
         "channels": ["ws", "inbox"],
         "priority": "normal",
     },
     {
-        "code": "biz.domain_ssl_expiring",
+        "code": "biz.plugin_disabled",
         "category": "biz",
-        "title_template": "域名 SSL 证书即将到期：{domain}",
-        "body_template": "域名 {domain} 的 SSL 证书将在 {days_remaining} 天后到期，请及时处理。",
-        "channels": ["ws", "inbox", "email"],
-        "priority": "high",
-    },
-    {
-        "code": "biz.storage_warning",
-        "category": "biz",
-        "title_template": "存储空间不足警告",
-        "body_template": "租户 {tenant_name} 的存储空间已使用 {usage_percent}%，请清理或扩容。",
-        "channels": ["ws", "inbox"],
-        "priority": "high",
-    },
-    {
-        "code": "biz.sub_admin_created",
-        "category": "biz",
-        "title_template": "新管理员已创建：{admin_name}",
-        "body_template": "子管理员 {admin_name} 已创建成功，角色：{role_name}。",
+        "title_template": "插件已禁用：{plugin_name}",
+        "body_template": "插件 {plugin_name} 已禁用。",
         "channels": ["ws", "inbox"],
         "priority": "normal",
     },
-    # ===== approval (3) =====
+    {
+        "code": "biz.plugin_uninstalled",
+        "category": "biz",
+        "title_template": "插件已卸载：{plugin_name}",
+        "body_template": "插件 {plugin_name} (v{version}) 已卸载。",
+        "channels": ["ws", "inbox"],
+        "priority": "normal",
+    },
     {
         "code": "biz.user_registration_pending",
         "category": "biz",
@@ -314,39 +185,6 @@ SEED_TEMPLATES: list[dict] = [
         "body_template": "您在 {tenant_name} 的注册申请已被拒绝，如有疑问请联系管理员。",
         "channels": ["ws", "inbox", "email"],
         "priority": "normal",
-    },
-    # ===== audit (4) =====
-    {
-        "code": "audit.suspicious_login",
-        "category": "audit",
-        "title_template": "异常登录检测",
-        "body_template": "检测到异常登录行为，IP 地址：{ip}，位置：{location}。如非本人操作，请立即修改密码。",
-        "channels": ["ws", "inbox", "email"],
-        "priority": "urgent",
-    },
-    {
-        "code": "audit.permission_changed",
-        "category": "audit",
-        "title_template": "权限变更通知",
-        "body_template": "用户 {user_name} 的权限已变更，操作人：{operator}。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "audit.role_changed",
-        "category": "audit",
-        "title_template": "角色变更通知",
-        "body_template": "用户 {user_name} 的角色已从 {old_role} 变更为 {new_role}。",
-        "channels": ["ws", "inbox"],
-        "priority": "normal",
-    },
-    {
-        "code": "audit.account_locked",
-        "category": "audit",
-        "title_template": "账号已锁定",
-        "body_template": "用户 {user_name} 的账号因多次登录失败已被锁定，请联系管理员解锁。",
-        "channels": ["ws", "inbox"],
-        "priority": "high",
     },
 ]
 

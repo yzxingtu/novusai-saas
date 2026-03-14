@@ -207,6 +207,8 @@ export interface RecycleBinConfig {
   nameField?: string;
   /** Custom column config / 自定义列配置 */
   columns?: Array<{ dataIndex: string; title: string; width?: number }>;
+  /** Permission code override (auto-derived from createPermission when omitted) / 权限码覆盖（省略时从 createPermission 自动推导） */
+  permission?: string;
 }
 
 /**

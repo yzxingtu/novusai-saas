@@ -248,8 +248,9 @@ class ConversationEngine(BaseEngine):
             model_code = model_obj.code if model_obj else ""
             is_vision = model_obj.supports_vision if model_obj else False
 
-        # Non-vision model: remove image attachments to avoid API errors / 非视觉模型：移除图片附件，避免 API 报错
-        if is_vision is False:
+        # Non-vision model: remove image attachments to avoid API errors
+        # 非视觉模型：移除图片附件，避免 API 报错（使用 not 而非 is False，防止 None 值绕过过滤）
+        if not is_vision:
             for msg in messages:
                 if msg.attachments:
                     msg.attachments = [
@@ -284,24 +285,55 @@ class ConversationEngine(BaseEngine):
         )
         openai_tools = to_openai_tools(tools) if tools else None
 
+        supports_streaming = getattr(ai_model, "supports_streaming", True) if ai_model else True
+
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
-        async for chunk in adapter.stream_chat(
-            messages=messages,
-            model=model_code,
-            temperature=agent.temperature,
-            max_tokens=agent.max_tokens,
-            top_p=agent.top_p or 1.0,
-            tools=openai_tools,
-        ):
-            if chunk.total_tokens is not None:
-                total_tokens = chunk.total_tokens
-            if chunk.input_tokens is not None:
-                input_tokens = chunk.input_tokens
-            if chunk.output_tokens is not None:
-                output_tokens = chunk.output_tokens
-            yield chunk
+
+        if not supports_streaming:
+            logger.info(
+                "Model %s does not support streaming, falling back to sync chat",
+                model_code,
+            )
+            response = await adapter.chat(
+                messages=messages,
+                model=model_code,
+                temperature=agent.temperature,
+                max_tokens=agent.max_tokens,
+                top_p=agent.top_p or 1.0,
+                tools=openai_tools,
+                supports_vision=bool(is_vision),
+            )
+            total_tokens = response.total_tokens or 0
+            input_tokens = response.input_tokens or 0
+            output_tokens = response.output_tokens or 0
+            yield ChatChunk(
+                delta=response.message.content or "",
+                role=response.message.role,
+                finish_reason="stop",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                tool_calls=response.tool_calls,
+            )
+        else:
+            async for chunk in adapter.stream_chat(
+                messages=messages,
+                model=model_code,
+                temperature=agent.temperature,
+                max_tokens=agent.max_tokens,
+                top_p=agent.top_p or 1.0,
+                tools=openai_tools,
+                supports_vision=bool(is_vision),
+            ):
+                if chunk.total_tokens is not None:
+                    total_tokens = chunk.total_tokens
+                if chunk.input_tokens is not None:
+                    input_tokens = chunk.input_tokens
+                if chunk.output_tokens is not None:
+                    output_tokens = chunk.output_tokens
+                yield chunk
 
         # After stream ends: adjust TPM and quota (reuse gateway unified method) / 流结束后：调整 TPM 和配额（复用 gateway 统一方法）
         if tenant_id and ai_model and estimated_input > 0:

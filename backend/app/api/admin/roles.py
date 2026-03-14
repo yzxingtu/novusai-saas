@@ -13,6 +13,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
@@ -1066,6 +1067,12 @@ class AdminRoleController(GlobalController):
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=str(e.message),
                 )
+
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=AdminRoleService,
+            resource_name="organization",
+        )
 
 
 # 导出路由器 / Export router

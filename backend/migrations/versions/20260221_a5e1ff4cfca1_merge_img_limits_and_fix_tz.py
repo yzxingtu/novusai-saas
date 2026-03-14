@@ -1,4 +1,7 @@
-"""merge_img_limits_and_fix_tz
+"""[MERGE] merge_img_limits_and_fix_tz
+
+Merges two branches: img_limits, fix_tz.
+No schema changes.
 
 Revision ID: a5e1ff4cfca1
 Revises: 20260221_img_limits, 20260221_fix_tz

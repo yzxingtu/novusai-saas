@@ -1,5 +1,10 @@
 """add plugin tables
 
+NOTE: This autogenerate migration contains comment-only alter_column noise
+(lines ~106-167 in upgrade, ~218-275 in downgrade) that only change column
+comments on the plugins table. These do not affect schema or functionality
+but cannot be removed since the migration is already applied.
+
 Revision ID: d11f0b4fec39
 Revises: c084bc659728
 Create Date: 2026-02-23 02:43:36.879039+00:00

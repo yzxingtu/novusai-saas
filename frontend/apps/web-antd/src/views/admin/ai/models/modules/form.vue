@@ -13,7 +13,7 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Select, Spin } from 'ant-design-vue';
+import { Select, Spin, Tag } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { fetchRemoteModelsApi, getAIModelDetailApi } from '#/api/admin/ai';
@@ -55,6 +55,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       max_output_tokens: values.max_output_tokens || null,
       input_price_per_1k: values.input_price_per_1k || null,
       output_price_per_1k: values.output_price_per_1k || null,
+      rpm_limit: values.rpm_limit || null,
+      tpm_limit: values.tpm_limit || null,
       supports_function_calling: values.supports_function_calling ?? false,
       supports_vision: values.supports_vision ?? false,
       supports_streaming: values.supports_streaming ?? true,
@@ -65,6 +67,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
         ? values.max_image_size_mb || 10
         : null,
       is_active: values.is_active ?? true,
+      fallback_model_id: values.fallback_model_id || null,
+      tier: values.tier || null,
     };
   },
   toFormValues: (data) => {
@@ -77,12 +81,16 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       max_output_tokens: data.max_output_tokens,
       input_price_per_1k: data.input_price_per_1k,
       output_price_per_1k: data.output_price_per_1k,
+      rpm_limit: data.rpm_limit,
+      tpm_limit: data.tpm_limit,
       supports_function_calling: data.supports_function_calling,
       supports_vision: data.supports_vision,
       supports_streaming: data.supports_streaming,
       max_image_count: data.max_image_count ?? 5,
       max_image_size_mb: data.max_image_size_mb ?? 10,
       is_active: data.is_active,
+      fallback_model_id: data.fallback_model_id,
+      tier: data.tier,
     };
   },
   onSuccess: () => {
@@ -106,6 +114,7 @@ const remoteModelOptions = computed(() =>
   remoteModels.value.map((m) => ({
     label: m.owned_by ? `${m.id} (${m.owned_by})` : m.id,
     value: m.id,
+    caps: m.capabilities ?? null,
   })),
 );
 
@@ -151,10 +160,45 @@ watch(currentProviderId, (newId) => {
 /** Auto-fill after selecting remote model / 选择远程模型后自动填充 */
 function onRemoteModelSelect(modelId: unknown) {
   if (!modelId || typeof modelId !== 'string') return;
-  formApi.setValues({
+
+  const model = remoteModels.value.find((m) => m.id === modelId);
+  const caps = model?.capabilities;
+
+  const defaults = getFormDefaults();
+  const providerId = currentProviderId.value;
+
+  const values: Record<string, unknown> = {
+    ...defaults,
+    provider_id: providerId,
     code: modelId,
     name: modelId,
-  });
+    context_window: null,
+    max_output_tokens: null,
+    input_price_per_1k: null,
+    output_price_per_1k: null,
+    rpm_limit: null,
+    tpm_limit: null,
+    fallback_model_id: null,
+  };
+
+  if (caps) {
+    if (caps.model_type) values.type = caps.model_type;
+    if (caps.supports_vision != null)
+      values.supports_vision = caps.supports_vision;
+    if (caps.supports_function_calling != null)
+      values.supports_function_calling = caps.supports_function_calling;
+    if (caps.supports_streaming != null)
+      values.supports_streaming = caps.supports_streaming;
+    if (caps.context_window != null) values.context_window = caps.context_window;
+    if (caps.max_output_tokens != null)
+      values.max_output_tokens = caps.max_output_tokens;
+    if (caps.input_price_per_1k != null)
+      values.input_price_per_1k = caps.input_price_per_1k;
+    if (caps.output_price_per_1k != null)
+      values.output_price_per_1k = caps.output_price_per_1k;
+  }
+
+  formApi.setValues(values);
 }
 </script>
 
@@ -180,7 +224,27 @@ function onRemoteModelSelect(modelId: unknown) {
         show-search
         class="w-full"
         @change="onRemoteModelSelect"
-      />
+      >
+        <template #option="{ label: optLabel, caps }">
+          <div class="flex items-center gap-1.5">
+            <span class="truncate">{{ optLabel }}</span>
+            <template v-if="caps">
+              <Tag
+                v-if="caps.supports_vision"
+                color="blue"
+                class="mr-0 leading-tight"
+                >Vision</Tag
+              >
+              <Tag
+                v-if="caps.supports_function_calling"
+                color="green"
+                class="mr-0 leading-tight"
+                >Tools</Tag
+              >
+            </template>
+          </div>
+        </template>
+      </Select>
       <div class="mt-1 text-xs text-muted-foreground">
         {{
           $t('admin.ai.model.fetchRemoteSuccess', {

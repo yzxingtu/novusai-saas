@@ -66,6 +66,13 @@ export function permanentDeleteRecycleBinItemApi(module: string, id: number) {
   return requestClient.delete(`${BASE_URL}/${module}/${id}`);
 }
 
+/** Clear all deleted records for a module / 清空指定模块的所有回收站记录 */
+export function clearRecycleBinModuleApi(module: string) {
+  return requestClient.delete<{ count: number }>(
+    `${BASE_URL}/${module}/clear`,
+  );
+}
+
 /** Manually trigger expired cleanup / 手动触发过期清理 */
 export function triggerRecycleBinCleanupApi(retentionDays: number = 30) {
   return requestClient.delete(`${BASE_URL}/cleanup`, {

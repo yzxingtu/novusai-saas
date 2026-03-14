@@ -53,6 +53,8 @@ from app.api.tenant.periodic_tasks import router as periodic_tasks_router
 from app.api.tenant.permissions import TenantPermissionController
 from app.api.tenant.permissions import router as permissions_router
 from app.api.tenant.plugins import router as plugins_router
+from app.api.tenant.recycle_bin import TenantRecycleBinController
+from app.api.tenant.recycle_bin import router as recycle_bin_router
 from app.api.tenant.roles import TenantRoleController
 from app.api.tenant.roles import router as roles_router
 from app.api.tenant.skill_packages import TenantSkillPackageController
@@ -116,6 +118,8 @@ tenant_router.include_router(notification_preferences_router)
 tenant_router.include_router(plugins_router)
 # 数据分析
 tenant_router.include_router(analytics_router)
+# 回收站
+tenant_router.include_router(recycle_bin_router)
 
 
 __all__ = [
@@ -154,4 +158,6 @@ __all__ = [
     # 技能包 & 技能管理
     "TenantSkillPackageController",
     "TenantSkillController",
+    # 回收站
+    "TenantRecycleBinController",
 ]

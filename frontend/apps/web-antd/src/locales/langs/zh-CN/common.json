@@ -309,12 +309,27 @@
     "deletedAt": "删除时间",
     "retentionDays": "{days} 天后自动清除",
     "escalateHint": "将移入管理端回收站",
+    "escalate": "移出回收站",
+    "confirmEscalate": "「{name}」将移入管理端回收站，需要联系管理员恢复",
+    "confirmBatchEscalate": "选中的 {count} 条记录将移入管理端回收站，需要联系管理员恢复",
+    "escalateSuccess": "已移出回收站",
     "itemCount": "{count} 条记录"
   },
   "dependency": {
     "title": "无法删除",
+    "confirmDeleteTitle": "确定要删除「{name}」？",
     "blocked": "以下资源仍在使用该记录：",
     "description": "请先删除或迁移上述资源后再删除此记录",
+    "cascadeWarning": "删除将同时影响以下关联数据：",
+    "cascadeDescription": "以上关联数据将在删除时自动处理，此操作不可撤销",
+    "cascadeConfirm": "确认删除",
+    "strategyCascadeSoft": "将移入回收站",
+    "strategyCascadeDelete": "将被永久删除",
+    "strategyNullify": "关联将被解除",
+    "strategyBlocked": "阻止删除",
+    "cascadeSoft": "{count} 条记录将进入回收站",
+    "cascadeDelete": "{count} 条记录将被永久删除",
+    "nullify": "{count} 条记录的关联将被解除",
     "itemCount": "{count} 条",
     "moreItems": "还有 {count} 条...",
     "model": {
@@ -341,7 +356,8 @@
       "tenant": "租户",
       "tenant_domain": "域名",
       "tenant_plugin": "租户插件",
-      "system_agent_assignment": "系统智能体绑定"
+      "system_agent_assignment": "系统智能体绑定",
+      "periodic_task": "定时任务"
     }
   },
   "maintenance": {

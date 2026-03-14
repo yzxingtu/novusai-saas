@@ -95,6 +95,11 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     typeof recycleBin === 'object' ? recycleBin : {};
   const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
 
+  // Auto-derive recycle bin permission from createPermission / 从 createPermission 自动推导回收站权限码
+  const recycleBinPermission =
+    recycleBinConfig.permission ??
+    (createPermission ? createPermission.replace(/:\w+$/, ':recycle_bin') : '');
+
   // ==================== Dependency block modal / 依赖阻止弹窗 ====================
   const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(
     null,
@@ -193,17 +198,52 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   /**
    * Delete (auto-constructs DELETE {resource}/{id} request)
    * 删除（自动构造 DELETE {resource}/{id} 请求）
-   * Note: CellOperation renderer already provides Popconfirm, this directly executes delete
-   * 注意：CellOperation 渲染器已经提供了 Popconfirm 确认，此处直接执行删除
+   *
+   * Flow: preview deps → if blocked show DependencyBlockModal → if has cascade show confirm → execute DELETE
+   * 流程：预览依赖 → 如果阻止则显示阻止弹窗 → 如果有级联则显示确认 → 执行 DELETE
    */
   async function onDelete(row: T) {
-    // Debounce: return if already processing / 防抖：如果正在处理中，直接返回
     if (isProcessing(row.id)) return;
 
     setProcessing(row.id, true);
     try {
-      // Auto-construct DELETE request: DELETE {resource}/{id} / 自动构造 DELETE 请求
-      // Disable default error message, handled by catch below for 4221 / 关闭默认错误消息，由下方 catch 手动处理 4221
+      let preview: Record<string, unknown> | null = null;
+      try {
+        const res = await requestClient.get(
+          `${api.resource}/${row.id}/delete-preview`,
+          { showCodeMessage: false },
+        );
+        preview = (res?.data ?? res) as Record<string, unknown>;
+      } catch (err: unknown) {
+        const status = (
+          (err as Record<string, unknown>)?.response as
+            | Record<string, unknown>
+            | undefined
+        )?.status as number | undefined;
+        if (status !== undefined && status !== 404) {
+          return;
+        }
+      }
+
+      if (preview) {
+        const hasAnyDeps =
+          (preview.blocked as boolean) ||
+          ((preview.cascade_soft as unknown[])?.length ?? 0) > 0 ||
+          ((preview.cascade_delete as unknown[])?.length ?? 0) > 0 ||
+          ((preview.nullify as unknown[])?.length ?? 0) > 0;
+
+        if (hasAnyDeps) {
+          const displayName = String(row[nameField] || row.id);
+          const confirmed = await depBlockRef.value?.openPreview(
+            preview as Parameters<
+              InstanceType<typeof DependencyBlockModal>['openPreview']
+            >[0],
+            displayName,
+          );
+          if (!confirmed) return;
+        }
+      }
+
       await requestClient.delete(`${api.resource}/${row.id}`, {
         loading: true,
         showCodeMessage: false,
@@ -211,19 +251,24 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
       });
       onRefresh();
-      // Refresh recycle bin count / 刷新回收站计数
       if (recycleBinEnabled) {
         recycleBinRef.value?.refreshCount();
       }
     } catch (error: unknown) {
-      const resp = (error as any)?.response?.data;
-      if (resp?.code === DEPENDENCY_BLOCKED_CODE && resp?.dependencies) {
-        // 4221: Dependency blocked → show dependency details modal / 依赖阻止 → 弹出依赖详情弹窗
+      const resp = (error as Record<string, unknown>)?.response as
+        | Record<string, unknown>
+        | undefined;
+      const respData = resp?.data as Record<string, unknown> | undefined;
+      if (respData?.code === DEPENDENCY_BLOCKED_CODE && respData?.dependencies) {
         const displayName = String(row[nameField] || row.id);
-        depBlockRef.value?.open(resp.dependencies, displayName);
-      } else if (resp?.message) {
-        // Other business errors → show error message / 其他业务错误 → 显示错误消息
-        message.error(resp.message);
+        depBlockRef.value?.open(
+          respData.dependencies as Parameters<
+            InstanceType<typeof DependencyBlockModal>['open']
+          >[0],
+          displayName,
+        );
+      } else if (respData?.message) {
+        message.error(respData.message as string);
       }
     } finally {
       setProcessing(row.id, false);
@@ -430,6 +475,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
               showExport: showExportButton,
               showRecycleBin: recycleBinEnabled,
               recycleBinCount: recycleBinRef.value?.deletedCount ?? 0,
+              recycleBinPermission,
               onExport: openExportModal,
               onRecycleBin: openRecycleBin,
               onRefresh,

@@ -52,6 +52,14 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
         "is_tenant": False,
         "columns": ["name", "model_id", "provider_id", "status"],
     },
+    "ai_api_keys": {
+        "model": "app.models.ai.api_key.ProviderApiKey",
+        "service": "app.services.ai.api_key_service.ProviderApiKeyService",
+        "label_field": "name",
+        "i18n_key": "deletion.model.provider_api_key",
+        "is_tenant": True,
+        "columns": ["name", "provider_id"],
+    },
     "agents": {
         "model": "app.models.ai.agent.Agent",
         "service": "app.services.ai.agent_service.AgentService",
@@ -115,6 +123,22 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
         "i18n_key": "deletion.model.table_policy",
         "is_tenant": False,
         "columns": ["table_name", "label"],
+    },
+    "periodic_tasks": {
+        "model": "app.models.system.periodic_task.PeriodicTask",
+        "service": "app.services.tenant.periodic_task_service.TenantPeriodicTaskService",
+        "label_field": "name",
+        "i18n_key": "deletion.model.periodic_task",
+        "is_tenant": True,
+        "columns": ["name", "is_active"],
+    },
+    "tenant_admin_roles": {
+        "model": "app.models.auth.tenant_admin_role.TenantAdminRole",
+        "service": "app.services.tenant.tenant_admin_role_service.TenantAdminRoleService",
+        "label_field": "name",
+        "i18n_key": "deletion.model.tenant_admin_role",
+        "is_tenant": True,
+        "columns": ["name", "code"],
     },
 }
 
@@ -306,6 +330,7 @@ async def recycle_bin_list(
     admin: ActiveAdmin,
     query: QueryParams,
     module: str = Query(..., description="模块代码"),
+    delete_level: str = Query("", description="删除层级筛选：tenant/admin/空=全部"),
 ):
     """
     查询指定模块的已删除记录。
@@ -315,6 +340,7 @@ async def recycle_bin_list(
     Search/sort inherits the original module's __filterable__ / __sortable__ definitions.
     租户级记录自动附带 tenant_id / tenant_name。
     Tenant-level records automatically include tenant_id / tenant_name.
+    支持 delete_level 筛选。 / Supports delete_level filtering.
     """
     config = RECYCLABLE_MODULES.get(module)
     if not config:
@@ -323,7 +349,8 @@ async def recycle_bin_list(
         )
 
     svc = _get_service(module, db)
-    items, total = await svc.query_deleted_list(spec=query)
+    level_filter = delete_level if delete_level in ("tenant", "admin") else None
+    items, total = await svc.query_deleted_list(spec=query, delete_level=level_filter)
 
     columns = config["columns"]
     is_tenant = config.get("is_tenant", False)
@@ -362,6 +389,40 @@ async def recycle_bin_restore(
         raise NotFoundException(message=_("recycle_bin.error.not_found"))
     await db.commit()
     return success(message=_("recycle_bin.restored"))
+
+
+@router.delete("/{module}/clear", summary="清空指定模块的所有已删除记录")
+@action_delete()
+async def recycle_bin_clear_module(
+    request: Request,
+    db: DbSession,
+    admin: ActiveAdmin,
+    module: str,
+):
+    """永久删除指定模块的所有回收站记录 / Permanently delete all recycle bin records for the specified module"""
+    config = RECYCLABLE_MODULES.get(module)
+    if not config:
+        raise ValidationException(
+            message=_("recycle_bin.error.invalid_module"),
+        )
+
+    model_cls = _get_model(module)
+    if not hasattr(model_cls, "is_deleted"):
+        raise ValidationException(
+            message=_("recycle_bin.error.invalid_module"),
+        )
+
+    from sqlalchemy import delete as sa_delete
+    stmt = sa_delete(model_cls).where(model_cls.is_deleted.is_(True))
+    result = await db.execute(stmt)
+    await db.commit()
+    count = result.rowcount or 0
+
+    logger.info("Admin %s cleared module '%s': %d records permanently deleted", admin.id, module, count)
+    return success(
+        message=_("recycle_bin.module_cleared"),
+        data={"count": count},
+    )
 
 
 @router.delete("/{module}/{item_id}", summary="永久删除")

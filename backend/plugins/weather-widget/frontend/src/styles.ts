@@ -1,17 +1,16 @@
 /**
- * 天气插件非 Tailwind 样式（字符串形式）
+ * 天气插件样式 — Windows 11 Fluent Design
  *
- * 布局/排版已迁移到 Tailwind（WeatherHeaderWidget.vue 模板中）。
- * 仅保留无法用 Tailwind 实现的样式：Popover portal 覆盖、天气渐变背景、粒子动画/伪元素。
- * 通过 setup() 用 JS 注入到 <head>，以 .wx- 前缀避免冲突。
+ * 亚克力材质 + 柔和渐变 + 噪点纹理 + 精细动画
+ * 通过 JS 注入 <head>（Popover portal 无法使用 scoped CSS）
  */
 export const WX_STYLES = `
-/* ── Popover 覆盖（portal 渲染，无法用 Tailwind） ── */
+/* ── Popover 覆盖 ── */
 .weather-popover-immersive.ant-popover .ant-popover-inner {
   padding: 0 !important;
   background: transparent !important;
   border: none !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.28) !important;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.06) !important;
   border-radius: 16px !important;
   overflow: hidden !important;
 }
@@ -26,197 +25,313 @@ export const WX_STYLES = `
 
 /* ── 视图切换过渡 ── */
 .wx-view-enter-active, .wx-view-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.wx-view-enter-from {
-  opacity: 0; transform: translateY(8px);
+.wx-view-enter-from { opacity: 0; transform: translateY(6px); }
+.wx-view-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* ── 内容渐入动画 ── */
+.wx-fade-up {
+  animation: wx-fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
-.wx-view-leave-to {
-  opacity: 0; transform: translateY(-8px);
+.wx-fade-up-1 { animation-delay: 0.05s; }
+.wx-fade-up-2 { animation-delay: 0.1s; }
+.wx-fade-up-3 { animation-delay: 0.15s; }
+.wx-fade-up-4 { animation-delay: 0.2s; }
+@keyframes wx-fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── 天气背景渐变 ── */
-.wx-bg--clear-day { background: linear-gradient(170deg, #1565c0 0%, #1e88e5 40%, #42a5f5 100%); }
-.wx-bg--clear-night { background: linear-gradient(170deg, #070e1a 0%, #0d1b2a 40%, #162d50 100%); }
-.wx-bg--cloudy-day { background: linear-gradient(170deg, #546e7a 0%, #607d8b 50%, #78909c 100%); }
-.wx-bg--cloudy-night { background: linear-gradient(170deg, #1a2530 0%, #263238 50%, #37474f 100%); }
-.wx-bg--rain-day { background: linear-gradient(170deg, #37474f 0%, #455a64 50%, #546e7a 100%); }
-.wx-bg--rain-night { background: linear-gradient(170deg, #0d1117 0%, #161b22 50%, #1c2128 100%); }
-.wx-bg--snow-day { background: linear-gradient(170deg, #78909c 0%, #90a4ae 50%, #b0bec5 100%); }
-.wx-bg--snow-night { background: linear-gradient(170deg, #263238 0%, #37474f 50%, #455a64 100%); }
-.wx-bg--thunder { background: linear-gradient(170deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%); }
-.wx-bg--fog { background: linear-gradient(170deg, #78909c 0%, #90a4ae 50%, #b0bec5 100%); }
+/* ══════════════════════════════════════
+   天气背景渐变 (柔和低饱和度)
+   ══════════════════════════════════════ */
+.wx-bg--clear-day   { background: linear-gradient(175deg, #1a56db 0%, #2e7cf6 30%, #4a9af7 60%, #7bb8f9 100%); }
+.wx-bg--clear-night { background: linear-gradient(175deg, #0a0f1f 0%, #101b3a 30%, #162550 65%, #1c3468 100%); }
+.wx-bg--cloudy-day  { background: linear-gradient(175deg, #3d5a80 0%, #5a7da3 35%, #7d9bba 70%, #98b4cc 100%); }
+.wx-bg--cloudy-night{ background: linear-gradient(175deg, #1a2744 0%, #253550 35%, #324563 70%, #3d5575 100%); }
+.wx-bg--rain-day    { background: linear-gradient(175deg, #2c3e57 0%, #3e5571 35%, #506d8a 70%, #6685a3 100%); }
+.wx-bg--rain-night  { background: linear-gradient(175deg, #0d1520 0%, #162030 35%, #1f2d42 70%, #283a54 100%); }
+.wx-bg--snow-day    { background: linear-gradient(175deg, #6882a0 0%, #839ab5 30%, #9eb3cc 60%, #b8cce3 100%); }
+.wx-bg--snow-night  { background: linear-gradient(175deg, #1e2b40 0%, #2a3a55 35%, #384b68 70%, #455c7a 100%); }
+.wx-bg--thunder     { background: linear-gradient(175deg, #12102a 0%, #1a1640 30%, #231e55 60%, #2c2668 100%); }
+.wx-bg--fog         { background: linear-gradient(175deg, #5c7a9a 0%, #7a96b3 35%, #96b0c9 70%, #b2c9de 100%); }
 
-/* ══════════════════════════════════════════════════
-   天气场景动画
-   ══════════════════════════════════════════════════ */
-
-/* ── 太阳（晴天白天）── */
-.wx-sun {
-  position: absolute; top: 8%; right: 10%;
-  width: 70px; height: 70px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,236,179,0.9) 0%, rgba(255,193,7,0.5) 40%, transparent 70%);
-  box-shadow: 0 0 40px 15px rgba(255,193,7,0.25), 0 0 80px 30px rgba(255,193,7,0.1);
-  animation: wx-sun-pulse 4s ease-in-out infinite;
+/* ══════════════════════════════════════
+   亚克力材质
+   ══════════════════════════════════════ */
+.wx-acrylic {
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.wx-sun-ray {
-  position: absolute; top: 8%; right: 10%;
+
+/* 亚克力噪点纹理叠加 */
+.wx-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+/* ══════════════════════════════════════
+   头部天气场景装饰
+   ══════════════════════════════════════ */
+
+/* 太阳光晕 */
+.wx-sun-glow {
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(253,224,71,0.50) 0%, rgba(251,191,36,0.25) 40%, transparent 70%);
+  box-shadow: 0 0 80px 30px rgba(253,224,71,0.18);
+  animation: wx-glow-pulse 5s ease-in-out infinite;
+}
+@keyframes wx-glow-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+/* 月亮 */
+.wx-moon-glow {
+  position: absolute;
+  top: -10px; right: -10px;
   width: 70px; height: 70px;
-  animation: wx-sun-rotate 20s linear infinite;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(226,232,240,0.3) 0%, rgba(203,213,225,0.1) 50%, transparent 70%);
+  box-shadow: 0 0 40px 10px rgba(226,232,240,0.08);
 }
-.wx-sun-ray::before, .wx-sun-ray::after {
-  content: ''; position: absolute;
-  top: 50%; left: 50%;
-  width: 120px; height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255,236,179,0.3), transparent);
-  transform-origin: center;
-}
-.wx-sun-ray::before { transform: translate(-50%, -50%) rotate(0deg); }
-.wx-sun-ray::after { transform: translate(-50%, -50%) rotate(60deg); }
-@keyframes wx-sun-pulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.08); opacity: 1; } }
-@keyframes wx-sun-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-/* ── 月亮 + 星星（晴天夜晚）── */
-.wx-moon {
-  position: absolute; top: 10%; right: 12%;
-  width: 50px; height: 50px; border-radius: 50%;
-  background: #e8e8d0;
-  box-shadow: 0 0 20px 5px rgba(232,232,208,0.2), inset -8px 2px 0 0 rgba(0,0,0,0.06);
-}
-.wx-star {
-  position: absolute; width: 2px; height: 2px;
-  background: rgba(255,255,255,0.8); border-radius: 50%;
+.wx-star-dot {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 50%;
   animation: wx-twinkle 3s ease-in-out infinite;
 }
-@keyframes wx-twinkle { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+@keyframes wx-twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
 
-/* ── 云朵（多云）── */
-.wx-cloud {
-  position: absolute; border-radius: 50px;
-  background: rgba(255,255,255,0.18);
-  filter: blur(2px);
+/* 云朵光晕 */
+.wx-cloud-glow {
+  position: absolute;
+  top: -15px; right: -5px;
+  width: 120px; height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.20) 0%, transparent 70%);
+  filter: blur(8px);
+  animation: wx-cloud-float 12s ease-in-out infinite;
 }
-.wx-cloud::before, .wx-cloud::after {
-  content: ''; position: absolute;
-  background: inherit; border-radius: 50%;
+@keyframes wx-cloud-float {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(10px) translateY(-5px); }
 }
-.wx-cloud--lg { width: 100px; height: 36px; top: 15%; right: -10px; animation: wx-drift 16s ease-in-out infinite; }
-.wx-cloud--lg::before { width: 44px; height: 44px; top: -24px; left: 18px; }
-.wx-cloud--lg::after { width: 32px; height: 32px; top: -16px; left: 50px; }
-.wx-cloud--md { width: 70px; height: 26px; top: 30%; left: 5%; animation: wx-drift 20s ease-in-out infinite reverse; opacity: 0.7; }
-.wx-cloud--md::before { width: 30px; height: 30px; top: -18px; left: 12px; }
-.wx-cloud--md::after { width: 22px; height: 22px; top: -12px; left: 34px; }
-.wx-cloud--sm { width: 50px; height: 20px; top: 22%; left: 40%; animation: wx-drift 14s ease-in-out infinite; opacity: 0.5; }
-.wx-cloud--sm::before { width: 22px; height: 22px; top: -14px; left: 8px; }
-.wx-cloud--sm::after { width: 18px; height: 18px; top: -10px; left: 24px; }
-@keyframes wx-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(30px); } }
 
-/* ── 雨滴 ── */
-.wx-rain {
-  position: absolute; width: 1.5px; height: 18px;
-  background: linear-gradient(180deg, transparent, rgba(174,213,240,0.6));
-  top: -20px; left: calc(var(--i) * 7.5%);
-  animation: wx-rain-fall 0.7s linear infinite;
-  animation-delay: calc(var(--i) * 0.06s); opacity: 0;
+/* 雨滴意象 */
+.wx-rain-hint {
+  position: absolute;
+  top: 5px; right: 20px;
+  width: 2px; height: 16px;
+  background: linear-gradient(180deg, transparent, rgba(148,196,228,0.4));
+  border-radius: 1px;
+  animation: wx-rain-drift 1.5s ease-in-out infinite;
 }
-@keyframes wx-rain-fall { 0% { opacity: 0; transform: translateY(0); } 15% { opacity: 0.7; } 100% { opacity: 0; transform: translateY(500px); } }
+.wx-rain-hint:nth-child(2) { right: 35px; height: 12px; animation-delay: 0.3s; opacity: 0.6; }
+.wx-rain-hint:nth-child(3) { right: 50px; height: 10px; animation-delay: 0.7s; opacity: 0.4; }
+@keyframes wx-rain-drift {
+  0% { opacity: 0; transform: translateY(-5px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(25px); }
+}
 
-/* ── 雨天云朵（深色压顶） ── */
-.wx-rain-cloud {
-  position: absolute; border-radius: 50px;
-  background: rgba(0,0,0,0.15);
-  filter: blur(4px);
+/* 雪花意象 */
+.wx-snow-hint {
+  position: absolute;
+  top: 8px;
+  width: 4px; height: 4px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 50%;
+  animation: wx-snow-drift 3s ease-in-out infinite;
 }
-.wx-rain-cloud::before, .wx-rain-cloud::after {
-  content: ''; position: absolute;
-  background: inherit; border-radius: 50%;
+.wx-snow-hint:nth-child(1) { right: 20px; animation-delay: 0s; }
+.wx-snow-hint:nth-child(2) { right: 40px; width: 3px; height: 3px; animation-delay: 0.8s; opacity: 0.6; }
+.wx-snow-hint:nth-child(3) { right: 55px; width: 2px; height: 2px; animation-delay: 1.5s; opacity: 0.4; }
+@keyframes wx-snow-drift {
+  0% { opacity: 0; transform: translateY(-5px) rotate(0deg); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(30px) rotate(180deg); }
 }
-.wx-rain-cloud--1 { width: 130px; height: 40px; top: -8px; left: 10%; }
-.wx-rain-cloud--1::before { width: 50px; height: 50px; top: -28px; left: 25px; }
-.wx-rain-cloud--1::after { width: 38px; height: 38px; top: -20px; left: 65px; }
-.wx-rain-cloud--2 { width: 100px; height: 32px; top: 0; right: 5%; opacity: 0.7; }
-.wx-rain-cloud--2::before { width: 36px; height: 36px; top: -22px; left: 20px; }
-.wx-rain-cloud--2::after { width: 28px; height: 28px; top: -16px; left: 50px; }
 
-/* ── 雪花 ── */
-.wx-snow {
-  position: absolute; width: 5px; height: 5px;
-  background: rgba(255,255,255,0.85); border-radius: 50%;
-  top: -10px; left: calc(var(--i) * 9%);
-  animation: wx-snow-fall 3.5s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 0.25s); opacity: 0;
-}
-@keyframes wx-snow-fall { 0% { opacity: 0; transform: translateY(0) translateX(0) rotate(0deg); } 15% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(500px) translateX(20px) rotate(360deg); } }
-
-/* ── 雪天云朵（浅色柔和） ── */
-.wx-snow-cloud {
-  position: absolute; border-radius: 50px;
-  background: rgba(255,255,255,0.12);
-  filter: blur(3px);
-}
-.wx-snow-cloud::before, .wx-snow-cloud::after {
-  content: ''; position: absolute;
-  background: inherit; border-radius: 50%;
-}
-.wx-snow-cloud--1 { width: 110px; height: 36px; top: 2%; left: 15%; }
-.wx-snow-cloud--1::before { width: 42px; height: 42px; top: -24px; left: 20px; }
-.wx-snow-cloud--1::after { width: 30px; height: 30px; top: -16px; left: 55px; }
-
-/* ── 闪电（雷暴） ── */
-.wx-lightning {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(255,255,255,0);
-  animation: wx-flash 4s ease-in-out infinite;
+/* 闪电意象 */
+.wx-thunder-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: wx-flash 5s ease-in-out infinite;
 }
 @keyframes wx-flash {
-  0%, 100% { background: rgba(255,255,255,0); }
-  92% { background: rgba(255,255,255,0); }
-  93% { background: rgba(255,255,255,0.15); }
-  94% { background: rgba(255,255,255,0); }
-  96% { background: rgba(255,255,255,0.08); }
-  97% { background: rgba(255,255,255,0); }
-}
-.wx-bolt {
-  position: absolute; top: 12%; left: 55%;
-  width: 3px; height: 0;
-  background: rgba(255,255,200,0.9);
-  filter: blur(1px);
-  box-shadow: 0 0 8px 2px rgba(255,255,200,0.4);
-  animation: wx-bolt-strike 4s ease-in-out infinite;
-  transform-origin: top center;
-}
-.wx-bolt::after {
-  content: ''; position: absolute;
-  top: 100%; left: -4px;
-  width: 3px; height: 0;
-  background: inherit; filter: inherit;
-  box-shadow: inherit;
-  transform: rotate(25deg); transform-origin: top center;
-  animation: wx-bolt-branch 4s ease-in-out infinite;
-}
-@keyframes wx-bolt-strike {
-  0%, 91%, 98%, 100% { height: 0; opacity: 0; }
-  93% { height: 50px; opacity: 1; }
-  94% { height: 50px; opacity: 0; }
-  96% { height: 40px; opacity: 0.7; }
-  97% { height: 40px; opacity: 0; }
-}
-@keyframes wx-bolt-branch {
-  0%, 91%, 98%, 100% { height: 0; opacity: 0; }
-  93% { height: 25px; opacity: 0.8; }
-  94% { height: 25px; opacity: 0; }
-  96% { height: 20px; opacity: 0.5; }
-  97% { height: 20px; opacity: 0; }
+  0%, 92%, 95%, 97%, 100% { background: transparent; }
+  93% { background: rgba(255,255,255,0.08); }
+  96% { background: rgba(255,255,255,0.04); }
 }
 
-/* ── 雾气 ── */
-.wx-fog {
-  position: absolute; width: 200%; height: 50px; border-radius: 50%;
-  filter: blur(25px);
+/* 雾气意象 */
+.wx-fog-layer {
+  position: absolute;
+  width: 150%; height: 30px;
+  border-radius: 50%;
+  filter: blur(15px);
+  background: rgba(255,255,255,0.06);
 }
-.wx-fog--1 { top: 25%; left: -50%; background: rgba(255,255,255,0.1); animation: wx-fog-drift 18s ease-in-out infinite; }
-.wx-fog--2 { top: 50%; left: -30%; background: rgba(255,255,255,0.07); animation: wx-fog-drift 14s ease-in-out infinite reverse; }
-.wx-fog--3 { top: 70%; left: -40%; background: rgba(255,255,255,0.05); animation: wx-fog-drift 22s ease-in-out infinite; }
-@keyframes wx-fog-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(50px); } }
+.wx-fog-layer:nth-child(1) { top: 20%; left: -25%; animation: wx-fog-move 16s ease-in-out infinite; }
+.wx-fog-layer:nth-child(2) { top: 50%; left: -15%; animation: wx-fog-move 12s ease-in-out infinite reverse; opacity: 0.5; }
+@keyframes wx-fog-move {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(30px); }
+}
+
+/* ══════════════════════════════════════
+   小时预报横向滚动
+   ══════════════════════════════════════ */
+.wx-hourly-scroll {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 10px 8px;
+}
+.wx-hourly-scroll::-webkit-scrollbar { display: none; }
+
+.wx-hourly-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  transition: background 0.2s;
+  min-width: 52px;
+}
+.wx-hourly-item--current {
+  background: rgba(255,255,255,0.1);
+}
+
+/* ══════════════════════════════════════
+   面板滚动条
+   ══════════════════════════════════════ */
+.wx-panel-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.wx-panel-scroll::-webkit-scrollbar { width: 3px; }
+.wx-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+.wx-panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+
+/* ══════════════════════════════════════
+   骨架屏脉冲
+   ══════════════════════════════════════ */
+.wx-skeleton {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.1) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: wx-shimmer 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes wx-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ══════════════════════════════════════
+   大天气图标
+   ══════════════════════════════════════ */
+.wx-hero-icon {
+  width: 56px; height: 56px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
+  opacity: 0.9;
+}
+
+/* ══════════════════════════════════════
+   指标卡片色彩点缀
+   ══════════════════════════════════════ */
+.wx-metric-feels,
+.wx-metric-humidity,
+.wx-metric-wind,
+.wx-metric-uv,
+.wx-metric-aqi,
+.wx-metric-sun { position: relative; overflow: hidden; }
+
+.wx-metric-feels::before,
+.wx-metric-humidity::before,
+.wx-metric-wind::before,
+.wx-metric-uv::before,
+.wx-metric-aqi::before,
+.wx-metric-sun::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 24px; height: 2px;
+  border-radius: 0 0 2px 2px;
+}
+.wx-metric-feels::before    { background: linear-gradient(90deg, #f97316, #fb923c); }
+.wx-metric-humidity::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.wx-metric-wind::before     { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.wx-metric-uv::before       { background: linear-gradient(90deg, #eab308, #fbbf24); }
+.wx-metric-aqi::before      { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.wx-metric-sun::before      { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+/* ══════════════════════════════════════
+   面板内发光
+   ══════════════════════════════════════ */
+.wx-panel-inner-glow {
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ══════════════════════════════════════
+   温度条渐变
+   ══════════════════════════════════════ */
+.wx-temp-bar-track {
+  position: relative;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+}
+.wx-temp-bar-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 9999px;
+  box-shadow: 0 0 6px rgba(255,255,255,0.15);
+}
 `;
-

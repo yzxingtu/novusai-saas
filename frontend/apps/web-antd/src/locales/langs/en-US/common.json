@@ -309,12 +309,27 @@
     "deletedAt": "Deleted At",
     "retentionDays": "Auto-cleanup after {days} days",
     "escalateHint": "Will be moved to admin recycle bin",
+    "escalate": "Remove from Bin",
+    "confirmEscalate": "\"{name}\" will be moved to admin recycle bin. Contact admin to restore.",
+    "confirmBatchEscalate": "{count} selected records will be moved to admin recycle bin. Contact admin to restore.",
+    "escalateSuccess": "Removed from recycle bin",
     "itemCount": "{count} records"
   },
   "dependency": {
     "title": "Cannot Delete",
+    "confirmDeleteTitle": "Delete \"{name}\"?",
     "blocked": "The following resources are still using this record:",
     "description": "Please delete or migrate the above resources before deleting this record",
+    "cascadeWarning": "Deleting will also affect the following related data:",
+    "cascadeDescription": "The above related data will be automatically handled upon deletion. This action cannot be undone",
+    "cascadeConfirm": "Confirm Delete",
+    "strategyCascadeSoft": "Will be recycled",
+    "strategyCascadeDelete": "Will be permanently deleted",
+    "strategyNullify": "Association will be removed",
+    "strategyBlocked": "Blocks deletion",
+    "cascadeSoft": "{count} record(s) will be moved to recycle bin",
+    "cascadeDelete": "{count} record(s) will be permanently deleted",
+    "nullify": "{count} record(s) will have their association removed",
     "itemCount": "{count} items",
     "moreItems": "{count} more...",
     "model": {
@@ -341,7 +356,8 @@
       "tenant": "Tenant",
       "tenant_domain": "Domain",
       "tenant_plugin": "Tenant Plugin",
-      "system_agent_assignment": "System Agent Assignment"
+      "system_agent_assignment": "System Agent Assignment",
+      "periodic_task": "Periodic Task"
     }
   },
   "maintenance": {

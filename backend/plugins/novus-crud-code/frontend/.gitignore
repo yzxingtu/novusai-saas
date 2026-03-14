@@ -1,5 +1,0 @@
-node_modules/
-dist/
-package-lock.json
-*.local
-.DS_Store

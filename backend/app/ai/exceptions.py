@@ -238,16 +238,24 @@ def convert_openai_error(
 
     if isinstance(error, BadRequestError):
         error_message = str(error)
+        error_lower = error_message.lower()
         # Check if context length exceeded / 检查是否为上下文长度超出
-        if "context_length" in error_message.lower() or "maximum context" in error_message.lower():
+        if "context_length" in error_lower or "maximum context" in error_lower:
             return ContextLengthExceededError(
                 message=_("ai.error.context_length_exceeded"),
                 **kwargs,
             )
         # Check if content filter / 检查是否为内容过滤
-        if "content_filter" in error_message.lower() or "content_policy" in error_message.lower():
+        if "content_filter" in error_lower or "content_policy" in error_lower:
             return ContentFilterError(
                 message=_("ai.error.content_filtered"),
+                **kwargs,
+            )
+        # Check if vision/image_url not supported by model / 检查模型是否不支持图片
+        if "image_url" in error_lower or ("image" in error_lower and "unsupported" in error_lower):
+            return ProviderError(
+                message=_("ai.error.vision_not_supported"),
+                error_code="vision_not_supported",
                 **kwargs,
             )
         return ProviderError(

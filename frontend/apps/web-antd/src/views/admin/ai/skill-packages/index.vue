@@ -12,6 +12,7 @@ import type { AdminSkillInfo } from '#/api/admin/skills';
 
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { useRouter } from 'vue-router';
@@ -22,7 +23,6 @@ import { IconifyIcon, Plus } from '@vben/icons';
 import {
   Badge,
   Button,
-  Drawer,
   Dropdown,
   Empty,
   Input,
@@ -30,7 +30,6 @@ import {
   MenuItem,
   message,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Spin,
@@ -45,13 +44,9 @@ import {
   deleteSkillPackageApi,
   exportSkillPackageApi,
   getSkillPackageListApi,
-  getSkillPackageRecycleBinApi,
-  getSkillPackageRecycleBinCountApi,
   getSkillPackageSkillsApi,
   getSkillPackageValvesApi,
   importSkillPackageApi,
-  permanentDeleteSkillPackageApi,
-  restoreSkillPackageApi,
   toggleSkillPackageStatusApi,
   updateSkillPackageValvesApi,
   uploadSkillPackageApi,
@@ -244,7 +239,7 @@ async function onDeletePackage(pkg: AdminSkillPackageInfo) {
         await deleteSkillPackageApi(pkg.id);
         message.success($t('common.deleteSuccess'));
         await loadPackages();
-        await loadRecycleBinCount();
+        recycleBinRef.value?.refreshCount();
       } catch {
         // handled by interceptor
       }
@@ -446,76 +441,13 @@ async function onTestSkill(row: AdminSkillInfo) {
   }
 }
 
-// ==================== 回收站 ====================
-const recycleBinVisible = ref(false);
-const recycleBinLoading = ref(false);
-const recycleBinItems = ref<AdminSkillPackageInfo[]>([]);
-const recycleBinCount = ref(0);
+// ==================== 回收站 (using RecycleBinDrawer) ====================
+const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
+const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
 
-async function loadRecycleBinCount() {
-  try {
-    const res = await getSkillPackageRecycleBinCountApi();
-    recycleBinCount.value = res.count;
-  } catch {
-    recycleBinCount.value = 0;
-  }
+function openRecycleBin() {
+  recycleBinRef.value?.open();
 }
-
-async function openRecycleBin() {
-  recycleBinVisible.value = true;
-  await loadRecycleBinItems();
-}
-
-async function loadRecycleBinItems() {
-  recycleBinLoading.value = true;
-  try {
-    const res = await getSkillPackageRecycleBinApi({ 'page[size]': 100 });
-    recycleBinItems.value = res.items;
-  } catch {
-    recycleBinItems.value = [];
-  } finally {
-    recycleBinLoading.value = false;
-  }
-}
-
-async function onRestorePackage(id: number) {
-  try {
-    await restoreSkillPackageApi(id);
-    message.success($t('common.recycleBin.restoreSuccess'));
-    await loadRecycleBinItems();
-    await loadRecycleBinCount();
-    await loadPackages();
-  } catch {
-    // handled by interceptor
-  }
-}
-
-async function onPermanentDelete(id: number) {
-  try {
-    await permanentDeleteSkillPackageApi(id);
-    message.success($t('common.deleteSuccess'));
-    await loadRecycleBinItems();
-    await loadRecycleBinCount();
-  } catch {
-    // handled by interceptor
-  }
-}
-
-const recycleBinColumns = computed(() => [
-  { title: $t('admin.ai.skillPackage.name'), dataIndex: 'name', key: 'name' },
-  {
-    title: $t('common.recycleBin.deletedAt'),
-    dataIndex: 'deleted_at',
-    key: 'deleted_at',
-    width: 160,
-  },
-  {
-    title: $t('admin.common.operation'),
-    key: 'action',
-    width: 160,
-    align: 'center' as const,
-  },
-]);
 
 // ==================== 技能列定义 ====================
 const skillColumns = computed(() => [
@@ -563,7 +495,6 @@ const skillColumns = computed(() => [
 // ==================== 初始化 ====================
 onMounted(() => {
   loadPackages();
-  loadRecycleBinCount();
 });
 
 const cleanupPageContext = registerPageContext('admin/ai/skill-packages', () => ({
@@ -762,7 +693,7 @@ onUnmounted(() => {
           <Tooltip :title="$t('common.recycleBin.title')">
             <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
               <Button
-                v-access:code="['ai_skill_package:delete']"
+                v-access:code="['ai_skill_package:recycle_bin']"
                 type="text"
                 size="small"
                 @click="openRecycleBin"
@@ -1254,54 +1185,14 @@ onUnmounted(() => {
       </div>
     </div>
     </div>
-    <!-- 回收站抽屉 -->
-    <Drawer
-      v-model:open="recycleBinVisible"
-      :title="$t('common.recycleBin.title')"
-      width="600"
-      :destroy-on-close="true"
-    >
-      <Table
-        :columns="recycleBinColumns"
-        :data-source="recycleBinItems"
-        :loading="recycleBinLoading"
-        :pagination="false"
-        row-key="id"
-        size="small"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'deleted_at'">
-            <Tooltip :title="formatDate(record.deleted_at)">
-              <span class="text-muted-foreground">
-                {{ formatRelativeTime(record.deleted_at) }}
-              </span>
-            </Tooltip>
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <Space>
-              <Button
-                type="link"
-                size="small"
-                @click="onRestorePackage(record.id)"
-              >
-                {{ $t('common.recycleBin.restore') }}
-              </Button>
-              <Popconfirm
-                :title="$t('common.recycleBin.permanentDeleteConfirm')"
-                @confirm="onPermanentDelete(record.id)"
-              >
-                <Button type="link" size="small" danger>
-                  {{ $t('common.recycleBin.permanentDelete') }}
-                </Button>
-              </Popconfirm>
-            </Space>
-          </template>
-        </template>
-        <template #emptyText>
-          <Empty :description="$t('common.recycleBin.empty')" />
-        </template>
-      </Table>
-    </Drawer>
+    <!-- 回收站抽屉 (RecycleBinDrawer) -->
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="/admin/ai/skill-packages"
+      name-field="name"
+      side="admin"
+      @restored="loadPackages"
+    />
     <!-- Valves 配置面板 -->
     <ValvesConfigPanel
       ref="valvesConfigPanelRef"

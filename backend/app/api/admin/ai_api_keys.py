@@ -11,6 +11,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
@@ -176,6 +177,12 @@ class AdminAIApiKeyController(GlobalController):
                 data=[ProviderApiKeyResponse(**_build_api_key_response(k)) for k in keys],
                 message=_("common.success"),
             )
+
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=ProviderApiKeyService,
+            resource_name="ai_api_key",
+        )
 
         @router.get("/{key_id}", summary="获取 AI API Key 详情")
         @action_read("action.ai_api_key.detail")

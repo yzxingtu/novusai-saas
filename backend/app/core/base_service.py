@@ -519,12 +519,22 @@ class BaseService(Generic[ModelType, RepoType]):
         return await self.repo.permanent_delete(id)
 
     async def batch_restore(self, ids: list[int]) -> int:
-        """批量恢复 / Batch restore"""
-        return await self.repo.batch_restore(ids)
+        """批量恢复（逐条执行，触发级联恢复） / Batch restore (per-item to trigger cascade)"""
+        count = 0
+        for item_id in ids:
+            result = await self.restore(item_id)
+            if result:
+                count += 1
+        return count
 
     async def batch_permanent_delete(self, ids: list[int]) -> int:
-        """批量永久删除 / Batch permanent delete"""
-        return await self.repo.batch_permanent_delete(ids)
+        """批量永久删除（逐条执行，触发级联删除） / Batch permanent delete (per-item to trigger cascade)"""
+        count = 0
+        for item_id in ids:
+            result = await self.permanent_delete(item_id)
+            if result:
+                count += 1
+        return count
 
     # ========================================
     # 通用排序方法 / Generic Sort Methods
@@ -611,6 +621,43 @@ class BaseService(Generic[ModelType, RepoType]):
     # ========================================
     # 声明式依赖保护（内部方法） / Declarative Dependency Protection (internal)
     # ========================================
+
+    async def preview_delete(self, id: int) -> dict:
+        """
+        Preview deletion impact without performing the delete.
+        预览删除影响（不执行删除）。
+
+        Returns:
+            {
+                "blocked": bool,
+                "blockers": [...],
+                "cascade_soft": [...],
+                "cascade_delete": [...],
+                "nullify": [...]
+            }
+        """
+        instance = await self.repo.get_by_id(id)
+        if not instance:
+            return {"blocked": False, "blockers": [], "cascade_soft": [], "cascade_delete": [], "nullify": []}
+
+        tenant_id = getattr(self, "tenant_id", None)
+        result = await check_deletion_deps(self.db, instance, tenant_id=tenant_id)
+
+        def _dep_to_dict(info) -> dict:
+            return {
+                "type": info.model_name,
+                "count": info.count,
+                "items": info.items,
+                "strategy": info.strategy,
+            }
+
+        return {
+            "blocked": result.blocked,
+            "blockers": [_dep_to_dict(b) for b in result.blockers],
+            "cascade_soft": [_dep_to_dict(d) for d in result.cascade_soft],
+            "cascade_delete": [_dep_to_dict(d) for d in result.cascade_delete],
+            "nullify": [_dep_to_dict(d) for d in result.nullify],
+        }
 
     async def _check_deletion_deps(self, instance: ModelType) -> None:
         """

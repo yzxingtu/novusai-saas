@@ -103,6 +103,7 @@ export {
   getAIModelListApi,
   getAIModelsByProviderApi,
   type ModelType,
+  type RemoteModelCapabilities,
   type RemoteModelInfo,
   toggleAIModelStatusApi,
   updateAIModelApi,

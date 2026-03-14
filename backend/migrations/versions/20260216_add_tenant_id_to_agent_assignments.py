@@ -1,8 +1,8 @@
-"""add tenant_id to system_agent_assignments
+"""[NO-OP] add tenant_id to system_agent_assignments
 
-Adds tenant_id column for tenant-level overrides.
-Changes unique constraint from feature_code alone to (feature_code, tenant_id).
-Adds partial unique index for global defaults (tenant_id IS NULL).
+Operations (tenant_id column, composite unique constraint, partial index)
+were folded into the initial table creation migration (20260216_saa).
+Kept to preserve Alembic chain.
 
 Revision ID: 20260216_saa_tid
 Revises: 20260216_saa_seed

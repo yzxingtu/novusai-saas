@@ -1,8 +1,11 @@
 /**
- * 天气数据 Composable
+ * 天气数据 Composable (v2)
  *
- * 管理天气数据获取、localStorage 持久化、自动刷新、浏览器定位。
- * 所有可配置项从后端插件配置 API 读取（default_city, forecast_days, cache_ttl, auto_refresh）。
+ * - 合并 current / forecast / hourly / aqi 数据获取
+ * - AbortController 请求去重
+ * - localStorage 缓存上次成功数据（弱网 fallback）
+ * - 骨架屏 initialLoading 状态
+ * - 修复 geolocate：先反向地理编码，重试 1 次，降级提示
  */
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -13,6 +16,7 @@ import { requestClient } from '@novus/plugin-shared';
 
 export interface WeatherCurrent {
   temperature: number | null;
+  apparent_temperature: number | null;
   weather_code: number;
   weather_icon: string;
   weather_text_zh: string;
@@ -31,6 +35,25 @@ export interface WeatherForecastDay {
   weather_icon: string;
   weather_text_zh: string;
   weather_text_en: string;
+  sunrise: string | null;
+  sunset: string | null;
+}
+
+export interface WeatherHourly {
+  time: string;
+  temperature: number | null;
+  weather_code: number;
+  weather_icon: string;
+  weather_text_zh: string;
+  weather_text_en: string;
+  is_current?: boolean;
+}
+
+export interface AirQuality {
+  aqi: number | null;
+  pm2_5: number | null;
+  pm10: number | null;
+  european_aqi: number | null;
 }
 
 export interface CityInfo {
@@ -56,6 +79,14 @@ interface WeatherLocalConfig {
   recentCities: CityInfo[];
 }
 
+interface CachedWeatherData {
+  current: WeatherCurrent | null;
+  forecast: WeatherForecastDay[];
+  hourly: WeatherHourly[];
+  airQuality: AirQuality | null;
+  timestamp: number;
+}
+
 // ── 热门城市 ──
 
 export const POPULAR_CITIES: CityInfo[] = [
@@ -76,7 +107,9 @@ export const POPULAR_CITIES: CityInfo[] = [
 // ── 常量 ──
 
 const STORAGE_KEY = 'novusai_weather_config';
+const WEATHER_DATA_KEY = 'novusai_weather_data';
 const MAX_RECENT_CITIES = 5;
+const STALE_THRESHOLD = 30 * 60 * 1000; // 30 min
 
 const DEFAULT_LOCAL: WeatherLocalConfig = {
   city: '上海',
@@ -110,20 +143,40 @@ function saveLocalConfig(cfg: WeatherLocalConfig): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
 }
 
+function loadCachedWeather(): CachedWeatherData | null {
+  try {
+    const raw = localStorage.getItem(WEATHER_DATA_KEY);
+    if (raw) return JSON.parse(raw) as CachedWeatherData;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveCachedWeather(data: CachedWeatherData): void {
+  try { localStorage.setItem(WEATHER_DATA_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
 // ── Composable ──
 
 export function useWeather() {
   const router = useRouter();
   const localConfig = ref<WeatherLocalConfig>(loadLocalConfig());
   const pluginConfig = ref<PluginConfig>({});
+
   const current = ref<WeatherCurrent | null>(null);
   const forecast = ref<WeatherForecastDay[]>([]);
+  const hourly = ref<WeatherHourly[]>([]);
+  const airQuality = ref<AirQuality | null>(null);
+
   const loading = ref(false);
+  const initialLoading = ref(true);
   const error = ref<string | null>(null);
   const locating = ref(false);
+  const locateError = ref<string | null>(null);
   const showCitySelector = ref(false);
+  const isStale = ref(false);
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let abortController: AbortController | null = null;
 
   const cityName = computed(() => localConfig.value.city);
   const recentCities = computed(() => localConfig.value.recentCities);
@@ -134,48 +187,87 @@ export function useWeather() {
     return `${prefix}/plugins/weather-widget/api`;
   });
 
-  // ── 从后端获取插件配置 ──
+  // ── 插件配置 ──
 
   async function fetchPluginConfig(): Promise<void> {
     try {
       const resp = await requestClient.get<{ config: PluginConfig }>(
         `${apiBase.value}/config`,
       );
-      if (resp?.config) {
-        pluginConfig.value = resp.config;
-      }
+      if (resp?.config) pluginConfig.value = resp.config;
     } catch { /* use defaults */ }
   }
 
-  // ── API ──
-
-  async function fetchCurrentWeather(): Promise<void> {
-    try {
-      const resp = await requestClient.get<{ weather: WeatherCurrent }>(
-        `${apiBase.value}/current`,
-        { params: { lat: localConfig.value.latitude, lon: localConfig.value.longitude } },
-      );
-      if (resp?.weather) { current.value = resp.weather; error.value = null; }
-    } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  async function fetchForecast(): Promise<void> {
-    try {
-      const resp = await requestClient.get<{ forecast: WeatherForecastDay[] }>(
-        `${apiBase.value}/forecast`,
-        { params: { lat: localConfig.value.latitude, lon: localConfig.value.longitude } },
-      );
-      if (resp?.forecast) { forecast.value = resp.forecast; }
-    } catch { /* ignore */ }
-  }
+  // ── 数据获取 ──
 
   async function fetchAll(): Promise<void> {
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+
     loading.value = true;
     error.value = null;
-    try { await Promise.all([fetchCurrentWeather(), fetchForecast()]); }
-    finally { loading.value = false; }
+    isStale.value = false;
+
+    const { latitude, longitude } = localConfig.value;
+
+    try {
+      const [weatherResp, aqiResp] = await Promise.all([
+        requestClient.get<{
+          weather: WeatherCurrent;
+          forecast?: WeatherForecastDay[];
+          hourly?: WeatherHourly[];
+        }>(`${apiBase.value}/current`, {
+          params: { lat: latitude, lon: longitude },
+        }),
+        requestClient.get<{ air_quality: AirQuality }>(
+          `${apiBase.value}/air-quality`,
+          { params: { lat: latitude, lon: longitude } },
+        ).catch(() => null),
+      ]);
+
+      if (weatherResp?.weather) {
+        current.value = weatherResp.weather;
+        error.value = null;
+      }
+
+      // Fetch forecast + hourly in parallel
+      const [forecastResp, hourlyResp] = await Promise.all([
+        requestClient.get<{ forecast: WeatherForecastDay[] }>(
+          `${apiBase.value}/forecast`,
+          { params: { lat: latitude, lon: longitude } },
+        ).catch(() => null),
+        requestClient.get<{ hourly: WeatherHourly[] }>(
+          `${apiBase.value}/hourly`,
+          { params: { lat: latitude, lon: longitude } },
+        ).catch(() => null),
+      ]);
+
+      if (forecastResp?.forecast) forecast.value = forecastResp.forecast;
+      if (hourlyResp?.hourly) hourly.value = hourlyResp.hourly;
+      if (aqiResp?.air_quality) airQuality.value = aqiResp.air_quality;
+
+      saveCachedWeather({
+        current: current.value,
+        forecast: forecast.value,
+        hourly: hourly.value,
+        airQuality: airQuality.value,
+        timestamp: Date.now(),
+      });
+    } catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : String(err);
+
+      const cached = loadCachedWeather();
+      if (cached && cached.current) {
+        current.value = cached.current;
+        forecast.value = cached.forecast;
+        hourly.value = cached.hourly;
+        airQuality.value = cached.airQuality;
+        isStale.value = Date.now() - cached.timestamp > STALE_THRESHOLD;
+      }
+    } finally {
+      loading.value = false;
+      initialLoading.value = false;
+    }
   }
 
   async function searchCity(name: string): Promise<CityInfo[]> {
@@ -192,26 +284,46 @@ export function useWeather() {
   async function geolocate(): Promise<void> {
     if (!navigator.geolocation) return;
     locating.value = true;
+    locateError.value = null;
+
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 10000, maximumAge: 300000,
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000,
         });
       });
+
       const { latitude, longitude } = pos.coords;
-      const city: CityInfo = { name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`, latitude, longitude };
-      try {
-        const resp = await requestClient.get<{ cities: CityInfo[] }>(
-          `${apiBase.value}/geocoding`,
-          { params: { lat: latitude, lon: longitude } },
-        );
-        if (resp?.cities?.length) {
-          city.name = resp.cities[0]!.name;
-        }
-      } catch { /* use coordinate name as fallback */ }
-      selectCity(city);
-    } catch { /* ignore geolocation errors */ }
-    finally { locating.value = false; }
+      let resolvedCity: CityInfo | null = null;
+
+      // Attempt reverse geocode with 1 retry
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const resp = await requestClient.get<{ cities: CityInfo[] }>(
+            `${apiBase.value}/geocoding`,
+            { params: { lat: latitude, lon: longitude } },
+          );
+          if (resp?.cities?.length && resp.cities[0]!.name) {
+            resolvedCity = resp.cities[0]!;
+            break;
+          }
+        } catch { /* retry */ }
+        if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+      }
+
+      if (resolvedCity) {
+        selectCity(resolvedCity);
+      } else {
+        selectCity({ name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`, latitude, longitude });
+        locateError.value = 'locate_fallback';
+      }
+    } catch {
+      locateError.value = 'locate_failed';
+    } finally {
+      locating.value = false;
+    }
   }
 
   // ── 城市切换 ──
@@ -233,8 +345,18 @@ export function useWeather() {
   // ── 生命周期 ──
 
   onMounted(async () => {
-    await fetchPluginConfig();
+    // Show cached data immediately while loading fresh data
+    const cached = loadCachedWeather();
+    if (cached?.current) {
+      current.value = cached.current;
+      forecast.value = cached.forecast;
+      hourly.value = cached.hourly;
+      airQuality.value = cached.airQuality;
+      isStale.value = Date.now() - cached.timestamp > STALE_THRESHOLD;
+      initialLoading.value = false;
+    }
 
+    await fetchPluginConfig();
     const refreshInterval = (pluginConfig.value.cache_ttl ?? 600) * 1000;
     const autoRefresh = pluginConfig.value.auto_refresh ?? true;
 
@@ -245,11 +367,17 @@ export function useWeather() {
     }
   });
 
-  onBeforeUnmount(() => { if (refreshTimer) clearInterval(refreshTimer); });
+  onBeforeUnmount(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (abortController) abortController.abort();
+  });
+
   watch(() => localConfig.value.city, () => saveLocalConfig(localConfig.value));
 
   return {
-    cityName, recentCities, current, forecast, loading, error,
-    locating, showCitySelector, pluginConfig, fetchAll, searchCity, selectCity, geolocate,
+    cityName, recentCities, current, forecast, hourly, airQuality,
+    loading, initialLoading, error, locating, locateError,
+    showCitySelector, isStale, pluginConfig,
+    fetchAll, searchCity, selectCity, geolocate,
   };
 }

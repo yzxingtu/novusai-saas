@@ -294,3 +294,57 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
     except Exception as e:
         logger.warning("Session memory cleanup skipped: %s", str(e))
         return {"cleaned": 0, "error": str(e)}
+
+
+# ── LiteLLM Model Capability Registry Sync ───────────────────────────────────
+
+LITELLM_REGISTRY_URLS = [
+    "https://cdn.jsdelivr.net/gh/BerriAI/litellm@main/model_prices_and_context_window.json",
+    "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+]
+LITELLM_REDIS_KEY = "ai:litellm:registry"
+LITELLM_REDIS_TTL = 86400 * 3
+
+
+@register_task(
+    queue="scheduled",
+    description="Sync LiteLLM model capability registry to Redis / 同步 LiteLLM 模型能力注册表到 Redis",
+    max_retries=2,
+)
+def sync_litellm_registry(self: BaseTask) -> dict:
+    """
+    Download LiteLLM model_prices_and_context_window.json and cache in Redis.
+    从 LiteLLM GitHub 仓库下载模型能力注册表并缓存到 Redis。
+
+    Tries jsdelivr CDN first, falls back to GitHub raw.
+    优先使用 jsdelivr CDN，失败后回退到 GitHub raw。
+    """
+    import json
+
+    import requests
+
+    last_error: Exception | None = None
+    for url in LITELLM_REGISTRY_URLS:
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+
+            registry = resp.json()
+            if not isinstance(registry, dict) or len(registry) < 10:
+                logger.warning("LiteLLM registry looks invalid, entries=%s", len(registry) if isinstance(registry, dict) else "N/A")
+                continue
+
+            client = _get_sync_redis()
+            client.setex(
+                LITELLM_REDIS_KEY,
+                LITELLM_REDIS_TTL,
+                json.dumps(registry, ensure_ascii=False),
+            )
+            model_count = len(registry)
+            logger.info("LiteLLM registry synced: source=%s models=%d", url, model_count)
+            return {"source": url, "model_count": model_count}
+        except Exception as e:
+            last_error = e
+            logger.warning("LiteLLM registry fetch failed: url=%s error=%s", url, str(e))
+
+    raise RuntimeError(f"All LiteLLM registry URLs failed: {last_error}")

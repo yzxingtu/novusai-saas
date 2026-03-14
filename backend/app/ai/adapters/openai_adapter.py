@@ -62,8 +62,11 @@ class OpenAIAdapter(BaseAdapter):
         """
         _ = stream
         try:
+            # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
+            vision_flag = kwargs.pop("supports_vision", True)
+
             # Convert message format / 转换消息格式
-            openai_messages = self._convert_messages(messages)
+            openai_messages = self._convert_messages(messages, supports_vision=vision_flag)
 
             # Build request parameters / 构建请求参数
             request_params: dict = {
@@ -110,8 +113,11 @@ class OpenAIAdapter(BaseAdapter):
         Chat conversation (streaming mode) / 聊天对话（流式模式）
         """
         try:
+            # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
+            vision_flag = kwargs.pop("supports_vision", True)
+
             # Convert message format / 转换消息格式
-            openai_messages = self._convert_messages(messages)
+            openai_messages = self._convert_messages(messages, supports_vision=vision_flag)
 
             # Build request parameters / 构建请求参数
             request_params: dict = {
@@ -201,12 +207,17 @@ class OpenAIAdapter(BaseAdapter):
             logger.error("List models error: %s", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
 
-    def _convert_messages(self, messages: list[ChatMessage]) -> list[dict]:
+    def _convert_messages(
+        self, messages: list[ChatMessage], *, supports_vision: bool = True,
+    ) -> list[dict]:
         """
         Convert message format / 转换消息格式
 
         Args:
             messages: Unified format message list / 统一格式的消息列表
+            supports_vision: Whether the target model supports vision (image_url content).
+                             When False, image attachments are converted to text hints.
+                             目标模型是否支持视觉（image_url 内容）。为 False 时图片附件转为文字提示。
 
         Returns:
             OpenAI format message list / OpenAI 格式的消息列表
@@ -229,10 +240,15 @@ class OpenAIAdapter(BaseAdapter):
                     att_name = att.get("name", "")
                     att_mime = att.get("mime_type", "")
                     if att_type == "image" and att_url:
-                        content_parts.append({
-                            "type": "image_url",
-                            "image_url": {"url": att_url},
-                        })
+                        if supports_vision:
+                            content_parts.append({
+                                "type": "image_url",
+                                "image_url": {"url": att_url},
+                            })
+                        else:
+                            # Non-vision model: degrade to text hint / 非视觉模型：降级为文字提示
+                            hint = f"[Image: {att_name or 'uploaded image'}]"
+                            content_parts.append({"type": "text", "text": hint})
                     elif att_type == "file" and att_name:
                         file_hint = f"[Attached file: {att_name}"
                         if att_mime:

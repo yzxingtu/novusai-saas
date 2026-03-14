@@ -64,6 +64,7 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
     nameField: 'name',
     defaultSort: '-created_at',
     createPermission: 'periodic_task:create',
+    recycleBin: true,
     customActions: {
       trigger: onTriggerTask,
     },

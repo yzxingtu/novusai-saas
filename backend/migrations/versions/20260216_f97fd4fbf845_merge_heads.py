@@ -1,4 +1,7 @@
-"""merge_heads
+"""[MERGE] merge_heads
+
+Merges three branches: plm, fix_aa, rmcg.
+No schema changes.
 
 Revision ID: f97fd4fbf845
 Revises: 20260216_plm, 20260216_fix_aa, 20260216_rmcg

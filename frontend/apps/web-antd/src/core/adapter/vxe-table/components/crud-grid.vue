@@ -27,6 +27,7 @@ const props = withDefaults(defineProps<Props>(), {
   onRecycleBin: undefined,
   onRefresh: undefined,
   recycleBinCount: 0,
+  recycleBinPermission: '',
   showExport: true,
   showRecycleBin: false,
 });
@@ -44,6 +45,8 @@ interface Props {
   recycleBinCount?: number;
   /** Recycle bin button click callback / 回收站按钮点击回调 */
   onRecycleBin?: () => void;
+  /** Recycle bin permission code (e.g. 'ai_provider:recycle_bin') / 回收站权限码 */
+  recycleBinPermission?: string;
   /** Refresh callback / 刷新回调 */
   onRefresh?: () => void;
   /** Create callback (shows create button when provided) / 创建回调（提供时显示创建按钮） */
@@ -145,16 +148,21 @@ function handleRefresh() {
         name="toolbar-tools"
         v-bind="slotProps || {}"
       ></slot>
-      <Tooltip v-if="showRecycleBin" :title="$t('common.recycleBin.title')">
-        <Badge :count="props.recycleBinCount" :offset="[-4, 4]" size="small">
-          <button
-            class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive"
-            @click="props.onRecycleBin"
-          >
-            <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
-          </button>
-        </Badge>
-      </Tooltip>
+      <span
+        v-if="showRecycleBin"
+        v-access:code="recycleBinPermission ? [recycleBinPermission] : undefined"
+      >
+        <Tooltip :title="$t('common.recycleBin.title')">
+          <Badge :count="props.recycleBinCount" :offset="[-4, 4]" size="small">
+            <button
+              class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive"
+              @click="props.onRecycleBin"
+            >
+              <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+            </button>
+          </Badge>
+        </Tooltip>
+      </span>
       <Tooltip v-if="showExport" :title="$t('common.export')">
         <button
           class="ml-2 flex size-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm shadow-primary/20 transition-all hover:bg-primary/90"
