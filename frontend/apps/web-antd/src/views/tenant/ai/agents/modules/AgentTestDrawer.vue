@@ -28,6 +28,9 @@ import { requestClient } from '#/utils/request';
 
 defineOptions({ name: 'AgentTestDrawer' });
 
+/** Tool call status: running (tool_start) or final (tool_call) / 工具调用状态 */
+type ToolCallStatus = 'error' | 'running' | 'success';
+
 /** Chat message / 聊天消息 */
 interface ChatMessage {
   id: string;
@@ -37,7 +40,7 @@ interface ChatMessage {
   durationMs?: number;
   streaming?: boolean;
   tokenUsage?: number;
-  toolCalls?: { name: string; success: boolean }[];
+  toolCalls?: { name: string; status: ToolCallStatus; success?: boolean }[];
 }
 
 const agentId = ref(0);
@@ -176,12 +179,30 @@ async function onSend() {
                 msg.content += (evt.delta as string) || '';
                 break;
               }
-              case 'tool_call': {
+              case 'tool_start': {
                 if (!msg.toolCalls) msg.toolCalls = [];
                 msg.toolCalls.push({
                   name: evt.name as string,
-                  success: evt.success as boolean,
+                  status: 'running',
                 });
+                break;
+              }
+              case 'tool_call': {
+                if (!msg.toolCalls) msg.toolCalls = [];
+                const existing = msg.toolCalls.findLast(
+                  (tc) => tc.name === (evt.name as string) && tc.status === 'running',
+                );
+                const success = evt.success as boolean;
+                if (existing) {
+                  existing.status = success ? 'success' : 'error';
+                  existing.success = success;
+                } else {
+                  msg.toolCalls.push({
+                    name: evt.name as string,
+                    status: success ? 'success' : 'error',
+                    success,
+                  });
+                }
                 break;
               }
             }
@@ -322,13 +343,24 @@ function onKeyDown(e: KeyboardEvent) {
                   $t('tenant.ai.agent.test.toolCalling', { name: tc.name })
                 "
               >
-                <Tag :color="tc.success ? 'success' : 'error'">
-                  {{
-                    tc.success
-                      ? $t('tenant.ai.agent.test.toolSuccess')
-                      : $t('tenant.ai.agent.test.toolFailed')
-                  }}
-                </Tag>
+                <div class="flex items-center gap-1.5">
+                  <Tag
+                    v-if="tc.status === 'running'"
+                    color="processing"
+                  >
+                    {{ $t('common.globalAiChat.toolExecuting') }}
+                  </Tag>
+                  <Tag
+                    v-else
+                    :color="tc.status === 'success' ? 'success' : 'error'"
+                  >
+                    {{
+                      tc.status === 'success'
+                        ? $t('tenant.ai.agent.test.toolSuccess')
+                        : $t('tenant.ai.agent.test.toolFailed')
+                    }}
+                  </Tag>
+                </div>
               </CollapsePanel>
             </Collapse>
 

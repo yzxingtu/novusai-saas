@@ -10,17 +10,32 @@
  */
 import type { AgentItem, ChatMessage } from './types';
 
-import { computed } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
+import { useAIPanelStore } from '#/store';
 
 import { Button, Tooltip } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { MarkdownRender } from '#/components/business/markdown-render';
+import { getPageOpErrorHintKey } from '#/components/business/ai-chat-panel/pageOpErrorHints';
 import { $t } from '#/locales';
 import { formatTimeOnly } from '#/utils/common';
 import { getFileIcon } from '#/utils/file';
+
+/** Pending page op for inline confirmation card / 待确认的页面操作（内联卡片） */
+export interface PendingPageOpForDisplay {
+  invokeId: string;
+  operationLabel: string;
+  operationDescription: string;
+  params: Record<string, unknown>;
+  resolved: boolean;
+  allowed?: boolean;
+  startedAt: number;
+  toolCallId?: string;
+}
 
 const props = withDefaults(
   defineProps<{
@@ -31,8 +46,12 @@ const props = withDefaults(
     selectedAgent?: AgentItem | null;
     /** Whether to show an agent-switch separator above this message / 是否在本条消息上方显示智能体切换分隔 */
     showAgentSwitch?: boolean;
+    /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
+    pendingOps?: PendingPageOpForDisplay[];
+    /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
+    countdownNow?: number;
   }>(),
-  { apiPrefix: '', compact: false, selectedAgent: null, showAgentSwitch: false },
+  { apiPrefix: '', compact: false, selectedAgent: null, showAgentSwitch: false, pendingOps: () => [] },
 );
 
 /** Resolve agent display info: prefer message-level, fallback to selectedAgent / 解析智能体展示信息：优先消息级，否则用 selectedAgent */
@@ -58,6 +77,54 @@ const emit = defineEmits<{
   reject: [index: number];
   retry: [index: number];
 }>();
+
+
+const aiPanelStore = useAIPanelStore();
+
+/** Whether this tool call has a pending confirmation (inline) / 该工具调用是否有待确认（内联） */
+function hasPendingForToolCall(tc: { id?: string; name: string; status: string }): boolean {
+  if (tc.status !== 'running') return false;
+  if (tc.name !== 'invoke_page_operation' && !tc.name.startsWith('pageop_')) return false;
+  if (!props.pendingOps?.length) return false;
+  // Prefer toolCallId match when available / 有 toolCallId 时精确匹配
+  const matched = props.pendingOps.some(
+    (op) => op.toolCallId && op.toolCallId === tc.id && !op.resolved,
+  );
+  if (matched) return true;
+  // Fallback: legacy ops without toolCallId, any unresolved = waiting / 兜底：无 toolCallId 的旧数据，存在未解决则显示待确认 */
+  return props.pendingOps.some((op) => !op.toolCallId && !op.resolved);
+}
+
+/** Display sub-state for running tools: waiting_confirm vs executing / 运行中工具的展示子状态 */
+function getToolDisplayState(tc: { id?: string; name: string; status: string }): 'executing' | 'waiting_confirm' {
+  if (tc.status !== 'running') return 'executing';
+  if (hasPendingForToolCall(tc)) return 'waiting_confirm';
+  return 'executing';
+}
+
+/** Ticking now for "still running" countdown (8s+) / 用于“仍在执行”提示的计时 */
+const now = ref(Date.now());
+const hasRunningTool = computed(() =>
+  props.msg.toolCalls?.some((tc) => tc.status === 'running') ?? false,
+);
+let tickInterval: ReturnType<typeof setInterval> | null = null;
+function startTick() {
+  if (tickInterval) return;
+  tickInterval = setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
+}
+function stopTick() {
+  if (tickInterval) {
+    clearInterval(tickInterval);
+    tickInterval = null;
+  }
+}
+watch(hasRunningTool, (running) => {
+  if (running) startTick();
+  else stopTick();
+}, { immediate: true });
+onUnmounted(stopTick);
 </script>
 
 <template>
@@ -259,7 +326,9 @@ const emit = defineEmits<{
                   class="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight"
                   :class="
                     tc.status === 'running'
-                      ? 'tc-pill-pulse bg-primary/10 text-primary'
+                      ? getToolDisplayState(tc) === 'waiting_confirm'
+                        ? 'tc-pill-pulse bg-warning/10 text-warning'
+                        : 'tc-pill-pulse bg-primary/10 text-primary'
                       : tc.status === 'success'
                         ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                         : 'bg-red-500/10 text-red-500'
@@ -271,7 +340,15 @@ const emit = defineEmits<{
                     class="size-2.5"
                   />
                   <span v-else class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current" />
-                  {{ tc.status === 'running' ? $t('common.globalAiChat.thinking') : tc.status === 'success' ? 'OK' : 'ERR' }}
+                  {{
+                    tc.status === 'running'
+                      ? getToolDisplayState(tc) === 'waiting_confirm'
+                        ? $t('common.globalAiChat.toolWaitingConfirm')
+                        : $t('common.globalAiChat.toolExecuting')
+                      : tc.status === 'success'
+                        ? $t('common.globalAiChat.toolStatusOk')
+                        : $t('common.globalAiChat.toolStatusErr')
+                  }}
                 </span>
 
                 <!-- Tool name -->
@@ -330,10 +407,10 @@ const emit = defineEmits<{
                   {{ tc.error }}
                 </div>
                 <p
-                  v-if="tc.status === 'error'"
+                  v-if="tc.status === 'error' && getPageOpErrorHintKey(tc.errorType)"
                   class="mt-1 text-[10px] text-muted-foreground"
                 >
-                  {{ $t('common.globalAiChat.pageOpTimeoutHint') }}
+                  {{ $t(getPageOpErrorHintKey(tc.errorType)) }}
                 </p>
                 <a
                   v-if="tc.resultLink && tc.status === 'success'"
@@ -346,6 +423,97 @@ const emit = defineEmits<{
                 </a>
               </div>
             </details>
+            <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
+            <div
+              v-for="op in (pendingOps || []).filter(o => o.toolCallId === tc.id)"
+              :key="op.invokeId"
+              class="mt-1 overflow-hidden rounded-lg border"
+              :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
+            >
+              <!-- Resolved state -->
+              <div
+                v-if="op.resolved"
+                class="flex items-center gap-1.5 px-2.5 py-1.5"
+                :class="compact ? 'text-[10px]' : 'text-[11px]'"
+              >
+                <IconifyIcon
+                  :icon="op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'"
+                  class="size-3 shrink-0"
+                  :class="op.allowed ? 'text-green-600' : 'text-red-500'"
+                />
+                <span class="truncate text-muted-foreground">
+                  <span class="font-medium text-foreground/60">{{ op.operationLabel }}</span>
+                  <span v-if="op.operationDescription" class="ml-1 text-muted-foreground/60">{{ op.operationDescription }}</span>
+                </span>
+                <span
+                  class="ml-auto shrink-0 rounded-full px-1.5 py-px font-medium"
+                  :class="[
+                    compact ? 'text-[9px]' : 'text-[10px]',
+                    op.allowed ? 'bg-green-50 text-green-600 dark:bg-green-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30',
+                  ]"
+                >
+                  {{ op.allowed ? $t('shared.pageOperation.confirmOk') : $t('shared.pageOperation.confirmCancel') }}
+                </span>
+              </div>
+              <!-- Pending state -->
+              <template v-else>
+                <div
+                  class="flex items-center gap-1.5 px-2.5 py-1.5"
+                  :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                >
+                  <IconifyIcon icon="lucide:shield-alert" class="size-3.5 shrink-0 text-warning" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium text-foreground/80">
+                      {{ op.operationLabel }}
+                    </div>
+                    <div v-if="op.operationDescription" class="truncate text-muted-foreground/60">
+                      {{ op.operationDescription }}
+                    </div>
+                    <div class="mt-0.5 text-muted-foreground/50" :class="compact ? 'text-[9px]' : 'text-[10px]'">
+                      {{ $t('shared.pageOperation.confirmCountdown', { seconds: Math.max(0, 60 - Math.floor(((countdownNow ?? now) - (op.startedAt || 0)) / 1000)) }) }}
+                    </div>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <button
+                      class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                      @click="aiPanelStore.resolvePageOp(op.invokeId, true)"
+                    >
+                      <IconifyIcon icon="lucide:check" class="size-3" />
+                      {{ $t('shared.pageOperation.confirmOk') }}
+                    </button>
+                    <button
+                      class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                      @click="aiPanelStore.resolvePageOp(op.invokeId, false)"
+                    >
+                      <IconifyIcon icon="lucide:x" class="size-3" />
+                      {{ $t('shared.pageOperation.confirmCancel') }}
+                    </button>
+                  </div>
+                </div>
+                <details
+                  v-if="op.params && Object.keys(op.params).length > 0"
+                  class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
+                >
+                  <summary class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-muted-foreground/60 hover:text-muted-foreground" :class="compact ? 'text-[9px]' : 'text-[10px]'">
+                    <IconifyIcon icon="lucide:code" class="size-2.5" />
+                    {{ $t('common.globalAiChat.args') }}
+                    <IconifyIcon icon="lucide:chevron-down" class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180" />
+                  </summary>
+                  <div class="border-t border-border/20 px-2.5 py-1">
+                    <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-muted-foreground" :class="compact ? 'text-[9px]' : 'text-[10px]'">{{ JSON.stringify(op.params, null, 2) }}</pre>
+                  </div>
+                </details>
+              </template>
+            </div>
+            <!-- Still running hint (8s+) - outside details so always visible / 执行超 8s 的提示 -->
+            <p
+              v-if="tc.status === 'running' && tc.startedAt && (now - tc.startedAt) >= 8000"
+              class="mt-0.5 pl-1 text-[10px] text-muted-foreground"
+            >
+              {{ $t('common.globalAiChat.toolStillRunningHint') }}
+            </p>
           </div>
         </div>
 

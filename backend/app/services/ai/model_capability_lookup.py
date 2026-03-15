@@ -52,6 +52,10 @@ def _extract_capabilities(entry: dict[str, Any]) -> dict[str, Any]:
 
     if "supports_vision" in entry:
         caps["supports_vision"] = bool(entry["supports_vision"])
+    if "supports_audio" in entry:
+        caps["supports_audio"] = bool(entry["supports_audio"])
+    if "supports_video" in entry:
+        caps["supports_video"] = bool(entry["supports_video"])
     if "supports_function_calling" in entry:
         caps["supports_function_calling"] = bool(entry["supports_function_calling"])
 
@@ -101,6 +105,7 @@ def _find_entry(registry: dict[str, Any], model_code: str) -> dict[str, Any] | N
         "openai/", "azure/", "anthropic/", "deepseek/", "google/",
         "cohere/", "mistral/", "groq/", "together_ai/", "fireworks_ai/",
         "volcengine/", "huggingface/", "ollama/", "bedrock/",
+        "dashscope/", "siliconflow/", "minimax/", "kimi/",
     ]
     for prefix in common_prefixes:
         key = f"{prefix}{model_code}"

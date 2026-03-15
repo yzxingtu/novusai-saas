@@ -3,10 +3,60 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from dataclasses import asdict
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+# Stub redis/bcrypt/socketio before app imports (same pattern as test_tool_argument_recovery)
+redis_module = types.ModuleType("redis")
+redis_asyncio_module = types.ModuleType("redis.asyncio")
+redis_asyncio_client_module = types.ModuleType("redis.asyncio.client")
+redis_exceptions_module = types.ModuleType("redis.exceptions")
+
+
+class _RedisConnectionPool:
+    @classmethod
+    def from_url(cls, *args, **kwargs):
+        return cls()
+
+    async def aclose(self) -> None:
+        return None
+
+
+class _RedisClient:
+    def __init__(self, *args, **kwargs) -> None:
+        return None
+
+
+class _RedisPipeline:
+    pass
+
+
+redis_exceptions_module.RedisError = type("RedisError", (Exception,), {})
+redis_asyncio_module.ConnectionPool = _RedisConnectionPool
+redis_asyncio_module.Redis = _RedisClient
+redis_asyncio_client_module.Pipeline = _RedisPipeline
+redis_module.asyncio = redis_asyncio_module
+redis_module.exceptions = redis_exceptions_module
+bcrypt_module = types.ModuleType("bcrypt")
+bcrypt_module.checkpw = lambda *a, **k: True
+bcrypt_module.gensalt = lambda: b"salt"
+bcrypt_module.hashpw = lambda p, s: p + s
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
+sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
+sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
+sys.modules.setdefault("bcrypt", bcrypt_module)
+
+_mock_sio = MagicMock()
+_mock_sio.emit = AsyncMock()
+_sio_mod = types.ModuleType("app.core.socketio_server")
+_sio_mod.get_sio = lambda: _mock_sio
+sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
 from app.ai.engine.stream_handler import StreamExecutionHandler
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -56,7 +106,12 @@ class _FakeEngine:
         return [asdict(m) for m in messages]
 
 
-def _build_handler(engine: _FakeEngine) -> StreamExecutionHandler:
+def _build_handler(
+    engine: _FakeEngine,
+    tools: list[ToolDefinition] | None = None,
+) -> StreamExecutionHandler:
+    if tools is None:
+        tools = [ToolDefinition(name="query_db", description="查询数据库")]
     request = SimpleNamespace(
         tenant_id=1,
         user_id=1,
@@ -65,7 +120,7 @@ def _build_handler(engine: _FakeEngine) -> StreamExecutionHandler:
     )
     prep = SimpleNamespace(
         messages=[ChatMessage(role="user", content="测试流式")],
-        tools=[ToolDefinition(name="query_db", description="查询数据库")],
+        tools=tools,
         rag_sources=None,
         optimize_event=None,
         tool_consent_modes={},
@@ -158,3 +213,115 @@ async def test_stream_handler_merges_stream_tool_calls_and_runs_tool():
     assert any(e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events)
     assert any(e.get("event") == "tool_call" and e.get("success") is True for e in events)
     assert [e["delta"] for e in events if e.get("event") == "message"] == ["查询完成", "。"]
+
+
+@pytest.mark.asyncio
+async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
+    """
+    When sandbox redirects pageop_* to invoke_page_operation, tool_call event
+    must use original func_name (name_override) so frontend matches correctly.
+    pageop_* 重定向后 tool_call 事件的 name 必须与 tool_start 一致（原始 func_name）。
+    """
+    class _RedirectSandbox:
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict,
+            definitions: list,
+            conversation_id: int,
+        ):
+            _ = tool_call_id, arguments, definitions, conversation_id
+            # Simulate sandbox redirect: pageop_* -> invoke_page_operation
+            result_name = "invoke_page_operation" if name.startswith("pageop_") else name
+            return ToolResult(
+                tool_call_id="call_1",
+                name=result_name,
+                success=True,
+                output='{"ok": true}',
+            )
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "pageop_get_editor_html",
+                                "arguments": '{"page_key":"test"}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=50,
+                ),
+            ],
+            [
+                ChatChunk(delta="Done", finish_reason="stop", total_tokens=60),
+            ],
+        ],
+    )
+    engine.sandbox = _RedirectSandbox()
+    tools = [
+        ToolDefinition(name="pageop_get_editor_html", description="Get editor HTML"),
+    ]
+    handler = _build_handler(engine, tools=tools)
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    tool_starts = [e for e in events if e.get("event") == "tool_start"]
+    tool_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success")]
+    assert len(tool_starts) >= 1
+    assert len(tool_calls) >= 1
+    assert tool_starts[0].get("name") == "pageop_get_editor_html"
+    assert tool_calls[0].get("name") == "pageop_get_editor_html", (
+        "tool_call name must match tool_start (name_override) when sandbox redirects"
+    )
+
+
+@pytest.mark.asyncio
+async def test_parse_error_abort_after_consecutive_page_op_failures():
+    """
+    parse error 连续 3 次后触发熔断，停止工具循环并输出恢复提示。
+    验证富文本审计方案：parse error 分支纳入熔断计数。
+    """
+    # 3 个 invoke_page_operation 调用，每个 arguments 为非法 JSON
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {"index": 0, "id": "c1", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 1"}},
+                        {"index": 1, "id": "c2", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 2"}},
+                        {"index": 2, "id": "c3", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 3"}},
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=100,
+                ),
+            ],
+        ]
+    )
+    tools = [ToolDefinition(name="invoke_page_operation", description="Execute page op")]
+    handler = _build_handler(engine, tools=tools)
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    # 应有 3 个 tool_call 失败事件
+    failed_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success") is False]
+    assert len(failed_calls) >= 3
+
+    # 熔断后 output 应包含恢复提示
+    assert "Multiple page operations failed" in (handler._output or "")
+    assert "retry" in (handler._output or "").lower() or "refresh" in (handler._output or "").lower()

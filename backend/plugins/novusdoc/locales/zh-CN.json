@@ -16,7 +16,8 @@
         "wordCount": "字数",
         "export": "导出",
         "exportHTML": "导出 HTML",
-        "exportMarkdown": "导出 Markdown"
+        "exportMarkdown": "导出 Markdown",
+        "exportPDF": "导出 PDF"
       },
       "folder": {
         "title": "文件夹",
@@ -47,7 +48,11 @@
         "save": "保存文档",
         "toggleStatus": "切换发布状态",
         "updateTitle": "更新标题",
-        "export": "导出文档"
+        "export": "导出文档",
+        "savedSuccess": "文档「{title}」已保存",
+        "statusChangedTo": "状态已切换为 {status}",
+        "titleUpdatedTo": "标题已更新为「{title}」",
+        "exportInitiatedIn": "已发起 {format} 格式导出"
       }
     }
   }

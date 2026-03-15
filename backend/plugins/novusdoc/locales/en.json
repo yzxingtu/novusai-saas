@@ -16,7 +16,8 @@
         "wordCount": "Words",
         "export": "Export",
         "exportHTML": "Export HTML",
-        "exportMarkdown": "Export Markdown"
+        "exportMarkdown": "Export Markdown",
+        "exportPDF": "Export PDF"
       },
       "folder": {
         "title": "Folders",
@@ -47,7 +48,11 @@
         "save": "Save document",
         "toggleStatus": "Toggle publish status",
         "updateTitle": "Update title",
-        "export": "Export document"
+        "export": "Export document",
+        "savedSuccess": "Document \"{title}\" saved",
+        "statusChangedTo": "Status changed to {status}",
+        "titleUpdatedTo": "Title updated to \"{title}\"",
+        "exportInitiatedIn": "Export initiated in {format} format"
       }
     }
   }

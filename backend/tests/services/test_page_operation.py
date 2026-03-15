@@ -154,6 +154,7 @@ class TestPageOperationExecutor:
 
         assert result.success is False
         assert "page_session_id" in result.error
+        assert result.error_type == "session_not_found"
 
     @pytest.mark.asyncio
     async def test_no_context(self, executor, definition):
@@ -187,6 +188,39 @@ class TestPageOperationExecutor:
 
         assert result.success is False
         assert "page_key" in result.error
+        assert result.error_type == "invalid_input"
+
+    @pytest.mark.asyncio
+    async def test_target_not_found_recovery_guidance(self, executor, definition):
+        """replace_section target_not_found 时返回恢复指引 / target_not_found ..."""
+        context = ExecutionContext(
+            tenant_id=1, agent_id=2, page_session_id="ps-123",
+        )
+        mock_result = {
+            "success": False,
+            "message": "old_html not found in document",
+            "error_type": "target_not_found",
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_tnf",
+                {
+                    "page_key": "doc.editor",
+                    "operation_name": "replace_section",
+                    "params": {"old_html": "<x>", "new_html": "<y>"},
+                },
+                context,
+            )
+
+        assert result.success is False
+        assert result.error_type == "target_not_found"
+        assert "get_editor_html" in result.error or "short" in result.error.lower()
+        assert "Do NOT echo" in result.error
 
     @pytest.mark.asyncio
     async def test_missing_operation_name(self, executor, definition):
@@ -204,6 +238,7 @@ class TestPageOperationExecutor:
 
         assert result.success is False
         assert "operation_name" in result.error
+        assert result.error_type == "invalid_input"
 
     @pytest.mark.asyncio
     async def test_timeout(self, executor, definition):

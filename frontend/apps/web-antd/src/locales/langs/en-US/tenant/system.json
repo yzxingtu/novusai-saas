@@ -484,7 +484,7 @@
       "send_notification_email": "Notification Email",
       "log_ai_call": "AI Call Logging",
       "process_document": "Knowledge Base Document Processing",
-      "sync_litellm_registry": "LiteLLM Model Registry Sync"
+      "sync_litellm_registry": "LiteLLM + LLMRing Multi-Source Model Registry Sync"
     },
     "queueNames": {
       "default": "Default",

@@ -61,6 +61,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 success=False,
                 error="Both 'page_key' and 'operation_name' are required.",
                 duration_ms=int((time.perf_counter() - start) * 1000),
+                error_type="invalid_input",
             )
 
         # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect)
@@ -82,6 +83,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 success=False,
                 error="No page_session_id available. Cannot invoke page operation without an active page session.",
                 duration_ms=int((time.perf_counter() - start) * 1000),
+                error_type="session_not_found",
             )
 
         logger.info(
@@ -95,6 +97,7 @@ class PageOperationExecutor(BaseToolExecutor):
             operation_name=operation_name,
             params=params,
             requires_confirmation=requires_confirmation,
+            tool_call_id=tool_call_id,
         )
 
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -122,7 +125,9 @@ class PageOperationExecutor(BaseToolExecutor):
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
                         html_content = html_content[:max_html_chars] + "\n... (truncated)"
-                    output += f"\nHTML (copy exactly for replace_section old_html):\n{html_content}"
+                    hint = result_data.get("_hint", "Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.")
+                    output += f"\n{hint}\nHTML:\n{html_content}"
+                    output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
                 # Agent Loop guidance: suggest next step based on context_diff
                 context_diff = result_data.get("context_diff", {})
                 if context_diff.get("form_opened"):
@@ -144,7 +149,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 duration_ms=duration_ms,
             )
 
-        # Failure case / 失败情况
+        # Failure case with recovery guidance / 失败情况，含恢复指引
         logger.warning(
             "Page operation failed: page_key=%s op=%s error_type=%s message=%s duration=%dms",
             page_key, operation_name, error_type, message, duration_ms,
@@ -159,8 +164,28 @@ class PageOperationExecutor(BaseToolExecutor):
             )
         elif error_type == "pending_confirmation":
             error_msg = f"Operation '{operation_name}' requires user confirmation. Awaiting user approval."
+        elif error_type == "target_not_found":
+            error_msg += (
+                f" Reason: {message}. "
+                "Next step: Call get_editor_html again to get current content, "
+                "then use a short, unique HTML snippet (not the entire document) as old_html for replace_section."
+            )
+        elif error_type == "non_unique_match":
+            error_msg += (
+                f" Reason: {message}. "
+                "Next step: Use a longer or more specific HTML snippet so it uniquely identifies the target section."
+            )
+        elif error_type == "invalid_html":
+            error_msg += (
+                f" Reason: {message}. "
+                "Next step: Ensure new_html is valid HTML; avoid broken tags or invalid structure."
+            )
         elif message:
             error_msg += f" Reason: {message}"
+        error_msg += (
+            "\n\nDo NOT echo HTML, JSON, tool params or raw error content to the user. "
+            "Return a brief natural language summary only."
+        )
 
         return ToolResult(
             tool_call_id=tool_call_id,
@@ -168,6 +193,7 @@ class PageOperationExecutor(BaseToolExecutor):
             success=False,
             error=error_msg,
             duration_ms=duration_ms,
+            error_type=error_type or "execution_failed",
         )
 
     async def validate(

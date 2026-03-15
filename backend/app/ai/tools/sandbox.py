@@ -65,19 +65,33 @@ _PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
     (frozenset({"status"}), "toggle_status"),
 ]
 
+# Top-level keys allowed for invoke_page_operation. Others must go in params.
+# invoke_page_operation 允许的顶层字段，其他参数必须放入 params。
+_INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST = frozenset({
+    "page_key",
+    "operation_name",
+    "params",
+    "requires_confirmation",
+})
+
 _RESERVED_ARG_KEYS = frozenset({"page_key", "operation_name", "params"})
 
 
 def _infer_operation_name(params: dict[str, Any]) -> str:
-    """Best-effort inference of operation_name from params keys. / 根据 params 的 key 尽力推断 operation_name。不限制 available_ops，由执行阶段校验。"""
+    """
+    Best-effort inference of operation_name from params keys.
+    根据 params 的 key 尽力推断 operation_name。不限制 available_ops，由执行阶段校验。
+
+    Note: Removed content->replace_content inference; LLM must pass operation_name explicitly
+    to avoid misattribution and error loops.
+    已移除 content->replace_content 推断；模型必须显式传入 operation_name 以避免误判和错误循环。
+    """
     if not params:
         return ""
     keys = frozenset(params.keys())
     for sig, op in _PARAM_KEY_TO_OP:
         if sig <= keys:
             return op
-    if "content" in keys:
-        return "replace_content"
     return ""
 
 
@@ -262,9 +276,62 @@ class ToolSandbox:
                 error=_("tool.error.not_found", name=name),
             )
 
-        # For invoke_page_operation: auto-fill missing page_key and
-        # return an actionable error when operation_name is absent.
+        # 1.2 Redirect: pageop_* dedicated editor tools -> invoke_page_operation
+        # 专用 editor tools 重写为 invoke_page_operation，由 PageOperationExecutor 执行
+        if definition.config.get("underlying_operation"):
+            underlying = definition.config["underlying_operation"]
+            variables = self.input_variables or {}
+            page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
+            page_key = ""
+            if isinstance(page_ctx, dict):
+                page_key = (page_ctx.get("page_key") or "").strip()
+            if not page_key:
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    success=False,
+                    error="Page context missing (page_key). Cannot invoke dedicated editor tool.",
+                    error_type="invalid_input",
+                )
+            page_op_def = self._find_definition("invoke_page_operation", definitions)
+            if page_op_def:
+                name = "invoke_page_operation"
+                arguments = {
+                    "page_key": page_key,
+                    "operation_name": underlying,
+                    "params": dict(arguments) if arguments else {},
+                }
+                definition = page_op_def
+                logger.debug(
+                    "Redirected pageop_%s -> invoke_page_operation(operation_name=%s)",
+                    underlying,
+                    underlying,
+                )
+
+        # For invoke_page_operation: top-level whitelist, auto-fill page_key,
+        # return actionable error when operation_name absent or unknown fields present.
         if name == "invoke_page_operation":
+            # Top-level field whitelist: reject unknown keys to avoid content/old_html/new_html
+            # being silently dropped when placed at top level.
+            # 顶层字段白名单：拒绝未知 key，避免 content/old_html/new_html 放错位置被静默丢失
+            unknown_top = [
+                k for k in arguments.keys()
+                if k not in _INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST
+            ]
+            if unknown_top:
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    success=False,
+                    error=(
+                        f"Invalid top-level fields: {', '.join(sorted(unknown_top))}. "
+                        "Editor params (content, old_html, new_html, title, etc.) must go inside "
+                        "'params'. Example: invoke_page_operation(page_key='...', "
+                        "operation_name='replace_content', params={{'content': '<p>...</p>'}})."
+                    ),
+                    error_type="invalid_input",
+                )
+
             variables = self.input_variables or {}
             page_ctx = variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
 
@@ -276,6 +343,18 @@ class ToolSandbox:
 
             if not (arguments.get("operation_name") or "").strip():
                 nested_params: dict[str, Any] = arguments.get("params") or {}
+                # operation_name must be at top level, not inside params
+                if "operation_name" in nested_params:
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=name,
+                        success=False,
+                        error=(
+                            "operation_name must be a top-level parameter, not inside params. "
+                            "Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={})"
+                        ),
+                        error_type="invalid_input",
+                    )
                 extra_keys = {
                     k: v for k, v in arguments.items()
                     if k not in _RESERVED_ARG_KEYS
@@ -334,6 +413,7 @@ class ToolSandbox:
                             "invoke_page_operation call."
                             f"{ops_hint}{example}"
                         ),
+                        error_type="invalid_input",
                     )
 
         # 1.5 Security check: input validation + call count limit / 安全检查

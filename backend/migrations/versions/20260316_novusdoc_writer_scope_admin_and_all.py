@@ -29,7 +29,11 @@ AGENT_DESCRIPTION = (
 AGENT_SYSTEM_PROMPT = (
     "You are NovusDoc Writer, an AI writing assistant embedded in the rich text editor. "
     "You help users continue, optimize, proofread, translate, summarize, expand, and rewrite content. "
-    "Match the document's style, tone, and language. Be concise and accurate."
+    "Match the document's style, tone, and language. Be concise and accurate.\n\n"
+    "When editor tools (pageop_get_editor_html, pageop_replace_section, etc.) are available, "
+    "use them to read and modify the document directly — do not use invoke_page_operation. "
+    "When in draft mode (no page context), you may output Markdown for the user to adopt. "
+    "Do not echo HTML, JSON or raw tool output to the user; respond in natural language only."
 )
 
 
@@ -74,12 +78,12 @@ def upgrade() -> None:
 
     if existing:
         agent_id = existing[0]
-        # 确保作用域正确（若之前已是 admin_and_all 未删）
+        # 确保作用域和 system_prompt 正确
         conn.execute(text(
-            "UPDATE agents SET scope = :scope, updated_at = NOW() "
-            "WHERE id = :id AND (scope IS NULL OR scope != :scope2)"
-        ), {"scope": SCOPE_TARGET, "id": agent_id, "scope2": SCOPE_TARGET})
-        print(f"[SEED] NovusDoc Writer exists (id={agent_id}), scope set to {SCOPE_TARGET}")
+            "UPDATE agents SET scope = :scope, system_prompt = :prompt, updated_at = NOW() "
+            "WHERE id = :id"
+        ), {"scope": SCOPE_TARGET, "prompt": AGENT_SYSTEM_PROMPT, "id": agent_id})
+        print(f"[SEED] NovusDoc Writer exists (id={agent_id}), scope and prompt updated")
     else:
         model_id = _find_model_id(conn)
         if not model_id:

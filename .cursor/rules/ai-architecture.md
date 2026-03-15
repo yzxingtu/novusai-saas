@@ -72,6 +72,7 @@
 ## 七、页面感知与操作规则
 
 - 三层架构：Layer 1（system prompt 注入）+ Layer 2（`get_page_context` 工具）+ Layer 3（`invoke_page_operation` WebSocket 执行）
+- 富文本页：**tool-first** — 有 pageop_* 时优先直调专用 tools；`content_format: 'html'|'markdown'` 与迁移/前端契约一致；禁止向用户回显 HTML/JSON/tool 参数，仅返回自然语言结果
 - `_PROTECTED_TOOL_NAMES` 白名单保护页面感知/操作工具不被优化器过滤
 - `readonly=false` 操作必须前端用户确认后才执行
 - 操作超时 30s，超时后自动清理 asyncio.Future

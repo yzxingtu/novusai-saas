@@ -174,6 +174,10 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     resolved: boolean;
     allowed?: boolean;
     resolve: (allowed: boolean) => void;
+    /** Timestamp when confirmation was requested (for 60s countdown) / 请求确认的时间戳（用于 60s 倒计时） */
+    startedAt: number;
+    /** Tool call ID for inlining confirmation card under the message / 工具调用 ID，用于在对应消息内联显示确认卡片 */
+    toolCallId?: string;
   }
 
   const pendingPageOps = ref<PendingPageOp[]>([]);
@@ -185,12 +189,14 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     operationLabel: string;
     operationDescription: string;
     params: Record<string, unknown>;
+    toolCallId?: string;
   }): Promise<boolean> {
     return new Promise<boolean>((resolvePromise) => {
       pendingPageOps.value.push({
         ...op,
         resolved: false,
         resolve: resolvePromise,
+        startedAt: Date.now(),
       });
     });
   }

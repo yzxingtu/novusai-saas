@@ -241,9 +241,13 @@ export class RequestClient {
         data,
         responseType: 'blob',
         ...restConfig,
-        // 下载请求不显示错误消息（由调用方处理）
+        // 下载请求：raw 模式跳过业务 code 解析，避免 Blob 被误判为错误
         ...({
-          __options: { showErrorMessage: false, showCodeMessage: false },
+          __options: {
+            showErrorMessage: false,
+            showCodeMessage: false,
+            responseReturn: 'raw',
+          },
         } as any),
       });
 

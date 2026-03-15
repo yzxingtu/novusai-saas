@@ -63,6 +63,8 @@ export interface ChatAttachment {
 }
 
 export interface ToolCallEvent {
+  /** Tool call ID from LLM/SSE (for associating pending confirmation card) / 工具调用 ID，用于关联待确认卡片 */
+  id?: string;
   name: string;
   /** 'running' = tool_start received, 'success'/'error' = tool_call received / 工具调用状态 */
   status: 'error' | 'running' | 'success';
@@ -78,6 +80,10 @@ export interface ToolCallEvent {
   summary?: string;
   /** Link to view the created/updated resource / 查看创建/更新资源的链接 */
   resultLink?: string;
+  /** Error type for page ops: timeout, user_cancelled, not_registered, invalid_input, etc. / 页面操作错误类型 */
+  errorType?: string;
+  /** Timestamp when tool_start was received (for "still running" hint after 8s) / 收到 tool_start 的时间戳 */
+  startedAt?: number;
 }
 
 export interface PendingConfirmation {

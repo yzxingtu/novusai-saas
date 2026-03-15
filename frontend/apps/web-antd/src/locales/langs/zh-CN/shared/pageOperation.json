@@ -4,6 +4,7 @@
   "confirmContentWithDesc": "AI 助手请求执行操作：{operation}\n\n{description}\n\n是否允许？",
   "confirmOk": "允许执行",
   "confirmCancel": "取消",
+  "confirmCountdown": "{seconds}s 内有效",
 
   "refreshDashboard": "刷新仪表盘",
   "refreshList": "刷新列表",
@@ -58,6 +59,7 @@
   "viewRecycleBin": "查看回收站",
   "refreshAnalytics": "刷新分析数据",
 
+  "replaceContentConfirm": "将用 {count} 字符覆盖全文，是否确认？",
   "getFormState": "获取表单状态",
   "fillForm": "智能填写表单",
   "validateForm": "校验表单",

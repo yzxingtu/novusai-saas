@@ -37,6 +37,12 @@ _PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
     "invoke_page_operation",
 })
 
+# Dedicated editor tools (pageop_*) are also protected when present
+# 专用 editor tools 存在时同样保护
+def _is_protected_tool(name: str) -> bool:
+    """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
+    return name in _PROTECTED_TOOL_NAMES or name.startswith("pageop_")
+
 # Chinese stopwords (high-frequency meaningless words) / 中文停用词
 _STOPWORDS_ZH = frozenset({
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人",
@@ -230,7 +236,7 @@ def optimize_tools(
     protected: list[ToolDefinition] = []
     optimizable: list[ToolDefinition] = []
     for tool in tools:
-        if tool.name in _PROTECTED_TOOL_NAMES:
+        if _is_protected_tool(tool.name):
             protected.append(tool)
         else:
             optimizable.append(tool)

@@ -826,3 +826,33 @@ class TestPageContextExecutorTruncation:
 
         assert result.success
         assert "[truncated]" in result.output
+
+    @pytest.mark.asyncio
+    async def test_editor_operations_summary_when_has_editor(self):
+        """富文本页 has_editor 时输出 available_operations 摘要 / has_editor ..."""
+        from app.ai.tools.executors.page_context_executor import PageContextExecutor
+
+        executor = PageContextExecutor()
+        context = MagicMock()
+        context.variables = {
+            "page_context": {
+                "page_key": "tenant.plugins.novusdoc.editor.42",
+                "page_title": "Document",
+                "page_data": {
+                    "has_editor": True,
+                    "entity_description": "Rich text editor",
+                    "available_operations": [
+                        {"name": "get_editor_html", "description": "Get HTML content"},
+                        {"name": "replace_section", "description": "Replace section", "params": {"old_html": {}, "new_html": {}}},
+                    ],
+                },
+            }
+        }
+        definition = ToolDefinition(name="get_page_context", description="")
+
+        result = await executor.execute(definition, "tc-editor", {}, context)
+
+        assert result.success
+        assert "Available Editor Operations" in result.output
+        assert "get_editor_html" in result.output
+        assert "replace_section" in result.output

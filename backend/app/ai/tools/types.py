@@ -147,6 +147,7 @@ class ToolResult:
         output: Output content (string) / 输出内容
         error: Error message / 错误信息
         duration_ms: Execution duration (milliseconds) / 执行耗时
+        error_type: Error type for classification (timeout, user_cancelled, etc.) / 错误分类
     """
 
     tool_call_id: str
@@ -158,6 +159,7 @@ class ToolResult:
     display_name: str | None = None
     summary: str | None = None
     result_link: str | None = None
+    error_type: str = ""
 
     @classmethod
     def error_result(

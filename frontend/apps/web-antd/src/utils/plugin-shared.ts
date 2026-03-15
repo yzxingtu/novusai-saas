@@ -33,6 +33,7 @@ import {
   appendPageOperations,
   listPageOperations,
   registerPageContext,
+  registerPageContextExtras,
   registerPageOperations,
 } from '#/components/business/ai-slide-panel';
 import {
@@ -45,18 +46,21 @@ import { router } from '#/router';
 import { TokenStorage } from '#/store/shared/token-storage';
 import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { downloadBlob } from '#/utils/download';
 import { requestClient } from '#/utils/request';
 
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
 export {
   $t,
   appendPageOperations,
+  downloadBlob,
   getAuthToken,
   getCurrentUser,
   IconifyIcon,
   listPageOperations,
   mountRichTextEditor,
   registerPageContext,
+  registerPageContextExtras,
   registerPageOperations,
   requestClient,
   RichTextEditor,
@@ -129,12 +133,16 @@ export interface NovusPluginSharedAPI {
   router: typeof router;
   /** Register page context for AI awareness / 注册页面上下文供 AI 感知 */
   registerPageContext: typeof registerPageContext;
+  /** Register extras onto existing page context (merge, do not replace) / 在已有页面上下文上合并 extras */
+  registerPageContextExtras: typeof registerPageContextExtras;
   /** Register page operations for AI invocation / 注册页面操作供 AI 调用 */
   registerPageOperations: typeof registerPageOperations;
   /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
   listPageOperations: typeof listPageOperations;
   /** Append page operations without replacing (for plugins; call after platform has registered) / 追加页面操作不替换（供插件在平台注册后追加） */
   appendPageOperations: typeof appendPageOperations;
+  /** Download blob as file (handles cross-browser quirks) / 下载 Blob 为文件（处理跨浏览器兼容） */
+  downloadBlob: typeof downloadBlob;
 }
 
 /**
@@ -172,8 +180,10 @@ export function exposePluginShared(): void {
     router,
     listPageOperations,
     registerPageContext,
+    registerPageContextExtras,
     registerPageOperations,
     appendPageOperations,
+    downloadBlob,
   } satisfies NovusPluginSharedAPI;
 }
 

@@ -46,11 +46,11 @@ INVOKE_PAGE_OPERATION_CONFIG = {
                 "4. Call fill_form to fill ALL fields based on context\n"
                 "5. For remote_select fields, call get_form_options first\n"
                 "6. User reviews the form and submits manually\n\n"
-                "EDITOR WORKFLOW — When user asks to read/edit rich text:\n"
-                "1. Call get_page_context (body excerpt in page_data.document_body_text)\n"
-                "2. Call get_editor_text / get_editor_html for full content\n"
-                "3. Call replace_content, insert_content, format_text, set_heading etc. "
-                "to modify content"
+                "EDITOR WORKFLOW — For rich-text pages: use dedicated pageop_* tools "
+                "(pageop_get_editor_html, pageop_replace_section, pageop_replace_content, etc.) "
+                "when they appear in your tool list. Do NOT use invoke_page_operation for editor ops "
+                "when pageop_* tools are available. Only use invoke_page_operation for editor ops "
+                "on non-rich-text pages or when pageop_* tools are not in your tool list."
             ),
             "parameters": {
                 "type": "object",
@@ -78,7 +78,8 @@ INVOKE_PAGE_OPERATION_CONFIG = {
                         "type": "object",
                         "description": (
                             "Operation parameters. For fill_form: field key-value pairs. "
-                            "For replace_content/insert_content: {content: '...', format: 'text'|'html'}. "
+                            "For replace_content/insert_content: {content: '...', content_format: 'html'|'markdown'}. "
+                            "Default content_format is 'html'; use 'markdown' to pass Markdown (auto-converted). "
                             "For format_text: {command: 'bold'|'italic'|'underline'|...}. "
                             "For set_heading: {level: 1|2|3}. For update_title: {title: '...'}."
                         ),

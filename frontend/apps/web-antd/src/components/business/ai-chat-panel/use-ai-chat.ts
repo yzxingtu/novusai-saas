@@ -947,6 +947,13 @@ export function useAIChat(options: UseAIChatOptions) {
       if (msg) {
         msg.streaming = false;
         if (msg.toolCalls) {
+          const orphaned = msg.toolCalls.filter((tc) => tc.status === 'running');
+          if (orphaned.length > 0) {
+            console.warn(
+              '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
+              orphaned.map((t) => ({ name: t.name, id: t.id })),
+            );
+          }
           for (const tc of msg.toolCalls) {
             if (tc.status === 'running') {
               tc.status = 'error';
@@ -1011,15 +1018,21 @@ export function useAIChat(options: UseAIChatOptions) {
                   }
                   case 'tool_call': {
                     if (!msg.toolCalls) msg.toolCalls = [];
-                    // Find matching running tool and update it
-                    const existing = msg.toolCalls.findLast(
+                    // Find matching running tool by name first / 优先按 name 匹配
+                    let existing = msg.toolCalls.findLast(
                       (tc) => tc.name === event.name && tc.status === 'running',
                     );
+                    // Fallback: when name mismatch (e.g. sandbox redirect pageop_* -> invoke_page_operation)
+                    // 兜底：name 不一致时（如 sandbox 重定向）匹配最后一个 running
+                    if (!existing) {
+                      existing = msg.toolCalls.findLast((tc) => tc.status === 'running');
+                    }
                     if (existing) {
                       existing.status = event.success ? 'success' : 'error';
                       existing.durationMs = event.duration_ms;
                       existing.output = event.output;
                       existing.error = event.error;
+                      existing.errorType = event.error_type;
                       if (event.skill_name)
                         existing.skillName = event.skill_name;
                       if (event.skill_type)
@@ -1036,6 +1049,7 @@ export function useAIChat(options: UseAIChatOptions) {
                         durationMs: event.duration_ms,
                         output: event.output,
                         error: event.error,
+                        errorType: event.error_type,
                         skillName: event.skill_name || undefined,
                         skillType: event.skill_type || undefined,
                         displayName: event.display_name || undefined,
@@ -1054,11 +1068,13 @@ export function useAIChat(options: UseAIChatOptions) {
                   case 'tool_start': {
                     if (!msg.toolCalls) msg.toolCalls = [];
                     msg.toolCalls.push({
+                      id: event.id,
                       name: event.name,
                       status: 'running',
                       arguments: event.arguments,
                       skillName: event.skill_name || undefined,
                       skillType: event.skill_type || undefined,
+                      startedAt: Date.now(),
                     });
                     scrollToBottom();
 

@@ -72,14 +72,26 @@ class ToolCallProcessor:
     # ========================================
 
     @staticmethod
-    def parse_arguments(raw_args: str | dict) -> dict[str, Any]:
-        """Parse tool call arguments (JSON string → dict) / 解析工具调用参数"""
+    def parse_arguments(raw_args: str | dict) -> tuple[dict[str, Any] | None, str | None]:
+        """
+        Parse tool call arguments (JSON string → dict).
+        解析工具调用参数（JSON 字符串 → dict）
+
+        Returns:
+            (args, error_type): On success (dict, None). On JSON parse failure (None, "invalid_tool_arguments_json").
+            成功返回 (dict, None)；JSON 解析失败返回 (None, "invalid_tool_arguments_json")。
+        """
         if isinstance(raw_args, dict):
-            return raw_args
+            return raw_args, None
+        if not raw_args:
+            return {}, None
         try:
-            return json.loads(raw_args) if raw_args else {}
+            parsed = json.loads(raw_args)
+            if not isinstance(parsed, dict):
+                return None, "invalid_tool_arguments_json"
+            return parsed, None
         except json.JSONDecodeError:
-            return {}
+            return None, "invalid_tool_arguments_json"
 
     async def execute_tool(
         self,
@@ -261,6 +273,7 @@ class ToolCallProcessor:
         func_name: str,
         arguments: dict[str, Any],
         skill_info: dict[str, str | None] | None = None,
+        tool_call_id: str | None = None,
     ) -> dict[str, Any]:
         """Build tool_start SSE event / 构建 tool_start SSE 事件"""
         event: dict[str, Any] = {
@@ -268,6 +281,8 @@ class ToolCallProcessor:
             "name": func_name,
             "arguments": arguments,
         }
+        if tool_call_id:
+            event["id"] = tool_call_id
         if skill_info:
             event.update(skill_info)
         return event
@@ -277,11 +292,17 @@ class ToolCallProcessor:
         result: ToolResult,
         duration_ms: int,
         skill_info: dict[str, str | None] | None = None,
+        name_override: str | None = None,
     ) -> dict[str, Any]:
-        """Build tool_call SSE event / 构建 tool_call SSE 事件"""
+        """
+        Build tool_call SSE event / 构建 tool_call SSE 事件
+
+        name_override: Use original func_name when sandbox redirects (e.g. pageop_* -> invoke_page_operation).
+        当 sandbox 重定向时使用原始 func_name（如 pageop_* -> invoke_page_operation），避免前端匹配失败。
+        """
         event: dict[str, Any] = {
             "event": "tool_call",
-            "name": result.name,
+            "name": name_override or result.name,
             "success": result.success,
             "duration_ms": duration_ms,
         }
@@ -305,6 +326,8 @@ class ToolCallProcessor:
                 event["output"] = truncated
         elif not result.success and result.error:
             event["error"] = result.error[:300]
+            if result.error_type:
+                event["error_type"] = result.error_type
 
         return event
 
@@ -406,7 +429,24 @@ class ToolCallProcessor:
         func_name = func.get("name", "")
         raw_args = func.get("arguments", "{}")
 
-        arguments = self.parse_arguments(raw_args)
+        arguments, parse_error = self.parse_arguments(raw_args)
+        if parse_error:
+            result = ToolResult(
+                tool_call_id=tc_id,
+                name=func_name or "unknown",
+                success=False,
+                error=(
+                    "Tool arguments JSON parse failed. "
+                    "Ensure arguments are valid JSON. Do not retry with the same invalid input."
+                ),
+                error_type=parse_error,
+            )
+            tool_message = self.build_tool_message(result, tc_id)
+            return SingleToolResult(
+                tool_result=result,
+                duration_ms=0,
+                tool_message=tool_message,
+            )
 
         result, duration_ms = await self.execute_tool(
             tc_id, func_name, arguments, conversation_id,

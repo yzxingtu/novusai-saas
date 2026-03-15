@@ -5,15 +5,16 @@
 
 import type { DocDetail, DocItem, Folder, Tag } from '../types';
 
-const getClient = () => {
-  const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
-    requestClient: {
-      get: <T = unknown>(url: string, config?: Record<string, unknown>) => Promise<T>;
-      post: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => Promise<T>;
-      put: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => Promise<T>;
-      delete: <T = unknown>(url: string, config?: Record<string, unknown>) => Promise<T>;
-    };
-  };
+type RequestClientLike = {
+  get: <T = unknown>(url: string, config?: Record<string, unknown>) => Promise<T>;
+  post: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => Promise<T>;
+  put: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => Promise<T>;
+  delete: <T = unknown>(url: string, config?: Record<string, unknown>) => Promise<T>;
+  download?: (url: string, config?: Record<string, unknown>) => Promise<Blob>;
+};
+
+const getClient = (): RequestClientLike => {
+  const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as { requestClient: RequestClientLike };
   return shared.requestClient;
 };
 
@@ -133,7 +134,7 @@ export async function searchDocs(query: string, params?: { page?: number; size?:
 
 // ── Export ─────────────────────────────────────────────────
 
-export function getExportUrl(docId: number, format: 'html' | 'md' = 'html', tenantId?: number): string {
+export function getExportUrl(docId: number, format: 'html' | 'md' | 'pdf' = 'html', tenantId?: number): string {
   const base = resolveBase();
   const q = new URLSearchParams({ format });
   if (tenantId) q.set('tenant_id', String(tenantId));
@@ -141,4 +142,24 @@ export function getExportUrl(docId: number, format: 'html' | 'md' = 'html', tena
   const client = getClient() as unknown as { getBaseUrl?: () => string | undefined };
   const apiBase = client.getBaseUrl?.()?.replace(/\/+$/, '') ?? '';
   return apiBase ? `${apiBase}${relative}` : relative;
+}
+
+/**
+ * Export document as blob (fetches with auth, avoids 401 when opening in new tab).
+ * 导出文档为 Blob（带认证请求，避免新标签页打开时 401）。
+ */
+export async function exportDocumentAsBlob(
+  docId: number,
+  format: 'html' | 'md' | 'pdf' = 'html',
+  tenantId?: number,
+): Promise<Blob> {
+  const base = resolveBase();
+  const q = new URLSearchParams({ format });
+  if (tenantId) q.set('tenant_id', String(tenantId));
+  const url = `${base}/docs/${docId}/export?${q.toString()}`;
+  const client = getClient();
+  if (!client.download) {
+    throw new Error('requestClient.download not available');
+  }
+  return client.download(url);
 }

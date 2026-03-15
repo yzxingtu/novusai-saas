@@ -166,6 +166,7 @@ async def invoke_page_operation(
     operation_name: str,
     params: dict[str, Any] | None = None,
     requires_confirmation: bool = False,
+    tool_call_id: str | None = None,
     timeout: float = PAGE_OPERATION_TIMEOUT,
     namespace: str | None = None,
 ) -> dict[str, Any]:
@@ -184,6 +185,7 @@ async def invoke_page_operation(
         operation_name: Operation name / 操作名称
         params: Operation params / 操作参数
         requires_confirmation: Whether user confirmation is needed / 是否需要用户确认
+        tool_call_id: Tool call ID for frontend to associate confirmation card with message / 工具调用 ID，供前端将确认卡片关联到对应消息
         timeout: Timeout (seconds), default 30s / 超时时间（秒），默认 30s
         namespace: Socket.IO namespace, None broadcasts to all namespaces / Socket.IO namespace，None 时向所有 namespace 广播
 
@@ -207,13 +209,15 @@ async def invoke_page_operation(
     _pending_invocations[invoke_id] = future
 
     # Construct invoke event data / 构造 invoke 事件数据
-    invoke_data = {
+    invoke_data: dict[str, Any] = {
         "invoke_id": invoke_id,
         "page_key": page_key,
         "operation_name": operation_name,
         "params": params or {},
         "requires_confirmation": requires_confirmation,
     }
+    if tool_call_id:
+        invoke_data["tool_call_id"] = tool_call_id
 
     try:
         # Send to specified namespace or all namespaces / 发送到指定 namespace 或所有 namespace

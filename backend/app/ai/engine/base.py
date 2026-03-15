@@ -177,10 +177,12 @@ class BaseEngine(ABC):
             f"You have {len(tool_names)} tool(s) available: {', '.join(tool_names)}.\n"
             "When the user's request can be fulfilled by calling a tool, "
             "you MUST call the appropriate tool instead of generating text-only responses. "
-            "Do NOT say you cannot access the database or perform actions — use your tools."
+            "Do NOT say you cannot access the database or perform actions — use your tools.\n"
+            "Do NOT show HTML, JSON, tool parameters or raw API output to the user. "
+            "Tools are for internal execution; return natural language results only."
         )
 
-        page_hint = BaseEngine._build_page_operations_hint(input_variables)
+        page_hint = BaseEngine._build_page_operations_hint(input_variables, tools)
         if page_hint:
             hint += page_hint
 
@@ -192,8 +194,15 @@ class BaseEngine(ABC):
     @staticmethod
     def _build_page_operations_hint(
         input_variables: dict[str, Any] | None,
+        tools: list[ToolDefinition] | None = None,
     ) -> str:
-        """Build a PAGE OPERATIONS hint when page context has available operations. / 当页面上下文有可用操作时构建 PAGE OPERATIONS 提示"""
+        """
+        Build a PAGE OPERATIONS hint when page context has available operations.
+        当页面上下文有可用操作时构建 PAGE OPERATIONS 提示。
+
+        When dedicated pageop_* tools exist, use tool-first language. Otherwise fallback to invoke_page_operation.
+        存在专用 pageop_* 工具时用 tool-first 表述，否则回退到 invoke_page_operation。
+        """
         if not input_variables:
             return ""
         from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
@@ -218,6 +227,36 @@ class BaseEngine(ABC):
         entity_desc = page_data.get("entity_description", "")
         desc_line = f"\nPage entity: {entity_desc}\n" if entity_desc else "\n"
 
+        tool_names = [t.name for t in (tools or [])]
+        has_dedicated_editor_tools = any(n.startswith("pageop_") for n in tool_names)
+
+        if has_dedicated_editor_tools:
+            # Preferred: pageop_* for expanded ops; invoke_page_operation for others (17 ops).
+            # 优先使用 pageop_* 调用已展开操作；无专用工具的操作用 invoke_page_operation。
+            pageop_tool_ops = {
+                n.removeprefix("pageop_") for n in tool_names if n.startswith("pageop_")
+            }
+            other_ops = [name for name in op_names if name not in pageop_tool_ops]
+            other_ops_hint = ""
+            if other_ops:
+                other_ops_hint = (
+                    f"\nOther operations (use invoke_page_operation): "
+                    f"{', '.join(other_ops)}\n"
+                    f'Format: invoke_page_operation(page_key="{page_key}", '
+                    f'operation_name="<name>", params={{...}})'
+                )
+            return (
+                f"\n\n[PAGE OPERATIONS]\n"
+                f"Current page: {page_key}{desc_line}"
+                f"Preferred: use dedicated pageop_* tools directly when available.\n"
+                f"Order: 1) pageop_get_editor_html to read; 2) pageop_replace_section for partial edits; "
+                f"3) pageop_replace_content only for full rewrite; "
+                f"4) pageop_update_title for metadata title (not body H1)."
+                f"{other_ops_hint}\n"
+                f"Do NOT show HTML, JSON, tool params or call examples to the user. "
+                f"Tools are for internal execution; return natural language results only."
+            )
+        # Fallback: invoke_page_operation format for non-rich-text pages
         has_replace_section = "replace_section" in op_names
         section_example = ""
         if has_replace_section:
@@ -314,8 +353,12 @@ class BaseEngine(ABC):
                 kb_weights=agent_kb_weights,
             )
 
-        # 4. Get tool list + optimize / 获取工具列表 + 优化
+        # 4. Get tool list + expand editor tools (before optimize) + optimize
         tools = skill_result.tools if skill_result else []
+        if tools:
+            from app.ai.tools.page_tool_expander import expand_editor_tools
+            tools = expand_editor_tools(tools, request.input_variables)
+
         optimize_event: dict[str, Any] | None = None
         if tools:
             user_query = ""
@@ -398,14 +441,27 @@ class BaseEngine(ABC):
 
         # Get model info: route override takes priority / 获取模型信息：路由覆写优先
         if route_result is not None and getattr(route_result, "is_overridden", False):
-            provider_code: str = route_result.provider_code or ""
-            model_code: str = route_result.model_code or ""
-            # Keep multimodal attachments when route reason indicates capability
-            # 路由原因包含对应能力时保留对应附件
-            reason_str: str = route_result.reason or ""
-            is_vision: bool = "vision" in reason_str
-            is_audio: bool = "audio" in reason_str
-            is_video: bool = "video" in reason_str
+            provider_code = route_result.provider_code or ""
+            model_code = route_result.model_code or ""
+            # Use routed model's actual capabilities (per spec: 根据模型的 supports_* 决定)
+            # 使用路由选中模型的真实能力（规范：根据模型的 supports_* 决定）
+            model_id: int = getattr(route_result, "model_id", 0)
+            route_model_obj = None
+            if model_id:
+                from app.repositories.ai.model_repository import AIModelRepository
+                model_repo = AIModelRepository(self.db)
+                route_model_obj = await model_repo.get_active_with_provider(model_id)
+            if route_model_obj is not None:
+                is_vision = bool(route_model_obj.supports_vision)
+                is_audio = bool(getattr(route_model_obj, "supports_audio", False))
+                is_video = bool(getattr(route_model_obj, "supports_video", False))
+            else:
+                # Fallback: reason-based inference when routed model unavailable
+                # 退路：路由模型不可用时按 reason 推断
+                reason_str: str = route_result.reason or ""
+                is_vision = "vision" in reason_str
+                is_audio = "audio" in reason_str
+                is_video = "video" in reason_str
         else:
             model_obj = agent.model
             provider_code = model_obj.provider.code if model_obj and model_obj.provider else ""

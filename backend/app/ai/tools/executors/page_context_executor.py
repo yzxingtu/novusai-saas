@@ -178,6 +178,24 @@ class PageContextExecutor(BaseToolExecutor):
                         f"[{comp}:{desc.get('type', 'string')}]{required}{opts_info}{constraints_info}"
                     )
 
+            # Add rich-text editor operations summary when has_editor (for tool-first hint)
+            # 富文本页：显式输出 available_operations 摘要，供 LLM 了解可调用的 pageop_* 工具
+            has_editor = page_data.get("has_editor")
+            if has_editor and ops and isinstance(ops, list):
+                parts.append("")
+                parts.append("## Available Editor Operations (use dedicated pageop_* tools):")
+                for o in ops[:20]:
+                    if not isinstance(o, dict) or not o.get("name"):
+                        continue
+                    op_name = o.get("name", "")
+                    op_desc = o.get("description", "")
+                    params = o.get("params")
+                    param_summary = ""
+                    if params and isinstance(params, dict):
+                        req = [k for k, v in params.items() if isinstance(v, dict) and v.get("description")]
+                        param_summary = f" params: {', '.join(req)}" if req else ""
+                    parts.append(f"  - {op_name}: {op_desc or op_name}{param_summary}")
+
             # Add operation workflow guidance if operations are available
             # 如果有可用操作，添加操作流程指引
             if ops and isinstance(ops, list):

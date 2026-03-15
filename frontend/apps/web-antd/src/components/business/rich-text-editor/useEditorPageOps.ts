@@ -19,6 +19,7 @@ import {
   registerPageOperations,
 } from '#/components/business/ai-slide-panel';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { validateReplaceContentParams } from './replaceContentValidator';
 
 const md = new MarkdownIt({ html: true, breaks: true });
 
@@ -64,11 +65,14 @@ function sanitizeTableAttributesForSetContent(html: string): string {
     .replace(/\browspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'rowspan="$1"');
 }
 
-/** Ensure content is HTML; if looks like Markdown, render to HTML. / 确保内容为 HTML；若像 Markdown 则渲染为 HTML */
-function ensureHtml(content: string): string {
-  if (/<[a-z][\s\S]*>/i.test(content)) return content;
-  if (MD_PATTERNS.test(content)) return md.render(content);
-  return content;
+/** Convert content to HTML. content_format="markdown" → render; else use as HTML (no auto-conversion). / 将内容转为 HTML。content_format=markdown 时渲染，否则按 HTML 使用（不自动转换） */
+function toHtml(content: string, contentFormat?: string): string {
+  return contentFormat === 'markdown' ? md.render(content) : content;
+}
+
+/** Used by validateReplaceContentParams; accepts format for content_format param. / 供 replace_content 校验使用 */
+function ensureHtml(content: string, format?: string): string {
+  return format === 'markdown' ? md.render(content) : content;
 }
 
 export function useEditorPageOps(
@@ -87,7 +91,8 @@ export function useEditorPageOps(
     const editor = editorRef.value;
     if (!editor) return;
 
-    const DOCUMENT_BODY_EXCERPT_LEN = 3500;
+    /** ~2.4KB UTF-8 (≈800 CJK chars) to stay within page_data 8KB limit with available_operations. */
+    const DOCUMENT_BODY_EXCERPT_LEN = 800;
 
     cleanupCtx = registerPageContext(effectiveKey, () => {
       const fullText = editor.getText?.() ?? '';
@@ -100,7 +105,7 @@ export function useEditorPageOps(
           entity_name: 'Rich Text Editor',
           entity_description:
             'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
-            + 'content 参数必须是 HTML（如 <h1>标题</h1><p>正文</p>），不要发送 Markdown。\n'
+            + 'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n'
             + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
             + '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n'
             + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
@@ -125,7 +130,7 @@ export function useEditorPageOps(
           const words = text.trim() ? text.trim().split(/\s+/).length : 0;
           return {
             success: true,
-            message: `Editor has ${words} words`,
+            message: $t('common.editorOp.editorWordCount', { count: words }),
             data: { text: text.slice(0, 6000), word_count: words },
           };
         },
@@ -145,10 +150,11 @@ export function useEditorPageOps(
           const lastClose = cut.lastIndexOf('>');
           const safe =
             lastClose >= 0 ? cut.slice(0, lastClose + 1) : cut;
+          const hint = 'Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.';
           return {
             success: true,
-            message: `HTML content retrieved (${html.length} chars)`,
-            data: { html: safe },
+            message: $t('common.editorOp.htmlRetrieved', { count: html.length }),
+            data: { html: safe, _hint: hint },
           };
         },
       },
@@ -156,25 +162,31 @@ export function useEditorPageOps(
         name: 'insert_content',
         label: $t('common.insertContent'),
         description:
-          'Insert content at cursor. Content MUST be HTML (e.g. <h2>Title</h2><p>Body</p>). Markdown is auto-converted but HTML is preferred.',
+          'Insert content at cursor. content MUST be HTML by default; set content_format="markdown" to pass Markdown (auto-converted to HTML).',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'HTML content to insert (e.g. <h2>Title</h2><p>text</p>)',
+            description: 'HTML content to insert (e.g. <h2>Title</h2><p>text</p>). Use content_format="markdown" for Markdown input.',
+          },
+          content_format: {
+            type: 'string',
+            enum: ['html', 'markdown'],
+            description: 'Input format: "html" (default) or "markdown". Default is html.',
           },
         },
         handler: async (params: Record<string, unknown>) => {
           const raw = String(params.content || '');
           if (!raw)
-            return { success: false, message: 'No content provided' };
+            return { success: false, message: $t('common.editorOp.noContentProvided') };
+          const fmt = String(params.content_format || 'html');
           const html = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(ensureHtml(raw)),
+            fixTableWidthZero(toHtml(raw, fmt)),
           );
           editor.chain().focus().insertContent(html).run();
           return {
             success: true,
-            message: `Inserted ${raw.length} characters`,
+            message: $t('common.editorOp.insertedChars', { count: raw.length }),
           };
         },
       },
@@ -182,23 +194,49 @@ export function useEditorPageOps(
         name: 'replace_content',
         label: $t('common.replaceContent'),
         description:
-          'Replace ALL editor content with new HTML. Use ONLY when you intend to rewrite the ENTIRE document. For partial edits prefer replace_section.',
+          'Replace ALL editor content. content MUST be HTML by default; set content_format="markdown" for Markdown input. Use ONLY when rewriting the ENTIRE document.',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'Complete HTML content for the full document',
+            description: 'Complete HTML content for the full document. Use content_format="markdown" for Markdown.',
+          },
+          content_format: {
+            type: 'string',
+            enum: ['html', 'markdown'],
+            description: 'Input format: "html" (default) or "markdown".',
           },
         },
         handler: async (params: Record<string, unknown>) => {
-          const raw = String(params.content || '');
-          const html = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(ensureHtml(raw)),
-          );
-          editor.commands.setContent(html);
+          const inputSize = String(params.content ?? '').trim().length;
+          const fmt = String(params.content_format || 'html');
+          const validation = validateReplaceContentParams(params, {
+            ensureHtml: (s: string) => ensureHtml(s, fmt),
+            fixTableWidthZero,
+            sanitizeTableAttributesForSetContent,
+          });
+          if (!validation.valid) {
+            console.warn(
+              '[replace_content audit] page_key=%s operation_name=replace_content input_size=%d success=false error_type=%s',
+              effectiveKey,
+              inputSize,
+              validation.error_type,
+            );
+            return {
+              success: false,
+              message:
+                inputSize === 0
+                  ? $t('common.replaceContentEmptyError')
+                  : $t('common.invalidInputEmptyContent'),
+              error_type: validation.error_type,
+            };
+          }
+          editor.commands.setContent(validation.html);
           return {
             success: true,
-            message: `Full content replaced (${raw.length} chars)`,
+            message: $t('common.editorOp.fullContentReplaced', {
+              count: validation.inputLength,
+            }),
           };
         },
       },
@@ -219,16 +257,21 @@ export function useEditorPageOps(
           },
           new_html: {
             type: 'string',
-            description: 'Replacement HTML',
+            description: 'Replacement HTML. Use content_format="markdown" for Markdown.',
+          },
+          content_format: {
+            type: 'string',
+            enum: ['html', 'markdown'],
+            description: 'Format of new_html: "html" (default) or "markdown".',
           },
         },
         handler: async (params: Record<string, unknown>) => {
           const oldSnippet = String(params.old_html || '').trim();
           const newSnippet = String(params.new_html || '').trim();
           if (!oldSnippet)
-            return { success: false, message: 'old_html is required' };
+            return { success: false, message: $t('common.editorOp.oldHtmlRequired'), error_type: 'invalid_input' };
           if (!newSnippet)
-            return { success: false, message: 'new_html is required' };
+            return { success: false, message: $t('common.editorOp.newHtmlRequired'), error_type: 'invalid_input' };
 
           const currentHtml = editor.getHTML();
           const normCurrent = normalizeHtmlForMatch(currentHtml);
@@ -237,8 +280,16 @@ export function useEditorPageOps(
           if (normOld.length < 3) {
             return {
               success: false,
-              message:
-                'old_html is too short after normalization; use a unique HTML fragment of at least a few characters.',
+              message: $t('common.editorOp.oldHtmlTooShort'),
+              error_type: 'invalid_input',
+            };
+          }
+          const matchCount = normCurrent.split(normOld).length - 1;
+          if (matchCount > 1) {
+            return {
+              success: false,
+              message: $t('common.editorOp.oldHtmlNotFound') + ' Snippet matches multiple times; use a longer unique fragment.',
+              error_type: 'non_unique_match',
             };
           }
           if (!normCurrent.includes(normOld)) {
@@ -247,13 +298,15 @@ export function useEditorPageOps(
             return {
               success: false,
               message:
-                'old_html not found in current content. Copy a unique substring from the current HTML below exactly (do not change quotes or escaping). '
-                + `First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
+                $t('common.editorOp.oldHtmlNotFound')
+                + ` First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
+              error_type: 'target_not_found',
             };
           }
 
           // Normalize new_html so table attributes (colspan/rowspan) parse correctly and don't break TipTap TableMap
-          const newHtmlClean = ensureHtml(normalizeHtmlForMatch(newSnippet));
+          const fmt = String(params.content_format || 'html');
+          const newHtmlClean = toHtml(normalizeHtmlForMatch(newSnippet), fmt);
           const updatedNorm = normCurrent.replace(normOld, newHtmlClean);
           const updatedHtml = sanitizeTableAttributesForSetContent(
             fixTableWidthZero(updatedNorm),
@@ -265,12 +318,16 @@ export function useEditorPageOps(
             const errMsg = e instanceof Error ? e.message : String(e);
             return {
               success: false,
-              message: `Replacement produced invalid document structure (${errMsg}). Try a smaller or simpler replacement, or avoid changing table structure.`,
+              message: $t('common.editorOp.replacementInvalidStructure', { error: errMsg }),
+              error_type: 'invalid_html',
             };
           }
           return {
             success: true,
-            message: `Section replaced (old ${oldSnippet.length} → new ${newSnippet.length} chars)`,
+            message: $t('common.editorOp.sectionReplaced', {
+              old: oldSnippet.length,
+              new: newSnippet.length,
+            }),
           };
         },
       },
@@ -278,26 +335,32 @@ export function useEditorPageOps(
         name: 'append_content',
         label: $t('common.appendContent'),
         description:
-          'Append content to the end. Content MUST be HTML. Markdown is auto-converted but HTML is preferred.',
+          'Append content to the end. content MUST be HTML by default; set content_format="markdown" for Markdown input.',
         readonly: false,
         params: {
           content: {
             type: 'string',
-            description: 'HTML content to append (e.g. <p>new paragraph</p>)',
+            description: 'HTML content to append (e.g. <p>new paragraph</p>). Use content_format="markdown" for Markdown.',
+          },
+          content_format: {
+            type: 'string',
+            enum: ['html', 'markdown'],
+            description: 'Input format: "html" (default) or "markdown".',
           },
         },
         handler: async (params: Record<string, unknown>) => {
           const raw = String(params.content || '');
           if (!raw)
-            return { success: false, message: 'No content provided' };
+            return { success: false, message: $t('common.editorOp.noContentProvided') };
+          const fmt = String(params.content_format || 'html');
           const html = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(ensureHtml(raw)),
+            fixTableWidthZero(toHtml(raw, fmt)),
           );
           const endPos = editor.state.doc.content.size;
           editor.chain().focus().insertContentAt(endPos, html).run();
           return {
             success: true,
-            message: `Appended ${raw.length} chars`,
+            message: $t('common.editorOp.appendedChars', { count: raw.length }),
           };
         },
       },
@@ -312,7 +375,7 @@ export function useEditorPageOps(
           const text = editor.state.doc.textBetween(from, to, '');
           return {
             success: true,
-            message: `Selection: ${text.length} chars`,
+            message: $t('common.editorOp.selectionChars', { count: text.length }),
             data: { text, from, to },
           };
         },
@@ -324,7 +387,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           editor.commands.selectAll();
-          return { success: true, message: 'Selected all' };
+          return { success: true, message: $t('common.editorOp.selectedAll') };
         },
       },
       {
@@ -334,7 +397,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           const ok = editor.chain().focus().undo().run();
-          return { success: ok, message: ok ? 'Undone' : 'Nothing to undo' };
+          return { success: ok, message: ok ? $t('common.editorOp.undone') : $t('common.editorOp.nothingToUndo') };
         },
       },
       {
@@ -344,7 +407,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           const ok = editor.chain().focus().redo().run();
-          return { success: ok, message: ok ? 'Redone' : 'Nothing to redo' };
+          return { success: ok, message: ok ? $t('common.editorOp.redone') : $t('common.editorOp.nothingToRedo') };
         },
       },
       // --- Text formatting ---
@@ -373,7 +436,7 @@ export function useEditorPageOps(
           };
           const run = map[cmd];
           const ok = run ? run() : false;
-          return { success: ok, message: ok ? `Toggled ${cmd}` : 'Failed' };
+          return { success: ok, message: ok ? $t('common.editorOp.toggledFormat', { cmd }) : $t('common.editorOp.formatFailed') };
         },
       },
       {
@@ -383,7 +446,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           editor.chain().focus().unsetAllMarks().run();
-          return { success: true, message: 'Formatting cleared' };
+          return { success: true, message: $t('common.editorOp.formattingCleared') };
         },
       },
       // --- Block ---
@@ -401,7 +464,7 @@ export function useEditorPageOps(
         handler: async (params: Record<string, unknown>) => {
           const level = Math.min(3, Math.max(1, Number(params.level) || 1)) as 1 | 2 | 3;
           editor.chain().focus().toggleHeading({ level }).run();
-          return { success: true, message: `Heading ${level} applied` };
+          return { success: true, message: $t('common.editorOp.headingApplied', { level }) };
         },
       },
       {
@@ -422,7 +485,7 @@ export function useEditorPageOps(
             editor.chain().focus().toggleOrderedList().run();
           else
             editor.chain().focus().toggleBulletList().run();
-          return { success: true, message: `List ${t} toggled` };
+          return { success: true, message: $t('common.editorOp.listToggled', { type: t }) };
         },
       },
       {
@@ -432,7 +495,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           editor.chain().focus().toggleBlockquote().run();
-          return { success: true, message: 'Blockquote toggled' };
+          return { success: true, message: $t('common.editorOp.blockquoteToggled') };
         },
       },
       {
@@ -442,7 +505,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           editor.chain().focus().toggleCodeBlock().run();
-          return { success: true, message: 'Code block toggled' };
+          return { success: true, message: $t('common.editorOp.codeBlockToggled') };
         },
       },
       {
@@ -452,7 +515,7 @@ export function useEditorPageOps(
         readonly: false,
         handler: async () => {
           editor.chain().focus().setHorizontalRule().run();
-          return { success: true, message: 'Horizontal rule inserted' };
+          return { success: true, message: $t('common.editorOp.horizontalRuleInserted') };
         },
       },
       {
@@ -470,9 +533,9 @@ export function useEditorPageOps(
         handler: async (params: Record<string, unknown>) => {
           const align = String(params.align || 'left');
           if (!['left', 'center', 'right', 'justify'].includes(align))
-            return { success: false, message: 'Invalid align' };
+            return { success: false, message: $t('common.editorOp.invalidAlign') };
           editor.chain().focus().setTextAlign(align).run();
-          return { success: true, message: `Align ${align}` };
+          return { success: true, message: $t('common.editorOp.alignApplied', { align }) };
         },
       },
       // --- Link & table ---
@@ -496,13 +559,13 @@ export function useEditorPageOps(
           const action = String(params.action || 'set');
           if (action === 'unset') {
             editor.chain().focus().extendMarkRange('link').unsetLink().run();
-            return { success: true, message: 'Link removed' };
+            return { success: true, message: $t('common.editorOp.linkRemoved') };
           }
           const href = String(params.href || '').trim();
           if (!href)
-            return { success: false, message: 'href required when action is set' };
+            return { success: false, message: $t('common.editorOp.hrefRequired') };
           editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
-          return { success: true, message: `Link set: ${href}` };
+          return { success: true, message: $t('common.editorOp.linkSet', { href }) };
         },
       },
       {
@@ -522,7 +585,7 @@ export function useEditorPageOps(
             .focus()
             .insertTable({ rows, cols, withHeaderRow: true })
             .run();
-          return { success: true, message: `Table ${rows}x${cols} inserted` };
+          return { success: true, message: $t('common.editorOp.tableInserted', { rows, cols }) };
         },
       },
     ]);

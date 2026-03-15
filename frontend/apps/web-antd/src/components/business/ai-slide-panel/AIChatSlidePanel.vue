@@ -92,6 +92,29 @@ const isPinned = computed(
   () => !!aiPanelStore.pinnedAgentId && !!aiPanelStore.pinnedAgentName,
 );
 
+/** Ticking now for 60s confirm countdown / 用于 60s 确认倒计时的计时 */
+const countdownNow = ref(Date.now());
+const hasUnresolvedPageOps = computed(() =>
+  aiPanelStore.pendingPageOps.some((op) => !op.resolved),
+);
+let countdownInterval: ReturnType<typeof setInterval> | null = null;
+watch(hasUnresolvedPageOps, (has) => {
+  if (has && !countdownInterval) {
+    countdownInterval = setInterval(() => {
+      countdownNow.value = Date.now();
+    }, 1000);
+  } else if (!has && countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+}, { immediate: true });
+onUnmounted(() => {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+});
+
 // ============ Chat Logic (reuse useAIChat) ============
 
 const chat = useAIChat({
@@ -174,6 +197,35 @@ const {
   agentsWithVarsInConversation,
   applyVariables,
 } = chat;
+
+/** All tool call IDs across messages (for filtering unassociated ops) / 所有消息中的工具调用 ID */
+const allToolCallIds = computed(() => {
+  const ids = new Set<string>();
+  for (const msg of chatMessages.value ?? []) {
+    for (const tc of msg.toolCalls || []) {
+      if (tc.id) ids.add(tc.id);
+    }
+  }
+  return ids;
+});
+
+/** Pending ops that belong to a specific message (by toolCallId) / 归属于某条消息的待确认操作 */
+function getPendingOpsForMessage(msg: { toolCalls?: { id?: string }[] }) {
+  const ids = new Set<string>();
+  for (const tc of msg.toolCalls || []) {
+    if (tc.id) ids.add(tc.id);
+  }
+  return aiPanelStore.pendingPageOps.filter(
+    (op) => op.toolCallId && ids.has(op.toolCallId),
+  );
+}
+
+/** Pending ops with no toolCallId or not matched to any message (fallback bottom render) / 未关联到消息的待确认操作（底部兜底） */
+const unassociatedPendingOps = computed(() =>
+  aiPanelStore.pendingPageOps.filter(
+    (op) => !op.toolCallId || !allToolCallIds.value.has(op.toolCallId),
+  ),
+);
 
 // ============ Input Variables Modal ============
 
@@ -378,6 +430,25 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
   if (data.form_fields) {
     const { form_fields: _ff, ...rest } = data;
     data = rest;
+    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    if (size <= MAX_PAGE_DATA_BYTES) return data;
+  }
+
+  // Step 3: truncate document_body_text (NovusDoc / DocumentEditor) / 步骤 3：截断 document_body_text
+  const body = data.document_body_text;
+  if (typeof body === 'string' && body.length > 0) {
+    const encoder = new TextEncoder();
+    const truncateToBytes = (s: string, maxBytes: number): string => {
+      const u8 = encoder.encode(s);
+      if (u8.length <= maxBytes) return s;
+      return new TextDecoder().decode(u8.slice(0, maxBytes));
+    };
+    for (const maxBodyBytes of [2400, 1600, 800]) {
+      data = { ...data, document_body_text: truncateToBytes(body, maxBodyBytes) };
+      size = new TextEncoder().encode(JSON.stringify(data)).length;
+      if (size <= MAX_PAGE_DATA_BYTES) return data;
+    }
+    data = { ...data, document_body_text: truncateToBytes(body, 400) };
   }
 
   return data;
@@ -419,6 +490,7 @@ function enrichPageContextWithOperations(
             label: op.label,
             description: op.description,
             readonly: op.readonly,
+            ...(op.params ? { params: op.params } : {}),
           })),
         }
       : {}),
@@ -1550,6 +1622,8 @@ onUnmounted(() => {
                 :api-prefix="props.apiPrefix"
                 :selected-agent="selectedAgent"
                 :show-agent-switch="isAgentSwitch(idx)"
+                :pending-ops="getPendingOpsForMessage(msg)"
+                :countdown-now="countdownNow"
                 compact
                 @copy="onCopyMessage"
                 @confirm="confirmAction"
@@ -1564,9 +1638,9 @@ onUnmounted(() => {
               />
             </div>
 
-            <!-- Pending page operation confirmations (inline cards) -->
+            <!-- Pending page operation confirmations (unassociated fallback at bottom) -->
             <div
-              v-for="op in aiPanelStore.pendingPageOps"
+              v-for="op in unassociatedPendingOps"
               :key="op.invokeId"
               class="overflow-hidden rounded-lg border"
               :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
@@ -1603,6 +1677,9 @@ onUnmounted(() => {
                     </div>
                     <div v-if="op.operationDescription" class="truncate text-[10px] text-muted-foreground/60">
                       {{ op.operationDescription }}
+                    </div>
+                    <div class="mt-0.5 text-[10px] text-muted-foreground/50">
+                      {{ $t('shared.pageOperation.confirmCountdown', { seconds: Math.max(0, 60 - Math.floor((countdownNow - (op.startedAt || 0)) / 1000)) }) }}
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1">

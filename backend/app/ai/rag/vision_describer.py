@@ -130,6 +130,7 @@ class VisionDescriber:
                     model=model.code,
                     temperature=0.3,
                     tenant_id=self.tenant_id,
+                    supports_vision=True,
                 ),
                 timeout=_VISION_TIMEOUT_SECONDS,
             )

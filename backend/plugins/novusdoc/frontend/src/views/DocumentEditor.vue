@@ -7,18 +7,26 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { DocDetail } from '../types';
-import { getDoc, updateDoc, getExportUrl } from '../api/novusdoc';
+import { exportDocumentAsBlob, getDoc, getExportUrl, updateDoc } from '../api/novusdoc';
 
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
-  $t?: (k: string) => string;
+  $t?: (k: string, params?: Record<string, unknown>) => string;
   router?: { push: (to: string) => void; currentRoute?: { value?: { params?: Record<string, string> } } };
   listPageOperations?: (key: string) => readonly { name: string }[];
-  registerPageContext?: (key: string, resolver: () => unknown) => () => void;
+  registerPageContextExtras?: (key: string, resolver: () => unknown) => () => void;
   appendPageOperations?: (key: string, ops: unknown[]) => () => void;
+  downloadBlob?: (blob: Blob, opts: { filename: string }) => void;
 } | undefined;
 
-const $t = (key: string) => {
-  return shared?.$t?.(key) ?? key.split('.').pop() ?? key;
+const $t = (key: string, params?: Record<string, unknown>) => {
+  const raw = shared?.$t?.(key, params) ?? key.split('.').pop() ?? key;
+  if (params && typeof raw === 'string') {
+    return Object.entries(params).reduce(
+      (s, [k, v]) => s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v ?? '')),
+      raw,
+    );
+  }
+  return raw;
 };
 
 const props = defineProps<{ id: string | number }>();
@@ -32,6 +40,8 @@ const title = ref('');
 const wordCount = ref(0);
 
 const editorContainer = ref<HTMLElement | null>(null);
+const exportMenuOpen = ref(false);
+const exportMenuRef = ref<HTMLElement | null>(null);
 const mountedEditor = shallowRef<{
   getJSON(): unknown;
   getHTML(): string;
@@ -149,12 +159,42 @@ function goBack() {
   }
 }
 
-function onExport(format: 'html' | 'md') {
+async function onExport(format: 'html' | 'md' | 'pdf') {
   if (!doc.value) return;
-  window.open(getExportUrl(doc.value.id, format), '_blank');
+  exportMenuOpen.value = false;
+  const downloadBlob = shared?.downloadBlob;
+  if (!downloadBlob) {
+    console.error('[NovusDoc] downloadBlob not available from NovusPluginShared');
+    return;
+  }
+  try {
+    const blob = await exportDocumentAsBlob(doc.value.id, format);
+    const ext = format === 'md' ? 'md' : format;
+    const safeTitle = (doc.value.title || 'document').replace(/[/\\:*?"<>|]/g, '_');
+    downloadBlob(blob, { filename: `${safeTitle}.${ext}` });
+  } catch {
+    // 错误由 requestClient 统一提示
+  }
 }
 
 watch(title, onTitleChange);
+
+function handleExportMenuClickOutside(e: MouseEvent) {
+  const container = (e.target as Element)?.closest?.('[data-export-dropdown]');
+  if (!container) {
+    exportMenuOpen.value = false;
+  }
+}
+watch(exportMenuOpen, (open) => {
+  if (open) {
+    nextTick(() => setTimeout(() => document.addEventListener('click', handleExportMenuClickOutside), 0));
+  } else {
+    document.removeEventListener('click', handleExportMenuClickOutside);
+  }
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleExportMenuClickOutside);
+});
 
 // ── Page Awareness / 页面感知 ──
 const editorPageKey = computed(() => {
@@ -168,75 +208,77 @@ let cleanupOps: (() => void) | undefined;
 const documentOps = [
   {
     name: 'save_document',
-    label: $t('plugin.novusdoc.doc.saving') || 'Save document',
+    label: $t('plugin.novusdoc.op.save'),
     description: 'Save the current document immediately',
     readonly: false,
     handler: async () => {
       await saveNow();
-      return { success: true, message: `Document "${title.value}" saved` };
+      return { success: true, message: $t('plugin.novusdoc.op.savedSuccess', { title: title.value }) };
     },
   },
   {
     name: 'toggle_status',
-    label: 'Toggle publish status',
+    label: $t('plugin.novusdoc.op.toggleStatus'),
     description: 'Switch between draft and published status',
     readonly: false,
     handler: async () => {
       await toggleStatus();
-      return { success: true, message: `Status changed to ${doc.value?.status}` };
+      return { success: true, message: $t('plugin.novusdoc.op.statusChangedTo', { status: doc.value?.status ?? '' }) };
     },
   },
   {
     name: 'update_title',
-    label: 'Update document title',
+    label: $t('plugin.novusdoc.op.updateTitle'),
     description: 'Change the document title',
     readonly: false,
     params: { title: { type: 'string', description: 'New document title' } },
     handler: async (params: Record<string, unknown>) => {
       title.value = String(params.title || '');
       debounceSave();
-      return { success: true, message: `Title updated to "${title.value}"` };
+      return { success: true, message: $t('plugin.novusdoc.op.titleUpdatedTo', { title: title.value }) };
     },
   },
   {
     name: 'export_document',
-    label: $t('plugin.novusdoc.doc.exportHTML') || 'Export document',
-    description: 'Export document in HTML or Markdown format',
+    label: $t('plugin.novusdoc.op.export'),
+    description: 'Export document in HTML, Markdown or PDF format',
     readonly: true,
-    params: { format: { type: 'string', enum: ['html', 'md'], description: 'Export format' } },
+    params: { format: { type: 'string', enum: ['html', 'md', 'pdf'], description: 'Export format' } },
     handler: async (params: Record<string, unknown>) => {
-      const fmt = (params.format as 'html' | 'md') || 'html';
-      onExport(fmt);
-      return { success: true, message: `Export initiated in ${fmt} format` };
+      if (!doc.value) return { success: false, message: $t('common.noData') };
+      const fmt = (params.format as 'html' | 'md' | 'pdf') || 'html';
+      const url = getExportUrl(doc.value.id, fmt);
+      // Return URL for LLM to present as link; avoid window.open (blocked when AI-triggered)
+      // 返回链接供 LLM 展示，避免 window.open（AI 触发时会被拦截）
+      return {
+        success: true,
+        message: $t('plugin.novusdoc.op.exportInitiatedIn', { format: fmt }),
+        data: { export_url: url },
+      };
     },
   },
 ];
 
-const DOCUMENT_BODY_EXCERPT_LEN = 3500;
+/** ~2.4KB UTF-8 (≈800 CJK chars) to stay within page_data 8KB limit with available_operations. */
+const DOCUMENT_BODY_EXCERPT_LEN = 800;
 
-const EDITOR_CAPABILITIES_DESC =
-  'HTML rich text editor. Body excerpt in document_body_text; full HTML via get_editor_html. '
-  + 'Content params MUST be HTML, NOT Markdown. '
-  + 'PARTIAL EDIT: get_editor_html → replace_section(old_html="...", new_html="...") to change one section only. '
-  + 'FULL REWRITE: replace_content replaces the ENTIRE document — use only when rewriting everything. '
-  + 'APPEND/INSERT: append_content adds to end, insert_content at cursor. '
-  + 'Document ops: save_document, toggle_status, update_title, export_document.';
+/** Extras merged onto platform editor context. update_title modifies metadata, not body H1. */
+const ENTITY_DESCRIPTION_APPEND =
+  'update_title modifies document metadata title, not body H1. Document ops: save_document, toggle_status, update_title, export_document.';
 
 function setupEditorPageAwareness() {
   cleanupContext?.();
   cleanupOps?.();
 
-  if (shared?.registerPageContext) {
-    cleanupContext = shared.registerPageContext(editorPageKey.value, () => {
+  if (shared?.registerPageContextExtras) {
+    cleanupContext = shared.registerPageContextExtras(editorPageKey.value, () => {
       const fullText = mountedEditor.value?.getText?.() ?? '';
       const documentBodyText = fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN);
       const documentBodyLength = fullText.length;
       return {
         page_key: editorPageKey.value,
-        page_title: title.value || $t('plugin.novusdoc.doc.untitled'),
         page_data: {
-          entity_name: $t('plugin.novusdoc.doc.title'),
-          entity_description: EDITOR_CAPABILITIES_DESC,
+          entity_description_append: ENTITY_DESCRIPTION_APPEND,
           document_id: docId.value,
           document_title: title.value,
           document_status: doc.value?.status,
@@ -350,17 +392,28 @@ const saveStatusText = computed(() => {
         {{ doc.status === 'published' ? $t('plugin.novusdoc.status.published') : $t('plugin.novusdoc.status.draft') }}
       </button>
 
-      <!-- Export dropdown -->
-      <div class="relative group">
-        <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground">
+      <!-- Export dropdown (click to open, fix hover gap causing "cannot select") -->
+      <div class="relative" data-export-dropdown>
+        <button
+          type="button"
+          class="w-8 h-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
+          @click.stop="exportMenuOpen = !exportMenuOpen"
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
         </button>
-        <div class="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-popover border border-border rounded-md shadow-md py-1 min-w-[140px] z-10">
-          <button class="px-3 py-1.5 text-sm text-left hover:bg-accent" @click="onExport('html')">
+        <div
+          v-show="exportMenuOpen"
+          ref="exportMenuRef"
+          class="absolute right-0 top-full mt-1 flex flex-col bg-popover border border-border rounded-md shadow-md py-1 min-w-[140px] z-20"
+        >
+          <button type="button" class="px-3 py-1.5 text-sm text-left hover:bg-accent w-full" @click="onExport('html')">
             {{ $t('plugin.novusdoc.doc.exportHTML') }}
           </button>
-          <button class="px-3 py-1.5 text-sm text-left hover:bg-accent" @click="onExport('md')">
+          <button type="button" class="px-3 py-1.5 text-sm text-left hover:bg-accent w-full" @click="onExport('md')">
             {{ $t('plugin.novusdoc.doc.exportMarkdown') }}
+          </button>
+          <button type="button" class="px-3 py-1.5 text-sm text-left hover:bg-accent w-full" @click="onExport('pdf')">
+            {{ $t('plugin.novusdoc.doc.exportPDF') }}
           </button>
         </div>
       </div>

@@ -274,6 +274,7 @@ class StreamExecutionHandler:
             yield SSEChunkEncoder.encode(
                 processor.build_tool_start_event(
                     _func_name, _arguments, _conf_skill,
+                    tool_call_id=_tc_id,
                 )
             )
 
@@ -286,6 +287,7 @@ class StreamExecutionHandler:
             yield SSEChunkEncoder.encode(
                 processor.build_tool_call_event(
                     _result, _tc_dur, _conf_skill,
+                    name_override=_func_name,
                 )
             )
 
@@ -306,6 +308,11 @@ class StreamExecutionHandler:
             messages.append(
                 processor.build_tool_message(_result, _tc_id)
             )
+
+        # Track consecutive page operation failures to abort apology loops / 追踪连续页面操作失败以中止道歉循环
+        _consecutive_page_op_failures = 0
+        _page_op_aborted = False
+        PAGE_OP_ABORT_THRESHOLD = 3
 
         for _round in range(MAX_TOOL_CALL_ROUNDS):
             round_output = ""
@@ -367,7 +374,54 @@ class StreamExecutionHandler:
                 func = tc.get("function", {})
                 func_name = func.get("name", "")
                 raw_args = func.get("arguments", "{}")
-                arguments = processor.parse_arguments(raw_args)
+                arguments, parse_error = processor.parse_arguments(raw_args)
+
+                # JSON parse failure: do not execute, push error result instead / JSON 解析失败：不执行，推送错误结果
+                # Parse error 也纳入连续 pageop/invoke 失败计数，达阈值后熔断
+                if parse_error:
+                    from app.ai.tools.types import ToolResult
+                    err_result = ToolResult(
+                        tool_call_id=tc_id,
+                        name=func_name or "unknown",
+                        success=False,
+                        error=(
+                            "Tool arguments JSON parse failed. "
+                            "Ensure arguments are valid JSON. Do not retry with the same invalid input."
+                        ),
+                        error_type=parse_error,
+                    )
+                    all_tool_results.append(err_result)
+                    yield SSEChunkEncoder.encode(
+                        processor.build_tool_call_event(
+                            err_result, 0, processor.get_skill_info(func_name),
+                            name_override=func_name,
+                        ),
+                    )
+                    messages.append(processor.build_tool_message(err_result, tc_id))
+
+                    # Count parse error as page op failure for熔断 / parse error 计入页面操作失败以触发熔断
+                    _is_page_op = (
+                        func_name == "invoke_page_operation"
+                        or (func_name.startswith("pageop_") if func_name else False)
+                    )
+                    if _is_page_op:
+                        _consecutive_page_op_failures += 1
+                        if _consecutive_page_op_failures >= PAGE_OP_ABORT_THRESHOLD:
+                            logger.warning(
+                                "Aborting tool loop: %d consecutive page op failures (incl. parse errors) conversation=%s",
+                                _consecutive_page_op_failures,
+                                self.request.conversation_id,
+                            )
+                            _page_op_aborted = True
+                            self._output = (
+                                round_output.strip()
+                                + "\n\n[System] Multiple page operations failed (including JSON parse errors). "
+                                "Please tell the user to retry with valid input or refresh the page."
+                            )
+
+                    if _page_op_aborted:
+                        break
+                    continue
 
                 _skill_info = processor.get_skill_info(func_name)
 
@@ -401,6 +455,7 @@ class StreamExecutionHandler:
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_start_event(
                         func_name, arguments, _skill_info,
+                        tool_call_id=tc_id,
                     )
                 )
 
@@ -410,10 +465,35 @@ class StreamExecutionHandler:
                 )
                 all_tool_results.append(result)
 
-                # Push tool_result event / 推送 tool_result 事件
+                # Track consecutive page operation failures; abort to stop apology loops
+                _is_page_op = (
+                    func_name == "invoke_page_operation"
+                    or (func_name.startswith("pageop_") if func_name else False)
+                )
+                if _is_page_op:
+                    if result.success:
+                        _consecutive_page_op_failures = 0
+                    else:
+                        _consecutive_page_op_failures += 1
+                        if _consecutive_page_op_failures >= PAGE_OP_ABORT_THRESHOLD:
+                            logger.warning(
+                                "Aborting tool loop: %d consecutive page operation failures (conversation=%s)",
+                                _consecutive_page_op_failures,
+                                self.request.conversation_id,
+                            )
+                            _page_op_aborted = True
+                            self._output = (
+                                round_output.strip()
+                                + "\n\n[System] Multiple page operations failed in sequence. "
+                                "Please tell the user the operation encountered issues "
+                                "and suggest they retry or refresh the page."
+                            )
+
+                # Push tool_result event / 推送 tool_result 事件（name_override 保持与 tool_start 一致，避免前端匹配失败）
                 yield SSEChunkEncoder.encode(
                     processor.build_tool_call_event(
                         result, tc_duration, _skill_info,
+                        name_override=func_name,
                     )
                 )
 
@@ -428,8 +508,12 @@ class StreamExecutionHandler:
                 # Append tool message / 追加 tool 消息
                 messages.append(processor.build_tool_message(result, tc_id))
 
-            if round_has_confirmation:
-                self._output = round_output.strip()
+                if _page_op_aborted:
+                    break
+
+            if round_has_confirmation or _page_op_aborted:
+                if round_has_confirmation:
+                    self._output = round_output.strip()
                 break
         else:
             logger.warning(

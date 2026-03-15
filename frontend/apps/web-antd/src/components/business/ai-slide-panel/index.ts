@@ -4,6 +4,7 @@ export {
   getRegisteredKeys,
   pageContextVersion,
   registerPageContext,
+  registerPageContextExtras,
   resolvePageContext,
 } from './page-context-registry';
 export type { PageContextData, PageContextResolver } from './page-context-registry';

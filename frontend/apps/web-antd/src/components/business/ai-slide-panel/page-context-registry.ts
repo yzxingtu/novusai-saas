@@ -46,6 +46,13 @@ export type PageContextResolver = () => PageContextData | null;
 const registry = new Map<string, PageContextResolver>();
 
 /**
+ * Extras resolvers: merge into primary context instead of replacing.
+ * Used by DocumentEditor etc. to add fields without overwriting platform editor context.
+ * 附加 resolver：合并到主 context，不替换。供 DocumentEditor 等添加字段且保留平台编辑器原有说明。
+ */
+const extrasRegistry = new Map<string, PageContextResolver[]>();
+
+/**
  * Reactive version number — incremented on each register/unregister,
  * allowing external computed properties to track changes in real time.
  * 响应式版本号 — 每次注册/注销时自增，
@@ -78,6 +85,64 @@ export function registerPageContext(
 }
 
 /**
+ * Register extras to be merged into the primary context for a key.
+ * Does NOT replace the primary context; merges page_data (preserves base entity_description).
+ * 注册附加字段，合并到主 context。不替换主 context；合并 page_data（保留 base 的 entity_description）。
+ *
+ * Use when a consumer (e.g. DocumentEditor) needs to add fields on top of platform context.
+ * 当消费方（如 DocumentEditor）需在平台 context 之上追加字段时使用。
+ *
+ * @param key - Page identifier (same as primary) / 页面标识（与主注册相同）
+ * @param resolver - Returns partial context to merge (page_data only) / 返回要合并的局部 context（仅 page_data）
+ * @returns Cleanup function / cleanup 函数
+ */
+export function registerPageContextExtras(
+  key: string,
+  resolver: PageContextResolver,
+): () => void {
+  const nk = normalizePageKey(key);
+  const list = extrasRegistry.get(nk) ?? [];
+  list.push(resolver);
+  extrasRegistry.set(nk, list);
+  pageContextVersion.value++;
+  return () => {
+    const cur = extrasRegistry.get(nk);
+    if (cur) {
+      const idx = cur.indexOf(resolver);
+      if (idx >= 0) {
+        cur.splice(idx, 1);
+        if (cur.length === 0) extrasRegistry.delete(nk);
+        pageContextVersion.value++;
+      }
+    }
+  };
+}
+
+function mergeExtrasIntoContext(
+  base: PageContextData,
+  extrasList: PageContextResolver[],
+): PageContextData {
+  let result = { ...base, page_data: { ...(base.page_data || {}) } };
+  for (const res of extrasList) {
+    try {
+      const ext = res();
+      if (!ext?.page_data || typeof ext.page_data !== 'object') continue;
+      const baseDesc = (result.page_data as Record<string, unknown>).entity_description;
+      const extAppend = (ext.page_data as Record<string, unknown>).entity_description_append as string | undefined;
+      const merged = { ...(result.page_data as object), ...(ext.page_data as object) } as Record<string, unknown>;
+      if (extAppend && typeof baseDesc === 'string') {
+        merged.entity_description = baseDesc + '\n\n' + extAppend;
+      }
+      delete merged.entity_description_append;
+      result = { ...result, page_data: merged };
+    } catch (e) {
+      console.error('[PageContextRegistry] Extras merge error:', e);
+    }
+  }
+  return result;
+}
+
+/**
  * Get current page context
  * 获取当前页面上下文
  *
@@ -98,10 +163,16 @@ export function resolvePageContext(
   key?: string,
 ): PageContextData | null {
   if (key) {
-    const resolver = registry.get(normalizePageKey(key));
+    const nk = normalizePageKey(key);
+    const resolver = registry.get(nk);
     if (resolver) {
       try {
-        return resolver();
+        const base = resolver();
+        const extras = extrasRegistry.get(nk);
+        if (base && extras?.length) {
+          return mergeExtrasIntoContext(base, extras);
+        }
+        return base;
       } catch (error) {
         console.error(
           `[PageContextRegistry] Resolver '${key}' error:`,
@@ -110,7 +181,7 @@ export function resolvePageContext(
       }
     }
     // Fallback: use DOM semantic snapshot for unregistered pages / 降级：对未注册页面使用 DOM 语义快照
-    return buildDomFallbackContext(normalizePageKey(key));
+    return buildDomFallbackContext(nk);
   }
 
   // Attempt route-based matching first to avoid multi-resolver conflicts / 优先路由匹配，避免多 resolver 冲突
@@ -118,8 +189,12 @@ export function resolvePageContext(
   const routeResolver = registry.get(inferredKey);
   if (routeResolver) {
     try {
-      const ctx = routeResolver();
-      if (ctx) return ctx;
+      const base = routeResolver();
+      const extras = extrasRegistry.get(inferredKey);
+      if (base && extras?.length) {
+        return mergeExtrasIntoContext(base, extras);
+      }
+      if (base) return base;
     } catch (error) {
       console.error(
         `[PageContextRegistry] Route-inferred resolver '${inferredKey}' error:`,
@@ -128,19 +203,27 @@ export function resolvePageContext(
     }
   }
 
-  // Fallback: iterate all resolvers, return the last non-null result / 降级：遍历所有 resolver，返回最后非空结果
+  // Fallback: iterate all resolvers, return the last non-null result (with extras merged)
   let result: PageContextData | null = null;
+  let resultKey: string | null = null;
   for (const [registeredKey, resolver] of registry) {
     try {
       const ctx = resolver();
       if (ctx) {
         result = ctx;
+        resultKey = registeredKey;
       }
     } catch (error) {
       console.error(
         `[PageContextRegistry] Resolver '${registeredKey}' error:`,
         error,
       );
+    }
+  }
+  if (result && resultKey) {
+    const extras = extrasRegistry.get(resultKey);
+    if (extras?.length) {
+      result = mergeExtrasIntoContext(result, extras);
     }
   }
   if (!result) {
@@ -184,5 +267,6 @@ export function getRegisteredKeys(): string[] {
  */
 export function clearPageContextRegistry(): void {
   registry.clear();
+  extrasRegistry.clear();
   pageContextVersion.value++;
 }

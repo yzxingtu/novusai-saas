@@ -53,6 +53,8 @@ export interface PageOperationResult {
   message: string;
   /** Additional data (optional, structured result for LLM analysis) / 附加数据（可选，结构化结果供 LLM 分析） */
   data?: Record<string, unknown>;
+  /** Error type for failure classification (invalid_input_empty_content, execution_failed, etc.) / 失败分类（invalid_input_empty_content、execution_failed 等） */
+  error_type?: string;
 }
 
 /** Operation handler function type / 操作处理函数类型 */

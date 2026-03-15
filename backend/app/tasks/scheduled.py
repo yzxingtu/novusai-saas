@@ -296,7 +296,11 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
         return {"cleaned": 0, "error": str(e)}
 
 
-# ── LiteLLM Model Capability Registry Sync ───────────────────────────────────
+# ── LiteLLM Model Capability Registry Sync / LiteLLM 模型能力注册表同步 ─────────
+
+LLMRING_REGISTRY_BASE = "https://llmring.github.io/registry"
+LLMRING_PROVIDERS = ["openai", "anthropic", "google"]
+REQUEST_TIMEOUT = 30
 
 LITELLM_REGISTRY_URLS = [
     "https://cdn.jsdelivr.net/gh/BerriAI/litellm@main/model_prices_and_context_window.json",
@@ -306,44 +310,222 @@ LITELLM_REDIS_KEY = "ai:litellm:registry"
 LITELLM_REDIS_TTL = 86400 * 3
 
 
+def _is_valid_litellm_entry(key: str, entry: dict) -> bool:
+    """
+    Filter out sample_spec and invalid entries. / 过滤 sample_spec 及无效条目。
+    """
+    if key == "sample_spec":
+        return False
+    return isinstance(entry, dict) and len(entry) > 0
+
+
+def _parse_bool_safe(raw_value: object) -> bool | None:
+    """
+    Parse boolean explicitly; avoid bool(raw_value) which treats "false" as True.
+    显式解析布尔值；避免 bool(raw_value) 将 "false" 转为 True。
+    """
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        s = raw_value.strip().lower()
+        if s in ("true", "1", "yes"):
+            return True
+        if s in ("false", "0", "no"):
+            return False
+    return None
+
+
+def _normalize_llmring_entry(raw: dict) -> dict:
+    """
+    Normalize LLMRing entry to LiteLLM-style for downstream _extract_capabilities.
+    将 LLMRing 条目归一化为 LiteLLM 风格，供下游 _extract_capabilities 消费。
+    """
+    out: dict = {}
+    if raw.get("max_input_tokens") is not None:
+        try:
+            out["max_input_tokens"] = int(raw["max_input_tokens"])
+        except (TypeError, ValueError):
+            pass
+    if raw.get("max_output_tokens") is not None:
+        try:
+            out["max_output_tokens"] = int(raw["max_output_tokens"])
+        except (TypeError, ValueError):
+            pass
+    if raw.get("dollars_per_million_tokens_input") is not None:
+        try:
+            val = float(raw["dollars_per_million_tokens_input"])
+            out["input_cost_per_token"] = val / 1_000_000
+        except (TypeError, ValueError):
+            pass
+    if raw.get("dollars_per_million_tokens_output") is not None:
+        try:
+            val = float(raw["dollars_per_million_tokens_output"])
+            out["output_cost_per_token"] = val / 1_000_000
+        except (TypeError, ValueError):
+            pass
+    mode = raw.get("mode")
+    out["mode"] = str(mode) if mode else "chat"
+    for field in ("supports_vision", "supports_function_calling", "supports_streaming"):
+        if field in raw:
+            parsed = _parse_bool_safe(raw[field])
+            if parsed is not None:
+                out[field] = parsed
+    return out
+
+
+def _merge_entry_fill_empty(target: dict, source: dict) -> None:
+    """
+    Fill only empty slots in target; do not overwrite existing non-empty values.
+    只填空位，不覆盖主源已有值。
+    """
+    for k, v in source.items():
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            continue
+        if k not in target or target[k] is None or (
+            isinstance(target[k], str) and target[k].strip() == ""
+        ):
+            target[k] = v
+
+
+def _find_registry_key_for_model_id(
+    registry: dict, model_id: str, reg_key: str
+) -> str | None:
+    """
+    Find an existing registry key for the given model_id (for dedup).
+    reg_key exists: return reg_key; else search by model_id suffix.
+    按 model_id 查找可复用的 registry key，用于去重。
+    """
+    if reg_key in registry:
+        return reg_key
+    suffix = f"/{model_id}"
+    for key in registry:
+        if key == model_id or key.endswith(suffix):
+            return key
+    return None
+
+
+def _build_registry_from_litellm(raw: dict) -> tuple[dict, int]:
+    """
+    Build main registry from LiteLLM payload; return (registry, valid_key_count).
+    从 LiteLLM 数据构建主 registry，返回有效 key 数。
+    """
+    registry: dict = {}
+    count = 0
+    for key, entry in raw.items():
+        if _is_valid_litellm_entry(key, entry):
+            registry[key] = dict(entry)
+            count += 1
+    return registry, count
+
+
+def _merge_llmring_into_registry(registry: dict, payload: dict) -> int:
+    """
+    Merge LLMRing provider data into registry; return number of added keys.
+    Key normalization: openai:gpt-4.1 -> openai/gpt-4.1 (replace first colon only).
+    合并 LLMRing 补充源，返回新增 key 数。
+    """
+    models = payload.get("models") if isinstance(payload.get("models"), dict) else None
+    if not models:
+        return 0
+    added = 0
+    for raw_key, raw_entry in models.items():
+        if not isinstance(raw_entry, dict):
+            continue
+        reg_key = str(raw_key).replace(":", "/", 1)  # openai:gpt-4.1 -> openai/gpt-4.1
+        model_id = raw_key.split(":", 1)[-1] if ":" in raw_key else raw_key
+        normalized = _normalize_llmring_entry(raw_entry)
+        if not normalized or (len(normalized) == 1 and normalized.get("mode") == "chat"):
+            logger.debug("Skip empty LLMRing entry: reg_key=%s", reg_key)
+            continue
+        existing_key = _find_registry_key_for_model_id(registry, model_id, reg_key)
+        if existing_key:
+            _merge_entry_fill_empty(registry[existing_key], normalized)
+        else:
+            registry[reg_key] = normalized
+            added += 1
+    return added
+
+
 @register_task(
     queue="scheduled",
-    description="Sync LiteLLM model capability registry to Redis / 同步 LiteLLM 模型能力注册表到 Redis",
+    description="Sync LiteLLM + LLMRing multi-source model registry to Redis / 同步 LiteLLM + LLMRing 多源模型能力注册表到 Redis",
     max_retries=2,
 )
 def sync_litellm_registry(self: BaseTask) -> dict:
     """
-    从 LiteLLM 下载模型能力表并缓存到 Redis / Download LiteLLM model_prices_and_context_window.json and cache in Redis.
-
-    Tries jsdelivr CDN first, falls back to GitHub raw.
-    优先使用 jsdelivr CDN，失败后回退到 GitHub raw。
+    Multi-source sync: LiteLLM (primary) + LLMRing (supplement), merge and write to Redis.
+    多源同步：LiteLLM 主源 + LLMRing 补充，合并后写入 Redis。
     """
     import json
 
     import requests
 
     last_error: Exception | None = None
+    registry: dict | None = None
+    litellm_keys = 0
+    llmring_added_keys = 0
+    source_url: str | None = None
+
     for url in LITELLM_REGISTRY_URLS:
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=REQUEST_TIMEOUT)
             resp.raise_for_status()
 
-            registry = resp.json()
-            if not isinstance(registry, dict) or len(registry) < 10:
-                logger.warning("LiteLLM registry looks invalid, entries=%s", len(registry) if isinstance(registry, dict) else "N/A")
+            raw = resp.json()
+            if not isinstance(raw, dict) or len(raw) < 10:
+                logger.warning(
+                    "LiteLLM registry looks invalid, entries=%s",
+                    len(raw) if isinstance(raw, dict) else "N/A",
+                )
                 continue
 
-            client = _get_sync_redis()
-            client.setex(
-                LITELLM_REDIS_KEY,
-                LITELLM_REDIS_TTL,
-                json.dumps(registry, ensure_ascii=False),
-            )
-            model_count = len(registry)
-            logger.info("LiteLLM registry synced: source=%s models=%d", url, model_count)
-            return {"source": url, "model_count": model_count}
+            registry, litellm_keys = _build_registry_from_litellm(raw)
+            llmring_added_keys = 0
+            source_url = url
+
+            for provider in LLMRING_PROVIDERS:
+                llmring_url = f"{LLMRING_REGISTRY_BASE}/{provider}/models.json"
+                try:
+                    llm_resp = requests.get(llmring_url, timeout=REQUEST_TIMEOUT)
+                    llm_resp.raise_for_status()
+                    payload = llm_resp.json()
+                    if not isinstance(payload, dict):
+                        raise ValueError("LLMRing response is not a dict")
+                    added = _merge_llmring_into_registry(registry, payload)
+                    llmring_added_keys += added
+                except Exception as llm_err:
+                    logger.warning(
+                        "LLMRing provider fetch failed: provider=%s error=%s",
+                        provider,
+                        str(llm_err),
+                    )
+            break
         except Exception as e:
             last_error = e
-            logger.warning("LiteLLM registry fetch failed: url=%s error=%s", url, str(e))
+            logger.warning(
+                "LiteLLM registry fetch failed: url=%s error=%s", url, str(e)
+            )
 
-    raise RuntimeError(f"All LiteLLM registry URLs failed: {last_error}")
+    if registry is None or source_url is None:
+        raise RuntimeError(f"All LiteLLM registry URLs failed: {last_error}")
+
+    client = _get_sync_redis()
+    client.setex(
+        LITELLM_REDIS_KEY,
+        LITELLM_REDIS_TTL,
+        json.dumps(registry, ensure_ascii=False),
+    )
+    model_count = len(registry)
+    logger.info(
+        "LiteLLM registry synced: source=%s models=%d litellm_keys=%d llmring_added=%d",
+        source_url,
+        model_count,
+        litellm_keys,
+        llmring_added_keys,
+    )
+    return {
+        "source": source_url,
+        "model_count": model_count,
+        "litellm_keys": litellm_keys,
+        "llmring_added_keys": llmring_added_keys,
+    }

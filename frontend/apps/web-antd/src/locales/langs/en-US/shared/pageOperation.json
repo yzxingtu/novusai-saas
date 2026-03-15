@@ -4,6 +4,7 @@
   "confirmContentWithDesc": "AI assistant requests to execute: {operation}\n\n{description}\n\nAllow?",
   "confirmOk": "Allow",
   "confirmCancel": "Cancel",
+  "confirmCountdown": "Valid for {seconds}s",
 
   "refreshDashboard": "Refresh Dashboard",
   "refreshList": "Refresh List",
@@ -58,6 +59,7 @@
   "viewRecycleBin": "View Recycle Bin",
   "refreshAnalytics": "Refresh Analytics",
 
+  "replaceContentConfirm": "Will overwrite entire content with {count} characters. Confirm?",
   "getFormState": "Get Form State",
   "fillForm": "Fill Form",
   "validateForm": "Validate Form",

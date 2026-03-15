@@ -17,6 +17,8 @@
 
 import { onScopeDispose, watch } from 'vue';
 
+import { $t } from '@vben/locales';
+
 import { normalizePageKey } from '#/components/business/ai-slide-panel';
 import {
   executePageOperation,
@@ -38,6 +40,8 @@ export interface PageOperationInvokeEvent {
   params: Record<string, unknown>;
   /** Whether user confirmation is needed (for readonly=false operations) / 是否需要用户确认 */
   requires_confirmation: boolean;
+  /** Tool call ID for associating confirmation card with chat message / 工具调用 ID，用于将确认卡片关联到聊天消息 */
+  tool_call_id?: string;
 }
 
 /** Operation result sent back to backend / 回传给后端的操作结果 */
@@ -127,11 +131,12 @@ export function usePageOperationChannel(): void {
       event.operation_name,
       event.params || {},
     );
+    const errorType = result.success ? undefined : (result.error_type ?? 'execution_failed');
     emitResult(
       socketIOStore,
       event.invoke_id,
       result,
-      result.success ? undefined : 'execution_failed',
+      errorType,
     );
   }
 
@@ -160,6 +165,7 @@ export function usePageOperationChannel(): void {
       operationLabel,
       operationDescription,
       params: event.params || {},
+      toolCallId: event.tool_call_id,
     });
 
     // null sentinel distinguishes timeout from user-cancel (false) / null 哨兵区分超时与用户取消(false)
@@ -227,11 +233,14 @@ export function usePageOperationChannel(): void {
     }
 
     // readonly=false → show confirmation dialog / 弹出确认对话框
-    confirmAndExecute(
-      event,
-      operation.label,
-      operation.description || '',
-    );
+    let desc = operation.description || '';
+    if (event.operation_name === 'replace_content') {
+      const contentLen = String(event.params?.content ?? '').length;
+      desc = $t('shared.pageOperation.replaceContentConfirm', {
+        count: contentLen,
+      });
+    }
+    confirmAndExecute(event, operation.label, desc);
   }
 
   // Register invoke event handler / 注册 invoke 事件处理器
