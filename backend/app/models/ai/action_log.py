@@ -15,7 +15,7 @@ from app.enums.agent import ActionStatusEnum
 
 class AIActionLog(TenantModel):
     """
-    AI 操作审计日志
+    AI 操作审计日志 / AI action audit log.
 
     记录每次 Text-to-SQL 或 API Action 的详细信息，包括：
     - 操作者（operator_id 关联 tenant_admins）

@@ -1,9 +1,7 @@
-"""
-Service 单元测试共享 fixtures
+"""Service 单元测试共享 fixtures / Test.
 
 提供 mock DB session、Redis、Celery 及常用测试数据工厂。
-所有 tests/services/ 下的测试文件自动继承这些 fixtures。
-"""
+所有 tests/services/ 下的测试文件自动继承这些 fixtures。"""
 
 from __future__ import annotations
 
@@ -37,7 +35,7 @@ def mock_db():
 
 @pytest.fixture()
 def mock_redis():
-    """Mock Redis client with common operations."""
+    """Mock Redis client with common operations. / 说明"""
     redis = AsyncMock()
     redis.get = AsyncMock(return_value=None)
     redis.set = AsyncMock(return_value=True)
@@ -53,7 +51,7 @@ def mock_redis():
 
 @pytest.fixture()
 def mock_celery():
-    """Mock Celery app with inspect and send_task."""
+    """Mock Celery app with inspect and send_task. / 说明"""
     celery = MagicMock()
     celery.send_task = MagicMock()
     celery.control.inspect.return_value.ping.return_value = {"worker@host": {"ok": "pong"}}
@@ -68,7 +66,7 @@ def _utc_now() -> datetime:
 
 @pytest.fixture()
 def sample_admin_data() -> dict[str, Any]:
-    """平台管理员样本数据"""
+    """平台管理员样本数据 / Description."""
     return {
         "id": 1,
         "username": "admin",
@@ -83,7 +81,7 @@ def sample_admin_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_tenant_data() -> dict[str, Any]:
-    """企业样本数据"""
+    """企业样本数据 / Description."""
     return {
         "id": 1,
         "name": "Test Tenant",
@@ -98,7 +96,7 @@ def sample_tenant_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_tenant_admin_data() -> dict[str, Any]:
-    """企业管理员样本数据"""
+    """企业管理员样本数据 / Description."""
     return {
         "id": 1,
         "tenant_id": 1,
@@ -113,7 +111,7 @@ def sample_tenant_admin_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_agent_data() -> dict[str, Any]:
-    """AI 智能体样本数据"""
+    """AI 智能体样本数据 / AI"""
     return {
         "id": 1,
         "tenant_id": 1,
@@ -129,7 +127,7 @@ def sample_agent_data() -> dict[str, Any]:
 
 @pytest.fixture()
 def sample_call_log_data() -> dict[str, Any]:
-    """AI 调用日志样本数据"""
+    """AI 调用日志样本数据 / AI"""
     return {
         "id": 1,
         "tenant_id": 1,
@@ -150,14 +148,12 @@ def sample_call_log_data() -> dict[str, Any]:
 # ── Mock Model Factory ──
 
 def make_mock_model(**kwargs: Any) -> MagicMock:
-    """
-    创建 mock ORM model 对象。
+    """创建 mock ORM model 对象。 / Create.
 
     Usage:
         admin = make_mock_model(id=1, username='admin', is_active=True)
         admin.id  # 1
-        admin.to_dict()  # {'id': 1, 'username': 'admin', ...}
-    """
+        admin.to_dict()  # {'id': 1, 'username': 'admin', ...}"""
     obj = MagicMock()
     for key, value in kwargs.items():
         setattr(obj, key, value)
@@ -168,12 +164,10 @@ def make_mock_model(**kwargs: Any) -> MagicMock:
 # ── Mock Query Result ──
 
 def make_scalar_result(value: Any) -> AsyncMock:
-    """
-    创建 mock db.execute() 返回值，使 .scalar() 返回指定值。
+    """创建 mock db.execute() 返回值，使 .scalar() 返回指定值。 / Create.
 
     Usage:
-        mock_db.execute.return_value = make_scalar_result(42)
-    """
+        mock_db.execute.return_value = make_scalar_result(42)"""
     result = MagicMock()
     result.scalar.return_value = value
     result.scalar_one_or_none.return_value = value
@@ -181,12 +175,10 @@ def make_scalar_result(value: Any) -> AsyncMock:
 
 
 def make_scalars_result(items: list[Any]) -> MagicMock:
-    """
-    创建 mock db.execute() 返回值，使 .scalars().all() 返回列表。
+    """创建 mock db.execute() 返回值，使 .scalars().all() 返回列表。 / Create.
 
     Usage:
-        mock_db.execute.return_value = make_scalars_result([admin1, admin2])
-    """
+        mock_db.execute.return_value = make_scalars_result([admin1, admin2])"""
     result = MagicMock()
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = items
@@ -196,14 +188,12 @@ def make_scalars_result(items: list[Any]) -> MagicMock:
 
 
 def make_row_result(row_data: dict[str, Any]) -> MagicMock:
-    """
-    创建 mock db.execute() 返回值，模拟 .one() 返回命名 Row。
+    """创建 mock db.execute() 返回值，模拟 .one() 返回命名 Row。 / Create.
 
     Usage:
         mock_db.execute.return_value = make_row_result(
             {"total_calls": 100, "total_tokens": 5000}
-        )
-    """
+        )"""
     row = MagicMock()
     for key, value in row_data.items():
         setattr(row, key, value)

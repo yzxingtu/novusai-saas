@@ -30,7 +30,7 @@ logger = LogManager.get_logger("ai")
 
 
 class AnalyticsService:
-    """Admin 端 AI 数据分析服务"""
+    """Admin 端 AI 数据分析服务 / Admin AI analytics service."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -44,7 +44,7 @@ class AnalyticsService:
         tenant_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按天聚合的调用量 + Token + 费用趋势
+        按天聚合的调用量 + Token + 费用趋势 / Daily aggregated call/token/cost trend.
 
         Returns:
             [{"date", "calls", "tokens", "cost", "success", "failed"}, ...]
@@ -101,7 +101,7 @@ class AnalyticsService:
         tenant_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        模型调用分布
+        模型调用分布 / Model call distribution.
 
         Returns:
             [{"model_id", "model_name", "calls", "tokens", "cost"}, ...]
@@ -152,7 +152,7 @@ class AnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """
-        供应商性能对比
+        供应商性能对比 / Provider performance comparison.
 
         Returns:
             [{"provider_id", "provider_name", "calls", "avg_latency", "success_rate", "avg_tokens", "total_cost"}, ...]
@@ -207,7 +207,7 @@ class AnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """
-        企业 Top N 使用排行
+        企业 Top N 使用排行 / Tenant Top N usage ranking.
 
         Returns:
             [{"tenant_id", "tenant_name", "calls", "tokens", "cost"}, ...]
@@ -256,7 +256,7 @@ class AnalyticsService:
         tenant_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        延迟分布（按区间聚合，单次 CASE WHEN 查询）
+        延迟分布（按区间聚合，单次 CASE WHEN 查询）/ Latency distribution (bucket aggregation, single CASE WHEN).
 
         Returns:
             [{"range": "0-200ms", "count": 150}, {"range": "200-500ms", "count": 80}, ...]
@@ -307,7 +307,7 @@ class AnalyticsService:
         tenant_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按天的成功率趋势
+        按天的成功率趋势 / Daily success rate trend.
 
         Returns:
             [{"date", "total", "success", "failed", "rate"}, ...]

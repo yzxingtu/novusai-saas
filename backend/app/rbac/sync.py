@@ -1,6 +1,5 @@
 """
-Permission Sync Service
-权限同步服务
+Permission Sync Service. / 权限同步服务。
 
 Syncs permissions defined by decorators + menu definitions to database, executed on app startup.
 将装饰器定义的权限 + 菜单定义同步到数据库，应用启动时执行。
@@ -27,8 +26,7 @@ from app.rbac.registry import permission_registry
 
 class PermissionSyncService(LoggerMixin):
     """
-    Permission Sync Service.
-    权限同步服务。
+    Permission Sync Service. / 权限同步服务。
 
     Syncs permissions defined by decorators + menu definitions to database.
     将装饰器定义的权限 + 菜单定义同步到数据库。
@@ -207,8 +205,7 @@ class PermissionSyncService(LoggerMixin):
 
     def _validate_menu_components(self, permissions: list[PermissionMeta]) -> None:
         """
-        Validate menu component paths for common issues.
-        校验菜单组件路径是否存在常见错误。
+        校验菜单组件路径是否存在常见错误 / Validate menu component paths for common issues.
 
         Runs after sync_permissions, logs warnings only (never blocks startup).
         在 sync_permissions 后运行，只记录警告，不会阻断启动。

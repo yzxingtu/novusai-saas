@@ -1,4 +1,4 @@
-"""Regression tests for startup restore owner/non-owner modes."""
+"""Regression tests for startup restore owner/non-owner modes. / 测试"""
 
 from __future__ import annotations
 

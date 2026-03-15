@@ -37,7 +37,7 @@ logger = LogManager.get_logger("ai.conversation_service")
 
 class ConversationService(TenantService[AgentConversation, AgentConversationRepository]):
     """
-    对话数据生命周期管理 Service
+    对话数据生命周期管理 Service / Conversation lifecycle service.
 
     提供对话列表、详情、搜索、归档、批量归档、删除和导出
     """
@@ -47,7 +47,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     @staticmethod
     def _format_dt(dt: datetime | None) -> str | None:
-        """Serialize naive UTC datetime to ISO 8601 with +00:00 suffix."""
+        """将 naive UTC 时间序列化为 ISO 8601（带 +00:00）/ Serialize naive UTC datetime to ISO 8601 with +00:00 suffix."""
         if dt is None:
             return None
         if dt.tzinfo is None:
@@ -56,7 +56,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     @property
     def message_repo(self) -> ConversationMessageRepository:
-        """获取消息 Repository（延迟创建）"""
+        """获取消息 Repository（延迟创建） / Get message repo (lazy init)."""
         if not hasattr(self, "_message_repo"):
             self._message_repo = ConversationMessageRepository(
                 self.db, self.tenant_id,
@@ -65,7 +65,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     @property
     def tenant_admin_repo(self) -> "TenantAdminRepository":
-        """获取企业管理员 Repository（延迟创建）"""
+        """获取企业管理员 Repository（延迟创建） / Get tenant admin repo (lazy init)."""
         if not hasattr(self, "_tenant_admin_repo"):
             from app.repositories.tenant.tenant_admin_repository import (
                 TenantAdminRepository,
@@ -81,7 +81,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         include_user_info: bool = False,
     ) -> list[dict]:
         """
-        将对话列表 ORM 对象转为字典并补充 agent/user 信息
+        将对话列表 ORM 对象转为字典并补充 agent/user 信息 / Convert conversation list to dict and enrich agent/user info.
 
         Args:
             items: 对话 ORM 对象列表
@@ -115,7 +115,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation: AgentConversation,
     ) -> dict:
         """
-        补充对话详情的 agent_avatar 和 user_info
+        补充对话详情的 agent_avatar 和 user_info / Enrich detail with agent_avatar and user_info.
 
         Args:
             detail: get_conversation_detail 返回的字典
@@ -176,7 +176,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         user_id: int | None = None,
     ) -> dict[str, Any]:
         """
-        获取对话详情（含分页消息列表）
+        获取对话详情（含分页消息列表）/ Get conversation detail with paginated messages.
 
         Args:
             conversation_id: 对话 ID
@@ -277,7 +277,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         page_size: int = 20,
     ) -> dict[str, Any]:
         """
-        跨对话全文搜索消息内容
+        跨对话全文搜索消息内容 / Full-text search messages across conversations.
 
         Args:
             keyword: 搜索关键词
@@ -312,7 +312,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     async def archive_conversation(self, conversation_id: int) -> AgentConversation:
         """
-        归档单个对话
+        归档单个对话 / Archive single conversation.
 
         Args:
             conversation_id: 对话 ID
@@ -358,7 +358,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         before_days: int = 90,
     ) -> int:
         """
-        批量归档 N 天前的对话
+        批量归档 N 天前的对话 / Batch archive conversations older than N days.
 
         使用 ID-only 查询 + 分批处理，避免大数据量时全量加载 ORM 对象导致 OOM。
 
@@ -415,7 +415,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     async def _after_delete(self, id: int) -> None:
         """
-        对话删除后清理会话记忆（失败降级，不影响删除主流程）
+        对话删除后清理会话记忆（失败降级，不影响删除主流程）/ Clear session memory after delete (best-effort, does not block delete).
         """
         await super()._after_delete(id)
         memory_svc = SessionMemoryService(self._get_memory_tenant_id())
@@ -439,7 +439,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         export_format: str = "json",
     ) -> dict[str, Any]:
         """
-        导出对话数据
+        导出对话数据 / Export conversation data.
 
         使用分批加载获取全部消息，避免静默截断。
 
@@ -494,7 +494,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation: AgentConversation,
         messages: list,
     ) -> str:
-        """将对话转换为 JSON 字符串"""
+        """将对话转换为 JSON 字符串 / Convert conversation to JSON string."""
         data = {
             "id": conversation.id,
             "title": conversation.title,
@@ -523,7 +523,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation: AgentConversation,
         messages: list,
     ) -> str:
-        """将对话转换为 Markdown 字符串"""
+        """将对话转换为 Markdown 字符串 / Convert conversation to Markdown string."""
         role_labels = {
             MessageRoleEnum.SYSTEM.value: _("conversation.export.role.system"),
             MessageRoleEnum.USER.value: _("conversation.export.role.user"),
@@ -575,7 +575,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         first_message: str,
     ) -> AgentConversation:
         """
-        获取或创建对话（用于对话执行）
+        获取或创建对话（用于对话执行）/ Get or create conversation (for chat execution).
 
         Args:
             agent_id: 智能体 ID
@@ -632,7 +632,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         max_tokens: int = 0,
     ) -> list[ChatMessage]:
         """
-        从 ConversationMessage 加载历史消息并转换为 ChatMessage
+        从 ConversationMessage 加载历史消息并转换为 ChatMessage / Load history from ConversationMessage and convert to ChatMessage.
 
         支持两级截断：
         1. max_messages: 最多保留最近 N 条消息
@@ -689,7 +689,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
     def sanitize_tool_messages(
         messages: list[ChatMessage],
     ) -> list[ChatMessage]:
-        """清理孤立的 tool/tool_calls 消息，防止 LLM API 400 错误
+        """清理孤立的 tool/tool_calls 消息，防止 LLM API 400 错误 / Clean orphan tool/tool_calls to avoid LLM API 400.
 
         规则：
         - role=tool 的消息前面必须有一条带 tool_calls 的 assistant 消息
@@ -745,7 +745,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         agent_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        将执行过程中产生的新消息持久化为 ConversationMessage
+        将执行过程中产生的新消息持久化为 ConversationMessage / Persist new messages from execution as ConversationMessage.
 
         ExecutionResult.messages 结构:
         [system, ...history..., new_user, (assistant+tool_calls, tool, ...,)* final_assistant]
@@ -839,7 +839,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
     async def mark_memory_updated(self, conversation_id: int) -> None:
         """
-        标记最后一条 assistant 消息的 metadata 中 memory_updated = true
+        标记最后一条 assistant 消息的 metadata 中 memory_updated = true / Mark last assistant message memory_updated in metadata.
 
         在 _persist_session_memory 成功后调用，用于前端加载历史时恢复记忆标记。
         """
@@ -862,7 +862,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         current_agent: Agent | None = None,
     ) -> None:
         """
-        更新对话统计信息，并尝试提取输出变量
+        更新对话统计信息，并尝试提取输出变量 / Update conversation stats and try to extract output variables.
 
         Args:
             conversation: 对话实例

@@ -58,11 +58,11 @@ export interface BrandConfig {
   siteName?: string;
   /** Site description / 站点描述 */
   siteDescription?: string;
-  /** Logo URL */
+  /** Logo URL / Logo 地址 */
   logo?: string;
   /** Dark mode Logo URL / 深色模式 Logo */
   logoDark?: string;
-  /** Favicon URL */
+  /** Favicon URL / 网站图标地址 */
   favicon?: string;
   /** Primary color (platform only) / 主题色（仅平台端） */
   primaryColor?: string;

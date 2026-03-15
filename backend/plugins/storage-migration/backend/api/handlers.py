@@ -1,10 +1,8 @@
-"""
-Storage Migration Plugin API Handlers
+"""Storage Migration Plugin API Handlers / 接口/处理器
 
 All handlers receive (request, ctx) or (request, db, ctx).
 For cross-table queries (attachments), we use ctx._db (raw AsyncSession).
-This is acceptable for admin_only first-party plugins.
-"""
+This is acceptable for admin_only first-party plugins."""
 
 from __future__ import annotations
 
@@ -13,23 +11,21 @@ from fastapi.responses import JSONResponse
 
 
 def _get_raw_db(ctx: object):
-    """
-    Extract raw AsyncSession from PluginContext.
+    """Extract raw AsyncSession from PluginContext. / 插件
 
     Migration plugin needs cross-table access (attachments + plugin tables).
-    The raw session is used instead of PluginDbProxy which restricts to px_* tables.
-    """
+    The raw session is used instead of PluginDbProxy which restricts to px_* tables."""
     return ctx._db  # type: ignore[attr-defined]
 
 
 def _get_user_id(ctx: object) -> int:
-    """Extract current user ID via PluginContext public API."""
+    """Extract current user ID via PluginContext public API. / 接口/处理器"""
     uid = ctx.get_current_user_id()  # type: ignore[attr-defined]
     return uid or 0
 
 
 def _safe_int(value: object, default: int) -> int:
-    """Safely parse an integer value, returning default on failure."""
+    """Safely parse an integer value, returning default on failure. / 获取/返回"""
     try:
         return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -40,10 +36,7 @@ def _safe_int(value: object, default: int) -> int:
 
 
 async def get_impact_analysis(request: Request, ctx: object) -> JSONResponse:
-    """
-    GET /admin/plugins/storage-migration/api/impact-analysis
-    Query params: source_driver, target_driver, scope (optional, default 'all')
-    """
+    """GET /admin/plugins/storage-migration/api/impact-analysis / 接口/路由 — Query params: source_driver, target_driver, scope (optional)."""
     from ..services.migration_service import MigrationImpactAnalyzer
 
     source_driver = request.query_params.get("source_driver", "")
@@ -66,10 +59,7 @@ async def get_impact_analysis(request: Request, ctx: object) -> JSONResponse:
 
 
 async def create_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """
-    POST /admin/plugins/storage-migration/api/tasks
-    Body: { source_driver, target_driver, scope?, concurrency? }
-    """
+    """POST /admin/plugins/storage-migration/api/tasks / 接口/路由 — Body: source_driver, target_driver, scope?, concurrency?."""
     from ..services.migration_service import StorageMigrationService
 
     try:
@@ -123,10 +113,7 @@ async def create_migration_task(request: Request, ctx: object) -> JSONResponse:
 
 
 async def list_migration_tasks(request: Request, ctx: object) -> JSONResponse:
-    """
-    GET /admin/plugins/storage-migration/api/tasks
-    Query params: page, page_size
-    """
+    """GET /admin/plugins/storage-migration/api/tasks / 接口/路由 — Query params: page, page_size."""
     from ..services.migration_service import StorageMigrationService
 
     page = _safe_int(
@@ -145,10 +132,7 @@ async def list_migration_tasks(request: Request, ctx: object) -> JSONResponse:
 
 
 async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """
-    GET /admin/plugins/storage-migration/api/tasks/{task_id}
-    Query params: log_status, log_page, log_page_size
-    """
+    """GET /admin/plugins/storage-migration/api/tasks/{task_id} / 接口/路由 — Query params: log_status, log_page, log_page_size."""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -192,7 +176,7 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
 
 
 async def pause_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/pause"""
+    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/pause / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -214,7 +198,7 @@ async def pause_migration_task(request: Request, ctx: object) -> JSONResponse:
 
 
 async def resume_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/resume"""
+    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/resume / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -237,7 +221,7 @@ async def resume_migration_task(request: Request, ctx: object) -> JSONResponse:
 
 
 async def cancel_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/cancel"""
+    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/cancel / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -262,7 +246,7 @@ async def cancel_migration_task(request: Request, ctx: object) -> JSONResponse:
 
 
 async def retry_failed_files(request: Request, ctx: object) -> JSONResponse:
-    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/retry-failed"""
+    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/retry-failed / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -284,7 +268,7 @@ async def retry_failed_files(request: Request, ctx: object) -> JSONResponse:
 
 
 async def rollback_migration_task(request: Request, ctx: object) -> JSONResponse:
-    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/rollback"""
+    """POST /admin/plugins/storage-migration/api/tasks/{task_id}/rollback / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)
@@ -306,7 +290,7 @@ async def rollback_migration_task(request: Request, ctx: object) -> JSONResponse
 
 
 async def cleanup_source_files(request: Request, ctx: object) -> JSONResponse:
-    """DELETE /admin/plugins/storage-migration/api/tasks/{task_id}/source-files"""
+    """DELETE /admin/plugins/storage-migration/api/tasks/{task_id}/source-files / 接口/路由"""
     from ..services.migration_service import StorageMigrationService
 
     task_id = _safe_int(request.path_params.get("task_id"), 0)

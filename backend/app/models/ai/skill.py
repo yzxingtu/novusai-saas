@@ -17,7 +17,7 @@ from app.enums.agent import SkillTypeEnum
 
 class Skill(TenantModel):
     """
-    技能模型
+    技能模型 / Skill model.
 
     Skill 是更高层的抽象，封装 Agent 可使用的能力。
     Skill 属于 SkillPackage，作用域和企业归属由所属技能包决定。

@@ -25,12 +25,12 @@ from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 class AttachmentDownloadService:
     """
-    附件下载/预览服务
+    附件下载/预览服务 / Attachment download/preview service.
 
     负责生成访问链接、签名控制、权限校验与下载统计。
     """
     def __init__(self, db: AsyncSession, tenant_id: int | None = None):
-        """初始化服务，tenant_id 为空表示公共访问上下文"""
+        """初始化服务，tenant_id 为空表示公共访问上下文 / Init service; tenant_id=None means public access context."""
         self.db = db
         self.tenant_id = tenant_id
         self.config_service = ConfigService(db)
@@ -39,7 +39,7 @@ class AttachmentDownloadService:
         )
 
     async def get_attachment(self, attachment_id: int) -> Attachment:
-        """按企业上下文读取附件并进行归属校验"""
+        """按企业上下文读取附件并进行归属校验 / Load attachment by tenant context and validate ownership."""
         if self.repo:
             attachment = await self.repo.get_by_id(attachment_id)
         else:
@@ -65,7 +65,7 @@ class AttachmentDownloadService:
         expires: int,
         preview: bool,
     ) -> dict[str, Any]:
-        """生成访问 URL 并记录下载统计"""
+        """生成访问 URL 并记录下载统计 / Build access URL and record download stats."""
         expires = self._normalize_expires(expires)
         url = await self._get_access_url(attachment, expires, preview)
         await self._record_download(attachment, attachment.size)
@@ -77,7 +77,7 @@ class AttachmentDownloadService:
         }
 
     async def get_download_response(self, attachment: Attachment, preview: bool):
-        """生成本地流式下载/预览响应"""
+        """生成本地流式下载/预览响应 / Build local streaming download/preview response."""
         storage_config = await self._resolve_storage_config_for_attachment(attachment)
         driver = storage_manager.get_driver(storage_config)
         filename = attachment.original_name or attachment.name
@@ -87,7 +87,7 @@ class AttachmentDownloadService:
         return response
 
     async def record_download(self, attachment: Attachment, size: int | None = None) -> None:
-        """显式记录下载统计"""
+        """显式记录下载统计 / Record download stats explicitly."""
         await self._record_download(attachment, size or attachment.size)
 
     async def get_redirect_url(
@@ -96,7 +96,7 @@ class AttachmentDownloadService:
         expires: int,
         preview: bool,
     ) -> str:
-        """生成访问 URL（对象存储使用签名 URL）并记录下载统计"""
+        """生成访问 URL（对象存储使用签名 URL）并记录下载统计 / Build access URL (signed for object storage) and record download."""
         expires = self._normalize_expires(expires)
         url = await self._get_access_url(attachment, expires, preview)
         await self._record_download(attachment, attachment.size)
@@ -108,7 +108,7 @@ class AttachmentDownloadService:
         expires: int,
         preview: bool,
     ) -> str:
-        """生成本地私有文件访问 Token"""
+        """生成本地私有文件访问 Token / Create local private file access token."""
         expire_at = utc_now() + timedelta(seconds=expires)
         payload = {
             "type": "attachment_download",
@@ -120,7 +120,7 @@ class AttachmentDownloadService:
         return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     def verify_access_token(self, token: str) -> dict[str, Any]:
-        """校验下载 Token 并返回 payload"""
+        """校验下载 Token 并返回 payload / Verify download token and return payload."""
         try:
             payload = jwt.decode(
                 token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -143,7 +143,7 @@ class AttachmentDownloadService:
         token: str | None,
     ) -> None:
         """
-        校验访问权限
+        校验访问权限 / Validate access (public: allow; private: require valid signed token).
         - 公开文件：直接放行
         - 私有文件（所有驱动）：需有效签名 Token
         """
@@ -172,7 +172,7 @@ class AttachmentDownloadService:
         expires: int,
         preview: bool,
     ) -> str:
-        """按存储驱动生成访问 URL
+        """按存储驱动生成访问 URL / Build access URL by storage driver.
 
         Resolution chain (attachment self-describing priority):
         1. local → API proxy endpoint
@@ -212,7 +212,7 @@ class AttachmentDownloadService:
     async def _resolve_storage_config_for_attachment(
         self, attachment: Attachment
     ) -> StorageConfig:
-        """解析附件所属的实际存储配置（委托给统一 StorageConfigResolver）"""
+        """解析附件所属的实际存储配置（委托给统一 StorageConfigResolver） / Resolve storage config for attachment (via StorageConfigResolver)."""
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
         resolver = StorageConfigResolver(self.db)
@@ -223,7 +223,7 @@ class AttachmentDownloadService:
 
     @staticmethod
     def _build_direct_cdn_url(attachment: Attachment) -> str | None:
-        """Build a direct CDN URL from the attachment's own stored data.
+        """从附件自身存储的 base_url 构建直连 CDN URL / Build a direct CDN URL from the attachment's own stored data.
 
         Each attachment records its base_url at upload time. For public
         cloud files this URL remains valid even after the platform/tenant
@@ -243,7 +243,7 @@ class AttachmentDownloadService:
         return f"{base_url.rstrip('/')}/{path}"
 
     async def _record_download(self, attachment: Attachment, size: int) -> None:
-        """写入下载统计到附件 meta"""
+        """写入下载统计到附件 meta / Write download stats to attachment meta."""
         meta = attachment.meta or {}
         count = int(meta.get("download_count", 0)) + 1
         total_bytes = int(meta.get("download_bytes", 0)) + max(0, int(size))
@@ -256,7 +256,7 @@ class AttachmentDownloadService:
         self, attachment_id: int, token: str | None, preview: bool,
         expires: int = 3600,
     ) -> str:
-        """拼装公开访问 URL（附带 HMAC 签名防枚举 + 可选私有 token）"""
+        """拼装公开访问 URL（附带 HMAC 签名防枚举 + 可选私有 token） / Build public access URL (HMAC sign + optional token)."""
         exp = int(time.time()) + expires
         sign = self.create_access_sign(attachment_id, exp)
         params: dict[str, str] = {"exp": str(exp), "sign": sign}
@@ -273,10 +273,9 @@ class AttachmentDownloadService:
         visibility: str,
         expires: int = 3600,
     ) -> str:
-        """为前端 <img> 标签生成带完整签名的预览 URL（无需 DB）
+        """为前端 <img> 生成带签名的预览 URL（无需 DB）/ Build signed preview URL for frontend <img> (no DB).
 
-        公开文件：仅 HMAC 签名
-        私有文件：HMAC 签名 + JWT access token
+        公开文件：仅 HMAC 签名；私有文件：HMAC + JWT token.
         """
         exp_ts = int(time.time()) + expires
         sign = AttachmentDownloadService.create_access_sign(attachment_id, exp_ts)
@@ -297,7 +296,7 @@ class AttachmentDownloadService:
 
     @staticmethod
     def create_access_sign(attachment_id: int, exp: int) -> str:
-        """HMAC-SHA256 签名：防止公开端点 ID 枚举"""
+        """HMAC-SHA256 签名：防止公开端点 ID 枚举 / HMAC-SHA256 sign to prevent ID enumeration."""
         msg = f"{attachment_id}:{exp}".encode()
         return hmac.new(
             settings.SECRET_KEY.encode(), msg, hashlib.sha256,
@@ -307,7 +306,7 @@ class AttachmentDownloadService:
     def verify_access_sign(
         attachment_id: int, exp: int | str | None, sign: str | None,
     ) -> None:
-        """校验 HMAC 签名和过期时间，无效则抛出 BusinessException"""
+        """校验 HMAC 签名和过期时间，无效则抛出 BusinessException / Verify HMAC and expiry; raise on invalid."""
         if not exp or not sign:
             raise BusinessException(
                 message=_("error.auth.unauthorized"),
@@ -333,7 +332,7 @@ class AttachmentDownloadService:
             )
 
     def _normalize_expires(self, expires: int) -> int:
-        """限制签名有效期范围（60s~86400s）"""
+        """限制签名有效期范围（60s~86400s） / Clamp signature expiry to 60s–86400s."""
         if expires <= 0:
             return 3600
         return max(60, min(expires, 86400))

@@ -1,5 +1,7 @@
 """
-智能体 Repository / Agent Repository
+智能体 Repository / Agent Repository.
+
+企业级智能体数据访问。
 """
 
 
@@ -32,7 +34,7 @@ _ASSIGNED_SCOPES = (
 
 class AgentRepository(TenantRepository[Agent]):
     """
-    企业级智能体 Repository
+    企业级智能体 Repository / Tenant-scoped Agent repository.
 
     提供基于企业隔离的智能体数据访问。
     查询时自动包含 scope=global 的全局智能体。
@@ -45,7 +47,7 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局 + 全部企业可见 + 已分配的智能体"""
+        """根据 ID 获取智能体，允许访问全局 + 全部企业可见 + 已分配的智能体 / Get agent by ID (global + all_tenants + assigned)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
             # 全局共享（管理端 + 全部企业）
@@ -77,7 +79,7 @@ class AgentRepository(TenantRepository[Agent]):
         include_deleted: bool = False,
     ) -> tuple[list[Agent], int]:
         """
-        企业级智能体列表查询
+        企业级智能体列表查询 / Tenant-scoped agent list query.
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -139,7 +141,7 @@ class AgentRepository(TenantRepository[Agent]):
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[Agent], int]:
         """
-        查询终端用户可访问的智能体列表
+        查询终端用户可访问的智能体列表 / List agents accessible to end users.
 
         在 AgentRepository.query_list 的企业可见性规则基础上，增加用户访问控制过滤：
         - visibility != private → 允许
@@ -230,7 +232,7 @@ class AgentRepository(TenantRepository[Agent]):
     async def cascade_soft_delete_conversations(
         self, agent_id: int, delete_level: str,
     ) -> None:
-        """级联软删除智能体的对话记录"""
+        """级联软删除智能体的对话记录 / Cascade soft-delete agent conversations."""
         now = utc_now()
         await self.db.execute(
             update(AgentConversation)
@@ -242,7 +244,7 @@ class AgentRepository(TenantRepository[Agent]):
         )
 
     async def cascade_escalate_conversations(self, agent_id: int) -> None:
-        """级联升级对话记录的删除层级"""
+        """级联升级对话记录的删除层级 / Cascade escalate conversation delete level."""
         now = utc_now()
         await self.db.execute(
             update(AgentConversation)
@@ -254,7 +256,7 @@ class AgentRepository(TenantRepository[Agent]):
         )
 
     async def cascade_restore_conversations(self, agent_id: int) -> None:
-        """级联恢复对话记录"""
+        """级联恢复对话记录 / Cascade restore conversations."""
         now = utc_now()
         await self.db.execute(
             update(AgentConversation)
@@ -272,7 +274,7 @@ class AgentRepository(TenantRepository[Agent]):
         limit: int = 100,
     ) -> list[Agent]:
         """
-        按状态获取智能体列表（包含全局智能体）
+        按状态获取智能体列表（包含全局智能体）/ Get agents by status (including global).
 
         Args:
             status: 智能体状态
@@ -312,7 +314,7 @@ class AgentRepository(TenantRepository[Agent]):
         limit: int = 100,
     ) -> list[Agent]:
         """
-        获取已发布的智能体列表
+        获取已发布的智能体列表 / Get published agents list.
 
         Args:
             skip: 跳过数量
@@ -333,7 +335,7 @@ class AgentRepository(TenantRepository[Agent]):
         exclude_id: int | None = None,
     ) -> Agent | None:
         """
-        按名称查找智能体（同企业内唯一性检查）
+        按名称查找智能体（同企业内唯一性检查）/ Find agent by name (uniqueness within tenant).
 
         Args:
             name: 智能体名称
@@ -357,7 +359,7 @@ class AgentRepository(TenantRepository[Agent]):
 
 class AdminAgentRepository(BaseRepository[Agent]):
     """
-    管理端智能体 Repository
+    管理端智能体 Repository / Admin-scoped agent repository.
 
     无企业隔离，供平台管理端全局查询使用
     """
@@ -367,7 +369,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
     async def cascade_soft_delete_conversations(
         self, agent_id: int, delete_level: str,
     ) -> None:
-        """级联软删除智能体的对话记录"""
+        """级联软删除智能体的对话记录 / Cascade soft-delete agent conversations."""
         now = utc_now()
         await self.db.execute(
             update(AgentConversation)
@@ -385,7 +387,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
         scope: str,
         exclude_id: int | None = None,
     ) -> Agent | None:
-        """检查同 scope+tenant_id 下名称是否重复"""
+        """检查同 scope+tenant_id 下名称是否重复 / Check name duplicate under same scope+tenant_id."""
         conditions = [
             Agent.name == name,
             Agent.scope == scope,
@@ -409,7 +411,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
         forced_filters: list[FilterRule] | None = None,
         include_deleted: bool = False,
     ) -> tuple[list[Agent], int]:
-        """重写以 eager load skill_bindings"""
+        """重写以 eager load skill_bindings / Override to eager load skill_bindings."""
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 

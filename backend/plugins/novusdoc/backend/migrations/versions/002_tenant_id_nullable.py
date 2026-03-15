@@ -1,4 +1,4 @@
-"""use tenant_id=0 for admin/platform document space
+"""use tenant_id=0 for admin/platform document space / 说明
 
 Revision ID: novusdoc_002_tid_nullable
 Revises: novusdoc_001_init
@@ -6,8 +6,7 @@ Create Date: 2026-03-15
 
 Admin/platform documents use tenant_id=0, tenant documents use tenant_id=N.
 FK constraint on tenants.id is dropped because 0 is a reserved sentinel,
-not a real tenant record.
-"""
+not a real tenant record."""
 import sqlalchemy as sa
 from alembic import op
 

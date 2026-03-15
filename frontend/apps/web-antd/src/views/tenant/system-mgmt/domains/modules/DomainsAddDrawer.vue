@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 /**
- * 添加域名抽屉
- * 使用 useVbenForm 实现声明式表单
+ * 添加域名抽屉；使用 useVbenForm 声明式表单。
+ * Add domain drawer; declarative form via useVbenForm.
  */
 import type { TenantDomainInfo } from './domains-types';
 
@@ -18,7 +18,7 @@ const emits = defineEmits<{
   success: [domain: TenantDomainInfo];
 }>();
 
-/** 表单 Schema */
+/** 表单 Schema / Form schema */
 function useFormSchema() {
   return [
     inputField('domain', $t('tenant.system.domain.domain'), {
@@ -52,7 +52,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
 });
 
-/** 提交表单 */
+/** 提交表单 / Submit form */
 async function onSubmit() {
   const { valid } = await formApi.validate();
   if (!valid) return;
@@ -77,7 +77,7 @@ async function onSubmit() {
   }
 }
 
-/** 打开抽屉 */
+/** 打开抽屉 / Open drawer */
 function open() {
   drawerApi.setData({ mode: 'add' }).open();
 }

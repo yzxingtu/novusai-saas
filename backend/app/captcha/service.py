@@ -1,6 +1,5 @@
 """
-Captcha Service
-验证码业务服务
+Captcha Service / 验证码业务服务
 
 Provides captcha generation, verification, failure tracking, and rate limiting.
 提供验证码生成、验证、失败跟踪和速率限制功能。

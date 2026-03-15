@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 /**
  * AI 表策略编辑表单抽屉
+ * AI table policy edit form drawer
  *
- * 仅编辑模式（策略由系统自动创建），支持动态加载列选项
+ * 仅编辑模式（策略由系统自动创建），支持动态加载列选项 / Edit-only; dynamic column options.
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { AITablePolicyInfo } from '#/api/admin/ai';
@@ -71,6 +72,7 @@ const title = computed(() => $t('admin.common.edit'));
 
 /**
  * 当记录 ID 变化时，加载列选项并更新 blocked_columns / readonly_columns 的 options
+ * On record ID change: load column options and update form schema options
  */
 watch(recordId, async (newId) => {
   if (newId && typeof newId === 'number') {

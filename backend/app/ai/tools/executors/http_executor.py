@@ -1,6 +1,5 @@
 """
-HTTP/Webhook Tool Executor
-HTTP/Webhook 工具执行器
+HTTP/Webhook Tool Executor. / HTTP/Webhook 工具执行器。
 
 Executes declarative HTTP requests with template variable substitution, multiple auth methods, and JSONPath response extraction.
 执行声明式 HTTP 请求，支持模板变量替换、多种认证方式、JSONPath 响应提取。
@@ -44,8 +43,7 @@ def _substitute_template(template: str, variables: dict[str, Any]) -> str:
 
 
 def _extract_json_path(data: Any, path: str) -> Any:
-    """Simple JSONPath extraction (supports $.a.b.c format)
-    简易 JSONPath 提取（支持 $.a.b.c 格式）"""
+    """Simple JSONPath extraction (supports $.a.b.c format). / 简易 JSONPath 提取（支持 $.a.b.c 格式）。"""
     if not path or not path.startswith("$"):
         return data
     parts = path.lstrip("$.").split(".")

@@ -17,7 +17,7 @@ from app.core.i18n import _
 
 
 class AIProviderCreate(BaseCreateSchema):
-    """创建 AI 供应商请求"""
+    """创建 AI 供应商请求 / Create AI provider request."""
 
     name: str = Field(..., max_length=100, description=_("enum.ai_provider.name"))
     code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
@@ -31,7 +31,7 @@ class AIProviderCreate(BaseCreateSchema):
 
 
 class AIProviderUpdate(BaseUpdateSchema):
-    """更新 AI 供应商请求"""
+    """更新 AI 供应商请求 / Update AI provider request."""
 
     name: str | None = Field(None, max_length=100, description=_("enum.ai_provider.name"))
     code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
@@ -45,7 +45,7 @@ class AIProviderUpdate(BaseUpdateSchema):
 
 
 class AIProviderResponse(BaseResponseSchema):
-    """AI 供应商响应"""
+    """AI 供应商响应 / AI provider response."""
 
     name: str = Field(..., description=_("enum.ai_provider.name"))
     code: str = Field(..., description=_("enum.ai_provider.code"))

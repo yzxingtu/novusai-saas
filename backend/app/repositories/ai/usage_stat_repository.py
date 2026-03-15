@@ -16,7 +16,7 @@ from app.models.tenant.tenant import Tenant
 
 class UsageStatRepository(BaseRepository[UsageStat]):
     """
-    使用量统计 Repository
+    使用量统计 Repository / Usage statistics repository.
     """
     model = UsageStat
 
@@ -25,7 +25,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         spec,
     ) -> tuple[list[dict], int]:
         """
-        查询使用量统计列表，附带 tenant_name 和 model_name
+        查询使用量统计列表，附带 tenant_name 和 model_name / Query usage stat list with tenant_name and model_name.
         """
         items, total = await self.query_list(spec)
 
@@ -84,7 +84,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         user_id: int | None = None,
     ) -> UsageStat:
         """
-        获取或创建统计记录
+        获取或创建统计记录 / Get or create stat record.
         """
         stmt = select(UsageStat).where(
             and_(
@@ -118,7 +118,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取企业使用量汇总
+        获取企业使用量汇总 / Get tenant usage summary.
         """
         stmt = select(
             func.sum(UsageStat.total_tokens).label("total_tokens"),
@@ -156,7 +156,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取用户使用量汇总
+        获取用户使用量汇总 / Get user usage summary.
         """
         stmt = select(
             func.sum(UsageStat.total_tokens).label("total_tokens"),
@@ -190,7 +190,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取模型使用量汇总
+        获取模型使用量汇总 / Get model usage summary.
         """
         stmt = select(
             func.sum(UsageStat.total_tokens).label("total_tokens"),
@@ -222,7 +222,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> list[dict]:
         """
-        获取企业每日用量统计
+        获取企业每日用量统计 / Get tenant daily usage stats.
         """
         stmt = select(
             UsageStat.stat_date.label("stat_date"),
@@ -267,7 +267,7 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         end_date: date | None = None,
     ) -> list[dict]:
         """
-        获取企业按模型维度的用量统计
+        获取企业按模型维度的用量统计 / Get tenant usage stats by model.
         """
         stmt = select(
             UsageStat.model_id,

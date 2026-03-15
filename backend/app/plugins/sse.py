@@ -1,6 +1,5 @@
 """
-Plugin SSE streaming response utility.
-/ 插件 SSE 流式响应工具
+Plugin SSE streaming response utility. / 插件 SSE 流式响应工具。
 
 Provides reusable StreamingResponse generator templates for plugin API handlers
 to reuse directly, avoiding each plugin re-implementing SSE encapsulation.

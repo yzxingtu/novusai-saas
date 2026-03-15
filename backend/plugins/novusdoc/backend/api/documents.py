@@ -13,12 +13,10 @@ from ..services.document_service import PLATFORM_TENANT_ID
 
 
 def _resolve_tenant_id(request, ctx) -> int:
-    """
-    Resolve tenant_id by endpoint side.
+    """Resolve tenant_id by endpoint side. / 说明
     - Tenant side: returns the real tenant ID from context.
     - Admin side:  returns PLATFORM_TENANT_ID (0).
-    Always returns int, never None.
-    """
+    Always returns int, never None."""
     tid = ctx.get_current_tenant_id()
     return tid if tid is not None else PLATFORM_TENANT_ID
 

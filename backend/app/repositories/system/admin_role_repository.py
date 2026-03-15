@@ -14,7 +14,7 @@ from app.models.auth.admin_role import AdminRole
 
 class AdminRoleRepository(BaseRepository[AdminRole]):
     """
-    平台管理员角色仓储
+    平台管理员角色仓储 / Admin role repository.
 
     提供平台角色特有的数据访问方法，包含层级结构查询
     """
@@ -32,7 +32,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
 
     async def get_by_code(self, code: str) -> AdminRole | None:
         """
-        根据代码获取角色
+        根据代码获取角色 / Get role by code.
 
         Args:
             code: 角色代码
@@ -48,7 +48,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色代码是否已存在
+        检查角色代码是否已存在 / Check if role code already exists.
 
         Args:
             code: 角色代码
@@ -75,7 +75,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取直接子角色列表
+        获取直接子角色列表 / Get direct child roles.
 
         Args:
             parent_id: 父角色 ID，None 表示获取顶级角色
@@ -102,7 +102,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取所有祖先角色（从根到父，不含自身）
+        获取所有祖先角色（从根到父，不含自身）/ Get all ancestor roles (root to parent, excluding self).
 
         Args:
             role_id: 角色 ID
@@ -140,7 +140,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取所有后代角色（不含自身）
+        获取所有后代角色（不含自身）/ Get all descendant roles (excluding self).
 
         使用 path 字段的 LIKE 查询实现
 
@@ -179,7 +179,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[int]:
         """
-        获取所有后代角色 ID（不含自身）
+        获取所有后代角色 ID（不含自身）/ Get all descendant role IDs (excluding self).
 
         Args:
             role_id: 角色 ID
@@ -197,7 +197,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取角色树（指定节点下的所有角色）
+        获取角色树（指定节点下的所有角色）/ Get role tree (all roles under given node).
 
         Args:
             parent_id: 父角色 ID，None 表示从根节点开始
@@ -239,7 +239,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有子角色
+        检查角色是否有子角色 / Check if role has children.
 
         Args:
             role_id: 角色 ID
@@ -265,7 +265,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计直接子角色数量
+        统计直接子角色数量 / Count direct child roles.
 
         Args:
             parent_id: 父角色 ID，None 表示统计顶级角色
@@ -289,7 +289,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取所有顶级角色（无父角色）
+        获取所有顶级角色（无父角色）/ Get all root roles (no parent).
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -305,7 +305,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有关联的管理员
+        检查角色是否有关联的管理员 / Check if role has associated admins.
 
         Args:
             role_id: 角色 ID
@@ -335,7 +335,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        根据节点类型获取角色列表
+        根据节点类型获取角色列表 / Get roles by type.
 
         Args:
             role_type: 节点类型 (department/position/role)
@@ -361,7 +361,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取所有部门节点
+        获取所有部门节点 / Get all department nodes.
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -381,7 +381,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> tuple[list, int]:
         """
-        获取节点成员列表（分页 + 搜索 + 递归子节点）
+        获取节点成员列表（分页 + 搜索 + 递归子节点）/ Get node members (paginated, search, optional descendants).
 
         Args:
             role_id: 角色/节点 ID
@@ -467,7 +467,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计节点成员数量
+        统计节点成员数量 / Count node members.
 
         Args:
             role_id: 角色/节点 ID
@@ -494,7 +494,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> AdminRole | None:
         """
-        获取角色并加载成员关系
+        获取角色并加载成员关系 / Get role with members loaded.
 
         Args:
             role_id: 角色 ID
@@ -523,7 +523,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树）
+        获取组织架构根节点列表（用于按需加载树）/ Get org root nodes (for lazy-loading tree).
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -558,7 +558,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         include_deleted: bool = False,
     ) -> list[AdminRole]:
         """
-        获取指定节点的直接子节点（含关联数据）
+        获取指定节点的直接子节点（含关联数据）/ Get direct children of node (with relations).
 
         Args:
             parent_id: 父节点 ID

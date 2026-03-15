@@ -13,7 +13,7 @@ logger = LogManager.get_logger("queue")
 
 class TaskManagerService:
     """
-    任务管理服务
+    任务管理服务 / Task manager service.
 
     封装 Celery 控制操作，提供任务重试、取消和监控功能
     """

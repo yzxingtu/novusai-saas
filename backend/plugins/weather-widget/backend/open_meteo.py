@@ -42,7 +42,7 @@ _nominatim_last_ts: float = 0.0
 
 
 async def _nominatim_throttle() -> None:
-    """Enforce 1 request/second for Nominatim (OSM usage policy)."""
+    """Enforce 1 request/second for Nominatim (OSM usage policy). / 说明"""
     global _nominatim_last_ts
     async with _nominatim_lock:
         now = time.monotonic()
@@ -128,8 +128,7 @@ async def get_weather_all(
     longitude: float,
     days: int = 3,
 ) -> dict[str, Any]:
-    """
-    单次请求获取 current + daily + hourly 全量天气数据。
+    """单次请求获取 current + daily + hourly 全量天气数据 / Single request for current + daily + hourly weather.
 
     Returns:
         {
@@ -269,8 +268,7 @@ async def get_forecast(latitude: float, longitude: float, days: int = 3) -> list
 
 
 async def get_air_quality(latitude: float, longitude: float) -> dict[str, Any]:
-    """
-    获取空气质量数据 (Open-Meteo Air Quality API)。
+    """获取空气质量数据 (Open-Meteo Air Quality API) / Get air quality (Open-Meteo Air Quality API).
 
     Returns:
         {
@@ -392,9 +390,7 @@ _CITY_FIELDS = ("city", "town", "village", "county", "suburb", "state_district",
 
 
 async def reverse_geocode(latitude: float, longitude: float) -> dict | None:
-    """
-    坐标 -> 城市名。优先 Nominatim zoom=14，失败回退 Open-Meteo geocoding。
-    """
+    """坐标 -> 城市名。优先 Nominatim zoom=14，失败回退 Open-Meteo geocoding / Coords to city name (Nominatim then Open-Meteo fallback)."""
     cache_key = f"rgeo:{latitude:.2f}:{longitude:.2f}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -461,7 +457,7 @@ async def _reverse_nominatim(latitude: float, longitude: float) -> dict | None:
 
 
 async def _reverse_open_meteo(latitude: float, longitude: float) -> dict | None:
-    """Fallback: use Open-Meteo geocoding API to find nearest city."""
+    """Fallback: use Open-Meteo geocoding API to find nearest city. / 接口/处理器"""
     try:
         async with _make_client() as client:
             resp = await client.get(

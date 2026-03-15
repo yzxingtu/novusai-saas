@@ -13,7 +13,7 @@ from app.models.system.admin import Admin
 
 class AdminRepository(BaseRepository[Admin]):
     """
-    平台管理员仓储
+    平台管理员仓储 / Admin repository.
 
     提供管理员特有的数据访问方法
     """
@@ -31,7 +31,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def get_by_username(self, username: str) -> Admin | None:
         """
-        根据用户名获取管理员
+        根据用户名获取管理员 / Get admin by username.
 
         Args:
             username: 用户名
@@ -43,7 +43,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def get_by_email(self, email: str) -> Admin | None:
         """
-        根据邮箱获取管理员
+        根据邮箱获取管理员 / Get admin by email.
 
         Args:
             email: 邮箱
@@ -55,7 +55,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def get_by_phone(self, phone: str) -> Admin | None:
         """
-        根据手机号获取管理员
+        根据手机号获取管理员 / Get admin by phone.
 
         Args:
             phone: 手机号
@@ -70,7 +70,7 @@ class AdminRepository(BaseRepository[Admin]):
         username_or_email: str,
     ) -> Admin | None:
         """
-        根据用户名或邮箱获取管理员（用于登录）
+        根据用户名或邮箱获取管理员（用于登录）/ Get admin by username or email (for login).
 
         Args:
             username_or_email: 用户名或邮箱
@@ -90,7 +90,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def username_exists(self, username: str, exclude_id: int | None = None) -> bool:
         """
-        检查用户名是否已存在
+        检查用户名是否已存在 / Check if username already exists.
 
         Args:
             username: 用户名
@@ -111,7 +111,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def email_exists(self, email: str, exclude_id: int | None = None) -> bool:
         """
-        检查邮箱是否已存在
+        检查邮箱是否已存在 / Check if email already exists.
 
         Args:
             email: 邮箱
@@ -132,7 +132,7 @@ class AdminRepository(BaseRepository[Admin]):
 
     async def phone_exists(self, phone: str, exclude_id: int | None = None) -> bool:
         """
-        检查手机号是否已存在
+        检查手机号是否已存在 / Check if phone already exists.
 
         Args:
             phone: 手机号

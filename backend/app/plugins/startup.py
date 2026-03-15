@@ -1,6 +1,5 @@
 """
-Plugin startup: auto-discovery + restoration.
-/ 插件启动：自动发现 + 恢复
+Plugin startup: auto-discovery + restoration. / 插件启动：自动发现 + 恢复。
 
 At service startup:
 1. discover_and_register: scan plugins/ directory, auto-register new plugins to DB (status=installed)

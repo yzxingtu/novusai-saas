@@ -38,7 +38,7 @@ _CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
 
 class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
     """
-    企业域名服务
+    企业域名服务 / Tenant domain service.
 
     提供域名特有的业务方法
     注意：域名管理是平台级操作，不做企业隔离
@@ -49,7 +49,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _get_domain_suffix(self) -> str:
         """
-        获取企业默认域名后缀
+        获取企业默认域名后缀 / Get tenant default domain suffix.
 
         优先从平台配置读取，回退到环境变量
         """
@@ -62,7 +62,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _get_verification_prefix(self) -> str:
         """
-        获取域名验证 DNS 前缀
+        获取域名验证 DNS 前缀 / Get domain verification DNS prefix.
 
         优先从平台配置读取，回退到环境变量
         """
@@ -75,7 +75,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取企业及其套餐信息
+        获取企业及其套餐信息 / Get tenant with plan.
         """
         result = await self.db.execute(
             select(Tenant)
@@ -86,7 +86,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _check_custom_domain_allowed(self, tenant_id: int) -> tuple[bool, int]:
         """
-        检查企业是否允许添加自定义域名
+        检查企业是否允许添加自定义域名 / Check if tenant can add custom domain.
 
         Args:
             tenant_id: 企业 ID
@@ -111,7 +111,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         tenant_code: str,
     ) -> TenantDomain:
         """
-        创建企业默认域名
+        创建企业默认域名 / Create tenant default domain.
 
         默认域名格式: {tenant_code}{suffix}
         后缀从平台配置读取（tenant_domain_suffix）
@@ -160,7 +160,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         skip_quota_check: bool = False,
     ) -> TenantDomain:
         """
-        添加自定义域名
+        添加自定义域名 / Add custom domain.
 
         自定义域名需要 DNS 验证后才能使用
 
@@ -216,7 +216,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def remove_domain(self, domain_id: int) -> bool:
         """
-        删除域名
+        删除域名 / Delete domain.
 
         Args:
             domain_id: 域名 ID
@@ -263,7 +263,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         domain_id: int,
     ) -> TenantDomain:
         """
-        设置主域名
+        设置主域名 / Set primary domain.
 
         每个企业只能有一个主域名
 
@@ -305,7 +305,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
-        验证域名
+        验证域名 / Verify domain.
 
         查询 DNS TXT 记录验证域名所有权
 
@@ -369,7 +369,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def _verify_dns_txt_record(self, domain: TenantDomain) -> bool:
         """
-        验证 DNS TXT 记录
+        验证 DNS TXT 记录 / Verify DNS TXT record.
 
         Args:
             domain: 域名实例
@@ -404,7 +404,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
         """
-        获取企业所有域名
+        获取企业所有域名 / Get all tenant domains.
 
         Args:
             tenant_id: 企业 ID
@@ -416,7 +416,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         """
-        获取企业主域名
+        获取企业主域名 / Get tenant primary domain.
 
         Args:
             tenant_id: 企业 ID
@@ -428,7 +428,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_by_domain(self, domain: str) -> TenantDomain | None:
         """
-        根据域名获取记录
+        根据域名获取记录 / Get record by domain.
 
         Args:
             domain: 域名
@@ -444,7 +444,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         remark: str | None = None,
     ) -> TenantDomain:
         """
-        更新域名信息
+        更新域名信息 / Update domain info.
 
         Args:
             domain_id: 域名 ID
@@ -476,7 +476,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     def _generate_verification_token(self) -> str:
         """
-        生成域名验证 Token
+        生成域名验证 Token / Generate domain verification token.
 
         Returns:
             32 位随机字符串
@@ -485,7 +485,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_cname_target(self, tenant_id: int) -> str:
         """
-        获取企业的 CNAME 解析目标
+        获取企业的 CNAME 解析目标 / Get tenant CNAME target.
 
         Args:
             tenant_id: 企业 ID
@@ -501,7 +501,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def get_verification_record(self, domain_obj: TenantDomain) -> dict:
         """
-        获取 DNS 验证记录信息
+        获取 DNS 验证记录信息 / Get DNS verification record info.
 
         Args:
             domain_obj: 域名实例
@@ -624,7 +624,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     def _should_inject_hosts(self) -> bool:
         """
-        是否允许在当前服务上下文中注入 hosts
+        是否允许在当前服务上下文中注入 hosts / Whether hosts injection is allowed in current context.
 
         管理端（TenantDomainService）返回 True；
         企业端（TenantDomainTenantService）覆盖返回 False，防止误写入。
@@ -633,7 +633,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     def get_cname_record(self, domain: TenantDomain) -> dict:
         """
-        获取 CNAME 记录信息
+        获取 CNAME 记录信息 / Get CNAME record info.
 
         Args:
             domain: 域名实例
@@ -650,7 +650,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
     async def batch_provision_ssl(self, tenant_id: int) -> int:
         """
-        批量为企业所有已验证但无 SSL 的域名触发签发
+        批量为企业所有已验证但无 SSL 的域名触发签发 / Batch trigger SSL issuance for verified domains without SSL.
 
         Args:
             tenant_id: 企业 ID
@@ -698,15 +698,14 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
         TenantService.__init__(self, db, tenant_id)
 
     def _should_inject_hosts(self) -> bool:
-        """企业端禁止 hosts 注入，防止非预期写入本地系统文件"""
+        """企业端禁止 hosts 注入，防止非预期写入本地系统文件 / Tenant side: disable hosts injection."""
         return False
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
-        企业端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响
+        企业端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响 / Tenant domain verification: always real DNS, DEBUG does not bypass.
 
-        安全原则：企业端不应因 DEBUG=true 而绕过 DNS 验证，
-        防止企业在开发/测试环境中意外验证不属于自己的域名。
+        安全原则：企业端不应因 DEBUG=true 而绕过 DNS 验证。
         """
         domain = await self.get_by_id(domain_id)
         if not domain:

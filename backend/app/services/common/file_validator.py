@@ -58,7 +58,7 @@ class FileValidator:
         file_size: int | None = None,
     ) -> FileValidationResult:
         """
-        平台端文件验证
+        平台端文件验证 / Platform-side file validation.
 
         使用平台配置进行验证
 
@@ -98,7 +98,7 @@ class FileValidator:
         file_size: int | None = None,
     ) -> FileValidationResult:
         """
-        企业端文件验证
+        企业端文件验证 / Tenant-side file validation.
 
         优先使用企业配置，如果企业未配置则使用平台配置
 
@@ -147,12 +147,10 @@ class FileValidator:
         denied_extensions: set[str],
     ) -> FileValidationResult:
         """
-        验证文件扩展名
+        验证文件扩展名 / Validate file extension.
 
-        规则：
-        1. 如果在禁止列表中，直接拒绝
-        2. 如果允许列表为空，表示不限制，通过
-        3. 如果允许列表不为空，必须在允许列表中
+        规则：1. 禁止列表直接拒绝 2. 允许列表为空则通过 3. 否则须在允许列表中
+        Rules: deny list rejects; empty allow list passes; else must be in allow list.
         """
         # 禁止列表优先级最高 / Deny list has highest priority
         if extension in denied_extensions:
@@ -253,7 +251,7 @@ class FileValidator:
 
 def validate_result_or_raise(result: FileValidationResult) -> None:
     """
-    验证结果，如果不通过则抛出异常
+    验证结果，如果不通过则抛出异常 / Validate result and raise if failed.
 
     Args:
         result: 验证结果

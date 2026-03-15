@@ -27,8 +27,7 @@ _active_session_count = 0
 
 def _get_engine_and_factory():
     """
-    Get (or rebuild) async engine and session factory.
-    获取（或重建）async engine 和 session factory。
+    获取（或重建）async engine 和 session factory / Get (or rebuild) async engine and session factory.
 
     Destroys and rebuilds the old engine if the current event loop differs from the cached one.
     如果当前 event loop 与缓存的不同，销毁旧 engine 并重建。
@@ -64,8 +63,7 @@ def _get_engine_and_factory():
 @asynccontextmanager
 async def task_async_session():
     """
-    Async DB Session context manager for Celery tasks.
-    Celery 任务用异步 DB Session 上下文管理器。
+    Celery 任务用异步 DB Session 上下文管理器 / Async DB Session context manager for Celery tasks.
 
     Reuses engine within the same event loop; auto-rebuilds when loop changes.
     同一 event loop 内复用 engine，loop 变化时自动重建。

@@ -13,9 +13,9 @@ from app.core.base_schema import BaseSchema
 
 
 class TenantAdminLoginRequest(BaseSchema):
-    """企业管理员登录请求"""
+    """企业管理员登录请求 / Tenant admin login request."""
 
-    username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
+    username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱 / Username or email")
     password: str = Field(..., min_length=1, description="密码")
     tenant_code: str | None = Field(None, max_length=50, description="企业编码（用于限定登录范围）")
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
@@ -24,9 +24,9 @@ class TenantAdminLoginRequest(BaseSchema):
 
 
 class TenantAdminResponse(BaseSchema):
-    """企业管理员信息响应"""
+    """企业管理员信息响应 / Tenant admin info response."""
 
-    id: int = Field(..., description="管理员 ID")
+    id: int = Field(..., description="管理员 ID / Admin ID")
     tenant_id: int = Field(..., description="企业 ID")
     username: str = Field(..., description="用户名")
     email: str = Field(..., description="邮箱")
@@ -49,7 +49,7 @@ class TenantAdminResponse(BaseSchema):
         has_plan: bool = True,
         plan_name: str | None = None,
     ) -> "TenantAdminResponse":
-        """从模型创建响应，包含角色名称和套餐状态"""
+        """从模型创建响应，包含角色名称和套餐状态 / Build response from model with role name and plan status."""
         return cls(
             id=admin.id,
             tenant_id=admin.tenant_id,
@@ -70,9 +70,9 @@ class TenantAdminResponse(BaseSchema):
 
 
 class TenantAdminCreateRequest(BaseSchema):
-    """创建企业管理员请求"""
+    """创建企业管理员请求 / Create tenant admin request."""
 
-    username: str = Field(..., min_length=2, max_length=50, description="用户名")
+    username: str = Field(..., min_length=2, max_length=50, description="用户名 / Username")
     email: str = Field(..., description="邮箱")
     password: str = Field(..., min_length=6, max_length=50, description="密码")
     phone: str | None = Field(None, description="手机号")
@@ -83,9 +83,9 @@ class TenantAdminCreateRequest(BaseSchema):
 
 
 class TenantAdminUpdateRequest(BaseSchema):
-    """更新企业管理员请求"""
+    """更新企业管理员请求 / Update tenant admin request."""
 
-    email: str | None = Field(None, description="邮箱")
+    email: str | None = Field(None, description="邮箱 / Email")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像 URL")
@@ -95,16 +95,16 @@ class TenantAdminUpdateRequest(BaseSchema):
 
 
 class TenantAdminChangePasswordRequest(BaseSchema):
-    """企业管理员修改密码请求"""
+    """企业管理员修改密码请求 / Tenant admin change password request."""
 
-    old_password: str = Field(..., min_length=1, description="旧密码")
+    old_password: str = Field(..., min_length=1, description="旧密码 / Old password")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class TenantAdminUpdateProfileRequest(BaseSchema):
-    """企业管理员自助修改个人信息请求"""
+    """企业管理员自助修改个人信息请求 / Tenant admin self-update profile request."""
 
-    nickname: str | None = Field(None, max_length=50, description="昵称")
+    nickname: str | None = Field(None, max_length=50, description="昵称 / Nickname")
     avatar: str | None = Field(None, max_length=500, description="头像 URL")
     email: str | None = Field(None, max_length=100, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")

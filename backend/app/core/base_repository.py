@@ -693,7 +693,7 @@ class BaseRepository(Generic[ModelType]):
         page_size: int = 20,
     ) -> tuple[list[SelectOption], int]:
         """
-        获取下拉选项列表
+        获取下拉选项列表 / Get select option list.
 
         根据模型的 __selectable__ 配置自动构建查询，支持列表和树型两种模式
 
@@ -810,7 +810,7 @@ class BaseRepository(Generic[ModelType]):
         parent_id: int | None = None,
     ) -> list[SelectOption]:
         """
-        获取树型下拉选项
+        获取树型下拉选项 / Get tree select options.
 
         Args:
             selectable: __selectable__ 配置
@@ -892,7 +892,7 @@ class BaseRepository(Generic[ModelType]):
         children_field: str = "children",
     ) -> list[SelectOption]:
         """
-        构建 SelectOption 列表
+        构建 SelectOption 列表 / Build SelectOption list.
 
         Args:
             items: 模型实例列表
@@ -954,7 +954,7 @@ class BaseRepository(Generic[ModelType]):
         children_field: str,
     ) -> list[SelectOption]:
         """
-        构建树型 SelectOption 结构
+        构建树型 SelectOption 结构 / Build tree SelectOption structure.
 
         Args:
             items: 所有模型实例（平坦列表）
@@ -1473,7 +1473,7 @@ class TenantRepository(BaseRepository[ModelType]):
         page_size: int = 20,
     ) -> tuple[list[SelectOption], int]:
         """
-        企业级下拉选项列表
+        企业级下拉选项列表 / Tenant-level select options list.
 
         自动注入 tenant_id 过滤，支持列表和树型两种模式
 

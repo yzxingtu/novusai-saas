@@ -31,7 +31,7 @@ logger = LogManager.get_logger("plugin.admin")
 
 
 def _sanitize_slug(slug: str) -> None:
-    """Validate marketplace slug to prevent path traversal. Raises 400 on invalid slug."""
+    """校验 marketplace slug 防止路径遍历，无效时抛 400 / Validate marketplace slug to prevent path traversal. Raises 400 on invalid."""
     if not slug or not _SLUG_PATTERN.match(slug) or len(slug) > 128:
         from app.exceptions.base import ValidationException
         raise ValidationException(
@@ -68,24 +68,24 @@ class PluginRollbackBody(PydanticBaseModel):
 
 
 class MenuOverrideItem(PydanticBaseModel):
-    """Single menu override: which parent to mount under"""
+    """单条菜单覆盖：挂载到哪个父级 / Single menu override: which parent to mount under."""
     name: str = Field(..., max_length=100, description="Menu name from plugin.yaml")
     parent: str = Field(..., max_length=100, pattern=r"^[a-z0-9_]+$", description="Admin parent menu code (e.g. system_mgmt)")
     tenant_parent: str | None = Field(None, max_length=100, description="Tenant parent menu code (for admin_and_all scope)")
 
 
 class PluginMenuConfigBody(PydanticBaseModel):
-    """Admin-configurable menu placement overrides"""
+    """管理员可配置的菜单位置覆盖 / Admin-configurable menu placement overrides."""
     menu_overrides: list[MenuOverrideItem] = Field(default_factory=list)
 
 
 class PluginEnableBody(PydanticBaseModel):
-    """Optional body for enable endpoint with menu config"""
+    """启用接口的可选 body（含菜单配置）/ Optional body for enable endpoint with menu config."""
     menu_overrides: list[MenuOverrideItem] = Field(default_factory=list)
 
 
 class PluginDependencyActionBody(PydanticBaseModel):
-    """Install/uninstall dependency switches"""
+    """安装/卸载依赖开关 / Install/uninstall dependency switches."""
     python: bool = True
     npm: bool = True
     force: bool = False
@@ -462,8 +462,7 @@ class AdminPluginController(GlobalController):
         @action_read("action.plugin.list")
         async def get_menu_parent_options(db: DbSession, admin: ActiveAdmin):
             """
-            获取可用的父级菜单树，供插件菜单挂载位置选择。
-            Get available parent menu tree for plugin menu mount point selection.
+            获取可用的父级菜单树，供插件菜单挂载位置选择 / Get available parent menu tree for plugin menu mount.
 
             同时返回 admin 和 tenant 两侧的菜单树（多级嵌套），
             前端可按插件菜单的 scope 显示对应分组。
@@ -488,7 +487,7 @@ class AdminPluginController(GlobalController):
             all_menus = list(result.scalars().all())
 
             def _short_name(code: str) -> str:
-                """'menu:admin.system_mgmt' -> 'system_mgmt'"""
+                """将 menu:admin.xxx 转为最后一段（如 system_mgmt）/ 'menu:admin.system_mgmt' -> 'system_mgmt'."""
                 return code.rsplit(".", 1)[-1] if "." in code else code
 
             def _label(perm: Permission) -> str:
@@ -586,8 +585,8 @@ class AdminPluginController(GlobalController):
 
         def _extract_plugin_from_zip(file_content: bytes, filename: str) -> tuple[Path, Path]:
             """
-            解压 ZIP 到系统临时目录，返回 (staging_dir, plugin_dir)。
-            Extract ZIP to system temp directory, return (staging_dir, plugin_dir).
+            解压 ZIP 到系统临时目录，返回 (staging_dir, plugin_dir) / Extract ZIP to temp dir, return (staging_dir, plugin_dir).
+
             使用系统临时目录，不在项目内，避免触发 --reload。
             Uses system temp directory, not within project, to avoid triggering --reload.
             调用方负责清理 staging_dir。

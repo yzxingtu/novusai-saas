@@ -1,4 +1,4 @@
-"""插件 manifest 强校验回归测试。"""
+"""插件 manifest 强校验回归测试。 / Plugin."""
 
 from __future__ import annotations
 

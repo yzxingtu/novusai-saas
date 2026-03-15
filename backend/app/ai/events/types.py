@@ -1,6 +1,5 @@
 """
-Event Type Definitions
-事件类型定义
+Event Type Definitions / 事件类型定义
 
 Defines all event types used in the agent engine.
 定义智能体引擎中使用的所有事件类型。

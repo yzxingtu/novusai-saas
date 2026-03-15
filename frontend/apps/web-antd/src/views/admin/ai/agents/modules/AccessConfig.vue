@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
  * 智能体访问权限配置抽屉（管理端）
+ * Agent access config drawer (admin)
  *
- * 仅配置 admin_role_ids（管理端角色权限控制）。
- * 企业端/用户端的角色权限由企业管理员自行配置。
+ * 仅配置 admin_role_ids；企业端/用户端角色由企业管理员配置。
+ * Configures admin_role_ids only; tenant/user roles configured by tenant admin.
  */
 import { computed, onMounted, ref } from 'vue';
 

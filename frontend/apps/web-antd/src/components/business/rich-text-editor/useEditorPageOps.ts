@@ -24,7 +24,10 @@ const md = new MarkdownIt({ html: true, breaks: true });
 
 const MD_PATTERNS = /^#{1,6}\s|^\*\*|^\- |\*\*.*\*\*|^\d+\.\s|^>\s|```/m;
 
-/** Normalize HTML for reliable string matching (e.g. replace_section old_html from LLM may have different escaping) */
+/**
+ * Normalize HTML for reliable string matching (e.g. replace_section old_html from LLM may have different escaping).
+ * 规范化 HTML 以便可靠字符串匹配（如 replace_section 的 old_html 来自 LLM 时转义可能不同）。
+ */
 function normalizeHtmlForMatch(html: string): string {
   let s = html.trim();
   // Decode common entities
@@ -39,7 +42,10 @@ function normalizeHtmlForMatch(html: string): string {
   return s;
 }
 
-/** Fix broken table style that TipTap or AI may output (width: 0px → 100%) */
+/**
+ * Fix broken table style that TipTap or AI may output (width: 0px → 100%).
+ * 修复 TipTap 或 AI 可能输出的错误表格样式（width: 0px → 100%）。
+ */
 function fixTableWidthZero(html: string): string {
   return html.replace(
     /style="width:\s*0px;?"/gi,
@@ -50,6 +56,7 @@ function fixTableWidthZero(html: string): string {
 /**
  * Sanitize table attributes so TipTap TableMap does not throw "No cell with offset X found".
  * Ensures colspan/rowspan are simple numeric attributes (e.g. colspan="1").
+ * 清理表格属性，避免 TipTap TableMap 抛出 "No cell with offset X found"；确保 colspan/rowspan 为简单数字属性。
  */
 function sanitizeTableAttributesForSetContent(html: string): string {
   return html
@@ -57,6 +64,7 @@ function sanitizeTableAttributesForSetContent(html: string): string {
     .replace(/\browspan\s*=\s*["']?\\?"?\s*(\d+)\s*\\?"?["']?/gi, 'rowspan="$1"');
 }
 
+/** Ensure content is HTML; if looks like Markdown, render to HTML. / 确保内容为 HTML；若像 Markdown 则渲染为 HTML */
 function ensureHtml(content: string): string {
   if (/<[a-z][\s\S]*>/i.test(content)) return content;
   if (MD_PATTERNS.test(content)) return md.render(content);
@@ -94,6 +102,7 @@ export function useEditorPageOps(
             'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
             + 'content 参数必须是 HTML（如 <h1>标题</h1><p>正文</p>），不要发送 Markdown。\n'
             + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
+            + '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n'
             + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
             + '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
           has_editor: true,
@@ -130,10 +139,16 @@ export function useEditorPageOps(
         handler: async () => {
           const raw = editor.getHTML();
           const html = fixTableWidthZero(raw);
+          const maxLen = 8000;
+          const cut =
+            html.length <= maxLen ? html : html.slice(0, maxLen);
+          const lastClose = cut.lastIndexOf('>');
+          const safe =
+            lastClose >= 0 ? cut.slice(0, lastClose + 1) : cut;
           return {
             success: true,
             message: `HTML content retrieved (${html.length} chars)`,
-            data: { html: html.slice(0, 8000) },
+            data: { html: safe },
           };
         },
       },
@@ -153,7 +168,9 @@ export function useEditorPageOps(
           const raw = String(params.content || '');
           if (!raw)
             return { success: false, message: 'No content provided' };
-          const html = ensureHtml(raw);
+          const html = sanitizeTableAttributesForSetContent(
+            fixTableWidthZero(ensureHtml(raw)),
+          );
           editor.chain().focus().insertContent(html).run();
           return {
             success: true,
@@ -175,7 +192,9 @@ export function useEditorPageOps(
         },
         handler: async (params: Record<string, unknown>) => {
           const raw = String(params.content || '');
-          const html = fixTableWidthZero(ensureHtml(raw));
+          const html = sanitizeTableAttributesForSetContent(
+            fixTableWidthZero(ensureHtml(raw)),
+          );
           editor.commands.setContent(html);
           return {
             success: true,
@@ -185,7 +204,7 @@ export function useEditorPageOps(
       },
       {
         name: 'replace_section',
-        label: 'Replace section',
+        label: $t('common.replaceSection'),
         description:
           'Find a section by its old HTML snippet and replace it with new HTML. '
           + 'Use this for partial edits — only the matched section is replaced, '
@@ -215,6 +234,13 @@ export function useEditorPageOps(
           const normCurrent = normalizeHtmlForMatch(currentHtml);
           const normOld = normalizeHtmlForMatch(oldSnippet);
 
+          if (normOld.length < 3) {
+            return {
+              success: false,
+              message:
+                'old_html is too short after normalization; use a unique HTML fragment of at least a few characters.',
+            };
+          }
           if (!normCurrent.includes(normOld)) {
             const snippetLen = 450;
             const excerpt = currentHtml.slice(0, snippetLen);
@@ -264,7 +290,9 @@ export function useEditorPageOps(
           const raw = String(params.content || '');
           if (!raw)
             return { success: false, message: 'No content provided' };
-          const html = ensureHtml(raw);
+          const html = sanitizeTableAttributesForSetContent(
+            fixTableWidthZero(ensureHtml(raw)),
+          );
           const endPos = editor.state.doc.content.size;
           editor.chain().focus().insertContentAt(endPos, html).run();
           return {

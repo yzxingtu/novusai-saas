@@ -6,7 +6,7 @@ Dynamically enhances tool definitions with runtime context before sending to LLM
 
 Primary use-case: inject ``enum`` (valid operation names) and ``default`` (current page_key)
 into the ``invoke_page_operation`` tool so the LLM is structurally constrained to produce
-valid calls.
+valid calls. / 主要用途：向 invoke_page_operation 注入 enum 与 default，约束 LLM 产出合法调用。
 """
 
 from __future__ import annotations
@@ -26,10 +26,7 @@ def enhance_tools_with_page_context(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
 ) -> None:
-    """Mutate *tools* in-place: add ``enum`` / ``default`` to invoke_page_operation.
-
-    Safe to call when no page context exists — it simply returns early.
-    """
+    """Mutate *tools* in-place: add ``enum`` / ``default`` to invoke_page_operation. / 原地增强 *tools*：为 invoke_page_operation 添加 enum 与 default。无页面上下文时安全返回。"""
     if not input_variables:
         return
 

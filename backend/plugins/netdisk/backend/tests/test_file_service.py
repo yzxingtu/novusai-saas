@@ -1,7 +1,4 @@
-"""
-FileService 单元测试 — pytest + unittest.mock
-不依赖真实 DB/Storage/Redis
-"""
+"""FileService 单元测试 — pytest + unittest.mock，不依赖真实 DB/Storage/Redis / FileService unit tests — no real DB/Storage/Redis."""
 
 from __future__ import annotations
 
@@ -13,7 +10,7 @@ TENANT_ID = 1
 
 
 def _make_service(mock_db=None):
-    """创建 FileService 实例（跳过 __init__）"""
+    """创建 FileService 实例（跳过 __init__） / Create FileService instance (skip __init__)."""
     from ..services.file_service import FileService
     svc = FileService.__new__(FileService)
     svc.db = mock_db or AsyncMock()

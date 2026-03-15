@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /**
  * AI 调用日志列表页面
+ * AI call log list page
  */
 import type { AICallLogInfo } from '#/api/admin/ai';
 

@@ -33,8 +33,7 @@ def mask_secret_values(
     valves_config: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     """
-    将 valves_config 中标记为秘密的值替换为脱敏形式。
-    Replace secret-marked values in valves_config with masked form.
+    将 valves_config 中标记为秘密的值替换为脱敏形式 / Mask secret values in valves_config.
 
     用于 GET 接口返回时隐藏敏感信息。
     Used to hide sensitive information in GET endpoint responses.

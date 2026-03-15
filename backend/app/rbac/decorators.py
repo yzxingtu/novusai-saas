@@ -1,6 +1,5 @@
 """
-Permission Decorators
-权限装饰器
+Permission Decorators. / 权限装饰器。
 
 Declaratively define permissions on controllers via decorators, auto-scanned and synced to DB on app startup.
 通过装饰器在控制器上声明式定义权限，应用启动时自动扫描并同步到数据库。

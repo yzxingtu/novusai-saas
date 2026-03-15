@@ -17,7 +17,7 @@ from app.enums.ai import CallStatusEnum, RequestTypeEnum
 
 class AICallLog(TenantModel):
     """
-    AI 调用日志模型
+    AI 调用日志模型 / AI call log model.
 
     记录每次 AI 调用的详细信息，包括：
     - 企业和用户信息

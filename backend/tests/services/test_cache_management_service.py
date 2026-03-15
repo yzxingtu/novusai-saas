@@ -1,8 +1,6 @@
-"""
-CacheManagementService 单元测试
+"""CacheManagementService 单元测试 / Test.
 
-覆盖：缓存统计扫描、缓存清理、格式化工具函数、枚举/Schema 验证。
-"""
+覆盖：缓存统计扫描、缓存清理、格式化工具函数、枚举/Schema 验证。"""
 
 from __future__ import annotations
 
@@ -255,7 +253,7 @@ class TestClearCache:
 
 
 class AsyncIterator:
-    """Helper to create async iterator from a list for mock scan_iter."""
+    """Helper to create async iterator from a list for mock scan_iter. / 创建"""
 
     def __init__(self, items: list):
         self._items = items

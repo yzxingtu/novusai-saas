@@ -8,6 +8,7 @@ export {
 } from './page-context-registry';
 export type { PageContextData, PageContextResolver } from './page-context-registry';
 export {
+  appendPageOperations,
   clearPageOperationRegistry,
   executePageOperation,
   findPageOperation,

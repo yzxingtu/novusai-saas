@@ -10,8 +10,12 @@ Provides per-module independent log files and unified log format.
 - db: 数据库日志 / Database logs
 - task: 计划任务日志 / Scheduled task logs
 - queue: 队列日志 / Queue logs
+- captcha / storage / auth / impersonate: 见 LogCategoryEnum
 
-文件命名 / File naming: {category}.log, rotated to {category}.log.2026-01-20 etc.
+文件命名与轮转 / File naming and rotation:
+- 当前文件: {category}.log
+- 按大小轮转（RotatingFileHandler，约 10MB 触发），备份命名为 {category}.log.1, .2, ...
+- 各分类保留 backupCount 个备份（app 等 30 个，error 90 个）
 """
 
 import contextlib
@@ -28,7 +32,7 @@ from app.enums.log import LogCategoryEnum
 
 class _WindowsSafeRotatingFileHandler(RotatingFileHandler):
     """
-    Windows 安全的 RotatingFileHandler
+    Windows 安全的 RotatingFileHandler / Windows-safe RotatingFileHandler.
 
     多进程（FastAPI + Celery Worker）同时写同一日志文件时，
     标准 RotatingFileHandler.doRollover() 使用 os.rename()，
@@ -71,7 +75,7 @@ _CATEGORY_LOGGER_PREFIX = "novusai."
 
 class LogManager:
     """
-    日志管理器
+    日志管理器 / Log manager.
 
     提供按模块独立的日志配置，支持分类日志和日期轮转
     """
@@ -91,7 +95,7 @@ class LogManager:
         enable_file: bool = True,
     ) -> None:
         """
-        初始化日志系统
+        初始化日志系统 / Initialize logging system.
 
         Args:
             log_dir: 日志目录
@@ -159,7 +163,7 @@ class LogManager:
     @classmethod
     def _init_category_loggers(cls) -> None:
         """
-        初始化分类日志器
+        初始化分类日志器 / Initialize category loggers.
 
         为需要独立文件的分类创建日志器和文件处理器
         """
@@ -199,7 +203,7 @@ class LogManager:
     @classmethod
     def _setup_sqlalchemy_logging(cls) -> None:
         """
-        配置 SQLAlchemy 日志
+        配置 SQLAlchemy 日志 / Configure SQLAlchemy logging.
 
         将 SQLAlchemy 日志重定向到 db 分类日志器（仅文件，不输出到控制台）
         """
@@ -224,7 +228,7 @@ class LogManager:
 
     @classmethod
     def _create_console_handler(cls, level: int) -> logging.StreamHandler:
-        """创建控制台处理器"""
+        """创建控制台处理器 / Create console handler."""
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
 
@@ -244,13 +248,13 @@ class LogManager:
         backup_count: int = 5,
     ) -> RotatingFileHandler:
         """
-        创建文件处理器（按大小轮转）
+        创建文件处理器（按大小轮转） / Create file handler (size-based rotation).
 
         Args:
-            name: 日志文件名（不含扩展名）
-            level: 日志级别
-            max_bytes: 单个文件最大字节数
-            backup_count: 保留备份文件数
+            name: 日志文件名（不含扩展名） / Log file name (no extension).
+            level: 日志级别 / Log level.
+            max_bytes: 单个文件最大字节数 / Max bytes per file.
+            backup_count: 保留备份文件数 / Number of backup files.
         """
         if cls._log_dir is None:
             raise RuntimeError("LogManager not initialized")
@@ -278,7 +282,7 @@ class LogManager:
         backup_count: int = 30,
     ) -> _WindowsSafeRotatingFileHandler:
         """
-        创建文件处理器（按大小轮转，避免 Windows 文件占用问题）
+        创建文件处理器（按大小轮转，避免 Windows 文件占用问题）/ Create timed file handler (size-based, Windows-safe).
 
         Windows 不允许重命名被占用的文件，TimedRotatingFileHandler 会失败。
         使用 _WindowsSafeRotatingFileHandler 按大小轮转，轮转失败时静默跳过。
@@ -316,7 +320,7 @@ class LogManager:
         level: int | None = None,
     ) -> logging.Logger:
         """
-        获取模块日志器
+        获取模块日志器 / Get module logger.
 
         Args:
             name: 日志器名称（通常为模块名）
@@ -370,7 +374,7 @@ class LogManager:
     @classmethod
     def get_category_logger(cls, category: LogCategoryEnum | str) -> logging.Logger:
         """
-        获取分类日志器
+        获取分类日志器 / Get category logger.
 
         Args:
             category: 日志分类（LogCategoryEnum 或字符串）
@@ -401,7 +405,7 @@ class LogManager:
     @classmethod
     def get_app_logger(cls) -> logging.Logger:
         """
-        获取应用日志器
+        获取应用日志器 / Get app logger.
 
         记录到 logs/app.log
         """
@@ -410,7 +414,7 @@ class LogManager:
     @classmethod
     def get_error_logger(cls) -> logging.Logger:
         """
-        获取错误日志器
+        获取错误日志器 / Get error logger.
 
         记录到 logs/error.log（仅 ERROR 级别以上）
         """
@@ -419,7 +423,7 @@ class LogManager:
     @classmethod
     def get_db_logger(cls) -> logging.Logger:
         """
-        获取数据库日志器
+        获取数据库日志器 / Get db logger.
 
         记录到 logs/db.log
         """
@@ -428,7 +432,7 @@ class LogManager:
     @classmethod
     def get_task_logger(cls) -> logging.Logger:
         """
-        获取计划任务日志器
+        获取计划任务日志器 / Get task logger.
 
         记录到 logs/task.log
         """
@@ -437,7 +441,7 @@ class LogManager:
     @classmethod
     def get_queue_logger(cls) -> logging.Logger:
         """
-        获取队列日志器
+        获取队列日志器 / Get queue logger.
 
         记录到 logs/queue.log
         """
@@ -446,7 +450,7 @@ class LogManager:
     @classmethod
     def get_captcha_logger(cls) -> logging.Logger:
         """
-        获取验证码日志器
+        获取验证码日志器 / Get captcha logger.
 
         记录到 logs/captcha.log
         """
@@ -455,7 +459,7 @@ class LogManager:
     @classmethod
     def get_storage_logger(cls) -> logging.Logger:
         """
-        获取存储日志器
+        获取存储日志器 / Get storage logger.
 
         记录到 logs/storage.log
         """
@@ -464,7 +468,7 @@ class LogManager:
     @classmethod
     def get_auth_logger(cls) -> logging.Logger:
         """
-        获取认证日志器
+        获取认证日志器 / Get auth logger.
 
         记录到 logs/auth.log
         """
@@ -473,7 +477,7 @@ class LogManager:
     @classmethod
     def get_impersonate_logger(cls) -> logging.Logger:
         """
-        获取一键登录审计日志器
+        获取一键登录审计日志器 / Get impersonate audit logger.
 
         记录到 logs/impersonate.log
         """
@@ -481,16 +485,16 @@ class LogManager:
 
     @classmethod
     def get_log_dir(cls) -> Path | None:
-        """获取日志目录路径"""
+        """获取日志目录路径 / Get log directory path."""
         return cls._log_dir
 
     @classmethod
     def list_log_files(cls) -> list[Path]:
         """
-        列出日志目录中的所有日志文件
+        列出日志目录中的所有日志文件 / List all log files in log directory.
 
         Returns:
-            日志文件路径列表
+            日志文件路径列表 / List of log file paths.
         """
         if cls._log_dir is None:
             return []
@@ -499,11 +503,11 @@ class LogManager:
 
 def get_logger(name: str, *, separate_file: bool = False) -> logging.Logger:
     """
-    获取日志器的便捷函数
+    获取日志器的便捷函数 / Get logger convenience function.
 
     Args:
-        name: 日志器名称
-        separate_file: 是否使用独立日志文件
+        name: 日志器名称 / Logger name.
+        separate_file: 是否使用独立日志文件 / Whether to use separate log file.
 
     Returns:
         logging.Logger
@@ -518,47 +522,47 @@ def get_logger(name: str, *, separate_file: bool = False) -> logging.Logger:
 
 
 def get_app_logger() -> logging.Logger:
-    """获取应用日志器"""
+    """获取应用日志器 / Get application logger."""
     return LogManager.get_app_logger()
 
 
 def get_db_logger() -> logging.Logger:
-    """获取数据库日志器"""
+    """获取数据库日志器 / Get database logger."""
     return LogManager.get_db_logger()
 
 
 def get_task_logger() -> logging.Logger:
-    """获取计划任务日志器"""
+    """获取计划任务日志器 / Get scheduled task logger."""
     return LogManager.get_task_logger()
 
 
 def get_queue_logger() -> logging.Logger:
-    """获取队列日志器"""
+    """获取队列日志器 / Get queue logger."""
     return LogManager.get_queue_logger()
 
 
 def get_captcha_logger() -> logging.Logger:
-    """获取验证码日志器"""
+    """获取验证码日志器 / Get captcha logger."""
     return LogManager.get_captcha_logger()
 
 
 def get_storage_logger() -> logging.Logger:
-    """获取存储日志器"""
+    """获取存储日志器 / Get storage logger."""
     return LogManager.get_storage_logger()
 
 
 def get_auth_logger() -> logging.Logger:
-    """获取认证日志器"""
+    """获取认证日志器 / Get auth logger."""
     return LogManager.get_auth_logger()
 
 
 def get_impersonate_logger() -> logging.Logger:
-    """获取一键登录审计日志器"""
+    """获取一键登录审计日志器 / Get impersonate audit logger."""
     return LogManager.get_impersonate_logger()
 
 
 def init_logging() -> None:
-    """初始化日志系统"""
+    """初始化日志系统 / Initialize logging system."""
     LogManager.init()
 
 
@@ -568,23 +572,21 @@ def init_logging() -> None:
 
 class LoggerMixin:
     """
-    日志器混入类
+    日志器混入类 / Logger mixin.
 
     提供延迟加载的 logger 属性，避免模块导入时 LogManager 未初始化的问题。
+    Provides lazy logger property to avoid LogManager not initialized at import.
 
-    使用方式 1 - 默认使用 app 日志：
+    使用方式 1 - 默认使用 app 日志 / Usage 1 - default app logger:
         class MyService(LoggerMixin):
             def do_something(self):
                 self.logger.info("Doing something")
 
-    使用方式 2 - 指定日志分类：
+    使用方式 2 - 指定日志分类 / Usage 2 - specify category:
         class CaptchaProvider(LoggerMixin):
             _log_category = LogCategoryEnum.CAPTCHA
 
-            def generate(self):
-                self.logger.debug("Generating captcha")
-
-    使用方式 3 - 多重继承：
+    使用方式 3 - 多重继承 / Usage 3 - multiple inheritance:
         class AttachmentService(BaseService, LoggerMixin):
             _log_category = LogCategoryEnum.STORAGE
     """
@@ -598,7 +600,7 @@ class LoggerMixin:
     @property
     def logger(self) -> logging.Logger:
         """
-        获取日志器（延迟加载，类级别缓存）
+        获取日志器（延迟加载，类级别缓存） / Get logger (lazy, class-level cache).
         """
         cls = self.__class__
         if cls not in LoggerMixin.__class_loggers:
@@ -618,37 +620,37 @@ class LoggerMixin:
 
 
 class CaptchaLoggerMixin(LoggerMixin):
-    """验证码模块日志器混入类"""
+    """验证码模块日志器混入类 / Captcha logger mixin."""
     _log_category = LogCategoryEnum.CAPTCHA
 
 
 class StorageLoggerMixin(LoggerMixin):
-    """存储模块日志器混入类"""
+    """存储模块日志器混入类 / Storage logger mixin."""
     _log_category = LogCategoryEnum.STORAGE
 
 
 class AuthLoggerMixin(LoggerMixin):
-    """认证模块日志器混入类"""
+    """认证模块日志器混入类 / Auth logger mixin."""
     _log_category = LogCategoryEnum.AUTH
 
 
 class TaskLoggerMixin(LoggerMixin):
-    """任务模块日志器混入类"""
+    """任务模块日志器混入类 / Task logger mixin."""
     _log_category = LogCategoryEnum.TASK
 
 
 class QueueLoggerMixin(LoggerMixin):
-    """队列模块日志器混入类"""
+    """队列模块日志器混入类 / Queue logger mixin."""
     _log_category = LogCategoryEnum.QUEUE
 
 
 class DbLoggerMixin(LoggerMixin):
-    """数据库模块日志器混入类"""
+    """数据库模块日志器混入类 / DB logger mixin."""
     _log_category = LogCategoryEnum.DB
 
 
 class ImpersonateLoggerMixin(LoggerMixin):
-    """一键登录审计日志器混入类"""
+    """一键登录审计日志器混入类 / Impersonate audit logger mixin."""
     _log_category = LogCategoryEnum.IMPERSONATE
 
 

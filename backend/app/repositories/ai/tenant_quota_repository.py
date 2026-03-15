@@ -11,7 +11,7 @@ from app.models.ai import TenantQuota
 
 class AdminTenantQuotaRepository(BaseRepository[TenantQuota]):
     """
-    平台端 AI 配额配置 Repository（跨企业）
+    平台端 AI 配额配置 Repository（跨企业）/ Platform AI quota config repository (cross-tenant).
 
     用于平台管理员查看所有企业的配额配置
     """
@@ -20,7 +20,7 @@ class AdminTenantQuotaRepository(BaseRepository[TenantQuota]):
 
 class TenantQuotaRepository(TenantRepository[TenantQuota]):
     """
-    企业 AI 配额配置 Repository
+    企业 AI 配额配置 Repository / Tenant AI quota config repository.
     """
 
     model = TenantQuota
@@ -32,7 +32,7 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         period: str = "monthly"
     ) -> TenantQuota | None:
         """
-        获取企业对指定模型的配额配置
+        获取企业对指定模型的配额配置 / Get tenant quota config for model.
 
         Args:
             tenant_id: 企业 ID
@@ -60,7 +60,7 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         period: str | None = None
     ) -> list[TenantQuota]:
         """
-        获取企业所有激活的配额配置
+        获取企业所有激活的配额配置 / Get all active quota configs for tenant.
 
         Args:
             tenant_id: 企业 ID
@@ -92,7 +92,7 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         model_id: int,
     ) -> TenantQuota | None:
         """
-        获取企业对指定模型的激活配额配置（按创建时间倒序取最新）
+        获取企业对指定模型的激活配额配置（按创建时间倒序取最新）/ Get active quota config for tenant+model (latest by created_at).
 
         Args:
             tenant_id: 企业 ID

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class NotificationChannel(ABC):
     """
-    通知渠道抽象基类
+    通知渠道抽象基类 / Notification channel abstract base.
 
     每个渠道实现三个核心方法：
     - channel_code: 渠道标识码
@@ -28,17 +28,17 @@ class NotificationChannel(ABC):
     @property
     @abstractmethod
     def channel_code(self) -> str:
-        """渠道标识码，如 'ws', 'inbox', 'email', 'webhook'"""
+        """渠道标识码，如 'ws', 'inbox', 'email', 'webhook' / Channel code (e.g. ws, inbox, email, webhook)."""
         ...
 
     @property
     def channel_name(self) -> str:
-        """渠道显示名称（供前端展示，默认等于 code）"""
+        """渠道显示名称（供前端展示，默认等于 code） / Channel display name (defaults to code)."""
         return self.channel_code
 
     @abstractmethod
     async def is_enabled(self) -> bool:
-        """检查该渠道是否全局启用"""
+        """检查该渠道是否全局启用 / Check if channel is globally enabled."""
         ...
 
     @abstractmethod
@@ -57,7 +57,7 @@ class NotificationChannel(ABC):
         **kwargs: Any,
     ) -> bool:
         """
-        投递通知到该渠道
+        投递通知到该渠道 / Deliver notification to this channel.
 
         Args:
             db: 数据库会话（收件箱渠道需要）

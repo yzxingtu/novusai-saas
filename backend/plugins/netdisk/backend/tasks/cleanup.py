@@ -1,7 +1,5 @@
-"""
-网盘回收站清理 + 配额重算定时任务
-每天 02:00 运行，避开平台 cleanup_recycle_bin 的 03:00
-"""
+"""网盘回收站清理 + 配额重算定时任务 / +
+每天 02:00 运行，避开平台 cleanup_recycle_bin 的 03:00"""
 
 from __future__ import annotations
 
@@ -21,11 +19,7 @@ logger = LogManager.get_logger("task")
     max_retries=1,
 )
 def netdisk_cleanup(self: BaseTask, retention_days: int = 0) -> dict:
-    """
-    合并任务（原 clean_trash + sync_quota）：
-    1. 物理删除超时回收站节点（px_netdisk_nodes）
-    2. 调用 StorageManager 删除真实文件
-    3. 重算各受影响企业的 used_bytes
+    """合并任务（原 clean_trash + sync_quota）/ Combined task: 1) delete expired trash nodes 2) StorageManager cleanup 3) recompute used_bytes.
 
     Args:
         retention_days: 回收站保留天数，默认从插件 config 读取，此处为 fallback

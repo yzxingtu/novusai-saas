@@ -28,7 +28,7 @@ logger = LogManager.get_logger("app")
 
 class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmentRepository]):
     """
-    系统智能体绑定服务
+    系统智能体绑定服务 / System agent assignment service.
     """
 
     model = SystemAgentAssignment
@@ -38,7 +38,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, agent_id: int | None, tenant_id: int | None = None
     ) -> None:
         """
-        校验 agent_id 有效性：存在 + 已发布 + 对企业可见。
+        校验 agent_id 有效性：存在 + 已发布 + 对企业可见 / Validate agent_id: exists, published, visible to tenant.
 
         Args:
             agent_id: 要校验的智能体 ID，None 时跳过（清除绑定）
@@ -117,7 +117,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         )
 
     async def _before_create(self, data: dict[str, Any]) -> dict[str, Any]:
-        """创建前校验 feature_code + tenant_id 唯一"""
+        """创建前校验 feature_code + tenant_id 唯一 / Before create: ensure feature_code + tenant_id unique."""
         feature_code = data.get("feature_code", "")
         tenant_id = data.get("tenant_id")
         if tenant_id is not None:
@@ -132,7 +132,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
 
     async def resolve(self, feature_code: str) -> SystemAgentAssignment | None:
         """
-        全局 resolve：返回启用的全局默认绑定
+        全局 resolve：返回启用的全局默认绑定 / Resolve global: return active global default binding.
         """
         return await self.repo.get_active_by_feature_code(feature_code)
 
@@ -140,23 +140,23 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认 / Tenant resolve: tenant override first, then global default.
         """
         return await self.repo.resolve_for_tenant(feature_code, tenant_id)
 
     async def get_all_global(self) -> list[SystemAgentAssignment]:
-        """获取所有全局默认绑定"""
+        """获取所有全局默认绑定 / Get all global default bindings."""
         return await self.repo.get_all_global()
 
     async def get_all_for_tenant(self, tenant_id: int) -> list[SystemAgentAssignment]:
-        """获取企业的所有覆盖绑定"""
+        """获取企业的所有覆盖绑定 / Get all tenant override bindings."""
         return await self.repo.get_all_for_tenant(tenant_id)
 
     async def set_tenant_override(
         self, feature_code: str, tenant_id: int, agent_id: int | None, config: dict | None = None
     ) -> SystemAgentAssignment:
         """
-        创建或更新企业覆盖绑定
+        创建或更新企业覆盖绑定 / Create or update tenant override binding.
         """
         await self.validate_agent_id(agent_id, tenant_id=tenant_id)
 
@@ -200,7 +200,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
     async def delete_tenant_override(self, feature_code: str, tenant_id: int) -> bool:
-        """删除企业覆盖（恢复全局默认）
+        """删除企业覆盖（恢复全局默认）/ Delete tenant override (restore to global default).
 
         使用硬删除，因为覆盖是配置记录而非用户数据，
         且 UniqueConstraint 不含 is_deleted 过滤，软删除后无法重建。

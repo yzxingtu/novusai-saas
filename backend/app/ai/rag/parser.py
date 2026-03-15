@@ -1,6 +1,5 @@
 """
-Document Parser Module
-文档解析器模块
+Document Parser Module / 文档解析器模块
 
 Supports 11 formats: PDF, DOCX, TXT, Markdown, CSV, XLSX, HTML, Q&A, URL, PPTX, Image (JPG/PNG/WebP/GIF).
 Unified output as ParsedPage list for chunker consumption.
@@ -18,6 +17,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, BinaryIO
 
 if TYPE_CHECKING:
+    from app.ai.rag.audio_describer import AudioDescriber
+    from app.ai.rag.video_describer import VideoDescriber
     from app.ai.rag.vision_describer import VisionDescriber
     from app.models.ai.knowledge_base import KnowledgeBase
 
@@ -54,8 +55,7 @@ class DocumentParser(ABC):
 
 class PdfParser(DocumentParser):
     """
-    PDF Parser
-    PDF 解析器
+    PDF Parser / PDF 解析器
 
     Uses PyMuPDF (fitz) to extract text, preserving page number metadata.
     When knowledge_base.extract_images=True and VisionDescriber is injected,
@@ -151,8 +151,7 @@ class PdfParser(DocumentParser):
 
 class DocxParser(DocumentParser):
     """
-    DOCX Parser
-    DOCX 解析器
+    DOCX Parser / DOCX 解析器
 
     Uses python-docx to extract paragraphs and tables, preserving heading hierarchy metadata.
     使用 python-docx 提取段落和表格，保留标题层级元数据。
@@ -212,8 +211,7 @@ class DocxParser(DocumentParser):
 
 class TxtParser(DocumentParser):
     """
-    TXT Parser
-    TXT 解析器
+    TXT Parser / TXT 解析器
 
     Splits by blank lines into paragraphs.
     按空行分段。
@@ -244,8 +242,7 @@ class TxtParser(DocumentParser):
 
 class MarkdownParser(DocumentParser):
     """
-    Markdown Parser
-    Markdown 解析器
+    Markdown Parser / Markdown 解析器
 
     Splits by heading hierarchy, preserving headings as metadata.
     Code blocks and tables are kept intact.
@@ -294,8 +291,7 @@ class MarkdownParser(DocumentParser):
 
 class CsvParser(DocumentParser):
     """
-    CSV Parser
-    CSV 解析器
+    CSV Parser / CSV 解析器
 
     Uses pandas to read, each row converted to "column_name: value" format text.
     使用 pandas 读取，每行转为 "列名: 值" 格式文本。
@@ -333,8 +329,7 @@ class CsvParser(DocumentParser):
 
 class XlsxParser(DocumentParser):
     """
-    Excel (.xlsx) Parser
-    Excel (.xlsx) 解析器
+    Excel (.xlsx) Parser / Excel (.xlsx) 解析器
 
     Uses openpyxl to read, supports multiple sheets, each row converted to "column_name: value" format text.
     使用 openpyxl 读取，支持多 Sheet，每行转为 "列名: 值" 格式文本。
@@ -387,8 +382,7 @@ class XlsxParser(DocumentParser):
 
 class QaPairParser:
     """
-    Q&A Pair Parser
-    Q&A 对解析器
+    Q&A Pair Parser / Q&A 对解析器
 
     Manually input Q&A pairs, each Q+A pair as one ParsedPage.
     手动输入的问答对，每对 Q+A 作为一个 ParsedPage。
@@ -425,8 +419,7 @@ class QaPairParser:
 
 class HtmlParser(DocumentParser):
     """
-    HTML File Parser
-    HTML 文件解析器
+    HTML File Parser / HTML 文件解析器
 
     Uses BeautifulSoup to extract body content, filtering out script/style and other non-content tags.
     使用 BeautifulSoup 提取正文，过滤 script/style 等非内容标签。
@@ -483,8 +476,7 @@ class HtmlParser(DocumentParser):
 
 class UrlParser(DocumentParser):
     """
-    URL Parser
-    URL 解析器
+    URL Parser / URL 解析器
 
     Uses httpx + beautifulsoup4 to fetch web pages and extract body content.
     使用 httpx + beautifulsoup4 爬取网页，提取正文。
@@ -563,8 +555,7 @@ class UrlParser(DocumentParser):
 
 class ImageParser(DocumentParser):
     """
-    Image File Parser (jpg/jpeg/png/webp/gif)
-    图片文件解析器（jpg/jpeg/png/webp/gif）
+    Image File Parser (jpg/jpeg/png/webp/gif) / 图片文件解析器（jpg/jpeg/png/webp/gif）
 
     Calls VisionDescriber to generate text descriptions for images, returns a single ParsedPage.
     If vision_describer is None or description is empty, returns ParsedPage with content=""
@@ -613,10 +604,81 @@ class ImageParser(DocumentParser):
         )]
 
 
+class AudioParser(DocumentParser):
+    """
+    Audio File Parser / 音频文件解析器
+
+    Uses AudioDescriber to transcribe audio to text for embedding.
+    If describer is None or returns "", returns empty ParsedPage (filtered by processor).
+    使用 AudioDescriber 将音频转写为文本供 embedding。无 describer 或返回 "" 时返回空 ParsedPage（由 processor 过滤）。
+    """
+
+    def __init__(
+        self,
+        audio_describer: AudioDescriber | None = None,
+        knowledge_base: KnowledgeBase | None = None,
+    ) -> None:
+        self._audio_describer = audio_describer
+        self._knowledge_base = knowledge_base
+
+    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+        audio_bytes = file_content.read()
+        if not self._audio_describer or not audio_bytes:
+            return [ParsedPage(content="", metadata={"source": file_name})]
+        mime_type, _ = mimetypes.guess_type(file_name or "audio.mp3")
+        if not mime_type or not mime_type.startswith("audio/"):
+            mime_type = "audio/mpeg"
+        description = await self._audio_describer.describe_audio(
+            audio_bytes=audio_bytes,
+            mime_type=mime_type,
+            knowledge_base=self._knowledge_base,
+        )
+        logger.info("Audio parsed: %s, description_len=%d", file_name, len(description))
+        return [ParsedPage(
+            content=description,
+            metadata={"source": file_name, "mime_type": mime_type},
+        )]
+
+
+class VideoParser(DocumentParser):
+    """
+    Video File Parser / 视频文件解析器
+
+    Uses VideoDescriber to get text description for embedding.
+    If describer is None or returns "", returns empty ParsedPage (filtered by processor).
+    使用 VideoDescriber 得到文本描述供 embedding。无 describer 或返回 "" 时返回空 ParsedPage（由 processor 过滤）。
+    """
+
+    def __init__(
+        self,
+        video_describer: VideoDescriber | None = None,
+        knowledge_base: KnowledgeBase | None = None,
+    ) -> None:
+        self._video_describer = video_describer
+        self._knowledge_base = knowledge_base
+
+    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+        video_bytes = file_content.read()
+        if not self._video_describer or not video_bytes:
+            return [ParsedPage(content="", metadata={"source": file_name})]
+        mime_type, _ = mimetypes.guess_type(file_name or "video.mp4")
+        if not mime_type or not mime_type.startswith("video/"):
+            mime_type = "video/mp4"
+        description = await self._video_describer.describe_video(
+            video_bytes=video_bytes,
+            mime_type=mime_type,
+            knowledge_base=self._knowledge_base,
+        )
+        logger.info("Video parsed: %s, description_len=%d", file_name, len(description))
+        return [ParsedPage(
+            content=description,
+            metadata={"source": file_name, "mime_type": mime_type},
+        )]
+
+
 class PptxParser(DocumentParser):
     """
-    PPTX Parser
-    PPTX 解析器
+    PPTX Parser / PPTX 解析器
 
     Uses python-pptx to extract per-slide:
     - Text box/placeholder content
@@ -697,11 +759,15 @@ class PptxParser(DocumentParser):
 
 
 _IMAGE_TYPES: frozenset[str] = frozenset({"image", "jpg", "jpeg", "png", "webp", "gif"})
+_AUDIO_TYPES: frozenset[str] = frozenset({"audio", "mp3", "wav", "m4a", "flac", "aac"})
+_VIDEO_TYPES: frozenset[str] = frozenset({"video", "mp4", "webm", "mov", "avi", "mkv"})
 
 
 def get_parser(
     file_type: str,
     vision_describer: VisionDescriber | None = None,
+    audio_describer: AudioDescriber | None = None,
+    video_describer: VideoDescriber | None = None,
     knowledge_base: KnowledgeBase | None = None,
 ) -> DocumentParser:
     """
@@ -709,10 +775,12 @@ def get_parser(
     工厂方法：根据文件类型获取解析器
 
     Args:
-        file_type: File type (pdf/docx/txt/md/csv/url/pptx/image...) / 文件类型
+        file_type: File type (pdf/docx/txt/md/csv/url/pptx/image/audio/video...) / 文件类型
         vision_describer: Vision description service for ImageParser and enhanced PdfParser
                           图片描述服务，供 ImageParser 和增强版 PdfParser 使用
-        knowledge_base: KB object for image parsers / 知识库对象，供图片解析器使用
+        audio_describer: Audio-to-text service for AudioParser / 音频转文本服务，供 AudioParser 使用
+        video_describer: Video-to-text service for VideoParser / 视频转文本服务，供 VideoParser 使用
+        knowledge_base: KB object for image/audio/video parsers / 知识库对象，供图片/音频/视频解析器使用
 
     Returns:
         Corresponding parser instance / 对应的解析器实例
@@ -765,5 +833,7 @@ __all__ = [
     "UrlParser",
     "PptxParser",
     "ImageParser",
+    "AudioParser",
+    "VideoParser",
     "get_parser",
 ]

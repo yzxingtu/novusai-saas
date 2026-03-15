@@ -11,7 +11,7 @@ from app.models.ai.conversation_message import ConversationMessage
 
 class ConversationMessageRepository(TenantRepository[ConversationMessage]):
     """
-    企业级对话消息 Repository
+    企业级对话消息 Repository / Tenant conversation message repository.
 
     提供按对话获取消息、追加消息、统计等方法
     """
@@ -25,7 +25,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         limit: int = 200,
     ) -> list[ConversationMessage]:
         """
-        获取对话的消息列表（按 sequence 升序）
+        获取对话的消息列表（按 sequence 升序）/ Get conversation messages (asc by sequence).
 
         Args:
             conversation_id: 对话 ID
@@ -53,7 +53,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
 
     async def get_next_sequence(self, conversation_id: int) -> int:
         """
-        获取对话的下一个消息序号
+        获取对话的下一个消息序号 / Get next message sequence for conversation.
 
         Args:
             conversation_id: 对话 ID
@@ -74,7 +74,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
 
     async def get_token_sum(self, conversation_id: int) -> int:
         """
-        统计对话的总 token 数
+        统计对话的总 token 数 / Sum token count for conversation.
 
         Args:
             conversation_id: 对话 ID
@@ -94,7 +94,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
 
     async def count_by_conversation(self, conversation_id: int) -> int:
         """
-        统计对话的消息数量
+        统计对话的消息数量 / Count messages in conversation.
 
         Args:
             conversation_id: 对话 ID
@@ -119,7 +119,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         limit: int = 50,
     ) -> tuple[list[ConversationMessage], int]:
         """
-        跨对话消息内容全文搜索（ilike）
+        跨对话消息内容全文搜索（ilike）/ Full-text search messages by content (ilike).
 
         Args:
             keyword: 搜索关键词
@@ -161,7 +161,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         n: int = 10,
     ) -> list[ConversationMessage]:
         """
-        获取对话最近 N 条消息（用于构建上下文窗口）
+        获取对话最近 N 条消息（用于构建上下文窗口）/ Get last N messages of conversation (for context window).
 
         Args:
             conversation_id: 对话 ID

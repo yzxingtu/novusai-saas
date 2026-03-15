@@ -18,7 +18,7 @@ logger = LogManager.get_logger("app")
 
 
 class EmailChannel(NotificationChannel):
-    """邮件渠道 — 通过 Celery notification 队列异步发送"""
+    """邮件渠道 — 通过 Celery notification 队列异步发送 / Email channel — async via Celery notification queue."""
 
     @property
     def channel_code(self) -> str:
@@ -29,7 +29,7 @@ class EmailChannel(NotificationChannel):
         return "Email"
 
     async def is_enabled(self) -> bool:
-        """检查 SMTP 邮件发送是否启用"""
+        """检查 SMTP 邮件发送是否启用 / Check if SMTP email sending is enabled."""
         try:
             from app.core.database import sync_session_factory
             from app.models.system.config import SystemConfig, SystemConfigValue
@@ -69,7 +69,7 @@ class EmailChannel(NotificationChannel):
         **kwargs: Any,
     ) -> bool:
         """
-        通过邮件发送通知
+        通过邮件发送通知 / Deliver notification via email.
 
         支持 kwargs:
             email_html: 自定义 HTML 邮件正文（富文本邮件场景）
@@ -140,7 +140,7 @@ class EmailChannel(NotificationChannel):
 
     @staticmethod
     async def _get_user_email(db: AsyncSession, user_type: str, user_id: int) -> str | None:
-        """获取用户邮箱"""
+        """获取用户邮箱 / Get user email address."""
         from sqlalchemy import select
 
         if user_type == "admin":

@@ -1,5 +1,5 @@
 /**
- * Upload rule constants
+ * Upload rule constants / 上传规则常量
  *
  * Aligned with backend platform storage configuration defaults:
  * - platform_storage_allowed_extensions
@@ -12,7 +12,7 @@
 
 // ============ Extension Sets ============
 
-/** Image file extensions */
+/** Image file extensions / 图片文件扩展名 */
 export const IMAGE_EXTENSIONS = new Set([
   'bmp',
   'gif',
@@ -24,7 +24,7 @@ export const IMAGE_EXTENSIONS = new Set([
   'webp',
 ]);
 
-/** Document file extensions */
+/** Document file extensions / 文档文件扩展名 */
 export const DOCUMENT_EXTENSIONS = new Set([
   'csv',
   'doc',
@@ -39,13 +39,13 @@ export const DOCUMENT_EXTENSIONS = new Set([
   'xml',
 ]);
 
-/** Video file extensions */
+/** Video file extensions / 视频文件扩展名 */
 export const VIDEO_EXTENSIONS = new Set(['avi', 'mkv', 'mov', 'mp4', 'webm']);
 
-/** Audio file extensions */
+/** Audio file extensions / 音频文件扩展名 */
 export const AUDIO_EXTENSIONS = new Set(['aac', 'flac', 'm4a', 'mp3', 'wav']);
 
-/** Archive file extensions */
+/** Archive file extensions / 压缩包文件扩展名 */
 export const ARCHIVE_EXTENSIONS = new Set(['7z', 'gz', 'rar', 'tar', 'zip']);
 
 // ============ Platform Default Rules ============
@@ -82,13 +82,13 @@ export const PLATFORM_DENIED_EXTENSIONS = new Set([
   'so',
 ]);
 
-/** Default max file size in MB (synced with backend platform_storage_max_file_size_mb) */
+/** Default max file size in MB (synced with backend platform_storage_max_file_size_mb) / 默认最大文件大小(MB) */
 export const PLATFORM_MAX_FILE_SIZE_MB = 100;
 
 // ============ AI Chat Specific ============
 
 /**
- * AI Chat accepted extensions for the file picker `accept` attribute.
+ * AI Chat accepted extensions for the file picker `accept` attribute / AI 对话文件选择器 accept 扩展名
  * A subset of PLATFORM_ALLOWED_EXTENSIONS commonly used in chat.
  */
 export const CHAT_ACCEPTED_EXTENSIONS = [
@@ -99,7 +99,7 @@ export const CHAT_ACCEPTED_EXTENSIONS = [
   ...[...ARCHIVE_EXTENSIONS].map((ext) => `.${ext}`),
 ];
 
-/** AI Chat max file size in MB (more conservative than platform default) */
+/** AI Chat max file size in MB (more conservative than platform default) / AI 对话最大文件大小(MB) */
 export const CHAT_MAX_FILE_SIZE_MB = 10;
 
 /**
@@ -109,7 +109,7 @@ export function buildAcceptAttribute(extensions: string[]): string {
   return extensions.join(',');
 }
 
-/** Pre-built accept attribute string for AI Chat file input */
+/** Pre-built accept attribute string for AI Chat file input / AI 对话文件选择 accept 字符串 */
 export const CHAT_ACCEPT_ATTRIBUTE = buildAcceptAttribute(
   CHAT_ACCEPTED_EXTENSIONS,
 );
@@ -117,7 +117,7 @@ export const CHAT_ACCEPT_ATTRIBUTE = buildAcceptAttribute(
 // ============ Validation Helpers ============
 
 /**
- * Check if a filename has an allowed extension.
+ * Check if a filename has an allowed extension / 检查文件名扩展名是否允许
  *
  * @param filename - File name or path
  * @param allowed - Set of allowed extensions (lowercase, no dot)

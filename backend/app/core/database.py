@@ -158,8 +158,7 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 def _warn_if_pg_not_running(exc: Exception) -> None:
     """
-    检测到 PostgreSQL 未启动时，在控制台输出清晰的启动指引
-    When PostgreSQL is not running, print clear startup instructions to the console
+    检测到 PostgreSQL 未启动时，在控制台输出清晰的启动指引 / When PostgreSQL is not running, print clear startup instructions to the console.
 
     仅当错误信息包含 "Connection refused" 时触发
     Triggered only when the error message contains "Connection refused"

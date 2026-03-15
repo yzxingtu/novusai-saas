@@ -11,7 +11,7 @@ from app.models.system.periodic_task import PeriodicTask
 
 class TenantPeriodicTaskRepository(TenantRepository[PeriodicTask]):
     """
-    企业端定时任务仓储（自动按 tenant_id 过滤）
+    企业端定时任务仓储（自动按 tenant_id 过滤）/ Tenant periodic task repository (auto tenant_id filter).
     """
 
     model = PeriodicTask

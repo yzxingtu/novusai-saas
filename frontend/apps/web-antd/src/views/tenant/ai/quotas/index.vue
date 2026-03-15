@@ -70,7 +70,7 @@ const { list: rateLimits, loading: rateLimitLoading } =
     ai: false,
   });
 
-/** 获取进度条颜色 */
+/** 获取进度条颜色 / Get progress bar color */
 function getProgressColor(item: TenantQuotaWithUsageInfo): string {
   if (item.is_exceeded) return '#ff4d4f';
   if (item.is_warning) return '#faad14';

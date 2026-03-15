@@ -11,7 +11,7 @@ from app.core.i18n import _
 
 
 class AgentSkillBindRequest(BaseCreateSchema):
-    """单个技能包绑定请求"""
+    """单个技能包绑定请求 / Single skill package bind request."""
 
     package_id: int = Field(..., description=_("agent_skill_binding.field.package_id"))
     config_override: dict[str, Any] | None = Field(None, description=_("agent_skill_binding.field.config_override"))
@@ -20,14 +20,14 @@ class AgentSkillBindRequest(BaseCreateSchema):
 
 
 class AgentSkillBatchBindRequest(BaseCreateSchema):
-    """批量技能包绑定请求（替换模式）"""
+    """批量技能包绑定请求（替换模式） / Batch skill package bind request (replace mode)."""
 
     package_ids: list[int] = Field(..., description=_("agent_skill_binding.field.package_id"))
     consent_modes: dict[str, str] | None = Field(None, description=_("agent_skill_binding.field.consent_mode"))
 
 
 class AgentSkillBindingUpdate(BaseUpdateSchema):
-    """更新技能绑定请求"""
+    """更新技能绑定请求 / Update skill binding request."""
 
     enabled: bool | None = Field(None, description=_("agent_skill_binding.field.enabled"))
     config_override: dict[str, Any] | None = Field(None, description=_("agent_skill_binding.field.config_override"))

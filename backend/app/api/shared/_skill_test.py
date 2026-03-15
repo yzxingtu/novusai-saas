@@ -1,5 +1,5 @@
 """
-Skill 测试执行器
+Skill 测试执行器 / Skill test executor.
 
 按 Skill 类型执行不同的测试逻辑，验证 Skill 配置是否正确。
 """
@@ -237,7 +237,7 @@ async def _test_email(
     db: AsyncSession,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """测试 Email Skill：检查 SMTP 配置可用性"""
+    """测试 Email Skill：检查 SMTP 配置可用性 / Test Email Skill: check SMTP config availability."""
     try:
         from app.services.common.email_service import EmailService
         service = EmailService(db)
@@ -288,7 +288,7 @@ async def _test_email(
 def _test_code_execution(
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """测试 Code Execution Skill：验证配置合理性"""
+    """测试 Code Execution Skill：验证配置合理性 / Test Code Execution Skill: validate config."""
     language = config.get("language", "python")
     if language != "python":
         return {

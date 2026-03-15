@@ -1,6 +1,5 @@
 """
-Permission Registry
-权限注册中心
+Permission Registry. / 权限注册中心。
 
 Collects all permissions defined via decorators, synced to database on app startup.
 收集所有通过装饰器定义的权限，应用启动时同步到数据库。
@@ -15,8 +14,7 @@ if TYPE_CHECKING:
 
 class PermissionRegistry:
     """
-    Permission Registry (singleton).
-    权限注册中心（单例）。
+    Permission Registry (singleton). / 权限注册中心（单例）。
 
     Collects all permissions defined via decorators, synced to database on app startup.
     收集所有通过装饰器定义的权限，应用启动时同步到数据库。

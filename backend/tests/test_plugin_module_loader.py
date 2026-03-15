@@ -1,12 +1,10 @@
-"""
-插件模块统一加载器测试
+"""插件模块统一加载器测试 / Plugin.
 
 测试 module_loader.py 的核心功能：
 - load_plugin_module: 加载子模块
 - load_plugin_handler: 加载处理函数（子模块 + main fallback）
 - load_plugin_executor: 加载 executor 类
-- unload_plugin_modules: 清理 sys.modules
-"""
+- unload_plugin_modules: 清理 sys.modules"""
 
 import sys
 from pathlib import Path
@@ -19,7 +17,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _clean_sys_modules():
-    """每个测试后清理 plugins.* 模块"""
+    """每个测试后清理 plugins.* 模块 / Test."""
     yield
     to_remove = [k for k in sys.modules if k.startswith("plugins.")]
     for k in to_remove:
@@ -28,7 +26,7 @@ def _clean_sys_modules():
 
 @pytest.fixture
 def fake_plugins_dir(tmp_path: Path) -> Path:
-    """创建包含 fake-plugin 的临时插件目录"""
+    """创建包含 fake-plugin 的临时插件目录 / Plugin."""
     plugin_dir = tmp_path / "fake-plugin" / "backend"
     plugin_dir.mkdir(parents=True)
 
@@ -178,10 +176,10 @@ class TestUnloadPluginModules:
 
 
 class TestApiDispatcherErrorHandling:
-    """测试 api_dispatcher 的错误响应处理逻辑"""
+    """测试 api_dispatcher 的错误响应处理逻辑 / Test."""
 
     def test_error_dict_not_wrapped_as_success(self):
-        """handler 返回含 error 的 dict 时不应被 success() 包装"""
+        """handler 返回含 error 的 dict 时不应被 success() 包装 / handler error dict ..."""
         from fastapi.responses import JSONResponse
 
         # 模拟 dispatcher 的响应判断逻辑
@@ -208,7 +206,7 @@ class TestApiDispatcherErrorHandling:
         assert response.body is not None
 
     def test_normal_dict_wrapped_as_success(self):
-        """handler 返回正常 dict 时应被包装为 200"""
+        """handler 返回正常 dict 时应被包装为 200 / handler dict 200"""
         from fastapi.responses import JSONResponse
 
         result = {"temperature": 20, "city": "Beijing"}

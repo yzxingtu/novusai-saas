@@ -1,6 +1,5 @@
 """
-Online Presence Management
-在线状态管理
+在线状态管理 / Online Presence Management.
 
 Uses Redis Hash + atomic Lua scripts to store user online status with multi-device connection counting.
 Integrated into Socket.IO namespace connect/disconnect events.
@@ -175,8 +174,7 @@ class PresenceManager:
         tenant_id: int | None = None,
     ) -> dict[int, dict[str, Any]]:
         """
-        Get online user details.
-        获取在线用户详细信息。
+        获取在线用户详细信息 / Get online user details.
 
         Returns:
             { user_id: {"connections": N}, ... }

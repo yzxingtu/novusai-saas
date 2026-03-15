@@ -11,7 +11,7 @@ from app.core.base_schema import BaseSchema
 
 
 class PermissionResponse(BaseSchema):
-    """权限响应"""
+    """权限响应 / Permission response."""
 
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
@@ -30,13 +30,13 @@ class PermissionResponse(BaseSchema):
 
 
 class PermissionTreeResponse(PermissionResponse):
-    """权限树响应（含子权限）"""
+    """权限树响应（含子权限） / Permission tree response (with children)."""
 
     children: list["PermissionTreeResponse"] = Field(default_factory=list, description="子权限")
 
 
 class MenuResponse(BaseSchema):
-    """菜单响应"""
+    """菜单响应 / Menu response."""
 
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")

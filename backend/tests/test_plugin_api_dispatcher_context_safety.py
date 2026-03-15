@@ -1,4 +1,4 @@
-"""API dispatcher 中 PluginContext 信任边界行为的回归测试。"""
+"""API dispatcher 中 PluginContext 信任边界行为的回归测试 / API dispatcher PluginContext trust-boundary regression tests."""
 
 from __future__ import annotations
 

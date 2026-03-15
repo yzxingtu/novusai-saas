@@ -19,9 +19,9 @@ defineOptions({ name: 'NotificationSettings' });
 
 const props = withDefaults(
   defineProps<{
-    /** API prefix: '/admin' or '/tenant' */
+    /** API prefix: '/admin' or '/tenant' / API 前缀 */
     apiPrefix?: string;
-    /** 'personal' = Drawer with global fallback; 'global' = inline form */
+    /** 'personal' = Drawer with global fallback; 'global' = inline form / personal=抽屉+全局回退，global=内联表单 */
     mode?: 'global' | 'personal';
   }>(),
   {
@@ -141,13 +141,13 @@ function getPref(category: string): PrefRow {
   return row;
 }
 
-/** Open settings drawer (personal mode only) */
+/** Open settings drawer (personal mode only) / 打开设置抽屉（仅 personal 模式） */
 async function open() {
   visible.value = true;
   await loadPreferences();
 }
 
-/** Load data externally (global mode) */
+/** Load data externally (global mode) / 外部加载数据（global 模式） */
 async function load() {
   await loadPreferences();
 }

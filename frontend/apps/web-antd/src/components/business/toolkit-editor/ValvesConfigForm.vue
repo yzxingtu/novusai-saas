@@ -30,11 +30,11 @@ defineOptions({ name: 'ValvesConfigForm' });
 const props = withDefaults(
   defineProps<{
     disabled?: boolean;
-    /** i18n prefix */
+    /** i18n prefix / 国际化前缀 */
     localePrefix?: string;
-    /** JSON Schema from toolkit_meta.valves_schema */
+    /** JSON Schema from toolkit_meta.valves_schema / 来自 toolkit_meta.valves_schema 的 JSON Schema */
     schema?: null | Record<string, unknown>;
-    /** Current valves config values */
+    /** Current valves config values / 当前阀门配置值 */
     value?: Record<string, unknown>;
   }>(),
   {

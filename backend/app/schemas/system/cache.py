@@ -9,7 +9,7 @@ from app.enums.cache import CacheCategoryEnum
 
 
 class CacheCategorySummary(BaseSchema):
-    """单个缓存分类的统计信息"""
+    """单个缓存分类的统计信息 / Single cache category summary."""
 
     category: str = Field(..., description="Cache category code")
     label: str = Field(..., description="Cache category i18n label")
@@ -19,7 +19,7 @@ class CacheCategorySummary(BaseSchema):
 
 
 class CacheSummaryResponse(BaseSchema):
-    """缓存统计汇总响应"""
+    """缓存统计汇总响应 / Cache summary response."""
 
     categories: list[CacheCategorySummary] = Field(
         default_factory=list, description="Cache category summaries"
@@ -29,7 +29,7 @@ class CacheSummaryResponse(BaseSchema):
 
 
 class CacheClearRequest(BaseSchema):
-    """缓存清理请求"""
+    """缓存清理请求 / Cache clear request."""
 
     categories: list[str] = Field(
         ..., min_length=1, description="List of cache category codes to clear"
@@ -38,7 +38,7 @@ class CacheClearRequest(BaseSchema):
     @field_validator("categories", mode="before")
     @classmethod
     def validate_categories(cls, v: list[str]) -> list[str]:
-        """Validate that all categories are valid CacheCategoryEnum values"""
+        """Validate that all categories are valid CacheCategoryEnum values / 校验分类均为有效 CacheCategoryEnum"""
         valid_values = CacheCategoryEnum.values()
         for category in v:
             if category not in valid_values:
@@ -50,7 +50,7 @@ class CacheClearRequest(BaseSchema):
 
 
 class CacheClearResponse(BaseSchema):
-    """缓存清理结果响应"""
+    """缓存清理结果响应 / Cache clear result response."""
 
     cleared_categories: list[str] = Field(
         default_factory=list, description="Categories that were cleared"

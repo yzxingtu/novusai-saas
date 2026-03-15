@@ -11,7 +11,7 @@ import { $t } from '#/locales';
 
 // ============ 工具函数 ============
 
-/** 文件分类颜色映射 */
+/** 文件分类颜色映射 / File category color mapping */
 export function getCategoryColor(
   category?: null | string,
 ): 'blue' | 'cyan' | 'default' | 'green' | 'orange' | 'purple' | 'red' {
@@ -30,25 +30,25 @@ export function getCategoryColor(
   return colorMap[category] || 'default';
 }
 
-/** 文件分类文本映射 */
+/** 文件分类文本映射 / File category text mapping */
 export function getCategoryText(category?: null | string): string {
   if (!category) return $t('tenant.system.attachment.categories.other');
   return $t(`tenant.system.attachment.categories.${category}`);
 }
 
-/** 可见性颜色映射 */
+/** 可见性颜色映射 / Visibility color mapping */
 export function getVisibilityColor(
   visibility: string,
 ): 'default' | 'green' | 'orange' {
   return visibility === 'public' ? 'green' : 'orange';
 }
 
-/** 获取可见性文本映射 */
+/** 获取可见性文本映射 / Get visibility text mapping */
 export function getVisibilityText(visibility: string): string {
   return $t(`tenant.system.attachment.visibilityOptions.${visibility}`);
 }
 
-/** 获取分类筛选选项（按 mime_type 前缀过滤） */
+/** 获取分类筛选选项（按 mime_type 前缀过滤） / Get category filter options */
 export function getCategoryFilterOptions(): { label: string; value: string }[] {
   return [
     { label: $t('tenant.system.attachment.categories.image'), value: 'image/' },
@@ -61,7 +61,7 @@ export function getCategoryFilterOptions(): { label: string; value: string }[] {
   ];
 }
 
-/** 获取可见性选项 */
+/** 获取可见性选项 / Get visibility options */
 export function getVisibilityOptions() {
   return [
     {

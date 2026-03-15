@@ -35,7 +35,7 @@ tenant_plan_permissions = Table(
 
 class TenantPlan(BaseModel):
     """
-    企业套餐模型
+    企业套餐模型 / Tenant plan model.
 
     - 定义不同等级的订阅套餐
     - 控制企业可用的功能模块（通过关联权限）
@@ -179,7 +179,7 @@ class TenantPlan(BaseModel):
 
     @property
     def permissions_count(self) -> int:
-        """获取权限数量"""
+        """获取权限数量 / Get permissions count."""
         return len(self.permissions)
 
     # 企业数量缓存（由查询端注入，避免加载全部企业对象）
@@ -188,7 +188,7 @@ class TenantPlan(BaseModel):
 
     @property
     def tenants_count(self) -> int:
-        """获取使用该套餐的企业数量"""
+        """获取使用该套餐的企业数量 / Get tenant count using this plan."""
         if self._tenants_count_cache is not None:
             return self._tenants_count_cache
         # 如果 tenants 已显式加载（如 get_with_tenants），用列表计数
@@ -199,24 +199,24 @@ class TenantPlan(BaseModel):
 
     @tenants_count.setter
     def tenants_count(self, value: int) -> None:
-        """设置企业数量缓存"""
+        """设置企业数量缓存 / Set tenants count cache."""
         self._tenants_count_cache = value
 
     @property
     def has_tenants(self) -> bool:
-        """是否有企业使用该套餐"""
+        """是否有企业使用该套餐 / Whether any tenant uses this plan."""
         return self.tenants_count > 0
 
     def get_quota_value(self, key: str, default: int | bool | None = None):
         """
-        获取配额值
+        获取配额值 / Get quota value.
 
         Args:
-            key: 配额键名
-            default: 默认值
+            key: 配额键名 / Quota key.
+            default: 默认值 / Default value.
 
         Returns:
-            配额值
+            配额值 / Quota value.
         """
         if self.quota is None:
             return default
@@ -224,14 +224,14 @@ class TenantPlan(BaseModel):
 
     def get_feature(self, key: str, default: bool = False) -> bool:
         """
-        获取特性开关
+        获取特性开关 / Get feature flag.
 
         Args:
-            key: 特性键名
-            default: 默认值
+            key: 特性键名 / Feature key.
+            default: 默认值 / Default value.
 
         Returns:
-            特性是否启用
+            特性是否启用 / Whether feature is enabled.
         """
         if self.features is None:
             return default

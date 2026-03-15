@@ -1,6 +1,5 @@
 """
-AI Module Constants
-AI 模块常量定义
+AI Module Constants / AI 模块常量定义
 
 Centralized Redis key prefixes, TTLs, default limits, and other constants.
 集中管理 Redis Key 前缀、TTL、默认限制等常量。

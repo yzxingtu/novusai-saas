@@ -1,6 +1,4 @@
-"""
-存储配额 Repository
-"""
+"""存储配额 Repository / Storage quota repository."""
 
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ if TYPE_CHECKING:
 class QuotaRepository(TenantRepository["Quota"]):
 
     async def get_or_create(self, default_bytes: int = 10 * 1024 ** 3) -> Quota:
-        """获取当前企业配额，不存在则创建默认记录（幂等）"""
+        """获取当前企业配额，不存在则创建默认记录（幂等） / Get tenant quota, create default if missing (idempotent)."""
         from app.core.base_model import utc_now
         from ..models.quota import Quota
 
@@ -37,7 +35,7 @@ class QuotaRepository(TenantRepository["Quota"]):
         return quota
 
     async def add_used(self, delta: int) -> None:
-        """增加已用量（delta 可为负数表示释放）"""
+        """增加已用量（delta 可为负数表示释放） / Add used bytes (delta can be negative to release)."""
         from sqlalchemy import update
 
         from ..models.quota import Quota
@@ -51,7 +49,7 @@ class QuotaRepository(TenantRepository["Quota"]):
         )
 
     async def recalculate(self, actual_bytes: int) -> None:
-        """重算配额 used_bytes（定时任务或手动触发）"""
+        """重算配额 used_bytes（定时任务或手动触发） / Recompute used_bytes (cron or manual)."""
         from sqlalchemy import update
 
         from app.core.base_model import utc_now

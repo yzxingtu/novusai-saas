@@ -15,7 +15,7 @@ from app.schemas.tenant.domain import TenantDomainSimpleResponse
 
 
 class TenantPlanInfo(BaseSchema):
-    """企业套餐信息（简略）"""
+    """企业套餐信息（简略） / Tenant plan info (brief)."""
 
     id: int = Field(..., description="套餐 ID")
     code: str = Field(..., description="套餐代码")
@@ -23,7 +23,7 @@ class TenantPlanInfo(BaseSchema):
 
 
 class TenantStorageStats(BaseSchema):
-    """企业存储统计信息"""
+    """企业存储统计信息 / Tenant storage statistics."""
 
     used_bytes: int = Field(0, description="已使用存储空间（字节）")
     limit_bytes: int = Field(0, description="存储限制（字节），0 表示无限制")
@@ -34,7 +34,7 @@ class TenantStorageStats(BaseSchema):
 
 
 class TenantResponse(BaseSchema):
-    """企业信息响应"""
+    """企业信息响应 / Tenant info response."""
 
     id: int = Field(..., description="企业 ID")
     code: str = Field(..., description="企业编码")
@@ -64,8 +64,8 @@ class TenantResponse(BaseSchema):
     @model_validator(mode="before")
     @classmethod
     def extract_tenant_info(cls, data: Any) -> Any:
-        """从 ORM 关系中提取套餐和域名信息"""
-        # 如果是 ORM 对象，转换为字典
+        """从 ORM 关系中提取套餐和域名信息 / Extract plan and domain info from ORM relations."""
+        # 如果是 ORM 对象，转换为字典 / If ORM object, convert to dict
         if hasattr(data, "__table__"):
             result = {
                 "id": data.id,
@@ -118,7 +118,7 @@ class TenantResponse(BaseSchema):
 
 
 class TenantCreateRequest(BaseSchema):
-    """创建企业请求"""
+    """创建企业请求 / Create tenant request."""
 
     name: str = Field(..., min_length=1, max_length=100, description="企业名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
@@ -136,7 +136,7 @@ class TenantCreateRequest(BaseSchema):
 
 
 class TenantUpdateRequest(BaseSchema):
-    """更新企业请求"""
+    """更新企业请求 / Update tenant request."""
 
     name: str | None = Field(None, min_length=1, max_length=100, description="企业名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
@@ -152,19 +152,19 @@ class TenantUpdateRequest(BaseSchema):
 
 
 class TenantStatusRequest(BaseSchema):
-    """企业状态切换请求"""
+    """企业状态切换请求 / Tenant status toggle request."""
 
     is_active: bool = Field(..., description="是否启用")
 
 
 class TenantImpersonateRequest(BaseSchema):
-    """一键登录企业后台请求"""
+    """一键登录企业后台请求 / Impersonate tenant admin request."""
 
     role_id: int | None = Field(None, description="目标角色 ID（可选）")
 
 
 class TenantImpersonateResponse(BaseSchema):
-    """一键登录企业后台响应"""
+    """一键登录企业后台响应 / Impersonate tenant admin response."""
 
     impersonate_token: str = Field(..., description="一键登录 Token（60秒有效，一次性）")
     tenant_code: str = Field(..., description="企业编码")
@@ -173,7 +173,7 @@ class TenantImpersonateResponse(BaseSchema):
 
 
 class TenantResetOwnerPasswordRequest(BaseSchema):
-    """重置企业超级管理员密码请求"""
+    """重置企业超级管理员密码请求 / Reset tenant super admin password request."""
 
     new_password: str = Field(..., min_length=6, max_length=100, description="新密码")
 

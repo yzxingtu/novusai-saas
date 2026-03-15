@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-企业域名管理 API 测试模块
+"""企业域名管理 API 测试模块 / API.
 
-测试 /admin/tenants/{tenant_id}/domains/* 接口
-"""
+测试 /admin/tenants/{tenant_id}/domains/* 接口"""
 import os
 import sys
 import time
@@ -24,12 +22,12 @@ from tests.api.base import (
 
 
 class ManualTestAdminTenantDomains(BaseAPITest):
-    """企业域名管理测试"""
+    """企业域名管理测试 / Test."""
 
     module_name = "企业域名管理 (/admin/tenants/{tenant_id}/domains)"
 
     def setup(self) -> None:
-        """测试前登录并创建测试企业"""
+        """测试前登录并创建测试企业 / Test."""
         self._do_login()
         # 生成唯一的测试数据
         timestamp = int(time.time())
@@ -41,7 +39,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         self._create_test_tenant()
 
     def teardown(self) -> None:
-        """测试后清理"""
+        """测试后清理 / Test."""
         # 尝试删除测试创建的企业
         tenant_id = self._test_data.get("created_tenant_id")
         if tenant_id:
@@ -49,7 +47,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
                 self.client.delete(f"/admin/tenants/{tenant_id}")
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         # ========== 列表和查询测试 ==========
 
         # 1. 获取企业域名列表（应包含默认域名）
@@ -117,7 +115,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 列表和查询测试 ==========
 
     def test_list_domains(self) -> None:
-        """测试获取企业域名列表"""
+        """测试获取企业域名列表 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.get(f"/admin/tenants/{tenant_id}/domains")
         data = assert_success(resp, "获取企业域名列表失败")
@@ -136,7 +134,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
                 break
 
     def test_list_domains_pagination(self) -> None:
-        """测试获取域名列表 - 分页"""
+        """测试获取域名列表 - 分页 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.get(
             f"/admin/tenants/{tenant_id}/domains",
@@ -151,7 +149,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 创建测试 ==========
 
     def test_create_custom_domain(self) -> None:
-        """测试添加自定义域名"""
+        """测试添加自定义域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         custom_domain = self._test_data["custom_domain"]
 
@@ -174,7 +172,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         self._test_data["created_domain_id"] = data["data"]["id"]
 
     def test_create_duplicate_domain(self) -> None:
-        """测试添加重复域名"""
+        """测试添加重复域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         custom_domain = self._test_data["custom_domain"]  # 使用已存在的域名
 
@@ -189,7 +187,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 详情测试 ==========
 
     def test_get_domain_detail(self) -> None:
-        """测试获取域名详情"""
+        """测试获取域名详情 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")
         if not domain_id:
@@ -206,7 +204,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         assert_equals(data["data"]["tenant_id"], tenant_id)
 
     def test_get_domain_not_found(self) -> None:
-        """测试获取不存在的域名详情"""
+        """测试获取不存在的域名详情 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.get(f"/admin/tenants/{tenant_id}/domains/999999")
         assert_error(resp, 404, "应返回 404 错误")
@@ -214,7 +212,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 更新测试 ==========
 
     def test_update_domain(self) -> None:
-        """测试更新域名信息"""
+        """测试更新域名信息 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")
         if not domain_id:
@@ -231,7 +229,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 验证测试 ==========
 
     def test_verify_domain(self) -> None:
-        """测试验证域名"""
+        """测试验证域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")
         if not domain_id:
@@ -244,7 +242,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         assert_true(data["data"]["verified_at"] is not None, "应有验证时间")
 
     def test_verify_domain_already_verified(self) -> None:
-        """测试重复验证已验证的域名"""
+        """测试重复验证已验证的域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")
         if not domain_id:
@@ -259,7 +257,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 主域名测试 ==========
 
     def test_set_primary_domain(self) -> None:
-        """测试设置主域名"""
+        """测试设置主域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")
         if not domain_id:
@@ -278,7 +276,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
             assert_equals(data2["data"]["is_primary"], False, "原主域名应不再是主域名")
 
     def test_set_primary_unverified_domain(self) -> None:
-        """测试设置未验证域名为主域名"""
+        """测试设置未验证域名为主域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         custom_domain_2 = self._test_data["custom_domain_2"]
 
@@ -300,7 +298,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 删除测试 ==========
 
     def test_delete_primary_domain(self) -> None:
-        """测试删除主域名"""
+        """测试删除主域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         domain_id = self._test_data.get("created_domain_id")  # 当前主域名
         if not domain_id:
@@ -313,7 +311,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         assert_true(data.get("code") != 0, f"删除主域名应返回错误，实际 code={data.get('code')}")
 
     def test_delete_default_domain(self) -> None:
-        """测试删除默认域名"""
+        """测试删除默认域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         default_domain_id = self._test_data.get("default_domain_id")
         if not default_domain_id:
@@ -326,7 +324,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         assert_true(data.get("code") != 0, f"删除默认域名应返回错误，实际 code={data.get('code')}")
 
     def test_delete_custom_domain(self) -> None:
-        """测试删除自定义域名"""
+        """测试删除自定义域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
 
         # 删除第二个未验证的自定义域名
@@ -345,7 +343,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         del self._test_data["created_domain_id_2"]
 
     def test_delete_domain_not_found(self) -> None:
-        """测试删除不存在的域名"""
+        """测试删除不存在的域名 / Test."""
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.delete(f"/admin/tenants/{tenant_id}/domains/999999")
         assert_error(resp, 404, "应返回 404 错误")
@@ -353,14 +351,14 @@ class ManualTestAdminTenantDomains(BaseAPITest):
     # ========== 企业验证测试 ==========
 
     def test_tenant_not_found(self) -> None:
-        """测试操作不存在的企业域名"""
+        """测试操作不存在的企业域名 / Test."""
         resp = self.client.get("/admin/tenants/999999/domains")
         assert_error(resp, 404, "应返回 404 错误")
 
     # ========== 辅助方法 ==========
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Description."""
         resp = self.client.post("/admin/auth/login", data={
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,
@@ -369,7 +367,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         self.client.set_token(data["data"]["access_token"])
 
     def _create_test_tenant(self) -> None:
-        """创建测试企业"""
+        """创建测试企业 / Test."""
         resp = self.client.post("/admin/tenants", data={
             "name": self._test_data["tenant_name"],
             "contact_name": "测试联系人",

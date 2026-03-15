@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 /**
- * 创建企业子管理员表单（Drawer）
- *
- * 从企业列表的管理员展开面板中调用。
+ * 创建企业子管理员表单（Drawer）；从企业列表的管理员展开面板调用。
+ * Create/edit tenant sub-admin form (drawer); invoked from tenant list admin panel.
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
 
@@ -32,7 +31,7 @@ const form = ref({
   nickname: '',
 });
 
-/** 打开表单（创建或编辑） */
+/** 打开表单（创建或编辑） / Open form (create or edit) */
 function open(tId: number, tName: string, admin?: TenantAdminItem) {
   tenantId.value = tId;
   tenantName.value = tName;
@@ -53,12 +52,12 @@ function open(tId: number, tName: string, admin?: TenantAdminItem) {
   visible.value = true;
 }
 
-/** 关闭表单 */
+/** 关闭表单 / Close form */
 function close() {
   visible.value = false;
 }
 
-/** 提交 */
+/** 提交 / Submit */
 async function handleSubmit() {
   if (
     !isEdit.value &&

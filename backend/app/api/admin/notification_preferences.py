@@ -45,8 +45,7 @@ async def update_global_preferences(
     data: list[dict],
 ):
     """
-    更新平台全局通知偏好，变更的分类会从所有管理员个人覆盖中清除
-    Update platform global notification preferences; changed categories are cleared from all admin overrides
+    更新平台全局通知偏好，变更的分类会从所有管理员个人覆盖中清除 / Update platform global notification preferences; changed categories cleared from admin overrides.
     """
     service = NotificationPreferenceService(db)
     await service.update_global_preferences("platform_global", tenant_id=0, data=data)

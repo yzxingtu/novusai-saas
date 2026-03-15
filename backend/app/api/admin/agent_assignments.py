@@ -91,8 +91,7 @@ class AdminAgentAssignmentController(GlobalController):
             feature_code: str,
         ):
             """
-            公共 resolve API：按 feature_code 获取绑定的 agent_id
-            Public resolve API: get bound agent_id by feature_code
+            公共 resolve API：按 feature_code 获取绑定的 agent_id / Public resolve: get bound agent_id by feature_code.
 
             仅需登录，无需特殊权限。返回 agent_id + agent_name + config。
             Login required only, no special permissions needed. Returns agent_id + agent_name + config.

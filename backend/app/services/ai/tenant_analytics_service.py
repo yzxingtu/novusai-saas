@@ -24,7 +24,7 @@ logger = LogManager.get_logger("ai")
 
 
 class TenantAnalyticsService:
-    """Tenant 端 AI 数据分析服务（自动过滤 tenant_id）"""
+    """Tenant 端 AI 数据分析服务（自动过滤 tenant_id） / Tenant AI analytics service (auto tenant_id filter)."""
 
     def __init__(self, db: AsyncSession, tenant_id: int) -> None:
         self.db = db
@@ -36,7 +36,7 @@ class TenantAnalyticsService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
-        """按天聚合调用趋势（自动注入 tenant_id）"""
+        """按天聚合调用趋势（自动注入 tenant_id） / Daily call trend (tenant_id auto-injected)."""
         return await self._admin_svc.get_call_trend(start_date, end_date, self.tenant_id)
 
     async def get_model_distribution(
@@ -44,7 +44,7 @@ class TenantAnalyticsService:
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
-        """模型调用分布（自动注入 tenant_id）"""
+        """模型调用分布（自动注入 tenant_id） / Model call distribution (tenant_id auto-injected)."""
         return await self._admin_svc.get_model_distribution(start_date, end_date, self.tenant_id)
 
     async def get_cost_trend(
@@ -53,7 +53,7 @@ class TenantAnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """
-        费用趋势（按天聚合）
+        费用趋势（按天聚合）/ Cost trend (daily aggregate).
 
         Returns:
             [{"date", "cost", "calls"}, ...]
@@ -75,7 +75,7 @@ class TenantAnalyticsService:
         end_date: date | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Agent 调用排行（基于 AIActionLog，因为 AICallLog 无 agent_id）
+        Agent 调用排行（基于 AIActionLog）/ Agent call ranking (based on AIActionLog).
 
         Returns:
             [{"agent_id", "agent_name", "calls"}, ...]

@@ -90,8 +90,7 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
 
 class TenantMiddleware:
     """
-    Tenant Identification Middleware (pure ASGI implementation).
-    企业识别中间件（纯 ASGI 实现）。
+    Tenant Identification Middleware (pure ASGI implementation). / 企业识别中间件（纯 ASGI 实现）。
 
     Resolves tenant info in each request and stores to request.state.tenant_ctx.
     在每个请求中解析企业信息并存储到 request.state.tenant_ctx。

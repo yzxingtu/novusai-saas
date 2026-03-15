@@ -1,8 +1,6 @@
-"""
-NotificationService 单元测试
+"""NotificationService 单元测试 / Test.
 
-覆盖：通知创建、查询、标记已读、批量已读、删除。
-"""
+覆盖：通知创建、查询、标记已读、批量已读、删除。"""
 
 from __future__ import annotations
 

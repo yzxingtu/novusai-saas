@@ -18,7 +18,7 @@ from app.enums.agent import BatchRunStatusEnum
 
 class BatchRun(TenantModel):
     """
-    批量运行记录
+    批量运行记录 / Batch run record.
 
     记录一次批量执行的状态、进度和结果。
     由 BatchEngine 创建，Celery 任务异步执行。

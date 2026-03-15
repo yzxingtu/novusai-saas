@@ -216,7 +216,7 @@ async def _resolve_writing_agent(
     tenant_id: int | None,
 ) -> int:
     """
-    Resolve system.ai_writing agent via AgentAssignmentService.
+    通过 AgentAssignmentService 解析 system.ai_writing 智能体 / Resolve system.ai_writing agent via AgentAssignmentService.
     Priority: tenant override -> global default.
     """
     from sqlalchemy import select

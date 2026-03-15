@@ -1,6 +1,5 @@
 """
-RBAC Permission Check Dependencies
-RBAC 权限检查依赖
+RBAC Permission Check Dependencies. / RBAC 权限检查依赖。
 
 Provides FastAPI dependency injection functions for endpoint-level permission control.
 提供 FastAPI 依赖注入函数，用于接口级别的权限控制。

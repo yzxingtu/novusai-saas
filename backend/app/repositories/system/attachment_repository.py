@@ -15,7 +15,7 @@ from app.models.tenant.attachment import Attachment
 
 class AdminAttachmentRepository(BaseRepository[Attachment]):
     """
-    平台端附件仓储
+    平台端附件仓储 / Admin attachment repository.
 
     提供跨企业的附件数据访问方法
     """
@@ -52,7 +52,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         driver: str | None = None,
     ) -> Attachment | None:
         """
-        根据哈希获取附件
+        根据哈希获取附件 / Get attachment by hash.
 
         Args:
             file_hash: 文件哈希
@@ -75,7 +75,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
     async def sum_size(self, tenant_id: int | None = None) -> int:
         """
-        统计附件总占用大小
+        统计附件总占用大小 / Sum attachment total size.
 
         Args:
             tenant_id: 可选的企业 ID，不传则统计所有企业
@@ -93,7 +93,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """
-        获取存储统计
+        获取存储统计 / Get storage stats.
 
         Args:
             tenant_id: 可选的企业 ID
@@ -110,7 +110,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按企业分组的存储统计
+        获取按企业分组的存储统计 / Get storage stats grouped by tenant.
 
         Returns:
             各企业存储统计列表

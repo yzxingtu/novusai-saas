@@ -1,6 +1,5 @@
 """
-Celery Async Document Processing Task
-Celery 异步文档处理任务
+Celery Async Document Processing Task / Celery 异步文档处理任务
 
 Processing flow: Parse → Chunk → Embedding → Store → Update statistics
 Supports checkpoint resume (recover from error_stage) and Redis progress reporting.
@@ -25,6 +24,10 @@ PROGRESS_TTL = 3600
 # Image file types requiring Vision description (must be described when explicitly uploaded, not controlled by extract_images)
 # 需要 Vision 描述的图片文件类型（用户显式上传时必须描述，不受 extract_images 控制）
 _IMAGE_DOC_TYPES: frozenset[str] = frozenset({"image", "jpg", "jpeg", "png", "webp", "gif"})
+# Audio file types requiring AudioDescriber for RAG / 需要 AudioDescriber 转写的音频类型
+_AUDIO_DOC_TYPES: frozenset[str] = frozenset({"audio", "mp3", "wav", "m4a", "flac", "aac"})
+# Video file types requiring VideoDescriber for RAG / 需要 VideoDescriber 描述的视频类型
+_VIDEO_DOC_TYPES: frozenset[str] = frozenset({"video", "mp4", "webm", "mov", "avi", "mkv"})
 
 
 async def _report_progress(
@@ -83,8 +86,7 @@ async def _clear_progress(document_id: int) -> None:
 
 async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     """
-    Load and parse document content, return non-empty ParsedPage list
-    加载并解析文档内容，返回非空 ParsedPage 列表
+    Load and parse document content, return non-empty ParsedPage list. / 加载并解析文档内容，返回非空 ParsedPage 列表。
 
     Unified handling of QA-type and file-type document loading logic,
     avoiding duplicate code in parse/chunk/embed stages.
@@ -123,16 +125,35 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     _needs_vision = (
         kb is not None and getattr(kb, "extract_images", False)
     ) or doc.file_type in _IMAGE_DOC_TYPES
+    _needs_audio = doc.file_type in _AUDIO_DOC_TYPES
+    _needs_video = doc.file_type in _VIDEO_DOC_TYPES
+
     vision_describer = None
     if _needs_vision:
         from app.ai.rag.vision_describer import VisionDescriber
         vision_describer = VisionDescriber(db, tenant_id)
 
+    audio_describer = None
+    if _needs_audio:
+        from app.ai.rag.audio_describer import AudioDescriber
+        audio_describer = AudioDescriber(db, tenant_id)
+
+    video_describer = None
+    if _needs_video:
+        from app.ai.rag.video_describer import VideoDescriber
+        video_describer = VideoDescriber(db, tenant_id)
+
     # Direct text input: content stored in metadata_extra, no attachment
     # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
     if not doc.attachment_id and doc.metadata_extra:
         import io
-        parser = get_parser(doc.file_type, vision_describer=vision_describer, knowledge_base=kb)
+        parser = get_parser(
+            doc.file_type,
+            vision_describer=vision_describer,
+            audio_describer=audio_describer,
+            video_describer=video_describer,
+            knowledge_base=kb,
+        )
         pages = await parser.parse(
             io.BytesIO(doc.metadata_extra.encode("utf-8")),
             doc.file_name,
@@ -179,15 +200,20 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     driver = storage_manager.get_driver(storage_config)
     file_content = await driver.get(attachment.path)
 
-    parser = get_parser(doc.file_type, vision_describer=vision_describer, knowledge_base=kb)
+    parser = get_parser(
+        doc.file_type,
+        vision_describer=vision_describer,
+        audio_describer=audio_describer,
+        video_describer=video_describer,
+        knowledge_base=kb,
+    )
     pages = await parser.parse(file_content, doc.file_name)
     return [p for p in pages if p.content.strip()]
 
 
 async def get_document_progress(document_id: int) -> dict | None:
     """
-    Get document processing progress (for API calls)
-    获取文档处理进度（供 API 调用）
+    Get document processing progress (for API calls). / 获取文档处理进度（供 API 调用）。
 
     Reads from Redis first, returns None if no data available.
     优先读 Redis，如果无数据返回 None

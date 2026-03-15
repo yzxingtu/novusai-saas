@@ -1,6 +1,5 @@
 """
-Task Execution Engine
-任务执行引擎
+Task Execution Engine / 任务执行引擎
 
 Single execution mode, injects input_variables into system_prompt, no conversation context.
 单次执行模式，将 input_variables 注入到 system_prompt，无对话上下文。

@@ -261,8 +261,8 @@ async def recycle_bin_modules(
     admin: ActiveAdmin,
 ):
     """
-    返回各模块的元数据：label、is_tenant、columns、filterable fields。
-    Return each module's metadata: label, is_tenant, columns, filterable fields.
+    返回各模块的元数据：label、is_tenant、columns、filterable fields / Return recyclable module metadata: label, is_tenant, columns, filterable.
+
     前端据此渲染动态列和搜索表单。
     Frontend uses this to render dynamic columns and search forms.
     """

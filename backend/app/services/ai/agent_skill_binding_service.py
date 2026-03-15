@@ -19,7 +19,7 @@ logger = LogManager.get_logger("ai")
 
 class AgentSkillBindingService:
     """
-    智能体技能包绑定 Service
+    智能体技能包绑定 Service / Agent skill binding service.
 
     管理 Agent 与 SkillPackage 的 M:N 关系
     """
@@ -43,7 +43,7 @@ class AgentSkillBindingService:
 
     async def get_agent_packages(self, agent_id: int) -> list[dict[str, Any]]:
         """
-        获取智能体的所有技能包绑定（含自动绑定包）
+        获取智能体的所有技能包绑定（含自动绑定包）/ Get agent skill package bindings (incl. auto-bound).
 
         返回两类包：
         1. 自动绑定包（is_auto_bound=True）— 来自 bind_mode=auto 的 SkillPackage
@@ -132,7 +132,7 @@ class AgentSkillBindingService:
         consent_mode: str = "auto",
     ) -> AgentSkillBinding:
         """
-        绑定技能包到智能体
+        绑定技能包到智能体 / Bind skill package to agent.
 
         Args:
             agent_id: 智能体 ID
@@ -175,7 +175,7 @@ class AgentSkillBindingService:
 
     async def unbind_package(self, agent_id: int, package_id: int) -> None:
         """
-        解绑技能包
+        解绑技能包 / Unbind skill package from agent.
 
         Args:
             agent_id: 智能体 ID
@@ -199,7 +199,7 @@ class AgentSkillBindingService:
         consent_modes: dict[str, str] | None = None,
     ) -> list[AgentSkillBinding]:
         """
-        批量绑定技能包（替换模式：先清空再批量插入）
+        批量绑定技能包（替换模式：先清空再批量插入）/ Batch bind packages (replace mode: clear then insert).
 
         Args:
             agent_id: 智能体 ID
@@ -259,7 +259,7 @@ class AgentSkillBindingService:
         data: dict[str, Any],
     ) -> AgentSkillBinding:
         """
-        更新绑定配置
+        更新绑定配置 / Update binding config.
 
         Args:
             binding_id: 绑定 ID
@@ -277,7 +277,7 @@ class AgentSkillBindingService:
 
     async def delete_all_for_agent(self, agent_id: int) -> int:
         """
-        删除智能体的所有技能绑定（用于版本回滚前清空）
+        删除智能体的所有技能绑定（用于版本回滚前清空）/ Delete all skill bindings for agent (e.g. before version rollback).
 
         Args:
             agent_id: 智能体 ID

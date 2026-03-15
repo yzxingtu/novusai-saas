@@ -85,8 +85,7 @@ _SQL_KEYWORDS = {
 
 def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
     """
-    Extract all table references (table name + alias) from SQL.
-    提取 SQL 中所有的表引用（表名 + 别名）。
+    提取 SQL 中所有的表引用（表名 + 别名）/ Extract all table references (table name + alias) from SQL.
 
     Returns:
         [(table_name, alias_or_none), ...]
@@ -258,10 +257,7 @@ def _find_at_depth_zero(
     pattern: re.Pattern[str],
 ) -> re.Match[str] | None:
     """
-    Find the first match of *pattern* that sits at parenthesis depth 0,
-    i.e. in the outermost query rather than inside a subquery.
-    在括号深度为 0 处查找 *pattern* 的第一个匹配项，
-    即在最外层查询中而不是在子查询内部。
+    Find the first match of *pattern* at parenthesis depth 0 (outermost query, not subquery). / 在括号深度为 0 处查找 *pattern* 的第一个匹配项（最外层查询，非子查询内）。
     """
     depth = 0
     i = 0
@@ -360,8 +356,7 @@ def _build_user_condition(ref: TableReference, user_id: int) -> str:
 
 def _inject_extra_conditions(sql: str, conditions: list[str]) -> str:
     """
-    Append extra AND conditions to existing SQL.
-    向已有 SQL 追加额外 AND 条件。
+    向已有 SQL 追加额外 AND 条件 / Append extra AND conditions to existing SQL.
 
     Assumes SQL already has WHERE clause (injected by _inject_conditions for tenant_id),
     appends AND conditions at the end of WHERE clause.

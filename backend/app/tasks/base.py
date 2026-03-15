@@ -34,8 +34,8 @@ _periodic_task_config_cache: dict[str, dict[str, Any]] = {}
 
 def _load_periodic_task_config(task_path: str) -> dict[str, Any]:
     """
-    Load task config from periodic_tasks table.
-    从 periodic_tasks 表加载任务配置。
+    从 periodic_tasks 表加载任务配置 / Load task config from periodic_tasks table.
+
     Results are cached in memory; DB is queried only once per Worker lifecycle.
     结果缓存在内存中，Worker 生命周期内只查一次 DB。
     """
@@ -99,10 +99,9 @@ class BaseTask(Task):
 
     def _apply_db_config(self) -> None:
         """
-        Dynamically load config from periodic_tasks table and override Celery params.
-        从 periodic_tasks 表动态加载配置并覆盖 Celery 参数。
+        从 periodic_tasks 表动态加载配置并覆盖 Celery 参数 / Dynamically load config from periodic_tasks and override Celery params.
+
         DB config takes priority over @register_task hardcoded values.
-        DB 配置优先级高于 @register_task 硬编码值。
         """
         config = _load_periodic_task_config(self.name)
         if not config:
@@ -115,8 +114,7 @@ class BaseTask(Task):
 
     def get_retry_countdown(self) -> int:
         """
-        Get retry interval (seconds). Prefers DB config, falls back to default_retry_delay.
-        获取重试间隔（秒）。优先使用 DB 配置，回退到 default_retry_delay。
+        获取重试间隔（秒）/ Get retry interval (seconds). Prefers DB config, falls back to default_retry_delay.
         """
         if self._db_config and self._db_config.get("retry_delay"):
             return self._db_config["retry_delay"]

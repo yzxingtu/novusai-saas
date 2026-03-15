@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 企业端智能体新建/编辑表单抽屉
+ * 企业端智能体新建/编辑表单抽屉 / Tenant agent create/edit form drawer
  * 支持向导模式（新建）和经典模式（编辑）
  */
 import type {

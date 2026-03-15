@@ -17,7 +17,7 @@ from app.enums.task import TaskStatusEnum
 
 class TaskLog(BaseModel):
     """
-    任务日志模型
+    任务日志模型 / Task log model.
 
     记录异步任务的执行状态、参数、结果和耗时
     """

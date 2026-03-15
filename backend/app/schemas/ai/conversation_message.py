@@ -15,7 +15,7 @@ from app.core.i18n import _
 
 
 class ConversationMessageCreate(BaseCreateSchema):
-    """创建对话消息请求"""
+    """创建对话消息请求 / Create conversation message request."""
 
     conversation_id: int = Field(..., description=_("enum.conversation_message.conversation_id"))
     role: str = Field(..., max_length=20, description=_("enum.conversation_message.role"))
@@ -29,7 +29,7 @@ class ConversationMessageCreate(BaseCreateSchema):
 
 
 class ConversationMessageResponse(TenantResponseSchema):
-    """对话消息响应"""
+    """对话消息响应 / Conversation message response."""
 
     conversation_id: int = Field(..., description=_("enum.conversation_message.conversation_id"))
     role: str = Field(..., description=_("enum.conversation_message.role"))

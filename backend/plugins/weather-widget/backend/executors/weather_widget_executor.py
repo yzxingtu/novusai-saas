@@ -1,8 +1,6 @@
-"""
-实时天气工具执行器
+"""实时天气工具执行器 / Description.
 
-调用 Open-Meteo API 获取真实天气数据，支持当前天气和多日预报两个工具。
-"""
+调用 Open-Meteo API 获取真实天气数据，支持当前天气和多日预报两个工具。"""
 
 from __future__ import annotations
 
@@ -36,7 +34,7 @@ def _get_open_meteo():
 
 
 class WeatherWidgetExecutor(BaseToolExecutor):
-    """实时天气执行器（调用 Open-Meteo API）"""
+    """实时天气执行器（调用 Open-Meteo API） / Realtime weather executor (Open-Meteo API)."""
 
     async def validate(
         self,
@@ -119,15 +117,13 @@ class WeatherWidgetExecutor(BaseToolExecutor):
             )
 
     async def _resolve_city(self, city: str) -> tuple[float, float, str]:
-        """
-        将城市名解析为坐标。
+        """将城市名解析为坐标。 / Parse.
 
         Returns:
             (latitude, longitude, resolved_city_name)
 
         Raises:
-            ValueError: 城市未找到
-        """
+            ValueError: 城市未找到"""
         open_meteo = _get_open_meteo()
         results = await open_meteo.search_city(city, count=1)
         if not results:
@@ -142,7 +138,7 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         return hit["latitude"], hit["longitude"], resolved_name
 
     async def _get_current(self, city: str) -> str:
-        """获取当前天气并格式化输出"""
+        """获取当前天气并格式化输出 / Get current weather and format output."""
         open_meteo = _get_open_meteo()
         lat, lon, name = await self._resolve_city(city)
         weather = await open_meteo.get_current_weather(lat, lon)
@@ -158,7 +154,7 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         return "\n".join(lines)
 
     async def _get_forecast(self, city: str, days: int) -> str:
-        """获取多日预报并格式化输出"""
+        """获取多日预报并格式化输出 / Get multi-day forecast and format output."""
         open_meteo = _get_open_meteo()
         lat, lon, name = await self._resolve_city(city)
         forecast = await open_meteo.get_forecast(lat, lon, days)

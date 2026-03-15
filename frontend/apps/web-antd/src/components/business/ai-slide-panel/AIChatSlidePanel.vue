@@ -13,7 +13,16 @@ import { computed, onMounted, onUnmounted, reactive, ref, toRef, watch, watchEff
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Input, message, Modal, Popover, Spin, Tooltip } from 'ant-design-vue';
+import {
+  Dropdown,
+  Input,
+  Menu,
+  message,
+  Modal,
+  Popover,
+  Spin,
+  Tooltip,
+} from 'ant-design-vue';
 
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
@@ -68,7 +77,7 @@ const aiPanelStore = useAIPanelStore();
 const publicConfigStore = usePublicConfigStore();
 const { modalState } = useModalDetector();
 
-/** Panel title: "{SiteName} AI" */
+/** Panel title: "{SiteName} AI" / 面板标题 */
 const panelTitle = computed(() => {
   const siteName =
     publicConfigStore.platformConfig?.brand?.siteName ||
@@ -147,6 +156,7 @@ const {
   clickActionButton,
   regenerateMessage,
   editAndResend,
+  retryLastMessage,
   clearConversationMemory,
   clearingMemory,
   fetchConversationMemory,
@@ -154,6 +164,7 @@ const {
   memoryLoading,
   lastMemoryUpdated,
   exportAsMarkdown,
+  exportAsPlainText,
   totalTokensUsed,
   supportsVision,
   agentKBBindings,
@@ -166,12 +177,12 @@ const {
 
 // ============ Input Variables Modal ============
 
-/** Single-agent prompt modal (when routing detects missing required vars) */
+/** Single-agent prompt modal (when routing detects missing required vars) / 单智能体变量弹窗（路由检测到必填变量缺失时） */
 const varsModalVisible = ref(false);
 const varsFormValues = reactive<Record<string, string>>({});
 const varsModalAgent = ref<null | { id: number; name: string; vars: InputVariable[] }>(null);
 const varsPersist = ref(false);
-/** Pending send context: deferred until vars are filled */
+/** Pending send context: deferred until vars are filled / 待发送上下文（变量填写后发送） */
 const pendingSendContext = ref<null | { agentId: number; pageContext: ReturnType<typeof resolvePageContext> }>(null);
 
 function openVarsModal(vars: InputVariable[], agentId: number, agentName: string) {
@@ -211,7 +222,7 @@ function onVarsCancel() {
   pendingSendContext.value = null;
 }
 
-/** Multi-agent vars editor (edit button in header) */
+/** Multi-agent vars editor (edit button in header) / 多智能体变量编辑（头部编辑按钮） */
 const multiVarsModalVisible = ref(false);
 const multiVarsFormValues = reactive<Record<number, Record<string, string>>>({});
 const multiVarsPersist = ref(false);
@@ -248,7 +259,7 @@ void handleMessagesScroll;
 void showScrollToBottom;
 void scrollToBottom;
 
-/** Detect agent switch: adjacent assistant messages with different agent_id */
+/** Detect agent switch: adjacent assistant messages with different agent_id / 检测智能体切换（相邻助手消息 agent_id 不同） */
 function isAgentSwitch(idx: number): boolean {
   const msg = chatMessages.value[idx];
   if (!msg || msg.role !== 'assistant' || !msg.agent_id) return false;
@@ -286,13 +297,13 @@ function showRouteNotice(text: string) {
 
 // ============ Page AI Capability Indicator ============
 
-/** Current page context (reactive to route changes AND registry mutations) */
+/** Current page context (reactive to route changes AND registry mutations) / 当前页面上下文 */
 const currentPageContext = computed(() => {
   void pageContextVersion.value;
   return resolvePageContext(props.pageContextKey);
 });
 
-/** Current page operations list */
+/** Current page operations list / 当前页面操作列表 */
 const currentPageOperations = computed(() => {
   void pageOperationVersion.value;
   const ctx = currentPageContext.value;
@@ -300,13 +311,14 @@ const currentPageOperations = computed(() => {
   return listPageOperations(ctx.page_key);
 });
 
-/** Whether the current page has registered AI context */
+/** Whether the current page has registered AI context / 当前页是否已注册 AI 上下文 */
 const hasPageAI = computed(() => !!currentPageContext.value);
 
 // ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
 /**
  * Collect lightweight visual state from the current page DOM/window.
+ * 从当前页面 DOM/window 收集轻量视觉状态。
  * Uses useModalDetector for structured modal/drawer info.
  */
 function collectVisualState() {
@@ -323,6 +335,7 @@ function collectVisualState() {
 
 /**
  * Limit form_fields to MAX_FORM_FIELDS entries; append truncation note.
+ * 将 form_fields 限制为 MAX_FORM_FIELDS 条并追加截断说明。
  * Return value is safe to spread into page_data.
  */
 const MAX_FORM_FIELDS = 20;
@@ -342,6 +355,7 @@ function truncateFormFields(
 
 /**
  * Ensure total page_data stays under MAX_PAGE_DATA_BYTES.
+ * 确保 page_data 总大小不超过 MAX_PAGE_DATA_BYTES。
  * Progressively drops list_summary.sample_rows and form_fields if needed.
  */
 function guardPageDataSize(pageData: Record<string, unknown>): Record<string, unknown> {
@@ -371,9 +385,9 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
 
 /**
  * Enrich page_context with available_operations and visual_state
- * so LLM can discover what operations are available on the current page
- * and understand the current visual state (modals, drawers, scroll position).
- * Also enforces size guards (form_fields cap, total page_data budget).
+ * 为 page_context 注入 available_operations 与 visual_state，
+ * so LLM can discover operations and current visual state (modals, drawers, scroll).
+ * 并执行 form_fields 条数限制与 page_data 总大小限制。
  */
 function enrichPageContextWithOperations(
   ctx: ReturnType<typeof resolvePageContext>,
@@ -502,13 +516,28 @@ async function handleSendMessage() {
         ? Reflect.get(businessData, 'message')
         : null;
 
-    message.error(
+    const baseMsg =
       typeof errorMessage === 'string' && errorMessage
         ? errorMessage
-        : $t('common.http.internalServerError'),
+        : $t('common.http.internalServerError');
+    message.error(
+      `${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`,
     );
   }
 }
+
+const exportMenuItems = computed(() => [
+  {
+    key: 'md',
+    label: $t('common.globalAiChat.exportFormatMarkdown'),
+    onClick: () => exportAsMarkdown(),
+  },
+  {
+    key: 'txt',
+    label: $t('common.globalAiChat.exportFormatPlainText'),
+    onClick: () => exportAsPlainText(),
+  },
+]);
 
 // ============ Input keyboard handling / 输入键盘处理 ============
 
@@ -862,7 +891,7 @@ watch(activeConversationId, (id) => {
 
 // ============ Lifecycle ============
 
-/** Sync CSS variable for drawer/modal offset when AI panel is docked */
+/** Sync CSS variable for drawer/modal offset when AI panel is docked / AI 面板停靠时同步抽屉/弹窗偏移 CSS 变量 */
 watchEffect(() => {
   const shouldOffset =
     aiPanelStore.visible &&
@@ -1531,6 +1560,7 @@ onUnmounted(() => {
                 @action-click="clickActionButton"
                 @regenerate="regenerateMessage"
                 @edit="editAndResend"
+                @retry="retryLastMessage"
               />
             </div>
 
@@ -1636,18 +1666,8 @@ onUnmounted(() => {
               </div>
             </Transition>
 
-            <!-- Floating action buttons (stop / scroll-to-bottom) -->
+            <!-- Floating action buttons (scroll-to-bottom only; stop is merged into send button) -->
             <div class="sticky bottom-2 z-10 flex justify-center gap-2">
-              <Transition name="fade">
-                <button
-                  v-if="streaming"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/95 px-3 py-1.5 text-xs font-medium text-destructive shadow-lg backdrop-blur-sm transition-all hover:bg-destructive hover:text-white hover:shadow-xl"
-                  @click="stopGeneration"
-                >
-                  <IconifyIcon icon="lucide:square" class="size-3" />
-                  {{ $t('common.globalAiChat.stop') }}
-                </button>
-              </Transition>
               <Transition name="fade">
                 <button
                   v-if="showScrollToBottom && !streaming"
@@ -1673,9 +1693,16 @@ onUnmounted(() => {
               {{ $t('common.globalAiChat.tokens') }}</span
             >
             <span class="text-border">|</span>
-            <button class="hover:text-foreground" @click="exportAsMarkdown">
-              <IconifyIcon icon="lucide:download" class="size-3" />
-            </button>
+            <Dropdown :trigger="['click']" placement="bottomRight">
+              <button class="hover:text-foreground" type="button">
+                <IconifyIcon icon="lucide:download" class="size-3" />
+              </button>
+              <template #overlay>
+                <Menu
+                  :items="exportMenuItems"
+                />
+              </template>
+            </Dropdown>
           </div>
 
           <!-- Input area -->
@@ -1832,15 +1859,21 @@ onUnmounted(() => {
               />
               <button
                 class="send-btn flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+                :aria-label="streaming ? $t('common.globalAiChat.stop') : $t('common.commandBar.send')"
                 :disabled="
-                  (!inputMessage.trim() && pendingAttachments.length === 0) ||
-                  agents.length === 0 ||
-                  sending
+                  !streaming &&
+                  ((!inputMessage.trim() && pendingAttachments.length === 0) ||
+                    agents.length === 0 ||
+                    sending)
                 "
-                @click="handleSendMessage"
+                @click="streaming ? stopGeneration() : handleSendMessage()"
               >
-                <Spin v-if="sending || routing" size="small" />
-                <IconifyIcon v-else icon="lucide:arrow-up" class="size-3.5" />
+                <Spin v-if="!streaming && (sending || routing)" size="small" />
+                <IconifyIcon
+                  v-else
+                  :icon="streaming ? 'lucide:square' : 'lucide:arrow-up'"
+                  class="size-3.5"
+                />
               </button>
             </div>
           </div>

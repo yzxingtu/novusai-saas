@@ -26,8 +26,7 @@ logger = LogManager.get_logger("task")
 )
 def cleanup_expired_notifications(self: BaseTask) -> dict:
     """
-    Clean up notification records exceeding retention days (physical delete)
-    清理超过保留天数的通知记录（物理删除）
+    清理超过保留天数的通知记录（物理删除）/ Clean up notification records exceeding retention days (physical delete).
 
     Reads platform config notification_retention_days,
     deletes notifications with created_at earlier than (now - retention_days).

@@ -1,6 +1,5 @@
 """
-Hybrid Retrieval Engine
-混合检索引擎
+Hybrid Retrieval Engine / 混合检索引擎
 
 Supports vector search, keyword search, and hybrid search (RRF fusion ranking).
 Built-in Redis search result caching.
@@ -47,14 +46,13 @@ class ChunkSearchResult:
     highlight: str | None = None
 
     def to_dict(self) -> dict:
-        """for serialization"""
+        """for serialization / 用于序列化"""
         return asdict(self)
 
 
 class VectorSearcher:
     """
-    Vector Searcher
-    向量检索器
+    Vector Searcher / 向量检索器
 
     Uses pgvector <=> cosine distance to retrieve most similar chunks.
     使用 pgvector <=> 余弦距离检索最相似分块。
@@ -147,8 +145,7 @@ class VectorSearcher:
 
 class KeywordSearcher:
     """
-    Keyword Searcher
-    关键词检索器
+    Keyword Searcher / 关键词检索器
 
     Uses PostgreSQL tsvector + plainto_tsquery('simple', ...) for full-text search.
     使用 PostgreSQL tsvector + plainto_tsquery('simple', ...) 全文检索。
@@ -422,8 +419,7 @@ class HybridRetriever:
         score_threshold: float,
     ) -> list[ChunkSearchResult]:
         """
-        Hybrid search + RRF fusion
-        混合检索 + RRF 融合
+        混合检索 + RRF 融合 / Hybrid search + RRF fusion.
 
         Each path retrieves top_k*2, merged via Reciprocal Rank Fusion.
         两路各取 top_k*2，通过 Reciprocal Rank Fusion 融合排序。
@@ -459,7 +455,7 @@ class HybridRetriever:
         top_k: int,
     ) -> list[ChunkSearchResult]:
         """
-        Reciprocal Rank Fusion
+        倒数排名融合 / Reciprocal Rank Fusion.
 
         score(d) = Σ 1/(k + rank_i(d)), k=60
 
@@ -517,8 +513,7 @@ class HybridRetriever:
         rewrite_strategy: str = "none",
         reranker_enabled: bool = False,
     ) -> str:
-        """Generate search cache key (with kb_ids prefix, supports per-KB invalidation)
-        生成检索缓存 Key（含 kb_ids 前缀，支持按 KB 失效）"""
+        """生成检索缓存 Key（含 kb_ids 前缀，支持按 KB 失效）/ Generate search cache key (with kb_ids prefix, supports per-KB invalidation)."""
         sorted_ids = sorted(kb_ids)
         kb_prefix = "_".join(str(i) for i in sorted_ids)
         raw = f"{sorted_ids}:{query}:{mode}:{top_k}:{score_threshold}:{rewrite_strategy}:{reranker_enabled}"
@@ -553,8 +548,7 @@ class HybridRetriever:
     @staticmethod
     async def invalidate_kb_cache(kb_id: int) -> None:
         """
-        Clear search cache for specified knowledge base
-        清除指定知识库的检索缓存
+        清除指定知识库的检索缓存 / Clear search cache for specified knowledge base.
 
         Called on document changes, scans by prefix to delete only caches containing the kb_id.
         文档变更时调用，通过前缀扫描仅删除包含该 kb_id 的缓存。

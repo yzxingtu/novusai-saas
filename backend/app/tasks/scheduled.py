@@ -313,8 +313,7 @@ LITELLM_REDIS_TTL = 86400 * 3
 )
 def sync_litellm_registry(self: BaseTask) -> dict:
     """
-    Download LiteLLM model_prices_and_context_window.json and cache in Redis.
-    从 LiteLLM GitHub 仓库下载模型能力注册表并缓存到 Redis。
+    从 LiteLLM 下载模型能力表并缓存到 Redis / Download LiteLLM model_prices_and_context_window.json and cache in Redis.
 
     Tries jsdelivr CDN first, falls back to GitHub raw.
     优先使用 jsdelivr CDN，失败后回退到 GitHub raw。

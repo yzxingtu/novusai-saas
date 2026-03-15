@@ -158,6 +158,8 @@ pnpm dev  # 或 npm run dev
 - [API 设计规范](docs/guides/api-design.md)
 - [Git 提交规范](docs/guides/git-commit.md)
 
+注释须中英双语（见 [注释规范补全清单](docs/comment-compliance-remaining.md)）。
+
 ## 许可证
 
 MIT License

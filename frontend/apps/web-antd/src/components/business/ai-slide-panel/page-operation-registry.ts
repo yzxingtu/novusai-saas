@@ -124,6 +124,38 @@ export function registerPageOperations(
 }
 
 /**
+ * Append page operations to the current list for a key (without replacing).
+ * Use when a consumer (e.g. plugin) needs to add ops on top of platform-registered ops.
+ * 向指定 key 的当前操作列表追加操作（不替换）。用于插件等在平台已注册操作之上追加。
+ *
+ * Contract: For a given key, the platform should register (registerPageOperations) first, once;
+ * then plugins may append. If the platform calls registerPageOperations again later (e.g. editor
+ * recreated), it replaces the entire list and any previously appended ops are lost.
+ * 约定：同一 key 下平台应先 register 一次，再由插件 append；若平台再次 register 会整体替换，已追加的 ops 会丢失。
+ *
+ * @param key - Page identifier / 页面标识
+ * @param operations - Operations to append / 要追加的操作列表
+ * @returns Cleanup function; removes only the appended ops / cleanup 仅移除本次追加的操作
+ */
+export function appendPageOperations(
+  key: string,
+  operations: PageOperation[],
+): () => void {
+  const nk = normalizePageKey(key);
+  const appendedNames = new Set(operations.map((op) => op.name));
+  const current = registry.get(nk) ?? [];
+  registry.set(nk, [...current, ...operations]);
+  pageOperationVersion.value++;
+  return () => {
+    const cur = registry.get(nk);
+    if (cur) {
+      registry.set(nk, cur.filter((op) => !appendedNames.has(op.name)));
+      pageOperationVersion.value++;
+    }
+  };
+}
+
+/**
  * Get operation list for a specific page (read-only discovery)
  * 获取指定页面的操作列表（只读发现）
  *

@@ -1,4 +1,4 @@
-"""对齐 netdisk ORM 模型与历史表结构
+"""对齐 netdisk ORM 模型与历史表结构 / Align netdisk ORM models with legacy schema.
 
 Revision ID: netdisk_002
 Revises: netdisk_001

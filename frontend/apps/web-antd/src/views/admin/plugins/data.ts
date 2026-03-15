@@ -1,12 +1,13 @@
 /**
  * 插件管理 — 列定义、搜索、辅助函数
+ * Plugin admin — column defs, search, helpers
  */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { searchInput } from '#/adapter/form';
 import { $t } from '#/locales';
 
-/** 状态颜色映射 */
+/** 状态颜色映射 / Status color mapping */
 export function getStatusColor(status: string): string {
   const map: Record<string, string> = {
     installed: 'blue',
@@ -17,17 +18,17 @@ export function getStatusColor(status: string): string {
   return map[status] || 'default';
 }
 
-/** 状态文本 */
+/** 状态文本 / Status text */
 export function getStatusText(status: string): string {
   return $t(`admin.plugin.status_options.${status}`) || status;
 }
 
-/** 作用域文本 */
+/** 作用域文本 / Scope text */
 export function getScopeText(scope: string): string {
   return $t(`admin.plugin.scope_options.${scope}`) || scope;
 }
 
-/** 信任等级颜色 */
+/** 信任等级颜色 / Trust tier color */
 export function getTierColor(tier: string): string {
   const map: Record<string, string> = {
     official: 'purple',
@@ -37,12 +38,12 @@ export function getTierColor(tier: string): string {
   return map[tier] || 'default';
 }
 
-/** 信任等级文本 */
+/** 信任等级文本 / Trust tier text */
 export function getTierText(tier: string): string {
   return $t(`admin.plugin.tier_options.${tier}`) || tier;
 }
 
-/** 从 manifest.extensions 派生插件类型 */
+/** 从 manifest.extensions 派生插件类型 / Derive plugin type from manifest.extensions */
 export function derivePluginType(
   manifest: null | Record<string, unknown> | undefined,
 ): string {
@@ -60,7 +61,7 @@ export function derivePluginType(
   return types[0] || 'basic';
 }
 
-/** 插件类型颜色 */
+/** 插件类型颜色 / Plugin type color */
 export function getTypeColor(type: string): string {
   const map: Record<string, string> = {
     skill: 'purple',
@@ -74,7 +75,7 @@ export function getTypeColor(type: string): string {
   return map[type] || 'default';
 }
 
-/** 插件类型图标 */
+/** 插件类型图标 / Plugin type icon */
 export function getTypeIcon(type: string): string {
   const map: Record<string, string> = {
     skill: 'lucide:brain',
@@ -88,12 +89,12 @@ export function getTypeIcon(type: string): string {
   return map[type] || 'lucide:puzzle';
 }
 
-/** 插件类型文本 */
+/** 插件类型文本 / Plugin type text */
 export function getTypeText(type: string): string {
   return $t(`admin.plugin.type_options.${type}`) || type;
 }
 
-/** 插件类型列表（用于筛选） */
+/** 插件类型列表（用于筛选） / Plugin type list (for filter) */
 export const PLUGIN_TYPES = [
   'skill',
   'hook',
@@ -104,7 +105,7 @@ export const PLUGIN_TYPES = [
   'basic',
 ] as const;
 
-/** 列定义 */
+/** 列定义 / Column definitions */
 export function useColumns(): VxeTableGridOptions['columns'] {
   return [
     {
@@ -130,7 +131,7 @@ export function useColumns(): VxeTableGridOptions['columns'] {
   ];
 }
 
-/** 搜索 Schema */
+/** 搜索 Schema / Search schema */
 export function useGridFormSchema() {
   return [
     searchInput('display_name', $t('admin.plugin.placeholder.searchName')),

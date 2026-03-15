@@ -13,7 +13,7 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Plugin(BaseModel):
     """
-    插件主表
+    插件主表 / Plugin main table.
     """
 
     __tablename__ = "plugins"

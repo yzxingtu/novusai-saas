@@ -1,5 +1,4 @@
-"""Plugin ZIP package security validation and extraction utilities.
-/ 插件 ZIP 包安全校验与解压工具。"""
+"""Plugin ZIP package security validation and extraction utilities. / 插件 ZIP 包安全校验与解压工具。"""
 
 from __future__ import annotations
 

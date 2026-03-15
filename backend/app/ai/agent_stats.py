@@ -1,6 +1,5 @@
 """
-Agent Usage Statistics
-智能体用量统计
+Agent Usage Statistics / 智能体用量统计
 
 Tracks per-agent conversation counts and token consumption via Redis Hash,
 支持总量和当日两个维度的智能体对话次数和 Token 消耗统计。

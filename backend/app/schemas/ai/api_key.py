@@ -31,7 +31,7 @@ class ProviderApiKeyCreate(BaseCreateSchema):
 
 
 class ProviderApiKeyUpdate(BaseUpdateSchema):
-    """更新 API Key 请求（不允许更新 Key 本身）"""
+    """更新 API Key 请求（不允许更新 Key 本身） / Update API Key request (key value not updatable)."""
 
     name: str | None = Field(None, max_length=100, description=_("enum.ai_api_key.name"))
     is_active: bool | None = Field(None, description=_("enum.ai_api_key.is_active"))

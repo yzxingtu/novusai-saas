@@ -1,4 +1,4 @@
-"""插件 license 多记录查询稳定性的回归测试。"""
+"""插件 license 多记录查询稳定性的回归测试。 / Plugin."""
 
 from __future__ import annotations
 

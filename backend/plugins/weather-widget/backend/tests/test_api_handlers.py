@@ -31,7 +31,7 @@ search_city = mod.search_city
 
 
 def _make_request(params: dict) -> SimpleNamespace:
-    """构造模拟 Request 对象"""
+    """构造模拟 Request 对象 / Build mock Request."""
     return SimpleNamespace(
         query_params=params,
         method="GET",
@@ -39,7 +39,7 @@ def _make_request(params: dict) -> SimpleNamespace:
 
 
 def _make_ctx(config: dict | None = None) -> MagicMock:
-    """构造模拟 PluginContext 对象"""
+    """构造模拟 PluginContext 对象 / Build mock PluginContext."""
     ctx = MagicMock()
     ctx.get_config = AsyncMock(return_value=config or {})
     ctx.get_logger = MagicMock(return_value=MagicMock())
@@ -50,7 +50,7 @@ def _make_ctx(config: dict | None = None) -> MagicMock:
 
 
 class TestGetCurrentWeather:
-    """当前天气 API"""
+    """当前天气 API / Current weather API."""
 
     @pytest.mark.asyncio
     async def test_missing_lat(self):
@@ -115,7 +115,7 @@ class TestGetCurrentWeather:
 
 
 class TestGetForecast:
-    """天气预报 API"""
+    """天气预报 API / Weather forecast API."""
 
     @pytest.mark.asyncio
     async def test_missing_params(self):
@@ -199,7 +199,7 @@ class TestGetForecast:
 
 
 class TestSearchCity:
-    """城市搜索 API"""
+    """城市搜索 API / City search API."""
 
     @pytest.mark.asyncio
     async def test_missing_name(self):

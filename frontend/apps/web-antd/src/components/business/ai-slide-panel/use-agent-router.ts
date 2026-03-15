@@ -42,7 +42,7 @@ export interface RouteResult {
   agentName: string;
   confidence: number;
   routedBy: string;
-  /** Message with @mention prefix stripped (only set when routedBy='mention') */
+  /** Message with @mention prefix stripped (only set when routedBy='mention') / 去掉 @mention 前缀后的消息 */
   cleanedMessage?: string;
 }
 

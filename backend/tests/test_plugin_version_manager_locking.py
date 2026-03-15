@@ -1,4 +1,4 @@
-"""VersionManager 锁使用与回滚缓存一致性的回归测试。"""
+"""VersionManager 锁使用与回滚缓存一致性的回归测试。 / Test."""
 
 from __future__ import annotations
 

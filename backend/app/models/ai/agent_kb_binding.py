@@ -24,7 +24,7 @@ from app.core.i18n import _
 
 class AgentKnowledgeBaseBinding(TenantModel):
     """
-    智能体知识库绑定模型
+    智能体知识库绑定模型 / Agent-KB binding model.
 
     记录 Agent 与 KnowledgeBase 的 M:N 关系。
     每条记录表示一个 Agent 绑定了一个 KnowledgeBase，支持：

@@ -549,6 +549,8 @@
       "route_confidence": "路由置信度",
       "routed_by": "路由方式",
       "attachment_type": "附件类型",
+      "attachment_type_audio": "音频",
+      "attachment_type_video": "视频",
       "attachment_url": "附件地址",
       "attachment_name": "附件名称",
       "attachment_mime_type": "附件 MIME 类型",
@@ -776,6 +778,10 @@
       "embedding_dimensions": "Embedding 维度",
       "vision_model_id": "Vision 模型",
       "vision_model_name": "Vision 模型名称",
+      "audio_model_id": "音频描述模型",
+      "video_model_id": "视频描述模型",
+      "audio_model_name": "音频模型名称",
+      "video_model_name": "视频模型名称",
       "extract_images": "提取图片内容",
       "tenant_ids": "分配企业 ID 列表",
       "chunk_size": "分块大小",
@@ -1750,7 +1756,8 @@
         "url": "网页链接",
         "image": "图片文件",
         "pptx": "PPT 演示文稿",
-        "audio": "音频文件"
+        "audio": "音频文件",
+        "video": "视频文件"
       },
       "vision": {
         "describe_prompt": "请详细描述这张图片的内容，包括：文字信息、图表数据、表格内容、流程图逻辑、关键视觉元素。用于知识库检索，请尽量提取所有可被检索的信息。",
@@ -1777,7 +1784,12 @@
         "fast": "快速型",
         "standard": "标准型",
         "premium": "高级型"
-      }
+      },
+      "supports_audio": "支持音频",
+      "supports_video": "支持视频",
+      "filter_supports_vision": "是否支持视觉 (true/false)",
+      "filter_supports_audio": "是否支持音频 (true/false)",
+      "filter_supports_video": "是否支持视频 (true/false)"
     },
     "codegen": {
       "operation": {

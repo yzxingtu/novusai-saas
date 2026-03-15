@@ -358,7 +358,7 @@ def _compile_route_regex(route_pattern: str) -> re.Pattern[str]:
 
 def _match_route_path(route_pattern: str, actual_path: str) -> tuple[bool, dict[str, str]]:
     """
-    Match a route pattern against an actual request path, extracting path parameters.
+    将路由模式与实际请求路径匹配并提取路径参数 / Match a route pattern against an actual request path, extracting path parameters.
 
     Pattern: 'docs/{doc_id}/ai/continue'
     Path:    'docs/123/ai/continue'

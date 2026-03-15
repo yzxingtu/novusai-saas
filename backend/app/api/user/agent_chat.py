@@ -239,8 +239,7 @@ class UserAgentChatController(BaseController):
             query: QueryParams,
         ):
             """
-            获取当前用户的所有对话列表
-            Get all conversations for the current user
+            获取当前用户的所有对话列表 / Get current user conversation list.
 
             仅返回当前用户自己的对话，不可查看其他用户的。
             Only returns the current user's own conversations, cannot view others'.

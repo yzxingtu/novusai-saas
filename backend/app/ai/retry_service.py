@@ -1,6 +1,5 @@
 """
-AI Retry Service
-AI 重试服务
+AI Retry Service / AI 重试服务
 
 Handles exponential backoff retry and API Key rotation logic.
 Extracted from AIGateway to reduce God Object complexity.

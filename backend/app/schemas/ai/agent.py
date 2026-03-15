@@ -20,7 +20,7 @@ from app.enums.common import AudienceEnum
 # ============================================
 
 class _AgentOptionalFields(BaseModel):
-    """Agent 共享可选字段（Create/Update/Response 通用）"""
+    """Agent 共享可选字段（Create/Update/Response 通用） / Agent shared optional fields (Create/Update/Response)."""
 
     description: str | None = Field(None, description=_("enum.agent_model.description"))
     avatar: str | None = Field(None, max_length=255, description=_("enum.agent_model.avatar"))
@@ -42,7 +42,7 @@ class _AgentOptionalFields(BaseModel):
 # ============================================
 
 class AgentCreate(_AgentOptionalFields, BaseCreateSchema):
-    """创建智能体请求"""
+    """创建智能体请求 / Create agent request."""
 
     name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
     system_prompt: str | None = Field("", description=_("enum.agent_model.system_prompt"))
@@ -57,7 +57,7 @@ class AgentCreate(_AgentOptionalFields, BaseCreateSchema):
     visibility: str = Field("public", description=_("enum.agent_model.visibility"))
 
 class AgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
-    """更新智能体请求"""
+    """更新智能体请求 / Update agent request."""
 
     name: str | None = Field(None, max_length=100, description=_("enum.agent_model.name"))
     system_prompt: str | None = Field(None, description=_("enum.agent_model.system_prompt"))
@@ -73,7 +73,7 @@ class AgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
 # ============================================
 
 class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
-    """管理端创建智能体请求（支持 scope）"""
+    """管理端创建智能体请求（支持 scope） / Admin create agent request (scope supported)."""
 
     name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
     scope: str = Field("all_tenants", description=_("enum.agent_model.scope"))
@@ -93,7 +93,7 @@ class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
 
 
 class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
-    """管理端更新智能体请求"""
+    """管理端更新智能体请求 / Admin update agent request."""
 
     name: str | None = Field(None, max_length=100, description=_("enum.agent_model.name"))
     scope: str | None = Field(None, description=_("enum.agent_model.scope"))
@@ -109,7 +109,7 @@ class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
 
 
 class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
-    """智能体详情响应"""
+    """智能体详情响应 / Agent detail response."""
 
     name: str = Field(..., description=_("enum.agent_model.name"))
     system_prompt: str = Field(..., description=_("enum.agent_model.system_prompt"))
@@ -136,7 +136,7 @@ class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
 
 
 class AgentListItem(TenantResponseSchema):
-    """智能体列表项响应（精简字段）"""
+    """智能体列表项响应（精简字段） / Agent list item response (reduced fields)."""
 
     name: str = Field(..., description=_("enum.agent_model.name"))
     avatar: str | None = Field(None, description=_("enum.agent_model.avatar"))

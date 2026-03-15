@@ -1,6 +1,5 @@
 """
-AI Gateway Unified Exception Hierarchy
-AI 网关统一异常层次
+AI Gateway Unified Exception Hierarchy / AI 网关统一异常层次
 
 Captures raw exceptions from provider SDKs and converts them to unified types,
 so upper-layer business code need not be aware of provider differences.

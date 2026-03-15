@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 
 class UsageStatResponse(TenantResponseSchema):
-    """AI 使用量统计响应"""
+    """AI 使用量统计响应 / AI usage statistics response"""
 
     user_id: int | None = Field(None, description=_("enum.ai_usage_stat.user_id"))
     model_id: int = Field(..., description=_("enum.ai_usage_stat.model_id"))

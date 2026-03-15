@@ -11,7 +11,7 @@ from app.models.ai.agent_version import AgentVersion
 
 class AgentVersionRepository(TenantRepository[AgentVersion]):
     """
-    企业级智能体版本 Repository
+    企业级智能体版本 Repository / Tenant agent version repository.
 
     提供基于企业隔离的版本数据访问
     """
@@ -24,7 +24,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         version: int,
     ) -> AgentVersion | None:
         """
-        按智能体 ID 和版本号获取版本记录
+        按智能体 ID 和版本号获取版本记录 / Get version record by agent ID and version number.
 
         Args:
             agent_id: 智能体 ID
@@ -51,7 +51,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         limit: int = 100,
     ) -> list[AgentVersion]:
         """
-        获取智能体的版本列表（按版本号降序）
+        获取智能体的版本列表（按版本号降序）/ Get agent version list (desc by version number).
 
         Args:
             agent_id: 智能体 ID
@@ -82,7 +82,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         agent_id: int,
     ) -> int:
         """
-        获取智能体的最新版本号
+        获取智能体的最新版本号 / Get latest version number for agent.
 
         Args:
             agent_id: 智能体 ID

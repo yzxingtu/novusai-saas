@@ -1,6 +1,5 @@
 """
-Image Generation Engine
-图像生成引擎
+Image Generation Engine / 图像生成引擎
 
 Handles Agent requests with model.type=image, calls image generation API
 via AIGateway.generate_image(), and pushes results as SSE events.

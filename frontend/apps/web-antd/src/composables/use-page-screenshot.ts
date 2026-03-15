@@ -1,5 +1,5 @@
 /**
- * Page Screenshot Composable
+ * Page Screenshot Composable / 页面截屏 Composable
  *
  * Captures the current viewport using html2canvas, compresses to JPEG
  * (80% quality, max 1920×1080), and uploads via the chat file upload API.
@@ -24,13 +24,13 @@ const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 // ============ Types ============
 
 export interface ScreenshotOptions {
-  /** Upload endpoint URL (e.g. '/admin/attachments/upload' or '/tenant/attachments/upload') */
+  /** Upload endpoint URL (e.g. '/admin/attachments/upload' or '/tenant/attachments/upload') / 上传接口 URL */
   uploadUrl: string;
-  /** Additional form data fields (e.g. { tenant_id: '0' } for admin) */
+  /** Additional form data fields (e.g. { tenant_id: '0' } for admin) / 额外表单字段 */
   extraData?: Record<string, string>;
-  /** Target element to capture. Defaults to document.body */
+  /** Target element to capture. Defaults to document.body / 截屏目标元素 */
   target?: HTMLElement;
-  /** Exclude elements matching this selector from the screenshot */
+  /** Exclude elements matching this selector from the screenshot / 截屏排除选择器 */
   excludeSelectors?: string[];
 }
 
@@ -45,7 +45,7 @@ export function usePageScreenshot() {
   const capturing = ref(false);
 
   /**
-   * Capture the current viewport, compress, and upload.
+   * Capture the current viewport, compress, and upload / 截取当前视口、压缩并上传
    * Returns a ChatAttachment on success, null on failure.
    */
   async function captureAndUpload(

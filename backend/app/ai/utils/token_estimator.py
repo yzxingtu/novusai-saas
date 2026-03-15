@@ -1,6 +1,5 @@
 """
-Token Estimation Utility
-Token 估算工具
+Token Estimation Utility / Token 估算工具
 
 Uses more accurate estimation coefficients for CJK characters to avoid severe underestimation by len//4.
 对 CJK 字符采用更准确的估算系数，避免 len//4 对中日韩文本严重低估。

@@ -1,9 +1,7 @@
-"""
-Qiniu Kodo Storage Driver
+"""Qiniu Kodo Storage Driver / 说明
 
 New plugin-based driver using qiniu SDK.
-Supports imageView2 native image processing.
-"""
+Supports imageView2 native image processing."""
 
 from __future__ import annotations
 
@@ -37,7 +35,7 @@ except ModuleNotFoundError:
 
 
 def _require_qiniu_sdk():
-    """Ensure optional qiniu SDK is available before runtime use."""
+    """Ensure optional qiniu SDK is available before runtime use. / 说明"""
     if qiniu is None:
         raise StorageConfigError(
             message=(
@@ -51,9 +49,7 @@ def _require_qiniu_sdk():
 
 
 class KodoStorageDriver(StorageDriver):
-    """
-    Qiniu Kodo object storage driver
-    """
+    """Qiniu Kodo object storage driver / 说明"""
     name = "qiniu-kodo"
     display_name = "storage.driver.qiniu_kodo"
     config_schema = {
@@ -283,10 +279,9 @@ class KodoStorageDriver(StorageDriver):
     # ========== Image Processing / 图片处理 ==========
 
     def _build_kodo_process_params(self, params: ImageProcessParams) -> str:
-        """Build Kodo image processing URL suffix.
+        """Build Kodo image processing URL suffix. / 说明
 
-        Uses imageView2 for fit/fill/pad; imageMogr2 for crop (center crop).
-        """
+        Uses imageView2 for fit/fill/pad; imageMogr2 for crop (center crop)."""
         w = params.width or ""
         h = params.height or ""
 

@@ -23,7 +23,7 @@ from app.enums.common import AudienceEnum, SkillBindModeEnum
 
 class SkillPackage(TenantModel):
     """
-    技能包模型
+    技能包模型 / Skill package model.
 
     技能包是面向用户的管理单元，将多个 Skill 组织为一个可整体绑定的能力集合。
     例如：「客服知识库包」包含若干知识库 Skill，「数据分析包」包含若干数据智能 Skill。

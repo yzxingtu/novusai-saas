@@ -65,7 +65,7 @@ export interface ConversationDetailData {
 }
 
 const props = defineProps<{
-  /** API prefix: '/admin' or '/tenant', for loading agent skill packages */
+  /** API prefix: '/admin' or '/tenant', for loading agent skill packages / API 前缀，用于加载智能体技能包 */
   apiPrefix?: string;
   conversationId: null | number;
   /** Function to format cost / 格式化费用的函数 */

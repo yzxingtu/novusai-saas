@@ -18,7 +18,7 @@ from app.enums.ai import ProviderTypeEnum
 
 class AIProvider(BaseModel):
     """
-    AI 供应商模型
+    AI 供应商模型 / AI provider model.
 
     存储 AI 服务供应商的配置信息，如 OpenAI、国产大模型等
     """
@@ -146,7 +146,7 @@ class AIProvider(BaseModel):
 
     @property
     def model_count(self) -> int:
-        """关联模型数量（从 models 关系计算，noload 时返回 0）"""
+        """关联模型数量（从 models 关系计算，noload 时返回 0） / Model count (from relation; 0 if noload)."""
         from sqlalchemy.orm import attributes
         state = attributes.instance_state(self)
         # 仅在 models 已被显式加载时计算，避免触发懒加载

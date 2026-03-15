@@ -1,9 +1,7 @@
-"""
-Storage Migration Service
+"""Storage Migration Service / 服务
 
 Core migration logic: impact analysis, batch file transfer,
-DB record updates, pause/resume, retry, rollback.
-"""
+DB record updates, pause/resume, retry, rollback."""
 
 from __future__ import annotations
 
@@ -36,7 +34,7 @@ _cancel_flags: set[int] = set()
 
 
 class MigrationImpactAnalyzer:
-    """Analyze impact before switching storage driver"""
+    """Analyze impact before switching storage driver / 说明"""
 
     def __init__(self, db: AsyncSession):
         self._db = db
@@ -47,11 +45,9 @@ class MigrationImpactAnalyzer:
         target_driver: str,
         scope: str = "all",
     ) -> dict:
-        """
-        Analyze impact of switching from source_driver to target_driver.
+        """Analyze impact of switching from source_driver to target_driver. / 获取/返回
 
-        Returns file counts, sizes, and visibility breakdown.
-        """
+        Returns file counts, sizes, and visibility breakdown."""
         conditions = [Attachment.driver == source_driver, Attachment.is_deleted.is_(False)]
 
         if scope.startswith("tenant:"):
@@ -134,14 +130,12 @@ class MigrationImpactAnalyzer:
 
 
 class StorageMigrationService:
-    """
-    Orchestrates file migration between storage drivers.
+    """Orchestrates file migration between storage drivers. / 迁移
 
     Uses raw AsyncSession to access both plugin tables (px_storage_migration_*)
     and main tables (attachments). This is acceptable because:
     - Plugin is admin_only scope
-    - Migration requires cross-table access by design
-    """
+    - Migration requires cross-table access by design"""
 
     TASK_TABLE = "px_storage_migration_tasks"
     LOG_TABLE = "px_storage_migration_logs"
@@ -159,7 +153,7 @@ class StorageMigrationService:
         concurrency: int,
         created_by: int,
     ) -> dict:
-        """Create a migration task and populate log entries for each file."""
+        """Create a migration task and populate log entries for each file. / 迁移"""
         # Validate drivers
         if not storage_manager.has_driver(source_driver):
             return {"error": f"Source driver '{source_driver}' is not available"}
@@ -211,8 +205,7 @@ class StorageMigrationService:
 
         # Insert task record
         now = utc_now()
-        insert_task = text(f"""
-            INSERT INTO {self.TASK_TABLE}
+        insert_task = text(f"""INSERT INTO {self.TASK_TABLE} / 说明
             (source_driver, target_driver, status, scope, total_files,
              migrated_files, failed_files, skipped_files, total_bytes,
              migrated_bytes, concurrency, source_config_snapshot,
@@ -221,8 +214,7 @@ class StorageMigrationService:
             (:source_driver, :target_driver, 'pending', :scope, :total_files,
              0, 0, 0, :total_bytes, 0, :concurrency,
              :source_snapshot, :target_snapshot, :created_by, :now, :now)
-            RETURNING id
-        """)
+            RETURNING id""")
         result = await self._db.execute(
             insert_task,
             {
@@ -243,14 +235,12 @@ class StorageMigrationService:
 
         # Populate log entries in batches to avoid OOM on large file sets
         BATCH_SIZE = 1000
-        insert_log = text(f"""
-            INSERT INTO {self.LOG_TABLE}
+        insert_log = text(f"""INSERT INTO {self.LOG_TABLE} / 说明
             (task_id, attachment_id, file_path, file_size, status,
              old_driver, old_base_url, created_at)
             VALUES
             (:task_id, :attachment_id, :file_path, :file_size, :status,
-             :old_driver, :old_base_url, now())
-        """)
+             :old_driver, :old_base_url, now())""")
         offset = 0
         while True:
             batch_q = (
@@ -293,7 +283,7 @@ class StorageMigrationService:
         }
 
     async def get_task(self, task_id: int) -> dict | None:
-        """Get migration task detail."""
+        """Get migration task detail. / 迁移"""
         q = text(f"SELECT * FROM {self.TASK_TABLE} WHERE id = :id")
         result = await self._db.execute(q, {"id": task_id})
         row = result.mappings().one_or_none()
@@ -302,7 +292,7 @@ class StorageMigrationService:
         return dict(row)
 
     async def list_tasks(self, page: int = 1, page_size: int = 20) -> dict:
-        """List migration tasks with pagination."""
+        """List migration tasks with pagination. / 迁移"""
         offset = (page - 1) * page_size
 
         count_q = text(f"SELECT count(*) FROM {self.TASK_TABLE}")
@@ -331,7 +321,7 @@ class StorageMigrationService:
         page: int = 1,
         page_size: int = 50,
     ) -> dict:
-        """Get migration logs for a task."""
+        """Get migration logs for a task. / 迁移"""
         offset = (page - 1) * page_size
         params: dict = {"task_id": task_id, "limit": page_size, "offset": offset}
 
@@ -363,7 +353,7 @@ class StorageMigrationService:
     # ── Task Control ───────────────────────────────────────────
 
     async def start_task(self, task_id: int) -> dict:
-        """Start executing a migration task in the background."""
+        """Start executing a migration task in the background. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -387,7 +377,7 @@ class StorageMigrationService:
         return {"status": "running", "task_id": task_id}
 
     async def pause_task(self, task_id: int) -> dict:
-        """Pause a running migration task."""
+        """Pause a running migration task. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -402,7 +392,7 @@ class StorageMigrationService:
         return {"status": "paused", "task_id": task_id}
 
     async def resume_task(self, task_id: int) -> dict:
-        """Resume a paused migration task."""
+        """Resume a paused migration task. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -430,7 +420,7 @@ class StorageMigrationService:
         return {"status": "running", "task_id": task_id}
 
     async def cancel_task(self, task_id: int) -> dict:
-        """Cancel a running or paused migration task."""
+        """Cancel a running or paused migration task. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -456,7 +446,7 @@ class StorageMigrationService:
     # ── Retry & Rollback ───────────────────────────────────────
 
     async def retry_failed(self, task_id: int) -> dict:
-        """Reset failed log entries to pending and restart migration."""
+        """Reset failed log entries to pending and restart migration. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -464,11 +454,9 @@ class StorageMigrationService:
             return {"error": f"Cannot retry task in '{task['status']}' status"}
 
         # Reset failed logs to pending
-        reset_q = text(f"""
-            UPDATE {self.LOG_TABLE}
+        reset_q = text(f"""UPDATE {self.LOG_TABLE} / 说明
             SET status = 'pending', error_message = NULL, migrated_at = NULL
-            WHERE task_id = :task_id AND status = 'failed'
-        """)
+            WHERE task_id = :task_id AND status = 'failed'""")
         result = await self._db.execute(reset_q, {"task_id": task_id})
         reset_count = result.rowcount
 
@@ -477,15 +465,13 @@ class StorageMigrationService:
 
         # Update task counters
         await self._db.execute(
-            text(f"""
-                UPDATE {self.TASK_TABLE}
+            text(f"""UPDATE {self.TASK_TABLE} / 说明
                 SET failed_files = failed_files - :count,
                     status = 'pending',
                     error_message = NULL,
                     completed_at = NULL,
                     updated_at = now()
-                WHERE id = :id
-            """),
+                WHERE id = :id"""),
             {"id": task_id, "count": reset_count},
         )
         await self._db.commit()
@@ -494,7 +480,7 @@ class StorageMigrationService:
         return await self.start_task(task_id)
 
     async def rollback_task(self, task_id: int) -> dict:
-        """Rollback a completed migration by reverting DB records and deleting target files."""
+        """Rollback a completed migration by reverting DB records and deleting target files. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -552,25 +538,21 @@ class StorageMigrationService:
 
         # Mark logs as rolled back
         await self._db.execute(
-            text(f"""
-                UPDATE {self.LOG_TABLE}
+            text(f"""UPDATE {self.LOG_TABLE} / 说明
                 SET status = 'pending', new_driver = NULL, new_base_url = NULL,
                     migrated_at = NULL
-                WHERE task_id = :task_id AND status = 'success'
-            """),
+                WHERE task_id = :task_id AND status = 'success'"""),
             {"task_id": task_id},
         )
 
         # Reset task counters
         await self._db.execute(
-            text(f"""
-                UPDATE {self.TASK_TABLE}
+            text(f"""UPDATE {self.TASK_TABLE} / 说明
                 SET status = 'pending', migrated_files = 0, migrated_bytes = 0,
                     failed_files = 0, skipped_files = 0,
                     started_at = NULL, completed_at = NULL,
                     error_message = NULL, updated_at = now()
-                WHERE id = :id
-            """),
+                WHERE id = :id"""),
             {"id": task_id},
         )
         await self._db.commit()
@@ -583,7 +565,7 @@ class StorageMigrationService:
         }
 
     async def cleanup_source_files(self, task_id: int) -> dict:
-        """Delete source files after successful migration."""
+        """Delete source files after successful migration. / 迁移"""
         task = await self.get_task(task_id)
         if not task:
             return {"error": "Task not found"}
@@ -625,13 +607,11 @@ class StorageMigrationService:
     # ── Migration Execution ────────────────────────────────────
 
     async def _run_migration(self, task_id: int) -> None:
-        """
-        Background coroutine that performs the actual file migration.
+        """Background coroutine that performs the actual file migration. / 迁移
 
         IMPORTANT: This runs as an asyncio.Task that outlives the HTTP request.
         It must NOT use self._db (request-scoped session). Instead, it creates
-        independent sessions from async_session_factory for all DB operations.
-        """
+        independent sessions from async_session_factory for all DB operations."""
         from app.core.database import async_session_factory
 
         try:
@@ -728,14 +708,12 @@ class StorageMigrationService:
                 # Flush accumulated counters in a single UPDATE
                 async with async_session_factory() as flush_db:
                     await flush_db.execute(
-                        text(f"""
-                            UPDATE {self.TASK_TABLE}
+                        text(f"""UPDATE {self.TASK_TABLE} / 说明
                             SET migrated_files = migrated_files + :mf,
                                 failed_files = failed_files + :ff,
                                 migrated_bytes = migrated_bytes + :mb,
                                 updated_at = now()
-                            WHERE id = :task_id
-                        """),
+                            WHERE id = :task_id"""),
                         {
                             "task_id": task_id,
                             "mf": batch_counters["migrated_files"],
@@ -791,15 +769,14 @@ class StorageMigrationService:
         target_driver_name: str,
         target_base_url: str,
     ) -> bool:
-        """Migrate a single file from source to target driver.
+        """Migrate a single file from source to target driver. / 获取/返回
 
         Uses the provided `db` session (NOT self._db) to ensure each
         concurrent file migration has its own session.
 
         Returns True on success, False on failure.
         Task-level counters are NOT updated here; callers accumulate
-        them in memory and flush per batch.
-        """
+        them in memory and flush per batch."""
         try:
             # Get file info for visibility (metadata only, no file content)
             file_info = await source_driver.get_info(file_path)  # type: ignore[union-attr]
@@ -830,12 +807,10 @@ class StorageMigrationService:
             # Update log entry
             now = utc_now()
             await db.execute(
-                text(f"""
-                    UPDATE {self.LOG_TABLE}
+                text(f"""UPDATE {self.LOG_TABLE} / 说明
                     SET status = 'success', new_driver = :driver,
                         new_base_url = :base_url, migrated_at = :now
-                    WHERE id = :id
-                """),
+                    WHERE id = :id"""),
                 {
                     "id": log_id,
                     "driver": target_driver_name,
@@ -854,11 +829,9 @@ class StorageMigrationService:
             try:
                 await db.rollback()
                 await db.execute(
-                    text(f"""
-                        UPDATE {self.LOG_TABLE}
+                    text(f"""UPDATE {self.LOG_TABLE} / 说明
                         SET status = 'failed', error_message = :error
-                        WHERE id = :id
-                    """),
+                        WHERE id = :id"""),
                     {"id": log_id, "error": str(exc)[:500]},
                 )
                 await db.commit()
@@ -876,7 +849,7 @@ class StorageMigrationService:
         completed_at: datetime | None = None,
         error_message: str | None = None,
     ) -> None:
-        """Update task status and optional timestamps."""
+        """Update task status and optional timestamps. / 说明"""
         set_parts = ["status = :status", "updated_at = now()"]
         params: dict = {"id": task_id, "status": status}
 
@@ -900,11 +873,10 @@ class StorageMigrationService:
         driver_name: str,
         scope: str,
     ) -> StorageConfig:
-        """Resolve config preferring saved snapshot over live resolution.
+        """Resolve config preferring saved snapshot over live resolution. / 说明
 
         During migration execution, the config may have changed since the task
-        was created. Using the snapshot ensures consistency.
-        """
+        was created. Using the snapshot ensures consistency."""
         if snapshot and snapshot.get("driver") == driver_name:
             return StorageConfig(
                 driver=snapshot["driver"],
@@ -923,7 +895,7 @@ class StorageMigrationService:
         driver_name: str,
         scope: str,
     ) -> StorageConfig:
-        """Resolve storage config for a driver, considering scope."""
+        """Resolve storage config for a driver, considering scope. / 说明"""
         tenant_id = 0
         if scope.startswith("tenant:"):
             tenant_id = int(scope.split(":")[1])
@@ -947,5 +919,5 @@ class StorageMigrationService:
 
 
 def _json_dumps(obj: dict) -> str:
-    """Serialize dict to JSON string for SQL insertion."""
+    """Serialize dict to JSON string for SQL insertion. / 说明"""
     return json.dumps(obj, ensure_ascii=False, default=str)

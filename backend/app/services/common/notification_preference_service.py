@@ -35,7 +35,7 @@ INDIVIDUAL_TYPE_MAP = {
 
 
 class NotificationPreferenceService:
-    """通知偏好 CRUD 服务（含全局继承）"""
+    """通知偏好 CRUD 服务（含全局继承） / Notification preference CRUD (with global inheritance)."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -50,7 +50,7 @@ class NotificationPreferenceService:
         tenant_id: int = 0,
     ) -> list[dict]:
         """
-        获取全局通知偏好列表（缺失的 category 用硬编码默认补全）
+        获取全局通知偏好列表（缺失的 category 用硬编码默认补全）/ Get global notification preferences (fill missing with defaults).
 
         :param global_user_type: 'platform_global' | 'tenant_global'
         :param tenant_id: 租户 ID（平台级为 0）
@@ -85,7 +85,7 @@ class NotificationPreferenceService:
         data: list[dict],
     ) -> None:
         """
-        更新全局通知偏好 + 精确清除受影响的个人行
+        更新全局通知偏好 + 精确清除受影响的个人行 / Update global preferences and clear affected user overrides.
 
         :param global_user_type: 'platform_global' | 'tenant_global'
         :param tenant_id: 租户 ID
@@ -167,7 +167,7 @@ class NotificationPreferenceService:
         tenant_id: int = 0,
     ) -> list[dict]:
         """
-        获取用户所有分类的偏好设置（个人 -> 全局 -> 硬编码默认）
+        获取用户所有分类的偏好设置（个人 -> 全局 -> 硬编码默认）/ Get user preferences per category (user -> global -> default).
         """
         ind_result = await self.db.execute(
             select(NotificationPreference).where(
@@ -223,7 +223,7 @@ class NotificationPreferenceService:
         tenant_id: int = 0,
     ) -> None:
         """
-        批量保存个人偏好设置（upsert 语义）
+        批量保存个人偏好设置（upsert 语义）/ Batch save user preferences (upsert).
         """
         result = await self.db.execute(
             select(NotificationPreference).where(
@@ -263,7 +263,7 @@ class NotificationPreferenceService:
         tenant_id: int = 0,
     ) -> None:
         """
-        清除个人通知偏好（恢复为全局默认）
+        清除个人通知偏好（恢复为全局默认）/ Clear user notification preferences (restore to global default).
         """
         await self.db.execute(
             delete(NotificationPreference).where(

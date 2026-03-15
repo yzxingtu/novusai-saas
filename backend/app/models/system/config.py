@@ -15,7 +15,7 @@ from app.enums.config import ConfigScope, ConfigValueType
 
 class SystemConfigGroup(BaseModel):
     """
-    配置分组模型
+    配置分组模型 / Config group model.
 
     用于组织和分类配置项，支持嵌套分组
     """
@@ -111,7 +111,7 @@ class SystemConfigGroup(BaseModel):
 
 class SystemConfig(BaseModel):
     """
-    系统配置项模型（配置元数据定义）
+    系统配置项模型（配置元数据定义）/ System config item model (metadata definition).
 
     定义配置项的元数据，包括键名、类型、默认值等
     实际配置值存储在 SystemConfigValue 中
@@ -228,7 +228,7 @@ class SystemConfig(BaseModel):
 
 class SystemConfigValue(TenantModel):
     """
-    系统配置值模型
+    系统配置值模型 / System config value model.
 
     存储实际的配置值，支持：
     - 平台级配置：tenant_id = 0

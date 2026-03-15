@@ -1,6 +1,4 @@
-"""
-SessionMemoryService 测试
-"""
+"""SessionMemoryService 测试 / Test."""
 
 from __future__ import annotations
 

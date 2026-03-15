@@ -1,6 +1,5 @@
 """
-Notification Template Seed Data
-通知模板种子数据
+通知模板种子数据 / Notification Template Seed Data.
 
 Idempotently inserts/updates preset notification templates on system startup.
 Each template contains readable Chinese titles and bodies (supports {variable} placeholders).

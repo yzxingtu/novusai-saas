@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-企业管理员管理 API 测试模块
+"""企业管理员管理 API 测试模块 / API.
 
 测试 /tenant/admins/* 接口
 
-注意：需要先配置企业管理员（所有者）账号才能运行此测试
-"""
+注意：需要先配置企业管理员（所有者）账号才能运行此测试"""
 import os
 import sys
 import time
@@ -26,12 +24,12 @@ from tests.api.base import (
 
 
 class ManualTestTenantAdmins(BaseAPITest):
-    """企业管理员管理测试"""
+    """企业管理员管理测试 / Test."""
 
     module_name = "企业管理员管理 (/tenant/admins)"
 
     def setup(self) -> None:
-        """测试前登录"""
+        """测试前登录 / Test."""
         if config.TENANT_ADMIN_USERNAME and config.TENANT_ADMIN_PASSWORD:
             self._do_login()
             # 生成唯一的测试用户名
@@ -40,14 +38,14 @@ class ManualTestTenantAdmins(BaseAPITest):
             self._test_data["test_email"] = f"tenant_test_{timestamp}@example.com"
 
     def teardown(self) -> None:
-        """测试后清理"""
+        """测试后清理 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if admin_id:
             with contextlib.suppress(Exception):
                 self.client.delete(f"/tenant/admins/{admin_id}")
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         skip_reason = None
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
             skip_reason = "未配置企业管理员账号"
@@ -80,7 +78,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         self.run_test("删除自己 - 应失败", self.test_delete_self, skip_reason)
 
     def test_list_admins(self) -> None:
-        """测试获取管理员列表"""
+        """测试获取管理员列表 / Test."""
         resp = self.client.get("/tenant/admins")
         data = assert_success(resp, "获取管理员列表失败")
 
@@ -88,7 +86,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_true(isinstance(data["data"]["items"], list), "items 应为列表")
 
     def test_list_admins_pagination(self) -> None:
-        """测试获取管理员列表 - 分页"""
+        """测试获取管理员列表 - 分页 / Test."""
         resp = self.client.get("/tenant/admins", params={"page": 1, "page_size": 5})
         data = assert_success(resp, "获取管理员列表失败")
 
@@ -96,7 +94,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_equals(data["data"]["page_size"], 5)
 
     def test_create_admin(self) -> None:
-        """测试创建管理员"""
+        """测试创建管理员 / Test."""
         resp = self.client.post("/tenant/admins", data={
             "username": self._test_data["test_username"],
             "email": self._test_data["test_email"],
@@ -113,7 +111,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         self._test_data["created_admin_id"] = data["data"]["id"]
 
     def test_get_admin_detail(self) -> None:
-        """测试获取管理员详情"""
+        """测试获取管理员详情 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if not admin_id:
             raise AssertionError("没有可用的管理员ID")
@@ -124,7 +122,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_has_keys(data["data"], ["id", "username", "email", "is_active", "is_owner"])
 
     def test_update_admin(self) -> None:
-        """测试更新管理员"""
+        """测试更新管理员 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if not admin_id:
             raise AssertionError("没有可用的管理员ID")
@@ -137,7 +135,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_equals(data["data"]["nickname"], new_nickname)
 
     def test_toggle_admin_status(self) -> None:
-        """测试切换管理员状态"""
+        """测试切换管理员状态 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if not admin_id:
             raise AssertionError("没有可用的管理员ID")
@@ -153,7 +151,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_equals(data["data"]["is_active"], True)
 
     def test_reset_admin_password(self) -> None:
-        """测试重置管理员密码"""
+        """测试重置管理员密码 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if not admin_id:
             raise AssertionError("没有可用的管理员ID")
@@ -172,7 +170,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_success(login_resp, "使用新密码登录失败")
 
     def test_delete_admin(self) -> None:
-        """测试删除管理员"""
+        """测试删除管理员 / Test."""
         admin_id = self._test_data.get("created_admin_id")
         if not admin_id:
             raise AssertionError("没有可用的管理员ID")
@@ -187,7 +185,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         del self._test_data["created_admin_id"]
 
     def test_delete_self(self) -> None:
-        """测试删除自己 - 应失败"""
+        """测试删除自己 - 应失败 / Test."""
         # 获取当前管理员信息
         me_resp = self.client.get("/tenant/auth/me")
         me_data = me_resp.json()
@@ -198,7 +196,7 @@ class ManualTestTenantAdmins(BaseAPITest):
         assert_error(resp, 400, "不应允许删除自己")
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Description."""
         resp = self.client.post("/tenant/auth/login", data={
             "username": config.TENANT_ADMIN_USERNAME,
             "password": config.TENANT_ADMIN_PASSWORD,

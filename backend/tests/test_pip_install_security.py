@@ -1,11 +1,9 @@
-"""
-Tests for pip install security restrictions.
+"""Tests for pip install security restrictions. / 测试
 
 Covers:
 - _parse_package_name: extracts package name from requirement specifiers
 - validate_requirements: whitelist validation
-- ALLOWED_PACKAGES: common packages are included
-"""
+- ALLOWED_PACKAGES: common packages are included"""
 
 from __future__ import annotations
 
@@ -19,7 +17,7 @@ from app.plugins.security import (
 
 
 class TestParsePackageName:
-    """Test requirement line parsing."""
+    """Test requirement line parsing. / 测试"""
 
     @pytest.mark.parametrize("line, expected", [
         ("requests", "requests"),
@@ -49,7 +47,7 @@ class TestParsePackageName:
 
 
 class TestValidateRequirements:
-    """Test whitelist validation."""
+    """Test whitelist validation. / 测试"""
 
     def test_all_allowed(self) -> None:
         deps = ["requests>=2.28", "httpx~=0.24", "pydantic>=2.0"]
@@ -87,14 +85,14 @@ class TestValidateRequirements:
         assert len(rejected) == 0
 
     def test_case_insensitive(self) -> None:
-        """Package names are normalized to lowercase."""
+        """Package names are normalized to lowercase. / 说明"""
         deps = ["PyYAML>=6.0", "Pillow>=9.0"]
         allowed, rejected = validate_requirements(deps)
         assert len(allowed) == 2
         assert len(rejected) == 0
 
     def test_extras_handled(self) -> None:
-        """Packages with extras are correctly parsed."""
+        """Packages with extras are correctly parsed. / 解析/提取"""
         deps = ["pydantic[email]>=2.0"]
         allowed, rejected = validate_requirements(deps)
         assert len(allowed) == 1
@@ -102,7 +100,7 @@ class TestValidateRequirements:
 
 
 class TestAllowedPackages:
-    """Test that common packages are in the whitelist."""
+    """Test that common packages are in the whitelist. / 测试"""
 
     @pytest.mark.parametrize("pkg", [
         "requests", "httpx", "aiohttp",

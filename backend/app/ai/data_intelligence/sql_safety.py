@@ -109,8 +109,7 @@ _TABLE_REF_PATTERN = re.compile(
 
 def extract_table_names(sql: str) -> set[str]:
     """
-    Extract all referenced table names from SQL.
-    从 SQL 中提取所有引用的表名。
+    从 SQL 中提取所有引用的表名 / Extract all referenced table names from SQL.
 
     Uses sqlparse parsing + regex to handle CTEs, subqueries, etc.
     使用 sqlparse 解析 + 正则辅助，处理 CTE、子查询等情况。
@@ -259,8 +258,7 @@ class SQLSafetyValidator:
     @staticmethod
     def inject_limit(sql: str, max_rows: int = 200) -> str:
         """
-        Auto-inject LIMIT (if missing).
-        自动注入 LIMIT（如果缺失）。
+        自动注入 LIMIT（如果缺失）/ Auto-inject LIMIT (if missing).
 
         Reuses SqlValidator.inject_limit logic with Text-to-SQL default limit (200 rows).
         复用 SqlValidator.inject_limit 逻辑，使用 Text-to-SQL 默认限制（200 行）。

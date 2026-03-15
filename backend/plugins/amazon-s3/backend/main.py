@@ -1,12 +1,10 @@
-"""
-Amazon S3 Compatible Storage Plugin
-"""
+"""Amazon S3 兼容存储插件 / Amazon S3 Compatible Storage Plugin"""
 
 from app.plugins.base import PluginBase
 
 
 class S3StoragePlugin(PluginBase):
-    """S3 compatible storage driver plugin"""
+    """S3 兼容存储驱动插件 / S3 compatible storage driver plugin"""
 
     async def on_install(self, ctx) -> None:
         ctx.get_logger().info("S3 compatible storage plugin installed")

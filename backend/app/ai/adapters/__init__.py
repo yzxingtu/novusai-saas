@@ -1,6 +1,5 @@
 """
-AI Adapter Registry
-AI 适配器注册中心
+AI Adapter Registry / AI 适配器注册中心
 
 Manages registration and instantiation of all provider adapters.
 管理所有供应商适配器的注册和实例化。

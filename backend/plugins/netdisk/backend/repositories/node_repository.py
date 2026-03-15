@@ -1,6 +1,4 @@
-"""
-文件节点 Repository — 文件树 CRUD + 路径解析
-"""
+"""文件节点 Repository — 文件树 CRUD + 路径解析 / File node repository — file tree CRUD and path resolution."""
 
 from __future__ import annotations
 
@@ -21,7 +19,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         parent_id: int | None,
         include_deleted: bool = False,
     ) -> list[FileNode]:
-        """列出指定目录内容"""
+        """列出指定目录内容 / List directory contents."""
         from ..models.node import FileNode
         stmt = (
             select(FileNode)
@@ -36,7 +34,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         return list(result.scalars().all())
 
     async def get_ancestors(self, node_id: int) -> list[FileNode]:
-        """递归获取所有祖先节点（用于防循环检测 + 面包屑）"""
+        """递归获取所有祖先节点（用于防循环检测 + 面包屑） / Get all ancestors (cycle check + breadcrumb)."""
         from ..models.node import FileNode
         ancestors: list[FileNode] = []
         visited: set[int] = set()
@@ -62,11 +60,11 @@ class NodeRepository(TenantRepository["FileNode"]):
         return ancestors
 
     async def get_path(self, node_id: int) -> list[FileNode]:
-        """返回从根到该节点的完整路径（面包屑）"""
+        """返回从根到该节点的完整路径（面包屑） / Return full path from root (breadcrumb)."""
         return await self.get_ancestors(node_id)
 
     async def count_folder_children(self, folder_id: int) -> int:
-        """统计文件夹子节点数（不含已删除）"""
+        """统计文件夹子节点数（不含已删除） / Count folder children (excl. deleted)."""
         from ..models.node import FileNode
         result = await self.db.execute(
             select(func.count(FileNode.id)).where(
@@ -84,7 +82,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         node_type: str,
         exclude_id: int | None = None,
     ) -> bool:
-        """检查目标目录下同名同类型节点是否存在"""
+        """检查目标目录下同名同类型节点是否存在 / Check same name+type under target dir."""
         from ..models.node import FileNode
         stmt = select(FileNode.id).where(
             FileNode.tenant_id == self.tenant_id,
@@ -99,7 +97,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         return result.scalar_one_or_none() is not None
 
     async def list_trash(self) -> list[FileNode]:
-        """回收站列表（仅当前企业顶层删除节点）"""
+        """回收站列表（仅当前企业顶层删除节点） / Trash list (tenant top-level deleted only)."""
         from ..models.node import FileNode
         result = await self.db.execute(
             select(FileNode)
@@ -117,7 +115,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         node_type: str | None = None,
         limit: int = 50,
     ) -> list[FileNode]:
-        """文件名模糊搜索"""
+        """文件名模糊搜索 / Filename fuzzy search."""
         from ..models.node import FileNode
         stmt = (
             select(FileNode)
@@ -134,7 +132,7 @@ class NodeRepository(TenantRepository["FileNode"]):
         return list(result.scalars().all())
 
     async def sum_folder_size(self) -> int:
-        """统计企业全部文件总大小（用于配额重算）"""
+        """统计企业全部文件总大小（用于配额重算） / Sum tenant file size (for quota recompute)."""
         from ..models.node import FileNode, NodeTypeEnum
         result = await self.db.execute(
             select(func.coalesce(func.sum(FileNode.size_bytes), 0)).where(

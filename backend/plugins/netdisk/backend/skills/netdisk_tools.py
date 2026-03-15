@@ -10,7 +10,7 @@ import json
 
 
 class Tools:
-    """企业网盘文件查询工具包"""
+    """企业网盘文件查询工具包 / Netdisk file query tool package."""
 
     def __init__(self, ctx):
         self.ctx = ctx  # 含 tenant_id，强制企业隔离
@@ -20,13 +20,11 @@ class Tools:
         folder_path: str = "/",
         file_type: str = "",
     ) -> str:
-        """
-        列出指定目录下的文件和文件夹。
+        """列出指定目录下的文件和文件夹。 / 。
 
         :param folder_path: 目录路径（如 '/documents/2024'），默认为根目录 '/'
         :param file_type:   文件类型过滤，可选值：pdf / image / video / audio / doc，空字符串表示不过滤
-        :return: JSON 格式文件列表，含名称/大小/修改时间/类型/是否已分享
-        """
+        :return: JSON 格式文件列表，含名称/大小/修改时间/类型/是否已分享"""
         db = self.ctx.get_db()
         tenant_id = self.ctx.tenant_id
 
@@ -72,14 +70,12 @@ class Tools:
         file_type: str = "",
         limit: int = 10,
     ) -> str:
-        """
-        在企业网盘中搜索文件（模糊匹配文件名）。
+        """在企业网盘中搜索文件（模糊匹配文件名）。 / （ ）。
 
         :param keyword:   搜索关键词（文件名模糊匹配）
         :param file_type: 文件类型过滤，可选值：pdf / image / video / audio / doc，空=不过滤
         :param limit:     返回结果数量上限，默认 10，最大 50
-        :return: JSON 格式匹配文件列表，含文件名/完整路径/大小/修改时间
-        """
+        :return: JSON 格式匹配文件列表，含文件名/完整路径/大小/修改时间"""
         db = self.ctx.get_db()
         tenant_id = self.ctx.tenant_id
         limit = min(limit, 50)
@@ -127,7 +123,7 @@ class Tools:
 # ── 辅助函数（私有）──────────────────────────────────────────
 
 async def _resolve_path(db, tenant_id: int, path: str) -> int | None:
-    """将路径字符串解析为 parent_id"""
+    """将路径字符串解析为 parent_id / Parse path string to parent_id."""
     if not path or path == "/":
         return None
 
@@ -157,7 +153,7 @@ async def _resolve_path(db, tenant_id: int, path: str) -> int | None:
 
 
 def _file_type_to_mime(file_type: str) -> str:
-    """将用户友好的文件类型转换为 MIME 前缀"""
+    """将用户友好的文件类型转换为 MIME 前缀 / Map user-friendly file type to MIME prefix."""
     _MAP = {
         "image": "image/",
         "video": "video/",

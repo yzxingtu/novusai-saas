@@ -1,8 +1,6 @@
-"""
-AdminService + AdminRoleService 单元测试
+"""AdminService + AdminRoleService 单元测试 / Test.
 
-覆盖：管理员 CRUD、角色分配、超级管理员保护、状态变更。
-"""
+覆盖：管理员 CRUD、角色分配、超级管理员保护、状态变更。"""
 
 from __future__ import annotations
 

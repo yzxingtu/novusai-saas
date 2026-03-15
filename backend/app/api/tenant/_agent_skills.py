@@ -27,8 +27,7 @@ async def get_agent_skills(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取智能体绑定的所有技能包（含 SkillPackage 详情）
-    Get all skill packages bound to agent (with SkillPackage details)
+    获取智能体绑定的所有技能包（含 SkillPackage 详情）/ Get agent bound skill packages with package details.
     """
     agent_svc = AgentService(db, tenant_admin.tenant_id)
     agent = await agent_svc.get_by_id(agent_id)

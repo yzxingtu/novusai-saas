@@ -1,6 +1,5 @@
 """
-Plugin version management.
-/ 插件版本管理
+Plugin version management. / 插件版本管理。
 
 Provides version backup, upgrade, rollback, and history query functionality.
 / 提供版本备份、升级、回滚、历史查询功能。

@@ -28,7 +28,7 @@ from app.core.base_model import BaseModel
 
 class ResourceTenantAssignment(BaseModel):
     """
-    资源-企业分配表（通用）
+    资源-企业分配表（通用）/ Resource-tenant assignment (generic).
 
     所有支持「部分企业」作用域的资源共用此表，
     通过 resource_type + resource_id 标识目标资源。

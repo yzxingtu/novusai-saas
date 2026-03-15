@@ -12,7 +12,7 @@ from app.core.i18n import _
 
 
 class AITablePolicyUpdate(BaseUpdateSchema):
-    """更新 AI 表策略请求（管理员只编辑，不创建）"""
+    """更新 AI 表策略请求（管理员只编辑，不创建） / AI table policy update request (admin edit-only, no create)."""
 
     label: str | None = Field(None, max_length=100, description=_("ai_table_policy.field.label"))
     description: str | None = Field(None, description=_("ai_table_policy.field.description"))
@@ -31,7 +31,7 @@ class AITablePolicyUpdate(BaseUpdateSchema):
 
 
 class AITablePolicyResponse(BaseResponseSchema):
-    """AI 表策略响应"""
+    """AI 表策略响应 / AI table policy response schema."""
 
     table_name: str = Field(..., description=_("ai_table_policy.field.table_name"))
     label: str = Field(..., description=_("ai_table_policy.field.label"))

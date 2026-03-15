@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /**
  * AI 供应商管理列表页面
+ * AI provider management list page
  */
 import type { AIProviderInfo } from '#/api/admin/ai';
 

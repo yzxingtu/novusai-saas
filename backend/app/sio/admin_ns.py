@@ -35,8 +35,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
 
     async def on_connect(self, sid: str, environ: dict, auth: dict | None = None) -> None:
         """
-        Connection authentication.
-        连接认证。
+        连接认证 / Connection authentication.
 
         Extracts JWT from auth.token, verifies scope=admin.
         On success, saves session and joins rooms.

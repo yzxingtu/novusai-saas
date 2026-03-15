@@ -475,7 +475,7 @@ export function clearRemoteOptionsCache(resource?: string): void {
 // ============ Dot-path helpers for nested form fields / 点号路径工具函数 ============
 
 /**
- * Convert flat dot-notation keys to a nested object structure.
+ * Convert flat dot-notation keys to a nested object structure / 将扁平点号键转为嵌套对象
  * Non-dot keys are kept as-is.
  * e.g. { 'quota.max_users': 5, name: 'x' } => { quota: { max_users: 5 }, name: 'x' }
  */
@@ -498,7 +498,7 @@ function expandDotKeys(flat: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * Read a value from a nested object using a dot-separated path.
+ * Read a value from a nested object using a dot-separated path / 按点号路径从嵌套对象取值
  * e.g. getByDotPath({ quota: { max_users: 5 } }, 'quota.max_users') => 5
  */
 function getByDotPath(obj: Record<string, unknown>, path: string): unknown {
@@ -521,8 +521,8 @@ interface FieldFeedback {
 }
 
 /**
- * After setValues, read back actual form values and compare with the
- * requested values. Returns per-field feedback so the LLM can detect
+ * After setValues, read back actual form values and compare with the requested values / setValues 后读回表单实际值并与请求值对比
+ * Returns per-field feedback so the LLM can detect
  * mismatches (e.g. passed a label instead of a value for Select fields).
  */
 async function buildFillFormFeedback(

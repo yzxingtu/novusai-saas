@@ -1,6 +1,4 @@
-"""
-Storage Migration Tool Plugin
-"""
+"""存储迁移工具插件 / Storage Migration Tool Plugin"""
 
 from sqlalchemy import text
 
@@ -8,7 +6,7 @@ from app.plugins.base import PluginBase
 
 
 class StorageMigrationPlugin(PluginBase):
-    """Cross-driver storage migration tool"""
+    """跨驱动存储迁移工具 / Cross-driver storage migration tool"""
 
     async def on_install(self, ctx) -> None:
         ctx.get_logger().info("Storage migration plugin installed")
@@ -22,12 +20,10 @@ class StorageMigrationPlugin(PluginBase):
         try:
             db = ctx.get_db()
             result = await db.execute(
-                text("""
-                    UPDATE px_storage_migration_tasks
+                text("""UPDATE px_storage_migration_tasks / 迁移
                     SET status = 'paused', updated_at = now(),
                         error_message = 'Interrupted by server restart'
-                    WHERE status = 'running'
-                """),
+                    WHERE status = 'running'"""),
             )
             if result.rowcount > 0:
                 await db.commit()

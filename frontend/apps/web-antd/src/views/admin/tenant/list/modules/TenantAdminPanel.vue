@@ -1,9 +1,7 @@
 <script lang="ts" setup>
 /**
- * 企业管理员展开面板
- *
- * 显示在企业列表的展开行中，展示该企业的管理员列表及在线状态。
- * 支持创建子管理员、禁用/启用操作。
+ * 企业管理员展开面板；展示管理员列表与在线状态，支持创建/禁用/启用。
+ * Tenant admin expand panel; list admins and online status, create/disable/enable.
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
 
@@ -38,9 +36,9 @@ import TenantAdminResetPwdModal from './TenantAdminResetPwdModal.vue';
 defineOptions({ name: 'TenantAdminPanel' });
 
 const props = defineProps<{
-  /** 企业 ID */
+  /** 企业 ID / Tenant ID */
   tenantId: number;
-  /** 企业名称 */
+  /** 企业名称 / Tenant name */
   tenantName: string;
 }>();
 
@@ -51,7 +49,7 @@ const loading = ref(false);
 const formRef = ref<InstanceType<typeof TenantAdminForm>>();
 const resetPwdRef = ref<InstanceType<typeof TenantAdminResetPwdModal>>();
 
-/** 加载管理员列表 + 在线状态 */
+/** 加载管理员列表 + 在线状态 / Load admin list and online status */
 async function loadAdmins() {
   loading.value = true;
   try {
@@ -67,7 +65,7 @@ async function loadAdmins() {
   }
 }
 
-/** 切换管理员状态 */
+/** 切换管理员状态 / Toggle admin status */
 async function handleToggleStatus(admin: TenantAdminItem) {
   try {
     await toggleTenantAdminStatusApi(
@@ -82,27 +80,27 @@ async function handleToggleStatus(admin: TenantAdminItem) {
   }
 }
 
-/** 打开创建表单 */
+/** 打开创建表单 / Open create form */
 function handleCreate() {
   formRef.value?.open(props.tenantId, props.tenantName);
 }
 
-/** 打开编辑表单 */
+/** 打开编辑表单 / Open edit form */
 function handleEdit(admin: TenantAdminItem) {
   formRef.value?.open(props.tenantId, props.tenantName, admin);
 }
 
-/** 重置密码 */
+/** 重置密码 / Reset password */
 function handleResetPassword(admin: TenantAdminItem) {
   resetPwdRef.value?.open(admin.id, admin.nickname || admin.username);
 }
 
-/** 创建成功后刷新 */
+/** 创建成功后刷新 / Refresh after create success */
 function handleCreateSuccess() {
   loadAdmins();
 }
 
-/** 判断管理员是否在线 */
+/** 判断管理员是否在线 / Check if admin is online */
 function isAdminOnline(adminId: number): boolean {
   const ids = presenceStore.tenantPresenceMap.get(props.tenantId);
   return ids ? ids.has(adminId) : false;

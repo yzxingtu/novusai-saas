@@ -137,8 +137,7 @@ class ConfigRegistry:
         logger.debug(f"Unregistered config group: {group_code}")
 
     def add_option(self, config_key: str, option: ConfigOption) -> bool:
-        """Add option to config item / 向配置项添加选项
-        向指定配置项动态追加选项（插件启用时注入驱动选项）
+        """向配置项动态追加选项（插件启用时注入驱动选项）/ Add option to config item (e.g. inject driver option on plugin enable).
 
         Args:
             config_key: 配置键名（跨分组查找）
@@ -163,8 +162,7 @@ class ConfigRegistry:
         return True
 
     def remove_option(self, config_key: str, option_value: Any) -> bool:
-        """Remove option from config item (revoke driver option on plugin disable)
-        从指定配置项移除选项（插件禁用时撤回驱动选项）
+        """从指定配置项移除选项（插件禁用时撤回驱动选项）/ Remove option from config item (revoke driver option on plugin disable).
 
         Args:
             config_key: Config key / 配置键名

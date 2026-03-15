@@ -85,8 +85,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取所有可用的技能类型（内置 + 插件注册）
-            Get all available skill types (built-in + plugin-registered)
+            获取所有可用的技能类型（内置 + 插件注册）/ Get all available skill types (built-in + plugin).
             """
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
@@ -100,8 +99,7 @@ class AdminSkillController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全企业技能列表
-            Get cross-tenant skill list
+            获取全企业技能列表 / Get cross-tenant skill list.
 
             支持 JSON:API 风格筛选、排序、分页
             Supports JSON:API style filtering, sorting, pagination
@@ -131,8 +129,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能详情（跨企业）
-            Get skill details (cross-tenant)
+            获取技能详情（跨企业）/ Get skill details (cross-tenant).
 
             插件注册的技能额外返回 source_plugin 和 plugin_tools 字段
             Plugin-registered skills additionally return source_plugin and plugin_tools fields
@@ -159,7 +156,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            创建技能 / Create skill
+            创建技能 / Create skill.
 
             tenant_id 自动从所属技能包继承
             tenant_id is automatically inherited from the parent skill package
@@ -233,8 +230,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取单个技能的调用统计：调用次数、成功率、平均耗时、最近调用时间
-            Get single skill call stats: call count, success rate, avg duration, last called time
+            获取单个技能的调用统计：调用次数、成功率、平均耗时、最近调用时间 / Get single skill call stats: call count, success rate, avg duration, last called time.
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -253,8 +249,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取所有技能的汇总统计（调用次数、成功率、平均耗时）
-            Get aggregated stats for all skills (call count, success rate, avg duration)
+            获取所有技能的汇总统计（调用次数、成功率、平均耗时）/ Get aggregated stats for all skills (call count, success rate, avg duration).
             """
             from app.api.admin._skill_stats import get_all_skills_stats
             stats = await get_all_skills_stats(db)
@@ -269,8 +264,8 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能关联的工具定义列表。
-            Get tool definition list associated with the skill.
+            获取技能关联的工具定义列表 / Get tool definition list associated with the skill.
+
             对于插件创建的技能，通过插件实例的 resolve() 获取运行时工具定义。
             For plugin-created skills, runtime tool definitions are obtained via plugin instance's resolve().
             """
@@ -317,8 +312,7 @@ class AdminSkillController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            测试技能配置是否正确（按类型执行不同的验证逻辑）
-            Test if skill config is correct (executes different validation logic by type)
+            测试技能配置是否正确（按类型执行不同的验证逻辑）/ Test if skill config is correct (executes different validation logic by type).
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -413,8 +407,8 @@ class AdminSkillController(GlobalController):
             body: dict[str, Any] = Body(...),
         ):
             """
-            解析 Toolkit Python 源码，返回元数据（tools 列表、Valves schema 等）。
-            Parse Toolkit Python source code, return metadata (tools list, Valves schema, etc.).
+            解析 Toolkit Python 源码，返回元数据（tools 列表、Valves schema 等）/ Parse Toolkit Python source code, return metadata (tools list, Valves schema, etc.).
+
             供前端编辑器实时预览使用。
             For frontend editor real-time preview.
 

@@ -21,7 +21,7 @@ logger = LogManager.get_logger("ai.call_log")
 
 class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     """
-    AI 调用日志服务
+    AI 调用日志服务 / AI Call Log Service.
 
     异步记录 AI 调用日志，支持请求/响应脱敏和截断
     """
@@ -36,13 +36,13 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     @staticmethod
     def _sanitize_request(request_data: dict) -> dict:
         """
-        请求体脱敏处理
+        请求体脱敏处理 / Request body sanitization.
 
         Args:
-            request_data: 请求数据
+            request_data: 请求数据 / Request data
 
         Returns:
-            脱敏后的请求数据
+            脱敏后的请求数据 / Sanitized request data
         """
         if not request_data:
             return request_data
@@ -68,7 +68,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     @staticmethod
     def _truncate_response(response_data: Any) -> Any:
         """
-        响应体截断处理
+        响应体截断处理 / Response body truncation.
 
         超过阈值时截断，避免大字段影响性能
 
@@ -102,7 +102,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         tools: list | None,
     ) -> str:
         """
-        生成请求哈希（用于缓存命中检测）
+        生成请求哈希（用于缓存命中检测）/ Generate request hash for cache hit detection.
 
         Args:
             model_id: 模型 ID
@@ -142,7 +142,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         user_type: str | None = None,
     ) -> AICallLog:
         """
-        记录调用日志
+        记录调用日志 / Record call log.
 
         Args:
             tenant_id: 企业 ID
@@ -218,7 +218,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         end_date=None,
         group_by: str = "daily",
     ):
-        """获取调用统计信息（委托给 Repository）"""
+        """获取调用统计信息（委托给 Repository） / Get call stats (delegate to repo)."""
         return await self.repo.get_statistics(
             tenant_id=tenant_id,
             start_date=start_date,
@@ -232,7 +232,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         start_date=None,
         end_date=None,
     ):
-        """获取调用汇总统计（委托给 Repository）"""
+        """获取调用汇总统计（委托给 Repository） / Get call summary (delegate to repo)."""
         return await self.repo.get_overall_summary(
             tenant_id=tenant_id,
             start_date=start_date,
@@ -245,7 +245,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         start_date=None,
         limit: int = 100,
     ):
-        """获取失败的调用日志（委托给 Repository）"""
+        """获取失败的调用日志（委托给 Repository） / Get failed call logs (delegate to repo)."""
         return await self.repo.get_failed_logs(
             tenant_id=tenant_id,
             start_date=start_date,
@@ -271,10 +271,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         user_type: str | None = None,
     ):
         """
-        异步记录调用日志 (通过 Celery)
+        异步记录调用日志 (通过 Celery) / Record call log asynchronously via Celery.
 
         Args:
-            同 log_call
+            同 log_call / Same as log_call.
         """
         from app.tasks.ai import log_ai_call_task
 

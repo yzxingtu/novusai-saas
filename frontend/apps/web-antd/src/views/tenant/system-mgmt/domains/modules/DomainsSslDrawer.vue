@@ -1,11 +1,10 @@
 <script lang="ts" setup>
 /**
  * 企业端 SSL 证书管理抽屉
+ * Tenant SSL cert management drawer
  *
- * 功能：
- * - 查看证书状态和详情
- * - 平台证书：签发/续期/自动续期开关
- * - 自定义证书：上传（需套餐 allow_custom_ssl）/删除
+ * 功能：查看证书状态与详情；平台证书签发/续期/自动续期；自定义证书上传/删除。
+ * View status/detail; platform cert provision/renew/auto-renew; custom cert upload/delete.
  */
 import type { SslCertificateInfo } from '#/api/tenant/domain';
 
@@ -37,14 +36,14 @@ import {
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-/** SSL 抽屉打开数据 */
+/** SSL 抽屉打开数据 / SSL drawer open payload */
 interface SslDrawerData {
   domainId: number;
   domain: string;
   isDefault?: boolean;
 }
 
-/** 是否为默认域名（平台通配符 SSL 覆盖） */
+/** 是否为默认域名（平台通配符 SSL 覆盖） / Whether default domain (platform wildcard SSL) */
 const isDefaultDomain = computed(() => drawerData.value?.isDefault ?? false);
 
 // State / 状态
@@ -80,7 +79,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
   footer: false,
 });
 
-/** 加载 SSL 详情 */
+/** 加载 SSL 详情 / Load SSL detail */
 async function loadSslDetail() {
   if (!drawerData.value) return;
   loading.value = true;
@@ -93,7 +92,7 @@ async function loadSslDetail() {
   }
 }
 
-/** 签发平台证书 */
+/** 签发平台证书 / Provision platform cert */
 async function onProvision() {
   if (!drawerData.value) return;
   actionLoading.value = true;
@@ -107,7 +106,7 @@ async function onProvision() {
   }
 }
 
-/** 续期平台证书 */
+/** 续期平台证书 / Renew platform cert */
 async function onRenew() {
   if (!drawerData.value) return;
   actionLoading.value = true;
@@ -121,7 +120,7 @@ async function onRenew() {
   }
 }
 
-/** 切换自动续期 */
+/** 切换自动续期 / Toggle auto-renew */
 async function onToggleAutoRenew(checked: boolean) {
   if (!drawerData.value) return;
   actionLoading.value = true;
@@ -138,7 +137,7 @@ async function onToggleAutoRenew(checked: boolean) {
   }
 }
 
-/** 上传自定义证书 */
+/** 上传自定义证书 / Upload custom cert */
 async function onUpload() {
   if (!drawerData.value) return;
   if (!uploadForm.value.certificate || !uploadForm.value.privateKey) {
@@ -162,7 +161,7 @@ async function onUpload() {
   }
 }
 
-/** 删除证书 */
+/** 删除证书 / Delete cert */
 async function onDelete() {
   if (!drawerData.value) return;
   Modal.confirm({
@@ -184,7 +183,7 @@ async function onDelete() {
   });
 }
 
-/** 获取 SSL 状态标签配置 */
+/** 获取 SSL 状态标签配置 / Get SSL status tag config */
 function getSslStatusConfig(status?: string) {
   switch (status) {
     case 'active': {
@@ -214,7 +213,7 @@ function getSslStatusConfig(status?: string) {
   }
 }
 
-/** 打开抽屉 */
+/** 打开抽屉 / Open drawer */
 function open(data: SslDrawerData) {
   drawerApi.setData(data).open();
 }

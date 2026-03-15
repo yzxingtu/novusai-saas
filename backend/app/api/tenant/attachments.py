@@ -37,7 +37,7 @@ from app.services.tenant.attachment_service import AttachmentService
 
 
 def _with_preview_url(data: dict, tenant_id: int) -> dict:
-    """为序列化后的附件字典注入 preview_url"""
+    """为序列化后的附件字典注入 preview_url / Inject preview_url into serialized attachment dict."""
     data["preview_url"] = AttachmentDownloadService.build_preview_url(
         attachment_id=data["id"],
         tenant_id=tenant_id,

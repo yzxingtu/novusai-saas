@@ -1,6 +1,5 @@
 """
-SSE Streaming Execution Handler
-SSE 流式执行处理器
+SSE Streaming Execution Handler / SSE 流式执行处理器
 
 Extracted from ConversationEngine._sse_generator, encapsulates the SSE event generation main loop.
 Includes real-time tool call push, confirmation interception, DSML tag cleanup, error handling.
@@ -448,8 +447,7 @@ class StreamExecutionHandler:
     @staticmethod
     def _normalize_stream_tool_call(tool_call: Any) -> dict[str, Any] | None:
         """
-        Normalize streaming tool_call delta, compatible with both dict and SDK object formats.
-        归一化流式 tool_call 增量，兼容 dict 与 SDK 对象两种格式。
+        Normalize streaming tool_call delta, compatible with both dict and SDK object formats. / 归一化流式 tool_call 增量，兼容 dict 与 SDK 对象。
         """
         if not tool_call:
             return None
@@ -497,8 +495,7 @@ class StreamExecutionHandler:
         incoming: list[Any],
     ) -> list[dict[str, Any]]:
         """
-        Merge streaming tool_call deltas, supports OpenAI-style index incremental concatenation.
-        合并流式 tool_call 增量，支持 OpenAI 风格 index 增量拼接。
+        Merge streaming tool_call deltas, supports OpenAI-style index incremental concatenation. / 合并流式 tool_call 增量，支持 OpenAI 风格 index 增量拼接。
         """
         merged = existing[:]
 
@@ -556,8 +553,7 @@ class StreamExecutionHandler:
         calls: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """
-        Clean internal fields and fill defaults, output executable tool_call list.
-        清理内部字段并补齐默认值，输出可执行的 tool_call 列表。
+        清理内部字段并补齐默认值，输出可执行的 tool_call 列表 / Clean internal fields and fill defaults, output executable tool_call list.
         """
         finalized: list[dict[str, Any]] = []
 

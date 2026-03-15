@@ -1,6 +1,5 @@
 """
-Permission Check Service
-权限检查服务
+Permission Check Service. / 权限检查服务。
 
 Provides permission retrieval and check functionality.
 提供权限获取和检查功能。

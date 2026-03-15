@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Editor } from '@tiptap/core';
 
-
+import { nextTick } from 'vue';
 import { isTextSelection } from '@tiptap/core';
 import { BubbleMenu } from '@tiptap/vue-3/menus';
 import { Tooltip } from 'ant-design-vue';
@@ -25,6 +25,27 @@ function shouldShowBubble({ editor, state, from, to }: {
   const text = editor.state.doc.textBetween(from, to, '');
   return text.trim().length > 0;
 }
+
+function onBubbleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    props.editor.commands.focus();
+  }
+}
+
+const bubbleTippyOptions = {
+  duration: 100,
+  theme: 'none' as const,
+  placement: 'top' as const,
+  onShow(instance: { popper?: HTMLElement }) {
+    nextTick(() => {
+      const popper = instance?.popper;
+      const firstBtn = popper?.querySelector?.('button');
+      if (firstBtn) (firstBtn as HTMLButtonElement).focus();
+    });
+  },
+};
 
 const formatActions = [
   { icon: 'lucide:bold', key: 'bold', cmd: 'toggleBold' },
@@ -54,16 +75,18 @@ function runFormatCommand(editor: Editor, cmd: string) {
   <BubbleMenu
     :editor="editor"
     :should-show="shouldShowBubble"
-    :tippy-options="{ duration: 100, theme: 'none', placement: 'top' }"
+    :tippy-options="bubbleTippyOptions"
   >
     <div
       class="rounded-[10px] border border-border bg-popover p-1 shadow-md"
+      @keydown="onBubbleKeydown"
     >
       <div class="flex items-center gap-0.5">
         <Tooltip v-for="act in formatActions" :key="act.key" :title="$t(`common.${act.key}`)">
           <button
             class="rte-tbtn"
             :class="{ active: editor.isActive(act.key) }"
+            :aria-label="$t(`common.${act.key}`)"
             @click="runFormatCommand(editor, act.cmd)"
           >
             <IconifyIcon :icon="act.icon" class="size-4" />
@@ -76,6 +99,7 @@ function runFormatCommand(editor: Editor, cmd: string) {
           <button
             class="rte-tbtn"
             :disabled="loading"
+            :aria-label="$t(act.labelKey)"
             @click="emit('action', act.key)"
           >
             <IconifyIcon :icon="act.icon" class="size-4" />

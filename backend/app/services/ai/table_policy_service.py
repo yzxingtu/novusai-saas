@@ -14,7 +14,7 @@ from app.repositories.ai.table_policy_repository import AITablePolicyRepository
 
 class AITablePolicyService(BaseService[AITablePolicy, AITablePolicyRepository]):
     """
-    AI 表策略 Service
+    AI 表策略 Service / AI table policy service.
 
     提供策略的查询、更新功能。
     策略由 sync 服务自动创建，管理员只做编辑。
@@ -24,14 +24,14 @@ class AITablePolicyService(BaseService[AITablePolicy, AITablePolicyRepository]):
     repository_class = AITablePolicyRepository
 
     async def get_or_raise(self, policy_id: int) -> AITablePolicy:
-        """获取策略或抛出 404"""
+        """获取策略或抛出 404 / Get policy or raise 404."""
         policy = await self.get_by_id(policy_id)
         if not policy:
             raise NotFoundException(message=_("ai_table_policy.not_found"))
         return policy
 
     async def get_table_columns(self, policy_id: int) -> list[dict]:
-        """获取策略对应表的列信息"""
+        """获取策略对应表的列信息 / Get column info for policy table."""
         policy = await self.get_or_raise(policy_id)
         return await self.repo.get_table_columns(policy.table_name)
 

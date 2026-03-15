@@ -19,7 +19,7 @@ from app.enums.common import AudienceEnum
 
 
 class SkillPackageCreate(BaseCreateSchema):
-    """创建技能包请求"""
+    """创建技能包请求 / Create skill package request."""
 
     name: str = Field(..., max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
@@ -32,7 +32,7 @@ class SkillPackageCreate(BaseCreateSchema):
 
 
 class SkillPackageUpdate(BaseUpdateSchema):
-    """更新技能包请求"""
+    """更新技能包请求 / Update skill package request."""
 
     name: str | None = Field(None, max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
@@ -45,7 +45,7 @@ class SkillPackageUpdate(BaseUpdateSchema):
 
 
 class SkillPackageResponse(BaseResponseSchema):
-    """技能包响应"""
+    """技能包响应 / Skill package response schema."""
 
     tenant_id: int | None = Field(None, description="企业ID")
     name: str = Field(..., description=_("skill_package.field.name"))

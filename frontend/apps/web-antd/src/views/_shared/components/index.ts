@@ -1,6 +1,6 @@
 /* eslint-disable unicorn/no-empty-file */
 /**
- * 共享组件统一导出
+ * 共享组件统一导出 / Shared components barrel export
  * 当前暂无共享组件，此文件作为占位符
  */
 

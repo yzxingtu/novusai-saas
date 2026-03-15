@@ -127,7 +127,7 @@ function filterRemoteOption(
     .includes(input.toLowerCase());
 }
 
-/** 供应商变更时自动拉取远程模型 */
+/** 供应商变更时自动拉取远程模型 / Fetch remote models when provider changes */
 async function fetchRemoteByProvider(providerId: number) {
   remoteLoading.value = true;
   selectedRemoteModel.value = undefined;

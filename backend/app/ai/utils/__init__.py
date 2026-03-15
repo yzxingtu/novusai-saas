@@ -1,6 +1,5 @@
 """
-AI Gateway Utility Functions
-AI 网关通用工具函数
+AI Gateway Utility Functions / AI 网关通用工具函数
 
 Provides shared parsing functions for admin/tenant gateway controllers.
 提供 admin/tenant 网关控制器共享的解析函数。

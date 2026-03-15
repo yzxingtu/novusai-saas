@@ -1,10 +1,8 @@
-"""
-Unit tests for _audience_allows_role and related audience/access control functions.
+"""Unit tests for _audience_allows_role and related audience/access control functions. / 测试
 
 Tests:
 1. _audience_allows_role() — all 3×3 combinations + edge cases
-2. check_user_access() — target_audience pre-check + role_ids selection
-"""
+2. check_user_access() — target_audience pre-check + role_ids selection"""
 
 from __future__ import annotations
 
@@ -33,7 +31,7 @@ from app.enums.common import AudienceEnum, UserRoleEnum  # noqa: E402
 
 # Test _audience_allows_role logic directly (inline, no import chain issues)
 def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
-    """Inline copy of the function for isolated testing."""
+    """Inline copy of the function for isolated testing. / 测试"""
     if user_role is None:
         return True
     if target_audience == AudienceEnum.ALL.value:
@@ -50,7 +48,7 @@ def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
 # ============================================================
 
 class TestAudienceAllowsRole:
-    """Test all combinations of target_audience × user_role."""
+    """Test all combinations of target_audience × user_role. / 测试"""
 
     # AudienceEnum.ALL allows everyone
     def test_all_allows_platform_admin(self):
@@ -124,7 +122,7 @@ def mock_access():
 
 
 class TestCheckUserAccess:
-    """Test AgentService.check_user_access() logic."""
+    """Test AgentService.check_user_access() logic. / 服务"""
 
     def _make_service(self, mock_db):
         from app.services.ai.agent_service import AgentService
@@ -136,7 +134,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_target_audience_blocks_tenant_user(self, mock_db, mock_agent):
-        """target_audience=admin_tenant should block tenant_user."""
+        """target_audience=admin_tenant should block tenant_user. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
@@ -150,7 +148,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_target_audience_allows_tenant_admin(self, mock_db, mock_agent):
-        """target_audience=admin_tenant should allow tenant_admin."""
+        """target_audience=admin_tenant should allow tenant_admin. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
@@ -165,7 +163,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_public_agent_all_audience_allows_any_user(self, mock_db, mock_agent):
-        """Public agent with target_audience=all allows any user."""
+        """Public agent with target_audience=all allows any user. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ALL.value
@@ -180,7 +178,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_admin_only_blocks_everyone_except_platform_admin(self, mock_db, mock_agent):
-        """target_audience=admin_only blocks tenant_admin and tenant_user."""
+        """target_audience=admin_only blocks tenant_admin and tenant_user. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_ONLY.value
@@ -198,7 +196,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_private_no_access_record_allows(self, mock_db, mock_agent, mock_access):
-        """Private agent with no access record defaults to allow (all_users)."""
+        """Private agent with no access record defaults to allow (all_users). / 说明"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.visibility = "private"
@@ -217,7 +215,7 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_tenant_role_ids_null_allows_all(self, mock_db, mock_agent, mock_access):
-        """tenant_role_ids=NULL means no restriction (allow all)."""
+        """tenant_role_ids=NULL means no restriction (allow all). / 说明"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.visibility = "private"

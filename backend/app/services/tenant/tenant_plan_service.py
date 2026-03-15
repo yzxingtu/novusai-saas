@@ -26,7 +26,7 @@ from app.schemas.tenant.plan import (
 
 class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
     """
-    企业套餐服务
+    企业套餐服务 / Tenant plan service.
 
     提供套餐特有的业务方法
     注意：套餐是平台级数据，不做企业隔离
@@ -37,7 +37,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def get_by_code(self, code: str) -> TenantPlan | None:
         """
-        根据代码获取套餐
+        根据代码获取套餐 / Get plan by code.
 
         Args:
             code: 套餐代码
@@ -49,7 +49,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def get_with_permissions(self, plan_id: int) -> TenantPlan | None:
         """
-        获取套餐及其权限
+        获取套餐及其权限 / Get plan with permissions.
 
         Args:
             plan_id: 套餐 ID
@@ -61,7 +61,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def get_active_plans(self) -> list[TenantPlan]:
         """
-        获取所有启用的套餐
+        获取所有启用的套餐 / Get all active plans.
 
         Returns:
             启用的套餐列表
@@ -70,7 +70,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def _generate_plan_code(self) -> str:
         """
-        生成唯一的套餐代码
+        生成唯一的套餐代码 / Generate unique plan code.
 
         格式: plan_ + 6位小写字母数字（如 plan_a8k2m9）
 
@@ -98,7 +98,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         request: TenantPlanCreateRequest,
     ) -> TenantPlan:
         """
-        创建套餐
+        创建套餐 / Create plan.
 
         Args:
             request: 创建请求
@@ -130,7 +130,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         request: TenantPlanUpdateRequest,
     ) -> TenantPlan:
         """
-        更新套餐
+        更新套餐 / Update plan.
 
         Args:
             plan_id: 套餐 ID
@@ -175,7 +175,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def delete_plan(self, plan_id: int) -> bool:
         """
-        删除套餐
+        删除套餐 / Delete plan.
 
         Args:
             plan_id: 套餐 ID
@@ -208,7 +208,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         permission_ids: list[int],
     ) -> TenantPlan:
         """
-        分配套餐权限
+        分配套餐权限 / Assign permissions to plan.
 
         Args:
             plan_id: 套餐 ID
@@ -239,7 +239,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def get_plan_permissions(self, plan_id: int) -> list[Permission]:
         """
-        获取套餐权限列表
+        获取套餐权限列表 / Get plan permissions list.
 
         Args:
             plan_id: 套餐 ID
@@ -263,9 +263,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         permission_ids: list[int],
     ) -> list[Permission]:
         """
-        获取有效的权限列表
-
-        仅返回 tenant/both scope 的 menu 类型权限
+        获取有效的权限列表（仅 tenant/both scope 的 menu 类型）/ Get valid permissions (tenant/both scope, menu type only).
 
         Args:
             permission_ids: 权限 ID 列表
@@ -295,7 +293,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
     async def get_available_permissions(self) -> list[Permission]:
         """
-        获取可分配给套餐的权限列表
+        获取可分配给套餐的权限列表 / Get permissions assignable to plans.
 
         返回所有 tenant/both scope 的 menu 类型权限
 

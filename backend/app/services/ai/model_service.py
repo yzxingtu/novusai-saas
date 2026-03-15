@@ -18,7 +18,7 @@ from app.schemas.ai.model import (
 
 class AIModelService(BaseService[AIModel, AIModelRepository]):
     """
-    AI 模型 Service
+    AI 模型 Service / AI model service.
 
     提供 AI 模型的业务逻辑操作
     """
@@ -28,7 +28,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
     async def get_by_code(self, code: str) -> AIModel | None:
         """
-        根据代码获取模型
+        根据代码获取模型 / Get model by code.
 
         Args:
             code: 模型代码
@@ -44,7 +44,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         include_deleted: bool = False,
     ) -> list[AIModel]:
         """
-        获取供应商的所有模型
+        获取供应商的所有模型 / Get all models for a provider.
 
         Args:
             provider_id: 供应商 ID
@@ -60,7 +60,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
     async def create_model(self, data: AIModelCreate) -> AIModel:
         """
-        创建模型
+        创建模型 / Create model.
 
         Args:
             data: 创建请求
@@ -81,14 +81,14 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
     @staticmethod
     def _validate_fallback(model_id: int, update_data: dict) -> None:
-        """校验 fallback_model_id 不可自引用"""
+        """校验 fallback_model_id 不可自引用 / Ensure fallback_model_id does not self-reference."""
         fallback_id = update_data.get("fallback_model_id")
         if fallback_id is not None and fallback_id == model_id:
             raise BusinessException(message=_("ai.error.fallback_self_reference"))
 
     async def update_model(self, id: int, data: AIModelUpdate) -> AIModel:
         """
-        更新模型
+        更新模型 / Update model.
 
         Args:
             id: 模型 ID
@@ -145,7 +145,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
     async def fetch_remote_models(self, provider_id: int) -> list:
         """
-        从供应商远程拉取可用模型列表
+        从供应商远程拉取可用模型列表 / Fetch remote model list from provider.
 
         Args:
             provider_id: 供应商 ID

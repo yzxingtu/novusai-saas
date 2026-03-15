@@ -1,6 +1,5 @@
 """
-WebSocket Platform Config Reader
-WebSocket 平台配置读取
+WebSocket 平台配置读取 / WebSocket platform config reader.
 
 Reads WS and notification config from system_configs table, uses Redis cache to reduce DB queries.
 Called by hot paths like Namespace on_connect, NotificationService, etc.

@@ -96,7 +96,7 @@ const endpointIcon = computed(() =>
 
 const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
-/** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） */
+/** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） / AI Panel right offset */
 const aiPanelRightOffset = computed(() => {
   if (!aiEnabled.value || !aiPanelStore.visible || aiPanelStore.mode === 'full' || !aiPanelStore.docked) {
     return 0;
@@ -104,10 +104,10 @@ const aiPanelRightOffset = computed(() => {
   return aiPanelStore.panelWidth;
 });
 
-/** CommandBar 发送的待处理消息 */
+/** CommandBar 发送的待处理消息 / Pending messages from CommandBar */
 const pendingMessage = ref<null | string>(null);
 
-/** CommandBar 选择的待恢复对话 ID */
+/** CommandBar 选择的待恢复对话 ID / Conversation ID to resume from CommandBar */
 const pendingConversationId = ref<null | number>(null);
 
 function onCommandBarSubmit(text: string) {
@@ -127,7 +127,7 @@ function onConversationRestored() {
   pendingConversationId.value = null;
 }
 
-/** CommandBar 组件引用 */
+/** CommandBar 组件引用 / CommandBar component ref */
 const commandBarRef = ref<InstanceType<typeof CommandBar> | null>(null);
 
 // 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）
@@ -146,7 +146,7 @@ watch(currentEndpointPrefix, async (endpoint, previousEndpoint) => {
   await refreshPluginSlots(endpoint, router);
 });
 
-/** Socket.IO 断连/重连 UI 提示 */
+/** Socket.IO 断连/重连 UI 提示 / Socket disconnect/reconnect UI hint */
 let disconnectMsgKey: string | undefined;
 function clearDisconnectToast() {
   if (disconnectMsgKey) {

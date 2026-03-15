@@ -47,16 +47,14 @@ _SAFE_COLUMN_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 def _validate_table_name(table_name: str) -> str | None:
-    """Validate table name is safe, return error message or None
-    校验表名是否安全，返回错误消息或 None"""
+    """Validate table name is safe, return error message or None. / 校验表名是否安全，返回错误消息或 None。"""
     if not _SAFE_TABLE_NAME_RE.match(table_name):
         return _("data_intelligence.crud.invalid_table_name").format(table=table_name)
     return None
 
 
 def _validate_column_names(data: dict[str, Any]) -> str | None:
-    """Validate all column names are safe, return error message or None.
-    校验所有列名是否安全，返回错误消息或 None。
+    """校验所有列名是否安全，返回错误消息或 None / Validate all column names are safe, return error message or None.
 
     Prevents LLM from passing malicious column names that could cause SQL injection.
     Column names only allow lowercase letters, digits, and underscores, and must start with a letter or underscore.
@@ -84,8 +82,7 @@ async def _load_policy(
     context: ExecutionContext,
     table_name: str,
 ) -> AITablePolicy | None:
-    """Load table policy from database (with tenant override merging).
-    从数据库加载表策略（含企业覆盖合并）。
+    """Load table policy from database (with tenant override merging). / 从数据库加载表策略（含企业覆盖合并）。
 
     Loads the global policy, then finds and merges the corresponding tenant override.
     Overrides can only tighten, not loosen. Merged values are written directly to policy object attributes.
@@ -150,8 +147,7 @@ def _validate_write_data(
     data: dict[str, Any],
     blocked: set[str],
 ) -> str | None:
-    """Validate if write data contains forbidden columns, return error message or None
-    校验写入数据中是否包含禁止写入的列，返回错误消息或 None"""
+    """校验写入数据中是否包含禁止写入的列，返回错误消息或 None / Validate if write data contains forbidden columns, return error message or None."""
     violations = set(data.keys()) & blocked
     if violations:
         return _("data_intelligence.crud.blocked_columns_violation").format(
@@ -161,8 +157,7 @@ def _validate_write_data(
 
 
 def _derive_permission(permission_code: str, action: str) -> str | None:
-    """Derive required permission code for write operations from policy's permission_code.
-    从策略的 permission_code 推导写操作所需的权限码。
+    """从策略的 permission_code 推导写操作所需的权限码 / Derive required permission code for write operations from policy's permission_code.
 
     Examples / 例如: 'agent:read' + 'create' -> 'agent:create'
           '*' -> None (no extra permission needed / 不需要额外权限)
@@ -183,8 +178,7 @@ def _check_rbac(
     policy: AITablePolicy,
     action: str,
 ) -> str | None:
-    """Check user RBAC permissions, return error message or None.
-    检查用户 RBAC 权限，返回错误消息或 None。
+    """检查用户 RBAC 权限，返回错误消息或 None / Check user RBAC permissions, return error message or None.
 
     CRUD switches (allow_create/update/delete) are already checked by the caller;
     this only validates user identity + permission code.
@@ -229,8 +223,7 @@ async def _check_tenant_column(
     context: ExecutionContext,
     table_name: str,
 ) -> str | None:
-    """Check if table has tenant_id column; non-platform users are forbidden from operating on tables without isolation.
-    检查表是否有 tenant_id 列，非平台用户禁止操作无隔离列的表。
+    """检查表是否有 tenant_id 列，非平台用户禁止操作无隔离列的表 / Check if table has tenant_id column; non-platform users forbidden on tables without isolation.
 
     Returns error message or None (pass).
     返回错误消息或 None（通过）。
@@ -261,8 +254,7 @@ def _enforce_tenant_isolation(
     policy: AITablePolicy,
     data: dict[str, Any],
 ) -> None:
-    """Force inject tenant_id into write data (from context, never trust LLM input)
-    强制注入 tenant_id 到写入数据（从上下文获取，永不信任 LLM 输入）"""
+    """强制注入 tenant_id 到写入数据（从上下文获取，永不信任 LLM 输入）/ Force inject tenant_id into write data (from context, never trust LLM input)."""
     if context.tenant_id:
         data["tenant_id"] = context.tenant_id
     elif "tenant_id" in data:
@@ -280,8 +272,7 @@ _SYSTEM_MANAGED_COLUMNS: set[str] = {
 
 
 def _strip_system_columns(data: dict[str, Any]) -> None:
-    """Strip all system-managed columns that LLM may have passed (silent removal, no error).
-    剥离 LLM 可能传入的所有系统管理列（静默删除，不报错）。
+    """剥离 LLM 可能传入的所有系统管理列（静默删除，不报错）/ Strip all system-managed columns that LLM may have passed (silent removal, no error).
 
     These columns are auto-injected by the system (e.g. tenant_id, is_deleted),
     or auto-handled by DB/raw SQL (e.g. created_at, updated_at).
@@ -295,8 +286,7 @@ def _strip_system_columns(data: dict[str, Any]) -> None:
 
 
 def _serialize_for_sql(data: dict[str, Any]) -> None:
-    """Serialize dict/list values to JSON strings for asyncpg raw SQL binding.
-    将 dict/list 值序列化为 JSON 字符串，供 asyncpg raw SQL 绑定。
+    """将 dict/list 值序列化为 JSON 字符串，供 asyncpg raw SQL 绑定 / Serialize dict/list values to JSON strings for asyncpg raw SQL binding.
 
     asyncpg cannot directly bind Python dict/list to JSONB columns;
     they must be converted to JSON strings first.

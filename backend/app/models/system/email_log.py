@@ -15,7 +15,7 @@ from app.core.base_model import BaseModel
 
 class EmailLog(BaseModel):
     """
-    邮件发送日志模型
+    邮件发送日志模型 / Email log model.
 
     记录邮件的收件人、主题、触发来源、发送状态
     """

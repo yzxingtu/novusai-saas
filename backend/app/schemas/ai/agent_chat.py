@@ -22,9 +22,9 @@ MAX_PAGE_DATA_BYTES = 8192
 
 
 class ChatAttachment(BaseModel):
-    """对话附件（图片/文件）"""
+    """对话附件（图片/文件/音频/视频） / Chat attachment (image/file/audio/video)."""
 
-    type: Literal["image", "file"] = Field(
+    type: Literal["image", "file", "audio", "video"] = Field(
         ..., description=_("agent_chat.field.attachment_type"),
     )
     url: str = Field(
@@ -39,7 +39,7 @@ class ChatAttachment(BaseModel):
 
 
 class ImageParams(BaseModel):
-    """图像生成参数"""
+    """图像生成参数 / Image generation params."""
 
     size: str = Field("1024x1024", description=_("agent_chat.field.image_size"))
     quality: str = Field("standard", description=_("agent_chat.field.image_quality"))
@@ -48,7 +48,7 @@ class ImageParams(BaseModel):
 
 
 class AgentChatRequest(BaseModel):
-    """对话请求"""
+    """对话请求 / Agent chat request."""
 
     message: str = Field(
         ..., min_length=1, max_length=32000,
@@ -90,7 +90,7 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
-    """对话响应（非流式）"""
+    """对话响应（非流式） / Agent chat response (non-streaming)."""
 
     conversation_id: int = Field(
         ..., description=_("agent_chat.field.conversation_id"),
@@ -110,7 +110,7 @@ class AgentChatResponse(BaseModel):
 
 
 class PageContext(BaseModel):
-    """统一页面上下文（贯穿 Router 路由决策与标准 Agent 聊天执行链）"""
+    """统一页面上下文（贯穿 Router 路由决策与标准 Agent 聊天执行链） / Unified page context (Router + Agent chat chain)."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -182,7 +182,7 @@ class PageContext(BaseModel):
 
 
 class AgentRouteRequest(BaseModel):
-    """智能路由请求"""
+    """智能路由请求 / Agent route request."""
 
     message: str = Field(
         ..., min_length=1, max_length=32000,
@@ -203,7 +203,7 @@ class AgentRouteRequest(BaseModel):
 
 
 class AgentRouteResponse(BaseModel):
-    """智能路由响应"""
+    """智能路由响应 / Agent route response."""
 
     agent_id: int = Field(
         ..., description=_("agent_chat.field.routed_agent_id"),
@@ -220,7 +220,7 @@ class AgentRouteResponse(BaseModel):
 
 
 class AgentConfirmRequest(BaseModel):
-    """确认/取消操作请求"""
+    """确认/取消操作请求 / Confirm/cancel action request."""
 
     confirm_id: str = Field(
         ..., min_length=1,

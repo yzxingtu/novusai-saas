@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 
 class PluginService(BaseService[Plugin, PluginRepository]):
-    """插件业务服务"""
+    """插件业务服务 / Plugin business service."""
 
     model = Plugin
     repository_class = PluginRepository
@@ -40,11 +40,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     @staticmethod
     def _validate_config_against_schema(config: dict, schema: dict) -> None:
         """
-        对插件配置执行轻量级 JSON-Schema 校验。
-
-        说明：
-        - 当前只覆盖项目实际会用到的常见约束（required/type/enum/min-max/pattern）。
-        - 重点补齐 required 字段对空字符串的拦截（避免 `""` 绕过 required）。
+        对插件配置执行轻量级 JSON-Schema 校验。 / Lightweight JSON-Schema validation for plugin config.
+        说明：当前只覆盖 required/type/enum/min-max/pattern；required 拦截空字符串。
+        Note: Covers required/type/enum/min-max/pattern; required rejects empty string.
         """
         if not isinstance(config, dict):
             raise ValidationException(message="Plugin config must be an object")
@@ -143,7 +141,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         operator_id: int | None = None,
     ) -> Plugin:
         """
-        安装插件
+        安装插件 / Install plugin.
 
         Args:
             source_path: 插件源目录
@@ -158,11 +156,11 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         return plugin
 
     async def enable_plugin(self, plugin_id: int, operator_id: int | None = None) -> None:
-        """启用插件"""
+        """启用插件 / Enable plugin."""
         await self._lifecycle.enable(plugin_id, operator_id=operator_id)
 
     async def disable_plugin(self, plugin_id: int, force: bool = False, operator_id: int | None = None) -> None:
-        """禁用插件"""
+        """禁用插件 / Disable plugin."""
         await self._lifecycle.disable(plugin_id, force=force, operator_id=operator_id)
 
     async def install_plugin_dependencies(
@@ -172,7 +170,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         install_python: bool = True,
         install_npm: bool = True,
     ) -> dict:
-        """显式安装插件依赖（不改变插件状态）"""
+        """显式安装插件依赖（不改变插件状态） / Install plugin deps (does not change plugin state)."""
         return await self._lifecycle.install_dependencies(
             plugin_id,
             install_python=install_python,
@@ -187,7 +185,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         uninstall_npm: bool = True,
         force: bool = False,
     ) -> dict:
-        """显式卸载插件依赖（不卸载插件本体）"""
+        """显式卸载插件依赖（不卸载插件本体） / Uninstall plugin deps (plugin itself remains)."""
         return await self._lifecycle.uninstall_dependencies(
             plugin_id,
             uninstall_python=uninstall_python,
@@ -203,7 +201,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         cleanup_dependencies: bool = False,
         operator_id: int | None = None,
     ) -> None:
-        """卸载插件"""
+        """卸载插件 / Uninstall plugin."""
         await self._lifecycle.uninstall(
             plugin_id,
             confirm_data_delete,
@@ -216,7 +214,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def update_plugin_config(
         self, plugin_id: int, config: dict
     ) -> Plugin:
-        """更新插件全局配置（自动加密敏感字段）"""
+        """更新插件全局配置（自动加密敏感字段） / Update plugin global config (auto-encrypt sensitive)."""
         from app.plugins.crypto import encrypt_plugin_config
 
         plugin = await self.repo.get_by_id(plugin_id)
@@ -248,7 +246,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def update_capabilities(
         self, plugin_id: int, capabilities: list[str]
     ) -> Plugin:
-        """更新插件授权能力列表"""
+        """更新插件授权能力列表 / Update plugin granted capabilities."""
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")
@@ -263,10 +261,10 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         self, plugin_id: int, tenant_ids: list[int]
     ) -> int:
         """
-        批量分配企业
+        批量分配企业 / Assign tenants to plugin in batch.
 
         Returns:
-            实际新增的分配数量
+            实际新增的分配数量 / Number of newly created assignments.
         """
         from sqlalchemy import select
 
@@ -305,7 +303,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         return count
 
     async def unassign_tenant(self, plugin_id: int, tenant_id: int) -> None:
-        """取消企业分配"""
+        """取消企业分配 / Unassign tenant from plugin."""
         from sqlalchemy import delete
 
         from app.models.system.resource_tenant_assignment import (
@@ -324,7 +322,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def toggle_tenant_assignment(
         self, plugin_id: int, tenant_id: int, is_active: bool
     ) -> None:
-        """切换企业分配启用状态"""
+        """切换企业分配启用状态 / Toggle tenant assignment active state."""
         from sqlalchemy import update
 
         from app.models.system.resource_tenant_assignment import (
@@ -345,7 +343,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def activate_license(
         self, plugin_id: int, license_key: str
     ) -> None:
-        """激活插件 License"""
+        """激活插件 License / Activate plugin license."""
         from app.plugins.license import activate_license as activate_plugin_license
 
         result = await activate_plugin_license(plugin_id, license_key, self.db)
@@ -359,30 +357,25 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def get_readme(
         self, plugin_id: int, locale: str = "zh-CN"
     ) -> str | None:
-        """获取插件 README"""
+        """获取插件 README / Get plugin README content."""
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")
         return self._loader.load_readme(plugin.name, locale)
 
     async def get_by_name(self, name: str) -> Plugin | None:
-        """根据名称查询插件"""
+        """根据名称查询插件 / Get plugin by name."""
         return await self.repo.get_by_name(name)
 
     async def list_enabled(self) -> list[Plugin]:
-        """查询所有已启用的插件"""
+        """查询所有已启用的插件 / List all enabled plugins."""
         return await self.repo.list_enabled()
 
     async def get_tenant_visible_plugin_names(self, tenant_id: int) -> set[str]:
         """
-        获取当前企业可见的已启用插件名称集合。
-
-        过滤规则（基于 ResourceScopeEnum）：
-        - ADMIN_ONLY        → 企业端不可见
-        - ALL_TENANTS       → 所有企业可见
-        - ADMIN_AND_ALL     → 所有企业可见
-        - ASSIGNED_TENANTS  → 仅分配了当前企业的插件
-        - ADMIN_AND_ASSIGNED→ 仅分配了当前企业的插件
+        获取当前企业可见的已启用插件名称集合。 / Get set of enabled plugin names visible to tenant.
+        过滤规则（基于 ResourceScopeEnum）：ALL_TENANTS/ADMIN_AND_ALL 全可见；ASSIGNED 仅已分配。
+        Filter by ResourceScopeEnum: ALL_TENANTS/ADMIN_AND_ALL visible to all; ASSIGNED only if assigned.
         """
         from sqlalchemy import select
 
@@ -431,13 +424,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     @staticmethod
     def _normalize_python_package_name(raw: str) -> str:
-        """将 requirement 字符串归一化为可用于 metadata 查询的包名。"""
+        """将 requirement 字符串归一化为可用于 metadata 查询的包名。 / Normalize requirement to package name."""
         name = re.split(r"[><=!~;@\[]", raw, maxsplit=1)[0].strip()
         return re.sub(r"[-_.]+", "-", name).lower()
 
     @staticmethod
     def _is_python_distribution_installed(package_name: str) -> bool:
-        """判断 Python 包是否已安装（兼容 -/_ 命名差异）。"""
+        """判断 Python 包是否已安装（兼容 -/_ 命名差异）。 / Check if Python package installed (-/_ normalized)."""
         from importlib import metadata as importlib_metadata
 
         normalized = package_name.strip()
@@ -459,7 +452,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     @staticmethod
     def _parse_npm_package_name(raw: str) -> str:
-        """从 npm spec 中提取包名（支持 scoped package）。"""
+        """从 npm spec 中提取包名（支持 scoped package）。 / Extract npm package name from spec."""
         val = (raw or "").strip()
         if not val:
             return ""
@@ -469,7 +462,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         return val.split("@", 1)[0]
 
     def _load_host_npm_dependency_names(self) -> set[str]:
-        """读取宿主 web-antd package.json 中声明的依赖名。"""
+        """读取宿主 web-antd package.json 中声明的依赖名。 / Read host web-antd package.json dependency names."""
         import json
 
         host_pkg = (
@@ -497,7 +490,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     def get_dependency_status(self, plugin: Plugin) -> dict:
         """
-        计算插件依赖状态。
+        计算插件依赖状态 / Compute plugin dependency status.
 
         - Python 依赖：按环境标记过滤后逐包检查
         - npm 依赖：仅 DEBUG 模式检查（生产模式 UMD 不要求 npm 依赖）

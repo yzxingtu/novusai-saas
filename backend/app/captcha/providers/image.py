@@ -36,8 +36,7 @@ from app.core.logging import CaptchaLoggerMixin
 
 class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
     """
-    Image Captcha Provider.
-    图形验证码提供者。
+    Image Captcha Provider / 图形验证码提供者。
 
     Uses in-memory store for challenge data (hash + expiry + used flag).
     使用内存存储挑战数据（哈希 + 过期时间 + 已使用标记）。

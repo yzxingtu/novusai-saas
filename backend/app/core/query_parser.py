@@ -27,18 +27,19 @@ PAGE_SIZE_KEY = "page[size]"
 
 def parse_query_spec(request: Request) -> QuerySpec:
     """
-    从请求中解析 JSON:API 风格的查询参数
+    从请求中解析 JSON:API 风格的查询参数。
+    Parse JSON:API-style query parameters from the request.
 
     Args:
-        request: FastAPI 请求对象
+        request: FastAPI 请求对象 / FastAPI request object.
 
     Returns:
-        QuerySpec 对象
+        QuerySpec 对象 / QuerySpec instance.
 
-    示例:
+    示例 / Example:
         GET /users?filter[status]=active&filter[created_at][gte]=2025-01-01&sort=-created_at&page[number]=1&page[size]=20
 
-        解析结果:
+        解析结果 / Parsed result:
         QuerySpec(
             filters=[
                 FilterRule(field="status", op="eq", value="active"),
@@ -56,22 +57,22 @@ def parse_query_spec(request: Request) -> QuerySpec:
     size = 20
 
     for key, value in params.items():
-        # 跳过空值
+        # 跳过空值 / Skip empty values
         if not value:
             continue
 
-        # 解析 filter 参数
+        # 解析 filter 参数 / Parse filter parameter
         match = FILTER_PATTERN.match(key)
         if match:
             field = match.group(1)
             op_str = match.group(2)
 
-            # 确定操作符
+            # 确定操作符 / Determine operator
             if op_str:
                 try:
                     op = FilterOp(op_str)
                 except ValueError:
-                    # 未知操作符，跳过
+                    # 未知操作符，跳过 / Unknown operator, skip
                     continue
             else:
                 op = FilterOp.eq
@@ -122,7 +123,7 @@ def parse_query_spec(request: Request) -> QuerySpec:
 
 async def get_query_spec(request: Request) -> QuerySpec:
     """
-    FastAPI 依赖注入函数
+    FastAPI 依赖注入函数 / FastAPI dependency injection function.
 
     用于在路由中注入 QuerySpec 对象
 

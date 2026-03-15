@@ -98,7 +98,11 @@ watch(
 const {
   aiLoading,
   aiResult,
+  aiError,
+  canRetry,
   streamAI,
+  cancelAI,
+  retryAI,
   acceptResult,
   discardResult,
 } = useEditorAI(editor);
@@ -186,12 +190,16 @@ defineExpose({
     />
 
     <AIResultPanel
-      v-if="ai && aiResult"
+      v-if="ai && (aiResult || aiError || aiLoading)"
       :result="aiResult"
       :loading="aiLoading"
+      :error="aiError"
+      :can-retry="canRetry"
       @accept-with-format="acceptResult(true)"
       @accept-plain="acceptResult(false)"
       @discard="discardResult"
+      @stop="cancelAI"
+      @retry="retryAI"
     />
 
     <div
@@ -227,12 +235,16 @@ defineExpose({
     />
 
     <AIResultPanel
-      v-if="ai && aiResult"
+      v-if="ai && (aiResult || aiError || aiLoading)"
       :result="aiResult"
       :loading="aiLoading"
+      :error="aiError"
+      :can-retry="canRetry"
       @accept-with-format="acceptResult(true)"
       @accept-plain="acceptResult(false)"
       @discard="discardResult"
+      @stop="cancelAI"
+      @retry="retryAI"
     />
   </div>
 </template>

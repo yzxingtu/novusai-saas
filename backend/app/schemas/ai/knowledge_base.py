@@ -20,13 +20,15 @@ from app.core.i18n import _
 
 
 class KnowledgeBaseCreate(BaseCreateSchema):
-    """创建知识库请求"""
+    """创建知识库请求 / Create knowledge base request."""
 
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
     embedding_model_id: int = Field(..., description=_("knowledge_base.model.embedding_model_id"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))
+    audio_model_id: int | None = Field(None, description=_("knowledge_base.model.audio_model_id"))
+    video_model_id: int | None = Field(None, description=_("knowledge_base.model.video_model_id"))
     extract_images: bool = Field(False, description=_("knowledge_base.model.extract_images"))
     chunk_size: int = Field(512, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int = Field(50, ge=0, description=_("knowledge_base.model.chunk_overlap"))
@@ -37,12 +39,14 @@ class KnowledgeBaseCreate(BaseCreateSchema):
 
 
 class KnowledgeBaseUpdate(BaseUpdateSchema):
-    """更新知识库请求"""
+    """更新知识库请求 / Update knowledge base request."""
 
     name: str | None = Field(None, max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))
+    audio_model_id: int | None = Field(None, description=_("knowledge_base.model.audio_model_id"))
+    video_model_id: int | None = Field(None, description=_("knowledge_base.model.video_model_id"))
     extract_images: bool | None = Field(None, description=_("knowledge_base.model.extract_images"))
     chunk_size: int | None = Field(None, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int | None = Field(None, ge=0, description=_("knowledge_base.model.chunk_overlap"))
@@ -54,7 +58,7 @@ class KnowledgeBaseUpdate(BaseUpdateSchema):
 
 
 class AdminKnowledgeBaseCreate(BaseCreateSchema):
-    """管理端创建知识库请求（支持 scope）"""
+    """管理端创建知识库请求（支持 scope） / Admin create KB request (scope supported)."""
 
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
@@ -66,6 +70,8 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.tenant_ids"))
     embedding_model_id: int = Field(..., description=_("knowledge_base.model.embedding_model_id"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))
+    audio_model_id: int | None = Field(None, description=_("knowledge_base.model.audio_model_id"))
+    video_model_id: int | None = Field(None, description=_("knowledge_base.model.video_model_id"))
     extract_images: bool = Field(False, description=_("knowledge_base.model.extract_images"))
     chunk_size: int = Field(512, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int = Field(50, ge=0, description=_("knowledge_base.model.chunk_overlap"))
@@ -76,7 +82,7 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
 
 
 class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
-    """管理端更新知识库请求"""
+    """管理端更新知识库请求 / Admin update KB request."""
 
     name: str | None = Field(None, max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
@@ -87,6 +93,8 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
     assigned_tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.assigned_tenant_ids"))
     tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.tenant_ids"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))
+    audio_model_id: int | None = Field(None, description=_("knowledge_base.model.audio_model_id"))
+    video_model_id: int | None = Field(None, description=_("knowledge_base.model.video_model_id"))
     extract_images: bool | None = Field(None, description=_("knowledge_base.model.extract_images"))
     chunk_size: int | None = Field(None, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int | None = Field(None, ge=0, description=_("knowledge_base.model.chunk_overlap"))
@@ -98,7 +106,7 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
 
 
 class KnowledgeBaseResponse(TenantResponseSchema):
-    """知识库详情响应"""
+    """知识库详情响应 / Knowledge base detail response."""
 
     name: str = Field(..., description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
@@ -112,6 +120,8 @@ class KnowledgeBaseResponse(TenantResponseSchema):
     top_k: int = Field(..., description=_("knowledge_base.model.top_k"))
     score_threshold: float = Field(..., description=_("knowledge_base.model.score_threshold"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))
+    audio_model_id: int | None = Field(None, description=_("knowledge_base.model.audio_model_id"))
+    video_model_id: int | None = Field(None, description=_("knowledge_base.model.video_model_id"))
     extract_images: bool = Field(False, description=_("knowledge_base.model.extract_images"))
     document_count: int = Field(..., description=_("knowledge_base.model.document_count"))
     total_chunks: int = Field(..., description=_("knowledge_base.model.total_chunks"))
@@ -120,10 +130,12 @@ class KnowledgeBaseResponse(TenantResponseSchema):
     # 关联字段
     embedding_model_name: str | None = Field(None, description=_("knowledge_base.model.embedding_model_name"))
     vision_model_name: str | None = Field(None, description=_("knowledge_base.model.vision_model_name"))
+    audio_model_name: str | None = Field(None, description=_("knowledge_base.model.audio_model_name"))
+    video_model_name: str | None = Field(None, description=_("knowledge_base.model.video_model_name"))
 
 
 class KnowledgeBaseListItem(TenantResponseSchema):
-    """知识库列表项响应（精简字段）"""
+    """知识库列表项响应（精简字段） / KB list item response (reduced fields)."""
 
     name: str = Field(..., description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
@@ -133,13 +145,16 @@ class KnowledgeBaseListItem(TenantResponseSchema):
     total_chunks: int = Field(..., description=_("knowledge_base.model.total_chunks"))
     total_size_bytes: int = Field(..., description=_("knowledge_base.model.total_size_bytes"))
     embedding_model_name: str | None = Field(None, description=_("knowledge_base.model.embedding_model_name"))
+    vision_model_name: str | None = Field(None, description=_("knowledge_base.model.vision_model_name"))
+    audio_model_name: str | None = Field(None, description=_("knowledge_base.model.audio_model_name"))
+    video_model_name: str | None = Field(None, description=_("knowledge_base.model.video_model_name"))
 
 
 # ==================== 文档 Schema ====================
 
 
 class KnowledgeDocumentResponse(TenantResponseSchema):
-    """知识文档响应"""
+    """知识文档响应 / Knowledge document response."""
 
     knowledge_base_id: int = Field(..., description=_("knowledge_base.document_model.knowledge_base_id"))
     attachment_id: int | None = Field(None, description=_("knowledge_base.document_model.attachment_id"))
@@ -163,7 +178,7 @@ class KnowledgeDocumentResponse(TenantResponseSchema):
 
 
 class DocumentChunkResponse(TenantResponseSchema):
-    """文档分块响应"""
+    """文档分块响应 / Document chunk response."""
 
     document_id: int = Field(..., description=_("knowledge_base.chunk_model.document_id"))
     knowledge_base_id: int = Field(..., description=_("knowledge_base.chunk_model.knowledge_base_id"))
@@ -175,7 +190,7 @@ class DocumentChunkResponse(TenantResponseSchema):
 
 
 class DocumentChunkUpdate(BaseUpdateSchema):
-    """编辑分块内容"""
+    """编辑分块内容 / Edit chunk content."""
 
     content: str = Field(..., description=_("knowledge_base.chunk_model.content"))
 
@@ -184,7 +199,7 @@ class DocumentChunkUpdate(BaseUpdateSchema):
 
 
 class QAPairCreate(BaseCreateSchema):
-    """Q&A 问答对输入请求"""
+    """Q&A 问答对输入请求 / Q&A pair create request."""
 
     question: str = Field(
         ..., min_length=1, max_length=2000,
@@ -197,7 +212,7 @@ class QAPairCreate(BaseCreateSchema):
 
 
 class TextDocumentCreate(BaseCreateSchema):
-    """直接文本输入请求"""
+    """直接文本输入请求 / Direct text document create request."""
 
     title: str = Field(
         ..., min_length=1, max_length=200,
@@ -210,7 +225,7 @@ class TextDocumentCreate(BaseCreateSchema):
 
 
 class KnowledgeBaseSearchRequest(BaseCreateSchema):
-    """检索测试请求"""
+    """检索测试请求 / Search test request."""
 
     query: str = Field(..., min_length=1, description=_("knowledge_base.search.query"))
     top_k: int = Field(5, ge=1, le=20, description=_("knowledge_base.model.top_k"))
@@ -219,7 +234,7 @@ class KnowledgeBaseSearchRequest(BaseCreateSchema):
 
 
 class ChunkSearchResult(BaseCreateSchema):
-    """检索结果"""
+    """检索结果 / Chunk search result."""
 
     chunk_id: int = Field(..., description=_("knowledge_base.search.chunk_id"))
     content: str = Field(..., description=_("knowledge_base.chunk_model.content"))

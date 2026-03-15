@@ -16,7 +16,7 @@ logger = LogManager.get_logger("ai.rate_limit_service")
 
 class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRateLimitRepository]):
     """
-    企业 AI 模型速率限制配置 Service
+    企业 AI 模型速率限制配置 Service / Tenant model rate limit service.
     """
 
     model = TenantModelRateLimit
@@ -27,7 +27,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> TenantModelRateLimit | None:
         """
-        获取企业对指定模型的速率限制配置
+        获取企业对指定模型的速率限制配置 / Get rate limit config for tenant and model.
 
         Args:
             model_id: 模型 ID
@@ -42,7 +42,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int
     ) -> dict:
         """
-        获取有效的速率限制（优先使用企业配置，否则使用模型默认值）
+        获取有效的速率限制（优先使用企业配置，否则使用模型默认值）/ Get effective rate limits (tenant first, then model default).
 
         Args:
             model_id: 模型 ID
@@ -84,7 +84,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         model_id: int | None = None,
     ) -> list[TenantModelRateLimit]:
         """
-        获取企业活跃速率限制列表
+        获取企业活跃速率限制列表 / Get active rate limit list for tenant.
 
         Args:
             model_id: 模型 ID（可选）
@@ -105,7 +105,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         description: str | None = None
     ) -> TenantModelRateLimit:
         """
-        创建速率限制配置
+        创建速率限制配置 / Create rate limit config.
 
         Args:
             model_id: 模型 ID

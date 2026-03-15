@@ -408,8 +408,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
 
 async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | None:
     """
-    Query domain + tenant contact email from domain_id (explicit query, avoid ORM lazy loading)
-    从 domain_id 查询域名 + 企业联系邮箱（显式查询，避免 ORM 懒加载）
+    从 domain_id 查询域名与企业联系邮箱（显式查询，避免 ORM 懒加载）/ Query domain + tenant contact email from domain_id (explicit query, avoid ORM lazy loading).
 
     Returns:
         {"domain": str, "email": str, "tenant_id": int} or None
@@ -449,8 +448,7 @@ def _send_ssl_expiry_email(
     tenant_id: int,
 ) -> None:
     """
-    Send SSL certificate expiry reminder (via unified notification system)
-    发送 SSL 证书到期提醒（通过统一通知系统）
+    发送 SSL 证书到期提醒（通过统一通知系统）/ Send SSL certificate expiry reminder (via unified notification system).
 
     Sent asynchronously via notification queue; silent failure does not affect inspection flow.
     走 notification 队列异步发送，静默失败不影响巡检主流程。

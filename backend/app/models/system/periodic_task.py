@@ -17,7 +17,7 @@ from app.enums.task import ScheduleTypeEnum, TaskScopeEnum
 
 class PeriodicTask(BaseModel):
     """
-    定时任务模型
+    定时任务模型 / Periodic task model.
 
     支持 cron 表达式和间隔调度两种模式
     """

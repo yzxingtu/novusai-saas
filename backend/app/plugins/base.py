@@ -32,13 +32,13 @@ class PluginBase:
         """Post-install hook (called on first installation) / 安装后钩子（首次安装时调用）"""
 
     async def on_enable(self, ctx: PluginContext) -> None:
-        """Enable hook / 启用钩子"""
+        """启用钩子 / Enable hook."""
 
     async def on_disable(self, ctx: PluginContext) -> None:
-        """Disable hook / 禁用钩子"""
+        """禁用钩子 / Disable hook."""
 
     async def on_uninstall(self, ctx: PluginContext) -> None:
-        """Pre-uninstall hook / 卸载前钩子"""
+        """卸载前钩子 / Pre-uninstall hook."""
 
     async def on_upgrade(self, ctx: PluginContext, old_version: str) -> None:
-        """Post-upgrade hook / 版本升级后钩子"""
+        """版本升级后钩子 / Post-upgrade hook."""

@@ -288,6 +288,12 @@ export function useFormSchema(
     switchField('supports_vision', $t('admin.ai.model.vision'), {
       defaultValue: false,
     }),
+    switchField('supports_audio', $t('admin.ai.model.supportsAudio'), {
+      defaultValue: false,
+    }),
+    switchField('supports_video', $t('admin.ai.model.supportsVideo'), {
+      defaultValue: false,
+    }),
     {
       ...numberField('max_image_count', $t('admin.ai.model.maxImageCount'), {
         min: 1,
@@ -346,6 +352,8 @@ export function getFormDefaults(): Record<string, unknown> {
     is_active: true,
     supports_function_calling: false,
     supports_vision: false,
+    supports_audio: false,
+    supports_video: false,
     supports_streaming: true,
     max_image_count: 5,
     max_image_size_mb: 10,

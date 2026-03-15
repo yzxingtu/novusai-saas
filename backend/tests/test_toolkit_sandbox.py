@@ -1,12 +1,10 @@
-"""
-Tests for toolkit_executor subprocess sandbox isolation.
+"""Tests for toolkit_executor subprocess sandbox isolation. / 测试
 
 Covers:
 - _sandbox_runner.py: valid execution, missing Tools class, missing method
 - _execute_in_subprocess: normal execution, timeout, malicious code isolation
 - _execute_inprocess: backward compatibility
-- sandbox mode switching
-"""
+- sandbox mode switching"""
 
 from __future__ import annotations
 
@@ -21,7 +19,7 @@ def _make_definition(
     method_name: str = "hello",
     trusted: bool = True,
 ) -> ToolDefinition:
-    """Helper to create a ToolDefinition with toolkit config."""
+    """Helper to create a ToolDefinition with toolkit config. / 创建"""
     return ToolDefinition(
         name=f"test_{method_name}",
         description="Test tool",
@@ -41,20 +39,18 @@ def _make_definition(
 
 
 class TestSubprocessExecution:
-    """Test subprocess sandbox mode."""
+    """Test subprocess sandbox mode. / 测试"""
 
-    SIMPLE_TOOLKIT = '''
-class Tools:
+    SIMPLE_TOOLKIT = '''class Tools: / 说明
     def hello(self, name: str = "World") -> str:
         return f"Hello, {name}!"
 
     def add(self, a: int = 0, b: int = 0) -> int:
-        return a + b
-'''
+        return a + b'''
 
     @pytest.mark.asyncio
     async def test_simple_execution(self) -> None:
-        """Normal toolkit execution in subprocess."""
+        """Normal toolkit execution in subprocess. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(self.SIMPLE_TOOLKIT, "hello")
         result = await executor.execute(defn, "call_1", {"name": "Test"})
@@ -63,7 +59,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_math_execution(self) -> None:
-        """Toolkit returning numeric result."""
+        """Toolkit returning numeric result. / 获取/返回"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(self.SIMPLE_TOOLKIT, "add")
         result = await executor.execute(defn, "call_2", {"a": 3, "b": 7})
@@ -72,7 +68,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_missing_tools_class(self) -> None:
-        """Toolkit without Tools class."""
+        """Toolkit without Tools class. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition("def hello(): return 'hi'", "hello")
         result = await executor.execute(defn, "call_3", {})
@@ -81,7 +77,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_missing_method(self) -> None:
-        """Toolkit with missing method."""
+        """Toolkit with missing method. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(self.SIMPLE_TOOLKIT, "nonexistent")
         result = await executor.execute(defn, "call_4", {})
@@ -90,7 +86,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
-        """Subprocess execution timeout."""
+        """Subprocess execution timeout. / 说明"""
         slow_toolkit = '''
 import time
 class Tools:
@@ -106,7 +102,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_malicious_code_isolation(self) -> None:
-        """Malicious code runs in subprocess — doesn't crash main process."""
+        """Malicious code runs in subprocess — doesn't crash main process. / 说明"""
         malicious_toolkit = '''
 import sys
 class Tools:
@@ -123,12 +119,10 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_exception_in_toolkit(self) -> None:
-        """Exception in toolkit code is captured."""
-        error_toolkit = '''
-class Tools:
+        """Exception in toolkit code is captured. / 说明"""
+        error_toolkit = '''class Tools: / 说明
     def fail(self) -> str:
-        raise ValueError("intentional error")
-'''
+        raise ValueError("intentional error")'''
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(error_toolkit, "fail")
         result = await executor.execute(defn, "call_7", {})
@@ -137,12 +131,10 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_dict_return(self) -> None:
-        """Toolkit returning dict is serialized as JSON."""
-        dict_toolkit = '''
-class Tools:
+        """Toolkit returning dict is serialized as JSON. / 获取/返回"""
+        dict_toolkit = '''class Tools: / 说明
     def get_data(self) -> dict:
-        return {"key": "value", "num": 42}
-'''
+        return {"key": "value", "num": 42}'''
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(dict_toolkit, "get_data")
         result = await executor.execute(defn, "call_8", {})
@@ -152,7 +144,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_async_method(self) -> None:
-        """Toolkit with async method."""
+        """Toolkit with async method. / 说明"""
         async_toolkit = '''
 import asyncio
 class Tools:
@@ -173,17 +165,15 @@ class Tools:
 
 
 class TestInprocessExecution:
-    """Test inprocess mode (backward compatibility)."""
+    """Test inprocess mode (backward compatibility). / 测试"""
 
-    SIMPLE_TOOLKIT = '''
-class Tools:
+    SIMPLE_TOOLKIT = '''class Tools: / 说明
     def greet(self, name: str = "World") -> str:
-        return f"Hi, {name}!"
-'''
+        return f"Hi, {name}!"'''
 
     @pytest.mark.asyncio
     async def test_inprocess_execution(self) -> None:
-        """Inprocess mode works like before."""
+        """Inprocess mode works like before. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="inprocess")
         defn = _make_definition(self.SIMPLE_TOOLKIT, "greet")
         result = await executor.execute(defn, "call_10", {"name": "Dev"})
@@ -197,7 +187,7 @@ class Tools:
 
 
 class TestSecurityScan:
-    """Test that security scanning still works in both modes."""
+    """Test that security scanning still works in both modes. / 测试"""
 
     MALICIOUS_TOOLKIT = '''
 import os
@@ -209,7 +199,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_blocked_import_subprocess(self) -> None:
-        """Untrusted toolkit with blocked import is rejected before subprocess."""
+        """Untrusted toolkit with blocked import is rejected before subprocess. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(self.MALICIOUS_TOOLKIT, "hack", trusted=False)
         result = await executor.execute(defn, "call_11", {})
@@ -218,7 +208,7 @@ class Tools:
 
     @pytest.mark.asyncio
     async def test_blocked_import_inprocess(self) -> None:
-        """Untrusted toolkit with blocked import is rejected in inprocess mode."""
+        """Untrusted toolkit with blocked import is rejected in inprocess mode. / 说明"""
         executor = ToolkitExecutor(sandbox_mode="inprocess")
         defn = _make_definition(self.MALICIOUS_TOOLKIT, "hack", trusted=False)
         result = await executor.execute(defn, "call_12", {})
@@ -232,16 +222,14 @@ class Tools:
 
 
 class TestOutputTruncation:
-    """Test output size limiting."""
+    """Test output size limiting. / 测试"""
 
     @pytest.mark.asyncio
     async def test_output_truncated(self) -> None:
-        """Large output is truncated."""
-        large_toolkit = '''
-class Tools:
+        """Large output is truncated. / 说明"""
+        large_toolkit = '''class Tools: / 说明
     def big(self) -> str:
-        return "x" * 50000
-'''
+        return "x" * 50000'''
         executor = ToolkitExecutor(
             max_output_size=1000, sandbox_mode="subprocess",
         )

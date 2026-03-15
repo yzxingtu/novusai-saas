@@ -13,7 +13,7 @@ from app.models.system.agent_assignment import SystemAgentAssignment
 
 class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
     """
-    系统智能体绑定仓储
+    系统智能体绑定仓储 / System agent assignment repository.
     """
 
     model = SystemAgentAssignment
@@ -91,7 +91,7 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认。
+        企业 resolve：先查企业覆盖，未找到则 fallback 到全局默认。/ Resolve for tenant: tenant override first, then fallback to global default.
 
         当企业覆盖存在时直接返回（无论 is_active），让调用方根据
         is_active 决定行为。只有覆盖不存在时才 fallback 到全局默认。

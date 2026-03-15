@@ -12,7 +12,7 @@ from app.core.base_model import BaseModel
 
 class PluginVersion(BaseModel):
     """
-    插件版本历史表
+    插件版本历史表 / Plugin version history.
     """
 
     __tablename__ = "plugin_versions"

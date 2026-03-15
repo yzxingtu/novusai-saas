@@ -20,10 +20,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """合并分支，不执行结构变更。"""
+    """合并分支，不执行结构变更。 / Merge heads, no schema change."""
     pass
 
 
 def downgrade() -> None:
-    """回滚合并分支，不执行结构变更。"""
+    """回滚合并分支，不执行结构变更。 / Rollback merge, no schema change."""
     pass

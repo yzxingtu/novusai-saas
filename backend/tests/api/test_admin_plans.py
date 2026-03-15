@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-套餐管理 API 测试模块
+"""套餐管理 API 测试模块 / API.
 
-测试 /admin/plans/* 接口
-"""
+测试 /admin/plans/* 接口"""
 import os
 import sys
 import time
@@ -24,19 +22,19 @@ from tests.api.base import (
 
 
 class ManualTestAdminPlans(BaseAPITest):
-    """套餐管理测试"""
+    """套餐管理测试 / Test."""
 
     module_name = "套餐管理 (/admin/plans)"
 
     def setup(self) -> None:
-        """测试前登录"""
+        """测试前登录 / Test."""
         self._do_login()
         # 生成唯一的测试套餐名称（代码由后端自动生成）
         timestamp = int(time.time())
         self._test_data["plan_name"] = f"测试套餐_{timestamp}"
 
     def teardown(self) -> None:
-        """测试后清理"""
+        """测试后清理 / Test."""
         # 尝试删除测试创建的套餐
         plan_id = self._test_data.get("created_plan_id")
         if plan_id:
@@ -44,7 +42,7 @@ class ManualTestAdminPlans(BaseAPITest):
                 self.client.delete(f"/admin/plans/{plan_id}")
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         # ========== 基本 CRUD 测试 ==========
 
         # 1. 获取套餐列表
@@ -90,7 +88,7 @@ class ManualTestAdminPlans(BaseAPITest):
     # ========== 列表和查询测试 ==========
 
     def test_list_plans(self) -> None:
-        """测试获取套餐列表"""
+        """测试获取套餐列表 / Test."""
         resp = self.client.get("/admin/plans")
         data = assert_success(resp, "获取套餐列表失败")
 
@@ -98,7 +96,7 @@ class ManualTestAdminPlans(BaseAPITest):
         assert_true(isinstance(data["data"]["items"], list), "items 应为列表")
 
     def test_list_plans_pagination(self) -> None:
-        """测试获取套餐列表 - 分页"""
+        """测试获取套餐列表 - 分页 / Test."""
         resp = self.client.get("/admin/plans", params={"page[number]": 1, "page[size]": 5})
         data = assert_success(resp, "获取套餐列表失败")
 
@@ -107,7 +105,7 @@ class ManualTestAdminPlans(BaseAPITest):
         assert_true(len(data["data"]["items"]) <= 5, "返回数量应不超过 page_size")
 
     def test_select_plans(self) -> None:
-        """测试获取套餐下拉选项"""
+        """测试获取套餐下拉选项 / Test."""
         resp = self.client.get("/admin/plans/select")
         data = assert_success(resp, "获取套餐下拉选项失败")
 
@@ -115,7 +113,7 @@ class ManualTestAdminPlans(BaseAPITest):
         assert_true(isinstance(data["data"]["items"], list), "items 应为列表")
 
     def test_get_available_permissions(self) -> None:
-        """测试获取可分配权限树"""
+        """测试获取可分配权限树 / Test."""
         resp = self.client.get("/admin/plans/available-permissions")
         data = assert_success(resp, "获取可分配权限树失败")
 
@@ -123,7 +121,7 @@ class ManualTestAdminPlans(BaseAPITest):
 
         # 收集所有权限 ID（包括子节点）
         def collect_permission_ids(nodes: list, ids: list) -> None:
-            """递归收集权限 ID"""
+            """递归收集权限 ID / ID"""
             for node in nodes:
                 assert_has_keys(node, ["id", "code", "name", "type", "children"])
                 assert_equals(node["type"], "menu", "应只返回 menu 类型权限")
@@ -141,7 +139,7 @@ class ManualTestAdminPlans(BaseAPITest):
     # ========== 创建测试 ==========
 
     def test_create_plan(self) -> None:
-        """测试创建套餐（代码由后端自动生成）"""
+        """测试创建套餐（代码由后端自动生成） / Test."""
         resp = self.client.post("/admin/plans", data={
             "name": self._test_data["plan_name"],
             "description": "测试套餐描述",
@@ -178,7 +176,7 @@ class ManualTestAdminPlans(BaseAPITest):
     # ========== 详情测试 ==========
 
     def test_get_plan_detail(self) -> None:
-        """测试获取套餐详情"""
+        """测试获取套餐详情 / Test."""
         plan_id = self._test_data.get("created_plan_id")
         if not plan_id:
             raise AssertionError("没有可用的套餐ID")
@@ -197,14 +195,14 @@ class ManualTestAdminPlans(BaseAPITest):
         assert_true(isinstance(data["data"]["permissions"], list), "permissions 应为列表")
 
     def test_get_plan_not_found(self) -> None:
-        """测试获取不存在的套餐详情"""
+        """测试获取不存在的套餐详情 / Test."""
         resp = self.client.get("/admin/plans/999999")
         assert_error(resp, 404, "应返回 404 错误")
 
     # ========== 更新测试 ==========
 
     def test_update_plan(self) -> None:
-        """测试更新套餐"""
+        """测试更新套餐 / Test."""
         plan_id = self._test_data.get("created_plan_id")
         if not plan_id:
             raise AssertionError("没有可用的套餐ID")
@@ -231,7 +229,7 @@ class ManualTestAdminPlans(BaseAPITest):
     # ========== 权限管理测试 ==========
 
     def test_get_plan_permissions(self) -> None:
-        """测试获取套餐权限"""
+        """测试获取套餐权限 / Test."""
         plan_id = self._test_data.get("created_plan_id")
         if not plan_id:
             raise AssertionError("没有可用的套餐ID")
@@ -242,7 +240,7 @@ class ManualTestAdminPlans(BaseAPITest):
         assert_true(isinstance(data["data"], list), "data 应为列表")
 
     def test_assign_plan_permissions(self) -> None:
-        """测试设置套餐权限"""
+        """测试设置套餐权限 / Test."""
         plan_id = self._test_data.get("created_plan_id")
         if not plan_id:
             raise AssertionError("没有可用的套餐ID")
@@ -278,7 +276,7 @@ class ManualTestAdminPlans(BaseAPITest):
     # ========== 删除测试 ==========
 
     def test_delete_plan(self) -> None:
-        """测试删除套餐"""
+        """测试删除套餐 / Test."""
         plan_id = self._test_data.get("created_plan_id")
         if not plan_id:
             raise AssertionError("没有可用的套餐ID")
@@ -294,14 +292,14 @@ class ManualTestAdminPlans(BaseAPITest):
         del self._test_data["created_plan_id"]
 
     def test_delete_plan_not_found(self) -> None:
-        """测试删除不存在的套餐"""
+        """测试删除不存在的套餐 / Test."""
         resp = self.client.delete("/admin/plans/999999")
         assert_error(resp, 404, "应返回 404 错误")
 
     # ========== 辅助方法 ==========
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Description."""
         resp = self.client.post("/admin/auth/login", data={
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,

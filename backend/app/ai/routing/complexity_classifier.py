@@ -1,6 +1,5 @@
 """
-Conversation Complexity Classifier
-对话复杂度分类器
+Conversation Complexity Classifier / 对话复杂度分类器
 
 Pure synchronous computation logic, no I/O operations, no AI calls, call time < 1ms.
 Used for request classification in multi-model routing strategies.

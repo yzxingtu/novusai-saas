@@ -17,7 +17,7 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Admin(BaseModel):
     """
-    平台管理员模型
+    平台管理员模型 / Platform admin model.
 
     - 独立于企业体系
     - 用于平台后台管理
@@ -124,7 +124,7 @@ class Admin(BaseModel):
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查管理员是否拥有指定权限
+        检查管理员是否拥有指定权限 / Check if admin has the given permission.
 
         Args:
             permission_code: 权限代码

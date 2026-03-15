@@ -13,7 +13,7 @@ from app.models.ai.agent_conversation import AgentConversation
 
 class AgentConversationRepository(TenantRepository[AgentConversation]):
     """
-    企业级智能体对话 Repository
+    企业级智能体对话 Repository / Tenant-scoped agent conversation repository.
 
     提供按智能体、按状态查询，批量归档等方法
     """
@@ -27,7 +27,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         limit: int = 50,
     ) -> list[AgentConversation]:
         """
-        按智能体获取对话列表
+        按智能体获取对话列表 / Get conversation list by agent.
 
         Args:
             agent_id: 智能体 ID
@@ -60,7 +60,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         limit: int = 50,
     ) -> tuple[list[AgentConversation], int]:
         """
-        按标题模糊搜索对话
+        按标题模糊搜索对话 / Search conversations by title (fuzzy).
 
         Args:
             keyword: 搜索关键词
@@ -102,7 +102,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         agent_id: int | None = None,
     ) -> list[AgentConversation]:
         """
-        获取指定日期前的 active 对话（用于批量归档）
+        获取指定日期前的 active 对话（用于批量归档）/ Get active conversations before date (for batch archive).
 
         Args:
             before_date: 截止日期
@@ -134,7 +134,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         batch_size: int = 1000,
     ) -> list[int]:
         """
-        获取指定日期前的 active 对话 ID 列表（仅查 ID，避免全量加载 ORM 对象）
+        获取指定日期前的 active 对话 ID 列表（仅查 ID，避免全量加载 ORM 对象）/ Get active conversation IDs before date (IDs only).
 
         Args:
             before_date: 截止日期
@@ -171,7 +171,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         status: str,
     ) -> int:
         """
-        批量更新对话状态
+        批量更新对话状态 / Batch update conversation status.
 
         Args:
             ids: 对话 ID 列表
@@ -200,7 +200,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
 class AdminAgentConversationRepository(BaseRepository[AgentConversation]):
     """
-    平台级智能体对话 Repository（无企业过滤）
+    平台级智能体对话 Repository（无企业过滤）/ Admin-level agent conversation repo (no tenant filter).
 
     供管理端全企业只读审计使用
     """

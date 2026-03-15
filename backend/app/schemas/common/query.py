@@ -15,7 +15,7 @@ from app.core.base_schema import BaseSchema
 
 class FilterOp(str, Enum):
     """
-    筛选操作符枚举
+    筛选操作符枚举 / Filter operator enum.
 
     支持的操作符:
     - eq: 等于（默认）
@@ -48,7 +48,7 @@ class FilterOp(str, Enum):
 
 class FilterRule(BaseSchema):
     """
-    筛选规则
+    筛选规则 / Filter rule.
 
     定义单个筛选条件的结构
 
@@ -66,7 +66,7 @@ class FilterRule(BaseSchema):
 
 class QuerySpec(BaseSchema):
     """
-    查询规格
+    查询规格 / Query specification.
 
     定义列表查询的完整参数，包括筛选、排序、分页
 
@@ -86,7 +86,7 @@ class QuerySpec(BaseSchema):
     @field_validator("page")
     @classmethod
     def validate_page(cls, v: int) -> int:
-        """验证页码"""
+        """验证页码 / Validate page number."""
         if v < 1:
             raise ValueError("errors.pagination.invalid_page")
         return v
@@ -94,7 +94,7 @@ class QuerySpec(BaseSchema):
     @field_validator("size")
     @classmethod
     def validate_size(cls, v: int) -> int:
-        """验证每页数量"""
+        """验证每页数量 / Validate page size."""
         if v < 1:
             raise ValueError("errors.pagination.invalid_size")
         if v > 100:
@@ -104,19 +104,19 @@ class QuerySpec(BaseSchema):
     @field_validator("filters")
     @classmethod
     def validate_filters(cls, v: list[FilterRule]) -> list[FilterRule]:
-        """验证筛选条件数量"""
+        """验证筛选条件数量 / Validate filter count."""
         if len(v) > 20:
             raise ValueError("errors.filters.too_many")
         return v
 
     @property
     def offset(self) -> int:
-        """计算偏移量"""
+        """计算偏移量 / Compute offset."""
         return (self.page - 1) * self.size
 
     @property
     def limit(self) -> int:
-        """获取限制数量"""
+        """获取限制数量 / Get limit."""
         return self.size
 
 

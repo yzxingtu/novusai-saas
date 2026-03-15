@@ -17,14 +17,14 @@ from app.models.tenant.tenant import Tenant
 
 class StorageQuotaService:
     """
-    存储配额服务
+    存储配额服务 / Storage quota service.
 
     提供存储配额查询和检查的统一实现
     """
 
     def __init__(self, db: AsyncSession):
         """
-        初始化服务
+        初始化服务 / Initialize service.
 
         Args:
             db: 异步数据库会话
@@ -33,7 +33,7 @@ class StorageQuotaService:
 
     async def get_tenant_storage_stats(self, tenant_id: int) -> dict[str, Any]:
         """
-        获取单个企业的存储统计信息
+        获取单个企业的存储统计信息 / Get tenant storage statistics.
 
         Args:
             tenant_id: 企业 ID
@@ -74,7 +74,7 @@ class StorageQuotaService:
         self, tenant_ids: list[int]
     ) -> dict[int, dict[str, Any]]:
         """
-        批量获取企业存储统计信息
+        批量获取企业存储统计信息 / Batch get tenant storage statistics.
 
         Args:
             tenant_ids: 企业 ID 列表
@@ -136,7 +136,7 @@ class StorageQuotaService:
 
     async def get_used_bytes(self, tenant_id: int) -> int:
         """
-        获取企业已使用的存储空间
+        获取企业已使用的存储空间 / Get tenant used storage bytes.
 
         Args:
             tenant_id: 企业 ID
@@ -154,7 +154,7 @@ class StorageQuotaService:
 
     async def get_file_count(self, tenant_id: int) -> int:
         """
-        获取企业附件总数
+        获取企业附件总数 / Get tenant attachment count.
 
         Args:
             tenant_id: 企业 ID
@@ -172,7 +172,7 @@ class StorageQuotaService:
 
     async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
         """
-        获取企业信息（含套餐关联）
+        获取企业信息（含套餐关联）/ Get tenant with plan.
 
         Args:
             tenant_id: 企业 ID
@@ -192,7 +192,7 @@ class StorageQuotaService:
 
     async def _get_tenants_with_plan(self, tenant_ids: list[int]) -> list[Tenant]:
         """
-        批量获取企业信息（含套餐关联）
+        批量获取企业信息（含套餐关联）/ Batch get tenants with plan.
 
         Args:
             tenant_ids: 企业 ID 列表
@@ -218,7 +218,7 @@ class StorageQuotaService:
         max_file_size_mb: int = 0,
     ) -> dict[str, Any]:
         """
-        构建统计响应数据
+        构建统计响应数据 / Build stats response.
 
         Args:
             used_bytes: 已使用字节数

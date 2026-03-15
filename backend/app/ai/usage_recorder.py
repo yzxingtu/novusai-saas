@@ -1,6 +1,5 @@
 """
-AI Usage Recorder
-AI 使用量记录器
+AI Usage Recorder. / AI 使用量记录器。
 
 Handles rate/quota checks, usage recording, cost calculation, and call logging.
 Extracted from AIGateway to reduce God Object complexity.
@@ -60,8 +59,7 @@ class UsageRecorder:
         estimated_tokens: int,
     ) -> None:
         """
-        Atomic rate limit + quota check (executed only for tenant calls).
-        原子检查速率限制 + 配额（仅企业调用时执行）。
+        Atomic rate limit + quota check (executed only for tenant calls). / 原子检查速率限制 + 配额（仅企业调用时执行）。
 
         Rate limit priority: tenant custom > model default.
         速率限制优先级：企业自定义 > 模型默认值。
@@ -120,8 +118,7 @@ class UsageRecorder:
         user_id: int | None = None,
     ) -> None:
         """
-        Record usage + adjust TPM/quota (from estimated to actual).
-        记录使用量 + 调整 TPM/配额（从预估调整为实际）。
+        Record usage + adjust TPM/quota (from estimated to actual). / 记录使用量 + 调整 TPM/配额（从预估调整为实际）。
         """
         await self.metering.record_usage(
             tenant_id=tenant_id,
@@ -167,8 +164,7 @@ class UsageRecorder:
         user_id: int | None = None,
     ) -> None:
         """
-        Log failed call to DB (for audit trail).
-        记录失败调用日志到 DB（用于审计追踪）。
+        记录失败调用日志到 DB（用于审计追踪）/ Log failed call to DB (for audit trail).
         """
         _ = model
         if not tenant_id:
@@ -217,8 +213,7 @@ class UsageRecorder:
         latency_ms: int = 0,
     ) -> None:
         """
-        Stream response completion callback.
-        流式响应完成回调。
+        流式响应完成回调 / Stream response completion callback.
 
         Records logs, updates usage stats, adjusts TPM/quota.
         记录日志、更新使用统计、调整 TPM/配额。
@@ -277,8 +272,7 @@ class UsageRecorder:
     @staticmethod
     def serialize_response(response: ChatResponse) -> dict:
         """
-        Safely serialize ChatResponse.
-        安全序列化 ChatResponse。
+        安全序列化 ChatResponse / Safely serialize ChatResponse.
 
         Recursively converts Decimal → str, dataclass → dict, excludes raw_response.
         递归处理 Decimal → str、dataclass → dict，排除 raw_response。

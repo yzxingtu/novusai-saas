@@ -32,8 +32,7 @@ from app.services.ai.agent_service import AgentService
 
 async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     """
-    确保智能体为企业自有（tenant_id 与当前企业匹配）才允许变更操作。
-    Ensures the agent is tenant-owned (tenant_id matches current tenant) before allowing mutations.
+    确保智能体为企业自有（tenant_id 与当前企业匹配）才允许变更操作 / Ensure agent is tenant-owned before mutations.
 
     平台创建的全局智能体（tenant_id=null）及其他企业的智能体对当前企业只读，
     不允许编辑、发布、回滚、绑定技能等变更操作。

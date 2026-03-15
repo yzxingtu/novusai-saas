@@ -43,8 +43,7 @@ class BaseSchema(BaseModel):
     @model_serializer(mode='wrap')
     def _serialize_model(self, handler: Any) -> dict:
         """
-        全局序列化器：将所有 datetime 字段转为 ISO 8601 UTC 字符串。
-        Global serializer: convert all datetime fields to ISO 8601 UTC strings.
+        全局序列化器：将所有 datetime 字段转为 ISO 8601 UTC 字符串。 / Global serializer: convert all datetime fields to ISO 8601 UTC strings.
 
         解决 Pydantic v2 中 model_dump() 不触发 json_encoders 的问题。
         Fixes Pydantic v2 model_dump() not triggering json_encoders.

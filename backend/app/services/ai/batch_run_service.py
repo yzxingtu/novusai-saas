@@ -12,7 +12,7 @@ logger = LogManager.get_logger("ai")
 
 class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
     """
-    企业端批量运行 Service
+    企业端批量运行 Service / Tenant batch run service.
 
     提供批量运行查询、取消等操作
     """
@@ -24,7 +24,7 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
         self, agent_id: int, run_id: int
     ) -> BatchRun | None:
         """
-        获取指定智能体的批量运行记录
+        获取指定智能体的批量运行记录 / Get batch run for agent.
 
         Args:
             agent_id: 智能体 ID
@@ -42,7 +42,7 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
         self, agent_id: int, run_id: int
     ) -> BatchRun:
         """
-        取消批量运行
+        取消批量运行 / Cancel batch run.
 
         Args:
             agent_id: 智能体 ID

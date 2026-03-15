@@ -28,7 +28,7 @@ from app.repositories.system.ssl_certificate_repository import SslCertificateRep
 
 class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRepository]):
     """
-    SSL 证书服务
+    SSL 证书服务 / SSL certificate service.
 
     提供证书管理的核心业务方法
     """
@@ -39,7 +39,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     # ==================== 查询 ====================
 
     async def get_cert_detail(self, domain_id: int) -> DomainSslCertificate | None:
-        """获取域名当前证书（优先 active，否则最新）"""
+        """获取域名当前证书（优先 active，否则最新） / Get domain cert (active first, else latest)."""
         cert = await self.repo.get_active_cert(domain_id)
         if not cert:
             cert = await self.repo.get_cert_by_domain(domain_id)
@@ -49,10 +49,9 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     async def _check_custom_ssl_quota(self, tenant_id: int) -> None:
         """
-        检查企业是否允许上传自定义 SSL 证书
+        检查企业是否允许上传自定义 SSL 证书 / Check tenant allow_custom_ssl quota.
 
-        通过企业套餐的 allow_custom_ssl 配额判断。
-        不允许时抛出 BusinessException。
+        通过企业套餐的 allow_custom_ssl 配额判断；不允许时抛出 BusinessException。
         """
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
@@ -82,13 +81,12 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         check_quota: bool = False,
     ) -> DomainSslCertificate:
         """
-        上传自定义证书
+        上传自定义证书 / Upload custom certificate.
 
-        验证证书格式、私钥匹配、域名匹配后存储
-        自动设置 cert_type=custom, auto_renew=False
+        验证证书格式、私钥匹配、域名匹配后存储；自动设置 cert_type=custom, auto_renew=False。
 
         Args:
-            check_quota: 是否检查套餐 allow_custom_ssl 配额（企业端传 True，管理端传 False）
+            check_quota: 是否检查套餐 allow_custom_ssl 配额（企业端传 True，管理端传 False） / Whether to check allow_custom_ssl quota.
         """
         # 套餐配额检查（仅企业端需要）
         if check_quota:
@@ -142,7 +140,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     # ==================== 删除证书 ====================
 
     async def delete_cert(self, domain_id: int) -> bool:
-        """删除域名证书并重置 SSL 状态"""
+        """删除域名证书并重置 SSL 状态 / Delete domain cert and reset SSL status."""
         cert = await self.repo.get_active_cert(domain_id)
         if not cert:
             cert = await self.repo.get_cert_by_domain(domain_id)
@@ -156,7 +154,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     # ==================== 自动续期开关 ====================
 
     async def toggle_auto_renew(self, domain_id: int, enabled: bool) -> DomainSslCertificate:
-        """开关自动续期（仅 platform 类型可开启）"""
+        """开关自动续期（仅 platform 类型可开启） / Toggle auto-renew (platform type only)."""
         cert = await self.repo.get_active_cert(domain_id)
         if not cert:
             raise NotFoundException(message=_("ssl_certificate.not_found"))
@@ -183,7 +181,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         chain_pem: str | None = None,
         acme_order_url: str | None = None,
     ) -> DomainSslCertificate:
-        """存储 ACME 签发的平台证书（由 Celery 任务调用）"""
+        """存储 ACME 签发的平台证书（由 Celery 任务调用） / Store ACME-issued platform cert (Celery)."""
         cert_info = self._parse_cert_info(cert_pem)
         encryption_key = await self._get_encryption_key()
         encrypted_key = self._encrypt_private_key(key_pem, encryption_key)
@@ -218,7 +216,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     async def mark_provision_failed(
         self, domain_id: int, error: str,
     ) -> None:
-        """标记签发失败"""
+        """标记签发失败 / Mark provision failed."""
         cert = await self.repo.get_cert_by_domain(domain_id)
         if cert:
             await self.update(cert.id, {
@@ -234,7 +232,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     async def mark_renewal_failed(
         self, cert_id: int, error: str,
     ) -> None:
-        """标记续期失败（不改变 ssl_status，证书仍然有效直到过期）"""
+        """标记续期失败（不改变 ssl_status，证书仍然有效直到过期） / Mark renewal failed (status unchanged)."""
         await self.update(cert_id, {
             "renewal_error": error,
             "last_renewal_attempt": utc_now(),
@@ -245,7 +243,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     async def mark_expiry_warning(
         self, cert_id: int, warning: str,
     ) -> None:
-        """记录证书到期预警（用于自定义证书即将过期的提醒，不改变状态）"""
+        """记录证书到期预警（用于自定义证书即将过期的提醒，不改变状态） / Record expiry warning."""
         await self.update(cert_id, {
             "renewal_error": warning,
             "last_renewal_attempt": utc_now(),
@@ -254,14 +252,14 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     # ==================== 标记过期 ====================
 
     async def mark_expired(self, cert_id: int, domain_id: int) -> None:
-        """标记证书过期"""
+        """标记证书过期 / Mark cert expired."""
         await self.update(cert_id, {"status": SslCertStatus.EXPIRED.value})
         await self._update_domain_ssl_status(domain_id, DomainSslStatus.EXPIRED.value, None)
 
     # ==================== 内部方法 ====================
 
     async def _get_domain(self, domain_id: int) -> TenantDomain:
-        """获取域名实例"""
+        """获取域名实例 / Get domain instance."""
         from sqlalchemy import select
         result = await self.db.execute(
             select(TenantDomain).where(
@@ -277,7 +275,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     async def _update_domain_ssl_status(
         self, domain_id: int, status: str, expires_at: datetime | None,
     ) -> None:
-        """更新域名 SSL 状态字段"""
+        """更新域名 SSL 状态字段 / Update domain SSL status."""
         from sqlalchemy import update
         stmt = (
             update(TenantDomain)
@@ -289,7 +287,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
     # ==================== 证书工具方法 ====================
 
     async def _get_encryption_key(self) -> str:
-        """从平台配置或环境变量获取 Fernet 加密密钥"""
+        """从平台配置或环境变量获取 Fernet 加密密钥 / Get Fernet key from config or env."""
         from app.configs.service import ConfigService
         config_svc = ConfigService(self.db)
         key = await config_svc.get_platform_config(
@@ -306,19 +304,19 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     @staticmethod
     def _encrypt_private_key(key_pem: str, encryption_key: str) -> str:
-        """Fernet 加密私钥"""
+        """Fernet 加密私钥 / Fernet encrypt private key."""
         fernet = Fernet(encryption_key.encode())
         return fernet.encrypt(key_pem.encode()).decode()
 
     @staticmethod
     def _decrypt_private_key(encrypted: str, encryption_key: str) -> str:
-        """Fernet 解密私钥"""
+        """Fernet 解密私钥 / Fernet decrypt private key."""
         fernet = Fernet(encryption_key.encode())
         return fernet.decrypt(encrypted.encode()).decode()
 
     @staticmethod
     def _parse_cert_info(cert_pem: str) -> dict:
-        """解析 PEM 证书信息"""
+        """解析 PEM 证书信息 / Parse PEM cert info."""
         cert = x509.load_pem_x509_certificate(cert_pem.encode())
 
         # 签发机构
@@ -347,7 +345,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     @staticmethod
     def _validate_certificate(cert_pem: str, key_pem: str) -> None:
-        """验证证书与私钥是否匹配"""
+        """验证证书与私钥是否匹配 / Validate cert and key match."""
         try:
             cert = x509.load_pem_x509_certificate(cert_pem.encode())
             key = serialization.load_pem_private_key(key_pem.encode(), password=None)
@@ -378,7 +376,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     @staticmethod
     def _validate_domain_in_cert(cert_pem: str, domain: str) -> None:
-        """验证证书是否包含指定域名（检查 SAN 和 CN）"""
+        """验证证书是否包含指定域名（检查 SAN 和 CN） / Validate domain in cert (SAN and CN)."""
         cert = x509.load_pem_x509_certificate(cert_pem.encode())
 
         # 检查 SAN (Subject Alternative Names)

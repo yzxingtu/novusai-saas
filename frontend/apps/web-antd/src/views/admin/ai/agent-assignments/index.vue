@@ -3,8 +3,8 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
 
 /**
  * Admin — System Agent Assignment Management — useCrudList + 卡片行配置面板
+ * 管理端 — 系统智能体分配管理 — useCrudList + 卡片行配置
  *
- * 设计规范：detail-page-patterns.md（信息摘要栏 + 卡片行替代平表格）
  * useCrudList(keyField='feature_code') 管理列表数据，自定义 inline 编辑。
  */
 import { computed, onMounted, ref } from 'vue';

@@ -19,7 +19,7 @@ CHANNEL_REGISTRY: dict[str, type[NotificationChannel]] = {}
 
 
 def register_channel(channel_cls: type[NotificationChannel]) -> None:
-    """注册通知渠道"""
+    """注册通知渠道 / Register notification channel."""
     instance = channel_cls()
     code = instance.channel_code
     if code in CHANNEL_REGISTRY:
@@ -29,18 +29,18 @@ def register_channel(channel_cls: type[NotificationChannel]) -> None:
 
 
 def get_channel(code: str) -> NotificationChannel | None:
-    """获取渠道实例"""
+    """获取渠道实例 / Get channel instance by code."""
     cls = CHANNEL_REGISTRY.get(code)
     return cls() if cls else None
 
 
 def get_registered_channel_codes() -> list[str]:
-    """获取所有已注册的渠道码（供前端动态渲染用）"""
+    """获取所有已注册的渠道码（供前端动态渲染用） / Get all registered channel codes (for frontend)."""
     return list(CHANNEL_REGISTRY.keys())
 
 
 def get_registered_channels_info() -> list[dict[str, str]]:
-    """获取所有已注册渠道的基本信息"""
+    """获取所有已注册渠道的基本信息 / Get basic info of all registered channels."""
     result = []
     for _code, cls in CHANNEL_REGISTRY.items():
         instance = cls()
@@ -55,7 +55,7 @@ def get_registered_channels_info() -> list[dict[str, str]]:
 # 内置渠道自动注册
 # ============================================
 def _register_builtin_channels() -> None:
-    """注册内置渠道（模块加载时执行）"""
+    """注册内置渠道（模块加载时执行） / Register built-in channels (on module load)."""
     from app.services.common.channels.email_channel import EmailChannel
     from app.services.common.channels.inbox_channel import InboxChannel
     from app.services.common.channels.webhook_channel import WebhookChannel

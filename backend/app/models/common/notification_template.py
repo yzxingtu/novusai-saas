@@ -14,7 +14,7 @@ from app.core.base_model import BaseModel
 
 class NotificationTemplate(BaseModel):
     """
-    通知模板
+    通知模板 / Notification template.
 
     - code: 模板编码，如 'ai.batch_complete'
     - category: 分类（system/ai/task/biz/audit）

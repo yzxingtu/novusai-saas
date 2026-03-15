@@ -1,12 +1,10 @@
-"""
-公共序列化辅助函数 — 避免各 handler 重复定义
-"""
+"""公共序列化辅助函数 — 避免各 handler 重复定义 / Shared serialization helpers to avoid duplicate definitions in handlers."""
 
 from __future__ import annotations
 
 
 def node_schema(node) -> dict:
-    """将 NetDiskNode ORM 对象序列化为 API 响应 dict（完整版，含软删除字段）"""
+    """将 NetDiskNode ORM 对象序列化为 API 响应 dict（完整版，含软删除字段） / Serialize node to API dict (with soft-delete)."""
     return {
         "id":         node.id,
         "parentId":   node.parent_id,
@@ -22,7 +20,7 @@ def node_schema(node) -> dict:
 
 
 def share_schema(share, node_name: str | None = None, node_type: str | None = None) -> dict:
-    """将 Share ORM 对象序列化为 API 响应 dict"""
+    """将 Share ORM 对象序列化为 API 响应 dict / Serialize Share to API dict."""
     result = {
         "id":          share.id,
         "nodeId":      share.node_id,

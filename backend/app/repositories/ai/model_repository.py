@@ -15,7 +15,7 @@ from app.models.ai import AIModel
 
 class AIModelRepository(BaseRepository[AIModel]):
     """
-    AI 模型 Repository
+    AI 模型 Repository / AI Model Repository.
 
     提供 AI 模型的数据访问操作
     """
@@ -28,7 +28,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         include_deleted: bool = False
     ) -> AIModel | None:
         """
-        根据代码获取模型
+        根据代码获取模型 / Get model by code.
 
         Args:
             code: 模型代码
@@ -53,7 +53,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         include_deleted: bool = False
     ) -> list[AIModel]:
         """
-        获取供应商的所有模型
+        获取供应商的所有模型 / Get all models for provider.
 
         Args:
             provider_id: 供应商 ID
@@ -79,7 +79,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         provider_id: int
     ) -> list[AIModel]:
         """
-        获取供应商的启用模型
+        获取供应商的启用模型 / Get active models for provider.
 
         Args:
             provider_id: 供应商 ID
@@ -105,7 +105,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         exclude_id: int | None = None
     ) -> bool:
         """
-        检查模型代码是否存在
+        检查模型代码是否存在 / Check if model code exists.
 
         Args:
             code: 模型代码
@@ -131,7 +131,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         self, model_id: int
     ) -> AIModel | None:
         """
-        获取启用的模型（预加载 provider 关系）
+        获取启用的模型（预加载 provider 关系）/ Get active model with provider preloaded.
 
         Args:
             model_id: 模型 ID
@@ -153,7 +153,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         self, name: str, provider_id: int
     ) -> AIModel | None:
         """
-        根据名称和供应商获取启用的模型
+        根据名称和供应商获取启用的模型 / Get active model by name and provider.
 
         Args:
             name: 模型名称
@@ -176,11 +176,13 @@ class AIModelRepository(BaseRepository[AIModel]):
         tier: str,
         preferred_provider_id: int | None = None,
         supports_vision: bool = False,
+        supports_audio: bool = False,
+        supports_video: bool = False,
         supports_function_calling: bool = False,
         min_context_window: int | None = None,
     ) -> AIModel | None:
         """
-        按 tier 查询最优 chat 模型
+        按 tier 查询最优 chat 模型 / Get best chat model by tier.
 
         选择策略：同 provider > 最低价格（input_price_per_1k ASC NULLS LAST） > id ASC
         必须：is_active=True, is_deleted=False, type='chat', tier=目标值
@@ -189,6 +191,8 @@ class AIModelRepository(BaseRepository[AIModel]):
             tier: 目标 tier（fast/standard/premium）
             preferred_provider_id: 优先的供应商 ID
             supports_vision: 是否需要视觉能力
+            supports_audio: 是否需要音频能力
+            supports_video: 是否需要视频能力
             supports_function_calling: 是否需要函数调用能力
             min_context_window: 最小上下文窗口（tokens）
 
@@ -204,6 +208,12 @@ class AIModelRepository(BaseRepository[AIModel]):
 
         if supports_vision:
             conditions.append(AIModel.supports_vision.is_(True))
+
+        if supports_audio:
+            conditions.append(AIModel.supports_audio.is_(True))
+
+        if supports_video:
+            conditions.append(AIModel.supports_video.is_(True))
 
         if supports_function_calling:
             conditions.append(AIModel.supports_function_calling.is_(True))

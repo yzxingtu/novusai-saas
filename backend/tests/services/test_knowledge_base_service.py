@@ -1,8 +1,6 @@
-"""
-KnowledgeBaseService 单元测试
+"""KnowledgeBaseService 单元测试 / Test.
 
-覆盖：知识库 CRUD、文档管理、向量化状态、权限检查。
-"""
+覆盖：知识库 CRUD、文档管理、向量化状态、权限检查。"""
 
 from __future__ import annotations
 
@@ -48,7 +46,7 @@ class TestKBCreate:
 
     @pytest.mark.asyncio
     async def test_unique_name_passes(self, mock_db):
-        """When no existing KB with same name, _before_create should not raise name_exists"""
+        """When no existing KB with same name, _before_create should not raise name_exists / 创建"""
         from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)

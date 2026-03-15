@@ -1,8 +1,4 @@
-"""
-Open-Meteo API 客户端单元测试
-
-测试天气查询、预报、城市搜索和缓存机制。
-"""
+"""Open-Meteo API 客户端单元测试 / Open-Meteo API client unit tests — weather, forecast, geocoding, cache."""
 
 from __future__ import annotations
 
@@ -37,7 +33,7 @@ _cache_set = mod._cache_set
 
 
 class TestWmoCodeMapping:
-    """WMO 天气代码映射"""
+    """WMO 天气代码映射 / WMO weather code mapping."""
 
     def test_clear_sky(self):
         info = get_wmo_info(0)
@@ -76,7 +72,7 @@ class TestWmoCodeMapping:
 
 
 class TestCache:
-    """内存缓存机制"""
+    """内存缓存机制 / In-memory cache."""
 
     def setup_method(self):
         _cache.clear()
@@ -110,7 +106,7 @@ class TestCache:
 
 
 class TestSearchCity:
-    """城市搜索"""
+    """城市搜索 / City search."""
 
     def setup_method(self):
         _cache.clear()
@@ -180,7 +176,7 @@ class TestSearchCity:
 
 
 class TestGetCurrentWeather:
-    """当前天气"""
+    """当前天气 / Current weather."""
 
     def setup_method(self):
         _cache.clear()
@@ -236,7 +232,7 @@ class TestGetCurrentWeather:
 
 
 class TestGetForecast:
-    """天气预报"""
+    """天气预报 / Weather forecast."""
 
     def setup_method(self):
         _cache.clear()

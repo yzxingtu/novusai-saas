@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 用户角色权限分配抽屉
+ * 用户角色权限分配抽屉 / User role permission assignment drawer
  * 加载权限树 + 勾选已分配权限 + 保存
  */
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';

@@ -99,7 +99,7 @@ class PermissionSimpleResponse(BaseSchema):
 
 
 class PermissionTreeSimpleResponse(BaseSchema):
-    """权限树简要响应（用于套餐权限分配）"""
+    """权限树简要响应（用于套餐权限分配） / Permission tree simple response (for plan permission assignment)"""
 
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
@@ -118,7 +118,7 @@ PermissionTreeSimpleResponse.model_rebuild()
 
 
 class TenantPlanDetailResponse(TenantPlanResponse):
-    """套餐详情响应（含权限列表）"""
+    """套餐详情响应（含权限列表） / Plan detail response (with permissions list)"""
 
     permissions: list[PermissionSimpleResponse] = Field(
         default_factory=list, description="关联权限列表"
@@ -130,11 +130,11 @@ class TenantPlanDetailResponse(TenantPlanResponse):
         plan,
         translate_fn: Callable[[str], str] | None = None,
     ) -> "TenantPlanDetailResponse":
-        """从模型创建详情响应
+        """从模型创建详情响应 / Build detail response from model.
 
         Args:
-            plan: TenantPlan ORM 对象
-            translate_fn: 可选的权限名称翻译函数
+            plan: TenantPlan ORM 对象 / TenantPlan ORM instance
+            translate_fn: 可选的权限名称翻译函数 / Optional permission name translator
         """
         active_permissions = [
             p for p in plan.permissions if p.is_enabled
@@ -170,7 +170,7 @@ class TenantPlanDetailResponse(TenantPlanResponse):
 # ==================== 请求 Schema ====================
 
 class TenantPlanCreateRequest(BaseSchema):
-    """创建套餐请求"""
+    """创建套餐请求 / Create plan request"""
 
     name: str = Field(..., min_length=1, max_length=100, description="套餐名称")
     description: str | None = Field(None, max_length=500, description="套餐描述")
@@ -187,14 +187,14 @@ class TenantPlanCreateRequest(BaseSchema):
     @field_validator("billing_cycle")
     @classmethod
     def validate_billing_cycle(cls, v: str) -> str:
-        """验证计费周期"""
+        """验证计费周期 / Validate billing cycle"""
         if v not in BillingCycle.values():
             raise ValueError(_("tenant_plan.invalid_billing_cycle"))
         return v
 
 
 class TenantPlanUpdateRequest(BaseSchema):
-    """更新套餐请求"""
+    """更新套餐请求 / Update plan request"""
 
     name: str | None = Field(None, min_length=1, max_length=100, description="套餐名称")
     description: str | None = Field(None, max_length=500, description="套餐描述")
@@ -208,14 +208,14 @@ class TenantPlanUpdateRequest(BaseSchema):
     @field_validator("billing_cycle")
     @classmethod
     def validate_billing_cycle(cls, v: str | None) -> str | None:
-        """验证计费周期"""
+        """验证计费周期 / Validate billing cycle"""
         if v is not None and v not in BillingCycle.values():
             raise ValueError(_("tenant_plan.invalid_billing_cycle"))
         return v
 
 
 class TenantPlanPermissionsRequest(BaseSchema):
-    """设置套餐权限请求"""
+    """设置套餐权限请求 / Set plan permissions request"""
 
     permission_ids: list[int] = Field(
         default_factory=list,

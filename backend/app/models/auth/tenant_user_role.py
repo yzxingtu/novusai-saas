@@ -27,7 +27,7 @@ tenant_user_role_permissions = Table(
 
 class TenantUserRole(TenantModel):
     """
-    企业用户角色模型
+    企业用户角色模型 / Tenant user role model.
 
     - 属于特定企业
     - 用于企业业务用户的权限控制
@@ -122,23 +122,23 @@ class TenantUserRole(TenantModel):
 
     @property
     def permissions_count(self) -> int:
-        """获取权限数量"""
+        """获取权限数量 / Get permissions count."""
         return len(self.permissions)
 
     @property
     def member_count(self) -> int:
-        """获取用户数量"""
+        """获取用户数量 / Get user count."""
         return len([u for u in self.users if not u.is_deleted])
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查角色是否拥有指定权限
+        检查角色是否拥有指定权限 / Check if role has the given permission.
 
         Args:
-            permission_code: 权限代码
+            permission_code: 权限代码 / Permission code.
 
         Returns:
-            是否拥有该权限
+            是否拥有该权限 / Whether the role has the permission.
         """
         return any(p.code == permission_code for p in self.permissions)
 

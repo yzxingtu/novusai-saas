@@ -26,7 +26,7 @@ from app.enums.ai import RequestTypeEnum
 
 class UsageStat(TenantModel):
     """
-    AI 使用量统计模型
+    AI 使用量统计模型 / AI usage statistics model.
 
     按维度（企业/用户/模型/日期）聚合统计数据：
     - Token 使用量（输入/输出/总计）
@@ -192,7 +192,7 @@ class UsageStat(TenantModel):
         latency_ms: int | None = None
     ):
         """
-        增加统计数据
+        增加统计数据 / Increment usage stats.
 
         Args:
             input_tokens: 输入 tokens

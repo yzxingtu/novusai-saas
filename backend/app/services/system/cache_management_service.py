@@ -41,7 +41,7 @@ _REDIS_PATTERNS: dict[str, str] = {
 
 
 def _format_size(size_bytes: int) -> str:
-    """Convert bytes to human-readable string"""
+    """Convert bytes to human-readable string / 将字节转为可读字符串"""
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
@@ -54,7 +54,7 @@ def _format_size(size_bytes: int) -> str:
 
 @dataclass
 class _CategoryStats:
-    """Internal stats container for a single category"""
+    """Internal stats container for a single category / 单分类统计容器"""
 
     key_count: int = 0
     size_bytes: int = 0
@@ -62,18 +62,17 @@ class _CategoryStats:
 
 class CacheManagementService:
     """
-    Cache management utility service.
+    Cache management utility service. / 缓存管理工具服务。
 
-    Not a standard CRUD service — no DB Model/Repository.
-    Provides cache summary and clearing capabilities for admin panel.
+    Not a standard CRUD service — no DB Model/Repository. Provides cache summary and clearing for admin panel.
+    非标准 CRUD 服务，提供缓存统计与清理能力。
     """
 
     @staticmethod
     async def _iter_redis_keys(redis: Any, pattern: str):
-        """Iterate Redis keys for a pattern.
+        """Iterate Redis keys for a pattern. / 按模式迭代 Redis 键。
 
-        `redis.scan_iter()` in production returns an async iterator, while tests
-        may mock it as an async function returning an async iterator. Support both.
+        Supports both async iterator and async function returning iterator (for tests).
         """
         scan_result = redis.scan_iter(match=pattern, count=200)
 
@@ -88,7 +87,7 @@ class CacheManagementService:
 
     @staticmethod
     async def _scan_redis_category(pattern: str) -> _CategoryStats:
-        """Scan Redis keys matching pattern and calculate stats"""
+        """Scan Redis keys matching pattern and calculate stats / 扫描 Redis 键并统计"""
         stats = _CategoryStats()
         try:
             redis = get_redis_client()
@@ -106,7 +105,7 @@ class CacheManagementService:
 
     @staticmethod
     def _scan_local_image_cache() -> _CategoryStats:
-        """Scan local image cache directory for file count and total size"""
+        """Scan local image cache directory for file count and total size / 扫描本地图片缓存目录"""
         stats = _CategoryStats()
         cache_dir = LOCAL_IMAGE_CACHE_ROOT
         if not cache_dir.exists():
@@ -127,7 +126,7 @@ class CacheManagementService:
 
     @staticmethod
     def _scan_config_memory_cache() -> _CategoryStats:
-        """Get in-memory config cache entry count"""
+        """Get in-memory config cache entry count / 获取内存配置缓存条目数"""
         from app.configs.service import _config_id_cache, _config_value_cache
 
         return _CategoryStats(
@@ -137,7 +136,7 @@ class CacheManagementService:
 
     @staticmethod
     def _scan_captcha_cache() -> _CategoryStats:
-        """Get in-memory captcha service cache entry count"""
+        """Get in-memory captcha service cache entry count / 获取验证码服务内存缓存条目数"""
         try:
             from app.captcha.service import captcha_service
             count = (
@@ -152,7 +151,7 @@ class CacheManagementService:
 
     @staticmethod
     def _scan_plugin_update_cache() -> _CategoryStats:
-        """Get in-memory plugin update check cache entry count"""
+        """Get in-memory plugin update check cache entry count / 获取插件更新检查缓存条目数"""
         try:
             from app.plugins.update_checker import _update_cache
             return _CategoryStats(key_count=len(_update_cache), size_bytes=0)
@@ -163,7 +162,7 @@ class CacheManagementService:
     def _build_summary_item(
         category: CacheCategoryEnum, stats: _CategoryStats
     ) -> CacheCategorySummary:
-        """Build a CacheCategorySummary from raw stats"""
+        """Build a CacheCategorySummary from raw stats / 从原始统计构建分类摘要"""
         return CacheCategorySummary(
             category=category.value,
             label=category.label,
@@ -175,10 +174,8 @@ class CacheManagementService:
     @classmethod
     async def get_cache_summary(cls) -> CacheSummaryResponse:
         """
-        Scan all cache categories and return summary statistics.
-
-        Returns:
-            CacheSummaryResponse with per-category stats and totals.
+        Scan all cache categories and return summary statistics. / 扫描所有缓存分类并返回汇总。
+        Returns: CacheSummaryResponse with per-category stats and totals.
         """
         categories: list[CacheCategorySummary] = []
         total_size = 0
@@ -211,7 +208,7 @@ class CacheManagementService:
 
     @staticmethod
     async def _clear_redis_pattern(pattern: str) -> _CategoryStats:
-        """Clear all Redis keys matching pattern, return cleared stats"""
+        """Clear all Redis keys matching pattern, return cleared stats / 按模式清理 Redis 键并返回统计"""
         stats = _CategoryStats()
         try:
             redis = get_redis_client()
@@ -238,7 +235,7 @@ class CacheManagementService:
 
     @staticmethod
     def _clear_local_image_cache() -> _CategoryStats:
-        """Remove all files in image cache directory"""
+        """Remove all files in image cache directory / 清空本地图片缓存目录"""
         stats = _CategoryStats()
         cache_dir = LOCAL_IMAGE_CACHE_ROOT
         if not cache_dir.exists():
@@ -266,7 +263,7 @@ class CacheManagementService:
 
     @staticmethod
     def _clear_config_memory_cache() -> _CategoryStats:
-        """Clear in-memory config caches"""
+        """Clear in-memory config caches / 清空内存配置缓存"""
         from app.configs.service import _config_id_cache, _config_value_cache
 
         count = len(_config_id_cache) + len(_config_value_cache)
@@ -276,7 +273,7 @@ class CacheManagementService:
 
     @staticmethod
     def _clear_captcha_cache() -> _CategoryStats:
-        """Clear in-memory captcha service caches"""
+        """Clear in-memory captcha service caches / 清空验证码服务内存缓存"""
         try:
             from app.captcha.service import captcha_service
             count = (
@@ -296,7 +293,7 @@ class CacheManagementService:
 
     @staticmethod
     def _clear_plugin_update_cache() -> _CategoryStats:
-        """Clear in-memory plugin update check cache"""
+        """Clear in-memory plugin update check cache / 清空插件更新检查缓存"""
         try:
             from app.plugins.update_checker import _update_cache, clear_update_cache
             count = len(_update_cache)
@@ -311,11 +308,10 @@ class CacheManagementService:
         cls, categories: list[CacheCategoryEnum]
     ) -> CacheClearResponse:
         """
-        Clear specified cache categories.
+        Clear specified cache categories. / 清理指定缓存分类。
 
         Args:
-            categories: List of cache categories to clear.
-
+            categories: List of cache categories to clear. / 要清理的分类列表
         Returns:
             CacheClearResponse with cleared stats and duration.
         """

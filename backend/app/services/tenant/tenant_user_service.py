@@ -22,7 +22,7 @@ from app.services.common.notification_service import notify
 
 class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
     """
-    企业用户服务
+    企业用户服务 / Tenant user service.
 
     提供企业用户特有的业务方法，自动注入企业隔离
     """
@@ -41,7 +41,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         role_id: int | None = None,
     ) -> TenantUser:
         """
-        创建企业用户（管理员操作）
+        创建企业用户（管理员操作）/ Create tenant user (admin action).
 
         Args:
             username: 用户名
@@ -116,7 +116,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         data: dict[str, Any],
     ) -> TenantUser:
         """
-        更新企业用户
+        更新企业用户 / Update tenant user.
 
         Args:
             user_id: 用户 ID
@@ -172,7 +172,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         new_password: str,
     ) -> bool:
         """
-        重置用户密码（管理员操作）
+        重置用户密码（管理员操作）/ Reset user password (admin action).
 
         Args:
             user_id: 用户 ID
@@ -198,7 +198,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
     async def toggle_status(self, user_id: int, is_active: bool) -> TenantUser:
         """
-        切换用户状态
+        切换用户状态 / Toggle user active status.
 
         Args:
             user_id: 用户 ID
@@ -223,7 +223,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
     async def approve_user(self, user_id: int) -> TenantUser:
         """
-        审批通过用户
+        审批通过用户 / Approve user.
 
         Args:
             user_id: 用户 ID
@@ -259,7 +259,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
     async def reject_user(self, user_id: int) -> TenantUser:
         """
-        审批拒绝用户
+        审批拒绝用户 / Reject user.
 
         Args:
             user_id: 用户 ID
@@ -295,7 +295,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
     async def batch_approve(self, user_ids: list[int]) -> list[TenantUser]:
         """
-        批量审批通过用户
+        批量审批通过用户 / Batch approve users.
 
         Args:
             user_ids: 用户 ID 列表
@@ -319,7 +319,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
     async def batch_reject(self, user_ids: list[int]) -> list[TenantUser]:
         """
-        批量审批拒绝用户
+        批量审批拒绝用户 / Batch reject users.
 
         Args:
             user_ids: 用户 ID 列表
@@ -342,7 +342,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         return results
 
     async def _get_tenant_name(self) -> str:
-        """获取当前企业名称"""
+        """获取当前企业名称 / Get current tenant name."""
         from sqlalchemy import select
 
         from app.models.tenant.tenant import Tenant
@@ -358,7 +358,7 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
         *,
         approved: bool,
     ) -> None:
-        """发送审批结果通知给用户"""
+        """发送审批结果通知给用户 / Send approval result notification to user."""
         tenant_name = await self._get_tenant_name()
         template_code = "biz.user_approved" if approved else "biz.user_rejected"
         await notify(

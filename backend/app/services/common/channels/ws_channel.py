@@ -18,7 +18,7 @@ logger = LogManager.get_logger("app")
 
 
 class WSChannel(NotificationChannel):
-    """WebSocket 渠道 — Socket.IO 实时推送"""
+    """WebSocket 渠道 — Socket.IO 实时推送 / WebSocket channel — Socket.IO real-time push."""
 
     @property
     def channel_code(self) -> str:
@@ -29,7 +29,7 @@ class WSChannel(NotificationChannel):
         return "WebSocket"
 
     async def is_enabled(self) -> bool:
-        """WS 跟随通知系统总开关"""
+        """WS 跟随通知系统总开关 / WS follows notification system master switch."""
         try:
             from app.sio.ws_config import get_ws_config
             return bool(await get_ws_config("notification_enabled"))

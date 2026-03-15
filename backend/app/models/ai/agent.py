@@ -29,7 +29,7 @@ from app.enums.common import AudienceEnum, ResourceScopeEnum
 
 class Agent(TenantModel):
     """
-    智能体模型
+    智能体模型 / Agent model.
 
     存储智能体配置，包括系统提示词、关联 AI 模型、参数设置、工具绑定等
     属于企业级资源，通过 tenant_id 隔离

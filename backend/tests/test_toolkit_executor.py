@@ -1,4 +1,4 @@
-"""Test toolkit_executor.py"""
+"""Test toolkit_executor.py / 测试"""
 
 import asyncio
 
@@ -8,11 +8,9 @@ from app.ai.tools.executors.toolkit_executor import ToolkitExecutor, clear_toolk
 from app.ai.tools.types import ToolDefinition, ToolParameter
 
 SIMPLE_TOOLKIT = '''
-"""
-title: Test Toolkit
+"""title: Test Toolkit / 测试
 description: For testing
-version: 1.0.0
-"""
+version: 1.0.0"""
 
 from pydantic import BaseModel, Field
 
@@ -24,34 +22,31 @@ class Tools:
         self.valves = Valves()
 
     async def greet(self, name: str) -> str:
-        """Greet someone
-        :param name: Name
-        """
+        """Greet someone / 说明
+        :param name: Name"""
         return f"{self.valves.greeting}, {name}!"
 
     def sync_upper(self, text: str) -> str:
-        """Uppercase text
-        :param text: Input
-        """
+        """Uppercase text / 说明
+        :param text: Input"""
         return text.upper()
 
     async def add_numbers(self, a: int, b: int = 0) -> str:
-        """Add two numbers
+        """Add two numbers / 说明
         :param a: First number
-        :param b: Second number
-        """
+        :param b: Second number"""
         return str(a + b)
 
     async def return_dict(self) -> dict:
-        """Return a dict"""
+        """Return a dict / 获取/返回"""
         return {"key": "value", "num": 42}
 
     async def return_none(self) -> None:
-        """Return None"""
+        """Return None / 获取/返回"""
         return None
 
     async def raise_error(self) -> str:
-        """Always raises"""
+        """Always raises / 说明"""
         raise ValueError("Something went wrong")
 '''
 
@@ -203,14 +198,12 @@ async def test_argument_mismatch():
 @pytest.mark.asyncio
 async def test_output_truncation():
     long_toolkit = '''
-"""
-title: Long Output
-version: 1.0.0
-"""
+"""title: Long Output / 说明
+version: 1.0.0"""
 
 class Tools:
     async def long_output(self) -> str:
-        """Return very long output"""
+        """Return very long output / 获取/返回"""
         return "x" * 50000
 '''
     executor = ToolkitExecutor(max_output_size=100)

@@ -1,6 +1,5 @@
 """
-AI Unified Data Types
-AI 统一数据类型
+AI Unified Data Types / AI 统一数据类型
 
 Cross-provider unified data structures, abstracting away API differences.
 定义跨供应商的统一数据结构，屏蔽不同供应商 API 差异。

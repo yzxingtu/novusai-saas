@@ -16,7 +16,7 @@ from app.repositories.system.task_log_repository import TaskLogRepository
 
 class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
     """
-    任务日志服务
+    任务日志服务 / Task log service.
     """
 
     model = TaskLog

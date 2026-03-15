@@ -1,10 +1,9 @@
 <script lang="ts" setup>
 /**
  * Tenant Dashboard — 综合数据面板
+ * Tenant dashboard — overview panel
  *
- * B5: 统计卡片 + 快捷操作
- * B6: AI 使用趋势
- * B7: 近期活动时间线
+ * B5: 统计卡片 + 快捷操作 / B6: AI 使用趋势 / B7: 近期活动时间线
  */
 import type { EchartsUIType } from '@vben/plugins/echarts';
 

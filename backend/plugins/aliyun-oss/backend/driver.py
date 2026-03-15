@@ -1,9 +1,7 @@
-"""
-Alibaba Cloud OSS Storage Driver (V2 SDK)
+"""Alibaba Cloud OSS Storage Driver (V2 SDK) / 说明
 
 Uses alibabacloud-oss-v2 SDK with typed Request objects.
-Registered as plugin storage_driver extension via plugin.yaml.
-"""
+Registered as plugin storage_driver extension via plugin.yaml."""
 
 from __future__ import annotations
 
@@ -38,9 +36,7 @@ else:
 
 
 class OssStorageDriver(StorageDriver):
-    """
-    Alibaba Cloud OSS storage driver (V2 SDK edition)
-    """
+    """Alibaba Cloud OSS storage driver (V2 SDK edition) / 说明"""
     name = "aliyun-oss"
     display_name = "storage.driver.aliyun_oss"
     config_schema = {

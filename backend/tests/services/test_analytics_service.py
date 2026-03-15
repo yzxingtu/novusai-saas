@@ -1,8 +1,6 @@
-"""
-AnalyticsService + TenantAnalyticsService 单元测试
+"""AnalyticsService + TenantAnalyticsService 单元测试 / Model.
 
-覆盖：调用趋势、模型分布、供应商性能、企业排行、延迟分布、成功率趋势。
-"""
+覆盖：调用趋势、模型分布、供应商性能、企业排行、延迟分布、成功率趋势。"""
 
 from __future__ import annotations
 
@@ -14,7 +12,7 @@ import pytest
 # ── Helpers ──
 
 def _make_trend_rows(days: int = 3):
-    """生成 mock 调用趋势数据"""
+    """生成 mock 调用趋势数据 / mock"""
     rows = []
     for i in range(days):
         row = MagicMock()

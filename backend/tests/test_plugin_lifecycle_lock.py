@@ -1,4 +1,4 @@
-"""Regression tests for plugin lifecycle distributed lock safety."""
+"""Regression tests for plugin lifecycle distributed lock safety. / 插件"""
 
 from __future__ import annotations
 

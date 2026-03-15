@@ -26,7 +26,7 @@ from app.enums.agent import ToolConsentModeEnum
 
 class AgentSkillBinding(TenantModel):
     """
-    智能体技能包绑定模型
+    智能体技能包绑定模型 / Agent-SkillPackage binding model.
 
     记录 Agent 与 SkillPackage 的 M:N 关系。
     每条记录表示一个 Agent 绑定了一个 SkillPackage，支持：

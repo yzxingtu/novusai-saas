@@ -1,12 +1,10 @@
-"""
-Cloud Storage Plugin compliance tests.
+"""Cloud Storage Plugin compliance tests. / 插件
 
 Validates:
 - Each plugin's plugin.yaml schema
 - StorageDriver subclass contract
 - StorageManager only has local built-in
-- Plugin disable safety check logic
-"""
+- Plugin disable safety check logic"""
 
 from pathlib import Path
 
@@ -17,7 +15,7 @@ import pytest
 # ──────────────────────────────────────────────
 
 def test_storage_manager_only_local():
-    """StorageManager should only register LocalStorageDriver by default."""
+    """StorageManager should only register LocalStorageDriver by default. / 说明"""
     from app.storage.manager import StorageManager
 
     # Reset singleton for clean test
@@ -30,7 +28,7 @@ def test_storage_manager_only_local():
 
 
 def test_storage_manager_register_unregister():
-    """StorageManager register/unregister should work for plugin drivers."""
+    """StorageManager register/unregister should work for plugin drivers. / 插件"""
     from app.storage.base import StorageDriver
     from app.storage.manager import StorageManager
 
@@ -52,7 +50,7 @@ def test_storage_manager_register_unregister():
 
 
 def test_storage_manager_get_driver_info_list():
-    """get_driver_info_list should return structured info."""
+    """get_driver_info_list should return structured info. / 获取/返回"""
     from app.storage.manager import StorageManager
 
     StorageManager._instance = None
@@ -83,7 +81,7 @@ PLUGINS_ROOT = Path(__file__).parent.parent / "plugins"
 
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_plugin_yaml_valid(plugin_name: str):
-    """Each storage plugin must have a valid plugin.yaml."""
+    """Each storage plugin must have a valid plugin.yaml. / 插件"""
     import yaml
 
     from app.plugins.manifest import PluginManifest
@@ -105,21 +103,21 @@ def test_plugin_yaml_valid(plugin_name: str):
 
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_plugin_has_main(plugin_name: str):
-    """Each plugin must have backend/main.py with PluginBase subclass."""
+    """Each plugin must have backend/main.py with PluginBase subclass. / 插件"""
     main_path = PLUGINS_ROOT / plugin_name / "backend" / "main.py"
     assert main_path.is_file(), f"main.py missing for {plugin_name}"
 
 
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_plugin_has_driver(plugin_name: str):
-    """Each plugin must have backend/driver.py with StorageDriver subclass."""
+    """Each plugin must have backend/driver.py with StorageDriver subclass. / 插件"""
     driver_path = PLUGINS_ROOT / plugin_name / "backend" / "driver.py"
     assert driver_path.is_file(), f"driver.py missing for {plugin_name}"
 
 
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_plugin_has_locales(plugin_name: str):
-    """Each plugin must have zh-CN and en locale files."""
+    """Each plugin must have zh-CN and en locale files. / 插件"""
     zh = PLUGINS_ROOT / plugin_name / "locales" / "zh-CN.json"
     en = PLUGINS_ROOT / plugin_name / "locales" / "en.json"
     assert zh.is_file(), f"zh-CN.json missing for {plugin_name}"
@@ -140,7 +138,7 @@ EXPECTED_DRIVER_NAMES = {
 
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_driver_class_attributes(plugin_name: str):
-    """Each driver class must have correct name, display_name, config_schema."""
+    """Each driver class must have correct name, display_name, config_schema. / 说明"""
     import importlib.util
     import inspect
 
@@ -177,7 +175,7 @@ def test_driver_class_attributes(plugin_name: str):
 # ──────────────────────────────────────────────
 
 def test_platform_storage_driver_has_all_options():
-    """Platform storage driver select must include all 5 driver options."""
+    """Platform storage driver select must include all 5 driver options. / 说明"""
     from app.configs.definitions.platform.storage import PLATFORM_STORAGE_DRIVER
 
     option_values = {opt.value for opt in PLATFORM_STORAGE_DRIVER.options}
@@ -186,7 +184,7 @@ def test_platform_storage_driver_has_all_options():
 
 
 def test_tenant_storage_driver_has_cloud_options():
-    """Tenant storage driver select must include cloud driver options (no local)."""
+    """Tenant storage driver select must include cloud driver options (no local). / 说明"""
     from app.configs.definitions.tenant.storage import TENANT_STORAGE_DRIVER
 
     option_values = {opt.value for opt in TENANT_STORAGE_DRIVER.options}
@@ -196,7 +194,7 @@ def test_tenant_storage_driver_has_cloud_options():
 
 
 def test_tenant_storage_mode_has_admin_override():
-    """Tenant storage mode must include admin_override option."""
+    """Tenant storage mode must include admin_override option. / 说明"""
     from app.configs.definitions.tenant.storage import TENANT_STORAGE_MODE
 
     option_values = {opt.value for opt in TENANT_STORAGE_MODE.options}
@@ -206,7 +204,7 @@ def test_tenant_storage_mode_has_admin_override():
 
 
 def test_mode3_switches_exist():
-    """Mode 3 platform switch and tenant switch must exist."""
+    """Mode 3 platform switch and tenant switch must exist. / 说明"""
     from app.configs.definitions.platform.storage import (
         PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED,
     )

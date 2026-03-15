@@ -18,7 +18,7 @@ from app.core.i18n import _
 
 
 class AIModelCreate(BaseCreateSchema):
-    """创建 AI 模型请求"""
+    """创建 AI 模型请求 / Create AI model request."""
 
     provider_id: int = Field(..., description=_("enum.ai_model.provider_id"))
     name: str = Field(..., max_length=100, description=_("enum.ai_model.name"))
@@ -32,6 +32,8 @@ class AIModelCreate(BaseCreateSchema):
     tpm_limit: int | None = Field(None, description=_("enum.ai_model.tpm_limit"))
     supports_function_calling: bool = Field(False, description=_("enum.ai_model.supports_function_calling"))
     supports_vision: bool = Field(False, description=_("enum.ai_model.supports_vision"))
+    supports_audio: bool = Field(False, description=_("enum.ai_model.supports_audio"))
+    supports_video: bool = Field(False, description=_("enum.ai_model.supports_video"))
     supports_streaming: bool = Field(True, description=_("enum.ai_model.supports_streaming"))
     max_image_count: int | None = Field(5, description=_("enum.ai_model.max_image_count"))
     max_image_size_mb: int | None = Field(10, description=_("enum.ai_model.max_image_size_mb"))
@@ -42,7 +44,7 @@ class AIModelCreate(BaseCreateSchema):
 
 
 class AIModelUpdate(BaseUpdateSchema):
-    """更新 AI 模型请求"""
+    """更新 AI 模型请求 / Update AI model request."""
 
     provider_id: int | None = Field(None, description=_("enum.ai_model.provider_id"))
     name: str | None = Field(None, max_length=100, description=_("enum.ai_model.name"))
@@ -56,6 +58,8 @@ class AIModelUpdate(BaseUpdateSchema):
     tpm_limit: int | None = Field(None, description=_("enum.ai_model.tpm_limit"))
     supports_function_calling: bool | None = Field(None, description=_("enum.ai_model.supports_function_calling"))
     supports_vision: bool | None = Field(None, description=_("enum.ai_model.supports_vision"))
+    supports_audio: bool | None = Field(None, description=_("enum.ai_model.supports_audio"))
+    supports_video: bool | None = Field(None, description=_("enum.ai_model.supports_video"))
     supports_streaming: bool | None = Field(None, description=_("enum.ai_model.supports_streaming"))
     max_image_count: int | None = Field(None, description=_("enum.ai_model.max_image_count"))
     max_image_size_mb: int | None = Field(None, description=_("enum.ai_model.max_image_size_mb"))
@@ -66,7 +70,7 @@ class AIModelUpdate(BaseUpdateSchema):
 
 
 class AIModelResponse(BaseResponseSchema):
-    """AI 模型响应"""
+    """AI 模型响应 / AI model response schema."""
 
     provider_id: int = Field(..., description=_("enum.ai_model.provider_id"))
     name: str = Field(..., description=_("enum.ai_model.name"))
@@ -80,6 +84,8 @@ class AIModelResponse(BaseResponseSchema):
     tpm_limit: int | None = Field(None, description=_("enum.ai_model.tpm_limit"))
     supports_function_calling: bool = Field(..., description=_("enum.ai_model.supports_function_calling"))
     supports_vision: bool = Field(..., description=_("enum.ai_model.supports_vision"))
+    supports_audio: bool = Field(..., description=_("enum.ai_model.supports_audio"))
+    supports_video: bool = Field(..., description=_("enum.ai_model.supports_video"))
     supports_streaming: bool = Field(..., description=_("enum.ai_model.supports_streaming"))
     max_image_count: int | None = Field(None, description=_("enum.ai_model.max_image_count"))
     max_image_size_mb: int | None = Field(None, description=_("enum.ai_model.max_image_size_mb"))
@@ -96,6 +102,8 @@ class RemoteModelCapabilities(BaseResponseSchema):
     """Remote model capabilities from LiteLLM registry / 远程模型能力（来自 LiteLLM 注册表）"""
 
     supports_vision: bool | None = None
+    supports_audio: bool | None = None
+    supports_video: bool | None = None
     supports_function_calling: bool | None = None
     supports_streaming: bool | None = None
     context_window: int | None = None

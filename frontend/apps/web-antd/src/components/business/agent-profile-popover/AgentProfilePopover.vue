@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * Agent Profile Popover - Shared component for displaying agent info + skill packages.
+ * Agent Profile Popover - Shared component for displaying agent info + skill packages / 智能体资料气泡卡片
  *
  * Reused in ChatMessageItem (slide panel chat) and ConversationDetail (history drawer).
  * Clicking the avatar opens a Popover with:
@@ -25,19 +25,19 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
-    /** Agent ID — required for loading skill packages */
+    /** Agent ID — required for loading skill packages / 智能体 ID，加载技能包必填 */
     agentId?: null | number;
-    /** Agent avatar URL (raw, will be resolved via toAvatarDisplayUrl) */
+    /** Agent avatar URL (raw, will be resolved via toAvatarDisplayUrl) / 智能体头像 URL */
     agentAvatar?: null | string;
-    /** Agent description */
+    /** Agent description / 智能体描述 */
     agentDescription?: null | string;
-    /** Agent display name */
+    /** Agent display name / 智能体展示名称 */
     agentName?: null | string;
-    /** API prefix: '/admin' or '/tenant' */
+    /** API prefix: '/admin' or '/tenant' / API 前缀 */
     apiPrefix?: string;
-    /** LLM model name */
+    /** LLM model name / 模型名称 */
     modelName?: null | string;
-    /** Avatar size variant */
+    /** Avatar size variant / 头像尺寸 */
     size?: 'lg' | 'md' | 'sm';
   }>(),
   {
@@ -121,7 +121,7 @@ watch(showProfileCard, (open) => {
   if (open) loadSkillBindings();
 });
 
-/** Size classes */
+/** Size classes / 尺寸样式类 */
 const sizeClasses = {
   sm: {
     avatar: 'mt-0.5 flex size-6 text-[9px]',

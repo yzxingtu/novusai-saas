@@ -50,7 +50,7 @@ MIN_CONFIDENCE_THRESHOLD = 0.3
 
 @dataclass
 class RouteResult:
-    """路由结果"""
+    """路由结果 / Route result."""
 
     agent_id: int
     agent_name: str
@@ -60,7 +60,7 @@ class RouteResult:
 
 class AgentRouterService:
     """
-    智能体路由服务
+    智能体路由服务 / Agent router service.
 
     流程:
     1. pinned_agent_id 直通（用户手动选择）
@@ -89,7 +89,7 @@ class AgentRouterService:
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
     ) -> RouteResult:
         """
-        执行智能路由
+        执行智能路由 / Execute agent routing.
 
         Args：
             tenant_id: 企业 ID（管理端可为 None）
@@ -277,7 +277,7 @@ class AgentRouterService:
     # ========================================
 
     async def _get_router_agent(self) -> Agent | None:
-        """获取 execution_mode=router 的系统智能体"""
+        """获取 execution_mode=router 的系统智能体 / Get system agent with execution_mode=router."""
         result = await self.db.execute(
             select(Agent).where(
                 Agent.execution_mode == AgentExecutionModeEnum.ROUTER.value,
@@ -301,7 +301,7 @@ class AgentRouterService:
         page_context: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
         """
-        TASK 模式调用 Router 智能体，解析 JSON 结果
+        TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
 
         Returns:
             {"agent_id": int, "confidence": float} or None
@@ -377,7 +377,7 @@ class AgentRouterService:
 
     @staticmethod
     def _parse_router_output(output: str) -> dict[str, Any] | None:
-        """从 Router 输出中提取 JSON"""
+        """从 Router 输出中提取 JSON / Extract JSON from Router output."""
         # 尝试直接解析
         try:
             data = json.loads(output.strip())
@@ -427,7 +427,7 @@ class AgentRouterService:
         user_role: str,
     ) -> RouteResult:
         """
-        降级到 default_chat 绑定的智能体
+        降级到 default_chat 绑定的智能体 / Fallback to default_chat bound agent.
 
         查询 SystemAgentAssignment: feature_code='default_chat'
         企业端先查企业覆盖，再 fallback 全局默认
@@ -483,7 +483,7 @@ class AgentRouterService:
     # ========================================
 
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
-        """获取已发布的智能体"""
+        """获取已发布的智能体 / Get published agent."""
         result = await self.db.execute(
             select(Agent).where(
                 Agent.id == agent_id,
@@ -499,7 +499,7 @@ class AgentRouterService:
         tenant_id: int | None,
         user_role: str,
     ) -> bool:
-        """检查智能体对当前上下文是否可见（scope + target_audience 双重校验）"""
+        """检查智能体对当前上下文是否可见（scope + target_audience 双重校验） / Check agent visible to context (scope + target_audience)."""
         from app.ai.skills.resolver import _audience_allows_role
         from app.core.scope import ScopeChecker
 

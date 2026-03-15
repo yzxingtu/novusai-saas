@@ -20,61 +20,61 @@ import { defineStore } from 'pinia';
 
 // ── 类型定义 ──
 
-/** 编辑器扩展声明（Tiptap Extension / ProseMirror Plugin 等） */
+/** 编辑器扩展声明（Tiptap Extension / ProseMirror Plugin 等） / Editor extension item */
 export interface EditorExtensionItem {
-  /** 扩展唯一 ID（如 "novusdoc-pro.ai-completion"） */
+  /** 扩展唯一 ID（如 "novusdoc-pro.ai-completion"） / Extension unique ID */
   id: string;
-  /** 注册插件名 */
+  /** 注册插件名 / Plugin name that registered this extension */
   pluginName: string;
-  /** 扩展对象（Tiptap Extension 实例或工厂函数） */
+  /** 扩展对象（Tiptap Extension 实例或工厂函数） / Extension instance or factory */
   extension: unknown;
-  /** 优先级（数字越小越优先，默认 100） */
+  /** 优先级（数字越小越优先，默认 100） / Priority (lower = higher priority) */
   priority?: number;
-  /** 人类可读名称 */
+  /** 人类可读名称 / Human-readable name */
   name?: string;
-  /** 扩展分组（如 "mark", "node", "plugin", "decoration"） */
+  /** 扩展分组（如 "mark", "node", "plugin", "decoration"） / Extension group */
   group?: string;
 }
 
-/** 编辑器面板声明（侧边栏/底部/浮动面板） */
+/** 编辑器面板声明（侧边栏/底部/浮动面板） / Editor panel item */
 export interface EditorPanelItem {
-  /** 面板唯一 ID */
+  /** 面板唯一 ID / Panel unique ID */
   id: string;
-  /** 注册插件名 */
+  /** 注册插件名 / Plugin name */
   pluginName: string;
-  /** Vue 组件 */
+  /** Vue 组件 / Vue component */
   component: Component;
-  /** 面板位置: sidebar / bottom / floating */
+  /** 面板位置: sidebar / bottom / floating / Panel position */
   position: 'bottom' | 'floating' | 'sidebar';
-  /** 面板标题 */
+  /** 面板标题 / Panel title */
   title?: string;
-  /** 面板图标（Iconify 格式） */
+  /** 面板图标（Iconify 格式） / Panel icon (Iconify) */
   icon?: string;
-  /** 优先级 */
+  /** 优先级 / Priority */
   priority?: number;
-  /** 是否默认展开 */
+  /** 是否默认展开 / Whether open by default */
   defaultOpen?: boolean;
 }
 
-/** 命令声明（命令面板 / 快捷键） */
+/** 命令声明（命令面板 / 快捷键） / Editor command item */
 export interface EditorCommandItem {
-  /** 命令唯一 ID（如 "novusdoc-pro.ai-rewrite"） */
+  /** 命令唯一 ID（如 "novusdoc-pro.ai-rewrite"） / Command unique ID */
   id: string;
-  /** 注册插件名 */
+  /** 注册插件名 / Plugin name */
   pluginName: string;
-  /** 命令执行函数 */
+  /** 命令执行函数 / Command execute function */
   execute: (...args: unknown[]) => unknown;
-  /** 命令标题 */
+  /** 命令标题 / Command title */
   title?: string;
-  /** 快捷键（如 "Ctrl+Shift+R"） */
+  /** 快捷键（如 "Ctrl+Shift+R"） / Shortcut key */
   shortcut?: string;
-  /** 命令分组 */
+  /** 命令分组 / Command group */
   group?: string;
-  /** 优先级 */
+  /** 优先级 / Priority */
   priority?: number;
 }
 
-/** 冲突警告记录 */
+/** 冲突警告记录 / Extension conflict warning */
 export interface ExtensionConflict {
   type: 'command' | 'extension' | 'panel';
   id: string;

@@ -75,7 +75,9 @@ class AdminAIModelController(GlobalController):
             page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
             page_size: int = Query(20, ge=1, le=100, description="每页数量"),
             type: str = Query("", description="模型类型过滤 (chat/embedding/image)"),
-            supports_vision: str = Query("", description="是否支持视觉 (true/false)"),
+            supports_vision: str = Query("", description=_("enum.ai_model.filter_supports_vision")),
+            supports_audio: str = Query("", description=_("enum.ai_model.filter_supports_audio")),
+            supports_video: str = Query("", description=_("enum.ai_model.filter_supports_video")),
         ):
             service = AIModelService(db)
             extra_filters: dict = {"is_active": True}
@@ -83,6 +85,10 @@ class AdminAIModelController(GlobalController):
                 extra_filters["type"] = type
             if supports_vision.lower() == "true":
                 extra_filters["supports_vision"] = True
+            if supports_audio.lower() == "true":
+                extra_filters["supports_audio"] = True
+            if supports_video.lower() == "true":
+                extra_filters["supports_video"] = True
             response = await service.get_select_options(
                 search=search,
                 page=page,

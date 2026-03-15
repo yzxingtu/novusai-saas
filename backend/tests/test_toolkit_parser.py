@@ -1,4 +1,4 @@
-"""Test toolkit_parser.py"""
+"""Test toolkit_parser.py / 测试"""
 
 from app.ai.skills.toolkit_parser import (
     ToolkitMeta,
@@ -7,13 +7,11 @@ from app.ai.skills.toolkit_parser import (
 )
 
 SAMPLE_TOOLKIT = '''
-"""
-title: Weather API
+"""title: Weather API / 接口/处理器
 description: Query weather forecast
 version: 1.0.0
 author: NovusAI
-requirements: httpx>=0.25.0, pydantic
-"""
+requirements: httpx>=0.25.0, pydantic"""
 
 from pydantic import BaseModel, Field
 
@@ -27,23 +25,20 @@ class Tools:
         self.valves = Valves()
 
     async def get_weather(self, city: str, units: str = "metric") -> str:
-        """Get weather forecast for a city
+        """Get weather forecast for a city / 获取/返回
         :param city: City name
-        :param units: Temperature units (metric/imperial)
-        """
+        :param units: Temperature units (metric/imperial)"""
         return f"Weather for {city}"
 
     async def search_cities(self, query: str, limit: int = 10) -> str:
-        """Search cities by name
+        """Search cities by name / 说明
         :param query: Search query
-        :param limit: Max results
-        """
+        :param limit: Max results"""
         return "cities"
 
     def sync_method(self, text: str) -> str:
-        """A sync method
-        :param text: Input text
-        """
+        """A sync method / 说明
+        :param text: Input text"""
         return text
 
     def _private_helper(self):
@@ -129,17 +124,14 @@ def test_roundtrip():
 
 def test_no_valves():
     source = '''
-"""
-title: Simple Tool
+"""title: Simple Tool / 说明
 description: No valves
-version: 0.1.0
-"""
+version: 0.1.0"""
 
 class Tools:
     async def hello(self, name: str) -> str:
-        """Say hello
-        :param name: Name to greet
-        """
+        """Say hello / 说明
+        :param name: Name to greet"""
         return f"Hello {name}"
 '''
     meta = parse_toolkit(source)
@@ -151,10 +143,8 @@ class Tools:
 
 def test_optional_and_union_types():
     source = '''
-"""
-title: Type Test
-version: 1.0.0
-"""
+"""title: Type Test / 测试
+version: 1.0.0"""
 
 from typing import Optional
 
@@ -170,7 +160,7 @@ class Tools:
         g: Optional[str] = None,
         h: int | None = None,
     ) -> str:
-        """Test types
+        """Test types / 测试
         :param a: string
         :param b: integer
         :param c: number
@@ -178,8 +168,7 @@ class Tools:
         :param e: array
         :param f: object
         :param g: optional string
-        :param h: optional int
-        """
+        :param h: optional int"""
         return "ok"
 '''
     meta = parse_toolkit(source)

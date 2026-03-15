@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 /**
  * AI 表策略管理列表页面
+ * AI table policy management list page
  *
- * CRUD 权限可直接在表格中点击切换，无需打开编辑抽屉
+ * CRUD 权限可直接在表格中点击切换，无需打开编辑抽屉 / Toggle CRUD permissions in table, no edit drawer.
  */
 import type { AITablePolicyInfo } from '#/api/admin/ai';
 
@@ -30,7 +31,7 @@ import Form from './modules/form.vue';
 defineOptions({ name: 'AITablePolicyList' });
 
 /**
- * 切换策略启用状态
+ * 切换策略启用状态 / Toggle policy active status
  */
 function onToggleActive(row: AITablePolicyInfo) {
   Modal.confirm({
@@ -51,6 +52,7 @@ function onToggleActive(row: AITablePolicyInfo) {
 
 /**
  * 直接切换单个 CRUD 权限（无需确认弹窗，即点即改）
+ * Toggle single CRUD permission inline (no confirm).
  * 使用本地更新避免 onRefresh 导致的行引用偏移
  */
 async function onToggleCrud(
@@ -68,7 +70,7 @@ async function onToggleCrud(
 }
 
 /**
- * 同步表策略
+ * 同步表策略 / Sync table policies
  */
 const syncing = ref(false);
 

@@ -20,7 +20,7 @@ from app.core.i18n import _
 
 class AITablePolicy(BaseModel):
     """
-    AI 表访问策略（平台级）
+    AI 表访问策略（平台级）/ AI table access policy (platform-level).
 
     每张数据库表对应一条策略记录，由系统自动发现并创建，
     管理员通过管理页面调整 CRUD 开关、行数限制、列级控制。
@@ -190,7 +190,7 @@ class AITablePolicy(BaseModel):
 
 class AITablePolicyOverride(TenantModel):
     """
-    AI 表策略企业级覆盖
+    AI 表策略企业级覆盖 / AI table policy tenant override.
 
     允许企业管理员针对自己的企业自定义策略，覆盖全局设置。
     规则：企业只能收紧（限制更多），不能放开（超出全局策略）。

@@ -53,7 +53,7 @@ class FileService(TenantService):
         return await node_repo.list_dir(parent_id)
 
     async def get_node(self, node_id: int) -> dict:
-        """获取节点详情（含路径面包屑）"""
+        """获取节点详情（含路径面包屑） / Get node detail (with path breadcrumb)."""
         node_repo, _ = self._get_repos()
         node = await self._get_node_or_404(node_id)
         breadcrumbs = await node_repo.get_ancestors(node_id)
@@ -97,7 +97,7 @@ class FileService(TenantService):
         return node
 
     async def move(self, node_id: int, new_parent_id: int | None) -> object:
-        """移动节点（含循环检测）"""
+        """移动节点（含循环检测） / Move node (with cycle check)."""
         from app.core.base_model import utc_now
 
         node_repo, _ = self._get_repos()
@@ -121,7 +121,7 @@ class FileService(TenantService):
         return node
 
     async def copy(self, node_id: int, new_parent_id: int | None) -> object:
-        """深拷贝节点（先检查配额）"""
+        """深拷贝节点（先检查配额） / Deep copy node (quota check first)."""
         from ..repositories.quota_repository import QuotaRepository
 
         node = await self._get_node_or_404(node_id)
@@ -184,7 +184,7 @@ class FileService(TenantService):
     # ── 删除操作 ──────────────────────────────────────────────
 
     async def delete(self, node_id: int, permanent: bool = False) -> None:
-        """删除节点：permanent=False 移入回收站，True 永久删除"""
+        """删除节点：permanent=False 移入回收站，True 永久删除 / Delete node: False=trash, True=permanent."""
         node = await self._get_node_or_404(node_id)
 
         if permanent:
@@ -196,7 +196,7 @@ class FileService(TenantService):
         await self.db.commit()
 
     async def _before_permanent_delete(self, node) -> None:
-        """永久删除前清理 storage 文件 + 更新配额"""
+        """永久删除前清理 storage 文件 + 更新配额 / Before permanent delete: clear storage + update quota."""
         from app.storage.manager import StorageManager
         from ..repositories.quota_repository import QuotaRepository
 

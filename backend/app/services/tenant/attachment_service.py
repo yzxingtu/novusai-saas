@@ -44,7 +44,7 @@ ProgressCallback = Callable[[dict[str, Any]], Any]
 
 class AttachmentService(TenantService[Attachment, AttachmentRepository]):
     """
-    附件上传服务
+    附件上传服务 / Attachment upload service.
     """
 
     model = Attachment
@@ -52,7 +52,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     def __init__(self, db: AsyncSession, tenant_id: int):
         """
-        初始化服务
+        初始化服务 / Initialize service.
         """
         super().__init__(db, tenant_id)
         self._config_service = ConfigService(db)
@@ -72,7 +72,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        统一上传入口
+        统一上传入口 / Unified upload entry.
         """
         await self._ensure_upload_enabled()
         # 验证文件类型
@@ -129,7 +129,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         visibility: AttachmentVisibility = AttachmentVisibility.PRIVATE,
     ) -> dict[str, Any]:
         """
-        预检查文件是否已存在（秒传）
+        预检查文件是否已存在（秒传）/ Pre-check file existence (instant upload).
 
         前端先计算 SHA-256 哈希，发送到此方法检查。
         如果同企业、同驱动下已存在相同哈希的文件，返回已有记录（零上传）。
@@ -183,7 +183,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        初始化分片上传会话
+        初始化分片上传会话 / Initialize chunk upload session.
         """
         await self._ensure_upload_enabled()
         # 验证文件类型
@@ -230,7 +230,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         progress_callback: ProgressCallback | None = None,
     ) -> dict[str, Any]:
         """
-        上传分片
+        上传分片 / Upload chunk.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -258,7 +258,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def complete_chunk_upload(self, upload_id: str) -> dict[str, Any]:
         """
-        完成分片上传并合并文件
+        完成分片上传并合并文件 / Complete chunk upload and merge files.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -312,7 +312,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
-        获取分片上传进度
+        获取分片上传进度 / Get chunk upload progress.
         """
         session = await self._load_session(upload_id)
         uploaded_bytes = await self._calc_uploaded_bytes(
@@ -322,13 +322,13 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def abort_upload(self, upload_id: str) -> None:
         """
-        取消上传并清理临时文件
+        取消上传并清理临时文件 / Abort upload and clean temp files.
         """
         await self._remove_session(upload_id)
 
     async def _ensure_upload_enabled(self) -> None:
         """
-        检查企业上传功能开关
+        检查企业上传功能开关 / Check tenant upload feature flag.
         """
         enabled = await self._config_service.get_tenant_config(
             self.tenant_id,
@@ -343,7 +343,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _check_quota(self, additional_bytes: int) -> None:
         """
-        检查文件大小与存储配额
+        检查文件大小与存储配额 / Check file size and storage quota.
 
         - 单文件大小限制：取 min(套餐 max_file_size_mb, 系统配置 platform_storage_max_file_size_mb)
         - 存储总量配额（storage_limit_gb）：全局生效，不管存储到哪里
@@ -389,7 +389,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _get_tenant(self) -> Tenant:
         """
-        获取企业信息（含套餐）
+        获取企业信息（含套餐）/ Get tenant with plan.
         """
         result = await self.db.execute(
             select(Tenant)
@@ -403,7 +403,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _save_to_temp(self, content: BinaryIO) -> tuple[str, int, str]:
         """
-        将内容写入临时文件并计算哈希
+        将内容写入临时文件并计算哈希 / Write content to temp file and compute hash.
         """
         def _write() -> tuple[str, int, str]:
             size = 0
@@ -422,7 +422,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _remove_temp_file(self, temp_path: str) -> None:
         """
-        删除临时文件
+        删除临时文件 / Remove temp file.
         """
         def _remove() -> None:
             Path(temp_path).unlink(missing_ok=True)
@@ -439,7 +439,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         metadata: dict | None,
     ):
         """
-        上传临时文件到存储驱动
+        上传临时文件到存储驱动 / Upload temp file to storage driver.
         """
         driver = storage_manager.get_driver(storage_config)
         with open(temp_path, "rb") as f:
@@ -467,7 +467,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         storage_config: StorageConfig | None = None,
     ) -> Attachment:
         """
-        落库附件记录
+        落库附件记录 / Persist attachment record.
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
 
@@ -515,7 +515,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _resolve_storage_config(self, storage_mode: str) -> StorageConfig:
         """
-        解析存储配置（委托给统一 StorageConfigResolver）
+        解析存储配置（委托给统一 StorageConfigResolver）/ Resolve storage config (via StorageConfigResolver).
         """
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
@@ -524,7 +524,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     def _build_storage_path(self, filename: str, storage_mode: str = "platform") -> str:
         """
-        构建存储路径
+        构建存储路径 / Build storage path.
 
         Mode 1 (platform / shared bucket): tenants/{tenant_id}/{date}/{uuid}.ext
         Mode 2/3 (tenant independent bucket): {date}/{uuid}.ext
@@ -538,31 +538,31 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     def _get_upload_root(self) -> Path:
         """
-        获取上传临时根目录
+        获取上传临时根目录 / Get upload temp root.
         """
         return Path(tempfile.gettempdir()) / "novusai_uploads" / str(self.tenant_id)
 
     def _get_session_path(self, upload_id: str) -> Path:
         """
-        获取上传会话路径
+        获取上传会话路径 / Get upload session path.
         """
         return self._get_upload_root() / upload_id
 
     def _get_session_file(self, upload_id: str) -> Path:
         """
-        获取会话状态文件
+        获取会话状态文件 / Get session state file.
         """
         return self._get_session_path(upload_id) / "session.json"
 
     def _get_chunk_path(self, upload_id: str, chunk_index: int) -> Path:
         """
-        获取分片文件路径
+        获取分片文件路径 / Get chunk file path.
         """
         return self._get_session_path(upload_id) / f"{chunk_index}.part"
 
     async def _save_session(self, session: dict[str, Any]) -> None:
         """
-        保存会话状态
+        保存会话状态 / Save session state.
         """
         session_path = self._get_session_path(session["upload_id"])
         session_path.mkdir(parents=True, exist_ok=True)
@@ -575,7 +575,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
         """
-        加载会话状态（含企业隔离校验）
+        加载会话状态（含企业隔离校验）/ Load session (with tenant isolation check).
         """
         session_file = self._get_session_file(upload_id)
         if not session_file.exists():
@@ -601,7 +601,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _remove_session(self, upload_id: str) -> None:
         """
-        删除会话及分片文件
+        删除会话及分片文件 / Remove session and chunk files.
         """
         session_path = self._get_session_path(upload_id)
 
@@ -615,7 +615,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _write_chunk(self, chunk_path: Path, content: BinaryIO) -> None:
         """
-        写入分片文件
+        写入分片文件 / Write chunk file.
         """
         chunk_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -631,7 +631,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _calc_uploaded_bytes(self, upload_id: str, chunks: list[int]) -> int:
         """
-        计算已上传字节数
+        计算已上传字节数 / Calculate uploaded bytes.
         """
         def _sum() -> int:
             total = 0
@@ -645,7 +645,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _merge_chunks(self, upload_id: str, chunk_count: int) -> tuple[str, int, str]:
         """
-        合并分片并计算哈希
+        合并分片并计算哈希 / Merge chunks and compute hash.
         """
         def _merge() -> tuple[str, int, str]:
             size = 0
@@ -667,7 +667,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     def _calc_chunk_count(self, total_size: int, chunk_size: int) -> int:
         """
-        计算分片数量
+        计算分片数量 / Calculate chunk count.
         """
         if chunk_size <= 0:
             return 0
@@ -675,7 +675,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     def _build_session_response(self, session: dict[str, Any], uploaded_bytes: int) -> dict[str, Any]:
         """
-        构建会话响应
+        构建会话响应 / Build session response.
         """
         total_size = int(session["total_size"])
         percent = int(uploaded_bytes * 100 / total_size) if total_size else 0
@@ -692,7 +692,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _trigger_progress(self, callback: ProgressCallback, payload: dict[str, Any]) -> None:
         """
-        触发进度回调
+        触发进度回调 / Invoke progress callback.
         """
         result = callback(payload)
         if hasattr(result, "__await__"):
@@ -704,7 +704,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        删除附件（含依赖检查 + 物理文件删除）
+        删除附件（含依赖检查 + 物理文件删除）/ Delete attachment (dependency check + physical delete).
 
         流程：
         1. 获取附件信息（driver / path / tenant_id）
@@ -739,7 +739,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         self, driver_name: str, path: str, tenant_id: int
     ) -> None:
         """
-        从存储驱动中删除物理文件
+        从存储驱动中删除物理文件 / Delete physical file from storage driver.
 
         Args:
             driver_name: 存储驱动名称（local / qiniu / s3 等）
@@ -771,7 +771,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def get_storage_stats(self) -> dict[str, Any]:
         """
-        获取企业存储统计
+        获取企业存储统计 / Get tenant storage stats.
 
         Returns:
             存储统计信息

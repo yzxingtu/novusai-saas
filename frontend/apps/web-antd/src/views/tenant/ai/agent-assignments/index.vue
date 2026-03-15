@@ -3,6 +3,7 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
 
 /**
  * Tenant — System Agent Assignment Management — useCrudList + 配置面板
+ * 企业端 — 系统智能体分配管理 — useCrudList + 配置面板
  *
  * useCrudList(keyField='feature_code') 管理列表数据，自定义覆盖/恢复操作。
  */

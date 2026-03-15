@@ -1,8 +1,6 @@
-"""
-天气技能包单元测试
+"""天气技能包单元测试 / Test.
 
-测试 Skill Resolver 和 Executor。
-"""
+测试 Skill Resolver 和 Executor。"""
 
 from __future__ import annotations
 
@@ -22,7 +20,7 @@ _PLUGIN_DIR = Path(__file__).parent.parent
 
 
 def _load_module(rel_path: str, mod_name: str):
-    """动态加载插件子模块"""
+    """动态加载插件子模块 / Dynamically load plugin submodule."""
     module_file = _PLUGIN_DIR / rel_path
     spec = importlib.util.spec_from_file_location(mod_name, module_file)
     assert spec and spec.loader
@@ -45,7 +43,7 @@ WeatherWidgetExecutor = executor_mod.WeatherWidgetExecutor
 
 
 class TestWeatherResolver:
-    """技能解析器"""
+    """技能解析器 / Skill resolver."""
 
     def test_resolve_returns_two_tools(self):
         skill = SimpleNamespace(name="weather-realtime")
@@ -103,7 +101,7 @@ class TestWeatherResolver:
 
 
 class TestWeatherWidgetExecutor:
-    """天气工具执行器"""
+    """天气工具执行器 / Weather tool executor."""
 
     def setup_method(self):
         self.executor = WeatherWidgetExecutor()

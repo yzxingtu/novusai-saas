@@ -26,6 +26,8 @@ def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[d
             model_name = model_obj.name
             model_capabilities = {
                 "supports_vision": getattr(model_obj, "supports_vision", False),
+                "supports_audio": getattr(model_obj, "supports_audio", False),
+                "supports_video": getattr(model_obj, "supports_video", False),
                 "max_image_count": getattr(model_obj, "max_image_count", None),
                 "max_image_size_mb": getattr(model_obj, "max_image_size_mb", None),
             }
@@ -48,8 +50,7 @@ def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[d
 
 def build_agent_base_item(agent: Any) -> dict[str, Any]:
     """
-    构建智能体列表项的公共字段。
-    Build common fields for agent list item.
+    构建智能体列表项的公共字段 / Build common fields for agent list item.
 
     admin/tenant 各自在此基础上追加端特有的字段。
     admin/tenant each append endpoint-specific fields on top of this.

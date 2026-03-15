@@ -54,8 +54,7 @@ async def update_global_preferences(
     body: PreferenceUpdateSchema,
 ):
     """
-    更新企业全局偏好，变更的 key 会从该企业所有管理员的个人覆盖中清除
-    Update tenant global preferences; changed keys are cleared from all tenant admin individual overrides
+    更新企业全局偏好，变更的 key 会从该企业所有管理员的个人覆盖中清除 / Update tenant global preferences; changed keys cleared from tenant admin overrides.
     """
     service = UserPreferenceService(db)
     data, changed = await service.update_global(SCOPE_TENANT_GLOBAL, tenant_admin.tenant_id, body.preferences)

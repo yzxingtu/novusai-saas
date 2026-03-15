@@ -18,7 +18,7 @@ logger = LogManager.get_logger("ai.metering")
 
 class TokenCounter:
     """
-    Token 计数器
+    Token 计数器 / Token counter.
 
     提供通用的 Token 计数功能
     """
@@ -26,7 +26,7 @@ class TokenCounter:
     @staticmethod
     def count_text_tokens(text: str) -> int:
         """
-        估算文本的 Token 数量
+        估算文本的 Token 数量 / Estimate token count for text.
 
         使用简化算法:英文约 4 字符/token,中文约 2 字符/token
         """
@@ -42,7 +42,7 @@ class TokenCounter:
     @staticmethod
     def count_messages_tokens(messages: list[dict]) -> int:
         """
-        估算消息列表的 Token 数量
+        估算消息列表的 Token 数量 / Estimate token count for message list.
         """
         total = 0
         for message in messages:
@@ -56,14 +56,14 @@ class TokenCounter:
     @staticmethod
     def count_array_tokens(array: list) -> int:
         """
-        估算数组的 Token 数量 (用于 embeddings 等)
+        估算数组的 Token 数量 (用于 embeddings 等) / Estimate token count for array (e.g. embeddings).
         """
         return sum(TokenCounter.count_text_tokens(str(item)) for item in array)
 
 
 class CostCalculator:
     """
-    费用计算器
+    费用计算器 / Cost calculator.
 
     根据模型定价计算费用
     """
@@ -75,7 +75,7 @@ class CostCalculator:
         output_tokens: int,
     ) -> float:
         """
-        计算调用费用
+        计算调用费用 / Calculate call cost.
         """
         input_price = float(model.input_price_per_1k or 0)
         output_price = float(model.output_price_per_1k or 0)
@@ -89,7 +89,7 @@ class CostCalculator:
 
 class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
     """
-    计量计费服务
+    计量计费服务 / Metering service.
 
     提供统一的计量计费接口
     """
@@ -110,7 +110,7 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         latency_ms: int | None = None,
     ):
         """
-        记录使用量
+        记录使用量 / Record usage.
         """
         stat_date = date.today()
 
@@ -168,7 +168,7 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取企业使用量（含汇总 + 每日趋势 + 模型分布）
+        获取企业使用量（含汇总 + 每日趋势 + 模型分布）/ Get tenant usage (summary + daily + model).
         """
         summary = await self.repo.get_tenant_usage_summary(
             tenant_id=tenant_id,
@@ -200,7 +200,7 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取用户使用量
+        获取用户使用量 / Get user usage.
         """
         return await self.repo.get_user_usage_summary(
             tenant_id=tenant_id,
@@ -216,7 +216,7 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取模型使用量
+        获取模型使用量 / Get model usage.
         """
         return await self.repo.get_model_usage_summary(
             model_id=model_id,

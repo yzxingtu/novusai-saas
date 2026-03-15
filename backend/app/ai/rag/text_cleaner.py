@@ -1,6 +1,5 @@
 """
-Embedding Text Cleaner
-Embedding 文本清洗器
+Embedding Text Cleaner / Embedding 文本清洗器
 
 Pre-processes text before sending to embedding model, removing noise irrelevant to semantic retrieval:
 在文本送入 Embedding 模型前进行预处理，去除对语义检索无意义的噪声：

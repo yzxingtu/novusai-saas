@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 class SkillCallLog(TenantModel):
     """
-    技能调用日志
+    技能调用日志 / Skill call log.
 
     每次 ToolSandbox 执行工具调用后自动写入一条记录。
     """

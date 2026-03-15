@@ -1,5 +1,5 @@
 /**
- * Shared composable for global preference pages (Admin & Tenant).
+ * Shared composable for global preference pages (Admin & Tenant) / 全局偏好页共享 Composable
  * Provides loading, saving, live preview, and revert-on-leave logic.
  *
  * Live preview: form changes are applied to Vben in real-time.

@@ -55,8 +55,7 @@ class SkillResolveResult:
 
 class SkillResolver:
     """
-    Skill → ToolDefinition converter.
-    Skill → ToolDefinition 转换器。
+    Skill → ToolDefinition converter / Skill → ToolDefinition 转换器。
 
     Dispatches to corresponding conversion method by Skill type.
     A single Skill may produce 0~N ToolDefinitions.
@@ -161,8 +160,7 @@ class SkillResolver:
         source_plugin: str | None = None,
     ) -> None:
         """
-        Dispatch to corresponding conversion method by type.
-        按类型分发到对应的转换方法。
+        Dispatch to corresponding conversion method by type. / 按类型分发到对应的转换方法。
 
         Plugin skills (source_plugin has value) take priority for plugin resolver,
         regardless of their type (can be toolkit or other standard types).
@@ -400,8 +398,7 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        Toolkit Skill → N ToolDefinitions.
-        Toolkit Skill → N 个 ToolDefinition。
+        Toolkit Skill → N ToolDefinitions. / Toolkit Skill → N 个 ToolDefinition。
 
         Parses Toolkit Python source, generates one ToolDefinition per public method of Tools class.
         Valves config is read from config and injected into each tool's config.
@@ -782,8 +779,7 @@ class SkillResolver:
         source_plugin: str = "",
     ) -> None:
         """
-        Plugin skill resolution — query ExtensionRegistry by plugin_name to get plugin resolver.
-        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver。
+        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver / Plugin skill resolution: query ExtensionRegistry by plugin_name to get plugin resolver.
 
         Plugins register resolver functions via ExtensionRegistry.register_skill(plugin_name, ...)
         during enable; here we look up and call by source_plugin (plugin name).

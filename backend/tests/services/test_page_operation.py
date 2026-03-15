@@ -1,13 +1,11 @@
-"""
-页面操作端到端集成测试
+"""页面操作端到端集成测试 / Test.
 
 验证完整链路：
 1. PageOperationExecutor — 成功/失败/缺参数/无 page_session_id/超时/用户取消
 2. invoke_page_operation — WebSocket 下发 + Future 回传
 3. PageSessionMixin — room join/leave/result 事件处理
 4. Skill Resolver — invoke_page_operation tool schema 暴露
-5. PageOperationExecutor.validate — 参数校验
-"""
+5. PageOperationExecutor.validate — 参数校验"""
 
 import sys
 import types
@@ -93,7 +91,7 @@ from app.enums.agent import SkillTypeEnum
 
 
 class TestPageOperationExecutor:
-    """PageOperationExecutor 单元测试"""
+    """PageOperationExecutor 单元测试 / Test."""
 
     @pytest.fixture()
     def executor(self) -> PageOperationExecutor:
@@ -108,7 +106,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_success(self, executor, definition):
-        """操作执行成功 → success=True + 输出包含操作名和消息"""
+        """操作执行成功 → success=True + 输出包含操作名和消息 / → success=True + ..."""
         context = ExecutionContext(
             tenant_id=1,
             agent_id=2,
@@ -141,7 +139,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_no_page_session_id(self, executor, definition):
-        """无 page_session_id → 立即失败"""
+        """无 page_session_id → 立即失败 / page_session_id →"""
         context = ExecutionContext(tenant_id=1, agent_id=2)
 
         result = await executor.execute(
@@ -159,7 +157,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_no_context(self, executor, definition):
-        """context=None → 立即失败"""
+        """context=None → 立即失败 / context=None →"""
         result = await executor.execute(
             definition,
             "call_3",
@@ -175,7 +173,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_missing_page_key(self, executor, definition):
-        """缺少 page_key → 参数错误"""
+        """缺少 page_key → 参数错误 / page_key →"""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -192,7 +190,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_missing_operation_name(self, executor, definition):
-        """缺少 operation_name → 参数错误"""
+        """缺少 operation_name → 参数错误 / operation_name →"""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -209,7 +207,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_timeout(self, executor, definition):
-        """操作超时 → error_type=timeout"""
+        """操作超时 → error_type=timeout / → error_type=timeout"""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -239,7 +237,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_user_cancelled(self, executor, definition):
-        """用户取消 → error_type=user_cancelled"""
+        """用户取消 → error_type=user_cancelled / → error_type=user_cancell..."""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -270,7 +268,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_not_registered(self, executor, definition):
-        """未注册操作 → 前端回传 not_registered"""
+        """未注册操作 → 前端回传 not_registered / → not_registered"""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -300,7 +298,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_requires_confirmation_passed_to_invoke(self, executor, definition):
-        """requires_confirmation 参数正确传递到 invoke_page_operation"""
+        """requires_confirmation 参数正确传递到 invoke_page_operation / requires_confirmation ..."""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -333,7 +331,7 @@ class TestPageOperationExecutor:
 
     @pytest.mark.asyncio
     async def test_params_passed_to_invoke(self, executor, definition):
-        """params 参数正确传递"""
+        """params 参数正确传递 / params"""
         context = ExecutionContext(
             tenant_id=1, agent_id=2, page_session_id="ps-123",
         )
@@ -368,7 +366,7 @@ class TestPageOperationExecutor:
 
 
 class TestPageOperationExecutorValidate:
-    """PageOperationExecutor.validate 参数校验测试"""
+    """PageOperationExecutor.validate 参数校验测试 / Test."""
 
     @pytest.fixture()
     def executor(self) -> PageOperationExecutor:
@@ -415,17 +413,17 @@ class TestPageOperationExecutorValidate:
 
 
 class TestInvokePageOperation:
-    """invoke_page_operation 工具函数测试"""
+    """invoke_page_operation 工具函数测试 / Test."""
 
     @pytest.fixture(autouse=True)
     def _reset_mock_sio(self):
-        """每个测试前重置全局 mock sio"""
+        """每个测试前重置全局 mock sio / Test."""
         _mock_sio_instance.reset_mock()
         _mock_sio_instance.emit = AsyncMock()
 
     @pytest.mark.asyncio
     async def test_success_with_future_result(self):
-        """前端回传结果 → Future 正确解析"""
+        """前端回传结果 → Future 正确解析 / Parse."""
         import asyncio
 
         from app.sio.page_session import _pending_invocations, invoke_page_operation
@@ -455,7 +453,7 @@ class TestInvokePageOperation:
 
     @pytest.mark.asyncio
     async def test_timeout_returns_error(self):
-        """超时 → 返回 timeout error_type"""
+        """超时 → 返回 timeout error_type / → timeout error_type"""
         from app.sio.page_session import invoke_page_operation
 
         _mock_sio_instance.emit = AsyncMock()
@@ -508,7 +506,7 @@ class TestInvokePageOperation:
 
     @pytest.mark.asyncio
     async def test_emits_to_specific_namespace(self):
-        """指定 namespace → 只向该 namespace 发送"""
+        """指定 namespace → 只向该 namespace 发送 / namespace → namespace ..."""
         import asyncio
 
         from app.sio.page_session import _pending_invocations, invoke_page_operation
@@ -540,7 +538,7 @@ class TestInvokePageOperation:
 
     @pytest.mark.asyncio
     async def test_cleanup_after_timeout(self):
-        """超时后 invoke_id 从 _pending_invocations 中清理"""
+        """超时后 invoke_id 从 _pending_invocations 中清理 / invoke_id _pending_invoc..."""
         from app.sio.page_session import _pending_invocations, invoke_page_operation
 
         _mock_sio_instance.emit = AsyncMock()
@@ -562,11 +560,11 @@ class TestInvokePageOperation:
 
 
 class TestPageSessionMixin:
-    """PageSessionMixin 事件处理测试"""
+    """PageSessionMixin 事件处理测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_join_room(self):
-        """page_session_join → enter_room 调用"""
+        """page_session_join → enter_room 调用 / page_session_join → enter_room..."""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -579,7 +577,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_join_room_no_data(self):
-        """page_session_join 无数据 → 不操作"""
+        """page_session_join 无数据 → 不操作 / page_session_join →"""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -593,7 +591,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_leave_room(self):
-        """page_session_leave → leave_room 调用"""
+        """page_session_leave → leave_room 调用 / page_session_leave → leave_roo..."""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -606,7 +604,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_leave_room_no_data(self):
-        """page_session_leave 无数据 → 不操作"""
+        """page_session_leave 无数据 → 不操作 / page_session_leave →"""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -617,7 +615,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_operation_result_resolves_future(self):
-        """page_operation_result → Future 被 resolve"""
+        """page_operation_result → Future 被 resolve / page_operation_result → Future..."""
         import asyncio
 
         from app.sio.page_session import PageSessionMixin, _pending_invocations
@@ -642,7 +640,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_operation_result_no_matching_future(self):
-        """page_operation_result 无匹配 future → 静默忽略"""
+        """page_operation_result 无匹配 future → 静默忽略 / page_operation_result futu..."""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -657,7 +655,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_operation_result_no_data(self):
-        """page_operation_result 无数据 → 不操作"""
+        """page_operation_result 无数据 → 不操作 / page_operation_result → ..."""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -669,7 +667,7 @@ class TestPageSessionMixin:
 
     @pytest.mark.asyncio
     async def test_page_session_id_truncated(self):
-        """超长 page_session_id 被截断到 64 字符"""
+        """超长 page_session_id 被截断到 64 字符 / page_session_id 64"""
         from app.sio.page_session import PageSessionMixin
 
         mixin = PageSessionMixin()
@@ -689,11 +687,11 @@ class TestPageSessionMixin:
 
 
 class TestSkillResolverPageOperation:
-    """invoke_page_operation 技能 schema 解析测试"""
+    """invoke_page_operation 技能 schema 解析测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_resolver_exposes_invoke_page_operation_tool(self):
-        """Skill resolver 正确解析 invoke_page_operation 工具 schema"""
+        """Skill resolver 正确解析 invoke_page_operation 工具 schema / Parse."""
         skill = MagicMock()
         skill.id = 501
         skill.package_id = 601
@@ -746,7 +744,7 @@ class TestSkillResolverPageOperation:
 
     @pytest.mark.asyncio
     async def test_resolver_with_both_page_skills(self):
-        """同时包含 get_page_context + invoke_page_operation 两个技能"""
+        """同时包含 get_page_context + invoke_page_operation 两个技能 / get_page_context + invoke..."""
         context_skill = MagicMock()
         context_skill.id = 501
         context_skill.package_id = 601

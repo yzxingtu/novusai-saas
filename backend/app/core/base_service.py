@@ -288,7 +288,7 @@ class BaseService(Generic[ModelType, RepoType]):
         **filters: Any,
     ) -> SelectResponse:
         """
-        获取下拉选项列表
+        获取下拉选项列表 / Get select option list.
 
         支持列表和树型两种模式，列表模式支持分页
 
@@ -551,7 +551,7 @@ class BaseService(Generic[ModelType, RepoType]):
 
     async def _auto_set_sort_order(self, data: dict[str, Any]) -> None:
         """
-        自动设置排序值
+        自动设置排序值 / Auto-set sort order.
 
         如果模型配置了 __sortable__ 且包含排序字段配置（"field" 键），
         且模型实际拥有该排序字段，才自动计算排序值。
@@ -624,8 +624,7 @@ class BaseService(Generic[ModelType, RepoType]):
 
     async def preview_delete(self, id: int) -> dict:
         """
-        Preview deletion impact without performing the delete.
-        预览删除影响（不执行删除）。
+        Preview deletion impact without performing the delete. / 预览删除影响（不执行删除）。
 
         Returns:
             {

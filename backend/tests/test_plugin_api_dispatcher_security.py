@@ -1,6 +1,4 @@
-"""
-Plugin API dispatcher / sandbox security regression tests.
-"""
+"""Plugin API dispatcher / sandbox security regression tests. 插件 API 分发与沙箱安全回归测试."""
 
 from __future__ import annotations
 

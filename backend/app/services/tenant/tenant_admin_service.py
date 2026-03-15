@@ -21,7 +21,7 @@ from app.repositories.tenant.tenant_admin_repository import TenantAdminRepositor
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
     """
-    企业管理员服务
+    企业管理员服务 / Tenant admin service.
 
     提供企业管理员特有的业务方法，自动注入企业隔离
     """
@@ -31,7 +31,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
     async def get_by_username(self, username: str) -> TenantAdmin | None:
         """
-        根据用户名获取管理员
+        根据用户名获取管理员 / Get tenant admin by username.
 
         Args:
             username: 用户名
@@ -43,7 +43,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
     async def get_by_email(self, email: str) -> TenantAdmin | None:
         """
-        根据邮箱获取管理员
+        根据邮箱获取管理员 / Get tenant admin by email.
 
         Args:
             email: 邮箱
@@ -58,7 +58,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         username_or_email: str,
     ) -> TenantAdmin | None:
         """
-        根据用户名或邮箱获取管理员（用于登录）
+        根据用户名或邮箱获取管理员（用于登录）/ Get admin by username or email (for login).
 
         Args:
             username_or_email: 用户名或邮箱
@@ -80,7 +80,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        创建企业管理员
+        创建企业管理员 / Create tenant admin.
 
         Args:
             username: 用户名
@@ -173,7 +173,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data: dict[str, Any],
     ) -> TenantAdmin:
         """
-        更新企业管理员
+        更新企业管理员 / Update tenant admin.
 
         Args:
             admin_id: 管理员 ID
@@ -232,7 +232,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        修改密码（管理员自己操作）
+        修改密码（管理员自己操作）/ Change password (self-service).
 
         Args:
             admin_id: 管理员 ID
@@ -272,7 +272,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        重置密码（企业所有者操作）
+        重置密码（企业所有者操作）/ Reset password (owner operation).
 
         Args:
             admin_id: 管理员 ID
@@ -299,7 +299,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
     async def toggle_status(self, admin_id: int, is_active: bool) -> TenantAdmin:
         """
-        切换管理员状态
+        切换管理员状态 / Toggle admin active status.
 
         Args:
             admin_id: 管理员 ID
@@ -324,7 +324,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
 
     async def _get_tenant_root_node(self) -> TenantAdminRole | None:
         """
-        获取企业的组织架构根节点
+        获取企业的组织架构根节点 / Get tenant org root node.
 
         Returns:
             根节点实例或 None

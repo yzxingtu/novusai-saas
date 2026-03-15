@@ -17,7 +17,7 @@ from app.core.i18n import _
 
 
 class BatchRunCreate(BaseCreateSchema):
-    """提交批量运行请求"""
+    """提交批量运行请求 / Submit batch run request."""
 
     items: list[dict] = Field(
         ...,
@@ -29,7 +29,7 @@ class BatchRunCreate(BaseCreateSchema):
 
 
 class BatchRunResponse(TenantResponseSchema):
-    """批量运行响应"""
+    """批量运行响应 / Batch run response schema."""
 
     agent_id: int = Field(..., description=_("enum.batch_run.agent_id"))
     status: str = Field(..., description=_("enum.batch_run.status"))
@@ -45,7 +45,7 @@ class BatchRunResponse(TenantResponseSchema):
 
 
 class BatchRunProgress(TenantResponseSchema):
-    """批量运行进度（轻量）"""
+    """批量运行进度（轻量） / Batch run progress (lightweight)."""
 
     status: str
     total_items: int

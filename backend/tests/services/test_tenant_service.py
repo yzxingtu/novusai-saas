@@ -1,8 +1,6 @@
-"""
-TenantService 单元测试
+"""TenantService 单元测试 / Test.
 
-覆盖：企业 CRUD、状态变更、配额检查、slug 唯一性。
-"""
+覆盖：企业 CRUD、状态变更、配额检查、slug 唯一性。"""
 
 from __future__ import annotations
 
@@ -31,7 +29,7 @@ class TestTenantCreate:
 
     @pytest.mark.asyncio
     async def test_create_tenant_basic(self, mock_db):
-        """Basic tenant creation — verify service can be instantiated"""
+        """Basic tenant creation — verify service can be instantiated / 服务"""
         from app.services.system.tenant_service import TenantService
 
         service = TenantService.__new__(TenantService)

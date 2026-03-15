@@ -1,6 +1,5 @@
 """
-SSE Streaming Response Wrapper
-SSE 流式响应封装
+SSE Streaming Response Wrapper / SSE 流式响应封装
 
 Provides Server-Sent Events (SSE) format streaming response support.
 提供 Server-Sent Events (SSE) 格式的流式响应支持。

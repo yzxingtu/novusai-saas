@@ -1,6 +1,5 @@
 """
-Storage Driver Manager
-存储驱动管理器
+存储驱动管理器 / Storage driver manager.
 """
 
 

@@ -1,6 +1,4 @@
-"""
-文件/文件夹节点模型
-"""
+"""文件/文件夹节点模型 / Model."""
 
 from __future__ import annotations
 
@@ -62,12 +60,12 @@ class FileNode(TenantModel):
     shares   = relationship("Share",    back_populates="node", lazy="noload", cascade="all, delete-orphan")
 
     def soft_delete(self) -> None:
-        """软删除 — 移入回收站"""
+        """软删除 — 移入回收站 / Soft delete — move to trash."""
         self.is_deleted = True
         self.deleted_at = utc_now()
 
     def restore(self) -> None:
-        """从回收站还原"""
+        """从回收站还原 / Restore from trash."""
         self.is_deleted = False
         self.deleted_at = None
 

@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 
 class TenantDomainSimpleResponse(BaseSchema):
-    """域名简略响应（用于企业响应嵌套）"""
+    """域名简略响应（用于企业响应嵌套） / Domain brief response (for tenant response nesting)"""
 
     id: int = Field(..., description="域名 ID")
     domain: str = Field(..., description="域名")
@@ -25,7 +25,7 @@ class TenantDomainSimpleResponse(BaseSchema):
 
 
 class TenantDomainVerificationInfo(BaseSchema):
-    """域名验证 DNS 记录信息"""
+    """域名验证 DNS 记录信息 / Domain verification DNS record info"""
 
     dns_type: str = Field("TXT", description="DNS 记录类型")
     dns_name: str = Field(..., description="DNS 记录名称")
@@ -33,7 +33,7 @@ class TenantDomainVerificationInfo(BaseSchema):
 
 
 class TenantDomainResponse(BaseSchema):
-    """企业域名响应"""
+    """企业域名响应 / Tenant domain response"""
 
     id: int = Field(..., description="域名 ID")
     tenant_id: int = Field(..., description="企业 ID")
@@ -100,7 +100,7 @@ class DevHostsSyncAllResponse(BaseSchema):
 
 
 class TenantDomainCreateRequest(BaseSchema):
-    """创建域名请求"""
+    """创建域名请求 / Create domain request"""
 
     domain: str = Field(
         ...,
@@ -114,7 +114,7 @@ class TenantDomainCreateRequest(BaseSchema):
     @field_validator("domain")
     @classmethod
     def validate_domain(cls, v: str) -> str:
-        """验证域名格式"""
+        """验证域名格式 / Validate domain format"""
         import re
 
         v = v.lower().strip()
@@ -134,20 +134,20 @@ class TenantDomainCreateRequest(BaseSchema):
 
 
 class TenantDomainUpdateRequest(BaseSchema):
-    """更新域名请求"""
+    """更新域名请求 / Update domain request"""
 
     is_primary: bool | None = Field(None, description="是否设为主域名")
     remark: str | None = Field(None, max_length=500, description="备注")
 
 
 class TenantDomainVerifyRequest(BaseSchema):
-    """域名验证请求"""
+    """域名验证请求 / Domain verification request"""
 
     domain_id: int = Field(..., description="域名 ID")
 
 
 class TenantSettingsResponse(BaseSchema):
-    """企业设置响应"""
+    """企业设置响应 / Tenant settings response"""
 
     tenant_id: int = Field(..., description="企业 ID")
     tenant_code: str = Field(..., description="企业代码")
@@ -173,7 +173,7 @@ class TenantSettingsResponse(BaseSchema):
 
 
 class TenantSettingsUpdateRequest(BaseSchema):
-    """更新企业设置请求"""
+    """更新企业设置请求 / Update tenant settings request"""
 
     # 品牌设置
     logo_url: str | None = Field(None, description="Logo URL")
@@ -187,7 +187,7 @@ class TenantSettingsUpdateRequest(BaseSchema):
     @field_validator("theme_color")
     @classmethod
     def validate_theme_color(cls, v: str | None) -> str | None:
-        """验证主题色格式"""
+        """验证主题色格式 / Validate theme color format"""
         if v is None:
             return v
 
@@ -201,7 +201,7 @@ class TenantSettingsUpdateRequest(BaseSchema):
     @field_validator("login_methods")
     @classmethod
     def validate_login_methods(cls, v: list[str] | None) -> list[str] | None:
-        """验证登录方式"""
+        """验证登录方式 / Validate login methods"""
         if v is None:
             return v
 

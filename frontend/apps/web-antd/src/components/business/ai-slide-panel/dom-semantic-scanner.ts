@@ -29,7 +29,7 @@ function textOf(el: Element | null): string {
 }
 
 /**
- * Scan the current page DOM and return a semantic snapshot.
+ * Scan the current page DOM and return a semantic snapshot / 扫描当前页 DOM 并返回语义快照
  * Returns null if no meaningful content is found.
  */
 export function scanDomSemantics(): DomSnapshot | null {

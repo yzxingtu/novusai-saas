@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-平台管理员权限 API 测试模块
+"""平台管理员权限 API 测试模块 / API.
 
-测试 /admin/permissions/* 接口
-"""
+测试 /admin/permissions/* 接口"""
 import os
 import sys
 
@@ -20,16 +18,16 @@ from tests.api.base import (
 
 
 class ManualTestAdminPermissions(BaseAPITest):
-    """平台管理员权限测试"""
+    """平台管理员权限测试 / Test."""
 
     module_name = "平台权限管理 (/admin/permissions)"
 
     def setup(self) -> None:
-        """测试前登录"""
+        """测试前登录 / Test."""
         self._do_login()
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         # 1. 获取权限树
         self.run_test("获取权限树", self.test_get_permission_tree)
 
@@ -49,7 +47,7 @@ class ManualTestAdminPermissions(BaseAPITest):
         self.run_test("获取权限树 - 未认证", self.test_get_permission_tree_unauthenticated)
 
     def test_get_permission_tree(self) -> None:
-        """测试获取权限树"""
+        """测试获取权限树 / Test."""
         resp = self.client.get("/admin/permissions")
         data = assert_success(resp, "获取权限树失败")
 
@@ -57,7 +55,7 @@ class ManualTestAdminPermissions(BaseAPITest):
         assert_true(isinstance(data["data"], list), "权限树应为列表")
 
     def test_get_permission_list(self) -> None:
-        """测试获取权限列表（平铺）"""
+        """测试获取权限列表（平铺） / Test."""
         resp = self.client.get("/admin/permissions/list")
         data = assert_success(resp, "获取权限列表失败")
 
@@ -70,7 +68,7 @@ class ManualTestAdminPermissions(BaseAPITest):
             assert_has_keys(first_perm, ["id", "code", "name", "type", "scope"])
 
     def test_get_permission_list_filter_menu(self) -> None:
-        """测试获取菜单类型权限"""
+        """测试获取菜单类型权限 / Test."""
         resp = self.client.get("/admin/permissions/list", params={"type": "menu"})
         data = assert_success(resp, "获取菜单权限列表失败")
 
@@ -79,7 +77,7 @@ class ManualTestAdminPermissions(BaseAPITest):
             assert_true(perm["type"] == "menu", f"权限类型应为 menu，实际为 {perm['type']}")
 
     def test_get_permission_list_filter_operation(self) -> None:
-        """测试获取操作类型权限"""
+        """测试获取操作类型权限 / Test."""
         resp = self.client.get("/admin/permissions/list", params={"type": "operation"})
         data = assert_success(resp, "获取操作权限列表失败")
 
@@ -88,7 +86,7 @@ class ManualTestAdminPermissions(BaseAPITest):
             assert_true(perm["type"] == "operation", f"权限类型应为 operation，实际为 {perm['type']}")
 
     def test_get_current_user_menus(self) -> None:
-        """测试获取当前用户菜单"""
+        """测试获取当前用户菜单 / Test."""
         resp = self.client.get("/admin/permissions/menus")
         data = assert_success(resp, "获取用户菜单失败")
 
@@ -99,7 +97,7 @@ class ManualTestAdminPermissions(BaseAPITest):
         # 注意：如果没有初始化菜单数据，列表可能为空
 
     def test_get_permission_tree_unauthenticated(self) -> None:
-        """测试未认证获取权限树"""
+        """测试未认证获取权限树 / Test."""
         old_token = self.client.token
         self.client.clear_token()
 
@@ -110,7 +108,7 @@ class ManualTestAdminPermissions(BaseAPITest):
             self.client.set_token(old_token)
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Description."""
         resp = self.client.post("/admin/auth/login", data={
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,

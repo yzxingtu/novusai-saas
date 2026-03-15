@@ -1,6 +1,5 @@
 """
-Socket.IO Namespace Module
-Socket.IO Namespace 模块
+Socket.IO Namespace 模块 / Socket.IO Namespace Module.
 
 Registers all Socket.IO namespaces to the AsyncServer instance.
 注册所有 Socket.IO namespace 到 AsyncServer 实例。

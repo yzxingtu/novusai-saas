@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-企业管理员认证 API 测试模块
+"""企业管理员认证 API 测试模块 / API.
 
 测试 /tenant/auth/* 接口
 
-注意：需要先配置企业管理员账号才能运行此测试
-"""
+注意：需要先配置企业管理员账号才能运行此测试"""
 import os
 import sys
 
@@ -21,12 +19,12 @@ from tests.api.base import (
 
 
 class ManualTestTenantAuth(BaseAPITest):
-    """企业管理员认证测试"""
+    """企业管理员认证测试 / Test."""
 
     module_name = "企业管理员认证 (/tenant/auth)"
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         # 检查是否配置了企业管理员账号
         skip_reason = None
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
@@ -57,7 +55,7 @@ class ManualTestTenantAuth(BaseAPITest):
         self.run_test("登出", self.test_logout, skip_reason)
 
     def test_login_success(self) -> None:
-        """测试正确凭据登录"""
+        """测试正确凭据登录 / Test."""
         resp = self.client.post("/tenant/auth/login", data={
             "username": config.TENANT_ADMIN_USERNAME,
             "password": config.TENANT_ADMIN_PASSWORD,
@@ -71,7 +69,7 @@ class ManualTestTenantAuth(BaseAPITest):
         self.client.set_token(data["data"]["access_token"])
 
     def test_login_wrong_password(self) -> None:
-        """测试错误密码登录"""
+        """测试错误密码登录 / Test."""
         resp = self.client.post("/tenant/auth/login", data={
             "username": config.TENANT_ADMIN_USERNAME,
             "password": "wrong_password",
@@ -79,7 +77,7 @@ class ManualTestTenantAuth(BaseAPITest):
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_get_me_authenticated(self) -> None:
-        """测试已认证状态获取用户信息"""
+        """测试已认证状态获取用户信息 / Test."""
         if not self.client.token:
             self._do_login()
 
@@ -88,7 +86,7 @@ class ManualTestTenantAuth(BaseAPITest):
         assert_has_keys(data["data"], ["id", "username", "email", "is_owner", "is_active", "tenant_id"])
 
     def test_get_me_unauthenticated(self) -> None:
-        """测试未认证状态获取用户信息"""
+        """测试未认证状态获取用户信息 / Test."""
         old_token = self.client.token
         self.client.clear_token()
 
@@ -100,7 +98,7 @@ class ManualTestTenantAuth(BaseAPITest):
                 self.client.set_token(old_token)
 
     def test_refresh_token_valid(self) -> None:
-        """测试有效 Refresh Token 刷新"""
+        """测试有效 Refresh Token 刷新 / Test."""
         refresh_token = self._test_data.get("refresh_token")
         if not refresh_token:
             self._do_login()
@@ -118,21 +116,21 @@ class ManualTestTenantAuth(BaseAPITest):
         self.client.set_token(data["data"]["access_token"])
 
     def test_refresh_token_invalid(self) -> None:
-        """测试无效 Refresh Token 刷新"""
+        """测试无效 Refresh Token 刷新 / Test."""
         resp = self.client.post("/tenant/auth/refresh", data={
             "refresh_token": "invalid_refresh_token",
         })
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_scope_isolation_tenant_admin_token_to_admin(self) -> None:
-        """使用企业管理员 Token 访问平台管理员接口应返回 401"""
+        """使用企业管理员 Token 访问平台管理员接口应返回 401 / API."""
         if not self.client.token:
             self._do_login()
         resp = self.client.get("/admin/auth/me")
         assert_error(resp, 401, "TenantAdmin token 不应访问平台接口")
 
     def test_logout(self) -> None:
-        """测试登出"""
+        """测试登出 / Test."""
         if not self.client.token:
             self._do_login()
 
@@ -140,7 +138,7 @@ class ManualTestTenantAuth(BaseAPITest):
         assert_success(resp, "登出失败")
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Description."""
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
             raise AssertionError("未配置企业管理员账号")
 

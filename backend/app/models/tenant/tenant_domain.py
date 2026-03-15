@@ -17,7 +17,7 @@ from app.enums.domain import DomainSslStatus, DomainType
 
 class TenantDomain(BaseModel):
     """
-    企业域名模型
+    企业域名模型 / Tenant domain model.
 
     - 每个企业可以绑定多个自定义域名
     - 用户通过 CNAME 将自定义域名解析到企业子域名
@@ -152,7 +152,7 @@ class TenantDomain(BaseModel):
 
     @property
     def domain_type(self) -> str:
-        """域名类型：default（平台默认）或 custom（自定义）"""
+        """域名类型：default（平台默认）或 custom（自定义） / Domain type: default or custom."""
         from app.core.config import settings
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if self.domain and self.domain.endswith(suffix):
@@ -161,15 +161,15 @@ class TenantDomain(BaseModel):
 
     @property
     def is_active(self) -> bool:
-        """域名是否处于可用状态"""
+        """域名是否处于可用状态 / Whether domain is in active/usable state."""
         return self.is_verified and self.ssl_status == DomainSslStatus.ACTIVE
 
     @property
     def cname_target(self) -> str | None:
         """
-        获取 CNAME 解析目标
+        获取 CNAME 解析目标 / Get CNAME target.
 
-        需要从关联的企业获取子域名
+        需要从关联的企业获取子域名。
         """
         if self.tenant:
             from app.core.config import settings

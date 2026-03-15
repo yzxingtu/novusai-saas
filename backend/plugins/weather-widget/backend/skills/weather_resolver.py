@@ -1,16 +1,13 @@
-"""
-实时天气技能解析器
+"""实时天气技能解析器 / Parse.
 
 将 weather_widget 类型的 Skill 解析为 ToolDefinition。
-提供两个工具：get_current_weather（当前天气）+ get_weather_forecast（多日预报）。
-"""
+提供两个工具：get_current_weather（当前天气）+ get_weather_forecast（多日预报）。"""
 
 from app.ai.tools.types import ToolDefinition, ToolParameter
 
 
 def resolve(skill, config: dict) -> list[ToolDefinition]:
-    """
-    将天气 Skill 解析为 ToolDefinition 列表。
+    """将天气 Skill 解析为 ToolDefinition 列表 / Parse weather Skill into ToolDefinition list.
 
     Args:
         skill: Skill 模型实例

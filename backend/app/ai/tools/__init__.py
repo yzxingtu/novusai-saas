@@ -1,6 +1,5 @@
 """
-Tool Execution Module
-工具执行模块
+Tool Execution Module / 工具执行模块
 
 Provides a complete framework for tool definition, registration, and secure sandbox execution.
 提供工具定义、注册、安全沙箱执行的完整框架。

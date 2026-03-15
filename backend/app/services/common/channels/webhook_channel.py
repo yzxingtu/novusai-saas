@@ -22,7 +22,7 @@ logger = LogManager.get_logger("app")
 
 
 class WebhookChannel(NotificationChannel):
-    """Webhook 渠道 — 企业微信/钉钉/Slack 等（预留）"""
+    """Webhook 渠道 — 企业微信/钉钉/Slack 等（预留） / Webhook channel — WeCom/DingTalk/Slack (reserved)."""
 
     @property
     def channel_code(self) -> str:
@@ -33,7 +33,7 @@ class WebhookChannel(NotificationChannel):
         return "Webhook"
 
     async def is_enabled(self) -> bool:
-        """预留渠道，默认关闭"""
+        """预留渠道，默认关闭 / Reserved channel, disabled by default."""
         return False
 
     async def deliver(
@@ -50,7 +50,7 @@ class WebhookChannel(NotificationChannel):
         tenant_id: int | None = None,
         **kwargs: Any,
     ) -> bool:
-        """预留：后续实现 HTTP POST 到配置的 Webhook URL"""
+        """预留：后续实现 HTTP POST 到配置的 Webhook URL / Reserved: HTTP POST to configured webhook URL."""
         _ = (
             db,
             user_type,

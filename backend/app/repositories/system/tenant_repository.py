@@ -13,7 +13,7 @@ from app.models.tenant.tenant import Tenant
 
 class TenantRepository(BaseRepository[Tenant]):
     """
-    企业仓储
+    企业仓储 / Tenant repository.
 
     提供企业特有的数据访问方法
     """
@@ -31,7 +31,7 @@ class TenantRepository(BaseRepository[Tenant]):
 
     async def get_by_code(self, code: str) -> Tenant | None:
         """
-        根据编码获取企业
+        根据编码获取企业 / Get tenant by code.
 
         Args:
             code: 企业编码
@@ -43,7 +43,7 @@ class TenantRepository(BaseRepository[Tenant]):
 
     async def code_exists(self, code: str, exclude_id: int | None = None) -> bool:
         """
-        检查编码是否已存在
+        检查编码是否已存在 / Check if tenant code already exists.
 
         Args:
             code: 企业编码
@@ -68,7 +68,7 @@ class TenantRepository(BaseRepository[Tenant]):
         limit: int = 100,
     ) -> list[Tenant]:
         """
-        获取所有启用的企业
+        获取所有启用的企业 / Get all active tenants.
 
         Args:
             skip: 跳过的记录数
@@ -85,7 +85,7 @@ class TenantRepository(BaseRepository[Tenant]):
 
     async def count_active(self) -> int:
         """
-        统计启用的企业数量
+        统计启用的企业数量 / Count active tenants.
 
         Returns:
             企业数量

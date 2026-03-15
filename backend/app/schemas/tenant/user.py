@@ -13,7 +13,7 @@ from app.core.base_schema import BaseSchema
 
 
 class TenantUserLoginRequest(BaseSchema):
-    """企业用户登录请求"""
+    """企业用户登录请求 / Tenant user login request."""
 
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
@@ -24,7 +24,7 @@ class TenantUserLoginRequest(BaseSchema):
 
 
 class TenantUserResponse(BaseSchema):
-    """企业用户信息响应"""
+    """企业用户信息响应 / Tenant user response."""
 
     id: int = Field(..., description="用户 ID")
     tenant_id: int = Field(..., description="企业 ID")
@@ -44,7 +44,7 @@ class TenantUserResponse(BaseSchema):
 
 
 class TenantUserCreateRequest(BaseSchema):
-    """创建企业用户请求"""
+    """创建企业用户请求 / Create tenant user request."""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -56,7 +56,7 @@ class TenantUserCreateRequest(BaseSchema):
 
 
 class TenantUserUpdateRequest(BaseSchema):
-    """更新企业用户请求"""
+    """更新企业用户请求 / Update tenant user request."""
 
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -68,14 +68,14 @@ class TenantUserUpdateRequest(BaseSchema):
 
 
 class TenantUserChangePasswordRequest(BaseSchema):
-    """企业用户修改密码请求"""
+    """企业用户修改密码请求 / Tenant user change password request."""
 
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class TenantUserRegisterRequest(BaseSchema):
-    """企业用户注册请求"""
+    """企业用户注册请求 / Tenant user register request."""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., max_length=255, description="邮箱")
@@ -96,7 +96,7 @@ class TenantUserRegisterRequest(BaseSchema):
 
 
 class TenantUserProfileUpdateRequest(BaseSchema):
-    """企业用户资料更新请求"""
+    """企业用户资料更新请求 / Tenant user profile update request."""
 
     nickname: str | None = Field(None, max_length=100, description="昵称")
     avatar: str | None = Field(None, max_length=500, description="头像 URL")
@@ -106,7 +106,7 @@ class TenantUserProfileUpdateRequest(BaseSchema):
 
 
 class ForgotPasswordRequest(BaseSchema):
-    """忘记密码请求"""
+    """忘记密码请求 / Forgot password request."""
 
     email: str = Field(..., max_length=255, description="邮箱")
     tenant_code: str | None = Field(None, max_length=50, description="企业编码")
@@ -114,7 +114,7 @@ class ForgotPasswordRequest(BaseSchema):
 
 
 class ResetPasswordRequest(BaseSchema):
-    """重置密码请求"""
+    """重置密码请求 / Reset password request."""
 
     email: str = Field(..., max_length=255, description="邮箱")
     code: str = Field(..., min_length=4, max_length=10, description="验证码")

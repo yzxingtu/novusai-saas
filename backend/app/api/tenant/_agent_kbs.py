@@ -32,8 +32,7 @@ async def get_agent_kbs(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取智能体绑定的所有知识库（含 KnowledgeBase 详情）
-    Get all knowledge bases bound to agent (with KnowledgeBase details)
+    获取智能体绑定的所有知识库（含 KnowledgeBase 详情）/ Get agent bound knowledge bases with KB details.
     """
     agent_svc = AgentService(db, tenant_admin.tenant_id)
     agent = await agent_svc.get_by_id(agent_id)
@@ -82,8 +81,7 @@ async def batch_bind_kbs(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    批量绑定知识库（替换模式：先清空再批量插入）
-    Batch bind knowledge bases (replace mode: clear first then batch insert)
+    批量绑定知识库（替换模式：先清空再批量插入）/ Batch bind knowledge bases (replace mode).
     """
     from app.api.tenant.agents import _ensure_tenant_owned_agent
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)

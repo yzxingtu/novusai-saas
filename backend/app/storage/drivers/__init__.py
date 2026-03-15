@@ -1,6 +1,5 @@
 """
-Storage Driver Export Entry Point
-存储驱动导出入口
+存储驱动导出入口 / Storage driver export entry point.
 
 Cloud drivers (OSS/S3/Kodo/COS) have been migrated to plugins.
 Only LocalStorageDriver remains as built-in.

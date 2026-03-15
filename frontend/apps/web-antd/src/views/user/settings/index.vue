@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 用户设置页面 - 现代化布局
+ * 用户设置页面 - 现代化布局 / User settings page - modern layout
  * 左侧导航 + 右侧内容区（移动端为顶部标签）
  */
 import { computed } from 'vue';

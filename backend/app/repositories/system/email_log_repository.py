@@ -10,7 +10,7 @@ from app.models.system.email_log import EmailLog
 
 
 class EmailLogRepository(BaseRepository[EmailLog]):
-    """邮件日志仓储"""
+    """邮件日志仓储 / Email log repository."""
 
     model = EmailLog
 

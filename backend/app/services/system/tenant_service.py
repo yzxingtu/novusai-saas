@@ -28,7 +28,7 @@ logger = LogManager.get_logger("app")
 
 class TenantService(GlobalService[Tenant, TenantRepository]):
     """
-    企业服务
+    企业服务 / Tenant service.
 
     提供企业特有的业务方法（全局级别，由平台管理员操作）
     """
@@ -38,7 +38,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def get_by_code(self, code: str) -> Tenant | None:
         """
-        根据编码获取企业
+        根据编码获取企业 / Get tenant by code.
 
         Args:
             code: 企业编码
@@ -50,7 +50,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _generate_tenant_code(self) -> str:
         """
-        生成唯一的企业编码
+        生成唯一的企业编码 / Generate unique tenant code.
 
         格式: t + 8位小写字母数字（如 t3a8k2m9x）
 
@@ -89,7 +89,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         remark: str | None = None,
     ) -> Tenant:
         """
-        创建企业
+        创建企业 / Create tenant.
 
         Args:
             name: 企业名称
@@ -169,7 +169,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        发送企业欢迎邮件（通过统一通知系统）
+        发送企业欢迎邮件（通过统一通知系统）/ Send tenant welcome email (via notification system).
 
         走 notification 队列异步发送，失败不影响企业创建流程。
         """
@@ -198,7 +198,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
-        为企业创建组织架构根节点
+        为企业创建组织架构根节点 / Create org root node for tenant.
 
         Args:
             tenant_id: 企业 ID
@@ -240,7 +240,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         phone: str | None = None,
     ) -> TenantAdmin:
         """
-        为企业创建超级管理员（owner）
+        为企业创建超级管理员（owner）/ Create tenant super admin (owner).
 
         Args:
             tenant_id: 企业 ID
@@ -275,7 +275,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _create_default_user_role(self, tenant_id: int) -> TenantUserRole:
         """
-        为新企业创建默认用户角色
+        为新企业创建默认用户角色 / Create default user role for new tenant.
 
         创建 code='default_user' 的系统内置角色，作为用户注册时的默认角色。
         该角色 is_system=True，不可被企业管理员删除。
@@ -317,7 +317,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
         """
-        为新企业自动绑定插件（插件系统待重建）
+        为新企业自动绑定插件（插件系统待重建）/ Auto-bind plugins for new tenant (plugin system TBD).
         """
         pass
 
@@ -327,7 +327,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         new_password: str,
     ) -> TenantAdmin:
         """
-        重置企业超级管理员密码
+        重置企业超级管理员密码 / Reset tenant owner password.
 
         Args:
             tenant_id: 企业 ID
@@ -384,7 +384,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        发送密码重置通知（通过统一通知系统）
+        发送密码重置通知（通过统一通知系统）/ Send password reset notification (via notification system).
 
         走 notification 队列异步发送。
         """
@@ -417,7 +417,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         data: dict[str, Any],
     ) -> Tenant:
         """
-        更新企业
+        更新企业 / Update tenant.
 
         Args:
             tenant_id: 企业 ID
@@ -455,7 +455,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def enable_tenant(self, tenant_id: int) -> Tenant:
         """
-        启用企业
+        启用企业 / Enable tenant.
 
         Args:
             tenant_id: 企业 ID
@@ -479,7 +479,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def disable_tenant(self, tenant_id: int) -> Tenant:
         """
-        禁用企业
+        禁用企业 / Disable tenant.
 
         Args:
             tenant_id: 企业 ID
@@ -503,7 +503,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def toggle_status(self, tenant_id: int, is_active: bool) -> Tenant:
         """
-        切换企业状态
+        切换企业状态 / Toggle tenant status.
 
         Args:
             tenant_id: 企业 ID

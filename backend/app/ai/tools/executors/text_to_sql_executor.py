@@ -366,8 +366,7 @@ class TextToSQLExecutor(BaseToolExecutor):
         duration_ms: int = 0,
         confidence: float | str | None = None,
     ) -> None:
-        """Write AI data query audit log (independent session, failure doesn't affect main flow)
-    写入 AI 数据查询审计日志（独立 session，失败不影响主流程）"""
+        """写入 AI 数据查询审计日志（独立 session，失败不影响主流程）/ Write AI data query audit log (independent session, failure doesn't affect main flow)."""
         if not context:
             return
         try:

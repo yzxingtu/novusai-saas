@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 class AIQueryLog(TenantModel):
     """
-    AI 数据查询审计日志
+    AI 数据查询审计日志 / AI Data Query Audit Log.
 
     记录每次 data_query 工具执行的详细信息：
     - 用户原始问题

@@ -1,6 +1,4 @@
-"""
-文件上传 Service — 整文件 + 分片 + 断点续传
-"""
+"""文件上传 Service — 整文件 + 分片 + 断点续传 / File upload service — whole file, multipart, resumable."""
 
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ logger = LogManager.get_logger("storage")
 
 
 def _sanitize_filename(name: str) -> str:
-    """Sanitize user-provided filename to prevent path traversal."""
+    """清理用户文件名以防路径穿越 / Sanitize user-provided filename to prevent path traversal."""
     # Strip directory components (handle both / and \ separators)
     name = os.path.basename(name)
     # Remove any remaining path traversal patterns
@@ -104,7 +102,7 @@ class UploadService(TenantService):
         filename: str,
         total_size: int,
     ) -> dict:
-        """初始化分片上传，返回 upload_id"""
+        """初始化分片上传，返回 upload_id / Init multipart upload, return upload_id."""
         from app.storage.manager import StorageManager
         from ..repositories.quota_repository import QuotaRepository
 
@@ -149,7 +147,7 @@ class UploadService(TenantService):
         }
 
     async def upload_part(self, upload_id: str, part_no: int, data: bytes) -> dict:
-        """上传单个分片"""
+        """上传单个分片 / Upload single part."""
         import json
 
         from app.core.redis import get_redis
@@ -177,7 +175,7 @@ class UploadService(TenantService):
         return {"part_no": part_no, "status": "ok"}
 
     async def complete_multipart(self, upload_id: str, created_by: int | None = None) -> object:
-        """合并分片，写入 DB 节点，更新配额"""
+        """合并分片，写入 DB 节点，更新配额 / Complete multipart, write node, update quota."""
         import json
 
         from app.core.base_model import utc_now
@@ -225,7 +223,7 @@ class UploadService(TenantService):
         return node
 
     async def get_upload_status(self, upload_id: str) -> dict:
-        """断点续传：查询已上传分片列表"""
+        """断点续传：查询已上传分片列表 / List uploaded parts (resumable)."""
         import json
 
         from app.core.redis import get_redis
@@ -246,7 +244,7 @@ class UploadService(TenantService):
         }
 
     async def get_download_url(self, node_id: int) -> str:
-        """生成签名下载 URL（15 分钟有效）"""
+        """生成签名下载 URL（15 分钟有效） / Generate signed download URL (15min TTL)."""
         from app.storage.manager import StorageManager
         from ..repositories.node_repository import NodeRepository
 

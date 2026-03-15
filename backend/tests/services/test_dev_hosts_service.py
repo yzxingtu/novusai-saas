@@ -33,7 +33,7 @@ from tests.services.conftest import make_mock_model
 
 @pytest.fixture()
 def service(mock_db):
-    """构造 TenantDomainService 实例（跳过 __init__，手动注入 DB 和 repo）
+    """构造 TenantDomainService 实例（跳过 __init__，手动注入 DB 和 repo） / TenantDomainService （ _...
     Build TenantDomainService instance (bypassing __init__, inject db and repo manually)"""
     svc = TenantDomainService.__new__(TenantDomainService)
     svc.db = mock_db
@@ -43,7 +43,7 @@ def service(mock_db):
 
 @pytest.fixture()
 def tenant_service(mock_db):
-    """构造 TenantDomainTenantService 实例（企业端，_should_inject_hosts = False）
+    """构造 TenantDomainTenantService 实例（企业端，_should_inject_hosts = False） / TenantDomainTenantService ...
     Build TenantDomainTenantService instance (tenant side, _should_inject_hosts = False)"""
     svc = TenantDomainTenantService.__new__(TenantDomainTenantService)
     svc.db = mock_db
@@ -145,7 +145,7 @@ def entry_missing():
 async def test_get_dev_hosts_status_normal(
     service, verified_domain, runtime_enabled, entry_managed
 ):
-    """场景1：正常流程 - get_dev_hosts_status 返回运行时信息和域名状态
+    """场景1：正常流程 - get_dev_hosts_status 返回运行时信息和域名状态 / 1： - get_dev_hosts_statu...
     Scenario 1: Normal flow - get_dev_hosts_status returns runtime info and domain status"""
     service.repo.get_tenant_domains = AsyncMock(return_value=[verified_domain])
 
@@ -176,7 +176,7 @@ async def test_get_dev_hosts_status_normal(
 async def test_get_dev_hosts_status_unverified_returns_not_required(
     service, unverified_domain, runtime_enabled, entry_missing
 ):
-    """场景2：未验证域名返回 not_required，eligible=False
+    """场景2：未验证域名返回 not_required，eligible=False / 2： not_required，eligi...
     Scenario 2: Unverified domain returns not_required, eligible=False"""
     service.repo.get_tenant_domains = AsyncMock(return_value=[unverified_domain])
 
@@ -203,7 +203,7 @@ async def test_get_dev_hosts_status_unverified_returns_not_required(
 async def test_get_dev_hosts_status_manual_entry_identified(
     service, verified_domain, runtime_enabled, entry_manual
 ):
-    """场景3：手动条目正确识别为 manual_present，managed=False
+    """场景3：手动条目正确识别为 manual_present，managed=False / 3： manual_present，m...
     Scenario 3: Manual entry correctly identified as manual_present, managed=False"""
     service.repo.get_tenant_domains = AsyncMock(return_value=[verified_domain])
 
@@ -230,7 +230,7 @@ async def test_get_dev_hosts_status_manual_entry_identified(
 async def test_sync_dev_host_unverified_raises_exception(
     service, unverified_domain, runtime_enabled
 ):
-    """场景4：sync_dev_host() 对未验证域名抛 BusinessException
+    """场景4：sync_dev_host() 对未验证域名抛 BusinessException / 4：sync_dev_host() Bu...
     Scenario 4: sync_dev_host() raises BusinessException for unverified domain"""
     service.get_by_id = AsyncMock(return_value=unverified_domain)
 
@@ -242,7 +242,7 @@ async def test_sync_dev_host_unverified_raises_exception(
 async def test_sync_dev_host_non_debug_no_file_write(
     service, verified_domain, runtime_disabled, entry_missing
 ):
-    """场景5：non-DEBUG 环境，_should_inject_hosts=True 但 add_host_entry 因 is_dev_local()=False 不写文件
+    """场景5：non-DEBUG 环境，_should_inject_hosts=True 但 add_host_entry 因 is_dev_local()=False 不写文件 / 5：non-DEBUG ，_should_injec...
     Scenario 5: non-DEBUG env, _should_inject_hosts=True but add_host_entry is a no-op due to is_dev_local()=False"""
     service.get_by_id = AsyncMock(return_value=verified_domain)
 
@@ -272,7 +272,7 @@ async def test_sync_dev_host_non_debug_no_file_write(
 async def test_remove_dev_host_calls_remove_entry(
     service, verified_domain, runtime_enabled, entry_missing
 ):
-    """场景6：remove_dev_host() 调用 async_remove_host_entry，并返回更新后的状态
+    """场景6：remove_dev_host() 调用 async_remove_host_entry，并返回更新后的状态 / 6：remove_dev_host() async...
     Scenario 6: remove_dev_host() calls async_remove_host_entry and returns updated status"""
     service.get_by_id = AsyncMock(return_value=verified_domain)
 
@@ -302,7 +302,7 @@ async def test_remove_dev_host_calls_remove_entry(
 async def test_get_owned_domain_cross_tenant_raises_not_found(
     service, verified_domain
 ):
-    """场景7：跨企业访问域名抛出 NotFoundException
+    """场景7：跨企业访问域名抛出 NotFoundException / 7： NotFoundExceptio...
     Scenario 7: Cross-tenant domain access raises NotFoundException"""
     # domain.tenant_id=1 but we request with tenant_id=999
     service.get_by_id = AsyncMock(return_value=verified_domain)
@@ -344,12 +344,12 @@ async def test_sync_all_dev_hosts_counts_synced_and_skipped(
 
 
 def test_tenant_domain_service_should_inject_hosts_true(service):
-    """场景9a：TenantDomainService（管理端）_should_inject_hosts 返回 True
+    """场景9a：TenantDomainService（管理端）_should_inject_hosts 返回 True / 9a：TenantDomainService（ ）_...
     Scenario 9a: TenantDomainService (admin side) _should_inject_hosts returns True"""
     assert service._should_inject_hosts() is True
 
 
 def test_tenant_domain_tenant_service_should_inject_hosts_false(tenant_service):
-    """场景9b：TenantDomainTenantService（企业端）_should_inject_hosts 返回 False，防止误写 hosts
+    """场景9b：TenantDomainTenantService（企业端）_should_inject_hosts 返回 False，防止误写 hosts / 9b：TenantDomainTenantService...
     Scenario 9b: TenantDomainTenantService (tenant side) _should_inject_hosts returns False, preventing hosts writes"""
     assert tenant_service._should_inject_hosts() is False

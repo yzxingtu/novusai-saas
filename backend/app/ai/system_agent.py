@@ -106,8 +106,7 @@ class SystemAgentService:
         user_id: int | None = None,
     ) -> ChatResponse:
         """
-        Call LLM chat via system chat Agent (non-streaming).
-        通过系统聊天 Agent 调用 LLM 聊天（非流式）。
+        Call LLM chat via system chat Agent (non-streaming). / 通过系统聊天 Agent 调用 LLM 聊天（非流式）。
 
         System Agent verification → AIGateway.chat
         系统 Agent 验证 → AIGateway.chat
@@ -147,8 +146,7 @@ class SystemAgentService:
         user_id: int | None = None,
     ):
         """
-        Call streaming LLM chat via system chat Agent.
-        通过系统聊天 Agent 调用流式 LLM 聊天。
+        Call streaming LLM chat via system chat Agent. / 通过系统聊天 Agent 调用流式 LLM 聊天。
 
         System Agent verification → AIGateway.stream_chat
         系统 Agent 验证 → AIGateway.stream_chat
@@ -186,8 +184,7 @@ class SystemAgentService:
         tenant_id: int | None = None,
     ) -> EmbeddingResponse:
         """
-        Call embedding via system Embedding Agent.
-        通过系统 Embedding Agent 调用向量化。
+        Call embedding via system Embedding Agent. / 通过系统 Embedding Agent 调用向量化。
 
         System Agent verification → AIGateway.embedding
         系统 Agent 验证 → AIGateway.embedding

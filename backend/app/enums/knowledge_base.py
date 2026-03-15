@@ -41,6 +41,7 @@ class DocumentTypeEnum(LabeledStrEnum):
     IMAGE = ("image", "enum.knowledge_base.document_type.image")
     PPTX = ("pptx", "enum.knowledge_base.document_type.pptx")
     AUDIO = ("audio", "enum.knowledge_base.document_type.audio")
+    VIDEO = ("video", "enum.knowledge_base.document_type.video")
 
 
 class KBVisibilityEnum(LabeledStrEnum):

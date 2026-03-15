@@ -16,7 +16,7 @@ from app.models.system.task_log import TaskLog
 
 class TaskLogRepository(BaseRepository[TaskLog]):
     """
-    任务日志仓储
+    任务日志仓储 / Task log repository.
     """
 
     model = TaskLog

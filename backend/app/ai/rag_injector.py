@@ -1,6 +1,5 @@
 """
-RAG Injector
-RAG 注入器
+RAG Injector / RAG 注入器
 
 Engine-independent RAG context injection module.
 Retrieves relevant chunks from knowledge bases and injects them into system_prompt.

@@ -1,12 +1,10 @@
-"""
-Qiniu Kodo Storage Plugin
-"""
+"""Qiniu Kodo Storage Plugin / 插件"""
 
 from app.plugins.base import PluginBase
 
 
 class KodoStoragePlugin(PluginBase):
-    """Qiniu Kodo storage driver plugin"""
+    """Qiniu Kodo storage driver plugin / 插件"""
 
     async def on_install(self, ctx) -> None:
         ctx.get_logger().info("Qiniu Kodo storage plugin installed")

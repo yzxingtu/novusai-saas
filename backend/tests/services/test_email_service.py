@@ -1,8 +1,6 @@
-"""
-EmailService 单元测试
+"""EmailService 单元测试 / Test.
 
-覆盖：send() 方法的真实验证逻辑 — 开关/配置/收件人/格式/附件大小检查。
-"""
+覆盖：send() 方法的真实验证逻辑 — 开关/配置/收件人/格式/附件大小检查。"""
 
 from __future__ import annotations
 

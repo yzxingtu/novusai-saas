@@ -1,8 +1,6 @@
-"""
-AttachmentService 单元测试
+"""AttachmentService 单元测试 / Test.
 
-覆盖：文件上传、下载、删除、存储配额检查、文件验证。
-"""
+覆盖：文件上传、下载、删除、存储配额检查、文件验证。"""
 
 from __future__ import annotations
 

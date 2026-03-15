@@ -1,11 +1,10 @@
-"""create storage migration tables
+"""create storage migration tables / 迁移
 
 Revision ID: sm_001_init
 Revises:
 Create Date: 2026-02-28
 
-branch_labels = ('plugin_storage_migration',)
-"""
+branch_labels = ('plugin_storage_migration',)"""
 import sqlalchemy as sa
 from alembic import op
 

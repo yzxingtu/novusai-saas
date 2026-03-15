@@ -1,5 +1,4 @@
-"""Dependency whitelist helpers for plugin pip install safety checks.
-/ 插件 pip 安装安全检查的依赖白名单工具。"""
+"""Dependency whitelist helpers for plugin pip install safety checks. / 插件 pip 安装安全检查的依赖白名单工具。"""
 
 from __future__ import annotations
 

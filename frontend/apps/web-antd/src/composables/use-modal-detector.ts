@@ -17,16 +17,16 @@ export interface ModalDetection {
 }
 
 interface UseModalDetectorReturn {
-  /** Currently detected modals/drawers */
+  /** Currently detected modals/drawers / 当前检测到的弹窗/抽屉 */
   modalState: Ref<ModalDetection[]>;
-  /** Force an immediate scan */
+  /** Force an immediate scan / 立即执行一次扫描 */
   scan: () => void;
 }
 
 const DEBOUNCE_MS = 150;
 
 /**
- * Composable that automatically detects Ant Design modals and drawers via MutationObserver.
+ * Composable that automatically detects Ant Design modals and drawers via MutationObserver / 通过 MutationObserver 自动检测 Ant Design 弹窗与抽屉
  * Must be called inside a component setup function.
  */
 export function useModalDetector(): UseModalDetectorReturn {

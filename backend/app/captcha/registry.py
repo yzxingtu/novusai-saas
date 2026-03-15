@@ -1,6 +1,5 @@
 """
-Captcha Registry
-验证码注册中心
+Captcha Registry / 验证码注册中心
 
 Singleton registry for captcha providers. Registers built-in providers on init.
 验证码提供者的单例注册中心。初始化时注册内置提供者。
@@ -14,8 +13,7 @@ from app.captcha.providers.image import ImageCaptchaProvider
 
 class CaptchaRegistry:
     """
-    Captcha Provider Registry (singleton).
-    验证码提供者注册中心（单例）。
+    Captcha Provider Registry (singleton) / 验证码提供者注册中心（单例）。
 
     Auto-registers ImageCaptchaProvider as default on first instantiation.
     首次实例化时自动注册 ImageCaptchaProvider 为默认提供者。

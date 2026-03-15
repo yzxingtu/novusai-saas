@@ -1,6 +1,5 @@
 """
-Plugin scope determination.
-/ 插件作用域判定
+Plugin scope determination. / 插件作用域判定。
 
 Determines plugin visibility for admins and tenants based on Plugin.scope.
 Delegates to app.core.scope.ScopeChecker for unified determination.

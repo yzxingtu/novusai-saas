@@ -1,5 +1,6 @@
 /**
  * Editor AI composable -- calls platform-level AI writing endpoints via SSE.
+ * 编辑器 AI 组合式 — 通过 SSE 调用平台级 AI 写作接口。
  */
 
 import type { Editor } from '@tiptap/core';
@@ -28,8 +29,13 @@ function getAIWritingPath(feature: string): string {
 export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
   const aiLoading = ref(false);
   const aiResult = ref('');
+  const aiError = ref<string | null>(null);
+  /** True after at least one streamAI call; used to enable retry button. / 至少调用一次 streamAI 后为 true，用于启用重试按钮 */
+  const canRetry = ref(false);
 
   let abortController: AbortController | null = null;
+  let lastStreamFeature = '';
+  let lastStreamExtra: Record<string, unknown> = {};
 
   function getEditorContext() {
     const editor = unref(editorRef);
@@ -54,6 +60,10 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
 
     aiLoading.value = true;
     aiResult.value = '';
+    aiError.value = null;
+    canRetry.value = true;
+    lastStreamFeature = feature;
+    lastStreamExtra = { ...extra };
     abortController = new AbortController();
 
     const context = getEditorContext();
@@ -82,7 +92,13 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
 
             try {
               const event = JSON.parse(payload);
-              if (event.error) return;
+              if (event.error) {
+                aiError.value =
+                  typeof event.error === 'string'
+                    ? event.error
+                    : (event.error?.message as string) || 'AI stream error';
+                return;
+              }
               if (event.event === 'message' && event.delta) {
                 aiResult.value += event.delta;
               }
@@ -93,16 +109,24 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
         },
         onError(err: Error) {
           console.error('AI stream error:', err);
+          aiError.value = err.message || 'AI stream error';
         },
       });
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('AI stream error:', err);
+        aiError.value =
+          err instanceof Error ? err.message : String(err) || 'AI request failed';
       }
     } finally {
       aiLoading.value = false;
       abortController = null;
     }
+  }
+
+  function retryAI() {
+    aiError.value = null;
+    if (lastStreamFeature) streamAI(lastStreamFeature, lastStreamExtra);
   }
 
   function cancelAI() {
@@ -142,17 +166,22 @@ export function useEditorAI(editorRef: ShallowRef<Editor | undefined>) {
     }
 
     aiResult.value = '';
+    aiError.value = null;
   }
 
   function discardResult() {
     aiResult.value = '';
+    aiError.value = null;
   }
 
   return {
     aiLoading,
     aiResult,
+    aiError,
+    canRetry,
     streamAI,
     cancelAI,
+    retryAI,
     acceptResult,
     discardResult,
   };

@@ -82,7 +82,7 @@ async def _run_subprocess_async(
     env: dict[str, str] | None = None,
 ):
     """
-    Run subprocess.run in a thread to avoid blocking the async event loop.
+    在线程中执行 subprocess.run，避免阻塞异步事件循环 / Run subprocess.run in a thread to avoid blocking the async event loop.
 
     Args:
         shell: Explicit shell mode. None = auto (_IS_WINDOWS for .cmd scripts).
@@ -1505,7 +1505,7 @@ class PluginLifecycle:
         self, plugin_name: str, manifest_data: dict, *, force: bool = False
     ) -> None:
         """
-        Check if this plugin provides storage drivers that are currently in use.
+        检查该插件提供的存储驱动是否正在被使用 / Check if this plugin provides storage drivers that are currently in use.
 
         Queries platform_storage_driver and all tenant tenant_storage_driver configs.
         If any reference a driver code from this plugin, block the disable.
@@ -1642,7 +1642,7 @@ class PluginLifecycle:
         from packaging.version import Version
 
         def _module_candidates(req_name: str, dist=None) -> list[str]:
-            """Build likely import module names for a requirement."""
+            """根据 requirement 名构建可能的 import 模块名 / Build likely import module names for a requirement."""
             names: list[str] = []
 
             # Heuristic fallback: `foo-bar` -> `foo_bar` / 启发式回退：包名转模块名
@@ -1663,7 +1663,7 @@ class PluginLifecycle:
             return names
 
         def _has_importable_module(candidates: list[str]) -> bool | None:
-            """Return True/False when candidates exist; None when no candidates."""
+            """有候选时返回 True/False，无候选时返回 None / Return True/False when candidates exist; None when no candidates."""
             if not candidates:
                 return None
             for mod in candidates:
@@ -1826,7 +1826,7 @@ class PluginLifecycle:
 
     def _resolve_pip_python_executable(self) -> str:
         """
-        Resolve the Python executable used for pip operations.
+        解析用于 pip 操作的 Python 解释器 / Resolve the Python executable used for pip operations.
 
         Why:
         - In some Windows starts, uvicorn may run as:
@@ -1888,7 +1888,7 @@ class PluginLifecycle:
 
     def _build_python_install_env(self, plugin_name: str) -> dict[str, str]:
         """
-        Build pip subprocess env with a resilient Cargo PATH on Windows.
+        构建 pip 子进程环境（Windows 下补全 Cargo PATH）/ Build pip subprocess env with a resilient Cargo PATH on Windows.
 
         Some Rust-backed packages (e.g. y-py) run build backends that require `cargo`
         to be resolvable in the current process PATH. Rust may be installed, but PATH
@@ -2098,7 +2098,7 @@ class PluginLifecycle:
 
     @staticmethod
     def _normalize_pkg_name(raw: str) -> str:
-        """Normalize a pip requirement string to a lowercase package name.
+        """将 pip requirement 字符串规范化为小写包名 / Normalize a pip requirement string to a lowercase package name.
 
         Handles version specifiers (>=, ==, <, >, !=, ~=) and PEP 503 name normalization
         (hyphens, underscores, dots → unified lowercase).
@@ -2108,7 +2108,7 @@ class PluginLifecycle:
         return re.sub(r"[-_.]+", "-", pkg).lower()
 
     def _load_project_requirements(self) -> set[str]:
-        """Load package names from the main project requirements.txt."""
+        """从主项目 requirements.txt 加载包名 / Load package names from the main project requirements.txt."""
         protected: set[str] = set()
         req_file = PLUGINS_DIR.parent / "requirements.txt"
         if not req_file.is_file():
@@ -2756,8 +2756,7 @@ except Exception as exc:
         active: bool = True,
     ) -> None:
         """
-        Ensure plugin's SkillPackage and Skill records exist in DB.
-        确保插件的 SkillPackage 和 Skill 记录存在于 DB 中。
+        确保插件的 SkillPackage 和 Skill 记录存在于 DB 中 / Ensure plugin's SkillPackage and Skill records exist in DB.
 
         - If SkillPackage with source_plugin=plugin_name already exists, reuse and update status
         - Otherwise create new platform-level SkillPackage (tenant_id=NULL, is_system=True)

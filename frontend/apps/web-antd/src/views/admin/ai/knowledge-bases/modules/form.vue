@@ -33,6 +33,8 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
       description: values.description || null,
       ...extractScopePayload(values),
       vision_model_id: values.vision_model_id ?? null,
+      audio_model_id: values.audio_model_id ?? null,
+      video_model_id: values.video_model_id ?? null,
       extract_images: values.extract_images ?? false,
     };
     if (!edit) {
@@ -50,6 +52,8 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     tenant_ids: data.assigned_tenant_ids ?? [],
     embedding_model_id: data.embedding_model_id,
     vision_model_id: (data as Record<string, unknown>).vision_model_id ?? null,
+    audio_model_id: (data as Record<string, unknown>).audio_model_id ?? null,
+    video_model_id: (data as Record<string, unknown>).video_model_id ?? null,
     extract_images: (data as Record<string, unknown>).extract_images ?? false,
     chunk_size: data.chunk_size,
     chunk_overlap: data.chunk_overlap,

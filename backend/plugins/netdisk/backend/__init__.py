@@ -1,4 +1,4 @@
-"""Netdisk plugin backend package."""
+"""网盘插件后端包 / Netdisk plugin backend package."""
 
 from __future__ import annotations
 

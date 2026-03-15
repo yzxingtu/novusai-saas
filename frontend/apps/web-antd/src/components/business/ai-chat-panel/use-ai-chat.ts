@@ -1,6 +1,8 @@
 /**
- * AI Chat Composable
+ * AI 对话 Composable / AI Chat Composable
  *
+ * 封装全部 AI 对话业务逻辑：智能体加载、会话管理、SSE 流式、文件上传、
+ * 工具调用、授权确认等。全页对话与全局抽屉对话共用。
  * Encapsulates all AI chat business logic: agent loading, conversation management,
  * SSE streaming, file uploads, tool calls, consent handling.
  * Used by both the full-page chat and the global drawer chat.
@@ -15,7 +17,7 @@ import type {
   ToolCallEvent,
 } from './types';
 
-import { computed, nextTick, ref, unref } from 'vue';
+import { computed, nextTick, ref, unref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
@@ -43,21 +45,21 @@ import { $t } from '#/locales';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
 
 export interface UseAIChatOptions {
-  /** API prefix: '/admin' or '/tenant' */
+  /** API prefix: '/admin' or '/tenant' / API 前缀 */
   apiPrefix: Ref<string> | string;
-  /** Upload endpoint */
+  /** Upload endpoint / 上传接口地址 */
   uploadUrl: Ref<string> | string;
-  /** Initial agent ID to auto-select after loading agents */
+  /** Initial agent ID to auto-select after loading agents / 加载后默认选中的智能体 ID */
   initialAgentId?: number | Ref<number | undefined>;
-  /** Initial conversation ID to auto-load after agent is selected */
+  /** Initial conversation ID to auto-load after agent is selected / 选中智能体后默认加载的对话 ID */
   initialConversationId?: number | Ref<number | undefined>;
-  /** Callback when a tool call completes successfully */
+  /** Callback when a tool call completes successfully / 工具调用成功回调 */
   onToolCall?: (toolName: string, output: string) => void;
-  /** Callback when streaming completes (used for unread badge) */
+  /** Callback when streaming completes (used for unread badge) / 流式结束回调（未读角标等） */
   onStreamComplete?: () => void;
   pageContextResolver?: () => null | PageContext;
   pageSessionIdGetter?: () => string;
-  /** Callback when required input variables are missing — opens the vars modal */
+  /** Callback when required input variables are missing — opens the vars modal / 必填变量缺失时回调，打开变量弹窗 */
   onVariablesMissing?: () => void;
 }
 
@@ -77,7 +79,7 @@ export function useAIChat(options: UseAIChatOptions) {
   );
 
   /**
-   * Load agents list and auto-select one.
+   * Load agents list and auto-select one / 加载智能体列表并自动选中一个
    * @param overrideAgentId - If provided, takes priority over options.initialAgentId
    */
   async function loadAgents(overrideAgentId?: number) {
@@ -157,7 +159,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * Reset chat state.
+   * Reset chat state / 重置对话状态
    * @param keepVars - When true (panel open/reopen), session vars are preserved.
    *                   When false (explicit "+" new chat), session vars are cleared.
    */
@@ -218,11 +220,36 @@ export function useAIChat(options: UseAIChatOptions) {
       chatMessages.value = merged;
       // Restore lastMemoryUpdated from historical messages
       lastMemoryUpdated.value = merged.some((m) => m.memoryUpdated);
+      // Restore trust-session preference for this conversation (persisted per convId)
+      try {
+        const stored = sessionStorage.getItem(`ai_trust_session_${convId}`);
+        trustSession.value = stored === '1';
+      } catch {
+        trustSession.value = false;
+      }
       scrollToBottom(true);
     } catch {
       // handled by interceptor / 错误由请求拦截器处理
     }
   }
+
+  // Persist trustSession when it changes (per active conversation)
+  watch(
+    [trustSession, activeConversationId],
+    ([trust, convId]) => {
+      if (convId != null && typeof convId === 'number') {
+        try {
+          sessionStorage.setItem(
+            `ai_trust_session_${convId}`,
+            trust ? '1' : '0',
+          );
+        } catch {
+          // ignore
+        }
+      }
+    },
+    { immediate: false },
+  );
 
   async function fetchConversationMemory(): Promise<MemoryState | null> {
     const convId = activeConversationId.value;
@@ -263,7 +290,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * Merge raw DB messages into display ChatMessages.
+   * Merge raw DB messages into display ChatMessages / 将原始 DB 消息合并为展示用 ChatMessages
    *
    * During streaming, all tool call rounds are accumulated into a single
    * assistant ChatMessage. But the DB stores each round as separate messages:
@@ -432,7 +459,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ Chat Messages ============
 
-  /** Guard: only restore initialConversationId once */
+  /** Guard: only restore initialConversationId once / 仅恢复一次 initialConversationId */
   let _initialConvRestored = false;
 
   const chatMessages = ref<ChatMessage[]>([]);
@@ -448,7 +475,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ Input Variables ============
 
-  /** Per-agent variables: agentId → { varName: value } */
+  /** Per-agent variables: agentId → { varName: value } / 各智能体变量 */
   const allAgentsVariables = ref<Record<number, Record<string, string>>>({});
 
   function _varsLocalKey(agentId: number): string {
@@ -469,7 +496,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * Ensure session vars are initialized for an agent.
+   * Ensure session vars are initialized for an agent / 确保智能体的会话变量已初始化
    * If not yet in session, checks localStorage (for agents the user previously persisted).
    */
   function ensureAgentVarsLoaded(agentId: number) {
@@ -480,7 +507,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * Save variables for an agent.
+   * Save variables for an agent / 保存某智能体的变量
    * Always updates session vars (in-memory).
    * @param persist - if true, also writes to localStorage (long-term, auto-injected every session)
    *                  if false, only in-memory for this browser session
@@ -500,7 +527,7 @@ export function useAIChat(options: UseAIChatOptions) {
     // no-op: variables are now persisted per-agent, not per-conversation
   }
 
-  /** Agents that have appeared in the conversation AND have input_variables */
+  /** Agents that have appeared in the conversation AND have input_variables / 对话中出现且含 input_variables 的智能体 */
   const agentsWithVarsInConversation = computed(() => {
     const agentIdsInChat = new Set<number>(
       chatMessages.value
@@ -530,14 +557,14 @@ export function useAIChat(options: UseAIChatOptions) {
 
   let streamAbortController: AbortController | null = null;
 
-  /** Deferred auto-confirm flag: set when trustSession auto-approves during active stream */
+  /** Deferred auto-confirm flag: set when trustSession auto-approves during active stream / 延迟自动确认标志 */
   let _deferredAutoConfirm = false;
 
-  /** Whether user has manually scrolled up */
+  /** Whether user has manually scrolled up / 用户是否手动向上滚动 */
   const userScrolledUp = ref(false);
 
   /**
-   * Smart scroll: only auto-scroll to bottom if user hasn't scrolled up.
+   * Smart scroll: only auto-scroll to bottom if user hasn't scrolled up / 智能滚动：仅当用户未上滑时自动滚到底部
    * @param force - if true, always scroll regardless of user position
    */
   function scrollToBottom(force = false) {
@@ -550,7 +577,7 @@ export function useAIChat(options: UseAIChatOptions) {
     });
   }
 
-  /** Check if the user is near the bottom of the scroll container */
+  /** Check if the user is near the bottom of the scroll container / 是否接近滚动容器底部 */
   function isNearBottom(): boolean {
     const el = messagesContainer.value;
     if (!el) return true;
@@ -558,7 +585,7 @@ export function useAIChat(options: UseAIChatOptions) {
     return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }
 
-  /** Handle scroll events to detect manual user scroll-up */
+  /** Handle scroll events to detect manual user scroll-up / 处理滚动以检测用户手动上滑 */
   function handleMessagesScroll() {
     userScrolledUp.value = !isNearBottom();
   }
@@ -566,6 +593,7 @@ export function useAIChat(options: UseAIChatOptions) {
   async function copyMessage(content: string) {
     try {
       await navigator.clipboard.writeText(content);
+      message.success($t('common.globalAiChat.copySuccess'));
     } catch {
       // fallback silently
     }
@@ -582,6 +610,14 @@ export function useAIChat(options: UseAIChatOptions) {
 
   const supportsVision = computed(
     () => selectedAgent.value?.model_capabilities?.supports_vision ?? false,
+  );
+
+  const supportsAudio = computed(
+    () => selectedAgent.value?.model_capabilities?.supports_audio ?? false,
+  );
+
+  const supportsVideo = computed(
+    () => selectedAgent.value?.model_capabilities?.supports_video ?? false,
   );
 
   const totalTokensUsed = computed(() =>
@@ -609,7 +645,7 @@ export function useAIChat(options: UseAIChatOptions) {
   );
 
   /**
-   * Validate a file before upload (images + non-images).
+   * Validate a file before upload (images + non-images) / 上传前校验文件（图片与非图片）
    * Uses the unified useFileUpload composable.
    */
   function validateUpload(file: File): boolean {
@@ -630,11 +666,11 @@ export function useAIChat(options: UseAIChatOptions) {
   const pendingAttachments = ref<ChatAttachment[]>([]);
   const uploading = ref(false);
   const fileInput = ref<HTMLInputElement | null>(null);
-  /** Pre-built accept attribute for file input */
+  /** Pre-built accept attribute for file input / 文件选择 accept 属性 */
   const chatAcceptAttribute = CHAT_ACCEPT_ATTRIBUTE;
 
   /**
-   * Compress an image file using Canvas API.
+   * Compress an image file using Canvas API / 使用 Canvas API 压缩图片
    * Returns the original file if compression is not possible or not needed.
    */
   async function compressImage(
@@ -695,7 +731,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   /**
-   * Determine extra upload form data based on API prefix.
+   * Determine extra upload form data based on API prefix / 根据 API 前缀确定上传表单额外字段
    * Admin endpoint needs tenant_id=0 for platform attachments.
    */
   function getUploadExtraData(): Record<string, string> | undefined {
@@ -716,8 +752,17 @@ export function useAIChat(options: UseAIChatOptions) {
         fileToUpload,
         getUploadExtraData(),
       );
+      const isAudio = file.type.startsWith('audio/');
+      const isVideo = file.type.startsWith('video/');
+      const attachmentType = isImage
+        ? 'image'
+        : isAudio
+          ? 'audio'
+          : isVideo
+            ? 'video'
+            : 'file';
       return {
-        type: isImage ? 'image' : 'file',
+        type: attachmentType,
         url: data.url,
         name: file.name,
         mime_type: fileToUpload.type,
@@ -789,7 +834,7 @@ export function useAIChat(options: UseAIChatOptions) {
     pendingAttachments.value.splice(idx, 1);
   }
 
-  /** Clear pending attachments and revoke all preview URLs */
+  /** Clear pending attachments and revoke all preview URLs / 清空待上传附件并撤销预览 URL */
   function clearPendingAttachments() {
     revokePreviewUrls(pendingAttachments.value);
     pendingAttachments.value = [];
@@ -1104,8 +1149,11 @@ export function useAIChat(options: UseAIChatOptions) {
           onError(error: Error) {
             if (error.name === 'AbortError') return;
             const msg = chatMessages.value[assistantIdx];
-            if (msg && !msg.content) {
-              msg.content = `\u26A0\uFE0F ${$t('common.requestFailed')}`;
+            if (msg) {
+              if (!msg.content) {
+                msg.content = `\u26A0\uFE0F ${$t('common.requestFailed')}`;
+              }
+              msg.requestFailedRetry = true;
             }
             finalizeMessage();
           },
@@ -1229,6 +1277,27 @@ export function useAIChat(options: UseAIChatOptions) {
     URL.revokeObjectURL(url);
   }
 
+  function exportAsPlainText() {
+    if (chatMessages.value.length === 0) return;
+    const agentName = selectedAgent.value?.name || 'AI';
+    const lines: string[] = [];
+    for (const msg of chatMessages.value) {
+      const label = msg.role === 'user' ? 'User' : agentName;
+      lines.push(`${label}:`);
+      if (msg.content) lines.push(msg.content);
+      lines.push('');
+    }
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/plain;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-${activeConversationId.value || 'new'}-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function regenerateMessage(msgIndex: number) {
     if (sending.value || streaming.value) return;
     const msg = chatMessages.value[msgIndex];
@@ -1268,7 +1337,31 @@ export function useAIChat(options: UseAIChatOptions) {
     streaming.value = false;
     userScrolledUp.value = false;
     const last = chatMessages.value.at(-1);
-    if (last?.streaming) last.streaming = false;
+    if (last?.streaming) {
+      last.streaming = false;
+      if (last.role === 'assistant') {
+        last.stoppedByUser = true;
+      }
+    }
+  }
+
+  /**
+   * Retry after SSE error: remove the failed assistant message, restore last user message to input, and send again / SSE 错误后重试：移除失败助手消息并重新发送
+   * (silent = do not push user message again).
+   */
+  function retryLastMessage() {
+    const messages = chatMessages.value;
+    if (messages.length < 2) return;
+    const last = messages.at(-1);
+    if (last?.role !== 'assistant' || !last.requestFailedRetry) return;
+    const prev = messages.at(-2);
+    if (prev?.role !== 'user') return;
+    chatMessages.value = messages.slice(0, -1);
+    inputMessage.value = prev.content;
+    if (prev.attachments?.length) {
+      pendingAttachments.value = [...prev.attachments];
+    }
+    sendMessage({ silent: true });
   }
 
   function cleanup() {
@@ -1333,12 +1426,14 @@ export function useAIChat(options: UseAIChatOptions) {
     clickActionButton,
     regenerateMessage,
     editAndResend,
+    retryLastMessage,
     cleanup,
 
     // Model capabilities
     supportsVision,
     imageParams,
     exportAsMarkdown,
+    exportAsPlainText,
     totalTokensUsed,
 
     // Attachments

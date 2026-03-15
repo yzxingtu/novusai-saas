@@ -23,7 +23,7 @@ from app.services.common.role_tree_mixin import MAX_ROLE_DEPTH, RoleTreeMixin
 
 class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository], RoleTreeMixin[TenantAdminRole]):
     """
-    企业管理员角色服务
+    企业管理员角色服务 / Tenant admin role service.
 
     提供角色的 CRUD 操作和层级结构管理，自动注入企业隔离
     """
@@ -33,7 +33,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_by_code(self, code: str) -> TenantAdminRole | None:
         """
-        根据代码获取角色（企业内）
+        根据代码获取角色（企业内）/ Get role by code (within tenant).
 
         Args:
             code: 角色代码
@@ -44,7 +44,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         return await self.repo.get_by_code(code)
 
     def _generate_role_code(self) -> str:
-        """生成唯一角色代码"""
+        """生成唯一角色代码 / Generate unique role code."""
         return f"role_{uuid.uuid4().hex[:12]}"
 
     async def create_role(
@@ -59,7 +59,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         allow_members: bool = True,
     ) -> TenantAdminRole:
         """
-        创建角色（企业内）
+        创建角色（企业内）/ Create role (within tenant).
 
         Args:
             name: 角色名称
@@ -128,7 +128,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         data: dict[str, Any],
     ) -> TenantAdminRole:
         """
-        更新角色（企业内）
+        更新角色（企业内）/ Update role (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -239,7 +239,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         permission_ids: list[int],
     ) -> TenantAdminRole:
         """
-        分配权限给角色（企业内）
+        分配权限给角色（企业内）/ Assign permissions to role (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -272,7 +272,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_root_roles(self) -> list[TenantAdminRole]:
         """
-        获取所有顶级角色（企业内）
+        获取所有顶级角色（企业内）/ Get all root roles (within tenant).
 
         Returns:
             顶级角色列表
@@ -283,7 +283,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     def validate_child_type(self, parent_type: str, child_type: str) -> bool:
         """
-        验证子节点类型是否允许
+        验证子节点类型是否允许 / Validate whether child node type is allowed.
 
         规则:
         - department: 可添加 department, position
@@ -310,7 +310,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         leader_id: int | None,
     ) -> TenantAdminRole:
         """
-        设置节点负责人（企业内）
+        设置节点负责人（企业内）/ Set node leader (within tenant).
 
         Args:
             role_id: 角色/节点 ID
@@ -351,7 +351,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_organization_root_nodes(self) -> list[TenantAdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树，企业内）
+        获取组织架构根节点列表（用于按需加载树，企业内）/ Get org root nodes for lazy tree (within tenant).
 
         Returns:
             根节点列表（level=1），每个节点包含 has_children 标记
@@ -360,7 +360,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
 
     async def get_organization_children(self, parent_id: int) -> list[TenantAdminRole]:
         """
-        获取指定节点的直接子节点（用于按需加载，企业内）
+        获取指定节点的直接子节点（用于按需加载，企业内）/ Get direct children of node for lazy load (within tenant).
 
         Args:
             parent_id: 父节点 ID
@@ -376,7 +376,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        添加成员到节点（企业内）
+        添加成员到节点（企业内）/ Add member to node (within tenant).
 
         Args:
             role_id: 角色/节点 ID
@@ -430,7 +430,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        删除节点成员（企业内，软删除）
+        删除节点成员（企业内，软删除）/ Remove node member (within tenant, soft delete).
 
         Args:
             role_id: 角色/节点 ID
@@ -500,7 +500,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         include_descendants: bool = True,
     ) -> tuple[list[TenantAdmin], int]:
         """
-        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）
+        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）/ Get node members (within tenant, paginated + search + descendants).
 
         Args:
             role_id: 角色/节点 ID
@@ -538,7 +538,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool = True,
     ) -> TenantAdmin:
         """
-        在节点下创建新成员（企业内）
+        在节点下创建新成员（企业内）/ Create new member under node (within tenant).
 
         Args:
             role_id: 角色/节点 ID
@@ -596,7 +596,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_role_id: int | None = None,
     ) -> TenantAdmin:
         """
-        更新节点成员信息（企业内）
+        更新节点成员信息（企业内）/ Update node member info (within tenant).
 
         Args:
             role_id: 当前角色/节点 ID
@@ -686,7 +686,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         new_password: str,
     ) -> bool:
         """
-        重置节点成员密码（企业内）
+        重置节点成员密码（企业内）/ Reset node member password (within tenant).
 
         Args:
             role_id: 角色/节点 ID
@@ -743,7 +743,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         is_active: bool,
     ) -> TenantAdmin:
         """
-        切换节点成员状态（企业内）
+        切换节点成员状态（企业内）/ Toggle node member status (within tenant).
 
         Args:
             role_id: 角色/节点 ID

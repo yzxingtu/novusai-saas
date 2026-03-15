@@ -11,7 +11,7 @@ from ._schemas import node_schema as _node_schema
 
 
 async def list_tenant_files(request, db, ctx):
-    """浏览指定企业文件树（只读）"""
+    """浏览指定企业文件树（只读） / Browse tenant file tree (read-only)."""
     tenant_id     = int(request.query_params["tenant_id"])
     parent_id_str = request.query_params.get("parent_id")
     parent_id     = int(parent_id_str) if parent_id_str else None
@@ -22,7 +22,7 @@ async def list_tenant_files(request, db, ctx):
 
 
 async def list_quotas(request, db, ctx):
-    """列出所有企业配额（统计在 Service 层）"""
+    """列出所有企业配额（统计在 Service 层） / List all tenant quotas (stats in Service)."""
     page = int(request.query_params.get("page", "1"))
     size = min(int(request.query_params.get("size", "20")), 100)
     from ..services.quota_service import QuotaService
@@ -37,7 +37,7 @@ async def list_quotas(request, db, ctx):
 
 
 async def update_quota(request, db, ctx):
-    """修改指定企业配额"""
+    """修改指定企业配额 / Update tenant quota."""
     tenant_id   = int(request.path_params["tenant_id"])
     body        = await request.json()
     quota_bytes = int(body["quota_bytes"])
@@ -48,7 +48,7 @@ async def update_quota(request, db, ctx):
 
 
 async def recalculate_quota(request, db, ctx):
-    """重算指定企业 used_bytes"""
+    """重算指定企业 used_bytes / Recompute tenant used_bytes."""
     tenant_id = int(request.path_params["tenant_id"])
     from ..services.quota_service import QuotaService
     svc    = QuotaService(db, tenant_id=tenant_id)
@@ -57,7 +57,7 @@ async def recalculate_quota(request, db, ctx):
 
 
 async def list_all_shares(request, db, ctx):
-    """全局分享审计列表（统计在 ShareService 层）"""
+    """全局分享审计列表（统计在 ShareService 层） / Global share audit list (ShareService stats)."""
     page = int(request.query_params.get("page", "1"))
     size = min(int(request.query_params.get("size", "20")), 100)
     from ..services.share_service import ShareService
@@ -72,7 +72,7 @@ async def list_all_shares(request, db, ctx):
 
 
 async def revoke_share(request, db, ctx):
-    """管理员强制撤销分享（业务逻辑在 ShareService 层）"""
+    """管理员强制撤销分享（业务逻辑在 ShareService 层） / Admin revoke share (logic in ShareService)."""
     token = request.path_params["token"]
     from ..services.share_service import ShareService
     svc = ShareService(db, tenant_id=0)
@@ -81,7 +81,7 @@ async def revoke_share(request, db, ctx):
 
 
 async def get_stats(request, db, ctx):
-    """平台存储统计 Dashboard（统计在 Service 层）"""
+    """平台存储统计 Dashboard（统计在 Service 层） / Platform storage stats dashboard (Service layer)."""
     from ..services.quota_service import QuotaService
     svc  = QuotaService(db, tenant_id=0)
     data = await svc.admin_stats()

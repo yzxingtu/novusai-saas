@@ -27,7 +27,7 @@ _ASSIGNED_SCOPES = (
 
 class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
     """
-    企业级知识库 Repository
+    企业级知识库 Repository / Tenant-scoped knowledge base repository.
 
     提供基于企业隔离的知识库数据访问。
     查询时自动包含 scope=global 的全局知识库。
@@ -41,7 +41,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         include_deleted: bool = False,
     ) -> KnowledgeBase | None:
         """
-        根据 ID 获取知识库，检查可见性权限
+        根据 ID 获取知识库，检查可见性权限。 / Get KB by ID with visibility check.
 
         访问规则：
         - 自己企业的 KB → 允许
@@ -94,7 +94,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         include_deleted: bool = False,
     ) -> tuple[list[KnowledgeBase], int]:
         """
-        企业级知识库列表查询
+        企业级知识库列表查询 / Tenant-scoped knowledge base list query.
 
         自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
@@ -168,7 +168,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         exclude_id: int | None = None,
     ) -> KnowledgeBase | None:
         """
-        按名称查找知识库（同企业内唯一性检查）
+        按名称查找知识库（同企业内唯一性检查）/ Find KB by name (uniqueness within tenant).
 
         Args:
             name: 知识库名称
@@ -194,7 +194,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         kb_id: int,
     ) -> None:
         """
-        重新计算并更新知识库统计（文档数、分块数、总大小）
+        重新计算并更新知识库统计（文档数、分块数、总大小）/ Recompute and update KB stats (doc count, chunk count, total size).
 
         Args:
             kb_id: 知识库 ID
@@ -241,13 +241,13 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         await self.db.execute(update_stmt)
 
     async def count_by_tenant(self) -> int:
-        """统计当前企业的知识库总数"""
+        """统计当前企业的知识库总数 / Count knowledge bases for current tenant."""
         return await self.count()
 
 
 class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
     """
-    管理端知识库 Repository
+    管理端知识库 Repository / Admin knowledge base repository.
 
     无企业隔离，供平台管理端全局查询使用
     """
@@ -257,7 +257,7 @@ class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
 
 class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
     """
-    企业级知识文档 Repository
+    企业级知识文档 Repository / Tenant-scoped knowledge document repository.
     """
 
     model = KnowledgeDocument
@@ -268,7 +268,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
         file_hash: str,
     ) -> KnowledgeDocument | None:
         """
-        按知识库 ID 和文件哈希查找文档（去重检测）
+        按知识库 ID 和文件哈希查找文档（去重检测）/ Find document by KB ID and file hash (dedup).
 
         Args:
             knowledge_base_id: 知识库 ID
@@ -296,7 +296,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
         error_stage: str | None = None,
     ) -> None:
         """
-        更新文档处理状态
+        更新文档处理状态 / Update document processing status.
 
         Args:
             doc_id: 文档 ID
@@ -320,7 +320,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
 
 class DocumentChunkRepository(TenantRepository[DocumentChunk]):
     """
-    企业级文档分块 Repository
+    企业级文档分块 Repository / Tenant-scoped document chunk repository.
     """
 
     model = DocumentChunk
@@ -331,7 +331,7 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
         soft: bool = True,
     ) -> int:
         """
-        删除指定文档的所有分块
+        删除指定文档的所有分块 / Delete all chunks for the given document.
 
         Args:
             document_id: 文档 ID
@@ -370,7 +370,7 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
         limit: int = 100,
     ) -> list[DocumentChunk]:
         """
-        获取指定文档的分块列表
+        获取指定文档的分块列表 / Get chunk list for the given document.
 
         Args:
             document_id: 文档 ID

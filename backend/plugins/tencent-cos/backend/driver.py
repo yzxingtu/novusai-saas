@@ -1,9 +1,7 @@
-"""
-Tencent Cloud COS Storage Driver
+"""Tencent Cloud COS Storage Driver / 说明
 
 Plugin-based driver using cos-python-sdk-v5.
-Supports imageMogr2 native image processing.
-"""
+Supports imageMogr2 native image processing."""
 
 from __future__ import annotations
 
@@ -37,11 +35,11 @@ except ModuleNotFoundError:
     CosS3Client = None
 
     class CosServiceError(Exception):
-        """Fallback error type when COS SDK is unavailable."""
+        """Fallback error type when COS SDK is unavailable. / 说明"""
 
 
 def _require_cos_sdk() -> tuple[type, type]:
-    """Ensure optional COS SDK is available before runtime use."""
+    """Ensure optional COS SDK is available before runtime use. / 说明"""
     if CosConfig is None or CosS3Client is None:
         raise StorageConfigError(
             message=(
@@ -55,9 +53,7 @@ def _require_cos_sdk() -> tuple[type, type]:
 
 
 class CosStorageDriver(StorageDriver):
-    """
-    Tencent Cloud COS object storage driver
-    """
+    """Tencent Cloud COS object storage driver / 说明"""
     name = "tencent-cos"
     display_name = "storage.driver.tencent_cos"
     config_schema = {
@@ -318,13 +314,12 @@ class CosStorageDriver(StorageDriver):
     # ========== Image Processing / 图片处理 ==========
 
     def _build_cos_process_params(self, params: ImageProcessParams) -> str:
-        """Build COS imageMogr2 URL suffix.
+        """Build COS imageMogr2 URL suffix. / 说明
 
         COS imageMogr2 reference:
         - thumbnail/WxH   → fit (proportional, within bounds)
         - thumbnail/!WxHr  → cover (proportional, covering bounds)
-        - crop/WxH/gravity/center → center crop
-        """
+        - crop/WxH/gravity/center → center crop"""
         parts: list[str] = ["imageMogr2"]
         if params.width or params.height:
             w = params.width or ""

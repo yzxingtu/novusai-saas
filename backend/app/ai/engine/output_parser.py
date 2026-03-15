@@ -1,6 +1,5 @@
 """
-Output Variable Extractor
-输出变量提取器
+Output Variable Extractor / 输出变量提取器
 
 Extracts structured data from AI replies, supports JSON code block extraction
 and field extraction based on output_schema.

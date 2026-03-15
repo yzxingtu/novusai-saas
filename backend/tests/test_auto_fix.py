@@ -1,5 +1,4 @@
-"""
-AI 自动修复 Loop — 单元测试
+"""AI 自动修复 Loop — 单元测试 / Test.
 
 覆盖：
 - validate_project: 有效/无效项目
@@ -7,8 +6,7 @@ AI 自动修复 Loop — 单元测试
 - suggest_human_steps: 人工步骤建议
 - run_fix_loop: 无 fix_fn / 可修复 / 不可修复 / 重试上限
 - apply_fix_patch: patch 应用
-- FixContext / AutoFixResult 序列化
-"""
+- FixContext / AutoFixResult 序列化"""
 
 from app.codegen.auto_fix import (
     MAX_FIX_RETRIES,
@@ -85,7 +83,7 @@ def _project_with_missing_ref() -> dict:
 
 
 class TestValidateProject:
-    """项目校验"""
+    """项目校验 / Description."""
 
     def test_valid_project(self):
         valid, issues, warnings = validate_project(_valid_project())
@@ -117,7 +115,7 @@ class TestValidateProject:
 
 
 class TestBuildFixInstructions:
-    """修复指令生成"""
+    """修复指令生成 / Description."""
 
     def test_empty_issues(self):
         result = build_fix_instructions([])
@@ -140,7 +138,7 @@ class TestBuildFixInstructions:
 
 
 class TestSuggestHumanSteps:
-    """人工步骤建议"""
+    """人工步骤建议 / Description."""
 
     def test_cycle_suggestion(self):
         issues = [{"code": "cycle_detected", "message": "Cycle", "related_nodes": ["a", "b"]}]
@@ -165,23 +163,23 @@ class TestSuggestHumanSteps:
 
 
 class TestRunFixLoop:
-    """自动修复循环"""
+    """自动修复循环 / Description."""
 
     def test_already_valid(self):
-        """已经有效的项目不需要修复"""
+        """已经有效的项目不需要修复 / Description."""
         result = run_fix_loop(_valid_project())
         assert result.success is True
         assert result.total_attempts == 0
 
     def test_no_fix_fn(self):
-        """没有 fix_fn 时仅返回校验结果"""
+        """没有 fix_fn 时仅返回校验结果 / fix_fn"""
         result = run_fix_loop(_project_with_cycle(), fix_fn=None)
         assert result.success is False
         assert len(result.remaining_issues) > 0
         assert len(result.human_steps) > 0
 
     def test_fix_fn_succeeds(self):
-        """fix_fn 成功修复"""
+        """fix_fn 成功修复 / fix_fn"""
         # 模拟：missing ref -> fix_fn 添加 customer entity
         project = _project_with_missing_ref()
 
@@ -196,7 +194,7 @@ class TestRunFixLoop:
         assert len(result.attempts) >= 1
 
     def test_fix_fn_fails_exhausts_retries(self):
-        """fix_fn 无法修复，耗尽重试"""
+        """fix_fn 无法修复，耗尽重试 / fix_fn ，"""
         # 循环依赖无法通过添加实体修复
         project = _project_with_cycle()
 
@@ -211,7 +209,7 @@ class TestRunFixLoop:
         assert len(result.human_steps) > 0
 
     def test_fix_fn_raises_exception(self):
-        """fix_fn 抛异常时安全退出"""
+        """fix_fn 抛异常时安全退出 / fix_fn"""
         project = _project_with_cycle()
 
         def raise_fn(ctx: FixContext) -> dict:
@@ -222,7 +220,7 @@ class TestRunFixLoop:
         assert len(result.attempts) >= 1
 
     def test_max_retries_respected(self):
-        """重试次数上限"""
+        """重试次数上限 / Description."""
         project = _project_with_cycle()
         call_count = 0
 
@@ -241,7 +239,7 @@ class TestRunFixLoop:
 
 
 class TestApplyFixPatch:
-    """Patch 应用"""
+    """Patch 应用 / Patch"""
 
     def test_add_entity(self):
         project = _valid_project()
@@ -264,7 +262,7 @@ class TestApplyFixPatch:
 
 
 class TestSerialization:
-    """结果序列化"""
+    """结果序列化 / Description."""
 
     def test_auto_fix_result_to_tool_output(self):
         result = AutoFixResult(

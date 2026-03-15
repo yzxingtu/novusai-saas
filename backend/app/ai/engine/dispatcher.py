@@ -1,6 +1,5 @@
 """
-Execution Dispatcher
-执行分发器
+Execution Dispatcher / 执行分发器
 
 Routes to corresponding engine based on execution_mode,
 orchestrates concurrency control, quota checks, and hook triggers.

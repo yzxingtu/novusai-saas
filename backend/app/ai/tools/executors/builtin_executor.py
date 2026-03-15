@@ -1,6 +1,5 @@
 """
-Builtin Tool Executor
-内置工具执行器
+Builtin Tool Executor / 内置工具执行器
 
 Provides safe built-in functions (datetime, math, etc.) without external calls.
 提供安全的内置函数（datetime、math 等），不涉及外部调用。
@@ -45,8 +44,7 @@ _SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
 
 
 def _is_ssrf_blocked(url: str) -> str | None:
-    """Check if URL points to intranet/cloud metadata, return error message or None
-    检查 URL 是否指向内网/云元数据，返回错误消息或 None"""
+    """Check if URL points to intranet/cloud metadata, return error message or None. / 检查 URL 是否指向内网/云元数据，返回错误消息或 None。"""
     try:
         from urllib.parse import urlparse
         parsed = urlparse(url)
@@ -67,8 +65,7 @@ def _is_ssrf_blocked(url: str) -> str | None:
 
 class BuiltinToolExecutor(BaseToolExecutor):
     """
-    Built-in function tool executor.
-    内置函数工具执行器。
+    Built-in function tool executor. / 内置函数工具执行器。
 
     Maintains a safe function registry; all functions execute in-process.
     Any IO operations and dangerous calls are forbidden.
@@ -181,8 +178,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _calculate(expression: str = "") -> str:
         """
-        Safe mathematical calculation.
-        安全的数学计算。
+        Safe mathematical calculation. / 安全的数学计算。
 
         Uses an AST parser, only allowing numeric constants and basic arithmetic operators.
         Function calls, attribute access, imports, or any other code execution are forbidden.
@@ -210,8 +206,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _web_search(query: str = "", max_results: int = 5) -> str:
         """
-        Web search: search web content via DuckDuckGo HTML API.
-        联网搜索：通过 DuckDuckGo HTML API 搜索网页内容。
+        Web search: search web content via DuckDuckGo HTML API. / 联网搜索：通过 DuckDuckGo HTML API 搜索网页内容。
 
         Returns a list of search results (title + snippet + link).
         返回搜索结果列表（标题 + 摘要 + 链接）。
@@ -279,8 +274,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
     @staticmethod
     async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
         """
-        Fetch web content: retrieve text content from a specified URL.
-        抓取网页内容：获取指定 URL 的文本内容。
+        Fetch web content: retrieve text content from a specified URL. / 抓取网页内容：获取指定 URL 的文本内容。
 
         Automatically extracts body text, removing HTML tags and scripts.
         自动提取正文文本，去除 HTML 标签和脚本。
@@ -353,8 +347,7 @@ _SAFE_UNARYOPS: dict[type, Callable[..., object]] = {
 
 
 def _safe_eval_node(node: ast.AST) -> int | float:
-    """Recursively evaluate AST node, only allowing safe math operations
-    递归求值 AST 节点，仅允许安全的数学操作"""
+    """递归求值 AST 节点，仅允许安全的数学操作 / Recursively evaluate AST node, only allowing safe math operations."""
     if isinstance(node, ast.Expression):
         return _safe_eval_node(node.body)
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * 智能体访问权限配置抽屉（企业端）
+ * Agent access config drawer (tenant)
  *
- * 仅配置 tenant_role_ids 和 user_role_ids（企业端/用户端角色权限控制）。
- * 企业端不显示 Admin 端角色选择（企业无权控制管理端角色）。
- * 根据 target_audience 动态显隐 User 端区块。
+ * 仅配置 tenant_role_ids 和 user_role_ids；企业端不显示 Admin 角色；按 target_audience 显隐 User 区块。
+ * Configures tenant_role_ids and user_role_ids only; no admin roles on tenant side; User block by target_audience.
  */
 import { computed, onMounted, ref, watch } from 'vue';
 

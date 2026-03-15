@@ -196,7 +196,7 @@ function onPermissionSaved() {
 // Right: User member table / 右侧用户成员表格
 // ============================================================
 
-/** Wrapper to match ToggleStatusApi signature */
+/** Wrapper to match ToggleStatusApi signature / 包装以匹配 ToggleStatusApi 签名 */
 async function toggleUserStatus(
   id: number,
   data: Record<string, boolean>,

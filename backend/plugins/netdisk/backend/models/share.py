@@ -1,6 +1,4 @@
-"""
-文件分享记录模型
-"""
+"""文件分享记录模型 / Model."""
 
 from __future__ import annotations
 

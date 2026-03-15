@@ -1,5 +1,5 @@
 """
-技能 Service / Skill Service
+技能 Service / Skill service.
 """
 
 from typing import Any
@@ -17,7 +17,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillService(TenantService[Skill, SkillRepository]):
     """
-    企业端技能 Service
+    企业端技能 Service / Tenant skill service.
 
     提供技能的创建、更新、删除等业务逻辑
     """
@@ -26,7 +26,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
     repository_class = SkillRepository
 
     async def _get_toolkit_security_level(self) -> str | None:
-        """读取平台 Toolkit 安全等级配置（扫描开启时返回等级，否则 None）"""
+        """读取平台 Toolkit 安全等级配置（扫描开启时返回等级，否则 None） / Get platform toolkit security level (None if scan disabled)."""
         from app.configs.service import ConfigService
         cfg = ConfigService(self.repo.db)
         scan_enabled = await cfg.get_platform_config(
@@ -40,7 +40,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         return str(level)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性、类型合法性 + 插件钩子"""
+        """创建前校验：名称唯一性、类型合法性 + 插件钩子 / Before create: name uniqueness, type validity, plugin hooks."""
         await super()._before_create(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -70,7 +70,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         self._parse_toolkit_meta(data, skill_type, security_level)
 
     async def _after_create(self, instance: Skill) -> None:
-        """创建后：触发插件钩子"""
+        """创建后：触发插件钩子 / After create: trigger plugin hooks."""
         await super()._after_create(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -83,7 +83,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             )
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性、系统技能保护 + 插件钩子"""
+        """更新前校验：名称唯一性、系统技能保护 + 插件钩子 / Before update: name uniqueness, system skill protection, plugin hooks."""
         await super()._before_update(id, data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -126,7 +126,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         self._parse_toolkit_meta(data, skill_type, security_level)
 
     async def _after_update(self, instance: Skill) -> None:
-        """更新后：触发插件钩子"""
+        """更新后：触发插件钩子 / After update: trigger plugin hooks."""
         await super()._after_update(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -139,7 +139,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             )
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能不可删除 + 插件钩子"""
+        """删除前校验：系统技能不可删除 + 插件钩子 / Before delete: system skill protected, plugin hooks."""
         await super()._before_delete(id)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -167,7 +167,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
             raise BusinessException(message=_("skill.error.system_protected"))
 
     async def _after_delete(self, instance: Skill) -> None:
-        """删除后：触发插件钩子"""
+        """删除后：触发插件钩子 / After delete: trigger plugin hooks."""
         await super()._after_delete(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -184,7 +184,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
         skill_type: str,
         security_level: str | None = None,
     ) -> None:
-        """If toolkit_content is provided, parse and cache toolkit_meta.
+        """若提供 toolkit_content 则解析并缓存 toolkit_meta / If toolkit_content is provided, parse and cache toolkit_meta.
 
         Also performs security scan for non-system toolkits when
         toolkit_scan_on_upload is enabled (default).
@@ -221,17 +221,17 @@ class SkillService(TenantService[Skill, SkillRepository]):
             )
 
     async def get_active_skills(self) -> list[Skill]:
-        """获取当前企业所有已激活的技能"""
+        """获取当前企业所有已激活的技能 / Get all active skills for current tenant."""
         return await self.repo.get_active_skills()
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
-        """按类型获取技能"""
+        """按类型获取技能 / Get skills by type."""
         return await self.repo.get_by_type(skill_type)
 
 
 class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     """
-    管理端技能 Service
+    管理端技能 Service / Admin skill service.
 
     无企业隔离，供平台管理端全局 CRUD 使用
     """
@@ -240,7 +240,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     repository_class = AdminSkillRepository
 
     async def _get_toolkit_security_level(self) -> str | None:
-        """读取平台 Toolkit 安全等级配置"""
+        """读取平台 Toolkit 安全等级配置 / Get platform toolkit security level."""
         from app.configs.service import ConfigService
         cfg = ConfigService(self.repo.db)
         scan_enabled = await cfg.get_platform_config(
@@ -254,7 +254,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         return str(level)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：类型合法性、toolkit_meta 解析"""
+        """创建前校验：类型合法性、toolkit_meta 解析 / Before create: type validity, toolkit_meta parse."""
         await super()._before_create(data)
 
         skill_type = data.get("type", SkillTypeEnum.TOOLKIT.value)
@@ -266,7 +266,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         SkillService._parse_toolkit_meta(data, skill_type, security_level)
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：系统技能保护"""
+        """更新前校验：系统技能保护 / Before update: system skill protection."""
         await super()._before_update(id, data)
 
         skill = await self.repo.get_by_id(id)
@@ -293,7 +293,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         SkillService._parse_toolkit_meta(data, skill_type, security_level)
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能不可删除"""
+        """删除前校验：系统技能不可删除 / Before delete: system skill not deletable."""
         await super()._before_delete(id)
 
         skill = await self.repo.get_by_id(id)
@@ -304,7 +304,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
             raise BusinessException(message=_("skill.error.system_protected"))
 
     async def update_status(self, id: int, is_active: bool) -> Skill:
-        """切换技能状态，系统技能不可禁用"""
+        """切换技能状态，系统技能不可禁用 / Toggle skill status; system skills cannot be disabled."""
         skill = await self.repo.get_by_id(id)
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))

@@ -42,7 +42,7 @@ class ReorderRequest(BaseModel):
 
 class ReorderResponse(BaseModel):
     """
-    批量重排序响应
+    批量重排序响应 / Batch reorder response.
     """
 
     updated_count: int = Field(

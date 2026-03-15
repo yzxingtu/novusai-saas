@@ -1,6 +1,5 @@
 """
-Storage Backend Base Types and Abstract Interface
-存储后端基础类型与抽象接口
+存储后端基础类型与抽象接口 / Storage backend base types and abstract interface.
 """
 
 from __future__ import annotations

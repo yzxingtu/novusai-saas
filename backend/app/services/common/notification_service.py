@@ -25,7 +25,7 @@ logger = LogManager.get_logger("app")
 
 class NotificationService:
     """
-    通知投递与管理服务
+    通知投递与管理服务 / Notification delivery and management service.
 
     使用方式：
         service = NotificationService(db)
@@ -53,7 +53,7 @@ class NotificationService:
         **kwargs: Any,
     ) -> int:
         """
-        投递通知（统一入口）
+        投递通知（统一入口）/ Send notification (unified entry).
 
         注意：收件箱通知通过 db.add() 写入 session，但不会自动 commit。
         调用方需要在合适的时机执行 await db.commit() 来持久化收件箱记录。
@@ -177,7 +177,7 @@ class NotificationService:
         page_size: int = 20,
     ) -> tuple[list[Notification], int]:
         """
-        查询通知列表（分页）
+        查询通知列表（分页）/ Query notification list (paginated).
 
         Returns:
             (items, total)
@@ -215,7 +215,7 @@ class NotificationService:
         user_type: str,
         user_id: int,
     ) -> int:
-        """获取未读通知总数"""
+        """获取未读通知总数 / Get total unread notification count."""
         q = select(func.count(Notification.id)).where(
             Notification.recipient_type == user_type,
             Notification.recipient_id == user_id,
@@ -234,7 +234,7 @@ class NotificationService:
         user_type: str,
         user_id: int,
     ) -> bool:
-        """标记单条通知已读"""
+        """标记单条通知已读 / Mark single notification as read."""
         result = await self.db.execute(
             update(Notification)
             .where(
@@ -253,7 +253,7 @@ class NotificationService:
         user_id: int,
         category: str | None = None,
     ) -> int:
-        """标记全部已读，返回更新数量"""
+        """标记全部已读，返回更新数量 / Mark all as read, return updated count."""
         conditions = [
             Notification.recipient_type == user_type,
             Notification.recipient_id == user_id,
@@ -276,7 +276,7 @@ class NotificationService:
         user_type: str,
         user_id: int,
     ) -> bool:
-        """软删除通知"""
+        """软删除通知 / Soft-delete notification."""
         result = await self.db.execute(
             update(Notification)
             .where(
@@ -293,7 +293,7 @@ class NotificationService:
     # ========================================
 
     async def _get_template(self, code: str) -> NotificationTemplate | None:
-        """查询通知模板"""
+        """查询通知模板 / Get notification template by code."""
         result = await self.db.execute(
             select(NotificationTemplate).where(
                 NotificationTemplate.code == code,
@@ -309,7 +309,7 @@ class NotificationService:
         category: str,
         tenant_id: int = 0,
     ) -> dict[str, bool]:
-        """查询用户通知偏好（个人 -> 全局 -> 硬编码默认）"""
+        """查询用户通知偏好（个人 -> 全局 -> 硬编码默认） / Get user notification preference (user -> global -> default)."""
         result = await self.db.execute(
             select(NotificationPreference).where(
                 NotificationPreference.user_type == user_type,
@@ -353,9 +353,8 @@ class NotificationService:
         recipient_id: int,
     ) -> None:
         """
-        执行每用户最大通知数限制
-
-        超出 notification_max_per_user 时，物理删除最早的已读通知。
+        执行每用户最大通知数限制 / Enforce max notifications per user.
+        超出时物理删除最早的已读通知。 / When exceeded, physically delete oldest read notifications.
         """
         try:
             from app.sio.ws_config import get_ws_config
@@ -406,7 +405,7 @@ class NotificationService:
 
     @staticmethod
     def _render_template(template: str | None, data: dict[str, Any] | None) -> str:
-        """渲染模板变量"""
+        """渲染模板变量 / Render template variables."""
         if not template:
             return ""
         if not data:
@@ -460,7 +459,7 @@ def notify_sync(
     **kwargs: Any,
 ) -> int:
     """
-    同步便捷函数 — 用于 Celery 任务等同步上下文
+    同步便捷函数 — 用于 Celery 任务等同步上下文 / Sync helper for Celery etc.
 
     内部创建同步事件循环和 DB session。
 

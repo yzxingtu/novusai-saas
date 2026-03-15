@@ -17,7 +17,7 @@ from app.models.tenant.domain_ssl_certificate import DomainSslCertificate
 
 class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
     """
-    SSL 证书仓储
+    SSL 证书仓储 / SSL certificate repository.
 
     提供证书特有的数据访问方法
     """
@@ -25,7 +25,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
     model = DomainSslCertificate
 
     async def get_active_cert(self, domain_id: int) -> DomainSslCertificate | None:
-        """获取域名当前有效证书"""
+        """获取域名当前有效证书 / Get current active cert for domain."""
         query = select(self.model).where(
             self.model.domain_id == domain_id,
             self.model.status == SslCertStatus.ACTIVE.value,
@@ -35,7 +35,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         return result.scalar_one_or_none()
 
     async def get_cert_by_domain(self, domain_id: int) -> DomainSslCertificate | None:
-        """获取域名最新证书（不论状态）"""
+        """获取域名最新证书（不论状态） / Get latest cert for domain (any status)."""
         query = (
             select(self.model)
             .where(
@@ -49,7 +49,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         return result.scalar_one_or_none()
 
     async def get_expiring_platform_certs(self, days: int = 30) -> list[DomainSslCertificate]:
-        """查询即将过期的平台证书（auto_renew=True）"""
+        """查询即将过期的平台证书（auto_renew=True） / Get expiring platform certs (auto_renew)."""
         cutoff = utc_now() + timedelta(days=days)
         query = select(self.model).where(
             self.model.cert_type == SslCertType.PLATFORM.value,
@@ -63,7 +63,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         return list(result.scalars().all())
 
     async def get_expiring_custom_certs(self, days: int = 30) -> list[DomainSslCertificate]:
-        """查询即将过期的自定义证书（需通知，不自动续期）"""
+        """查询即将过期的自定义证书（需通知，不自动续期） / Get expiring custom certs (notify only)."""
         cutoff = utc_now() + timedelta(days=days)
         query = select(self.model).where(
             self.model.cert_type == SslCertType.CUSTOM.value,
@@ -76,7 +76,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         return list(result.scalars().all())
 
     async def get_expired_certs(self) -> list[DomainSslCertificate]:
-        """查询已过期但 status 未更新的证书"""
+        """查询已过期但 status 未更新的证书 / Get certs expired but status not updated."""
         now = utc_now()
         query = select(self.model).where(
             self.model.status == SslCertStatus.ACTIVE.value,
@@ -88,7 +88,7 @@ class SslCertificateRepository(BaseRepository[DomainSslCertificate]):
         return list(result.scalars().all())
 
     async def deactivate_domain_certs(self, domain_id: int) -> None:
-        """将域名所有有效证书标记为已吊销（上传新证书前调用）"""
+        """将域名所有有效证书标记为已吊销（上传新证书前调用） / Deactivate all active certs for domain (before upload)."""
         from sqlalchemy import update
         stmt = (
             update(self.model)

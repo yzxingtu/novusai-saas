@@ -23,8 +23,7 @@ async def get_admin_presence(
     admin: ActiveAdmin,
 ):
     """
-    获取所有平台管理员的在线状态
-    Get online presence of all platform admins
+    获取所有平台管理员的在线状态 / Get platform admin online presence.
 
     返回在线管理员 ID 列表和总在线数。
     Returns online admin ID list and total online count.

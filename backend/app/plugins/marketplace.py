@@ -1,6 +1,5 @@
 """
-Plugin marketplace client.
-/ 插件市场客户端
+Plugin marketplace client. / 插件市场客户端。
 
 Fetch plugin lists and details from GitHub/Gitee index repositories, download plugin packages.
 Supports auto source selection, Redis caching, and download retries.

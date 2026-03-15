@@ -63,8 +63,7 @@ class TenantSkillPackageController(TenantController):
             search: str = Query("", description="搜索关键词"),
         ):
             """
-            获取技能包下拉选项（用于 Skill 创建时选择所属包）
-            Get skill package dropdown options (for selecting parent package when creating skills)
+            获取技能包下拉选项（用于 Skill 创建时选择所属包）/ Get skill package select options (for Skill create).
             """
             service = SkillPackageService(db, tenant_admin.tenant_id)
             response = await service.get_select_options(
@@ -135,8 +134,7 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取企业可绑定的所有技能包（用于智能体技能绑定下拉）。
-            Get all skill packages available for tenant binding (for agent skill binding dropdown).
+            获取企业可绑定的所有技能包（用于智能体技能绑定下拉）/ Get tenant available skill packages (for agent binding).
 
             包括当前企业自有包 + admin 共享包，返回 label/value 格式。
             Includes current tenant's own packages + admin shared packages, returns label/value format.
@@ -218,8 +216,7 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
-            Get skill package valves config (schema + current values, secret fields masked)
+            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）/ Get skill package valves config (schema + current values, secret fields masked).
             """
             from app.api.shared._toolkit_helpers import mask_secret_values
 

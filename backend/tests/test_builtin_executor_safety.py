@@ -1,11 +1,9 @@
-"""
-Tests for builtin_executor safe math expression evaluator.
+"""Tests for builtin_executor safe math expression evaluator. / 测试
 
 Covers:
 - _safe_eval_math: valid arithmetic expressions
 - _safe_eval_math: rejects dangerous expressions (imports, function calls, etc.)
-- Edge cases: division by zero, large exponents, empty/whitespace
-"""
+- Edge cases: division by zero, large exponents, empty/whitespace"""
 
 from __future__ import annotations
 
@@ -15,7 +13,7 @@ from app.ai.tools.executors.builtin_executor import _safe_eval_math
 
 
 class TestSafeEvalMathValid:
-    """Test valid math expressions."""
+    """Test valid math expressions. / 测试"""
 
     @pytest.mark.parametrize("expr, expected", [
         ("1 + 2", 3),
@@ -45,7 +43,7 @@ class TestSafeEvalMathValid:
 
 
 class TestSafeEvalMathDangerous:
-    """Test that dangerous expressions are rejected."""
+    """Test that dangerous expressions are rejected. / 测试"""
 
     @pytest.mark.parametrize("expr", [
         "__import__('os').system('ls')",
@@ -77,7 +75,7 @@ class TestSafeEvalMathDangerous:
             _safe_eval_math(expr)
 
     def test_large_exponent_rejected(self) -> None:
-        """Prevent DoS via large exponents like 10**10000."""
+        """Prevent DoS via large exponents like 10**10000. / 说明"""
         with pytest.raises(ValueError, match="Exponent too large"):
             _safe_eval_math("10 ** 10000")
 
@@ -87,7 +85,7 @@ class TestSafeEvalMathDangerous:
 
 
 class TestSafeEvalMathEdgeCases:
-    """Test edge cases."""
+    """Test edge cases. / 测试"""
 
     def test_division_by_zero(self) -> None:
         with pytest.raises(ZeroDivisionError):
@@ -114,7 +112,7 @@ class TestSafeEvalMathEdgeCases:
             _safe_eval_math("1 +")
 
     def test_boundary_exponent_allowed(self) -> None:
-        """Exponent exactly 1000 should be allowed."""
+        """Exponent exactly 1000 should be allowed. / 说明"""
         result = _safe_eval_math("2 ** 1000")
         assert result == 2 ** 1000
 

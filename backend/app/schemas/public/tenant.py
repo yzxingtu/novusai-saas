@@ -13,7 +13,7 @@ from app.schemas.public.platform import StoragePublicConfig
 
 class TenantPublicConfig(BaseSchema):
     """
-    企业公开配置
+    企业公开配置 / Tenant public config.
 
     登录页面可获取的企业信息（无需认证）
     """
@@ -69,7 +69,7 @@ class TenantPublicConfig(BaseSchema):
 
 class DomainVerificationInfo(BaseSchema):
     """
-    域名验证信息
+    域名验证信息 / Domain verification info.
 
     用于指导用户配置 DNS 记录
     """

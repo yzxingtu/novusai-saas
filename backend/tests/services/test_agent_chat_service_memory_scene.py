@@ -1,12 +1,10 @@
-"""
-AgentChatService 会话记忆场景参数测试
+"""AgentChatService 会话记忆场景参数测试 / Test.
 
 覆盖：
 1) AI 对话页场景（tenant chat）参数透传
 2) 管理端代测场景参数透传（禁用）
 3) 插件场景参数透传（禁用）
-4) 非法场景参数归一化
-"""
+4) 非法场景参数归一化"""
 
 from __future__ import annotations
 

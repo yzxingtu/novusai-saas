@@ -22,7 +22,7 @@ from app.schemas.common.query import QuerySpec
 
 # 日志辅助类（用于模块级函数中的日志记录）
 class _ModuleLogger(LoggerMixin):
-    """operation_log_service 模块日志器"""
+    """operation_log_service 模块日志器 / operation_log_service module logger."""
     pass
 
 _module_logger = _ModuleLogger()
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
     """
-    操作日志服务
+    操作日志服务 / Operation log service.
 
     提供操作日志的业务方法，包括：
     - 异步写入日志
@@ -68,7 +68,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         nickname: str | None = None,
     ) -> OperationLog:
         """
-        创建操作日志记录
+        创建操作日志记录 / Create operation log record.
 
         Args:
             tenant_id: 企业 ID（平台操作为 None）
@@ -121,7 +121,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        平台端查询日志
+        平台端查询日志 / Query platform operation logs.
 
         平台管理员可查看所有日志
 
@@ -139,7 +139,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        企业端查询日志
+        企业端查询日志 / Query tenant operation logs.
 
         自动添加企业隔离
 
@@ -158,7 +158,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         soft: bool = True,
     ) -> int:
         """
-        批量删除日志
+        批量删除日志 / Batch delete logs.
 
         Args:
             ids: 日志 ID 列表
@@ -176,7 +176,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按模块统计日志
+        按模块统计日志 / Get log stats by module.
 
         Args:
             tenant_id: 企业 ID（可选）
@@ -199,7 +199,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按操作类型统计日志
+        按操作类型统计日志 / Get log stats by action type.
 
         Args:
             tenant_id: 企业 ID（可选）
@@ -223,7 +223,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        平台端基于权限的日志查询
+        平台端基于权限的日志查询 / Platform permission-based log query.
 
         - 超级管理员: 可查看所有平台端日志
         - 普通管理员: 只能查看自己及其角色子树下用户的日志
@@ -257,7 +257,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        企业端基于权限的日志查询
+        企业端基于权限的日志查询 / Tenant permission-based log query.
 
         - 企业所有者: 可查看本企业所有日志
         - 普通管理员: 只能查看自己及其角色子树下用户的日志
@@ -289,7 +289,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     async def get_admin_operators(self) -> list[dict]:
         """
-        获取平台端操作日志中的去重操作人列表（含头像）
+        获取平台端操作日志中的去重操作人列表（含头像）/ Get distinct platform operators (with avatar).
 
         Returns:
             操作人列表 [{user_id, user_type, username, nickname, avatar}]
@@ -344,7 +344,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
         """
-        获取企业端操作日志中的去重操作人列表（含头像）
+        获取企业端操作日志中的去重操作人列表（含头像）/ Get distinct tenant operators (with avatar).
 
         Args:
             tenant_id: 企业 ID
@@ -409,7 +409,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         page_size: int = 10,
     ) -> tuple[list[dict], int]:
         """
-        获取企业端操作人分页下拉列表
+        获取企业端操作人分页下拉列表 / Get tenant operators paginated dropdown.
 
         支持远程搜索和按用户类型过滤，返回 label/value 格式供 ApiSelect 使用
 
@@ -485,7 +485,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     async def _get_subordinate_admin_ids(self, admin: "Admin") -> list[int]:
         """
-        获取平台管理员的下属用户 ID 列表
+        获取平台管理员的下属用户 ID 列表 / Get subordinate admin IDs for platform admin.
 
         包含:
         - 当前用户自己
@@ -536,7 +536,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         tenant_admin: "TenantAdmin",
     ) -> list[int]:
         """
-        获取企业管理员的下属用户 ID 列表
+        获取企业管理员的下属用户 ID 列表 / Get subordinate admin IDs for tenant admin.
 
         包含:
         - 当前用户自己
@@ -589,7 +589,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
 async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
-    异步写入日志的内部实现
+    异步写入日志的内部实现 / Async write log (internal).
 
     使用独立的数据库会话，不阻塞主请求
 
@@ -626,7 +626,7 @@ async def _fetch_user_info(
     user_id: int | None,
 ) -> dict[str, str | None] | None:
     """
-    根据用户类型和 ID 查询用户信息
+    根据用户类型和 ID 查询用户信息 / Resolve user info by type and ID.
 
     Args:
         db: 数据库会话
@@ -698,7 +698,7 @@ def create_log_async(
     nickname: str | None = None,
 ) -> None:
     """
-    异步创建操作日志（不阻塞当前请求）
+    异步创建操作日志（不阻塞当前请求）/ Create operation log async (non-blocking).
 
     使用 asyncio.create_task 在后台写入日志
 

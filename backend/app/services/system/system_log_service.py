@@ -17,7 +17,7 @@ from app.enums.log import LogCategoryEnum
 
 
 class LogFileInfo(NamedTuple):
-    """日志文件信息"""
+    """日志文件信息 / Log file info."""
     name: str
     category: str
     size: int
@@ -26,7 +26,7 @@ class LogFileInfo(NamedTuple):
 
 
 class LogCategoryInfo(NamedTuple):
-    """日志分类信息"""
+    """日志分类信息 / Log category info."""
     code: str
     name: str
     description: str
@@ -35,7 +35,7 @@ class LogCategoryInfo(NamedTuple):
 
 
 class LogContentPage(NamedTuple):
-    """日志内容分页结果"""
+    """日志内容分页结果 / Log content paged result."""
     lines: list[str]
     total_lines: int
     page: int
@@ -45,17 +45,17 @@ class LogContentPage(NamedTuple):
 
 class SystemLogService:
     """
-    系统日志服务
+    系统日志服务 / System log service.
 
-    提供文件日志的管理功能，包括：
-    - 日志分类列表
-    - 日志文件列表
-    - 日志内容读取（分页）
-    - 日志文件下载路径
-    - 日志文件删除
+    提供文件日志的管理功能，包括：/ Provides file log management:
+    - 日志分类列表 / Log category list
+    - 日志文件列表 / Log file list
+    - 日志内容读取（分页）/ Log content read (paged)
+    - 日志文件下载路径 / Log file download path
+    - 日志文件删除 / Log file delete
     """
 
-    # 日志分类描述映射
+    # 日志分类描述映射 / Log category description mapping
     _CATEGORY_DESCRIPTIONS = {
         LogCategoryEnum.APP.value: "应用运行日志，记录系统运行状态",
         LogCategoryEnum.ERROR.value: "错误日志，记录系统错误和异常",
@@ -65,9 +65,10 @@ class SystemLogService:
         LogCategoryEnum.CAPTCHA.value: "验证码日志，记录验证码生成和校验",
         LogCategoryEnum.STORAGE.value: "存储日志，记录文件上传下载操作",
         LogCategoryEnum.AUTH.value: "认证日志，记录登录、登出和 Token 操作",
+        LogCategoryEnum.IMPERSONATE.value: "一键登录审计日志，记录模拟登录操作",
     }
 
-    # 日志分类显示名称
+    # 日志分类显示名称 / Log category display names
     _CATEGORY_NAMES = {
         LogCategoryEnum.APP.value: "应用日志",
         LogCategoryEnum.ERROR.value: "错误日志",
@@ -77,10 +78,11 @@ class SystemLogService:
         LogCategoryEnum.CAPTCHA.value: "验证码日志",
         LogCategoryEnum.STORAGE.value: "存储日志",
         LogCategoryEnum.AUTH.value: "认证日志",
+        LogCategoryEnum.IMPERSONATE.value: "一键登录审计",
     }
 
     def __init__(self) -> None:
-        """初始化服务"""
+        """初始化服务 / Initialize service."""
         # 确保 LogManager 已初始化
         if not LogManager._initialized:
             LogManager.init()
@@ -91,15 +93,15 @@ class SystemLogService:
 
     def _validate_path(self, file_path: Path) -> bool:
         """
-        验证文件路径安全性
+        验证文件路径安全性 / Validate path safety (prevent path traversal).
 
-        防止路径穿越攻击，确保文件在日志目录内
+        防止路径穿越攻击，确保文件在日志目录内。
 
         Args:
-            file_path: 待验证的文件路径
+            file_path: 待验证的文件路径 / Path to validate.
 
         Returns:
-            路径是否安全
+            路径是否安全 / Whether path is safe.
         """
         if self._log_dir is None:
             return False
@@ -116,36 +118,38 @@ class SystemLogService:
 
     def _parse_log_filename(self, filename: str) -> tuple[str, str | None]:
         """
-        解析日志文件名，提取分类和日期
+        解析日志文件名，提取分类与后缀 / Parse log filename to extract category and suffix.
 
-        支持的格式：
-        - {category}.log (当前日志)
-        - {category}.log.2026-01-20 (历史日志)
+        支持的格式（与 RotatingFileHandler 实际产出一致）：
+        - {category}.log — 当前活动日志，suffix 为 None
+        - {category}.log.{数字} — 按大小轮转的备份（如 .1, .2），suffix 为数字串
+        - {category}.log.YYYY-MM-DD — 按日期命名的历史备份（兼容），suffix 为日期串
 
-        Args:
-            filename: 日志文件名
-
-        Returns:
-            (category, date_str) 元组，date_str 为 None 表示当前日志
+        Parse log filename to extract category and suffix (current vs backup).
         """
-        # 匹配 {category}.log.{date}
-        match = re.match(r'^([a-z_]+)\.log\.(\d{4}-\d{2}-\d{2})$', filename)
-        if match:
-            return match.group(1), match.group(2)
-
-        # 匹配 {category}.log
+        # 当前活动文件：仅 {category}.log
         match = re.match(r'^([a-z_]+)\.log$', filename)
         if match:
             return match.group(1), None
+
+        # 按大小轮转的备份：{category}.log.1, .2, ...
+        match = re.match(r'^([a-z_]+)\.log\.(\d+)$', filename)
+        if match:
+            return match.group(1), match.group(2)
+
+        # 按日期命名的备份：{category}.log.2026-01-20（兼容）
+        match = re.match(r'^([a-z_]+)\.log\.(\d{4}-\d{2}-\d{2})$', filename)
+        if match:
+            return match.group(1), match.group(2)
 
         return "", None
 
     def list_categories(self) -> list[LogCategoryInfo]:
         """
-        获取日志分类列表
+        获取日志分类列表 / Get log category list.
 
         Returns:
-            日志分类信息列表
+            日志分类信息列表 / List of log category info.
         """
         categories = []
 
@@ -177,7 +181,7 @@ class SystemLogService:
         category: str | None = None,
     ) -> list[LogFileInfo]:
         """
-        获取日志文件列表
+        获取日志文件列表 / Get log file list.
 
         Args:
             category: 日志分类（可选，为空时返回所有分类）
@@ -231,7 +235,7 @@ class SystemLogService:
         reverse: bool = True,
     ) -> LogContentPage | None:
         """
-        分页读取日志文件内容
+        分页读取日志文件内容 / Read log file content (paginated).
 
         Args:
             filename: 日志文件名
@@ -287,7 +291,7 @@ class SystemLogService:
 
     def get_log_file_path(self, filename: str) -> Path | None:
         """
-        获取日志文件的绝对路径（用于下载）
+        获取日志文件的绝对路径（用于下载）/ Get log file absolute path (for download).
 
         Args:
             filename: 日志文件名
@@ -311,7 +315,7 @@ class SystemLogService:
 
     def delete_log_file(self, filename: str) -> bool:
         """
-        删除日志文件
+        删除日志文件 / Delete log file.
 
         注意：不允许删除当前活动日志文件（{category}.log）
 
@@ -347,7 +351,7 @@ class SystemLogService:
 
     def get_log_stats(self) -> dict:
         """
-        获取日志统计信息
+        获取日志统计信息 / Get log statistics.
 
         Returns:
             包含总文件数、总大小、各分类统计的字典

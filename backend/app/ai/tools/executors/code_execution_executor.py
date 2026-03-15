@@ -1,6 +1,5 @@
 """
-Code Execution Tool Executor
-代码执行工具执行器
+Code Execution Tool Executor / 代码执行工具执行器
 
 Executes user-provided code in a secure sandbox (subprocess isolation + module whitelist + timeout control).
 在安全沙箱中执行用户提供的代码（子进程隔离 + 模块白名单 + 超时控制）。
@@ -254,8 +253,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
     @staticmethod
     def _static_scan(code: str) -> list[str]:
         """
-        Static security scan: detect dangerous patterns.
-        静态安全扫描：检测危险模式。
+        Static security scan: detect dangerous patterns. / 静态安全扫描：检测危险模式。
 
         Returns:
             List of violations (empty list means safe)

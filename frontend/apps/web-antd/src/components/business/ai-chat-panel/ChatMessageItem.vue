@@ -1,8 +1,10 @@
 <script lang="ts" setup>
 /**
  * Chat Message Item - Renders a single chat message (assistant or user).
+ * 单条聊天消息项 — 渲染一条助手或用户消息。
  *
  * Supports two visual densities via `compact` prop:
+ * 通过 compact 支持两种展示密度：
  * - false (default): Full page layout with avatar, Tag status, RAG sources
  * - true: Compact drawer layout with smaller sizes, no avatar/Tag/RAG
  */
@@ -27,13 +29,13 @@ const props = withDefaults(
     index: number;
     msg: ChatMessage;
     selectedAgent?: AgentItem | null;
-    /** Whether to show an agent-switch separator above this message */
+    /** Whether to show an agent-switch separator above this message / 是否在本条消息上方显示智能体切换分隔 */
     showAgentSwitch?: boolean;
   }>(),
   { apiPrefix: '', compact: false, selectedAgent: null, showAgentSwitch: false },
 );
 
-/** Resolve agent display info: prefer message-level, fallback to selectedAgent */
+/** Resolve agent display info: prefer message-level, fallback to selectedAgent / 解析智能体展示信息：优先消息级，否则用 selectedAgent */
 const msgAgentName = computed(() =>
   props.msg.agent_name || props.selectedAgent?.name || null,
 );
@@ -54,6 +56,7 @@ const emit = defineEmits<{
   openUrl: [url: string];
   regenerate: [index: number];
   reject: [index: number];
+  retry: [index: number];
 }>();
 </script>
 
@@ -168,6 +171,27 @@ const emit = defineEmits<{
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
           <span v-if="msg.streaming" class="streaming-cursor"></span>
+          <span
+            v-if="msg.stoppedByUser && !msg.streaming"
+            class="ml-1 text-muted-foreground/70"
+          >
+            {{ $t('common.globalAiChat.generationStopped') }}
+          </span>
+        </div>
+        <!-- SSE error retry -->
+        <div
+          v-if="msg.requestFailedRetry"
+          class="mt-1 flex items-center gap-1.5"
+          :class="compact ? 'text-[11px]' : 'text-xs'"
+        >
+          <Button
+            type="link"
+            size="small"
+            class="!p-0 !text-primary"
+            @click="emit('retry', index)"
+          >
+            {{ $t('common.globalAiChat.retry') }}
+          </Button>
         </div>
 
         <!-- Generating indicator (tool calls running but no content yet) -->
@@ -305,6 +329,12 @@ const emit = defineEmits<{
                 >
                   {{ tc.error }}
                 </div>
+                <p
+                  v-if="tc.status === 'error'"
+                  class="mt-1 text-[10px] text-muted-foreground"
+                >
+                  {{ $t('common.globalAiChat.pageOpTimeoutHint') }}
+                </p>
                 <a
                   v-if="tc.resultLink && tc.status === 'success'"
                   :href="tc.resultLink"
@@ -495,6 +525,11 @@ const emit = defineEmits<{
 
           <!-- Pending state: inline with actions -->
           <template v-else>
+            <p
+              class="border-b border-border/20 px-2.5 py-1 text-[10px] text-muted-foreground"
+            >
+              {{ $t('common.globalAiChat.consentFirstTimeHint') }}
+            </p>
             <div class="flex items-center gap-1.5 px-2.5 py-1.5">
               <IconifyIcon
                 icon="lucide:shield-alert"
@@ -687,6 +722,24 @@ const emit = defineEmits<{
                 : 'max-h-48 max-w-60 border border-white/20'
             "
             @click="emit('openUrl', att.url)"
+          />
+          <audio
+            v-else-if="att.type === 'audio'"
+            controls
+            :src="att.url"
+            class="max-w-full rounded-lg"
+            :class="compact ? 'max-w-48' : 'max-w-64'"
+          />
+          <video
+            v-else-if="att.type === 'video'"
+            controls
+            :src="att.url"
+            class="max-w-full rounded-lg object-contain"
+            :class="
+              compact
+                ? 'max-h-32 max-w-40'
+                : 'max-h-48 max-w-60 border border-white/20'
+            "
           />
           <a
             v-else

@@ -1,11 +1,10 @@
-"""create novusdoc tables
+"""create novusdoc tables / 创建
 
 Revision ID: novusdoc_001_init
 Revises:
 Create Date: 2026-03-15
 
-branch_labels = ('plugin_novusdoc',)
-"""
+branch_labels = ('plugin_novusdoc',)"""
 import sqlalchemy as sa
 from alembic import op
 

@@ -26,7 +26,7 @@ from app.core.i18n import _
 
 class DocumentChunk(TenantModel):
     """
-    文档分块模型
+    文档分块模型 / Document chunk model.
 
     存储分块文本内容、Embedding 向量、元数据等
     属于企业级资源，通过 tenant_id 隔离

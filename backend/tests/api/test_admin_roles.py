@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-平台管理员角色 API 测试模块
+"""平台管理员角色 API 测试模块 / API.
 
-测试 /admin/roles/* 接口
-"""
+测试 /admin/roles/* 接口"""
 import os
 import sys
 
@@ -23,16 +21,16 @@ from tests.api.base import (
 
 
 class ManualTestAdminRoles(BaseAPITest):
-    """平台管理员角色测试（含多级角色功能）"""
+    """平台管理员角色测试（含多级角色功能） / Platform admin role API tests (with hierarchy)."""
 
     module_name = "平台角色管理 (/admin/roles)"
 
     def setup(self) -> None:
-        """测试前登录"""
+        """测试前登录 / Login before tests."""
         self._do_login()
 
     def teardown(self) -> None:
-        """测试后清理（从叶子节点开始删除）"""
+        """测试后清理（从叶子节点开始删除） / Cleanup after tests (delete from leaf)."""
         # 先删除孙角色
         grandchild_id = self._test_data.get("grandchild_role_id")
         if grandchild_id:
@@ -59,7 +57,7 @@ class ManualTestAdminRoles(BaseAPITest):
                     self.client.delete(f"/admin/roles/{role_id}")
 
     def _run_tests(self) -> None:
-        """运行所有测试"""
+        """运行所有测试 / Run all tests."""
         # ========== 基础测试 ==========
         # 1. 获取角色列表
         self.run_test("获取角色列表", self.test_list_roles)
@@ -162,7 +160,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self.run_test("删除部门角色", self.test_delete_department_role)
 
     def test_list_roles(self) -> None:
-        """测试获取角色列表"""
+        """测试获取角色列表 / Test get role list."""
         resp = self.client.get("/admin/roles")
         data = assert_success(resp, "获取角色列表失败")
 
@@ -175,7 +173,7 @@ class ManualTestAdminRoles(BaseAPITest):
             assert_has_keys(first_role, ["id", "code", "name", "is_active", "parent_id", "level"])
 
     def test_create_role(self) -> None:
-        """测试创建角色"""
+        """测试创建角色 / Test create role."""
         resp = self.client.post("/admin/roles", data={
             "name": "测试角色",
             "description": "API测试创建的角色",
@@ -192,7 +190,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["created_role_id"] = data["data"]["id"]
 
     def test_create_role_duplicate_name(self) -> None:
-        """测试创建重复名称的角色（允许，因为 code 是自动生成的）"""
+        """测试创建重复名称的角色（允许，因为 code 是自动生成的） / Test create role with duplicate name (allowed)."""
         resp = self.client.post("/admin/roles", data={
             "name": "测试角色",  # 同名
             "description": "这个角色名称已存在，但应该允许",
@@ -204,7 +202,7 @@ class ManualTestAdminRoles(BaseAPITest):
             self.client.delete(f"/admin/roles/{data['data']['id']}")
 
     def test_get_role_detail(self) -> None:
-        """测试获取角色详情"""
+        """测试获取角色详情 / Test get role detail."""
         role_id = self._test_data.get("created_role_id")
         if not role_id:
             raise AssertionError("没有可用的角色ID")
@@ -223,12 +221,12 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_equals(data["data"]["level"], 1)
 
     def test_get_role_not_found(self) -> None:
-        """测试获取不存在的角色详情"""
+        """测试获取不存在的角色详情 / Test get nonexistent role detail."""
         resp = self.client.get("/admin/roles/999999")
         assert_error(resp, 404, "应返回 404 错误")
 
     def test_update_role(self) -> None:
-        """测试更新角色"""
+        """测试更新角色 / Test update role."""
         role_id = self._test_data.get("created_role_id")
         if not role_id:
             raise AssertionError("没有可用的角色ID")
@@ -242,7 +240,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_equals(data["data"]["name"], new_name)
 
     def test_assign_permissions(self) -> None:
-        """测试分配角色权限"""
+        """测试分配角色权限 / Test assign role permissions."""
         role_id = self._test_data.get("created_role_id")
         if not role_id:
             raise AssertionError("没有可用的角色ID")
@@ -268,7 +266,7 @@ class ManualTestAdminRoles(BaseAPITest):
         )
 
     def test_delete_role(self) -> None:
-        """测试删除角色"""
+        """测试删除角色 / Test delete role."""
         role_id = self._test_data.get("created_role_id")
         if not role_id:
             raise AssertionError("没有可用的角色ID")
@@ -284,14 +282,14 @@ class ManualTestAdminRoles(BaseAPITest):
         del self._test_data["created_role_id"]
 
     def test_delete_role_not_found(self) -> None:
-        """测试删除不存在的角色"""
+        """测试删除不存在的角色 / Test delete nonexistent role."""
         resp = self.client.delete("/admin/roles/999999")
         assert_error(resp, 404, "应返回 404 错误")
 
     # ========== 多级角色测试方法 ==========
 
     def test_get_role_tree(self) -> None:
-        """测试获取角色树"""
+        """测试获取角色树 / Test get role tree."""
         resp = self.client.get("/admin/roles/tree")
         data = assert_success(resp, "获取角色树失败")
 
@@ -299,7 +297,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(isinstance(data["data"], list), "角色树应为列表")
 
     def test_create_child_role(self) -> None:
-        """测试创建子角色"""
+        """测试创建子角色 / Test create child role."""
         parent_id = self._test_data.get("created_role_id")
         if not parent_id:
             raise AssertionError("没有可用的父角色ID")
@@ -319,7 +317,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["child_role_id"] = data["data"]["id"]
 
     def test_create_grandchild_role(self) -> None:
-        """测试创建孙角色（多层级）"""
+        """测试创建孙角色（多层级） / Test create grandchild role."""
         parent_id = self._test_data.get("child_role_id")
         if not parent_id:
             raise AssertionError("没有可用的子角色ID")
@@ -339,7 +337,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["grandchild_role_id"] = data["data"]["id"]
 
     def test_get_children(self) -> None:
-        """测试获取子角色列表"""
+        """测试获取子角色列表 / Test get child role list."""
         parent_id = self._test_data.get("created_role_id")
         if not parent_id:
             raise AssertionError("没有可用的父角色ID")
@@ -357,7 +355,7 @@ class ManualTestAdminRoles(BaseAPITest):
             assert_equals(child["parent_id"], parent_id)
 
     def test_get_effective_permissions(self) -> None:
-        """测试获取有效权限（含继承）"""
+        """测试获取有效权限（含继承） / Test get effective permissions (with inheritance)."""
         child_id = self._test_data.get("child_role_id")
         if not child_id:
             raise AssertionError("没有可用的子角色ID")
@@ -369,7 +367,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(isinstance(data["data"], list), "有效权限应为列表")
 
     def test_move_role(self) -> None:
-        """测试移动角色节点"""
+        """测试移动角色节点 / Test move role node."""
         grandchild_id = self._test_data.get("grandchild_role_id")
         parent_id = self._test_data.get("created_role_id")
         if not grandchild_id or not parent_id:
@@ -394,7 +392,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_equals(data["data"]["level"], 3)
 
     def test_circular_reference(self) -> None:
-        """测试循环引用检测"""
+        """测试循环引用检测 / Test circular reference detection."""
         parent_id = self._test_data.get("created_role_id")
         child_id = self._test_data.get("child_role_id")
         if not parent_id or not child_id:
@@ -407,7 +405,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_error(resp, 400, "循环引用应返回 400 错误")
 
     def test_delete_role_with_children(self) -> None:
-        """测试删除有子角色的角色 - 应失败"""
+        """测试删除有子角色的角色 - 应失败 / Test delete role with children should fail."""
         parent_id = self._test_data.get("created_role_id")
         if not parent_id:
             raise AssertionError("没有可用的父角色ID")
@@ -416,7 +414,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_error(resp, 400, "删除有子角色的角色应返回 400 错误")
 
     def test_delete_grandchild_role(self) -> None:
-        """测试删除孙角色"""
+        """测试删除孙角色 / Test delete grandchild role."""
         grandchild_id = self._test_data.get("grandchild_role_id")
         if not grandchild_id:
             raise AssertionError("没有可用的孙角色ID")
@@ -427,7 +425,7 @@ class ManualTestAdminRoles(BaseAPITest):
         del self._test_data["grandchild_role_id"]
 
     def test_delete_child_role(self) -> None:
-        """测试删除子角色"""
+        """测试删除子角色 / Test delete child role."""
         child_id = self._test_data.get("child_role_id")
         if not child_id:
             raise AssertionError("没有可用的子角色ID")
@@ -440,7 +438,7 @@ class ManualTestAdminRoles(BaseAPITest):
     # ========== 组织架构管理测试方法 ==========
 
     def test_create_department_role(self) -> None:
-        """测试创建部门类型角色"""
+        """测试创建部门类型角色 / Test create department type role."""
         resp = self.client.post("/admin/roles", data={
             "name": "测试部门",
             "description": "部门类型节点",
@@ -457,7 +455,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["department_role_id"] = data["data"]["id"]
 
     def test_create_position_role(self) -> None:
-        """测试创建岗位类型角色"""
+        """测试创建岗位类型角色 / Test create position type role."""
         dept_id = self._test_data.get("department_role_id")
         if not dept_id:
             raise AssertionError("没有可用的部门角色ID")
@@ -478,7 +476,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["position_role_id"] = data["data"]["id"]
 
     def test_create_functional_role(self) -> None:
-        """测试创建职能角色类型"""
+        """测试创建职能角色类型 / Test create function role type."""
         resp = self.client.post("/admin/roles", data={
             "name": "测试职能角色",
             "description": "职能角色类型节点",
@@ -493,7 +491,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self._test_data["functional_role_id"] = data["data"]["id"]
 
     def test_get_organization_tree(self) -> None:
-        """测试获取组织架构树"""
+        """测试获取组织架构树 / Test get org tree."""
         resp = self.client.get("/admin/roles/organization")
         data = assert_success(resp, "获取组织架构树失败")
 
@@ -501,7 +499,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(isinstance(data["data"], list), "组织架构树应为列表")
 
     def test_get_role_members(self) -> None:
-        """测试获取节点成员列表"""
+        """测试获取节点成员列表 / Test get node member list."""
         dept_id = self._test_data.get("department_role_id")
         if not dept_id:
             raise AssertionError("没有可用的部门角色ID")
@@ -513,7 +511,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(isinstance(data["data"], list), "成员列表应为列表")
 
     def test_add_member_to_role(self) -> None:
-        """测试添加成员到节点"""
+        """测试添加成员到节点 / Test add member to node."""
         dept_id = self._test_data.get("department_role_id")
         if not dept_id:
             raise AssertionError("没有可用的部门角色ID")
@@ -536,7 +534,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(admin_id in member_ids, "成员应已添加到节点")
 
     def test_set_role_leader(self) -> None:
-        """测试设置节点负责人"""
+        """测试设置节点负责人 / Test set node leader."""
         dept_id = self._test_data.get("department_role_id")
         admin_id = self._test_data.get("test_admin_id")
         if not dept_id or not admin_id:
@@ -555,7 +553,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_equals(leader[0]["id"], admin_id)
 
     def test_remove_member_from_role(self) -> None:
-        """测试从节点移除成员"""
+        """测试从节点移除成员 / Test remove member from node."""
         dept_id = self._test_data.get("department_role_id")
         admin_id = self._test_data.get("test_admin_id")
         if not dept_id or not admin_id:
@@ -571,7 +569,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_true(admin_id not in member_ids, "成员应已从节点移除")
 
     def test_position_cannot_set_leader(self) -> None:
-        """测试岗位类型不能设置负责人"""
+        """测试岗位类型不能设置负责人 / Test position type cannot set leader."""
         position_id = self._test_data.get("position_role_id")
         admin_id = self._test_data.get("test_admin_id")
         if not position_id or not admin_id:
@@ -592,7 +590,7 @@ class ManualTestAdminRoles(BaseAPITest):
         self.client.delete(f"/admin/roles/{position_id}/members/{admin_id}")
 
     def test_department_cannot_add_role_child(self) -> None:
-        """测试部门下不能创建职能角色子节点"""
+        """测试部门下不能创建职能角色子节点 / Test cannot create function role under department."""
         dept_id = self._test_data.get("department_role_id")
         if not dept_id:
             raise AssertionError("没有可用的部门角色ID")
@@ -606,7 +604,7 @@ class ManualTestAdminRoles(BaseAPITest):
         assert_error(resp, 400, "部门下创建职能角色子节点应返回 400 错误")
 
     def test_delete_functional_role(self) -> None:
-        """测试删除职能角色"""
+        """测试删除职能角色 / Test delete function role."""
         role_id = self._test_data.get("functional_role_id")
         if not role_id:
             raise AssertionError("没有可用的职能角色ID")
@@ -617,7 +615,7 @@ class ManualTestAdminRoles(BaseAPITest):
         del self._test_data["functional_role_id"]
 
     def test_delete_position_role(self) -> None:
-        """测试删除岗位角色"""
+        """测试删除岗位角色 / Test delete position role."""
         role_id = self._test_data.get("position_role_id")
         if not role_id:
             raise AssertionError("没有可用的岗位角色ID")
@@ -628,7 +626,7 @@ class ManualTestAdminRoles(BaseAPITest):
         del self._test_data["position_role_id"]
 
     def test_delete_department_role(self) -> None:
-        """测试删除部门角色"""
+        """测试删除部门角色 / Test delete department role."""
         role_id = self._test_data.get("department_role_id")
         if not role_id:
             raise AssertionError("没有可用的部门角色ID")
@@ -639,7 +637,7 @@ class ManualTestAdminRoles(BaseAPITest):
         del self._test_data["department_role_id"]
 
     def _do_login(self) -> None:
-        """执行登录"""
+        """执行登录 / Do login."""
         resp = self.client.post("/admin/auth/login", data={
             "username": config.ADMIN_USERNAME,
             "password": config.ADMIN_PASSWORD,

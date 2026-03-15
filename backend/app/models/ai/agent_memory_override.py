@@ -16,7 +16,7 @@ from app.core.i18n import _
 
 class AgentMemoryOverride(TenantModel):
     """
-    智能体记忆开关企业覆盖
+    智能体记忆开关企业覆盖 / Agent memory override (tenant-level).
 
     unique(tenant_id, agent_id)：每个企业对同一智能体最多一条覆盖记录。
     """

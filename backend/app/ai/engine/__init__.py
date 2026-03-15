@@ -1,6 +1,5 @@
 """
-Execution Engine Module
-执行引擎模块
+Execution Engine Module / 执行引擎模块
 
 Provides multi-mode engine implementations and a unified dispatcher.
 提供多执行模式的引擎实现和统一分发器。

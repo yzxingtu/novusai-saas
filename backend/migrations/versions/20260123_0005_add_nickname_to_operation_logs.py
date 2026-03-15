@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """add nickname to operation_logs
 
 为 operation_logs 表添加 nickname 字段，用于存储操作用户的昵称
@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """添加 nickname 字段"""
+    """添加 nickname 字段 / Add nickname field."""
     op.add_column('operation_logs', sa.Column(
         'nickname', 
         sa.String(64), 
@@ -32,5 +32,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """移除 nickname 字段"""
+    """移除 nickname 字段 / Remove nickname field."""
     op.drop_column('operation_logs', 'nickname')

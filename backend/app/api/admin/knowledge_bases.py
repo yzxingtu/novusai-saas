@@ -65,6 +65,16 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     ".png": DocumentTypeEnum.IMAGE.value,
     ".webp": DocumentTypeEnum.IMAGE.value,
     ".gif": DocumentTypeEnum.IMAGE.value,
+    ".mp3": DocumentTypeEnum.AUDIO.value,
+    ".wav": DocumentTypeEnum.AUDIO.value,
+    ".m4a": DocumentTypeEnum.AUDIO.value,
+    ".flac": DocumentTypeEnum.AUDIO.value,
+    ".aac": DocumentTypeEnum.AUDIO.value,
+    ".mp4": DocumentTypeEnum.VIDEO.value,
+    ".webm": DocumentTypeEnum.VIDEO.value,
+    ".mov": DocumentTypeEnum.VIDEO.value,
+    ".avi": DocumentTypeEnum.VIDEO.value,
+    ".mkv": DocumentTypeEnum.VIDEO.value,
 }
 
 
@@ -129,6 +139,8 @@ class AdminKnowledgeBaseController(GlobalController):
                 item = kb.to_dict()
                 item["embedding_model_name"] = None
                 item["vision_model_name"] = None
+                item["audio_model_name"] = None
+                item["video_model_name"] = None
                 try:
                     if kb.embedding_model:
                         item["embedding_model_name"] = kb.embedding_model.name
@@ -137,6 +149,16 @@ class AdminKnowledgeBaseController(GlobalController):
                 try:
                     if getattr(kb, "vision_model", None):
                         item["vision_model_name"] = kb.vision_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "audio_model", None):
+                        item["audio_model_name"] = kb.audio_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "video_model", None):
+                        item["video_model_name"] = kb.video_model.name
                 except Exception:
                     pass
                 result.append(item)
@@ -186,6 +208,8 @@ class AdminKnowledgeBaseController(GlobalController):
             result = kb.to_dict()
             result["embedding_model_name"] = None
             result["vision_model_name"] = None
+            result["audio_model_name"] = None
+            result["video_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
@@ -194,6 +218,16 @@ class AdminKnowledgeBaseController(GlobalController):
             try:
                 if getattr(kb, "vision_model", None):
                     result["vision_model_name"] = kb.vision_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "audio_model", None):
+                    result["audio_model_name"] = kb.audio_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "video_model", None):
+                    result["video_model_name"] = kb.video_model.name
             except Exception:
                 pass
 
@@ -239,6 +273,8 @@ class AdminKnowledgeBaseController(GlobalController):
             result = kb.to_dict()
             result["embedding_model_name"] = None
             result["vision_model_name"] = None
+            result["audio_model_name"] = None
+            result["video_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
@@ -247,6 +283,16 @@ class AdminKnowledgeBaseController(GlobalController):
             try:
                 if getattr(kb, "vision_model", None):
                     result["vision_model_name"] = kb.vision_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "audio_model", None):
+                    result["audio_model_name"] = kb.audio_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "video_model", None):
+                    result["video_model_name"] = kb.video_model.name
             except Exception:
                 pass
 
@@ -356,6 +402,8 @@ class AdminKnowledgeBaseController(GlobalController):
             result = kb.to_dict()
             result["embedding_model_name"] = None
             result["vision_model_name"] = None
+            result["audio_model_name"] = None
+            result["video_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
@@ -364,6 +412,16 @@ class AdminKnowledgeBaseController(GlobalController):
             try:
                 if getattr(kb, "vision_model", None):
                     result["vision_model_name"] = kb.vision_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "audio_model", None):
+                    result["audio_model_name"] = kb.audio_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "video_model", None):
+                    result["video_model_name"] = kb.video_model.name
             except Exception:
                 pass
 

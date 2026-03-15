@@ -15,7 +15,7 @@ from app.enums.agent import AccessTypeEnum
 
 class AgentAccess(TenantModel):
     """
-    智能体访问权限配置
+    智能体访问权限配置 / Agent access config.
 
     每个智能体至多一条记录，控制该智能体的用户可见性。
     当 Agent.visibility == 'private' 时，根据本表的 access_type 决定谁能访问。

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * 智能体版本历史抽屉（管理端）
+ * Agent version history drawer (admin)
  *
- * 功能：版本列表、回滚
+ * 功能：版本列表、回滚 / Version list, rollback
  */
 import type { AIAgentVersionItem } from '#/api/admin/ai';
 

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /**
  * AI API Key 管理列表页面
+ * AI API Key management list page
  */
 import type { AIApiKeyInfo } from '#/api/admin/ai';
 

@@ -388,7 +388,7 @@ def _fmt_dt(dt) -> str | None:
 
 
 def _mask_key(key: str | None) -> str:
-    """Mask license key: NOVUS-xxxx...xxxx"""
+    """脱敏许可证 key：NOVUS-xxxx...xxxx / Mask license key: NOVUS-xxxx...xxxx"""
     if not key or len(key) < 20:
         return "****"
     return f"{key[:10]}****{key[-4:]}"

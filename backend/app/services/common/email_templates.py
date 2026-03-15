@@ -21,7 +21,7 @@ logger = LogManager.get_logger("email")
 
 
 def _default_platform_name() -> str:
-    """从配置定义获取站点名称默认值，避免硬编码"""
+    """从配置定义获取站点名称默认值，避免硬编码 / Get default site name from config definition."""
     try:
         from app.configs.definitions.platform.general import SITE_NAME
         return SITE_NAME.default_value or "NovusAI SaaS"
@@ -36,7 +36,7 @@ _env: Environment | None = None
 
 
 def _get_env() -> Environment:
-    """获取 Jinja2 环境（懒加载单例）"""
+    """获取 Jinja2 环境（懒加载单例） / Get Jinja2 environment (lazy singleton)."""
     global _env
     if _env is None:
         _env = Environment(
@@ -49,7 +49,7 @@ def _get_env() -> Environment:
 
 
 def _strip_html(html: str) -> str:
-    """将 HTML 转为纯文本（简易实现）"""
+    """将 HTML 转为纯文本（简易实现） / Strip HTML to plain text (simple impl)."""
     # 移除 style/script 标签及内容
     text = re.sub(r"<(style|script)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
     # <br> / <p> / <div> / <tr> → 换行
@@ -74,7 +74,7 @@ def render_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str]:
     """
-    渲染邮件模板
+    渲染邮件模板 / Render email template.
 
     Args:
         template_name: 模板名称（不含扩展名），如 "task_failure"
@@ -115,7 +115,7 @@ def render_test_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
-    渲染测试邮件
+    渲染测试邮件 / Render test email.
 
     Returns:
         (subject, html_body, text_body)
@@ -138,7 +138,7 @@ def render_task_failure_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
-    渲染任务失败通知邮件
+    渲染任务失败通知邮件 / Render task failure notification email.
 
     Returns:
         (subject, html_body, text_body)
@@ -163,7 +163,7 @@ def render_password_reset_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
-    渲染密码重置邮件
+    渲染密码重置邮件 / Render password reset email.
 
     Returns:
         (subject, html_body, text_body)
@@ -188,7 +188,7 @@ def render_welcome_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
-    渲染欢迎邮件
+    渲染欢迎邮件 / Render welcome email.
 
     Returns:
         (subject, html_body, text_body)
@@ -213,7 +213,7 @@ def render_ssl_expiry_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
-    渲染 SSL 证书到期通知邮件
+    渲染 SSL 证书到期通知邮件 / Render SSL expiry notification email.
 
     Returns:
         (subject, html_body, text_body)
@@ -236,7 +236,7 @@ def render_manual_email(
     lang: str = "zh-CN",
 ) -> tuple[str, str]:
     """
-    渲染手动发送邮件（管理员后台手动发送）
+    渲染手动发送邮件（管理员后台手动发送）/ Render manual send email (admin UI).
 
     将用户输入的内容包裹在品牌 HTML 模板中，确保统一风格。
     content 允许包含 HTML 标签（模板中使用 | safe 渲染）。
@@ -264,7 +264,7 @@ def render_notification_html(
     lang: str = "zh-CN",
 ) -> tuple[str, str]:
     """
-    渲染通知邮件 HTML（通用模板）
+    渲染通知邮件 HTML（通用模板）/ Render notification email HTML (generic template).
 
     所有通知系统触发的邮件都使用此模板，确保统一的品牌风格。
 
@@ -399,7 +399,7 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
 
 
 def _get_translations(lang: str) -> dict[str, Any]:
-    """获取指定语言的翻译字典，回退到 zh-CN"""
+    """获取指定语言的翻译字典，回退到 zh-CN / Get translations for lang, fallback to zh-CN."""
     return _TRANSLATIONS.get(lang, _TRANSLATIONS["zh-CN"])
 
 

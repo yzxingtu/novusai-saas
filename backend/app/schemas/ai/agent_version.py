@@ -16,7 +16,7 @@ from app.core.i18n import _
 
 
 class AgentPublishRequest(BaseCreateSchema):
-    """发布智能体请求"""
+    """发布智能体请求 / Publish agent request."""
 
     change_log: str | None = Field(
         None,
@@ -26,7 +26,7 @@ class AgentPublishRequest(BaseCreateSchema):
 
 
 class AgentRollbackRequest(BaseCreateSchema):
-    """回滚智能体请求"""
+    """回滚智能体请求 / Rollback agent request."""
 
     version: int = Field(
         ...,
@@ -36,7 +36,7 @@ class AgentRollbackRequest(BaseCreateSchema):
 
 
 class AgentVersionResponse(TenantResponseSchema):
-    """智能体版本详情响应"""
+    """智能体版本详情响应 / Agent version detail response."""
 
     agent_id: int = Field(..., description=_("agent.version.field.agent_id"))
     version: int = Field(..., description=_("agent.version.field.version"))
@@ -58,7 +58,7 @@ class AgentVersionResponse(TenantResponseSchema):
 
 
 class AgentVersionListItem(TenantResponseSchema):
-    """智能体版本列表项响应（精简字段）"""
+    """智能体版本列表项响应（精简字段） / Agent version list item response."""
 
     agent_id: int = Field(..., description=_("agent.version.field.agent_id"))
     version: int = Field(..., description=_("agent.version.field.version"))

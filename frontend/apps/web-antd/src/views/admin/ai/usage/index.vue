@@ -5,6 +5,7 @@ import type { CallTrendItem } from '#/api/admin/analytics';
 
 /**
  * 平台管理端 AI 使用量统计页面
+ * Platform admin AI usage statistics page
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 

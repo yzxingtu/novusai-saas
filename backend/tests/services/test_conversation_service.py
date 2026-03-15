@@ -1,8 +1,6 @@
-"""
-ConversationService 单元测试
+"""ConversationService 单元测试 / Test.
 
-覆盖：对话详情、归档、搜索、导出、聊天历史加载。
-"""
+覆盖：对话详情、归档、搜索、导出、聊天历史加载。"""
 
 from __future__ import annotations
 

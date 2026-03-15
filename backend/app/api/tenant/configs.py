@@ -49,8 +49,7 @@ _SENSITIVE_KEYWORDS = {"secret", "key", "password", "token"}
 
 def _mask_sensitive_options(options: dict) -> dict:
     """
-    对存储凭证中的密钥类字段做脱敏处理。
-    Masks sensitive fields in storage credentials.
+    对存储凭证中的密钥类字段做脱敏处理 / Mask sensitive fields in storage credentials.
 
     规则：字段名包含 secret/key/password/token 关键词的，值脱敏为前 2 位 + **** + 后 2 位。
     Rule: Fields containing secret/key/password/token keywords are masked as first 2 chars + **** + last 2 chars.
@@ -81,8 +80,7 @@ async def _inject_role_options(
     configs: list[dict],
 ) -> None:
     """
-    为 user_default_role_id 配置项动态注入当前企业的角色选项。
-    Dynamically injects current tenant's role options for user_default_role_id config.
+    为 user_default_role_id 配置项动态注入当前企业的角色选项 / Inject tenant role options for user_default_role_id.
 
     在静态的「不分配角色」选项之后，追加企业的所有活跃角色。
     Appends all active tenant roles after the static "no role" option.

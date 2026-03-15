@@ -1,6 +1,5 @@
 """
-Page Context Executor
-页面上下文执行器
+Page Context Executor. / 页面上下文执行器。
 
 Reads page_context info from ExecutionContext.variables
 and returns it to the LLM to enable page-aware capabilities.
@@ -34,8 +33,7 @@ PAGE_CONTEXT_KEY = SHARED_PAGE_CONTEXT_KEY
 
 class PageContextExecutor(BaseToolExecutor):
     """
-    Page context executor.
-    页面上下文执行器。
+    Page context executor. / 页面上下文执行器。
 
     Reads page info passed by the frontend from ExecutionContext.variables['page_context'],
     formats it and returns to LLM so it knows which page the user is currently on.
@@ -239,8 +237,7 @@ class PageContextExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """Page context tool requires no parameter validation
-        页面上下文工具不需要参数校验"""
+        """页面上下文工具不需要参数校验 / Page context tool requires no parameter validation."""
         return True
 
 

@@ -1,11 +1,9 @@
-"""
-Tests for crud_executor column name and table name safety validation.
+"""Tests for crud_executor column name and table name safety validation. / 测试
 
 Covers:
 - _validate_column_names: rejects SQL injection payloads, special chars
 - _validate_table_name: rejects unsafe table names
-- _SAFE_COLUMN_NAME_RE / _SAFE_TABLE_NAME_RE: regex correctness
-"""
+- _SAFE_COLUMN_NAME_RE / _SAFE_TABLE_NAME_RE: regex correctness"""
 
 from __future__ import annotations
 
@@ -22,7 +20,7 @@ from app.ai.tools.executors.crud_executor import (
 # ============================================
 
 class TestSafeColumnNameRegex:
-    """Test the column name safety regex directly."""
+    """Test the column name safety regex directly. / 测试"""
 
     @pytest.mark.parametrize("name", [
         "name",
@@ -68,7 +66,7 @@ class TestSafeColumnNameRegex:
 # ============================================
 
 class TestValidateColumnNames:
-    """Test the _validate_column_names function."""
+    """Test the _validate_column_names function. / 测试"""
 
     def test_all_valid_columns(self) -> None:
         data = {"name": "test", "email": "a@b.com", "age": 25}
@@ -97,7 +95,7 @@ class TestValidateColumnNames:
         assert "User-Email" in result
 
     def test_sql_injection_payload_column(self) -> None:
-        """Simulate LLM passing SQL injection as column name."""
+        """Simulate LLM passing SQL injection as column name. / 说明"""
         data = {"name; DROP TABLE users--": "malicious"}
         result = _validate_column_names(data)
         assert result is not None
@@ -118,7 +116,7 @@ class TestValidateColumnNames:
 # ============================================
 
 class TestValidateTableName:
-    """Test the _validate_table_name function."""
+    """Test the _validate_table_name function. / 测试"""
 
     @pytest.mark.parametrize("name", [
         "users",

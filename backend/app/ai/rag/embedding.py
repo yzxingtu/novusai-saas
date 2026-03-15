@@ -1,6 +1,5 @@
 """
-Embedding Generation Service
-Embedding 生成服务
+Embedding Generation Service / Embedding 生成服务
 
 Wraps the AI gateway's embedding interface, providing single and batch generation capabilities.
 封装 AI 网关的 Embedding 接口，提供单条和批量生成能力。
@@ -25,8 +24,7 @@ DEFAULT_BATCH_SIZE = 100
 
 class EmbeddingService:
     """
-    Embedding Generation Service
-    Embedding 生成服务
+    Embedding Generation Service / Embedding 生成服务
 
     Calls embedding models via AI gateway, supporting single and batch generation.
     Automatically resolves model and provider info from knowledge base config.

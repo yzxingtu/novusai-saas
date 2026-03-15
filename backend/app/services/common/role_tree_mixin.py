@@ -25,7 +25,7 @@ MAX_ROLE_DEPTH = 10
 
 class RoleTreeMixin(Generic[RoleType]):
     """
-    角色树操作 Mixin
+    角色树操作 Mixin / Role tree mixin.
 
     提供层级结构的通用方法：
     - 树形结构查询
@@ -49,7 +49,7 @@ class RoleTreeMixin(Generic[RoleType]):
         parent_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        获取角色树结构
+        获取角色树结构 / Get role tree structure.
 
         Args:
             parent_id: 父角色 ID，None 表示获取整棵树
@@ -71,7 +71,7 @@ class RoleTreeMixin(Generic[RoleType]):
         roles: list[RoleType],
     ) -> list[dict[str, Any]]:
         """
-        将平铺的角色列表构建为树形结构
+        将平铺的角色列表构建为树形结构 / Build tree from flat role list.
 
         Args:
             roles: 角色列表
@@ -105,7 +105,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     def _role_to_dict(self, role: RoleType) -> dict[str, Any]:
         """
-        将角色模型转换为字典
+        将角色模型转换为字典 / Convert role model to dict.
 
         Args:
             role: 角色模型
@@ -133,7 +133,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def get_children(self, role_id: int) -> list[RoleType]:
         """
-        获取直接子角色列表
+        获取直接子角色列表 / Get direct children.
 
         Args:
             role_id: 角色 ID
@@ -145,7 +145,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def get_ancestors(self, role_id: int) -> list[RoleType]:
         """
-        获取所有祖先角色
+        获取所有祖先角色 / Get all ancestors.
 
         Args:
             role_id: 角色 ID
@@ -157,7 +157,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def get_descendants(self, role_id: int) -> list[RoleType]:
         """
-        获取所有后代角色
+        获取所有后代角色 / Get all descendants.
 
         Args:
             role_id: 角色 ID
@@ -175,7 +175,7 @@ class RoleTreeMixin(Generic[RoleType]):
         new_parent_id: int | None,
     ) -> RoleType:
         """
-        移动角色节点到新的父节点下
+        移动角色节点到新的父节点下 / Move role node to new parent.
 
         Args:
             role_id: 要移动的角色 ID
@@ -258,7 +258,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def _get_max_descendant_depth(self, role_id: int) -> int:
         """
-        获取某角色下子树的最大相对深度
+        获取某角色下子树的最大相对深度 / Get max relative depth of subtree under role.
 
         Args:
             role_id: 角色 ID
@@ -289,7 +289,7 @@ class RoleTreeMixin(Generic[RoleType]):
         new_level: int,
     ) -> None:
         """
-        更新所有后代的 path 和 level
+        更新所有后代的 path 和 level / Update path and level for all descendants.
 
         Args:
             role_id: 角色 ID
@@ -316,7 +316,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def get_effective_permissions(self, role_id: int) -> list["Permission"]:
         """
-        获取角色的有效权限（包含继承的权限）
+        获取角色的有效权限（包含继承的权限）/ Get effective permissions for role (including inherited).
 
         有效权限 = 自身权限 ∪ 所有祖先角色的权限
 
@@ -352,7 +352,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def get_inherited_permissions(self, role_id: int) -> list["Permission"]:
         """
-        获取角色继承的权限（仅祖先角色的权限，不含自身）
+        获取角色继承的权限（仅祖先角色的权限，不含自身）/ Get inherited permissions (ancestors only).
 
         Args:
             role_id: 角色 ID
@@ -374,7 +374,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def has_permission(self, role_id: int, permission_code: str) -> bool:
         """
-        检查角色是否拥有指定权限（包含继承）
+        检查角色是否拥有指定权限（包含继承）/ Check if role has permission (including inherited).
 
         Args:
             role_id: 角色 ID
@@ -390,7 +390,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     def _build_path(self, parent_path: str | None, role_id: int) -> str:
         """
-        构建角色的物化路径
+        构建角色的物化路径 / Build materialized path for role.
 
         Args:
             parent_path: 父角色的 path，None 表示顶级角色
@@ -405,7 +405,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     def _calculate_level(self, parent_level: int | None) -> int:
         """
-        计算角色的层级深度
+        计算角色的层级深度 / Calculate role level depth.
 
         Args:
             parent_level: 父角色的层级，None 表示顶级角色
@@ -419,7 +419,7 @@ class RoleTreeMixin(Generic[RoleType]):
 
     async def validate_parent(self, parent_id: int | None, exclude_id: int | None = None) -> tuple[str | None, int]:
         """
-        验证父角色并返回其 path 和 level
+        验证父角色并返回其 path 和 level / Validate parent role and return its path and level.
 
         Args:
             parent_id: 父角色 ID

@@ -1,6 +1,5 @@
 """
-Extension point registry.
-/ 扩展点注册中心
+Extension point registry. / 扩展点注册中心。
 
 Bridges plugin extension declarations to existing system registries,
 tracks registration records for unregistration.

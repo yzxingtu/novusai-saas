@@ -19,7 +19,7 @@ logger = LogManager.get_logger("queue")
 
 class TenantPeriodicTaskService(TenantService[PeriodicTask, TenantPeriodicTaskRepository]):
     """
-    企业端定时任务服务
+    企业端定时任务服务 / Tenant periodic task service.
     """
 
     model = PeriodicTask

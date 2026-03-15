@@ -18,7 +18,7 @@ logger = LogManager.get_logger("ai.quota_service")
 
 class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     """
-    企业 AI 配额配置 Service
+    企业 AI 配额配置 Service / Tenant AI quota service.
     """
 
     model = TenantQuota
@@ -30,7 +30,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> TenantQuota | None:
         """
-        获取企业配额配置
+        获取企业配额配置 / Get tenant quota config.
 
         Args:
             model_id: 模型 ID（None 表示全局配额）
@@ -49,7 +49,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> dict[str, Any] | None:
         """
-        获取配额配置及当前使用量
+        获取配额配置及当前使用量 / Get quota config and current usage.
 
         Args:
             model_id: 模型 ID（None 表示全局配额）
@@ -95,7 +95,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str | None = None
     ) -> list[dict[str, Any]]:
         """
-        获取企业所有配额配置及使用量
+        获取企业所有配额配置及使用量 / Get all tenant quotas with usage.
 
         Args:
             period: 周期（None 表示全部）
@@ -121,7 +121,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> dict[str, Any]:
         """
-        检查配额预警状态
+        检查配额预警状态 / Check quota warning status.
 
         Args:
             model_id: 模型 ID
@@ -148,7 +148,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         period: str | None = None,
     ) -> list[TenantQuota]:
         """
-        获取企业活跃配额列表
+        获取企业活跃配额列表 / Get active quota list for tenant.
 
         Args:
             period: 周期过滤（可选）
@@ -171,7 +171,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         description: str | None = None
     ) -> TenantQuota:
         """
-        创建配额配置
+        创建配额配置 / Create quota config.
 
         Args:
             model_id: 模型 ID

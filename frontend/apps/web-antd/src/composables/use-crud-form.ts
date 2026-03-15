@@ -34,14 +34,14 @@ import { formStateTracker } from './use-form-state-tracker';
 
 // ============ 字段映射工具函数 ============
 
-/** snake_case 转 camelCase */
+/** snake_case 转 camelCase / Convert snake_case to camelCase */
 function snakeToCamel(str: string): string {
   return str.replaceAll(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 /**
- * 根据字段列表生成 toFormValues 函数
- * 后端 camelCase -> 表单 snake_case
+ * 根据字段列表生成 toFormValues 函数；后端 camelCase -> 表单 snake_case
+ * Build toFormValues from field list; backend camelCase to form snake_case
  */
 function createToFormValues<T>(
   fields: string[],
@@ -58,8 +58,8 @@ function createToFormValues<T>(
 }
 
 /**
- * 根据字段列表生成 transform 函数
- * 表单 snake_case -> API snake_case（空值转 null）
+ * 根据字段列表生成 transform 函数；表单 snake_case -> API snake_case（空值转 null）
+ * Build transform from field list; form snake_case to API snake_case
  */
 function createTransform(
   fields: string[],
@@ -76,10 +76,10 @@ function createTransform(
 }
 
 /**
- * useCrudDrawer 配置选项
+ * useCrudDrawer 配置选项 / useCrudDrawer options
  */
 export interface UseCrudDrawerOptions<T = any> {
-  /** Form API（由 useVbenForm 返回）- 详情页模式可不传 */
+  /** Form API（由 useVbenForm 返回）- 详情页模式可不传 / Form API from useVbenForm; optional in detail mode */
   formApi?: {
     getValues: () => Promise<Record<string, any>>;
     resetForm: () => Promise<void>;
@@ -89,17 +89,14 @@ export interface UseCrudDrawerOptions<T = any> {
   };
 
   /**
-   * Schema 工厂函数
-   * @param isEdit 是否编辑模式
+   * Schema 工厂函数 / Schema factory
+   * @param isEdit 是否编辑模式 / Whether edit mode
    */
   schema?: (isEdit: boolean) => any[];
 
   /**
-   * 字段列表（推荐）
-   *
-   * 提供字段列表后，自动处理：
-   * - 编辑模式：后端 camelCase -> 表单 snake_case
-   * - 提交时：表单 snake_case -> API snake_case（空值转 null）
+   * 字段列表（推荐）；提供后自动处理编辑/提交时的 camelCase↔snake_case
+   * Field list (recommended); auto camelCase↔snake_case for edit/submit
    *
    * @example
    * ```ts
@@ -109,19 +106,17 @@ export interface UseCrudDrawerOptions<T = any> {
   fields?: string[];
 
   /**
-   * API 资源路径（可选）
-   *
-   * 指定后，openNew/openEdit 会自动使用此路径，无需每次传递 _resource
+   * API 资源路径（可选）；指定后 openNew/openEdit 自动使用
+   * API resource path (optional); used by openNew/openEdit when set
    */
   apiPath?: (() => string) | Ref<string> | string;
 
   /**
-   * 数据转换函数（表单值 -> API 请求体）
+   * 数据转换函数（表单值 -> API 请求体）；提供 fields 时可省略
+   * Transform (form values -> API body); omit when fields provided
    *
-   * 如果提供了 `fields`，则此项可省略
-   *
-   * @param values 表单原始值
-   * @param isEdit 是否编辑模式
+   * @param values 表单原始值 / Form values
+   * @param isEdit 是否编辑模式 / Whether edit mode
    */
   transform?: (
     values: Record<string, any>,
@@ -129,32 +124,29 @@ export interface UseCrudDrawerOptions<T = any> {
   ) => Record<string, any>;
 
   /**
-   * 新建模式的表单默认值
-   * 可以是静态对象或工厂函数
+   * 新建模式的表单默认值；可为静态对象或工厂函数
+   * Default form values for create mode; static object or factory
    */
   defaults?: (() => Record<string, any>) | Record<string, any>;
 
   /**
-   * 后端数据 -> 表单值（编辑模式）
+   * 后端数据 -> 表单值（编辑模式）；提供 fields 时可省略
+   * Backend data -> form values (edit mode); omit when fields provided
    *
-   * 如果提供了 `fields`，则此项可省略
-   *
-   * @param data 后端返回的数据
+   * @param data 后端返回的数据 / Backend data
    */
   toFormValues?: (data: T) => Record<string, any>;
 
-  /** 成功回调 */
+  /** 成功回调 / Success callback */
   onSuccess?: () => void;
 
   /**
-   * 保存后回调（可选）
+   * 保存后回调（可选）；在 API 成功、onSuccess 之前调用
+   * After-save callback (optional); called after API success, before onSuccess
    *
-   * 在 API 请求成功后、onSuccess 之前调用。
-   * 可用于保存关联数据（如技能脚本）。
-   *
-   * @param response API 响应数据
-   * @param formValues 表单原始值
-   * @param isEdit 是否编辑模式
+   * @param response API 响应数据 / API response
+   * @param formValues 表单原始值 / Form values
+   * @param isEdit 是否编辑模式 / Whether edit mode
    */
   afterSave?: (
     response: any,
@@ -162,21 +154,20 @@ export interface UseCrudDrawerOptions<T = any> {
     isEdit: boolean,
   ) => Promise<void> | void;
 
-  /** 打开时额外操作（如加载远程数据） */
+  /** 打开时额外操作（如加载远程数据） / On open extra (e.g. load remote data) */
   onOpen?: () => Promise<void> | void;
 
-  /** 打开后额外操作（如更新下拉选项） */
+  /** 打开后额外操作（如更新下拉选项） / After open extra (e.g. refresh options) */
   afterOpen?: (formApi: any, isEdit: boolean) => Promise<void> | void;
 
   /**
-   * 详情 API（可选）
-   *
-   * 提供后，编辑模式会调用此 API 获取完整数据，而不是使用列表传递的行数据
+   * 详情 API（可选）；提供后编辑模式用此 API 取完整数据
+   * Detail API (optional); when set, edit mode fetches full data via this API
    */
   detailApi?: (id: number | string) => Promise<T>;
 
   /**
-   * 主键字段名
+   * 主键字段名 / Primary key field name
    * @default 'id'
    */
   idField?: string;
@@ -189,8 +180,8 @@ export interface UseCrudDrawerOptions<T = any> {
 }
 
 /**
- * 一体化 CRUD 抽屉
- * 整合 useVbenDrawer + useCrudForm，简化表单组件
+ * 一体化 CRUD 抽屉；整合 useVbenDrawer + useCrudForm
+ * Unified CRUD drawer; useVbenDrawer + useCrudForm
  */
 export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   const {
@@ -222,7 +213,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   const recordId = ref<number | string>();
   const resource = ref<string>('');
   const rowData = ref<T>();
-  /** 详情数据（通过 detailApi 获取） */
+  /** 详情数据（通过 detailApi 获取） / Detail data (from detailApi) */
   const detailData = ref<T>();
 
   const isEdit = computed(() => mode.value === 'edit');

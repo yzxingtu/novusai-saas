@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 企业端 AI 操作审计日志列表页面
+ * 企业端 AI 操作审计日志列表页面 / Tenant AI action audit log list page
  *
  * 包含统计卡片 + 操作列表
  */

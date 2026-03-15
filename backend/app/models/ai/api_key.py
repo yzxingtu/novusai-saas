@@ -19,7 +19,7 @@ from app.enums.common import ResourceScopeEnum
 
 class ProviderApiKey(BaseModel):
     """
-    AI 供应商 API Key 模型
+    AI 供应商 API Key 模型 / AI provider API key model.
 
     存储平台级或企业级的 API Key，支持加密存储
     - admin_only + tenant_id=None：仅管理端 AI 调用可用 / Admin-only key
@@ -140,7 +140,7 @@ class ProviderApiKey(BaseModel):
 
     def encrypt_key(self, plain_key: str) -> None:
         """
-        加密并设置 API Key
+        加密并设置 API Key / Encrypt and set API key.
 
         Args:
             plain_key: 明文 API Key
@@ -149,7 +149,7 @@ class ProviderApiKey(BaseModel):
 
     def decrypt_key(self) -> str:
         """
-        解密 API Key
+        解密 API Key / Decrypt API key.
 
         Returns:
             明文 API Key
@@ -157,16 +157,16 @@ class ProviderApiKey(BaseModel):
         return decrypt_data(self.encrypted_key)
 
     def increment_usage(self) -> None:
-        """增加使用次数"""
+        """增加使用次数 / Increment usage count."""
         self.usage_count += 1
         self.last_used_at = utc_now()
 
     def is_expired(self) -> bool:
         """
-        检查是否过期
+        检查是否过期 / Check if expired.
 
         Returns:
-            是否过期
+            是否过期 / Whether expired.
         """
         if self.expires_at is None:
             return False
@@ -174,10 +174,10 @@ class ProviderApiKey(BaseModel):
 
     def is_usage_limit_reached(self) -> bool:
         """
-        检查是否达到使用限制
+        检查是否达到使用限制 / Check if usage limit reached.
 
         Returns:
-            是否达到限制
+            是否达到限制 / Whether limit reached.
         """
         if self.usage_limit is None:
             return False
@@ -185,10 +185,10 @@ class ProviderApiKey(BaseModel):
 
     def is_available(self) -> bool:
         """
-        检查 Key 是否可用
+        检查 Key 是否可用 / Check if key is available.
 
         Returns:
-            是否可用
+            是否可用 / Whether available.
         """
         return (
             self.is_active and

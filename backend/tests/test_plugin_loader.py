@@ -1,4 +1,4 @@
-"""Tests for PluginLoader manifest parsing from arbitrary source paths."""
+"""Tests for PluginLoader manifest parsing from arbitrary source paths. / 插件"""
 
 from __future__ import annotations
 
@@ -8,12 +8,11 @@ import pytest
 
 from app.plugins.loader import PluginLoader
 
-_MANIFEST_CONTENT = """name: demo-plugin
+_MANIFEST_CONTENT = """name: demo-plugin / 插件
 version: \"1.0.0\"
 display_name:
   en: Demo Plugin
-scope: admin_only
-"""
+scope: admin_only"""
 
 
 def _write_manifest(plugin_dir: Path) -> None:
@@ -22,7 +21,7 @@ def _write_manifest(plugin_dir: Path) -> None:
 
 
 def test_load_manifest_from_path_supports_temp_source(tmp_path: Path) -> None:
-    """Regression: temp source dir should not require living under PLUGINS_DIR."""
+    """Regression: temp source dir should not require living under PLUGINS_DIR. / 插件"""
     plugin_dir = tmp_path / "tmp-source-dir"
     _write_manifest(plugin_dir)
 

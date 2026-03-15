@@ -1,6 +1,5 @@
 """
-Plugin telemetry usage statistics.
-/ 插件 Telemetry 使用统计
+Plugin telemetry usage statistics. / 插件 Telemetry 使用统计。
 
 Uses Redis Hash + HINCRBY atomic operations to aggregate plugin extension point
 call data per day. Counts are never lost under high concurrency.

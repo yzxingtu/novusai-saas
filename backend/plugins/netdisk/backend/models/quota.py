@@ -1,6 +1,4 @@
-"""
-企业存储配额模型
-"""
+"""企业存储配额模型 / Model."""
 
 from __future__ import annotations
 
@@ -40,5 +38,5 @@ class Quota(TenantModel):
         return round(self.used_bytes / self.quota_bytes * 100, 2)
 
     def check_capacity(self, upload_size: int) -> bool:
-        """返回 True 表示有足够空间"""
+        """返回 True 表示有足够空间 / Return True if enough space."""
         return self.used_bytes + upload_size <= self.quota_bytes

@@ -1,6 +1,5 @@
 """
-Local Storage Driver Implementation
-本地存储驱动实现
+本地存储驱动实现 / Local Storage Driver Implementation.
 """
 
 from __future__ import annotations
@@ -321,8 +320,7 @@ class LocalStorageDriver(StorageDriver):
         visibility: StorageVisibility | None = None,
     ) -> str:
         """
-        Get processed image URL.
-        获取处理后的图片 URL。
+        获取处理后的图片 URL / Get processed image URL.
 
         Local storage: process image and cache, return cached file access URL.
         本地存储：处理图片并缓存，返回缓存文件的访问 URL。
@@ -351,8 +349,7 @@ class LocalStorageDriver(StorageDriver):
         params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         """
-        Get processed image data.
-        获取处理后的图片数据。
+        获取处理后的图片数据 / Get processed image data.
 
         Returns processed bytes directly for streaming response.
         直接返回处理后的字节数据，用于流式响应。
@@ -378,8 +375,7 @@ class LocalStorageDriver(StorageDriver):
 
     def _count_variants(self, path: str) -> int:
         """
-        Count existing cache variants for a given source path
-        统计指定源路径的现有缓存变体数量
+        统计指定源路径的现有缓存变体数量 / Count existing cache variants for a given source path.
         """
         path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
         cache_root = self._get_cache_root()
@@ -427,7 +423,6 @@ class LocalStorageDriver(StorageDriver):
 
     def supports_native_image_processing(self) -> bool:
         """
-        Local storage does not support native image processing, requires local Pillow.
-        本地存储不支持原生图片处理，需要本地 Pillow 处理。
+        本地存储不支持原生图片处理，需本地 Pillow / Local storage does not support native image processing, requires local Pillow.
         """
         return False

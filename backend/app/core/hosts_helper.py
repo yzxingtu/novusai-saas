@@ -75,12 +75,9 @@ def _get_hosts_path() -> Path | None:
 
 def is_dev_local() -> bool:
     """
-    判断当前是否为开发环境（需要自动管理 hosts）
+    判断当前是否为开发环境（需要自动管理 hosts） / Whether dev environment (auto-manage hosts).
 
-    条件：settings.DEBUG == True 且当前 OS 支持 hosts 操作
-
-    Returns:
-        True = DEBUG 模式且 OS 支持，应执行 hosts 操作
+    条件：settings.DEBUG == True 且当前 OS 支持 hosts 操作。Returns True if DEBUG and OS supports hosts.
     """
     from app.core.config import settings
 
@@ -259,17 +256,11 @@ def get_domain_entry_status(domain: str) -> HostEntryStatus:
 
 def add_host_entry(domain: str) -> bool:
     """
-    添加域名到 hosts 文件（幂等）
+    添加域名到 hosts 文件（幂等） / Add domain to hosts file (idempotent).
 
-    - 已存在：直接返回 True，不重复写入
-    - 权限不足：打印详细指引，返回 False，不阻塞业务
-    - 非 DEBUG 环境：直接返回 False
-
-    Args:
-        domain: 要添加的域名（不含端口）
-
-    Returns:
-        True = 添加成功或已存在；False = 跳过或失败
+    - 已存在：直接返回 True / Exists: return True
+    - 权限不足：打印指引，返回 False / Permission: print hint, return False
+    - 非 DEBUG：返回 False / Non-DEBUG: return False
     """
     if not is_dev_local():
         return False
@@ -333,17 +324,10 @@ def add_host_entry(domain: str) -> bool:
 
 def remove_host_entry(domain: str) -> bool:
     """
-    从 hosts 文件移除域名托管条目
+    从 hosts 文件移除域名托管条目 / Remove managed domain entry from hosts file.
 
-    - 条目不存在：直接返回 True（幂等）
-    - 权限不足：打印指引，返回 False
-    - 非 DEBUG 环境：直接返回 False
-
-    Args:
-        domain: 要移除的域名
-
-    Returns:
-        True = 移除成功或本就不存在；False = 失败
+    - 条目不存在：返回 True（幂等）/ Not present: return True (idempotent)
+    - 权限不足 / 非 DEBUG：返回 False
     """
     if not is_dev_local():
         return False
@@ -393,10 +377,8 @@ def remove_host_entry(domain: str) -> bool:
 
 def list_managed_entries() -> list[str]:
     """
-    列出所有 NovusAI-Dev 托管的域名
-
-    Returns:
-        域名列表，空列表表示无托管条目或读取失败
+    列出所有 NovusAI-Dev 托管的域名 / List all NovusAI-Dev managed domains.
+    Returns: 域名列表，空列表表示无托管条目或读取失败 / List of domains, or [] if none or read failed.
     """
     try:
         lines = _read_lines()
@@ -408,8 +390,7 @@ def list_managed_entries() -> list[str]:
 
 def cleanup_all_entries() -> int:
     """
-    清除 hosts 文件中所有 NovusAI-Dev 托管条目
-    Remove all NovusAI-Dev managed entries from the hosts file
+    清除 hosts 文件中所有 NovusAI-Dev 托管条目 / Clear all NovusAI-Dev managed entries from hosts file.
 
     Returns:
         清除的条目数量（0 = 无或失败）/ Number of entries removed (0 = none or failed)
@@ -486,7 +467,7 @@ async def async_get_domain_entry_status(domain: str) -> HostEntryStatus:
 
 
 def _print_permission_warning(action: str, target: str, hosts_path: Path | None) -> None:
-    """打印权限不足的详细操作指引（不抛出异常）"""
+    """打印权限不足的详细操作指引（不抛出异常） / Print permission-denied instructions (no exception)."""
     path_str = str(hosts_path) if hosts_path else "hosts"
     system = platform.system()
     entry_line = f"{LOOPBACK_IP}  {target}  {MARKER}"
@@ -549,13 +530,7 @@ def _print_permission_warning(action: str, target: str, hosts_path: Path | None)
 
 def _cli_main() -> None:
     """
-    命令行工具入口
-
-    用法（在 backend/ 目录下，建议管理员/sudo 权限运行）：
-        python -m app.core.hosts_helper add <domain>
-        python -m app.core.hosts_helper remove <domain>
-        python -m app.core.hosts_helper list
-        python -m app.core.hosts_helper cleanup
+    命令行工具入口 / CLI entry. 用法：python -m app.core.hosts_helper add|remove|list|cleanup [domain]
     """
     args = sys.argv[1:]
 

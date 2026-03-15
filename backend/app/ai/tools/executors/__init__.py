@@ -1,6 +1,5 @@
 """
-Tool Executors
-工具执行器
+Tool Executors / 工具执行器
 
 Provides concrete execution implementations for different tool types.
 提供不同类型工具的具体执行实现。

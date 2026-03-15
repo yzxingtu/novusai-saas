@@ -510,7 +510,7 @@ async def test_resolve_for_agent_admin_auto_bind_includes_get_page_context_tool(
 async def test_load_auto_bind_tenant_scope_excludes_assigned_when_all_tenants(
     mock_db,
 ) -> None:
-    """ALL_TENANTS agent 不查 assigned 作用域"""
+    """ALL_TENANTS agent 不查 assigned 作用域 / ALL_TENANTS agent assigned ..."""
     mock_db.execute.return_value = _make_scalars_result([])
 
     await _load_auto_bind_packages(
@@ -528,7 +528,7 @@ async def test_load_auto_bind_tenant_scope_excludes_assigned_when_all_tenants(
 
 @pytest.mark.asyncio
 async def test_load_auto_bind_admin_scope_only_admin_visible(mock_db) -> None:
-    """ADMIN_ONLY agent 只查管理端可见作用域"""
+    """ADMIN_ONLY agent 只查管理端可见作用域 / ADMIN_ONLY agent"""
     mock_db.execute.return_value = _make_scalars_result([])
 
     await _load_auto_bind_packages(
@@ -546,7 +546,7 @@ async def test_load_auto_bind_admin_scope_only_admin_visible(mock_db) -> None:
 
 @pytest.mark.asyncio
 async def test_load_auto_bind_returns_empty_for_mismatched_scope(mock_db) -> None:
-    """tenant_id=None + ALL_TENANTS scope → 直接返回空"""
+    """tenant_id=None + ALL_TENANTS scope → 直接返回空 / tenant_id=None + ALL_TENANTS s..."""
     result = await _load_auto_bind_packages(
         mock_db,
         agent_scope=ResourceScopeEnum.ALL_TENANTS.value,
@@ -561,7 +561,7 @@ async def test_load_auto_bind_returns_empty_for_mismatched_scope(mock_db) -> Non
 
 @pytest.mark.asyncio
 async def test_conversation_engine_injects_tools_into_gateway() -> None:
-    """skill_result.tools → _prepare_execution → _call_llm → gateway.chat(tools=...)"""
+    """skill_result.tools → _prepare_execution → _call_llm → gateway.chat(tools=...) / 说明"""
     gateway = MagicMock()
     gateway.chat = AsyncMock(
         return_value=ChatResponse(
@@ -643,10 +643,10 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
 
 
 class TestToolOptimizerProtectedTools:
-    """工具优化器保护工具白名单测试"""
+    """工具优化器保护工具白名单测试 / Test."""
 
     def test_get_page_context_always_retained_when_many_tools(self):
-        """get_page_context 在工具数超阈值时不被过滤"""
+        """get_page_context 在工具数超阈值时不被过滤 / get_page_context"""
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
@@ -669,7 +669,7 @@ class TestToolOptimizerProtectedTools:
         assert "get_page_context" in tool_names
 
     def test_protected_tools_dont_consume_budget(self):
-        """保护工具不占用优化名额"""
+        """保护工具不占用优化名额 / Description."""
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
@@ -687,7 +687,7 @@ class TestToolOptimizerProtectedTools:
         assert len(result.tools) == 4  # 1 protected + 3 optimized
 
     def test_no_protected_tools_works_normally(self):
-        """无保护工具时优化器行为不变"""
+        """无保护工具时优化器行为不变 / Description."""
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
@@ -701,7 +701,7 @@ class TestToolOptimizerProtectedTools:
         assert len(result.tools) == 5
 
     def test_skip_optimization_under_threshold(self):
-        """工具数在阈值内时跳过优化（含保护工具）"""
+        """工具数在阈值内时跳过优化（含保护工具） / （ ）"""
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
@@ -721,10 +721,10 @@ class TestToolOptimizerProtectedTools:
 
 
 class TestPageContextDataSizeLimit:
-    """PageContext.page_data 大小限制测试"""
+    """PageContext.page_data 大小限制测试 / Test."""
 
     def test_normal_page_data_passes(self):
-        """正常大小的 page_data 通过验证"""
+        """正常大小的 page_data 通过验证 / page_data"""
         from app.schemas.ai.agent_chat import PageContext
 
         ctx = PageContext(
@@ -748,14 +748,14 @@ class TestPageContextDataSizeLimit:
         assert "page_data exceeds" in str(exc_info.value) or "limit" in str(exc_info.value)
 
     def test_none_page_data_passes(self):
-        """page_data 为 None 时不校验"""
+        """page_data 为 None 时不校验 / page_data None"""
         from app.schemas.ai.agent_chat import PageContext
 
         ctx = PageContext(page_key="admin.dashboard")
         assert ctx.page_data is None
 
     def test_normalize_rejects_oversized(self):
-        """normalize 方法对超大 page_data 返回 None"""
+        """normalize 方法对超大 page_data 返回 None / normalize page_data N..."""
         from app.schemas.ai.agent_chat import PageContext
 
         result = PageContext.normalize({
@@ -765,7 +765,7 @@ class TestPageContextDataSizeLimit:
         assert result is None
 
     def test_boundary_page_data_passes(self):
-        """刚好在 4KB 限制内的 page_data 通过验证"""
+        """刚好在 4KB 限制内的 page_data 通过验证 / 4KB page_data"""
         from app.schemas.ai.agent_chat import PageContext
 
         # 构造一个接近但不超过 4KB 的 page_data
@@ -780,11 +780,11 @@ class TestPageContextDataSizeLimit:
 
 
 class TestPageContextExecutorTruncation:
-    """PageContextExecutor 输出截断保护测试"""
+    """PageContextExecutor 输出截断保护测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_normal_output_not_truncated(self):
-        """正常 page_data 不被截断"""
+        """正常 page_data 不被截断 / page_data"""
         from app.ai.tools.executors.page_context_executor import PageContextExecutor
 
         executor = PageContextExecutor()
@@ -806,7 +806,7 @@ class TestPageContextExecutorTruncation:
 
     @pytest.mark.asyncio
     async def test_large_page_data_truncated(self):
-        """超大 page_data 被截断（绕过 schema 校验的内部路径防御）"""
+        """超大 page_data 被截断（绕过 schema 校验的内部路径防御） / page_data （ schema ..."""
         from app.ai.tools.executors.page_context_executor import MAX_OUTPUT_CHARS, PageContextExecutor
 
         executor = PageContextExecutor()

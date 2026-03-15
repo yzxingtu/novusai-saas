@@ -1,4 +1,4 @@
-"""插件静态资源路径解析器安全策略测试。"""
+"""插件静态资源路径解析器安全策略测试。 / Plugin."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def test_resolve_plugin_asset_file_rejects_invalid_plugin_name(tmp_path: Path) -
 
 
 def test_resolve_plugin_asset_file_allows_root_icon(tmp_path: Path) -> None:
-    """插件根目录下的图标文件（如 icon.png）应可访问。"""
+    """插件根目录下的图标文件（如 icon.png）应可访问。 / Plugin."""
     plugins_root = tmp_path / "plugins"
     icon_file = plugins_root / "weather-widget" / "icon.png"
     icon_file.parent.mkdir(parents=True)
@@ -58,7 +58,7 @@ def test_resolve_plugin_asset_file_allows_root_icon(tmp_path: Path) -> None:
 
 
 def test_resolve_plugin_asset_file_allows_root_svg_icon(tmp_path: Path) -> None:
-    """SVG 图标也应可从根目录访问。"""
+    """SVG 图标也应可从根目录访问。 / SVG 。"""
     plugins_root = tmp_path / "plugins"
     icon_file = plugins_root / "my-plugin" / "logo.svg"
     icon_file.parent.mkdir(parents=True)
@@ -70,7 +70,7 @@ def test_resolve_plugin_asset_file_allows_root_svg_icon(tmp_path: Path) -> None:
 
 
 def test_resolve_plugin_asset_file_rejects_root_non_icon(tmp_path: Path) -> None:
-    """根目录下非图标扩展名的文件仍应拒绝。"""
+    """根目录下非图标扩展名的文件仍应拒绝。 / 。"""
     plugins_root = tmp_path / "plugins"
     py_file = plugins_root / "demo-plugin" / "main.py"
     py_file.parent.mkdir(parents=True)

@@ -1,10 +1,11 @@
 """
-企业管理后台 API 路由模块
+企业管理后台 API 路由模块 / Tenant admin API router module.
 
-聚合所有企业管理后台的 API 路由
+聚合所有企业管理后台的 API 路由 / Aggregates all tenant admin API routes.
 
 控制器类使用 @permission_resource 装饰器定义资源权限，
 导入控制器类时会自动注册权限到 PermissionRegistry。
+Controllers use @permission_resource to define resource permissions; importing registers them to PermissionRegistry.
 """
 
 from fastapi import APIRouter

@@ -14,7 +14,7 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Permission(BaseModel):
     """
-    权限模型
+    权限模型 / Permission model.
 
     - 定义系统中的权限点
     - 支持菜单权限和操作权限

@@ -1,8 +1,6 @@
-"""
-Shared open_meteo module loader.
+"""Shared open_meteo module loader. / 说明
 Plugin name contains a hyphen, so standard Python import is not possible.
-/ 共享 open_meteo 模块加载器（插件名含连字符，无法使用标准 import）
-"""
+/ 共享 open_meteo 模块加载器（插件名含连字符，无法使用标准 import）"""
 
 from __future__ import annotations
 

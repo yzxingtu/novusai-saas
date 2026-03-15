@@ -1,11 +1,9 @@
-"""
-Agent 记忆开关服务测试
+"""Agent 记忆开关服务测试 / Service.
 
 覆盖：
 1) 三层开关生效规则计算
 2) 企业关闭覆盖写入/清除
-3) 管理端 Agent 开关更新
-"""
+3) 管理端 Agent 开关更新"""
 
 from __future__ import annotations
 

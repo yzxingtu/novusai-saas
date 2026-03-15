@@ -1,16 +1,27 @@
 <script lang="ts" setup>
 /**
  * User AI Chat - Full Page
+ * 用户端 AI 对话 — 全页
  *
  * Desktop: left sidebar (agent selector + conversation history) + right chat area
  * Mobile: single column chat, sidebar in Drawer
+ * 桌面：左侧栏（智能体+会话历史）+ 右侧对话区；移动端：单列对话，侧栏在 Drawer 中。
  * Reuses useAIChat composable with /user API prefix
  */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Drawer, Input, Modal, Spin, Tooltip, message } from 'ant-design-vue';
+import {
+  Drawer,
+  Dropdown,
+  Input,
+  Menu,
+  Modal,
+  Spin,
+  Tooltip,
+  message,
+} from 'ant-design-vue';
 
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
@@ -82,6 +93,7 @@ const {
   clickActionButton,
   regenerateMessage,
   editAndResend,
+  retryLastMessage,
   clearConversationMemory,
   clearingMemory,
   fetchConversationMemory,
@@ -89,6 +101,7 @@ const {
   memoryLoading,
   lastMemoryUpdated,
   exportAsMarkdown,
+  exportAsPlainText,
   totalTokensUsed,
   agentKBBindings,
   loadAgentKBBindings,
@@ -157,6 +170,19 @@ const groupedConversations = computed<ConversationGroup[]>(() => {
     groups.push({ label: $t('common.globalAiChat.earlier'), items: earlier });
   return groups;
 });
+
+const exportMenuItems = computed(() => [
+  {
+    key: 'md',
+    label: $t('common.globalAiChat.exportFormatMarkdown'),
+    onClick: () => exportAsMarkdown(),
+  },
+  {
+    key: 'txt',
+    label: $t('common.globalAiChat.exportFormatPlainText'),
+    onClick: () => exportAsPlainText(),
+  },
+]);
 
 // ============ Conversation handlers ============
 
@@ -812,21 +838,12 @@ onUnmounted(() => {
             @action-click="clickActionButton"
             @regenerate="regenerateMessage"
             @edit="editAndResend"
+            @retry="retryLastMessage"
           />
         </div>
 
-        <!-- Floating action buttons -->
+        <!-- Floating action buttons (scroll-to-bottom only; stop is merged into send button) -->
         <div class="sticky bottom-2 z-10 flex justify-center gap-2">
-          <Transition name="fade">
-            <button
-              v-if="streaming"
-              class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/95 px-3 py-1.5 text-xs font-medium text-destructive shadow-lg backdrop-blur-sm transition-all hover:bg-destructive hover:text-white hover:shadow-xl"
-              @click="stopGeneration"
-            >
-              <IconifyIcon icon="lucide:square" class="size-3" />
-              {{ $t('common.globalAiChat.stop') }}
-            </button>
-          </Transition>
           <Transition name="fade">
             <button
               v-if="showScrollToBottom && !streaming"
@@ -852,9 +869,14 @@ onUnmounted(() => {
           {{ $t('common.globalAiChat.tokens') }}
         </span>
         <span class="text-border">|</span>
-        <button class="hover:text-foreground" @click="exportAsMarkdown">
-          <IconifyIcon icon="lucide:download" class="size-3" />
-        </button>
+        <Dropdown :trigger="['click']" placement="bottomRight">
+          <button class="hover:text-foreground" type="button">
+            <IconifyIcon icon="lucide:download" class="size-3" />
+          </button>
+          <template #overlay>
+            <Menu :items="exportMenuItems" />
+          </template>
+        </Dropdown>
       </div>
 
       <!-- Input area -->
@@ -988,15 +1010,21 @@ onUnmounted(() => {
           />
           <button
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+            :aria-label="streaming ? $t('common.globalAiChat.stop') : $t('common.commandBar.send')"
             :disabled="
-              (!inputMessage.trim() && pendingAttachments.length === 0) ||
-              agents.length === 0 ||
-              sending
+              !streaming &&
+              ((!inputMessage.trim() && pendingAttachments.length === 0) ||
+                agents.length === 0 ||
+                sending)
             "
-            @click="handleSendClick"
+            @click="streaming ? stopGeneration() : handleSendClick()"
           >
-            <Spin v-if="sending" size="small" />
-            <IconifyIcon v-else icon="lucide:arrow-up" class="size-4" />
+            <Spin v-if="!streaming && sending" size="small" />
+            <IconifyIcon
+              v-else
+              :icon="streaming ? 'lucide:square' : 'lucide:arrow-up'"
+              class="size-4"
+            />
           </button>
         </div>
       </div>

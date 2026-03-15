@@ -1,5 +1,6 @@
 /**
  * AI 供应商管理 - 表格列、搜索和表单配置
+ * AI provider admin — columns, search and form config
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -18,10 +19,10 @@ import { dragColumn } from '#/adapter/vxe-table';
 import { getAdapterTypesApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
-/** 缓存适配器类型列表 */
+/** 缓存适配器类型列表 / Cached adapter type list */
 const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
 
-/** 加载适配器类型（含插件注册的） */
+/** 加载适配器类型（含插件注册的） / Load adapter types (including plugin-registered) */
 export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
   if (adapterTypesCache.value.length > 0) return adapterTypesCache.value;
   try {

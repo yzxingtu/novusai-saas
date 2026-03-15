@@ -1,5 +1,5 @@
 /**
- * 组件统一导出
+ * 组件统一导出 / Component barrel export
  * 业务组件集中管理
  */
 

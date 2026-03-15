@@ -13,7 +13,7 @@ from app.rbac.services.permission_service import PermissionService
 
 class AdminRoleHierarchyValidator:
     """
-    平台管理员角色层级校验器
+    平台管理员角色层级校验器 / Platform admin role hierarchy validator.
 
     提供基于角色层级的访问控制校验：
     - 角色可见性校验
@@ -23,7 +23,7 @@ class AdminRoleHierarchyValidator:
 
     def __init__(self, db: AsyncSession, admin: Admin):
         """
-        初始化校验器
+        初始化校验器 / Initialize validator.
 
         Args:
             db: 数据库会话
@@ -39,7 +39,7 @@ class AdminRoleHierarchyValidator:
 
     async def get_visible_role_ids(self) -> set[int]:
         """
-        获取可见的角色 ID 集合（带缓存）
+        获取可见的角色 ID 集合（带缓存）/ Get visible role IDs (cached).
 
         Returns:
             可见角色 ID 集合
@@ -50,7 +50,7 @@ class AdminRoleHierarchyValidator:
 
     async def get_manageable_role_ids(self) -> set[int]:
         """
-        获取可管理的角色 ID 集合（带缓存）
+        获取可管理的角色 ID 集合（带缓存）/ Get manageable role IDs (cached).
 
         Returns:
             可管理角色 ID 集合
@@ -61,7 +61,7 @@ class AdminRoleHierarchyValidator:
 
     async def get_effective_permission_ids(self) -> set[int]:
         """
-        获取有效权限 ID 集合（带缓存）
+        获取有效权限 ID 集合（带缓存）/ Get effective permission IDs (cached).
 
         Returns:
             有效权限 ID 集合
@@ -72,7 +72,7 @@ class AdminRoleHierarchyValidator:
 
     async def can_view_role(self, role_id: int) -> bool:
         """
-        检查是否可以查看某角色
+        检查是否可以查看某角色 / Check if can view role.
 
         Args:
             role_id: 角色 ID
@@ -85,7 +85,7 @@ class AdminRoleHierarchyValidator:
 
     async def can_manage_role(self, role_id: int) -> bool:
         """
-        检查是否可以管理某角色（创建/编辑/删除）
+        检查是否可以管理某角色（创建/编辑/删除）/ Check if can manage role (create/edit/delete).
 
         Args:
             role_id: 角色 ID
@@ -98,7 +98,7 @@ class AdminRoleHierarchyValidator:
 
     async def can_create_under_parent(self, parent_id: int | None) -> bool:
         """
-        检查是否可以在指定父角色下创建子角色
+        检查是否可以在指定父角色下创建子角色 / Check if can create child under parent role.
 
         - 如果 parent_id 是 None，只有超级管理员可以创建根角色
         - 否则 parent_id 必须是当前管理员的角色或其后代
@@ -127,7 +127,7 @@ class AdminRoleHierarchyValidator:
 
     async def can_assign_permission(self, permission_id: int) -> bool:
         """
-        检查是否可以分配某权限
+        检查是否可以分配某权限 / Check if can assign permission.
 
         只能分配自己已有的权限
 
@@ -142,7 +142,7 @@ class AdminRoleHierarchyValidator:
 
     async def filter_assignable_permissions(self, permission_ids: list[int]) -> list[int]:
         """
-        过滤出可分配的权限 ID
+        过滤出可分配的权限 ID / Filter to assignable permission IDs.
 
         Args:
             permission_ids: 权限 ID 列表
@@ -155,7 +155,7 @@ class AdminRoleHierarchyValidator:
 
     async def get_unassignable_permissions(self, permission_ids: list[int]) -> list[int]:
         """
-        获取不可分配的权限 ID
+        获取不可分配的权限 ID / Get unassignable permission IDs.
 
         Args:
             permission_ids: 权限 ID 列表
@@ -169,14 +169,14 @@ class AdminRoleHierarchyValidator:
 
 class TenantAdminRoleHierarchyValidator:
     """
-    企业管理员角色层级校验器
+    企业管理员角色层级校验器 / Tenant admin role hierarchy validator.
 
     提供基于角色层级的访问控制校验（企业隔离）
     """
 
     def __init__(self, db: AsyncSession, tenant_admin: TenantAdmin):
         """
-        初始化校验器
+        初始化校验器 / Initialize validator.
 
         Args:
             db: 数据库会话
@@ -191,35 +191,35 @@ class TenantAdminRoleHierarchyValidator:
         self._effective_permission_ids: set[int] | None = None
 
     async def get_visible_role_ids(self) -> set[int]:
-        """获取可见的角色 ID 集合（带缓存）"""
+        """获取可见的角色 ID 集合（带缓存） / Get visible role IDs (cached)."""
         if self._visible_role_ids is None:
             self._visible_role_ids = await self._perm_service.get_tenant_admin_visible_role_ids(self.tenant_admin)
         return self._visible_role_ids
 
     async def get_manageable_role_ids(self) -> set[int]:
-        """获取可管理的角色 ID 集合（带缓存）"""
+        """获取可管理的角色 ID 集合（带缓存） / Get manageable role IDs (cached)."""
         if self._manageable_role_ids is None:
             self._manageable_role_ids = await self._perm_service.get_tenant_admin_manageable_role_ids(self.tenant_admin)
         return self._manageable_role_ids
 
     async def get_effective_permission_ids(self) -> set[int]:
-        """获取有效权限 ID 集合（带缓存）"""
+        """获取有效权限 ID 集合（带缓存） / Get effective permission IDs (cached)."""
         if self._effective_permission_ids is None:
             self._effective_permission_ids = await self._perm_service.get_tenant_admin_effective_permission_ids(self.tenant_admin)
         return self._effective_permission_ids
 
     async def can_view_role(self, role_id: int) -> bool:
-        """检查是否可以查看某角色"""
+        """检查是否可以查看某角色 / Check if can view role."""
         visible_ids = await self.get_visible_role_ids()
         return role_id in visible_ids
 
     async def can_manage_role(self, role_id: int) -> bool:
-        """检查是否可以管理某角色"""
+        """检查是否可以管理某角色 / Check if can manage role."""
         manageable_ids = await self.get_manageable_role_ids()
         return role_id in manageable_ids
 
     async def can_create_under_parent(self, parent_id: int | None) -> bool:
-        """检查是否可以在指定父角色下创建子角色"""
+        """检查是否可以在指定父角色下创建子角色 / Check if can create child under parent role."""
         # 企业所有者可以在任何位置创建
         if self.tenant_admin.is_owner:
             return True
@@ -237,17 +237,17 @@ class TenantAdminRoleHierarchyValidator:
         return parent_id in visible_ids
 
     async def can_assign_permission(self, permission_id: int) -> bool:
-        """检查是否可以分配某权限"""
+        """检查是否可以分配某权限 / Check if can assign permission."""
         effective_ids = await self.get_effective_permission_ids()
         return permission_id in effective_ids
 
     async def filter_assignable_permissions(self, permission_ids: list[int]) -> list[int]:
-        """过滤出可分配的权限 ID"""
+        """过滤出可分配的权限 ID / Filter to assignable permission IDs."""
         effective_ids = await self.get_effective_permission_ids()
         return [pid for pid in permission_ids if pid in effective_ids]
 
     async def get_unassignable_permissions(self, permission_ids: list[int]) -> list[int]:
-        """获取不可分配的权限 ID"""
+        """获取不可分配的权限 ID / Get unassignable permission IDs."""
         effective_ids = await self.get_effective_permission_ids()
         return [pid for pid in permission_ids if pid not in effective_ids]
 

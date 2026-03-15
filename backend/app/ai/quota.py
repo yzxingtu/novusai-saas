@@ -1,6 +1,5 @@
 """
-AI Call Quota Management Service
-AI 调用配额管理服务
+AI Call Quota Management Service / AI 调用配额管理服务
 
 Manages tenant Token quota, monthly budget, and usage tracking.
 管理企业的 Token 配额、月度预算和使用量追踪。

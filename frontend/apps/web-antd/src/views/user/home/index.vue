@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 公开首页 — 游客/登录用户均可访问
+ * 公开首页 — 游客/登录用户均可访问 / Public home — guests and logged-in users
  * 游客：显示平台/企业品牌 + 登录/注册入口
  * 已登录：显示工作台仪表板（欢迎信息 + 快捷操作）
  */

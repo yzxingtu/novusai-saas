@@ -1,6 +1,5 @@
 """
-AI Call Rate Limiting Service
-AI 调用速率限制服务
+AI Call Rate Limiting Service / AI 调用速率限制服务
 
 Redis-based sliding window rate limiting to prevent abuse.
 RPM (requests per minute) uses sorted set + zcard counting;

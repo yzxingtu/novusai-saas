@@ -23,7 +23,7 @@ from app.repositories.tenant.tenant_user_role_repository import TenantUserRoleRe
 
 class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleRepository]):
     """
-    企业用户角色服务
+    企业用户角色服务 / Tenant user role service.
 
     提供企业用户角色特有的业务方法，自动注入企业隔离
     """
@@ -33,7 +33,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
 
     async def get_by_code(self, code: str) -> TenantUserRole | None:
         """
-        根据代码获取角色（企业内）
+        根据代码获取角色（企业内）/ Get role by code (within tenant).
 
         Args:
             code: 角色代码
@@ -44,7 +44,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         return await self.repo.get_by_code(code)
 
     def _generate_role_code(self) -> str:
-        """生成唯一角色代码"""
+        """生成唯一角色代码 / Generate unique role code."""
         return f"role_{uuid.uuid4().hex[:12]}"
 
     async def create_role(
@@ -57,7 +57,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         permission_ids: list[int] | None = None,
     ) -> TenantUserRole:
         """
-        创建用户角色（企业内）
+        创建用户角色（企业内）/ Create user role (within tenant).
 
         Args:
             name: 角色名称
@@ -113,7 +113,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         data: dict[str, Any],
     ) -> TenantUserRole:
         """
-        更新用户角色（企业内）
+        更新用户角色（企业内）/ Update user role (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -209,7 +209,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         permission_ids: list[int],
     ) -> TenantUserRole:
         """
-        分配权限给角色（企业内）
+        分配权限给角色（企业内）/ Assign permissions to role (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -234,7 +234,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         is_active: bool,
     ) -> TenantUserRole:
         """
-        切换角色状态
+        切换角色状态 / Toggle role active status.
 
         Args:
             role_id: 角色 ID
@@ -269,7 +269,7 @@ class TenantUserRoleService(TenantService[TenantUserRole, TenantUserRoleReposito
         permission_ids: list[int],
     ) -> None:
         """
-        内部方法：分配权限给角色
+        内部方法：分配权限给角色 / Internal: assign permissions to role.
 
         Args:
             role: 角色实例

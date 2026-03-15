@@ -14,7 +14,7 @@ logger = LogManager.get_logger("app")
 
 class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment]):
     """
-    资源-企业分配 Repository
+    资源-企业分配 Repository / Resource-tenant assignment repository.
 
     提供通用的资源→企业分配 CRUD，支持所有需要「部分企业」作用域的资源类型。
     """
@@ -31,7 +31,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_id: int,
     ) -> bool:
         """
-        检查资源是否已分配给指定企业
+        检查资源是否已分配给指定企业 / Check if resource is assigned to tenant.
 
         Args:
             resource_type: 资源类型
@@ -62,7 +62,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         config: dict | None = None,
     ) -> ResourceTenantAssignment:
         """
-        分配资源给企业
+        分配资源给企业 / Assign resource to tenant.
 
         如果已存在（包括已禁用的），则重新激活；否则创建新记录。
 
@@ -112,7 +112,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_id: int,
     ) -> bool:
         """
-        取消资源分配（物理删除）
+        取消资源分配（物理删除）/ Unassign resource (hard delete).
 
         Returns:
             是否成功删除
@@ -136,7 +136,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取资源已分配的企业 ID 列表
+        获取资源已分配的企业 ID 列表 / Get tenant IDs assigned to resource.
 
         Args:
             resource_type: 资源类型
@@ -166,7 +166,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         active_only: bool = True,
     ) -> list[int]:
         """
-        获取企业可访问的资源 ID 列表
+        获取企业可访问的资源 ID 列表 / Get resource IDs accessible to tenant.
 
         Args:
             resource_type: 资源类型
@@ -196,7 +196,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_ids: list[int],
     ) -> int:
         """
-        批量分配资源给多个企业
+        批量分配资源给多个企业 / Batch assign resource to tenants.
 
         Returns:
             新增分配数
@@ -218,7 +218,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_ids: list[int],
     ) -> int:
         """
-        批量取消分配
+        批量取消分配 / Batch unassign.
 
         Returns:
             删除数
@@ -245,7 +245,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         tenant_ids: list[int],
     ) -> dict[str, int]:
         """
-        同步分配（替换模式：添加缺失的，移除多余的）
+        同步分配（替换模式：添加缺失的，移除多余的）/ Sync assignments (replace mode: add missing, remove extra).
 
         Returns:
             {"added": N, "removed": N}
@@ -275,7 +275,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
         resource_id: int,
     ) -> int:
         """
-        删除资源的所有分配记录（资源被删除时调用）
+        删除资源的所有分配记录（资源被删除时调用）/ Delete all assignments for resource (when resource is deleted).
 
         Returns:
             删除数
@@ -294,7 +294,7 @@ class ResourceTenantAssignmentRepository(BaseRepository[ResourceTenantAssignment
 
 def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
     """
-    构建「已分配给指定企业的资源 ID」子查询
+    构建「已分配给指定企业的资源 ID」子查询 / Build subquery of resource IDs assigned to tenant.
 
     用于企业端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
     scope 的资源对被分配的企业可见。

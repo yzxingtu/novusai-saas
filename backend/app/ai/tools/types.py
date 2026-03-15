@@ -1,6 +1,5 @@
 """
-Tool Type Definitions
-工具类型定义
+Tool Type Definitions. / 工具类型定义。
 
 Defines data classes for tool parameters, tool definitions, and tool execution results.
 定义工具参数、工具定义、工具执行结果等数据类。

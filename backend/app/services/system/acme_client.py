@@ -25,13 +25,13 @@ logger = LogManager.get_logger("ssl")
 
 
 class AcmeDnsSetterMissingError(RuntimeError):
-    """dns_setter 未配置，不应重试"""
+    """dns_setter 未配置，不应重试 / dns_setter not configured, should not retry."""
     pass
 
 
 class AcmeClient:
     """
-    ACME 协议客户端
+    ACME 协议客户端 / ACME protocol client.
 
     封装与 Let's Encrypt 的交互流程：
     1. 注册/复用账户
@@ -74,7 +74,7 @@ class AcmeClient:
         dns_deleter: "callable | None" = None,
     ) -> tuple[str, str, str | None]:
         """
-        完整的证书签发流程
+        完整的证书签发流程 / Full certificate provisioning flow.
 
         Args:
             domain: 要签发证书的域名
@@ -158,7 +158,7 @@ class AcmeClient:
     # ==================== 内部方法 ====================
 
     async def _init_client(self) -> None:
-        """初始化 ACME 客户端并注册/复用账户"""
+        """初始化 ACME 客户端并注册/复用账户 / Init ACME client and register/reuse account."""
         if self._client:
             return
 
@@ -194,7 +194,7 @@ class AcmeClient:
                 raise
 
     def _create_order(self, domain: str):
-        """创建证书订单"""
+        """创建证书订单 / Create certificate order."""
         return self._client.new_order(
             self._acme_module.crypto_util.make_csr(
                 self._generate_private_key().private_bytes(
@@ -207,7 +207,7 @@ class AcmeClient:
         )
 
     def _get_dns01_challenge(self, order) -> tuple:
-        """从订单中提取 DNS-01 challenge，返回 (authz, challenge, validation)"""
+        """从订单中提取 DNS-01 challenge，返回 (authz, challenge, validation) / Extract DNS-01 challenge from order."""
         from acme import challenges
 
         for authz in order.authorizations:
@@ -219,7 +219,7 @@ class AcmeClient:
         raise RuntimeError("No DNS-01 challenge found in ACME order")
 
     def _respond_challenge(self, challenge) -> None:
-        """响应 ACME challenge"""
+        """响应 ACME challenge / Respond to ACME challenge."""
         self._client.answer_challenge(
             challenge,
             challenge.chall.response(self._account_key),
@@ -231,7 +231,7 @@ class AcmeClient:
         timeout: int = 300,
         interval: int = 5,
     ) -> None:
-        """轮询 authorization 状态直到验证完成"""
+        """轮询 authorization 状态直到验证完成 / Poll authorization until valid."""
         start = time.monotonic()
         while time.monotonic() - start < timeout:
             response = await asyncio.to_thread(
@@ -251,12 +251,12 @@ class AcmeClient:
         raise TimeoutError(f"ACME challenge verification timed out after {timeout}s")
 
     def _finalize_order(self, order, csr) -> object:
-        """完成订单"""
+        """完成订单 / Finalize order."""
         return self._client.finalize_order(order, csr)
 
     @staticmethod
     def _generate_csr(domain: str, key) -> bytes:
-        """生成 CSR (Certificate Signing Request)"""
+        """生成 CSR (Certificate Signing Request) / Generate CSR."""
         csr = (
             x509.CertificateSigningRequestBuilder()
             .subject_name(
@@ -272,7 +272,7 @@ class AcmeClient:
 
     @staticmethod
     def _extract_certificate(order) -> tuple[str, str | None]:
-        """从完成的订单中提取证书和证书链"""
+        """从完成的订单中提取证书和证书链 / Extract cert and chain from finalized order."""
         fullchain = order.fullchain_pem
         if not fullchain:
             raise RuntimeError("No certificate in finalized ACME order")
@@ -288,7 +288,7 @@ class AcmeClient:
 
     @staticmethod
     def _generate_private_key() -> rsa.RSAPrivateKey:
-        """生成 RSA 2048 私钥"""
+        """生成 RSA 2048 私钥 / Generate RSA 2048 private key."""
         from cryptography.hazmat.backends import default_backend
         return rsa.generate_private_key(
             public_exponent=65537,
@@ -303,7 +303,7 @@ class AcmeClient:
         timeout: int = 120,
         interval: int = 10,
     ) -> None:
-        """等待 DNS TXT 记录传播"""
+        """等待 DNS TXT 记录传播 / Wait for DNS TXT propagation."""
         import dns.resolver
 
         start = time.monotonic()

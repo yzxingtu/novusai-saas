@@ -25,7 +25,7 @@ from app.core.i18n import _
 
 class AgentVersion(TenantModel):
     """
-    智能体版本模型
+    智能体版本模型 / Agent version model.
 
     每次发布智能体时，将当前配置冻结为一条版本记录。
     支持版本历史查看、回滚、对比等操作。

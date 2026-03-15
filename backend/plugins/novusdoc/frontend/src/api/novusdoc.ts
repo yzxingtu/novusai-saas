@@ -1,5 +1,6 @@
 /**
  * NovusDoc API layer — uses host requestClient from NovusPluginShared
+ * NovusDoc API 层 — 使用宿主 NovusPluginShared 的 requestClient
  */
 
 import type { DocDetail, DocItem, Folder, Tag } from '../types';

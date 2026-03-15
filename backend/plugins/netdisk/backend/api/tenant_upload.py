@@ -12,7 +12,7 @@ from ._schemas import node_schema as _node_schema
 
 
 async def upload_whole(request, db, ctx):
-    """POST multipart/form-data 整文件上传"""
+    """POST multipart/form-data 整文件上传 / POST whole-file upload (multipart/form-data)."""
     form      = await request.form()
     file_obj  = form.get("file")
     parent_id_str = form.get("parent_id")
@@ -34,7 +34,7 @@ async def upload_whole(request, db, ctx):
 
 
 async def upload_init(request, db, ctx):
-    """POST JSON 初始化分片上传，返回 upload_id"""
+    """POST JSON 初始化分片上传，返回 upload_id / POST init multipart, return upload_id."""
     body = await request.json()
     from ..services.upload_service import UploadService
     svc    = UploadService(db, ctx.get_current_tenant_id())
@@ -47,7 +47,7 @@ async def upload_init(request, db, ctx):
 
 
 async def upload_part(request, db, ctx):
-    """POST multipart 上传单个分片"""
+    """POST multipart 上传单个分片 / POST upload single part."""
     upload_id = request.query_params["upload_id"]
     part_no   = int(request.query_params["part_no"])
     form      = await request.form()
@@ -61,7 +61,7 @@ async def upload_part(request, db, ctx):
 
 
 async def upload_complete(request, db, ctx):
-    """POST JSON 合并分片，创建节点"""
+    """POST JSON 合并分片，创建节点 / POST complete multipart, create node."""
     body = await request.json()
     from ..services.upload_service import UploadService
     svc  = UploadService(db, ctx.get_current_tenant_id())
@@ -70,7 +70,7 @@ async def upload_complete(request, db, ctx):
 
 
 async def upload_status(request, db, ctx):
-    """GET 断点续传查询—已上传分片列表"""
+    """GET 断点续传查询—已上传分片列表 / GET list uploaded parts (resumable)."""
     upload_id = request.path_params["upload_id"]
     from ..services.upload_service import UploadService
     svc    = UploadService(db, ctx.get_current_tenant_id())
@@ -79,7 +79,7 @@ async def upload_status(request, db, ctx):
 
 
 async def download_node(request, db, ctx):
-    """GET 返回签名下载 URL（15 分钟有效）"""
+    """GET 返回签名下载 URL（15 分钟有效） / GET signed download URL (15min TTL)."""
     node_id = int(request.path_params["node_id"])
     from ..services.upload_service import UploadService
     svc = UploadService(db, ctx.get_current_tenant_id())
@@ -88,7 +88,7 @@ async def download_node(request, db, ctx):
 
 
 async def get_thumbnail(request, db, ctx):
-    """GET 图片缩略图（200x200 JPEG，直接返回二进制）"""
+    """GET 图片缩略图（200x200 JPEG，直接返回二进制） / GET image thumbnail (200x200 JPEG binary)."""
     import io
 
     from fastapi import HTTPException

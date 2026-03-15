@@ -22,7 +22,7 @@ from app.schemas.ai.provider import (
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
     """
-    AI 供应商 Service
+    AI 供应商 Service / AI provider service.
 
     提供 AI 供应商的业务逻辑操作
     """
@@ -35,7 +35,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         code: str
     ) -> AIProvider | None:
         """
-        根据代码获取供应商
+        根据代码获取供应商 / Get provider by code.
 
         Args:
             code: 供应商代码
@@ -50,7 +50,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         limit: int | None = None
     ) -> list[AIProvider]:
         """
-        获取启用的供应商列表
+        获取启用的供应商列表 / Get active providers list.
 
         Args:
             limit: 限制返回数量
@@ -63,7 +63,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
     @staticmethod
     def _slugify(name: str) -> str:
         """
-        将名称转为 slug 格式的代码
+        将名称转为 slug 格式的代码 / Convert name to slug code.
 
         Examples:
             "OpenAI" -> "openai"
@@ -76,7 +76,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
 
     async def _generate_unique_code(self, name: str) -> str:
         """
-        根据名称生成唯一的供应商代码
+        根据名称生成唯一的供应商代码 / Generate unique provider code from name.
 
         如果 slug 已存在，追加数字后缀
         """
@@ -96,7 +96,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         data: AIProviderCreate
     ) -> AIProvider:
         """
-        创建供应商
+        创建供应商 / Create provider.
 
         Args:
             data: 创建请求
@@ -133,7 +133,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         data: AIProviderUpdate
     ) -> AIProvider:
         """
-        更新供应商
+        更新供应商 / Update provider.
 
         Args:
             id: 供应商 ID
@@ -207,7 +207,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         id: int
     ) -> AIProvider:
         """
-        切换供应商启用状态
+        切换供应商启用状态 / Toggle provider active status.
 
         Args:
             id: 供应商 ID

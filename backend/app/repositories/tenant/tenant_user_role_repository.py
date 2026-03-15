@@ -15,7 +15,7 @@ from app.models.auth.tenant_user_role import TenantUserRole
 
 class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
     """
-    企业用户角色仓储
+    企业用户角色仓储 / Tenant user role repository.
 
     提供企业用户角色特有的数据访问方法，自动过滤企业 ID
     """
@@ -24,7 +24,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
 
     async def get_by_code(self, code: str) -> TenantUserRole | None:
         """
-        根据代码获取角色（企业内）
+        根据代码获取角色（企业内）/ Get role by code (within tenant).
 
         Args:
             code: 角色代码
@@ -40,7 +40,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色代码是否已存在（企业内唯一）
+        检查角色代码是否已存在（企业内唯一）/ Check if role code exists (unique within tenant).
 
         Args:
             code: 角色代码
@@ -66,7 +66,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色名称是否已存在（企业内唯一）
+        检查角色名称是否已存在（企业内唯一）/ Check if role name exists (unique within tenant).
 
         Args:
             name: 角色名称
@@ -88,7 +88,7 @@ class TenantUserRoleRepository(TenantRepository[TenantUserRole]):
 
     async def count_users(self, role_id: int) -> int:
         """
-        统计角色下的用户数量
+        统计角色下的用户数量 / Count users under role.
 
         Args:
             role_id: 角色 ID

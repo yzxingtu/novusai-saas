@@ -47,7 +47,7 @@ _VERSION_SNAPSHOT_FIELDS = [
 
 class AgentService(TenantService[Agent, AgentRepository]):
     """
-    智能体 Service
+    智能体 Service / Agent service.
 
     提供智能体的创建、更新、发布、回滚等业务逻辑
     """
@@ -56,11 +56,11 @@ class AgentService(TenantService[Agent, AgentRepository]):
     repository_class = AgentRepository
 
     def _get_version_repo(self) -> AgentVersionRepository:
-        """获取版本 Repository"""
+        """获取版本 Repository / Get version repository."""
         return AgentVersionRepository(self.db, self.tenant_id)
 
     async def _snapshot_skill_bindings(self, agent_id: int) -> list[dict[str, Any]]:
-        """快照当前 Agent 的技能绑定列表（用于版本发布）"""
+        """快照当前 Agent 的技能绑定列表（用于版本发布） / Snapshot agent skill bindings (for version publish)."""
         from sqlalchemy import select
 
         from app.models.ai.agent_skill_binding import AgentSkillBinding
@@ -91,7 +91,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         agent_id: int,
         bindings_snapshot: list[dict[str, Any]] | None,
     ) -> None:
-        """从版本快照恢复技能绑定（用于版本回滚）"""
+        """从版本快照恢复技能绑定（用于版本回滚） / Restore skill bindings from snapshot (for rollback)."""
         if bindings_snapshot is None:
             return
 
@@ -127,15 +127,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
             })
 
     def _get_access_repo(self) -> AgentAccessRepository:
-        """获取访问权限 Repository"""
+        """获取访问权限 Repository / Get access repository."""
         return AgentAccessRepository(self.db, self.tenant_id)
 
     def _get_memory_override_repo(self) -> AgentMemoryOverrideRepository:
-        """获取企业记忆开关覆盖 Repository"""
+        """获取企业记忆开关覆盖 Repository / Get memory override repository."""
         return AgentMemoryOverrideRepository(self.db, self.tenant_id)
 
     async def _get_platform_default_memory_enabled(self) -> bool:
-        """获取平台默认记忆开关（默认 True）"""
+        """获取平台默认记忆开关（默认 True） / Get platform default memory enabled (default True)."""
         config_service = ConfigService(self.db)
         value = await config_service.get_platform_config(
             "platform_default_memory_enabled",
@@ -145,12 +145,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def resolve_memory_effective_config(self, agent_id: int) -> dict[str, bool]:
         """
-        计算智能体记忆最终生效状态（企业侧）
-
-        规则：
-            effective = platform_default_memory_enabled
-                        AND admin_agent_memory_enabled
-                        AND (NOT tenant_agent_memory_disabled)
+        计算智能体记忆最终生效状态（企业侧） / Resolve effective memory config (tenant side).
+        规则：effective = platform AND admin_agent AND (NOT tenant_disabled).
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
@@ -174,7 +170,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def get_memory_config(self, agent_id: int) -> dict[str, Any]:
         """
-        获取企业侧智能体记忆配置状态
+        获取企业侧智能体记忆配置状态 / Get tenant-side agent memory config.
         """
         await self.get_agent_detail(agent_id)
         resolved = await self.resolve_memory_effective_config(agent_id)
@@ -189,7 +185,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         disabled: bool,
     ) -> dict[str, Any]:
         """
-        设置企业侧“关闭记忆”覆盖（仅支持关闭/恢复默认）
+        设置企业侧“关闭记忆”覆盖（仅支持关闭/恢复默认） / Set tenant memory-disabled override (disable or restore default).
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
@@ -218,7 +214,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return await self.get_memory_config(agent_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性 + 插件钩子"""
+        """创建前校验：名称唯一性 + 插件钩子 / Before create: name uniqueness + plugin hooks."""
         await super()._before_create(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -240,7 +236,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _after_create(self, instance: Agent) -> None:
-        """创建后：触发插件钩子"""
+        """创建后：触发插件钩子 / After create: trigger plugin hooks."""
         await super()._after_create(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -253,7 +249,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             )
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性、系统智能体保护 + 插件钩子"""
+        """更新前校验：名称唯一性、系统智能体保护 + 插件钩子 / Before update: name uniqueness, system agent protection, plugin hooks."""
         await super()._before_update(id, data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -289,7 +285,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _after_update(self, instance: Agent) -> None:
-        """更新后：触发插件钩子"""
+        """更新后：触发插件钩子 / After update: trigger plugin hooks."""
         await super()._after_update(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -302,7 +298,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             )
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话 + 插件钩子"""
+        """删除前校验：系统智能体不可删除，级联软删除对话 + 插件钩子 / Before delete: system protected, cascade soft-delete conversations, plugin hooks."""
         await super()._before_delete(id)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -331,7 +327,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
 
     async def _after_delete(self, instance: Agent) -> None:
-        """删除后：触发插件钩子"""
+        """删除后：触发插件钩子 / After delete: trigger plugin hooks."""
         await super()._after_delete(instance)
         from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
@@ -343,7 +339,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             )
 
     async def escalate_delete(self, id: int) -> Agent | None:
-        """升级删除层级，级联升级对话记录"""
+        """升级删除层级，级联升级对话记录 / Escalate delete level, cascade escalate conversations."""
         instance = await self.repo.escalate_delete_by_id(id)
         if instance is None:
             return None
@@ -352,18 +348,18 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return instance
 
     async def _after_restore(self, instance: Agent) -> None:
-        """恢复后：级联恢复对话记录"""
+        """恢复后：级联恢复对话记录 / After restore: cascade restore conversations."""
         await self.repo.cascade_restore_conversations(instance.id)
 
     async def get_agent_detail(self, agent_id: int) -> dict[str, Any]:
         """
-        获取智能体详情（含关联模型信息）
+        获取智能体详情（含关联模型信息） / Get agent detail (with model info).
 
         Args:
-            agent_id: 智能体 ID
+            agent_id: 智能体 ID / Agent ID.
 
         Returns:
-            包含模型名称/代码的智能体字典
+            包含模型名称/代码的智能体字典 / Agent dict with model name/code.
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
@@ -401,7 +397,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         created_by: int | None = None,
     ) -> Agent:
         """
-        发布智能体
+        发布智能体 / Publish agent.
 
         将当前配置冻结为新版本快照，更新 published_version，设置 status=published
 
@@ -457,7 +453,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         version: int,
     ) -> Agent:
         """
-        回滚智能体到指定版本
+        回滚智能体到指定版本 / Rollback agent to given version.
 
         将指定版本的配置回写到 Agent 主记录，设置 status=draft。
         published_version 保持不变（仍指向最后一次发布的版本号）。
@@ -504,7 +500,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         agent_id: int,
     ) -> list[dict[str, Any]]:
         """
-        获取智能体版本历史列表
+        获取智能体版本历史列表 / Get agent version history list.
 
         Args:
             agent_id: 智能体 ID
@@ -526,7 +522,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         version: int,
     ) -> dict[str, Any]:
         """
-        获取智能体版本详情
+        获取智能体版本详情 / Get agent version detail.
 
         Args:
             agent_id: 智能体 ID
@@ -549,7 +545,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         v2: int,
     ) -> dict[str, Any]:
         """
-        对比两个版本的字段差异
+        对比两个版本的字段差异 / Diff two versions by fields.
 
         Args:
             agent_id: 智能体 ID
@@ -595,7 +591,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def get_access_config(self, agent_id: int) -> dict[str, Any]:
         """
-        获取智能体访问权限配置（仅角色 ID 列表）
+        获取智能体访问权限配置（仅角色 ID 列表）/ Get agent access config (role ID lists only).
 
         Args:
             agent_id: 智能体 ID
@@ -625,7 +621,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         user_role_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """
-        更新智能体访问权限配置（仅角色 ID 列表）
+        更新智能体访问权限配置（仅角色 ID 列表）/ Update agent access config (role ID lists only).
 
         Args:
             agent_id: 智能体 ID
@@ -668,7 +664,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         user_role_id: int | None = None,
     ) -> bool:
         """
-        检查用户是否有权访问指定智能体
+        检查用户是否有权访问指定智能体 / Check if user can access agent.
 
         两层校验：
         1. target_audience — 三端隔离（哪些端可访问）
@@ -726,7 +722,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         spec: "QuerySpec",
     ) -> tuple[list[Agent], int]:
         """
-        获取终端用户可访问的智能体列表
+        获取终端用户可访问的智能体列表 / List agents accessible to end user.
 
         在 SQL 层完成全部过滤（status/execution_mode/visibility/access_type），
         保证分页和 total 计数的正确性。
@@ -746,7 +742,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
 class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     """
-    平台管理端智能体 Service
+    平台管理端智能体 Service / Admin agent service.
 
     提供跨企业的智能体列表查询、CRUD 和状态管理
     """
@@ -755,7 +751,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     repository_class = AdminAgentRepository
 
     async def _get_platform_default_memory_enabled(self) -> bool:
-        """获取平台默认记忆开关（默认 True）"""
+        """获取平台默认记忆开关（默认 True） / Get platform default memory enabled (default True)."""
         config_service = ConfigService(self.db)
         value = await config_service.get_platform_config(
             "platform_default_memory_enabled",
@@ -765,7 +761,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     async def get_memory_config(self, agent_id: int) -> dict[str, Any]:
         """
-        获取管理端智能体记忆配置状态
+        获取管理端智能体记忆配置状态 / Get admin-side agent memory config.
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
@@ -789,7 +785,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         enabled: bool,
     ) -> dict[str, Any]:
         """
-        设置管理端 Agent 级记忆开关
+        设置管理端 Agent 级记忆开关 / Set admin-side agent-level memory toggle.
         """
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
@@ -799,7 +795,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.get_memory_config(agent_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：scope + tenant_id 一致性、名称唯一性"""
+        """创建前校验：scope + tenant_id 一致性、名称唯一性 / Before create: scope+tenant_id consistency, name uniqueness."""
         await super()._before_create(data)
 
         from app.enums.common import ResourceScopeEnum
@@ -819,7 +815,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：scope 变更时的一致性、名称唯一性、系统智能体保护"""
+        """更新前校验：scope 变更时的一致性、名称唯一性、系统智能体保护 / Before update: scope consistency, name uniqueness, system agent protection."""
         await super()._before_update(id, data)
 
         agent = await self.repo.get_by_id(id)
@@ -848,7 +844,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     async def query_list(self, query: QuerySpec) -> tuple[list[Agent], int]:
         """
-        全企业智能体列表查询
+        全企业智能体列表查询 / Query agent list (all tenants).
 
         Args:
             query: JSON:API QueryParams
@@ -859,7 +855,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.repo.query_list(query)
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话，清理企业分配"""
+        """删除前校验：系统智能体不可删除，级联软删除对话，清理企业分配 / Before delete: system protected, cascade conversations, clear assignments."""
         await super()._before_delete(id)
         agent = await self.repo.get_by_id(id)
         if not agent:
@@ -884,7 +880,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     async def update_status(self, agent_id: int, status: str) -> Agent:
         """
-        更新智能体状态（含状态机校验）
+        更新智能体状态（含状态机校验）/ Update agent status (with state machine check).
 
         Args:
             agent_id: 智能体 ID

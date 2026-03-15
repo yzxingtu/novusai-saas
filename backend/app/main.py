@@ -1,6 +1,5 @@
 """
-FastAPI Application Entry Point
-FastAPI 应用入口
+FastAPI Application Entry Point. / FastAPI 应用入口。
 
 Configures application instance, middleware, routes, exception handlers, etc.
 配置应用实例、中间件、路由、异常处理器等
@@ -466,8 +465,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_application() -> FastAPI:
     """
-    Create FastAPI application instance
-    创建 FastAPI 应用实例
+    Create FastAPI application instance. / 创建 FastAPI 应用实例。
     """
     app = FastAPI(
         title=settings.APP_NAME,

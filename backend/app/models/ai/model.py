@@ -18,7 +18,7 @@ from app.enums.ai import ModelTypeEnum
 
 class AIModel(BaseModel):
     """
-    AI 模型模型
+    AI 模型模型 / AI model (provider model instance).
 
     存储 AI 供应商提供的具体模型信息，如 GPT-4、Claude-3 等
     """
@@ -38,6 +38,10 @@ class AIModel(BaseModel):
                     label_field="name", i18n_key="ai_model"),
         DeletionDep("KnowledgeBase", "vision_model_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="knowledge_base_vision"),
+        DeletionDep("KnowledgeBase", "audio_model_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="knowledge_base_audio"),
+        DeletionDep("KnowledgeBase", "video_model_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="knowledge_base_video"),
     ]
 
     __selectable__ = {
@@ -57,6 +61,8 @@ class AIModel(BaseModel):
         "tier": "tier",
         "is_active": "is_active",
         "supports_vision": "supports_vision",
+        "supports_audio": "supports_audio",
+        "supports_video": "supports_video",
         "supports_function_calling": "supports_function_calling",
         "supports_streaming": "supports_streaming",
         "created_at": "created_at",
@@ -149,6 +155,16 @@ class AIModel(BaseModel):
         Boolean,
         default=False,
         comment=_("enum.ai_model.supports_vision")
+    )
+    supports_audio: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment=_("enum.ai_model.supports_audio")
+    )
+    supports_video: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment=_("enum.ai_model.supports_video")
     )
     supports_streaming: Mapped[bool] = mapped_column(
         Boolean,

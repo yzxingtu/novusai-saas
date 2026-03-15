@@ -1,5 +1,4 @@
-"""
-公开分享访问 API — auth=none 公开路由
+"""公开分享访问 API — auth=none 公开路由 / Public share access API — unauthenticated routes.
 
 Handler 签名：(request, db, ctx)
 - 公开路由中 ctx.get_current_tenant_id() 返回 None
@@ -21,7 +20,7 @@ _verify_buckets: dict[str, list[float]] = defaultdict(list)
 
 
 def _check_verify_rate_limit(request) -> JSONResponse | None:
-    """IP 维度限流：5 次 / 60 秒。"""
+    """IP 维度限流：5 次 / 60 秒。 / IP rate limit: 5 req / 60 sec."""
     client_ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
     cutoff = now - _VERIFY_WINDOW_SECONDS
@@ -42,7 +41,7 @@ def _check_verify_rate_limit(request) -> JSONResponse | None:
 
 
 async def access_share(request, db, ctx):
-    """公开分享访问（无需登录）"""
+    """公开分享访问（无需登录） / Access share (no login)."""
     token = request.path_params["token"]
     from ..services.share_service import ShareService
     svc    = ShareService(db, tenant_id=0)
@@ -54,7 +53,7 @@ async def access_share(request, db, ctx):
 
 
 async def verify_share_password(request, db, ctx):
-    """验证分享密码（限流：5 次/60 秒/IP）。"""
+    """验证分享密码（限流：5 次/60 秒/IP）。 / Verify share password (rate limited)."""
     rate_resp = _check_verify_rate_limit(request)
     if rate_resp is not None:
         return rate_resp
@@ -68,7 +67,7 @@ async def verify_share_password(request, db, ctx):
 
 
 async def download_share_file(request, db, ctx):
-    """下载分享文件，返回签名 URL（无需登录）"""
+    """下载分享文件，返回签名 URL（无需登录） / Download share file, return signed URL (no login)."""
     token   = request.path_params["token"]
     node_id = int(request.path_params["node_id"])
     from ..services.share_service import ShareService

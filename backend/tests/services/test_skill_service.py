@@ -1,8 +1,6 @@
-"""
-SkillPackageService + SkillService 单元测试
+"""SkillPackageService + SkillService 单元测试 / Test.
 
-覆盖：技能包 CRUD、技能绑定/解绑、版本管理、系统技能包保护。
-"""
+覆盖：技能包 CRUD、技能绑定/解绑、版本管理、系统技能包保护。"""
 
 from __future__ import annotations
 

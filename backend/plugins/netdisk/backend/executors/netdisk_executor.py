@@ -1,6 +1,4 @@
-"""
-Netdisk 工具执行器
-"""
+"""Netdisk 工具执行器 / Netdisk tool executor."""
 
 from __future__ import annotations
 
@@ -21,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class NetdiskExecutor(BaseToolExecutor):
-    """Netdisk 执行器"""
+    """Netdisk 执行器 / Netdisk executor."""
 
     async def validate(self, definition: ToolDefinition, arguments: dict[str, Any]) -> bool:
         if definition.name == "search_files":

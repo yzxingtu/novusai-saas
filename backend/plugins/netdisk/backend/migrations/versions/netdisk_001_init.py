@@ -1,9 +1,8 @@
-"""创建网盘插件三张表
+"""创建网盘插件三张表 / Plugin.
 
 Revision ID: netdisk_001
 Revises:
-Create Date: 2026-03-01
-"""
+Create Date: 2026-03-01"""
 
 from __future__ import annotations
 

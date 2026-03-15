@@ -17,7 +17,7 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class Tenant(BaseModel):
     """
-    企业模型
+    企业模型 / Tenant model.
 
     - 每个企业是一个独立的商户/组织
     - 企业数据完全隔离
@@ -145,7 +145,7 @@ class Tenant(BaseModel):
 
     @property
     def subdomain(self) -> str:
-        """获取企业子域名"""
+        """获取企业子域名 / Get tenant subdomain."""
         return self.code
 
     # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
@@ -156,7 +156,7 @@ class Tenant(BaseModel):
 
     @property
     def max_custom_domains(self) -> int:
-        """获取最大自定义域名数量（由套餐决定）"""
+        """获取最大自定义域名数量（由套餐决定） / Max custom domains (from plan quota)."""
         # 优先从企业级 quota 获取，其次从套餐获取
         if self.quota and "max_custom_domains" in self.quota:
             return self.quota.get("max_custom_domains", 0)
@@ -166,7 +166,7 @@ class Tenant(BaseModel):
 
     def get_quota_value(self, key: str, default: int | bool | None = None):
         """
-        获取配额值（优先企业级覆盖，其次套餐默认值）
+        获取配额值（优先企业级覆盖，其次套餐默认值）/ Get quota value (tenant override first, then plan default).
 
         Args:
             key: 配额键名

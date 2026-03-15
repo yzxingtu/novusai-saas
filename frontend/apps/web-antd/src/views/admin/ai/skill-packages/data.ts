@@ -32,7 +32,7 @@ export function getAudienceOptions() {
   ];
 }
 
-/** 表格列定义 */
+/** 表格列定义 / Table column definitions */
 export function useColumns<T = AdminSkillPackageInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -141,7 +141,7 @@ export function usePackageFormSchema(): VbenFormSchema[] {
   ];
 }
 
-/** 搜索表单 Schema */
+/** 搜索表单 Schema / Search form schema */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     searchInput('filter[name][ilike]', $t('admin.ai.skillPackage.name'), {

@@ -1,8 +1,6 @@
-"""
-Tenant QuotaService 单元测试
+"""Tenant QuotaService 单元测试 / Test.
 
-覆盖：存储配额检查、用户配额、配额统计。
-"""
+覆盖：存储配额检查、用户配额、配额统计。"""
 
 from __future__ import annotations
 

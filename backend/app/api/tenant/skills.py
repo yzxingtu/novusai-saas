@@ -52,8 +52,7 @@ class TenantSkillController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取所有可用的技能类型（内置 + 插件注册）
-            Get all available skill types (built-in + plugin registered)
+            获取所有可用的技能类型（内置 + 插件注册）/ Get all available skill types (built-in + plugin).
             """
             from app.enums.agent import get_skill_type_options
             return success(data=get_skill_type_options())
@@ -67,9 +66,9 @@ class TenantSkillController(TenantController):
             query: QueryParams,
         ):
             """
-            获取技能列表 / Get skill list
+            获取技能列表 / Get skill list.
 
-            支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting
+            支持 JSON:API 分页、筛选、排序 / Supports JSON:API pagination, filtering, sorting.
             """
             service = SkillService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
@@ -91,8 +90,7 @@ class TenantSkillController(TenantController):
             query: QueryParams,
         ):
             """
-            获取技能下拉选项（用于 Agent 绑定等场景）
-            Get skill dropdown options (for Agent binding and similar scenarios)
+            获取技能下拉选项（用于 Agent 绑定等场景）/ Get skill select options (for Agent binding).
             """
             service = SkillService(db, tenant_admin.tenant_id)
             items = await service.get_select_options(query)
@@ -107,7 +105,7 @@ class TenantSkillController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取单个技能的调用统计 / Get call statistics for a single skill
+            获取单个技能的调用统计 / Get call statistics for a single skill.
             """
             service = SkillService(db, tenant_admin.tenant_id)
             skill = await service.get_by_id(skill_id)
@@ -127,8 +125,7 @@ class TenantSkillController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            测试技能配置是否正确（按类型执行不同的验证逻辑）
-            Test if skill config is correct (execute different validation logic by type)
+            测试技能配置是否正确（按类型执行不同的验证逻辑）/ Test skill config by type.
             """
             service = SkillService(db, tenant_admin.tenant_id)
             skill = await service.get_by_id(skill_id)

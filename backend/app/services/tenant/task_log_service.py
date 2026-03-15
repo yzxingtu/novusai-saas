@@ -14,7 +14,7 @@ from app.repositories.tenant.task_log_repository import TenantTaskLogRepository
 
 class TenantTaskLogService(TenantService[TaskLog, TenantTaskLogRepository]):
     """
-    企业端任务日志服务（只读）
+    企业端任务日志服务（只读）/ Tenant task log service (read-only).
     """
 
     model = TaskLog

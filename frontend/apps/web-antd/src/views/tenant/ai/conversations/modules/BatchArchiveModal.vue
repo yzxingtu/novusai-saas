@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 批量归档对话弹窗
+ * 批量归档对话弹窗 / Batch archive conversations modal
  * 支持按天数归档过期对话
  */
 import { ref } from 'vue';

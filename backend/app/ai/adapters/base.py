@@ -1,6 +1,5 @@
 """
-AI Adapter Abstract Base Class
-AI 适配器抽象基类
+AI Adapter Abstract Base Class / AI 适配器抽象基类
 
 Defines the interface that all provider adapters must implement.
 定义所有供应商适配器必须实现的接口。

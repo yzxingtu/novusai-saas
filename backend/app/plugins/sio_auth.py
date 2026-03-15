@@ -1,6 +1,5 @@
 """
-Plugin Socket.IO auth wrapper.
-/ 插件 Socket.IO 鉴权包装器
+Plugin Socket.IO auth wrapper. / 插件 Socket.IO 鉴权包装器。
 
 Provides unified JWT authentication, tenant isolation, and connection rate limiting
 for plugin-registered Socket.IO namespaces. Wraps plugin-custom AsyncNamespace

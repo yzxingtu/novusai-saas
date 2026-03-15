@@ -24,7 +24,7 @@ from app.core.i18n import _
 
 class SystemAgentAssignment(BaseModel):
     """
-    系统智能体绑定模型
+    系统智能体绑定模型 / System agent assignment model.
 
     每条记录表示一个功能代码绑定了一个智能体。
     全局默认记录 tenant_id=NULL，企业覆盖记录 tenant_id=<id>。

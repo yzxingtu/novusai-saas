@@ -30,7 +30,7 @@ LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
-    """深度合并字典"""
+    """深度合并字典 / Deep merge dictionaries."""
     result = base.copy()
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -48,7 +48,7 @@ _LOCALE_ALIASES: dict[str, list[str]] = {
 
 
 def _find_plugin_locale_file(plugin_locale_dir: Path, locale: str) -> Path | None:
-    """在插件 locales 目录中查找匹配当前 locale 的翻译文件"""
+    """在插件 locales 目录中查找匹配当前 locale 的翻译文件 / Find translation file for locale in plugin locales dir."""
     aliases = _LOCALE_ALIASES.get(locale, [locale])
     for alias in aliases:
         candidate = plugin_locale_dir / f"{alias}.json"
@@ -60,16 +60,15 @@ def _find_plugin_locale_file(plugin_locale_dir: Path, locale: str) -> Path | Non
 @lru_cache(maxsize=10)
 def _load_translations(locale: str) -> dict[str, Any]:
     """
-    加载指定语言的翻译文件
+    加载指定语言的翻译文件 / Load translations for locale.
 
-    加载目录下所有 *.json 文件，深度合并到统一的翻译字典。
-    同时扫描 app/plugins/*/locales/ 目录，自动合并插件的翻译文件。
+    加载目录下所有 *.json 文件，深度合并；并扫描插件 locales 合并。
 
     Args:
-        locale: 语言代码，如 'zh_CN', 'en'
+        locale: 语言代码，如 'zh_CN', 'en' / Locale code.
 
     Returns:
-        翻译字典
+        翻译字典 / Translations dict.
     """
     translations: dict[str, Any] = {}
 
@@ -116,7 +115,7 @@ def _load_translations(locale: str) -> dict[str, Any]:
 
 def reload_translations() -> None:
     """
-    清除翻译缓存，强制重新加载所有翻译文件。
+    清除翻译缓存，强制重新加载所有翻译文件 / Clear cache and reload all translations.
 
     在插件安装/卸载后调用，确保插件的翻译文件被加载。
     """
@@ -124,16 +123,16 @@ def reload_translations() -> None:
 
 
 def get_locale() -> str:
-    """获取当前请求的语言"""
+    """获取当前请求的语言 / Get current request locale."""
     return _current_locale.get()
 
 
 def set_locale(locale: str) -> None:
     """
-    设置当前请求的语言
+    设置当前请求的语言 / Set current request locale.
 
     Args:
-        locale: 语言代码
+        locale: 语言代码 / Locale code
     """
     if locale in SUPPORTED_LOCALES:
         _current_locale.set(locale)
@@ -143,13 +142,13 @@ def set_locale(locale: str) -> None:
 
 def get_translations(locale: str | None = None) -> dict[str, Any]:
     """
-    获取指定语言的翻译字典
+    获取指定语言的翻译字典 / Get translations dict for the given locale.
 
     Args:
-        locale: 语言代码，默认使用当前上下文语言
+        locale: 语言代码，默认使用当前上下文语言 / Locale code, defaults to current context locale
 
     Returns:
-        翻译字典
+        翻译字典 / Translations dict
     """
     if locale is None:
         locale = get_locale()
@@ -158,15 +157,15 @@ def get_translations(locale: str | None = None) -> dict[str, Any]:
 
 def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
     """
-    翻译指定的 key
+    翻译指定的 key / Translate the given key.
 
     Args:
-        key: 翻译键，支持点号分隔的嵌套键，如 'auth.login_success'
-        locale: 语言代码，默认使用当前上下文语言
-        **kwargs: 用于格式化的参数
+        key: 翻译键，支持点号分隔的嵌套键，如 'auth.login_success' / Translation key, supports dotted nested keys
+        locale: 语言代码，默认使用当前上下文语言 / Locale code, defaults to current context
+        **kwargs: 用于格式化的参数 / Format arguments
 
     Returns:
-        翻译后的字符串，如果找不到则返回 key
+        翻译后的字符串，如果找不到则返回 key / Translated string, or key if not found
 
     Examples:
         >>> translate('common.success')
@@ -216,13 +215,13 @@ _ = translate
 
 def parse_accept_language(accept_language: str | None) -> str:
     """
-    解析 Accept-Language 头，返回最佳匹配的语言
+    解析 Accept-Language 头，返回最佳匹配的语言 / Parse Accept-Language header and return best match locale.
 
     Args:
-        accept_language: HTTP Accept-Language 头的值
+        accept_language: HTTP Accept-Language 头的值 / HTTP Accept-Language header value
 
     Returns:
-        最佳匹配的语言代码
+        最佳匹配的语言代码 / Best match locale code
 
     Examples:
         >>> parse_accept_language('zh-CN,zh;q=0.9,en;q=0.8')

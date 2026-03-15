@@ -34,8 +34,7 @@ async def preflight_check(
     body: AttachmentPreflightRequest,
 ):
     """
-    用户端预检文件是否已存在（秒传）
-    User preflight check if file already exists (instant upload)
+    用户端预检文件是否已存在（秒传）/ User preflight file exists (instant upload).
     """
     raw_hash = body.hash
     if raw_hash.startswith("sha256:"):
@@ -71,8 +70,7 @@ async def upload_attachment(
     visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认 / Visibility, empty uses platform default"),
 ):
     """
-    用户端上传附件（头像等）
-    User upload attachment (avatars etc.)
+    用户端上传附件（头像等）/ User upload attachment (avatars etc.).
     """
     if not visibility:
         config_svc = ConfigService(db)
@@ -109,8 +107,7 @@ async def get_upload_rules(
     current_user: ActiveTenantUser,
 ):
     """
-    获取用户端上传规则
-    Get user upload rules
+    获取用户端上传规则 / Get user upload rules.
     """
     config_service = ConfigService(db)
     tid = current_user.tenant_id

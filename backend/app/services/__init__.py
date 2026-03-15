@@ -1,5 +1,5 @@
 """
-Service 服务层模块
+Service 服务层模块 / Service layer module.
 
 按模块分层组织，提供业务逻辑封装
 

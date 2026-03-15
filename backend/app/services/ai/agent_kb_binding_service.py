@@ -16,7 +16,7 @@ logger = LogManager.get_logger("ai")
 
 class AgentKBBindingService:
     """
-    智能体知识库绑定 Service
+    智能体知识库绑定 Service / Agent KB binding service.
 
     管理 Agent 与 KnowledgeBase 的 M:N 关系
     """
@@ -33,7 +33,7 @@ class AgentKBBindingService:
             self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]
 
     async def _get_kb_repo(self):
-        """延迟获取 KB 仓库（避免循环导入）"""
+        """延迟获取 KB 仓库（避免循环导入） / Lazy get KB repo (avoid circular import)."""
         from app.repositories.ai.knowledge_base_repository import (
             AdminKnowledgeBaseRepository,
             KnowledgeBaseRepository,
@@ -44,7 +44,7 @@ class AgentKBBindingService:
 
     async def get_agent_kb_bindings(self, agent_id: int) -> list[dict[str, Any]]:
         """
-        获取智能体的所有知识库绑定（含 KnowledgeBase 详情）
+        获取智能体的所有知识库绑定（含 KnowledgeBase 详情）/ Get agent KB bindings with KB details.
 
         Args:
             agent_id: 智能体 ID
@@ -79,7 +79,7 @@ class AgentKBBindingService:
         return result
 
     async def _validate_kb_accessible(self, knowledge_base_id: int) -> None:
-        """校验知识库是否可访问（存在 + 权限范围内）"""
+        """校验知识库是否可访问（存在 + 权限范围内） / Validate KB accessible (exists + in scope)."""
         kb_repo = await self._get_kb_repo()
         kb = await kb_repo.get_by_id(knowledge_base_id)
         if not kb:
@@ -96,7 +96,7 @@ class AgentKBBindingService:
         enabled: bool = True,
     ) -> AgentKnowledgeBaseBinding:
         """
-        绑定知识库到智能体
+        绑定知识库到智能体 / Bind knowledge base to agent.
 
         Args:
             agent_id: 智能体 ID
@@ -140,7 +140,7 @@ class AgentKBBindingService:
 
     async def unbind_kb(self, agent_id: int, knowledge_base_id: int) -> None:
         """
-        解绑知识库
+        解绑知识库 / Unbind knowledge base from agent.
 
         Args:
             agent_id: 智能体 ID
@@ -165,7 +165,7 @@ class AgentKBBindingService:
         knowledge_base_ids: list[int],
     ) -> list[AgentKnowledgeBaseBinding]:
         """
-        批量绑定知识库（替换模式：先清空再批量插入）
+        批量绑定知识库（替换模式：先清空再批量插入）/ Batch bind KBs (replace mode: clear then insert).
 
         Args:
             agent_id: 智能体 ID
@@ -212,7 +212,7 @@ class AgentKBBindingService:
         data: dict[str, Any],
     ) -> AgentKnowledgeBaseBinding:
         """
-        更新绑定配置
+        更新绑定配置 / Update binding config.
 
         Args:
             binding_id: 绑定 ID
@@ -231,12 +231,12 @@ class AgentKBBindingService:
         return updated
 
     async def get_by_id(self, binding_id: int) -> AgentKnowledgeBaseBinding | None:
-        """获取绑定详情"""
+        """获取绑定详情 / Get binding detail."""
         return await self.binding_repo.get_by_id(binding_id)
 
     async def delete_all_for_agent(self, agent_id: int) -> int:
         """
-        删除智能体的所有知识库绑定（用于版本回滚前清空）
+        删除智能体的所有知识库绑定（用于版本回滚前清空）/ Delete all KB bindings for agent (e.g. before version rollback).
         """
         return await self.binding_repo.delete_by_agent_id(agent_id)
 

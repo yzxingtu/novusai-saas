@@ -1,6 +1,5 @@
 """
-AI Gateway Unified Call Interface (Facade)
-AI 网关统一调用接口（门面类）
+AI Gateway Unified Call Interface (Facade) / AI 网关统一调用接口（门面类）
 
 Provides a unified AI call interface, dispatching to corresponding adapters by provider code.
 Retry/Key rotation delegated to RetryService; usage/quota/logging delegated to UsageRecorder.
@@ -378,8 +377,7 @@ class AIGateway:
             await self.usage_recorder.check_rate_and_quota(tenant_id, ai_model.id, ai_model, estimated_input)
 
         async def generate_chunks() -> AsyncIterator[ChatChunk]:
-            """Internal async generator using pre-fetched provider, api_key, ai_model.
-            内部异步生成器，使用已获取的 provider, api_key, ai_model。
+            """Internal async generator using pre-fetched provider, api_key, ai_model. / 内部异步生成器，使用已获取的 provider, api_key, ai_model。
 
             With exponential backoff retry, API Key rotation, and failover.
             带指数退避重试、API Key 轮换和故障转移。

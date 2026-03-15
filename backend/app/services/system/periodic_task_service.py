@@ -21,7 +21,7 @@ logger = LogManager.get_logger("queue")
 
 class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
     """
-    定时任务服务
+    定时任务服务 / Periodic task service.
     """
 
     model = PeriodicTask
@@ -64,7 +64,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
     def _compute_next_run(
         task: PeriodicTask, base_time: datetime | None = None,
     ) -> datetime | None:
-        """根据调度配置计算下次执行时间"""
+        """根据调度配置计算下次执行时间 / Compute next run from schedule config."""
         base = base_time or utc_now()
         if task.schedule_type == "cron" and task.cron_expression:
             try:

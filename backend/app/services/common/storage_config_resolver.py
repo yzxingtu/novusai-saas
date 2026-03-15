@@ -23,7 +23,7 @@ from app.storage import StorageConfig
 
 class StorageConfigResolver:
     """
-    Shared storage configuration resolver
+    共享存储配置解析器 / Shared storage configuration resolver.
 
     Resolves StorageConfig from platform or tenant settings,
     supporting three modes: platform / admin_override / custom.
@@ -34,7 +34,7 @@ class StorageConfigResolver:
 
     async def get_storage_mode(self, tenant_id: int) -> str:
         """
-        获取企业有效存储模式
+        获取企业有效存储模式 / Get effective storage mode for tenant.
 
         解析规则：
         1. tenant_storage_mode == 'custom' 且该企业的 self_config 开关打开 → 'custom'
@@ -74,7 +74,7 @@ class StorageConfigResolver:
 
     async def resolve_platform_config(self) -> StorageConfig:
         """
-        Resolve platform-managed storage configuration
+        解析平台管理的存储配置 / Resolve platform-managed storage configuration.
 
         Returns:
             StorageConfig for the platform storage driver
@@ -104,7 +104,7 @@ class StorageConfigResolver:
 
     async def resolve_tenant_config(self, tenant_id: int) -> StorageConfig:
         """
-        Resolve tenant-level storage configuration (Mode 2 or Mode 3)
+        解析企业级存储配置（Mode 2 或 3）/ Resolve tenant-level storage configuration (Mode 2 or Mode 3).
 
         Used for both admin_override and custom modes — they share the same
         tenant_storage_* config keys.
@@ -149,7 +149,7 @@ class StorageConfigResolver:
 
     def _check_driver_available(self, config: StorageConfig) -> None:
         """
-        Verify the driver in config is actually registered in StorageManager.
+        校验配置中的驱动已在 StorageManager 注册 / Verify the driver in config is actually registered in StorageManager.
 
         Raises BusinessException with friendly message if driver plugin is
         not installed/enabled, instead of letting StorageManager raise a
@@ -171,7 +171,7 @@ class StorageConfigResolver:
         self, storage_mode: str, tenant_id: int = 0
     ) -> StorageConfig:
         """
-        Resolve storage config based on mode
+        按模式解析存储配置 / Resolve storage config based on mode.
 
         Args:
             storage_mode: 'platform' | 'admin_override' | 'custom'
@@ -191,7 +191,7 @@ class StorageConfigResolver:
         self, tenant_id: int
     ) -> tuple[str, StorageConfig, bool]:
         """
-        Resolve full storage context for a tenant
+        解析企业完整存储上下文 / Resolve full storage context for a tenant.
 
         Returns:
             (storage_mode, storage_config, apply_quota)
@@ -207,7 +207,7 @@ class StorageConfigResolver:
         self, driver: str, tenant_id: int = 0
     ) -> StorageConfig:
         """
-        Resolve storage config for an existing attachment
+        解析已有附件的存储配置 / Resolve storage config for an existing attachment.
 
         Core principle: always use the driver that matches the attachment's
         original storage, regardless of the tenant's current storage mode.

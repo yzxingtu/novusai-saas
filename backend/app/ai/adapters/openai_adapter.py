@@ -1,14 +1,19 @@
 """
-OpenAI Compatible Adapter
-OpenAI 兼容适配器
+OpenAI Compatible Adapter / OpenAI 兼容适配器
 
 Supports OpenAI official API and all compatible services
 (e.g. DeepSeek, Zhipu, Tongyi Qianwen and other domestic LLMs).
 支持 OpenAI 官方 API 及所有兼容服务（如 DeepSeek、智谱、通义千问等国产大模型）。
 """
 
+from __future__ import annotations
+
+import base64
+import re
+
 from collections.abc import AsyncIterator
 
+import httpx
 from openai import AsyncOpenAI
 from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
@@ -26,6 +31,32 @@ from app.ai.types import (
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
+
+# Native audio: when True and supports_audio, convert audio attachments to OpenAI input_audio block
+# 原生音频：为 True 且 supports_audio 时，将音频附件转为 OpenAI input_audio 块
+SUPPORTS_NATIVE_AUDIO: bool = True
+
+# MIME type → OpenAI input_audio format (no magic strings)
+# MIME 类型 → OpenAI input_audio format
+_AUDIO_MIME_TO_OPENAI_FORMAT: dict[str, str] = {
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/aac": "m4a",
+    "audio/ogg": "ogg",
+    "audio/webm": "webm",
+    "audio/mpeg3": "mpeg",
+    "audio/mpg": "mpeg",
+}
+
+# Fetch timeout (seconds) and max size for audio URL → bytes
+# 音频 URL 拉取超时（秒）与最大字节数
+_AUDIO_FETCH_TIMEOUT_SEC: float = 30.0
+_AUDIO_MAX_BYTES: int = 25 * 1024 * 1024  # 25 MB
 
 
 class OpenAIAdapter(BaseAdapter):
@@ -64,9 +95,16 @@ class OpenAIAdapter(BaseAdapter):
         try:
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
+            audio_flag = kwargs.pop("supports_audio", False)
+            video_flag = kwargs.pop("supports_video", False)
 
             # Convert message format / 转换消息格式
-            openai_messages = self._convert_messages(messages, supports_vision=vision_flag)
+            openai_messages = await self._convert_messages(
+                messages,
+                supports_vision=vision_flag,
+                supports_audio=audio_flag,
+                supports_video=video_flag,
+            )
 
             # Build request parameters / 构建请求参数
             request_params: dict = {
@@ -115,9 +153,16 @@ class OpenAIAdapter(BaseAdapter):
         try:
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
+            audio_flag = kwargs.pop("supports_audio", False)
+            video_flag = kwargs.pop("supports_video", False)
 
             # Convert message format / 转换消息格式
-            openai_messages = self._convert_messages(messages, supports_vision=vision_flag)
+            openai_messages = await self._convert_messages(
+                messages,
+                supports_vision=vision_flag,
+                supports_audio=audio_flag,
+                supports_video=video_flag,
+            )
 
             # Build request parameters / 构建请求参数
             request_params: dict = {
@@ -207,8 +252,63 @@ class OpenAIAdapter(BaseAdapter):
             logger.error("List models error: %s", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
 
-    def _convert_messages(
-        self, messages: list[ChatMessage], *, supports_vision: bool = True,
+    async def _fetch_audio_bytes(self, url: str) -> bytes | None:
+        """
+        Resolve audio URL to bytes for input_audio. Supports data URL or HTTP GET.
+        / 将音频 URL 解析为字节供 input_audio 使用。支持 data URL 或 HTTP GET。
+
+        Returns:
+            Audio bytes, or None on failure / 成功返回音频字节，失败返回 None
+        """
+        if not url or not url.strip():
+            return None
+        url = url.strip()
+        # data URL: data:audio/xxx;base64,<b64>
+        if url.startswith("data:audio"):
+            match = re.match(r"data:audio/[^;]+;base64,(.+)", url, re.DOTALL)
+            if match:
+                try:
+                    return base64.b64decode(match.group(1))
+                except Exception as e:
+                    logger.warning("Audio data URL base64 decode failed: %s", e)
+                    return None
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=_AUDIO_FETCH_TIMEOUT_SEC) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                content_length = resp.headers.get("content-length")
+                try:
+                    cl = int(content_length) if (content_length and content_length.strip().isdigit()) else None
+                except (ValueError, AttributeError):
+                    cl = None
+                if cl is not None and cl > _AUDIO_MAX_BYTES:
+                    logger.warning(
+                        "Audio too large (content-length=%s > %s), skip native",
+                        cl,
+                        _AUDIO_MAX_BYTES,
+                    )
+                    return None
+                data = resp.content
+                if len(data) > _AUDIO_MAX_BYTES:
+                    logger.warning(
+                        "Audio body too large (%d > %d), skip native",
+                        len(data),
+                        _AUDIO_MAX_BYTES,
+                    )
+                    return None
+                return data
+        except Exception as e:
+            logger.warning("Fetch audio URL failed: %s", e)
+            return None
+
+    async def _convert_messages(
+        self,
+        messages: list[ChatMessage],
+        *,
+        supports_vision: bool = True,
+        supports_audio: bool = False,
+        supports_video: bool = False,
     ) -> list[dict]:
         """
         Convert message format / 转换消息格式
@@ -218,6 +318,10 @@ class OpenAIAdapter(BaseAdapter):
             supports_vision: Whether the target model supports vision (image_url content).
                              When False, image attachments are converted to text hints.
                              目标模型是否支持视觉（image_url 内容）。为 False 时图片附件转为文字提示。
+            supports_audio: Whether the target model supports audio input. When False, audio → text hint.
+                            目标模型是否支持音频输入。为 False 时音频附件转为文字提示。
+            supports_video: Whether the target model supports video input. When False, video → text hint.
+                            目标模型是否支持视频输入。为 False 时视频附件转为文字提示。
 
         Returns:
             OpenAI format message list / OpenAI 格式的消息列表
@@ -229,7 +333,8 @@ class OpenAIAdapter(BaseAdapter):
                 "role": msg.role,
             }
 
-            # Multimodal content: when user message has image attachments, convert to content array / 多模态内容：user 消息含图片附件时转换为 content 数组
+            # Multimodal content: when user message has attachments, convert to content array
+            # 多模态内容：user 消息含附件时转换为 content 数组（image/audio/video/file）
             if msg.role == "user" and msg.attachments:
                 content_parts: list[dict] = []
                 if msg.content:
@@ -248,6 +353,34 @@ class OpenAIAdapter(BaseAdapter):
                         else:
                             # Non-vision model: degrade to text hint / 非视觉模型：降级为文字提示
                             hint = f"[Image: {att_name or 'uploaded image'}]"
+                            content_parts.append({"type": "text", "text": hint})
+                    elif att_type == "audio":
+                        # Audio: when supports_audio and native supported, use input_audio block; else text hint
+                        # 音频：supports_audio 且支持原生时使用 input_audio 块；否则文字提示
+                        hint = f"[Audio: {att_name or 'uploaded audio'}]"
+                        if not att_url:
+                            content_parts.append({"type": "text", "text": hint})
+                        elif supports_audio and SUPPORTS_NATIVE_AUDIO:
+                            bytes_result = await self._fetch_audio_bytes(att_url)
+                            if bytes_result is None:
+                                content_parts.append({"type": "text", "text": hint})
+                            else:
+                                fmt = _AUDIO_MIME_TO_OPENAI_FORMAT.get(att_mime) or "mpeg"
+                                b64_str = base64.b64encode(bytes_result).decode("ascii")
+                                content_parts.append({
+                                    "type": "input_audio",
+                                    "input_audio": {"data": b64_str, "format": fmt},
+                                })
+                        else:
+                            content_parts.append({"type": "text", "text": hint})
+                    elif att_type == "video" and att_url:
+                        # Video: native format to be extended when vendor API supports it; for now text hint
+                        # 视频：原生格式待厂商支持后扩展；当前为文字提示
+                        if supports_video:
+                            hint = f"[Video: {att_name or 'uploaded video'}]"
+                            content_parts.append({"type": "text", "text": hint})
+                        else:
+                            hint = f"[Video: {att_name or 'uploaded video'}]"
                             content_parts.append({"type": "text", "text": hint})
                     elif att_type == "file" and att_name:
                         file_hint = f"[Attached file: {att_name}"

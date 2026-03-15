@@ -1,6 +1,5 @@
 """
-Plugin manifest (plugin.yaml) Pydantic Schema.
-/ 插件清单 (plugin.yaml) Pydantic Schema
+Plugin manifest (plugin.yaml) Pydantic Schema. / 插件清单 (plugin.yaml) Pydantic Schema。
 
 Parse and validate plugin.yaml files, converting YAML content into type-safe Python objects.
 / 解析和校验 plugin.yaml 文件，将 YAML 内容转换为类型安全的 Python 对象。
@@ -15,8 +14,7 @@ from app.enums.plugin import PluginScopeEnum
 
 # ── Type aliases / 类型别名 ──
 I18nText = dict[str, str]
-"""Multilingual text, e.g. {"zh-CN": "CRM 管理", "en": "CRM Management"}
-/ 多语言文本"""
+"""Multilingual text, e.g. {"zh-CN": "CRM 管理", "en": "CRM Management"}. / 多语言文本。"""
 
 _FRONTEND_PLUGIN_ROUTE_PREFIXES = ("/admin/plugins/", "/tenant/plugins/")
 _API_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}

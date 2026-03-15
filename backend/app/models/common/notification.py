@@ -16,7 +16,7 @@ from app.core.base_model import BaseModel
 
 class Notification(BaseModel):
     """
-    通知收件箱
+    通知收件箱 / Notification inbox.
 
     - tenant_id: NULL=平台级通知，有值=企业级通知
     - recipient_type: admin / tenant_admin / tenant_user

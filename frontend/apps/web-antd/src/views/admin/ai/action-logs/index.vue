@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 平台端 AI 操作审计日志列表页面
+ * 平台端 AI 操作审计日志列表页面 / Platform AI action audit log list page
  *
  * 全局审计日志查询，支持跨企业筛选
  */

@@ -87,8 +87,7 @@ class BaseController:
     @classmethod
     def _inject_resource_to_actions(cls) -> None:
         """
-        将 _permission_resource 注入到所有带权限装饰器的方法
-        Inject _permission_resource into all methods decorated with permission decorators.
+        将 _permission_resource 注入到所有带权限装饰器的方法。 / Inject _permission_resource into all methods decorated with permission decorators.
 
         这样装饰器在运行时可以获取 resource 来构造完整的权限码
         This allows decorators to get the resource at runtime to construct the full permission code.

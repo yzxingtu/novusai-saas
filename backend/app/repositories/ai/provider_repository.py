@@ -16,7 +16,7 @@ from app.schemas.common.query import FilterRule, QuerySpec
 
 class AIProviderRepository(BaseRepository[AIProvider]):
     """
-    AI 供应商 Repository
+    AI 供应商 Repository / AI Provider Repository.
 
     提供 AI 供应商的数据访问操作
     """
@@ -31,7 +31,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         include_deleted: bool = False,
     ) -> tuple[list[AIProvider], int]:
         """
-        查询供应商列表，显式加载 models 关系以支持 model_count 属性
+        查询供应商列表，显式加载 models 关系以支持 model_count 属性 / Query provider list with models relation for model_count.
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -65,7 +65,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         include_deleted: bool = False
     ) -> AIProvider | None:
         """
-        根据代码获取供应商
+        根据代码获取供应商 / Get provider by code.
 
         Args:
             code: 供应商代码
@@ -89,7 +89,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         limit: int | None = None
     ) -> list[AIProvider]:
         """
-        获取启用的供应商列表
+        获取启用的供应商列表 / Get active providers list.
 
         Args:
             limit: 限制返回数量
@@ -117,7 +117,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         exclude_id: int | None = None
     ) -> bool:
         """
-        检查代码是否已存在
+        检查代码是否已存在 / Check if code already exists.
 
         Args:
             code: 供应商代码

@@ -1,6 +1,5 @@
 """
-Agent-level Quota & Concurrency Control
-智能体级配额与并发控制
+Agent-level Quota & Concurrency Control / 智能体级配额与并发控制
 
 Provides per-agent Token quota and concurrency limits on top of tenant-level quota.
 Redis-based for low latency and high concurrency safety.
@@ -156,8 +155,7 @@ class AgentQuotaManager:
         expire_seconds: int,
     ) -> int:
         """
-        Atomically check + pre-deduct token usage.
-        原子检查+预扣减 Token 使用量。
+        Atomically check + pre-deduct token usage. / 原子检查并预扣减 Token 使用量。
 
         Returns:
             -1 on success (pre-deducted), >= 0 = current usage (exceeded, rolled back)

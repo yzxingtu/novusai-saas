@@ -11,7 +11,7 @@ from app.models.system.periodic_task import PeriodicTask
 
 class PeriodicTaskRepository(BaseRepository[PeriodicTask]):
     """
-    定时任务仓储
+    定时任务仓储 / Periodic task repository.
     """
 
     model = PeriodicTask

@@ -18,7 +18,7 @@ logger = LogManager.get_logger("app")
 
 
 class InboxChannel(NotificationChannel):
-    """收件箱渠道 — 写入 DB notifications 表"""
+    """收件箱渠道 — 写入 DB notifications 表 / Inbox channel — writes to DB notifications table."""
 
     @property
     def channel_code(self) -> str:
@@ -29,7 +29,7 @@ class InboxChannel(NotificationChannel):
         return "Inbox"
 
     async def is_enabled(self) -> bool:
-        """收件箱跟随通知系统总开关"""
+        """收件箱跟随通知系统总开关 / Inbox follows notification system master switch."""
         try:
             from app.sio.ws_config import get_ws_config
             return bool(await get_ws_config("notification_enabled"))

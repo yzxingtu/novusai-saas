@@ -39,9 +39,9 @@ defineOptions({ name: 'ToolkitEditor' });
 const props = withDefaults(
   defineProps<{
     disabled?: boolean;
-    /** i18n prefix, e.g. 'admin.ai.skill' */
+    /** i18n prefix, e.g. 'admin.ai.skill' / 国际化前缀 */
     localePrefix?: string;
-    /** parse API function — caller injects admin or tenant version */
+    /** parse API function — caller injects admin or tenant version / 解析 API，由调用方注入 admin/tenant 版本 */
     parseApi?: (source: string) => Promise<ToolkitParseResult>;
     value?: string;
   }>(),

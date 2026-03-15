@@ -516,8 +516,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            手动触发 ACME SSL 证书签发（通过 Celery 队列异步执行）
-            Manually trigger ACME SSL certificate provisioning (async via Celery queue)
+            手动触发 ACME SSL 证书签发（通过 Celery 队列异步执行）/ Manually trigger ACME SSL provisioning (async via Celery).
             """
             await _verify_tenant_exists(db, tenant_id)
 
@@ -547,9 +546,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            手动续期已有平台证书（通过 Celery 队列异步执行）
-            Manually renew existing platform certificate (async via Celery queue)
-            仅 platform 类型证书可续期 / Only platform-type certificates can be renewed
+            手动续期已有平台证书（通过 Celery 队列异步执行）/ Manually renew platform cert (async via Celery). 仅 platform 类型证书可续期。
             """
             await _verify_tenant_exists(db, tenant_id)
             await _verify_domain_ownership(db, tenant_id, domain_id)
@@ -579,9 +576,7 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            管理员为企业上传自定义证书（不受套餐限制）
-            Admin uploads custom certificate for tenant (not subject to plan limits)
-            自动设置 cert_type=custom, auto_renew=False
+            管理员为企业上传自定义证书（不受套餐限制）/ Admin upload custom cert for tenant. 自动设置 cert_type=custom, auto_renew=False。
             Auto-sets cert_type=custom, auto_renew=False
             """
             await _verify_tenant_exists(db, tenant_id)

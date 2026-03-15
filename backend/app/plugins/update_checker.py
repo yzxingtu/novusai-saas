@@ -1,6 +1,5 @@
 """
-Plugin update checker.
-/ 插件更新检查器
+Plugin update checker. / 插件更新检查器。
 
 Automatically checks daily whether installed plugins have new versions, caches results.
 Notification only, no auto-update.

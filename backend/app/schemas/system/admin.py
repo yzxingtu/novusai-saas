@@ -13,7 +13,7 @@ from app.core.base_schema import BaseSchema
 
 
 class AdminLoginRequest(BaseSchema):
-    """管理员登录请求"""
+    """管理员登录请求 / Admin login request."""
 
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
@@ -23,7 +23,7 @@ class AdminLoginRequest(BaseSchema):
 
 
 class AdminResponse(BaseSchema):
-    """管理员信息响应"""
+    """管理员信息响应 / Admin info response."""
 
     id: int = Field(..., description="管理员 ID")
     username: str = Field(..., description="用户名")
@@ -40,7 +40,7 @@ class AdminResponse(BaseSchema):
 
     @classmethod
     def from_model(cls, admin) -> "AdminResponse":
-        """从模型创建响应，包含角色名称"""
+        """从模型创建响应，包含角色名称 / Build response from model with role name."""
         return cls(
             id=admin.id,
             username=admin.username,
@@ -58,7 +58,7 @@ class AdminResponse(BaseSchema):
 
 
 class AdminCreateRequest(BaseSchema):
-    """创建管理员请求"""
+    """创建管理员请求 / Create admin request."""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -71,7 +71,7 @@ class AdminCreateRequest(BaseSchema):
 
 
 class AdminUpdateRequest(BaseSchema):
-    """更新管理员请求"""
+    """更新管理员请求 / Update admin request."""
 
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -83,14 +83,14 @@ class AdminUpdateRequest(BaseSchema):
 
 
 class AdminChangePasswordRequest(BaseSchema):
-    """管理员修改密码请求"""
+    """管理员修改密码请求 / Admin change password request."""
 
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class AdminUpdateProfileRequest(BaseSchema):
-    """管理员自助修改个人信息请求"""
+    """管理员自助修改个人信息请求 / Admin self-update profile request."""
 
     nickname: str | None = Field(None, max_length=50, description="昵称")
     avatar: str | None = Field(None, max_length=500, description="头像 URL")

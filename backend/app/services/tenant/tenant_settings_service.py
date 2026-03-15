@@ -24,7 +24,7 @@ from app.repositories.system.tenant_repository import TenantRepository
 
 class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     """
-    企业设置服务
+    企业设置服务 / Tenant settings service.
 
     提供：
     - 企业设置读取和更新
@@ -39,7 +39,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     def __init__(self, db: AsyncSession, tenant_id: int):
         """
-        初始化服务
+        初始化服务 / Initialize service.
 
         Args:
             db: 异步数据库会话
@@ -55,7 +55,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def get_tenant(self) -> Tenant:
         """
-        获取当前企业
+        获取当前企业 / Get current tenant.
 
         Returns:
             企业实例
@@ -75,7 +75,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def get_settings(self) -> dict[str, Any]:
         """
-        获取企业设置
+        获取企业设置 / Get tenant settings.
 
         Returns:
             包含企业设置信息的字典
@@ -106,7 +106,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def update_settings(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        更新企业设置
+        更新企业设置 / Update tenant settings.
 
         Args:
             data: 更新数据（logo_url, favicon_url, theme_color, captcha_enabled, login_methods）
@@ -139,7 +139,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
     # ==================== 域名管理 ====================
 
     async def _count_domains(self) -> int:
-        """统计已绑定域名数量"""
+        """统计已绑定域名数量 / Count bound domains."""
         result = await self.db.execute(
             select(func.count(TenantDomain.id)).where(
                 TenantDomain.tenant_id == self.tenant_id,
@@ -150,10 +150,10 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def list_domains(self) -> list[TenantDomain]:
         """
-        获取域名列表
+        获取域名列表 / Get domain list.
 
         Returns:
-            域名列表
+            域名列表 / Domain list.
         """
         result = await self.db.execute(
             select(TenantDomain).where(
@@ -165,7 +165,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def get_domain(self, domain_id: int) -> TenantDomain:
         """
-        获取域名详情
+        获取域名详情 / Get domain detail.
 
         Args:
             domain_id: 域名 ID
@@ -197,7 +197,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         remark: str | None = None,
     ) -> TenantDomain:
         """
-        添加自定义域名
+        添加自定义域名 / Add custom domain.
 
         Args:
             domain: 域名
@@ -271,7 +271,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         remark: str | None = None,
     ) -> TenantDomain:
         """
-        更新域名设置
+        更新域名设置 / Update domain settings.
 
         Args:
             domain_id: 域名 ID
@@ -305,7 +305,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def delete_domain(self, domain_id: int) -> bool:
         """
-        删除域名（软删除）
+        删除域名（软删除）/ Delete domain (soft delete).
 
         Args:
             domain_id: 域名 ID
@@ -347,7 +347,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
-        验证域名 DNS 配置
+        验证域名 DNS 配置 / Verify domain DNS configuration.
 
         Args:
             domain_id: 域名 ID
@@ -407,7 +407,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         return domain
 
     async def _unset_primary_domain(self, exclude_id: int | None = None) -> None:
-        """取消所有主域名（除指定 ID 外）"""
+        """取消所有主域名（除指定 ID 外） / Unset all primary domains (except given ID)."""
         query = (
             TenantDomain.__table__.update()
             .where(
@@ -423,7 +423,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         await self.db.execute(query)
 
     def get_cname_target(self, tenant: Tenant) -> str:
-        """获取 CNAME 目标地址"""
+        """获取 CNAME 目标地址 / Get CNAME target address."""
         return f"{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
 

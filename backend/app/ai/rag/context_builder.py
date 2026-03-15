@@ -1,6 +1,5 @@
 """
-RAG Context Builder
-RAG 上下文构建器
+RAG Context Builder / RAG 上下文构建器
 
 Assembles retrieved chunks into LLM-usable context text,
 with precise context length control based on token budget.
@@ -61,8 +60,7 @@ class RAGContext:
 
 class RAGContextBuilder:
     """
-    RAG Context Builder
-    RAG 上下文构建器
+    RAG Context Builder / RAG 上下文构建器
 
     Core responsibilities / 核心职责：
     1. Add chunks from highest to lowest score within token budget / 按 Token 预算从高分到低分逐块添加

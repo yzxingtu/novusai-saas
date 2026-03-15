@@ -185,7 +185,7 @@ export function useColumns<T = TenantInfo>(
 
 // ============ 业务预设 ============
 
-/** 套餐选择器 */
+/** 套餐选择器 / Plan selector */
 export function planSelect(
   options: { required?: boolean; search?: boolean } = {},
 ): VbenFormSchema {

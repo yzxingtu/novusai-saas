@@ -41,7 +41,7 @@ class AdminDashboardService:
 
     async def get_stats(self) -> dict[str, Any]:
         """
-        获取平台管理端仪表盘统计（基础）
+        获取平台管理端仪表盘统计（基础）/ Get platform dashboard stats (basic).
 
         Returns:
             {"total_tenants", "active_tenants", "total_users", "today_login"}
@@ -62,7 +62,7 @@ class AdminDashboardService:
 
     async def get_system_health(self) -> dict[str, Any]:
         """
-        系统健康状态：Redis/Celery/DB 连通性 + 内存 + 运行时间
+        系统健康状态：Redis/Celery/DB 连通性 + 内存 + 运行时间 / System health: Redis/Celery/DB + memory + uptime.
 
         Returns:
             {"status", "redis", "database", "celery", "memory_mb", "uptime_seconds"}
@@ -131,7 +131,7 @@ class AdminDashboardService:
 
     async def get_ai_overview(self) -> dict[str, Any]:
         """
-        AI 使用概览：总调用/Token/活跃供应商/今日调用
+        AI 使用概览：总调用/Token/活跃供应商/今日调用 / AI usage overview: calls/tokens/providers/today.
 
         Returns:
             {"total_calls", "total_tokens", "total_cost", "active_providers",
@@ -181,7 +181,7 @@ class AdminDashboardService:
 
     async def get_storage_overview(self) -> dict[str, Any]:
         """
-        存储使用概览：总文件数/总大小/驱动分布
+        存储使用概览：总文件数/总大小/驱动分布 / Storage overview: file count, size, driver distribution.
 
         Returns:
             {"total_files", "total_size_bytes", "total_size_mb", "driver_distribution"}
@@ -222,7 +222,7 @@ class AdminDashboardService:
 
     async def get_plugin_overview(self) -> dict[str, Any]:
         """
-        插件状态概览：已安装/已启用/已禁用/错误数
+        插件状态概览：已安装/已启用/已禁用/错误数 / Plugin status overview: installed/enabled/disabled/errors.
 
         Returns:
             {"total", "enabled", "disabled", "error_count"}
@@ -256,7 +256,7 @@ class AdminDashboardService:
 
     async def get_tenant_growth(self, days: int = 30) -> list[dict[str, Any]]:
         """
-        企业增长趋势：近 N 天每日新增企业数
+        企业增长趋势：近 N 天每日新增企业数 / Tenant growth trend: daily new tenants in last N days.
 
         Returns:
             [{"date": "2026-02-20", "count": 3}, ...]
@@ -282,7 +282,7 @@ class AdminDashboardService:
 
     async def get_recent_activities(self, limit: int = 20) -> list[dict[str, Any]]:
         """
-        近期活动时间线：最近 N 条操作日志
+        近期活动时间线：最近 N 条操作日志 / Recent activity timeline: last N operation logs.
 
         Returns:
             [{"id", "username", "action", "module", "path", "method", "ip", "created_at"}, ...]
@@ -351,7 +351,7 @@ class TenantDashboardService:
 
     async def get_stats(self) -> dict[str, Any]:
         """
-        获取企业端仪表盘统计（增强版）
+        获取企业端仪表盘统计（增强版）/ Get tenant dashboard stats (enhanced).
 
         Returns:
             {"total_users", "active_users", "api_calls", "total_tokens",
@@ -419,7 +419,7 @@ class TenantDashboardService:
 
     async def get_ai_trend(self, days: int = 7) -> list[dict[str, Any]]:
         """
-        近 N 天每日 AI 调用量 + Token 量
+        近 N 天每日 AI 调用量 + Token 量 / Daily AI calls + tokens for last N days.
 
         Returns:
             [{"date": "2026-02-20", "calls": 10, "tokens": 5000}, ...]
@@ -446,7 +446,7 @@ class TenantDashboardService:
 
     async def get_storage_detail(self) -> dict[str, Any]:
         """
-        存储使用详情：已用大小/文件数/分类分布
+        存储使用详情：已用大小/文件数/分类分布 / Storage usage detail: size, count, category distribution.
 
         Returns:
             {"total_files", "total_size_bytes", "total_size_mb",

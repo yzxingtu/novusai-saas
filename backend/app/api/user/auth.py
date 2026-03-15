@@ -123,8 +123,7 @@ async def refresh_token(
     refresh_data: RefreshTokenRequest,
 ):
     """
-    使用 Refresh Token 获取新的 Token 对
-    Use Refresh Token to obtain a new Token pair
+    使用 Refresh Token 获取新的 Token 对 / Use refresh token to obtain new token pair.
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_tenant_user_token(refresh_data.refresh_token)
@@ -159,8 +158,7 @@ async def get_current_user_info(
     current_user: ActiveTenantUser,
 ):
     """
-    获取当前登录用户的详细信息
-    Get detailed info of the currently logged-in user
+    获取当前登录用户的详细信息 / Get current user info.
     """
     return success(
         data=UserResponse.model_validate(current_user, from_attributes=True),
@@ -176,8 +174,7 @@ async def change_password(
     password_data: ChangePasswordRequest,
 ):
     """
-    修改当前用户密码
-    Change current user's password
+    修改当前用户密码 / Change current user password.
     """
     auth_service = AuthService(db)
 
@@ -242,8 +239,7 @@ async def update_profile(
     profile_data: TenantUserProfileUpdateRequest,
 ):
     """
-    更新当前用户个人资料
-    Update current user's profile
+    更新当前用户个人资料 / Update current user profile.
     """
     config_service = ConfigService(db)
     allow_edit = await config_service.get_tenant_config(
@@ -279,7 +275,7 @@ async def forgot_password(
     forgot_data: ForgotPasswordRequest,
 ):
     """
-    请求密码重置 / Request password reset
+    请求密码重置 / Request password reset.
 
     发送验证码到指定邮箱
     Send verification code to specified email
@@ -309,8 +305,7 @@ async def reset_password(
     reset_data: ResetPasswordRequest,
 ):
     """
-    使用验证码重置密码
-    Reset password using verification code
+    使用验证码重置密码 / Reset password using verification code.
     """
     auth_service = AuthService(db)
 

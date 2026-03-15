@@ -1,6 +1,4 @@
-"""
-StreamExecutionHandler 真实流式行为测试
-"""
+"""StreamExecutionHandler 真实流式行为测试 / Test."""
 
 from __future__ import annotations
 
@@ -16,9 +14,7 @@ from app.ai.types import ChatChunk, ChatMessage
 
 
 def _parse_sse_payload(raw: str) -> dict:
-    """
-    解析单条 SSE 文本（data: {...}\n\n）为 dict。
-    """
+    """解析单条 SSE 文本（data: {...}\n\n）为 dict。 / Parse."""
     line = raw.strip()
     assert line.startswith("data: ")
     return json.loads(line[6:])
@@ -88,9 +84,7 @@ def _build_handler(engine: _FakeEngine) -> StreamExecutionHandler:
 
 @pytest.mark.asyncio
 async def test_stream_handler_with_tools_keeps_real_delta_order():
-    """
-    有 tools 但本轮未触发 tool_call 时，必须直接透传模型增量，不允许整段合并。
-    """
+    """有 tools 但本轮未触发 tool_call 时，必须直接透传模型增量，不允许整段合并。 / Model."""
     engine = _FakeEngine(
         rounds=[
             [

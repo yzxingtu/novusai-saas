@@ -1,4 +1,4 @@
-"""Regression tests for plugin helper transaction semantics."""
+"""Regression tests for plugin helper transaction semantics. / 插件"""
 
 from __future__ import annotations
 

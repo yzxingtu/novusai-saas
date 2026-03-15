@@ -36,16 +36,15 @@ DEFAULT_MAX_DOCUMENTS_PER_KB = 500
 
 class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]):
     """
-    企业级知识库 Service
-
-    提供知识库的创建、更新、删除、统计更新、配额检查等业务逻辑
+    企业级知识库 Service / Tenant knowledge base service.
+    提供知识库的创建、更新、删除、统计更新、配额检查等业务逻辑 / CRUD, stats update, quota checks.
     """
 
     model = KnowledgeBase
     repository_class = KnowledgeBaseRepository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性 + 配额检查"""
+        """创建前校验：名称唯一性 + 配额检查 / Before create: name uniqueness + quota check."""
         await super()._before_create(data)
 
         # 配额检查
@@ -58,7 +57,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：scope 保护、名称唯一性"""
+        """更新前校验：scope 保护、名称唯一性 / Before update: scope protection, name uniqueness."""
         await super()._before_update(id, data)
 
         kb = await self.repo.get_by_id(id)
@@ -76,7 +75,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：scope 保护、级联软删除文档和分块"""
+        """删除前：scope 保护、级联软删除文档和分块 / Before delete: scope protection, cascade soft-delete docs and chunks."""
         await super()._before_delete(id)
 
         kb = await self.repo.get_by_id(id)
@@ -113,7 +112,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         )
 
     async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """升级删除层级，级联升级文档和分块"""
+        """升级删除层级，级联升级文档和分块 / Escalate delete level, cascade escalate docs and chunks."""
         instance = await self.repo.escalate_delete_by_id(id)
         if instance is None:
             return None
@@ -142,7 +141,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         return instance
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
-        """恢复后：级联恢复文档和分块"""
+        """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
         now = utc_now()
         # 级联恢复文档
         await self.repo.db.execute(
@@ -168,13 +167,13 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
     async def get_kb_detail(self, kb_id: int) -> dict[str, Any]:
         """
-        获取知识库详情（含关联 Embedding 模型信息）
+        获取知识库详情（含关联 Embedding 模型信息） / Get KB detail (with embedding/vision model info).
 
         Args:
-            kb_id: 知识库 ID
+            kb_id: 知识库 ID / Knowledge base ID.
 
         Returns:
-            包含模型名称的知识库字典
+            包含模型名称的知识库字典 / KB dict with model names.
         """
         kb = await self.repo.get_by_id(kb_id)
         if not kb:
@@ -183,6 +182,8 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         result = kb.to_dict()
         result["embedding_model_name"] = None
         result["vision_model_name"] = None
+        result["audio_model_name"] = None
+        result["video_model_name"] = None
 
         try:
             model_obj = getattr(kb, "embedding_model", None)
@@ -198,19 +199,33 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         except AttributeError:
             pass
 
+        try:
+            audio_obj = getattr(kb, "audio_model", None)
+            if audio_obj is not None:
+                result["audio_model_name"] = audio_obj.name
+        except AttributeError:
+            pass
+
+        try:
+            video_obj = getattr(kb, "video_model", None)
+            if video_obj is not None:
+                result["video_model_name"] = video_obj.name
+        except AttributeError:
+            pass
+
         return result
 
     async def update_statistics(self, kb_id: int) -> None:
         """
-        重新计算知识库统计
+        重新计算知识库统计 / Recompute KB statistics.
 
         Args:
-            kb_id: 知识库 ID
+            kb_id: 知识库 ID / Knowledge base ID.
         """
         await self.repo.update_statistics(kb_id)
 
     async def check_kb_quota(self) -> None:
-        """检查企业知识库数量配额"""
+        """检查企业知识库数量配额 / Check tenant KB count quota."""
         count = await self.repo.count_by_tenant()
         if count >= DEFAULT_MAX_KNOWLEDGE_BASES:
             raise BusinessException(
@@ -218,7 +233,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
             )
 
     async def check_document_quota(self, kb_id: int) -> None:
-        """检查知识库文档数量配额"""
+        """检查知识库文档数量配额 / Check KB document count quota."""
         kb = await self.repo.get_by_id(kb_id)
         if kb and kb.document_count >= DEFAULT_MAX_DOCUMENTS_PER_KB:
             raise BusinessException(
@@ -227,15 +242,14 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
     async def reindex_knowledge_base(self, kb_id: int) -> int:
         """
-        重新向量化知识库所有文档
-
-        删除所有现有 chunks，重新触发 process_document
+        重新向量化知识库所有文档 / Reindex all documents in KB.
+        删除所有现有 chunks，重新触发 process_document / Delete existing chunks, re-trigger process_document.
 
         Args:
-            kb_id: 知识库 ID
+            kb_id: 知识库 ID / Knowledge base ID.
 
         Returns:
-            触发的文档数量
+            触发的文档数量 / Number of documents triggered.
         """
         from app.enums.knowledge_base import DocumentStatusEnum
 
@@ -289,7 +303,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
 class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumentRepository]):
     """
-    企业级知识文档 Service
+    企业级知识文档 Service / Tenant knowledge document service.
     """
 
     model = KnowledgeDocument
@@ -300,7 +314,7 @@ class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumen
         knowledge_base_id: int,
         file_hash: str,
     ) -> KnowledgeDocument | None:
-        """检查文件是否已存在（去重）"""
+        """检查文件是否已存在（去重） / Check if file already exists (dedup by hash)."""
         return await self.repo.get_by_kb_and_hash(knowledge_base_id, file_hash)
 
     async def update_status(
@@ -310,20 +324,20 @@ class KnowledgeDocumentService(TenantService[KnowledgeDocument, KnowledgeDocumen
         error_message: str | None = None,
         error_stage: str | None = None,
     ) -> None:
-        """更新文档处理状态"""
+        """更新文档处理状态 / Update document processing status."""
         await self.repo.update_status(doc_id, status, error_message, error_stage)
 
 
 class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]):
     """
-    企业级文档分块 Service
+    企业级文档分块 Service / Tenant document chunk service.
     """
 
     model = DocumentChunk
     repository_class = DocumentChunkRepository
 
     async def delete_by_document(self, document_id: int) -> int:
-        """删除指定文档的所有分块"""
+        """删除指定文档的所有分块 / Delete all chunks for document."""
         return await self.repo.delete_by_document(document_id)
 
     async def get_by_document(
@@ -332,22 +346,21 @@ class DocumentChunkService(TenantService[DocumentChunk, DocumentChunkRepository]
         skip: int = 0,
         limit: int = 100,
     ) -> list[DocumentChunk]:
-        """获取指定文档的分块列表"""
+        """获取指定文档的分块列表 / Get chunk list for document."""
         return await self.repo.get_by_document(document_id, skip, limit)
 
 
 class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseRepository]):
     """
-    管理端知识库 Service
-
-    无企业隔离，供平台管理端全局查询和 CRUD 使用
+    管理端知识库 Service / Admin knowledge base service.
+    无企业隔离，供平台管理端全局查询和 CRUD 使用 / No tenant isolation, for admin CRUD.
     """
 
     model = KnowledgeBase
     repository_class = AdminKnowledgeBaseRepository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：scope + tenant_id 一致性、名称唯一性"""
+        """创建前校验：scope + tenant_id 一致性、名称唯一性 / Before create: scope+tenant_id consistency, name uniqueness."""
         await super()._before_create(data)
 
         scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
@@ -367,7 +380,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：scope 变更时的一致性、名称唯一性"""
+        """更新前校验：scope 变更时的一致性、名称唯一性 / Before update: scope consistency, name uniqueness."""
         await super()._before_update(id, data)
 
         kb = await self.repo.get_by_id(id)
@@ -390,7 +403,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：级联软删除文档和分块，清理企业分配"""
+        """删除前：级联软删除文档和分块，清理企业分配 / Before delete: cascade soft-delete docs/chunks, clear tenant assignments."""
         await super()._before_delete(id)
 
         level = self._default_delete_level
@@ -429,7 +442,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             await rta_repo.delete_all_for_resource("knowledge_base", id)
 
     async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """升级删除层级，级联升级文档和分块"""
+        """升级删除层级，级联升级文档和分块 / Escalate delete level, cascade escalate docs and chunks."""
         instance = await self.repo.escalate_delete_by_id(id)
         if instance is None:
             return None
@@ -458,7 +471,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         return instance
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
-        """恢复后：级联恢复文档和分块"""
+        """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
         now = utc_now()
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -486,9 +499,8 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         tenant_ids: list[int] | None,
     ) -> None:
         """
-        同步知识库的企业访问记录
-
-        全量替换：先删除旧记录，再批量插入新记录
+        同步知识库的企业访问记录 / Sync KB tenant access records.
+        全量替换：先删除旧记录，再批量插入新记录 / Full replace: delete old then batch insert.
         """
         from sqlalchemy import delete as sa_delete
 
@@ -515,7 +527,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         scope: str,
         exclude_id: int | None = None,
     ) -> KnowledgeBase | None:
-        """检查同 scope+tenant_id 下名称是否重复"""
+        """检查同 scope+tenant_id 下名称是否重复 / Check name unique under same scope+tenant_id."""
         conditions = [
             KnowledgeBase.name == name,
             KnowledgeBase.scope == scope,

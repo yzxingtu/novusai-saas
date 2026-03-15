@@ -14,7 +14,7 @@ from app.models.ai.agent_access import AgentAccess
 
 class AgentAccessRepository(TenantRepository[AgentAccess]):
     """
-    企业级智能体访问权限 Repository
+    企业级智能体访问权限 Repository / Tenant agent access repository.
 
     提供 get_by_agent_id 和 upsert（按 agent_id 创建或更新）
     """
@@ -23,7 +23,7 @@ class AgentAccessRepository(TenantRepository[AgentAccess]):
 
     async def get_by_agent_id(self, agent_id: int) -> AgentAccess | None:
         """
-        按智能体 ID 获取访问权限配置
+        按智能体 ID 获取访问权限配置 / Get access config by agent id.
 
         Args:
             agent_id: 智能体 ID
@@ -43,7 +43,7 @@ class AgentAccessRepository(TenantRepository[AgentAccess]):
 
     async def upsert(self, agent_id: int, data: dict[str, Any]) -> AgentAccess:
         """
-        创建或更新智能体访问权限配置
+        创建或更新智能体访问权限配置 / Create or update agent access config.
 
         如果该 agent_id 已有记录则更新，否则创建新记录。
 

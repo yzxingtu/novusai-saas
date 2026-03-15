@@ -24,7 +24,7 @@ from app.services.common.role_tree_mixin import RoleTreeMixin
 
 class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMixin[AdminRole]):
     """
-    平台管理员角色服务
+    平台管理员角色服务 / Platform admin role service.
 
     提供角色的 CRUD 操作和层级结构管理
     """
@@ -34,7 +34,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
 
     async def get_by_code(self, code: str) -> AdminRole | None:
         """
-        根据代码获取角色
+        根据代码获取角色 / Get role by code.
 
         Args:
             code: 角色代码
@@ -45,7 +45,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         return await self.repo.get_by_code(code)
 
     def _generate_role_code(self) -> str:
-        """生成唯一角色代码"""
+        """生成唯一角色代码 / Generate unique role code."""
         return f"role_{uuid.uuid4().hex[:12]}"
 
     async def create_role(
@@ -60,7 +60,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         allow_members: bool = True,
     ) -> AdminRole:
         """
-        创建角色
+        创建角色 / Create role.
 
         Args:
             name: 角色名称
@@ -128,7 +128,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         data: dict[str, Any],
     ) -> AdminRole:
         """
-        更新角色
+        更新角色 / Update role.
 
         Args:
             role_id: 角色 ID
@@ -236,7 +236,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         permission_ids: list[int],
     ) -> AdminRole:
         """
-        分配权限给角色
+        分配权限给角色 / Assign permissions to role.
 
         Args:
             role_id: 角色 ID
@@ -269,7 +269,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
 
     async def get_root_roles(self) -> list[AdminRole]:
         """
-        获取所有顶级角色
+        获取所有顶级角色 / Get all root roles.
 
         Returns:
             顶级角色列表
@@ -280,7 +280,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
 
     def validate_child_type(self, parent_type: str, child_type: str) -> bool:
         """
-        验证子节点类型是否允许
+        验证子节点类型是否允许 / Validate whether child node type is allowed.
 
         规则:
         - department: 可添加 department, position
@@ -307,7 +307,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         leader_id: int | None,
     ) -> AdminRole:
         """
-        设置节点负责人
+        设置节点负责人 / Set node leader.
 
         Args:
             role_id: 角色/节点 ID
@@ -347,7 +347,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
 
     async def get_organization_root_nodes(self) -> list[AdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树）
+        获取组织架构根节点列表（用于按需加载树）/ Get org root nodes for lazy tree.
 
         Returns:
             根节点列表（level=1），每个节点包含 has_children 标记
@@ -356,7 +356,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
 
     async def get_organization_children(self, parent_id: int) -> list[AdminRole]:
         """
-        获取指定节点的直接子节点（用于按需加载）
+        获取指定节点的直接子节点（用于按需加载）/ Get direct children of node for lazy load.
 
         Args:
             parent_id: 父节点 ID
@@ -377,7 +377,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         is_active: bool = True,
     ) -> Admin:
         """
-        在节点下创建新成员
+        在节点下创建新成员 / Create new member under node.
 
         Args:
             role_id: 角色/节点 ID
@@ -435,7 +435,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         new_role_id: int | None = None,
     ) -> Admin:
         """
-        更新节点成员信息
+        更新节点成员信息 / Update node member info.
 
         Args:
             role_id: 当前角色/节点 ID
@@ -524,7 +524,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         new_password: str,
     ) -> bool:
         """
-        重置节点成员密码
+        重置节点成员密码 / Reset node member password.
 
         Args:
             role_id: 角色/节点 ID
@@ -580,7 +580,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         is_active: bool,
     ) -> Admin:
         """
-        切换节点成员状态
+        切换节点成员状态 / Toggle node member status.
 
         Args:
             role_id: 角色/节点 ID
@@ -635,7 +635,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         admin_id: int,
     ) -> AdminRole:
         """
-        添加成员到节点
+        添加成员到节点 / Add member to node.
 
         Args:
             role_id: 角色/节点 ID
@@ -689,7 +689,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         admin_id: int,
     ) -> AdminRole:
         """
-        删除节点成员（软删除）
+        删除节点成员（软删除）/ Remove node member (soft delete).
 
         Args:
             role_id: 角色/节点 ID
@@ -758,7 +758,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         include_descendants: bool = True,
     ) -> tuple[list[Admin], int]:
         """
-        获取节点成员列表（分页 + 搜索 + 递归子节点）
+        获取节点成员列表（分页 + 搜索 + 递归子节点）/ Get node members (paginated + search + descendants).
 
         Args:
             role_id: 角色/节点 ID

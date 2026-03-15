@@ -1,6 +1,4 @@
-"""
-回收站 Service
-"""
+"""回收站 Service / Trash (recycle bin) service."""
 
 from __future__ import annotations
 
@@ -47,7 +45,7 @@ class TrashService(TenantService):
         return node
 
     async def clear_trash(self) -> int:
-        """清空当前企业回收站（物理删除 + 回收存储）"""
+        """清空当前企业回收站（物理删除 + 回收存储） / Empty tenant trash (physical delete + reclaim storage)."""
         from sqlalchemy import delete, select
 
         from app.storage.manager import StorageManager

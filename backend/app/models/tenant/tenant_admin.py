@@ -17,7 +17,7 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 
 class TenantAdmin(TenantModel):
     """
-    企业管理员模型
+    企业管理员模型 / Tenant admin model.
 
     - 属于特定企业
     - 管理企业后台
@@ -131,7 +131,7 @@ class TenantAdmin(TenantModel):
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查企业管理员是否拥有指定权限
+        检查企业管理员是否拥有指定权限 / Check if tenant admin has permission.
 
         Args:
             permission_code: 权限代码

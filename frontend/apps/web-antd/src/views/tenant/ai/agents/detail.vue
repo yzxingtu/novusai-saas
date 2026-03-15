@@ -329,7 +329,7 @@ const chatSystemPrompt = ref('');
 const chatContextMessages = ref(20);
 const chatContextTokens = ref(0);
 
-/** Ref to the system prompt textarea for cursor-based variable insertion */
+/** Ref to the system prompt textarea for cursor-based variable insertion / 系统提示词输入框引用，用于插入变量 */
 const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
 
 function formatVarChip(name: string) {

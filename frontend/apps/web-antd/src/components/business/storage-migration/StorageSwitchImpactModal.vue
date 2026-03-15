@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 /**
  * Storage Switch Impact Analysis Modal
+ * 存储切换影响分析弹窗
  *
  * Shows impact analysis when admin switches storage driver.
- * Displays file counts, sizes, and visibility breakdown.
+ * 管理员切换存储驱动时展示影响分析（文件数、大小、可见性）。
  * Provides "Switch Anyway" and "Migrate First" actions.
  */
 import type { ImpactAnalysis } from '#/api/admin/storage-migration';

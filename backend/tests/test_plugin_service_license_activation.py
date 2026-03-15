@@ -1,4 +1,4 @@
-"""插件服务 license 激活路径的回归测试。"""
+"""插件服务 license 激活路径的回归测试。 / Service."""
 
 from __future__ import annotations
 

@@ -1,8 +1,4 @@
-"""
-企业端分享管理 API（已登录用户）
-
-Handler 签名：(request, db, ctx)
-"""
+"""企业端分享管理 API（已登录用户）/ Tenant share management API (authenticated)."""
 
 from __future__ import annotations
 
@@ -32,7 +28,7 @@ async def list_node_shares(request, db, ctx):
 
 
 async def list_my_shares(request, db, ctx):
-    """列出当前企业的全部分享链接（含文件名/类型）"""
+    """列出当前企业的全部分享链接（含文件名/类型） / List all share links for tenant (with file name/type)."""
     page = int(request.query_params.get("page", "1"))
     size = min(int(request.query_params.get("size", "50")), 100)
     from ..services.share_service import ShareService

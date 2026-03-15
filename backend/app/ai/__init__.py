@@ -1,6 +1,5 @@
 """
-AI Gateway Module
-AI 网关模块
+AI Gateway Module / AI 网关模块
 
 Unified AI call interface with multi-provider adapters and SSE streaming.
 提供统一的 AI 调用接口，支持多供应商适配和 SSE 流式响应。

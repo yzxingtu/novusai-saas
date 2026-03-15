@@ -1,15 +1,10 @@
-"""
-Netdisk 技能解析器
-
-为 plugin.yaml extensions.skills 中声明的 toolkit 技能提供 resolve() 入口。
-"""
+"""Netdisk 技能解析器 / Netdisk skill resolver — resolve() entry for toolkit skills declared in plugin.yaml."""
 
 from app.ai.tools.types import ToolDefinition, ToolParameter
 
 
 def resolve(skill, config: dict) -> list[ToolDefinition]:
-    """
-    将网盘 Skill 解析为 ToolDefinition 列表。
+    """将网盘 Skill 解析为 ToolDefinition 列表 / Parse netdisk Skill into ToolDefinition list.
 
     Args:
         skill: Skill 模型实例（plugin.yaml 声明时为 None）

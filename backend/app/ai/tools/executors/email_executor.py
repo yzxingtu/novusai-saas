@@ -1,6 +1,5 @@
 """
-Email Tool Executor
-邮件工具执行器
+Email Tool Executor. / 邮件工具执行器。
 
 Calls the existing EmailService to send emails, with domain whitelist and recipient count limits.
 调用已有的 EmailService 发送邮件，支持域名白名单、收件人数量限制。
@@ -35,8 +34,7 @@ def _validate_emails(
     addresses: list[str],
     allowed_domains: list[str],
 ) -> str | None:
-    """Validate email format and domain whitelist, return error message or None
-    校验邮箱格式和域名白名单，返回错误消息或 None"""
+    """Validate email format and domain whitelist, return error message or None. / 校验邮箱格式和域名白名单，返回错误消息或 None。"""
     for addr in addresses:
         if not _EMAIL_REGEX.match(addr):
             return f"Invalid email address: {addr}"

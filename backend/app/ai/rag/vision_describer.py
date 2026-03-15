@@ -1,6 +1,5 @@
 """
-Vision Image Description Service
-Vision 图片描述服务
+Vision Image Description Service / Vision 图片描述服务
 
 Internal LLM call within RAG pipeline (exempt from AI architecture rules:
 LLM calls inside RAG pipeline are part of Agent skill internal implementation,

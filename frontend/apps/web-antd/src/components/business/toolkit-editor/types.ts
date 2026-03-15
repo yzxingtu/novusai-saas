@@ -1,10 +1,10 @@
 /**
- * Toolkit 编辑器共享类型
+ * Toolkit 编辑器共享类型 / Toolkit editor shared types
  *
- * 避免共享组件从 admin/tenant API 跨端导入。
+ * 避免共享组件从 admin/tenant API 跨端导入。Avoid cross-import from admin/tenant API.
  */
 
-/** Toolkit 解析结果中的 Tool */
+/** Toolkit 解析结果中的 Tool / Tool in toolkit parse result */
 export interface ToolkitToolInfo {
   name: string;
   description: string;
@@ -18,7 +18,7 @@ export interface ToolkitToolInfo {
   is_async: boolean;
 }
 
-/** Toolkit 解析响应 */
+/** Toolkit 解析响应 / Toolkit parse response */
 export interface ToolkitParseResult {
   title?: string;
   description?: string;

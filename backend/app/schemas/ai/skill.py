@@ -19,7 +19,7 @@ from app.core.i18n import _
 
 
 class SkillCreate(BaseCreateSchema):
-    """创建技能请求"""
+    """创建技能请求 / Create skill request."""
 
     package_id: int = Field(..., description=_("skill.field.package_id"))
     name: str = Field(..., max_length=100, description=_("skill.field.name"))
@@ -37,7 +37,7 @@ class SkillCreate(BaseCreateSchema):
 
 
 class SkillUpdate(BaseUpdateSchema):
-    """更新技能请求"""
+    """更新技能请求 / Update skill request."""
 
     name: str | None = Field(None, max_length=100, description=_("skill.field.name"))
     description: str | None = Field(None, description=_("skill.field.description"))
@@ -54,7 +54,7 @@ class SkillUpdate(BaseUpdateSchema):
 
 
 class PluginToolInfo(BaseSchema):
-    """插件工具信息（只读展示）"""
+    """插件工具信息（只读展示） / Plugin tool info (read-only display)."""
 
     name: str = Field(..., description="Tool name")
     description: str | None = Field(None, description="Tool description")
@@ -62,7 +62,7 @@ class PluginToolInfo(BaseSchema):
 
 
 class SkillResponse(BaseResponseSchema):
-    """技能响应"""
+    """技能响应 / Skill response schema."""
 
     tenant_id: int | None = Field(None, description="企业ID")
     package_id: int = Field(..., description=_("skill.field.package_id"))

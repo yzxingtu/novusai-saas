@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 class TenantModelRateLimit(TenantModel):
     """
-    企业 AI 模型速率限制配置
+    企业 AI 模型速率限制配置 / Tenant model rate limit config.
 
     为每个企业配置对每个 AI 模型的速率限制
     如果未配置，则使用模型的默认限制

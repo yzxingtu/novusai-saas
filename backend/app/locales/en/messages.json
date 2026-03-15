@@ -549,6 +549,8 @@
       "route_confidence": "Route Confidence",
       "routed_by": "Routed By",
       "attachment_type": "Attachment Type",
+      "attachment_type_audio": "Audio",
+      "attachment_type_video": "Video",
       "attachment_url": "Attachment URL",
       "attachment_name": "Attachment Name",
       "attachment_mime_type": "Attachment MIME Type",
@@ -774,6 +776,10 @@
       "embedding_model_id": "Embedding Model",
       "vision_model_id": "Vision Model",
       "vision_model_name": "Vision Model Name",
+      "audio_model_id": "Audio description model",
+      "video_model_id": "Video description model",
+      "audio_model_name": "Audio model name",
+      "video_model_name": "Video model name",
       "extract_images": "Extract Image Content",
       "tenant_ids": "Assigned Tenant IDs",
       "embedding_model_name": "Embedding model name",
@@ -1741,7 +1747,8 @@
         "url": "Web URL",
         "image": "Image File",
         "pptx": "PowerPoint Presentation",
-        "audio": "Audio File"
+        "audio": "Audio File",
+        "video": "Video File"
       },
       "vision": {
         "describe_prompt": "Please describe the content of this image in detail, including: text information, chart data, table content, flowchart logic, and key visual elements. This is for knowledge base retrieval, please extract all searchable information.",
@@ -1768,7 +1775,12 @@
         "fast": "Fast",
         "standard": "Standard",
         "premium": "Premium"
-      }
+      },
+      "supports_audio": "Supports Audio",
+      "supports_video": "Supports Video",
+      "filter_supports_vision": "Supports vision (true/false)",
+      "filter_supports_audio": "Supports audio (true/false)",
+      "filter_supports_video": "Supports video (true/false)"
     },
     "codegen": {
       "operation": {

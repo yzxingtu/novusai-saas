@@ -1,6 +1,5 @@
 """
-Page Operation Executor
-页面操作执行器
+Page Operation Executor. / 页面操作执行器。
 
 Sends page operation commands to the frontend via WebSocket, waits for result callback, and returns ToolResult.
 通过 WebSocket 向前端下发页面操作指令，等待结果回传，返回 ToolResult。
@@ -25,8 +24,7 @@ logger = LogManager.get_logger("ai.tool.page_operation")
 
 class PageOperationExecutor(BaseToolExecutor):
     """
-    Page operation executor.
-    页面操作执行器。
+    Page operation executor. / 页面操作执行器。
 
     Sends page_operation_invoke event to the page_session:{id} room via Socket.IO,
     waits for the frontend to execute the operation and return results via page_operation_result.
@@ -177,8 +175,7 @@ class PageOperationExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """Validate parameters: page_key and operation_name are required
-        校验参数：page_key 和 operation_name 必填"""
+        """校验参数：page_key 和 operation_name 必填 / Validate parameters: page_key and operation_name are required."""
         return bool(arguments.get("page_key")) and bool(arguments.get("operation_name"))
 
 

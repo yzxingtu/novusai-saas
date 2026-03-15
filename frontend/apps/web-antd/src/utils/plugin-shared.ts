@@ -30,6 +30,7 @@ import { useUserStore } from '@vben/stores';
 import * as AntDesignVue from 'ant-design-vue';
 
 import {
+  appendPageOperations,
   listPageOperations,
   registerPageContext,
   registerPageOperations,
@@ -49,6 +50,7 @@ import { requestClient } from '#/utils/request';
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
 export {
   $t,
+  appendPageOperations,
   getAuthToken,
   getCurrentUser,
   IconifyIcon,
@@ -131,6 +133,8 @@ export interface NovusPluginSharedAPI {
   registerPageOperations: typeof registerPageOperations;
   /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
   listPageOperations: typeof listPageOperations;
+  /** Append page operations without replacing (for plugins; call after platform has registered) / 追加页面操作不替换（供插件在平台注册后追加） */
+  appendPageOperations: typeof appendPageOperations;
 }
 
 /**
@@ -169,6 +173,7 @@ export function exposePluginShared(): void {
     listPageOperations,
     registerPageContext,
     registerPageOperations,
+    appendPageOperations,
   } satisfies NovusPluginSharedAPI;
 }
 

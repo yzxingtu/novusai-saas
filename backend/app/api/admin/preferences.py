@@ -55,8 +55,7 @@ async def update_global_preferences(
     body: PreferenceUpdateSchema,
 ):
     """
-    更新平台全局偏好，变更的 key 会从所有管理员个人覆盖中清除
-    Update platform global preferences; changed keys are cleared from all admin individual overrides
+    更新平台全局偏好，变更的 key 会从所有管理员个人覆盖中清除 / Update platform global preferences; changed keys cleared from admin overrides.
     """
     service = UserPreferenceService(db)
     data, changed = await service.update_global(SCOPE_PLATFORM_GLOBAL, PLATFORM_TENANT_ID, body.preferences)

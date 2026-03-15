@@ -47,8 +47,7 @@ async def _ensure_tenant_owned_kb(
     kb_id: int,
 ):
     """
-    确保知识库为企业自有（tenant_id 与当前企业匹配）才允许变更操作。
-    Ensures the knowledge base is tenant-owned (tenant_id matches current tenant) before allowing mutations.
+    确保知识库为企业自有（tenant_id 与当前企业匹配）才允许变更操作 / Ensure KB is tenant-owned before mutations.
 
     平台创建的全局 KB（tenant_id=null）及其他企业的 KB 对当前企业只读，
     不允许上传文档、删除文档等变更操作。
@@ -80,6 +79,16 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     ".png": DocumentTypeEnum.IMAGE.value,
     ".webp": DocumentTypeEnum.IMAGE.value,
     ".gif": DocumentTypeEnum.IMAGE.value,
+    ".mp3": DocumentTypeEnum.AUDIO.value,
+    ".wav": DocumentTypeEnum.AUDIO.value,
+    ".m4a": DocumentTypeEnum.AUDIO.value,
+    ".flac": DocumentTypeEnum.AUDIO.value,
+    ".aac": DocumentTypeEnum.AUDIO.value,
+    ".mp4": DocumentTypeEnum.VIDEO.value,
+    ".webm": DocumentTypeEnum.VIDEO.value,
+    ".mov": DocumentTypeEnum.VIDEO.value,
+    ".avi": DocumentTypeEnum.VIDEO.value,
+    ".mkv": DocumentTypeEnum.VIDEO.value,
 }
 
 
@@ -209,6 +218,8 @@ class TenantKnowledgeBaseController(TenantController):
                 item = kb.to_dict()
                 item["embedding_model_name"] = None
                 item["vision_model_name"] = None
+                item["audio_model_name"] = None
+                item["video_model_name"] = None
                 try:
                     if kb.embedding_model:
                         item["embedding_model_name"] = kb.embedding_model.name
@@ -217,6 +228,16 @@ class TenantKnowledgeBaseController(TenantController):
                 try:
                     if getattr(kb, "vision_model", None):
                         item["vision_model_name"] = kb.vision_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "audio_model", None):
+                        item["audio_model_name"] = kb.audio_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "video_model", None):
+                        item["video_model_name"] = kb.video_model.name
                 except Exception:
                     pass
                 result.append(item)
@@ -266,6 +287,8 @@ class TenantKnowledgeBaseController(TenantController):
             result = kb.to_dict()
             result["embedding_model_name"] = None
             result["vision_model_name"] = None
+            result["audio_model_name"] = None
+            result["video_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
@@ -274,6 +297,16 @@ class TenantKnowledgeBaseController(TenantController):
             try:
                 if getattr(kb, "vision_model", None):
                     result["vision_model_name"] = kb.vision_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "audio_model", None):
+                    result["audio_model_name"] = kb.audio_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "video_model", None):
+                    result["video_model_name"] = kb.video_model.name
             except Exception:
                 pass
 
@@ -310,6 +343,8 @@ class TenantKnowledgeBaseController(TenantController):
             result = updated.to_dict()
             result["embedding_model_name"] = None
             result["vision_model_name"] = None
+            result["audio_model_name"] = None
+            result["video_model_name"] = None
             try:
                 if updated.embedding_model:
                     result["embedding_model_name"] = updated.embedding_model.name
@@ -318,6 +353,16 @@ class TenantKnowledgeBaseController(TenantController):
             try:
                 if getattr(updated, "vision_model", None):
                     result["vision_model_name"] = updated.vision_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(updated, "audio_model", None):
+                    result["audio_model_name"] = updated.audio_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(updated, "video_model", None):
+                    result["video_model_name"] = updated.video_model.name
             except Exception:
                 pass
 

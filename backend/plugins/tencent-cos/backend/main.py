@@ -1,12 +1,10 @@
-"""
-Tencent Cloud COS Storage Plugin
-"""
+"""Tencent Cloud COS Storage Plugin / 插件"""
 
 from app.plugins.base import PluginBase
 
 
 class CosStoragePlugin(PluginBase):
-    """Tencent Cloud COS storage driver plugin"""
+    """Tencent Cloud COS storage driver plugin / 插件"""
 
     async def on_install(self, ctx) -> None:
         ctx.get_logger().info("Tencent COS storage plugin installed")

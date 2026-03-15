@@ -1,6 +1,5 @@
 """
-Plugin installation preview.
-/ 插件安装预览
+Plugin installation preview. / 插件安装预览。
 
 Parse manifest → collect extension declarations → check dependencies → detect conflicts → return preview info.
 / 解析 manifest → 收集扩展点声明 → 检查依赖 → 检测冲突 → 返回预览信息。

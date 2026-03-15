@@ -1,6 +1,5 @@
 """
-AI Provider Failover Service
-AI 供应商故障转移服务
+AI Provider Failover Service / AI 供应商故障转移服务
 
 Automatically switches to fallback models when primary provider is unavailable.
 Reads health status from Redis and finds fallback on AIGateway call failure.

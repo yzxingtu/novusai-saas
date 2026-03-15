@@ -14,7 +14,7 @@ from app.models.auth.tenant_admin_role import TenantAdminRole
 
 class TenantRoleRepository(TenantRepository[TenantAdminRole]):
     """
-    企业角色仓储
+    企业角色仓储 / Tenant role repository.
 
     提供企业角色特有的数据访问方法，自动过滤企业 ID，包含层级结构查询
     """
@@ -39,7 +39,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
 
     async def get_by_code(self, code: str) -> TenantAdminRole | None:
         """
-        根据代码获取角色（企业内）
+        根据代码获取角色（企业内）/ Get role by code within tenant.
 
         Args:
             code: 角色代码
@@ -55,7 +55,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查角色代码是否已存在（企业内唯一）
+        检查角色代码是否已存在（企业内唯一）/ Check if role code exists within tenant.
 
         Args:
             code: 角色代码
@@ -83,7 +83,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取直接子角色列表（企业内）
+        获取直接子角色列表（企业内）/ Get direct child roles (within tenant).
 
         Args:
             parent_id: 父角色 ID，None 表示获取顶级角色
@@ -111,7 +111,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有祖先角色（从根到父，不含自身）
+        获取所有祖先角色（从根到父，不含自身）/ Get all ancestor roles (root to parent, excluding self).
 
         Args:
             role_id: 角色 ID
@@ -150,7 +150,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有后代角色（不含自身）
+        获取所有后代角色（不含自身）/ Get all descendant roles (excluding self).
 
         使用 path 字段的 LIKE 查询实现
 
@@ -189,7 +189,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[int]:
         """
-        获取所有后代角色 ID（不含自身）
+        获取所有后代角色 ID（不含自身）/ Get all descendant role IDs (excluding self).
 
         Args:
             role_id: 角色 ID
@@ -207,7 +207,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取角色树（指定节点下的所有角色，企业内）
+        获取角色树（指定节点下的所有角色，企业内）/ Get role tree (all roles under node, within tenant).
 
         Args:
             parent_id: 父角色 ID，None 表示从根节点开始
@@ -252,7 +252,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有子角色（企业内）
+        检查角色是否有子角色（企业内）/ Check if role has children (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -279,7 +279,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计直接子角色数量（企业内）
+        统计直接子角色数量（企业内）/ Count direct child roles (within tenant).
 
         Args:
             parent_id: 父角色 ID，None 表示统计顶级角色
@@ -304,7 +304,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有顶级角色（企业内，无父角色）
+        获取所有顶级角色（企业内，无父角色）/ Get all root roles (within tenant, no parent).
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -320,7 +320,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> bool:
         """
-        检查角色是否有关联的管理员（企业内）
+        检查角色是否有关联的管理员（企业内）/ Check if role has associated admins (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -351,7 +351,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        根据节点类型获取角色列表（企业内）
+        根据节点类型获取角色列表（企业内）/ Get roles by type (within tenant).
 
         Args:
             role_type: 节点类型 (department/position/role)
@@ -378,7 +378,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取所有部门节点（企业内）
+        获取所有部门节点（企业内）/ Get all department nodes (within tenant).
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -398,7 +398,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> tuple[list, int]:
         """
-        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）
+        获取节点成员列表（企业内，分页 + 搜索 + 递归子节点）/ Get node members (within tenant, paginated, search, optional descendants).
 
         Args:
             role_id: 角色/节点 ID
@@ -491,7 +491,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> int:
         """
-        统计节点成员数量（企业内）
+        统计节点成员数量（企业内）/ Count node members (within tenant).
 
         Args:
             role_id: 角色/节点 ID
@@ -519,7 +519,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> TenantAdminRole | None:
         """
-        获取角色并加载成员关系（企业内）
+        获取角色并加载成员关系（企业内）/ Get role with members loaded (within tenant).
 
         Args:
             role_id: 角色 ID
@@ -549,7 +549,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取组织架构根节点列表（用于按需加载树，企业内）
+        获取组织架构根节点列表（用于按需加载树，企业内）/ Get org root nodes (for lazy-loading tree, within tenant).
 
         Args:
             include_deleted: 是否包含已删除记录
@@ -585,7 +585,7 @@ class TenantRoleRepository(TenantRepository[TenantAdminRole]):
         include_deleted: bool = False,
     ) -> list[TenantAdminRole]:
         """
-        获取指定节点的直接子节点（含关联数据，企业内）
+        获取指定节点的直接子节点（含关联数据，企业内）/ Get direct children of node with relations (within tenant).
 
         Args:
             parent_id: 父节点 ID

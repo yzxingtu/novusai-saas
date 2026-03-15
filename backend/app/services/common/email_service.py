@@ -30,7 +30,7 @@ logger = LogManager.get_logger("app")
 
 @dataclass
 class EmailAttachment:
-    """邮件附件"""
+    """邮件附件 / Email attachment."""
 
     filename: str
     content: bytes
@@ -39,7 +39,7 @@ class EmailAttachment:
 
 @dataclass
 class EmailMessage:
-    """邮件消息"""
+    """邮件消息 / Email message."""
 
     to: list[str]
     subject: str
@@ -53,7 +53,7 @@ class EmailMessage:
 
 @dataclass
 class EmailResult:
-    """邮件发送结果"""
+    """邮件发送结果 / Email send result."""
 
     success: bool
     message: str
@@ -63,7 +63,7 @@ class EmailResult:
 
 @dataclass
 class SmtpConfig:
-    """SMTP 配置"""
+    """SMTP 配置 / SMTP configuration."""
 
     host: str
     port: int
@@ -82,15 +82,13 @@ _EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
 
 def _is_valid_email(address: str) -> bool:
-    """校验邮箱格式"""
+    """校验邮箱格式 / Validate email format."""
     return bool(_EMAIL_REGEX.match(address.strip()))
 
 
 class EmailService:
     """
-    邮件发送服务
-
-    从平台配置动态读取 SMTP 参数，支持 HTML/纯文本/附件。
+    邮件发送服务；从平台配置动态读取 SMTP，支持 HTML/纯文本/附件 / Email send service; SMTP from platform config, HTML/text/attachments.
     """
 
     def __init__(self, db: AsyncSession):
@@ -98,7 +96,7 @@ class EmailService:
         self._config_service = ConfigService(db)
 
     async def _load_smtp_config(self) -> SmtpConfig:
-        """从平台配置加载 SMTP 参数"""
+        """从平台配置加载 SMTP 参数 / Load SMTP config from platform settings."""
         get = self._config_service.get_platform_config
         return SmtpConfig(
             host=await get("email_smtp_host", default=""),
@@ -113,13 +111,13 @@ class EmailService:
 
     async def send(self, message: EmailMessage) -> EmailResult:
         """
-        发送邮件
+        发送邮件 / Send email.
 
         Args:
-            message: 邮件消息对象
+            message: 邮件消息对象 / Email message.
 
         Returns:
-            EmailResult 发送结果
+            EmailResult 发送结果 / Send result.
         """
         config = await self._load_smtp_config()
 
@@ -232,7 +230,7 @@ class EmailService:
 
     @staticmethod
     def _build_mime_message(message: EmailMessage, config: SmtpConfig) -> MIMEMultipart:
-        """构建 MIME 邮件"""
+        """构建 MIME 邮件 / Build MIME message."""
         msg = MIMEMultipart("mixed")
         msg["From"] = f"{config.from_name} <{config.from_address}>"
         msg["To"] = ", ".join(message.to)
@@ -273,7 +271,7 @@ class EmailService:
         mime_msg: MIMEMultipart,
         recipients: list[str],
     ) -> None:
-        """通过 SMTP 发送邮件（同步阻塞）"""
+        """通过 SMTP 发送邮件（同步阻塞） / Send email via SMTP (sync blocking)."""
         timeout = 30
 
         if config.encryption == "ssl":
@@ -312,7 +310,7 @@ def send_email_sync(
     bcc: list[str] | None = None,
 ) -> EmailResult:
     """
-    同步发送邮件（Celery Worker 专用）。
+    同步发送邮件（Celery Worker 专用）/ Send email synchronously (for Celery worker).
 
     直接从 DB 读取 SMTP 配置，不依赖 async session。
     """
@@ -365,7 +363,7 @@ def send_email_sync(
 
 
 def _load_smtp_config_sync(session: Any) -> SmtpConfig:
-    """同步加载 SMTP 配置"""
+    """同步加载 SMTP 配置 / Load SMTP config synchronously."""
     from app.configs.service import PLATFORM_TENANT_ID
     from app.models.system.config import SystemConfig, SystemConfigValue
 

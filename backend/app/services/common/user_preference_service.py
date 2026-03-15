@@ -145,8 +145,7 @@ class UserPreferenceService:
         user_id: int,
     ) -> dict[str, Any]:
         """
-        获取生效偏好（系统默认 + 全局 + 个人合并）
-        Get effective preferences (system defaults + global + individual merged)
+        获取生效偏好（系统默认 + 全局 + 个人合并）/ Get effective preferences (system defaults + global + individual merged).
         """
         result = dict(SYSTEM_DEFAULTS)
 
@@ -170,8 +169,7 @@ class UserPreferenceService:
         tenant_id: int,
     ) -> dict[str, Any]:
         """
-        获取全局偏好（仅全局记录，不含系统默认）
-        Get global preferences (global record only, without system defaults)
+        获取全局偏好（仅全局记录，不含系统默认）/ Get global preferences (global record only, without system defaults).
         """
         record = await self._get_record(scope, tenant_id, user_id=None)
         if record:
@@ -184,8 +182,7 @@ class UserPreferenceService:
         tenant_id: int,
     ) -> dict[str, Any]:
         """
-        获取全局偏好（含系统默认补全）
-        Get global preferences with system defaults filled in
+        获取全局偏好（含系统默认补全）/ Get global preferences with system defaults filled in.
         """
         result = dict(SYSTEM_DEFAULTS)
         record = await self._get_record(scope, tenant_id, user_id=None)
@@ -200,8 +197,7 @@ class UserPreferenceService:
         user_id: int,
     ) -> dict[str, Any]:
         """
-        获取个人覆盖部分（仅个人记录）
-        Get individual override part only
+        获取个人覆盖部分（仅个人记录）/ Get individual override part only.
         """
         record = await self._get_record(scope, tenant_id, user_id=user_id)
         if record:
@@ -265,8 +261,7 @@ class UserPreferenceService:
         data: dict[str, Any],
     ) -> dict[str, Any]:
         """
-        更新个人覆盖（自动排除全局专属 key）
-        Update individual overrides (auto-excludes global-only keys)
+        更新个人覆盖（自动排除全局专属 key）/ Update individual overrides (exclude global-only keys).
 
         Returns: 更新后的生效偏好 / Updated effective preferences
         """
@@ -297,8 +292,7 @@ class UserPreferenceService:
         user_id: int,
     ) -> dict[str, Any]:
         """
-        重置个人覆盖（恢复为全局默认）
-        Reset individual overrides (restore to global defaults)
+        重置个人覆盖（恢复为全局默认）/ Reset individual overrides (restore to global defaults).
 
         Returns: 重置后的生效偏好 / Effective preferences after reset
         """
@@ -345,8 +339,7 @@ class UserPreferenceService:
         changed_keys: set[str],
     ) -> None:
         """
-        从该层级下所有个人记录中移除已变更的 key
-        Remove changed keys from all individual records under this scope
+        从该层级下所有个人记录中移除已变更的 key / Remove changed keys from all individual records under this scope.
         """
         result = await self.db.execute(
             select(UserPreference).where(
@@ -387,9 +380,8 @@ class UserPreferenceService:
         exclude_global_only: bool = False,
     ) -> dict[str, Any]:
         """
-        过滤只保留合法的偏好 key / Filter to keep only valid preference keys
+        过滤只保留合法的偏好 key / Filter to keep only valid preference keys.
         exclude_global_only=True 时额外排除全局专属 key（水印等）
-        When exclude_global_only=True, also excludes global-only keys (watermark, etc.)
         """
         result = {k: v for k, v in data.items() if k in VALID_KEYS}
         if exclude_global_only:

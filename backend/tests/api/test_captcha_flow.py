@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-验证码最小化自测脚本
+"""验证码最小化自测脚本 / Description.
 
-覆盖 challenge/verify 接口及登录流程的验证码触发校验
-"""
+覆盖 challenge/verify 接口及登录流程的验证码触发校验"""
 import os
 import sys
 

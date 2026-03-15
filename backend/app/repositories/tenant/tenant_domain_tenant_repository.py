@@ -22,7 +22,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         return await self.get_one_by(domain=domain)
 
     async def get_primary_domain(self, tenant_id: int | None = None) -> TenantDomain | None:
-        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository / tenant_id 忽略，使用 TenantRepository 的 self.tenant_id。"""
         _ = tenant_id
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
@@ -64,18 +64,18 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         return result.scalar_one_or_none() is not None
 
     async def count_tenant_domains(self, tenant_id: int | None = None) -> int:
-        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository / tenant_id 忽略，使用 TenantRepository 的 self.tenant_id。"""
         _ = tenant_id
         return await self.count(tenant_id=self.tenant_id)
 
     async def has_primary_domain(self, tenant_id: int | None = None) -> bool:
-        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository / tenant_id 忽略，使用 TenantRepository 的 self.tenant_id。"""
         _ = tenant_id
         primary = await self.get_primary_domain()
         return primary is not None
 
     async def clear_primary_flag(self, tenant_id: int | None = None) -> None:
-        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository / tenant_id 忽略，使用 TenantRepository 的 self.tenant_id。"""
         _ = tenant_id
         from sqlalchemy import update
 

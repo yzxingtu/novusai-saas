@@ -1,6 +1,5 @@
 """
-Abstract Base Class for Tool Executors
-工具执行器抽象基类
+Abstract Base Class for Tool Executors / 工具执行器抽象基类
 
 All tool executors must inherit from this class and implement the execute and validate methods.
 所有工具执行器必须继承此类，实现 execute 和 validate 方法。
@@ -19,8 +18,7 @@ if TYPE_CHECKING:
 
 class BaseToolExecutor(ABC):
     """
-    Abstract base class for tool executors.
-    工具执行器抽象基类。
+    Abstract base class for tool executors. / 工具执行器抽象基类。
 
     Each ToolTypeEnum corresponds to a concrete executor implementation.
     每种 ToolTypeEnum 对应一个具体的执行器实现。

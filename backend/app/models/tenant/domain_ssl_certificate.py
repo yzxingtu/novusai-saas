@@ -16,7 +16,7 @@ from app.enums.domain import SslCertStatus, SslCertType
 
 class DomainSslCertificate(BaseModel):
     """
-    域名 SSL 证书模型
+    域名 SSL 证书模型 / Domain SSL certificate model.
 
     - 每个域名最多一个有效证书（active 状态）
     - 支持 platform（ACME 自动签发）和 custom（用户上传）两种类型
@@ -182,7 +182,7 @@ class DomainSslCertificate(BaseModel):
 
     @property
     def is_expiring_soon(self) -> bool:
-        """30 天内即将过期"""
+        """30 天内即将过期 / Expiring within 30 days."""
         if not self.expires_at:
             return False
         from datetime import timedelta

@@ -1,10 +1,4 @@
-"""
-Amazon S3 Compatible Storage Driver
-
-Migrated from built-in app.storage.drivers.s3 with identical interface.
-Supports AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.
-Optional image processing via Cloudflare Image Resizing or imgproxy.
-"""
+"""Amazon S3 兼容存储驱动 / Amazon S3 Compatible Storage Driver — Migrated from built-in app.storage.drivers.s3. Supports AWS S3, MinIO, R2, B2; optional imgproxy."""
 
 from __future__ import annotations
 
@@ -37,7 +31,7 @@ except ModuleNotFoundError:
 
 
 def _require_boto3():
-    """Ensure optional boto3 SDK is available before runtime use."""
+    """确保运行前已安装可选 boto3 SDK / Ensure optional boto3 SDK is available before runtime use."""
     if boto3 is None:
         raise StorageConfigError(
             message=(
@@ -49,9 +43,7 @@ def _require_boto3():
 
 
 class S3StorageDriver(StorageDriver):
-    """
-    S3 compatible object storage driver (plugin edition)
-    """
+    """S3 compatible object storage driver (plugin edition) / 插件"""
     name = "s3"
     display_name = "storage.driver.s3"
     config_schema = {

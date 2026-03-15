@@ -19,7 +19,7 @@ import { useSocketIO } from '#/composables/use-socketio';
 
 import { TokenStorage } from './token-storage';
 
-/** Namespace 映射：API endpoint → Socket.IO namespace */
+/** Namespace 映射：API endpoint → Socket.IO namespace / Namespace map */
 const NAMESPACE_MAP: Record<string, string> = {
   admin: '/admin',
   tenant: '/tenant',

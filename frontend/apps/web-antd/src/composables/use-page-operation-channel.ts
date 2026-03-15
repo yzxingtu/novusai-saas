@@ -58,7 +58,7 @@ export interface PageOperationResultEvent {
 let currentJoinedRoom = '';
 
 /**
- * Agent Loop: track recently confirmed mutation operations per page key.
+ * Agent Loop: track recently confirmed mutation operations per page key / 按页面 key 跟踪最近确认的变更操作
  * When user confirms create_record/edit_record, subsequent fill_form
  * operations on the same page within CHAIN_CONFIRM_TTL_MS are auto-approved.
  */

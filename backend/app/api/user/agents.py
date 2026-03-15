@@ -59,8 +59,7 @@ class UserAgentController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """
-            获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）
-            Get enabled knowledge base list bound to agent (for chat UI RAG indicator)
+            获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）/ Get agent bound KB list (for RAG indicator).
             """
             kb_service = AgentKBBindingService(db, current_user.tenant_id)
             result = await kb_service.get_agent_kb_bindings(agent_id)
@@ -75,8 +74,7 @@ class UserAgentController(BaseController):
             query: QueryParams,
         ):
             """
-            获取当前用户可访问的已发布智能体列表
-            Get published agent list accessible to the current user
+            获取当前用户可访问的已发布智能体列表 / Get published agent list for current user.
 
             自动过滤 / Auto filters:
             - 仅已发布状态 / Published status only

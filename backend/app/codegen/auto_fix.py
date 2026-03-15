@@ -1,4 +1,4 @@
-"""Automatic project-fix loop utilities for CRUD codegen inputs."""
+"""Automatic project-fix loop utilities for CRUD codegen inputs. / CRUD 代码生成输入的自动修复循环工具"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _RELATION_REQUIRED_KEYS = {"source_entity", "target_entity", "relation_type"}
 
 @dataclass(slots=True)
 class FixContext:
-    """Context passed to a fix function."""
+    """Context passed to a fix function. / 传入修复函数的上下文"""
 
     project_dict: dict[str, Any]
     issues: list[dict[str, Any]]
@@ -25,7 +25,7 @@ class FixContext:
 
 @dataclass(slots=True)
 class FixAttempt:
-    """Execution record for one auto-fix attempt."""
+    """Execution record for one auto-fix attempt. / 单次自动修复尝试的执行记录"""
 
     attempt: int
     success: bool
@@ -37,7 +37,7 @@ class FixAttempt:
 
 @dataclass(slots=True)
 class AutoFixResult:
-    """Final output for auto-fix loop."""
+    """Final output for auto-fix loop. / 自动修复循环的最终结果"""
 
     success: bool
     fixed_project: dict[str, Any] | None = None
@@ -47,7 +47,7 @@ class AutoFixResult:
     total_attempts: int = 0
 
     def to_tool_output(self) -> dict[str, Any]:
-        """Serialize to dict for tool responses."""
+        """Serialize to dict for tool responses. / 序列化为工具响应用字典"""
         return {
             "success": self.success,
             "fixed_project": self.fixed_project,
@@ -61,7 +61,7 @@ class AutoFixResult:
 def validate_project(
     project_dict: dict[str, Any],
 ) -> tuple[bool, list[dict[str, Any]], list[dict[str, Any]]]:
-    """Validate codegen project data and return (valid, issues, warnings)."""
+    """Validate codegen project data and return (valid, issues, warnings). / 校验代码生成项目数据，返回 (是否有效, 问题列表, 警告列表)"""
     issues: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
 
@@ -125,7 +125,7 @@ def validate_project(
 
 
 def build_fix_instructions(issues: list[dict[str, Any]]) -> str:
-    """Build plain-text instructions for a fix function."""
+    """Build plain-text instructions for a fix function. / 为修复函数生成纯文本指令"""
     if not issues:
         return ""
 
@@ -141,7 +141,7 @@ def build_fix_instructions(issues: list[dict[str, Any]]) -> str:
 
 
 def suggest_human_steps(issues: list[dict[str, Any]]) -> list[str]:
-    """Generate actionable human fallback steps from remaining issues."""
+    """Generate actionable human fallback steps from remaining issues. / 根据剩余问题生成可执行的人工处理步骤"""
     if not issues:
         return ["Review the generated project schema before running code generation."]
 
@@ -178,7 +178,7 @@ def build_fix_context(
     attempt: int,
     max_attempts: int = MAX_FIX_RETRIES,
 ) -> FixContext:
-    """Create a FixContext for one retry iteration."""
+    """Create a FixContext for one retry iteration. / 为一次重试迭代创建 FixContext"""
     return FixContext(
         project_dict=project_dict,
         issues=issues,
@@ -189,7 +189,7 @@ def build_fix_context(
 
 
 def apply_fix_patch(project_dict: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    """Apply a partial patch to project data with entity upsert semantics."""
+    """Apply a partial patch to project data with entity upsert semantics. / 按实体 upsert 语义将补丁应用到项目数据"""
     if not patch:
         return {
             "project_name": project_dict.get("project_name"),
@@ -219,7 +219,7 @@ def run_fix_loop(
     fix_fn: Callable[[FixContext], dict[str, Any] | None] | None = None,
     max_retries: int = MAX_FIX_RETRIES,
 ) -> AutoFixResult:
-    """Run validation + optional fix function retries until success or exhausted."""
+    """Run validation + optional fix function retries until success or exhausted. / 运行校验与可选修复循环直至成功或耗尽"""
     valid, issues, _warnings = validate_project(project_dict)
     if valid:
         return AutoFixResult(

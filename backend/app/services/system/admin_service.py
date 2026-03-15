@@ -18,7 +18,7 @@ from app.repositories.system.admin_repository import AdminRepository
 
 class AdminService(GlobalService[Admin, AdminRepository]):
     """
-    平台管理员服务
+    平台管理员服务 / Platform admin service.
 
     提供管理员特有的业务方法
     """
@@ -28,7 +28,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
 
     async def get_by_username(self, username: str) -> Admin | None:
         """
-        根据用户名获取管理员
+        根据用户名获取管理员 / Get admin by username.
 
         Args:
             username: 用户名
@@ -40,7 +40,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
 
     async def get_by_email(self, email: str) -> Admin | None:
         """
-        根据邮箱获取管理员
+        根据邮箱获取管理员 / Get admin by email.
 
         Args:
             email: 邮箱
@@ -55,7 +55,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         username_or_email: str,
     ) -> Admin | None:
         """
-        根据用户名或邮箱获取管理员（用于登录）
+        根据用户名或邮箱获取管理员（用于登录）/ Get admin by username or email (for login).
 
         Args:
             username_or_email: 用户名或邮箱
@@ -77,7 +77,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         role_id: int | None = None,
     ) -> Admin:
         """
-        创建管理员
+        创建管理员 / Create admin.
 
         Args:
             username: 用户名
@@ -136,7 +136,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         data: dict[str, Any],
     ) -> Admin:
         """
-        更新管理员
+        更新管理员 / Update admin.
 
         Args:
             admin_id: 管理员 ID
@@ -194,7 +194,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        修改密码（管理员自己操作）
+        修改密码（管理员自己操作）/ Change password (self-service).
 
         Args:
             admin_id: 管理员 ID
@@ -234,7 +234,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         new_password: str,
     ) -> bool:
         """
-        重置密码（超级管理员操作）
+        重置密码（超级管理员操作）/ Reset password (super admin operation).
 
         Args:
             admin_id: 管理员 ID
@@ -261,7 +261,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
 
     async def toggle_status(self, admin_id: int, is_active: bool) -> Admin:
         """
-        切换管理员状态
+        切换管理员状态 / Toggle admin status.
 
         Args:
             admin_id: 管理员 ID

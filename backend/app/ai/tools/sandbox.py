@@ -1,6 +1,5 @@
 """
-Tool Execution Security Sandbox
-工具执行安全沙箱
+Tool Execution Security Sandbox. / 工具执行安全沙箱。
 
 Provides a security shell for tool execution: timeout control, output truncation,
 domain filtering, EventBus event publishing and Hook triggering.
@@ -70,10 +69,7 @@ _RESERVED_ARG_KEYS = frozenset({"page_key", "operation_name", "params"})
 
 
 def _infer_operation_name(params: dict[str, Any]) -> str:
-    """Best-effort inference of operation_name from params keys.
-
-    No available_ops restriction -- let the execution phase validate.
-    """
+    """Best-effort inference of operation_name from params keys. / 根据 params 的 key 尽力推断 operation_name。不限制 available_ops，由执行阶段校验。"""
     if not params:
         return ""
     keys = frozenset(params.keys())
@@ -603,7 +599,7 @@ class ToolSandbox:
         arguments: dict[str, Any],
         definitions: list[ToolDefinition],
     ) -> tuple[str, dict[str, Any], ToolDefinition] | None:
-        """Redirect a bare operation name to ``invoke_page_operation``.
+        """Redirect a bare operation name to ``invoke_page_operation``. / 将裸操作名重定向到 invoke_page_operation。
 
         Some LLMs call enum values (e.g. ``get_editor_text``) as standalone
         function names instead of wrapping them in ``invoke_page_operation``.

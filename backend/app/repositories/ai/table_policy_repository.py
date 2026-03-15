@@ -13,7 +13,7 @@ from app.models.ai.table_policy import AITablePolicy
 
 class AITablePolicyRepository(BaseRepository[AITablePolicy]):
     """
-    AI 表策略 Repository
+    AI 表策略 Repository / AI Table Policy Repository.
 
     继承 BaseRepository（平台级资源，无企业隔离）
     """
@@ -21,7 +21,7 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
     model = AITablePolicy
 
     async def get_active_by_table_name(self, table_name: str) -> AITablePolicy | None:
-        """按表名获取激活的策略"""
+        """按表名获取激活的策略 / Get active policy by table name."""
         stmt = select(AITablePolicy).where(
             AITablePolicy.table_name == table_name,
             AITablePolicy.is_active == True,  # noqa: E712
@@ -31,7 +31,7 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
         return result.scalar_one_or_none()
 
     async def get_all_active(self) -> list[AITablePolicy]:
-        """获取所有激活的全局策略"""
+        """获取所有激活的全局策略 / Get all active global policies."""
         stmt = select(AITablePolicy).where(
             AITablePolicy.is_active == True,  # noqa: E712
             AITablePolicy.is_deleted == False,  # noqa: E712
@@ -41,7 +41,7 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
 
     async def get_table_columns(self, table_name: str) -> list[dict]:
         """
-        获取指定表的列信息（用于 blocked_columns / readonly_columns 选择器）
+        获取指定表的列信息（用于 blocked_columns / readonly_columns 选择器）/ Get column info for table (for blocked_columns/readonly_columns selectors).
 
         Returns:
             [{"name": "col_name", "type": "int", "comment": "描述"}, ...]

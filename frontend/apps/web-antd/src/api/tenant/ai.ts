@@ -23,6 +23,8 @@ export interface TenantAIModelInfo {
   output_price_per_1k: null | number;
   supports_function_calling: boolean;
   supports_vision: boolean;
+  supports_audio?: boolean;
+  supports_video?: boolean;
   supports_streaming: boolean;
   is_active: boolean;
   tier: null | string;

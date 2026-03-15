@@ -1,6 +1,5 @@
 """
-Plugin loader.
-/ 插件加载器
+Plugin loader. / 插件加载器。
 
 Responsible for plugin discovery, manifest parsing, main class dynamic import, README and i18n loading.
 / 负责插件发现、清单解析、主类动态导入、README 和 i18n 加载。

@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 class KnowledgeBaseTenantAccess(BaseModel):
     """
-    知识库企业访问关联表
+    知识库企业访问关联表 / KB tenant access association.
 
     用于 visibility='assigned' 的知识库，指定哪些企业可以访问。
     """

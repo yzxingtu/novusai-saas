@@ -1,13 +1,11 @@
-"""
-API 测试配置文件
+"""API 测试配置文件 / API.
 
-可通过环境变量或直接修改此文件配置测试参数
-"""
+可通过环境变量或直接修改此文件配置测试参数"""
 import os
 
 
 class TestConfig:
-    """测试配置"""
+    """测试配置 / Test."""
 
     # API 基础配置
     BASE_URL: str = os.getenv("TEST_API_BASE_URL", "http://localhost:8000")

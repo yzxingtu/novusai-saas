@@ -14,7 +14,7 @@ from app.core.base_model import BaseModel
 
 class OperationLog(BaseModel):
     """
-    操作日志模型
+    操作日志模型 / Operation log model.
 
     记录所有 API 调用的审计日志，支持：
     - 平台端操作（tenant_id 为空）

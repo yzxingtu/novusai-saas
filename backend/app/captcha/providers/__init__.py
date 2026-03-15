@@ -1,6 +1,5 @@
 """
-Captcha Providers
-验证码提供者实现
+Captcha Providers / 验证码提供者实现
 
 Built-in captcha provider implementations.
 内置验证码提供者实现。

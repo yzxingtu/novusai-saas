@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 重置企业管理员密码弹窗
+ * 重置企业管理员密码弹窗 / Reset tenant admin password modal
  */
 import { ref } from 'vue';
 
@@ -12,7 +12,7 @@ import { $t } from '#/locales';
 
 import { useResetPasswordSchema } from '../data';
 
-/** 重置密码所需的企业信息 */
+/** 重置密码所需的企业信息 / Tenant info required for reset password */
 interface ResetPasswordTarget {
   id: number;
   name: string;

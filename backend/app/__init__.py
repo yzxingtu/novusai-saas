@@ -1,5 +1,5 @@
 """
-NovusAI SaaS Backend Application
+NovusAI SaaS Backend Application / NovusAI SaaS 后端应用
 """
 
 import warnings

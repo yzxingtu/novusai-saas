@@ -15,7 +15,7 @@ import { ref, shallowRef, toValue, watch } from 'vue';
 
 import { io } from 'socket.io-client';
 
-/** 连接状态 */
+/** 连接状态 / Connection status */
 export type SocketIOStatus =
   | 'connected'
   | 'connecting'

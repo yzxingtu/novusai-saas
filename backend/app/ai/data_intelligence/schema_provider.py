@@ -236,8 +236,7 @@ class SchemaProvider:
         tenant_id: int = 0,
     ) -> list[dict[str, Any]]:
         """
-        Load active policy list (merge global + tenant overrides).
-        加载有效策略列表（合并全局 + 企业覆盖）。
+        Load active policy list (merge global + tenant overrides). / 加载有效策略列表（合并全局 + 企业覆盖）。
 
         Returns:
             Policy dict list, each containing table name, CRUD switches, blocked_columns, etc.
@@ -485,8 +484,7 @@ class SchemaProvider:
         tables: list[TableSchema],
         question: str,
     ) -> list[TableSchema]:
-        """Filter tables by question keywords to return relevant ones (reduce LLM token consumption).
-        按问题关键词过滤返回相关表（减少 LLM token 消耗）。
+        """Filter tables by question keywords to return relevant ones (reduce LLM token consumption). / 按问题关键词过滤返回相关表（减少 LLM token 消耗）。
 
         For small table sets (≤30), returns all tables for LLM to judge.
         Only performs keyword filtering when table count is large to save tokens.

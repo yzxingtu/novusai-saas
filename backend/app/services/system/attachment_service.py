@@ -35,7 +35,7 @@ from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository]):
     """
-    平台端附件服务
+    平台端附件服务 / Platform attachment service.
 
     提供跨企业的附件管理能力
     """
@@ -65,7 +65,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        平台端上传文件
+        平台端上传文件 / Platform upload file.
 
         不受企业配额限制，使用平台存储配置
 
@@ -137,7 +137,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         size: int,
     ) -> dict[str, Any]:
         """
-        预检查文件是否已存在（秒传）
+        预检查文件是否已存在（秒传）/ Pre-check file existence (instant upload).
 
         Args:
             tenant_id: 目标企业 ID
@@ -184,7 +184,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """
-        初始化分片上传会话
+        初始化分片上传会话 / Initialize chunk upload session.
         """
         # 验证文件类型
         validation_result = await self._file_validator.validate_for_platform(
@@ -225,7 +225,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         content: BinaryIO,
     ) -> dict[str, Any]:
         """
-        上传分片
+        上传分片 / Upload chunk.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -245,7 +245,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def complete_chunk_upload(self, upload_id: str) -> dict[str, Any]:
         """
-        完成分片上传并合并文件
+        完成分片上传并合并文件 / Complete chunk upload and merge files.
         """
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
@@ -298,7 +298,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_upload_status(self, upload_id: str) -> dict[str, Any]:
         """
-        获取分片上传进度
+        获取分片上传进度 / Get chunk upload progress.
         """
         session = await self._load_session(upload_id)
         uploaded_bytes = await self._calc_uploaded_bytes(
@@ -308,7 +308,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def abort_upload(self, upload_id: str) -> None:
         """
-        取消上传并清理临时文件
+        取消上传并清理临时文件 / Abort upload and clean temp files.
         """
         await self._remove_session(upload_id)
 
@@ -316,7 +316,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def _resolve_platform_storage_config(self) -> StorageConfig:
         """
-        获取平台存储配置
+        获取平台存储配置 / Get platform storage config.
         """
         driver = await self._config_service.get_platform_config(
             "platform_storage_driver", default="local"
@@ -344,7 +344,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def _save_to_temp(self, content: BinaryIO) -> tuple[str, int, str]:
         """
-        将内容写入临时文件并计算哈希
+        将内容写入临时文件并计算哈希 / Write content to temp file and compute hash.
         """
         def _write() -> tuple[str, int, str]:
             size = 0
@@ -362,7 +362,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def _remove_temp_file(self, temp_path: str) -> None:
         """
-        删除临时文件
+        删除临时文件 / Remove temp file.
         """
         def _remove() -> None:
             Path(temp_path).unlink(missing_ok=True)
@@ -378,7 +378,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         metadata: dict | None,
     ):
         """
-        上传临时文件到存储驱动
+        上传临时文件到存储驱动 / Upload temp file to storage driver.
         """
         driver = storage_manager.get_driver(storage_config)
         with open(temp_path, "rb") as f:
@@ -407,7 +407,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config: StorageConfig | None = None,
     ) -> Attachment:
         """
-        落库附件记录
+        落库附件记录 / Persist attachment record.
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
 
@@ -443,7 +443,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     def _build_storage_path(self, tenant_id: int, filename: str) -> str:
         """
-        构建存储路径（管理端始终使用平台存储 / 共享 Bucket）
+        构建存储路径（管理端始终使用平台存储 / 共享 Bucket）/ Build storage path (platform/shared bucket).
 
         - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
         - tenant_id>0: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
@@ -455,7 +455,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     def _get_upload_root(self) -> Path:
         """
-        获取上传临时根目录
+        获取上传临时根目录 / Get upload temp root.
         """
         return Path(tempfile.gettempdir()) / "novusai_uploads" / "admin"
 
@@ -558,7 +558,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        删除附件（含依赖检查 + 物理文件删除）
+        删除附件（含依赖检查 + 物理文件删除）/ Delete attachment (dependency check + physical delete).
 
         流程：
         1. 获取附件信息（driver / path / tenant_id）
@@ -593,7 +593,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         self, driver_name: str, path: str, tenant_id: int
     ) -> None:
         """
-        从存储驱动中删除物理文件
+        从存储驱动中删除物理文件 / Delete physical file from storage driver.
 
         Args:
             driver_name: 存储驱动名称（local / qiniu / s3 等）
@@ -625,7 +625,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """
-        获取存储统计
+        获取存储统计 / Get storage stats.
 
         Args:
             tenant_id: 可选的企业 ID，不传则统计所有企业
@@ -637,7 +637,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
-        获取按企业分组的存储统计
+        获取按企业分组的存储统计 / Get storage stats by tenant.
 
         Returns:
             各企业存储统计列表

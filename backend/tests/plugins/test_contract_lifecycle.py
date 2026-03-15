@@ -26,12 +26,12 @@ from app.plugins.registry import ExtensionRegistry
 
 
 def _noop_handler(_event_name: str, _payload: dict) -> None:
-    """测试用空处理器，避免 lambda 触发 lint 警告。"""
+    """测试用空处理器，避免 lambda 触发 lint 警告。 / Test."""
 
 
 @pytest.fixture(autouse=True)
 def _reset_singletons():
-    """每个测试前重置单例状态"""
+    """每个测试前重置单例状态 / Test."""
     ExtensionRegistry.reset()
     PluginEventBus.reset()
     yield
@@ -64,7 +64,7 @@ class TestRegistryLifecycle:
         assert reg.get_registered_count("nonexistent") == 0
 
     def test_dispatch_table_covers_all_types(self):
-        """确保 _DISPATCH 包含所有已知扩展类型"""
+        """确保 _DISPATCH 包含所有已知扩展类型 / _DISPATCH"""
         reg = ExtensionRegistry.get_instance()
         core_types = {
             "adapter", "hook", "storage", "skill", "event",
@@ -76,7 +76,7 @@ class TestRegistryLifecycle:
 
 
 class TestPluginMenuI18n:
-    """插件菜单标题 i18n 回退契约测试"""
+    """插件菜单标题 i18n 回退契约测试 / Plugin."""
 
     def test_menu_title_fallback_uses_manifest_title_by_locale(self):
         from app.core.i18n import set_locale
@@ -211,7 +211,7 @@ class TestPluginEventBusLifecycle:
 
     @pytest.mark.asyncio
     async def test_publish_priority_ordering(self):
-        """订阅者按 priority 排序执行"""
+        """订阅者按 priority 排序执行 / priority"""
         bus = PluginEventBus.get_instance()
         order: list[str] = []
 
@@ -232,11 +232,11 @@ class TestPluginEventBusLifecycle:
 
 
 class TestSSEResponse:
-    """plugin_sse_response 契约测试"""
+    """plugin_sse_response 契约测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_sse_message_done_sequence(self):
-        """正常流：message chunks → done → [DONE]"""
+        """正常流：message chunks → done → [DONE] / ：message chunks → done → [D..."""
         from app.plugins.sse import _done, _encode, plugin_sse_response
 
         async def gen():
@@ -255,7 +255,7 @@ class TestSSEResponse:
 
     @pytest.mark.asyncio
     async def test_sse_error_sequence(self):
-        """异常流：error → [DONE]"""
+        """异常流：error → [DONE] / ：error → [DONE]"""
         from app.plugins.sse import plugin_sse_response
 
         async def gen():
@@ -278,7 +278,7 @@ class TestSSEResponse:
 
     @pytest.mark.asyncio
     async def test_sse_empty_generator(self):
-        """空生成器：直接 done → [DONE]"""
+        """空生成器：直接 done → [DONE] / ： done → [DONE]"""
         from app.plugins.sse import _done, _encode, plugin_sse_response
 
         async def gen():
@@ -295,7 +295,7 @@ class TestSSEResponse:
 
     @pytest.mark.asyncio
     async def test_sse_heartbeat_emitted(self):
-        """heartbeat=True 时，空闲超时会发送心跳"""
+        """heartbeat=True 时，空闲超时会发送心跳 / heartbeat=True ，"""
         import asyncio
 
         import app.plugins.sse as sse_module
@@ -324,10 +324,10 @@ class TestSSEResponse:
 
 
 class TestRequestContext:
-    """RequestContext 注入契约测试"""
+    """RequestContext 注入契约测试 / Test."""
 
     def test_request_context_frozen(self):
-        """RequestContext 是 frozen dataclass，不可修改"""
+        """RequestContext 是 frozen dataclass，不可修改 / RequestContext frozen datacl..."""
         from app.plugins.context import RequestContext
 
         ctx = RequestContext(tenant_id=1, user_id=2, user_role="tenant_admin")
@@ -335,7 +335,7 @@ class TestRequestContext:
             ctx.tenant_id = 99  # type: ignore[misc]
 
     def test_plugin_context_with_request_context(self):
-        """PluginContext 注入 RequestContext 后，getter 返回正确值"""
+        """PluginContext 注入 RequestContext 后，getter 返回正确值 / PluginContext RequestContex..."""
         from unittest.mock import MagicMock
 
         from app.plugins.context import PluginContext, RequestContext
@@ -363,7 +363,7 @@ class TestRequestContext:
         assert ctx.get_request_id() == "req-123"
 
     def test_plugin_context_without_request_context(self):
-        """无 RequestContext 时（lifecycle hook 场景），返回安全默认值"""
+        """无 RequestContext 时（lifecycle hook 场景），返回安全默认值 / RequestContext （lifecycle h..."""
         from unittest.mock import MagicMock
 
         from app.plugins.context import PluginContext
@@ -384,10 +384,10 @@ class TestRequestContext:
 
 
 class TestApiDispatcherHelpers:
-    """API Dispatcher 辅助函数契约测试"""
+    """API Dispatcher 辅助函数契约测试 / API."""
 
     def test_handler_accepts_ctx_positive(self):
-        """handler 签名含 ctx → True"""
+        """handler 签名含 ctx → True / handler ctx → True"""
         from app.plugins.api_dispatcher import _handler_accepts_ctx
 
         async def handler_with_ctx(request, db, ctx):
@@ -396,7 +396,7 @@ class TestApiDispatcherHelpers:
         assert _handler_accepts_ctx(handler_with_ctx) is True
 
     def test_handler_accepts_ctx_negative(self):
-        """handler 签名不含 ctx → False"""
+        """handler 签名不含 ctx → False / handler ctx → False"""
         from app.plugins.api_dispatcher import _handler_accepts_ctx
 
         async def handler_without_ctx(request, db):
@@ -405,7 +405,7 @@ class TestApiDispatcherHelpers:
         assert _handler_accepts_ctx(handler_without_ctx) is False
 
     def test_handler_accepts_ctx_kwargs(self):
-        """handler 用 **kwargs → False（不自动注入）"""
+        """handler 用 **kwargs → False（不自动注入） / handler **kwargs → False（ ..."""
         from app.plugins.api_dispatcher import _handler_accepts_ctx
 
         async def handler_kwargs(**kwargs):
@@ -415,11 +415,11 @@ class TestApiDispatcherHelpers:
 
 
 class TestPluginContextAIStream:
-    """PluginContext.call_ai_feature_stream 契约测试"""
+    """PluginContext.call_ai_feature_stream 契约测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_call_ai_feature_stream_yields_deltas(self, monkeypatch):
-        """解析 SSE data JSON → yield delta"""
+        """解析 SSE data JSON → yield delta / Parse."""
         from unittest.mock import MagicMock
 
         from app.plugins.context import PluginContext, RequestContext
@@ -477,7 +477,7 @@ class TestPluginContextAIStream:
 
     @pytest.mark.asyncio
     async def test_call_ai_feature_stream_error_event_raises(self, monkeypatch):
-        """SSE error 事件 → 抛 PluginError"""
+        """SSE error 事件 → 抛 PluginError / SSE error → PluginError"""
         from unittest.mock import MagicMock
 
         from app.plugins.context import PluginContext, RequestContext
@@ -529,7 +529,7 @@ class TestPluginContextAIStream:
 
     @pytest.mark.asyncio
     async def test_call_ai_feature_stream_fallback_to_non_stream(self, monkeypatch):
-        """stream_chat 异常 → fallback 为非流式单 chunk"""
+        """stream_chat 异常 → fallback 为非流式单 chunk / stream_chat → fallback ..."""
         from unittest.mock import MagicMock
 
         from app.plugins.context import PluginContext, RequestContext
@@ -618,7 +618,7 @@ class TestSocketIONamespaceRegistry:
 
 
 class TestPluginAuthNamespaceWrapper:
-    """PluginAuthNamespaceWrapper early-fail auth 契约测试"""
+    """PluginAuthNamespaceWrapper early-fail auth 契约测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_token_required(self, monkeypatch):

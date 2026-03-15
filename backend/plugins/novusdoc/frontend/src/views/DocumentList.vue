@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 /**
  * NovusDoc document list page — left sidebar (folders) + main content area (doc grid/list)
+ * NovusDoc 文档列表页 — 左侧栏（文件夹）+ 主区域（文档网格/列表）
  * Reused for both tenant (/tenant/plugins/novusdoc) and admin (/admin/plugins/novusdoc)
+ * 企业端与管理端共用（/tenant/plugins/novusdoc、/admin/plugins/novusdoc）
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { DocItem, Folder } from '../types';

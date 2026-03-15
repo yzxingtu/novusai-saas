@@ -11,7 +11,7 @@ from app.models.system.task_log import TaskLog
 
 class TenantTaskLogRepository(TenantRepository[TaskLog]):
     """
-    企业端任务日志仓储（自动按 tenant_id 过滤）
+    企业端任务日志仓储（自动按 tenant_id 过滤）/ Tenant task log repository (auto tenant_id filter).
     """
 
     model = TaskLog

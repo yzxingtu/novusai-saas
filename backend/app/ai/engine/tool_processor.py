@@ -1,6 +1,5 @@
 """
-Unified Tool Call Processor
-统一工具调用处理器
+Unified Tool Call Processor / 统一工具调用处理器
 
 Extracts shared tool call core logic for execute() and stream_execute():
 提取 execute() 和 stream_execute() 共享的工具调用核心逻辑：
@@ -90,8 +89,7 @@ class ToolCallProcessor:
         conversation_id: int,
     ) -> tuple[ToolResult, int]:
         """
-        Execute single tool call via sandbox.
-        通过沙箱执行单个工具调用。
+        Execute single tool call via sandbox. / 通过沙箱执行单个工具调用。
 
         Returns:
             (result, duration_ms)
@@ -135,8 +133,7 @@ class ToolCallProcessor:
 
     def check_consent(self, func_name: str) -> str:
         """
-        Check tool's consent_mode.
-        检查工具的 consent_mode。
+        Check tool's consent_mode. / 检查工具的 consent_mode。
 
         Returns:
             "auto" | "ask" | "reject"
@@ -197,8 +194,7 @@ class ToolCallProcessor:
         messages: list[ChatMessage],
     ) -> dict[str, Any] | None:
         """
-        Search message history for pending tool call confirmation.
-        搜索消息历史中待确认的工具调用。
+        Search message history for pending tool call confirmation. / 搜索消息历史中待确认的工具调用。
 
         Searches backward, finds tool message with requires_confirmation,
         matches corresponding assistant tool_call, returns directly executable tool call info.

@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 
 class SslCertificateResponse(BaseSchema):
-    """SSL 证书详情响应（不含私钥）"""
+    """SSL 证书详情响应（不含私钥） / SSL certificate detail response (no private key)."""
 
     id: int = Field(..., description="证书 ID")
     domain_id: int = Field(..., description="域名 ID")
@@ -36,7 +36,7 @@ class SslCertificateResponse(BaseSchema):
 
     @classmethod
     def from_model(cls, cert) -> "SslCertificateResponse":
-        """从模型实例构建响应（隐藏敏感字段）"""
+        """从模型实例构建响应（隐藏敏感字段） / Build response from model (hide sensitive fields)."""
         return cls(
             id=cert.id,
             domain_id=cert.domain_id,
@@ -59,7 +59,7 @@ class SslCertificateResponse(BaseSchema):
 
 
 class SslCertificateUploadRequest(BaseSchema):
-    """自定义证书上传请求"""
+    """自定义证书上传请求 / Custom certificate upload request."""
 
     certificate: str = Field(
         ...,
@@ -108,13 +108,13 @@ class SslCertificateUploadRequest(BaseSchema):
 
 
 class SslAutoRenewRequest(BaseSchema):
-    """自动续期开关请求"""
+    """自动续期开关请求 / Auto-renew toggle request."""
 
     auto_renew: bool = Field(..., description="是否开启自动续期")
 
 
 class SslReplaceRequest(BaseSchema):
-    """管理员强制替换证书请求（Admin 独有）"""
+    """管理员强制替换证书请求（Admin 独有） / Admin force-replace certificate request (admin only)."""
 
     mode: str = Field(
         ...,

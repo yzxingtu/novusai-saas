@@ -12,7 +12,7 @@ from app.repositories.ai.action_log_repository import AIActionLogRepository
 
 class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
     """
-    AI 操作审计日志 Service
+    AI 操作审计日志 Service / AI Action Log Service.
 
     只读服务，不提供 create/update/delete
     """
@@ -21,11 +21,11 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
     repository_class = AIActionLogRepository
 
     async def get_stats(self) -> dict:
-        """获取审计统计信息"""
+        """获取审计统计信息 / Get audit statistics."""
         return await self.repo.get_stats()
 
     async def get_type_distribution(self) -> list[dict]:
-        """获取操作类型分布"""
+        """获取操作类型分布 / Get action type distribution."""
         return await self.repo.get_type_distribution()
 
 

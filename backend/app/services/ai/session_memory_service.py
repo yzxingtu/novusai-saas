@@ -31,7 +31,7 @@ logger = LogManager.get_logger("ai.session_memory_service")
 
 class SessionMemoryService:
     """
-    会话记忆 Redis 服务
+    会话记忆 Redis 服务 / Session memory Redis service.
     """
 
     def __init__(self, tenant_id: int):
@@ -40,7 +40,7 @@ class SessionMemoryService:
     @staticmethod
     def _get_redis_safe():
         """
-        获取 Redis 客户端（未初始化时返回 None，调用方降级）
+        获取 Redis 客户端（未初始化时返回 None，调用方降级）/ Get Redis client (None if not initialized).
         """
         try:
             return get_redis_client()
@@ -84,7 +84,7 @@ class SessionMemoryService:
         conversation_id: int,
     ) -> tuple[str, dict[str, Any]]:
         """
-        读取会话记忆状态（不存在时返回空状态）
+        读取会话记忆状态（不存在时返回空状态）/ Get session memory state (empty if missing).
         """
         key = session_memory_key(
             tenant_id=self.tenant_id,
@@ -154,7 +154,7 @@ class SessionMemoryService:
     @staticmethod
     def _merge_list(original: list[str], incoming: list[str], limit: int = 20) -> list[str]:
         """
-        合并字符串列表，去重并截断
+        合并字符串列表，去重并截断 / Merge string lists, dedup and truncate.
         """
         seen: set[str] = set()
         merged: list[str] = []
@@ -182,7 +182,7 @@ class SessionMemoryService:
         metadata: dict[str, Any] | None = None,
     ) -> tuple[bool, dict[str, Any]]:
         """
-        基于 expected_version 的 CAS 更新
+        基于 expected_version 的 CAS 更新 / CAS update by expected_version.
 
         Returns:
             (success, state)
@@ -331,7 +331,7 @@ class SessionMemoryService:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        读当前 state 后执行 CAS 更新，冲突时自动重试一次
+        读当前 state 后执行 CAS 更新，冲突时自动重试一次 / Read state then CAS update, retry once on conflict.
         """
         _, state = await self.get_state(
             channel=channel,
@@ -374,7 +374,7 @@ class SessionMemoryService:
         self, conversation_id: int,
     ) -> dict[str, Any]:
         """
-        Read all memory state for a conversation (across all channels/sources).
+        读取会话下全部记忆状态（跨渠道/来源）/ Read all memory state for a conversation (across all channels/sources).
 
         Returns merged state dict with preferences/constraints/task_states/verified_facts.
         """
@@ -435,7 +435,7 @@ class SessionMemoryService:
 
     async def clear_conversation_memory(self, conversation_id: int) -> int:
         """
-        清理当前 tenant 下指定 conversation 的所有会话记忆 key
+        清理当前 tenant 下指定 conversation 的所有会话记忆 key / Clear all session memory keys for conversation.
         """
         redis = self._get_redis_safe()
         if redis is None:

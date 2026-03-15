@@ -12,7 +12,7 @@ from app.core.base_model import BaseModel
 
 class PluginLicense(BaseModel):
     """
-    插件许可证表
+    插件许可证表 / Plugin license table.
     """
 
     __tablename__ = "plugin_licenses"

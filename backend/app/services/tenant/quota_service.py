@@ -22,35 +22,35 @@ from app.models.tenant.tenant_user import TenantUser
 
 @dataclass
 class QuotaCheckResult:
-    """配额检查结果"""
+    """配额检查结果 / Quota check result."""
 
     allowed: bool
-    """是否允许"""
+    """是否允许 / Whether allowed."""
 
     current: int
-    """当前使用量"""
+    """当前使用量 / Current usage."""
 
     limit: int
-    """限制值（0 表示无限制，-1 表示不可用）"""
+    """限制值（0 表示无限制，-1 表示不可用） / Limit (0=unlimited, -1=unavailable)."""
 
     remaining: int
-    """剩余配额"""
+    """剩余配额 / Remaining quota."""
 
     message: str | None = None
-    """提示信息"""
+    """提示信息 / Message."""
 
 
 class QuotaService:
     """
-    配额服务
+    配额服务 / Quota service.
 
-    提供企业运行时配额检查功能
-    配额优先级：企业覆盖 > 套餐默认
+    提供企业运行时配额检查功能；配额优先级：企业覆盖 > 套餐默认。
+    Provides tenant runtime quota checks; priority: tenant override > plan default.
     """
 
     def __init__(self, db: AsyncSession, tenant: Tenant):
         """
-        初始化配额服务
+        初始化配额服务 / Initialize quota service.
 
         Args:
             db: 异步数据库会话
@@ -61,7 +61,7 @@ class QuotaService:
 
     async def _get_domain_suffix(self) -> str:
         """
-        获取平台域名后缀
+        获取平台域名后缀 / Get platform domain suffix.
 
         优先从平台配置读取，回退到环境变量
         """
@@ -74,7 +74,7 @@ class QuotaService:
 
     async def _lock_tenant_row(self) -> None:
         """
-        对企业行加排他锁，序列化同一企业的并发配额检查。
+        对企业行加排他锁，序列化同一企业的并发配额检查 / Lock tenant row for exclusive quota check.
 
         在同一事务中先锁定再 COUNT，确保 CHECK → INSERT 之间
         不会有其他事务插入同类资源，消除 TOCTOU 竞态。
@@ -88,7 +88,7 @@ class QuotaService:
 
     def get_quota_value(self, key: str, default: int | bool | None = None) -> Any:
         """
-        获取企业有效配额值
+        获取企业有效配额值 / Get effective quota value for tenant.
 
         优先级：企业覆盖 > 套餐默认
 
@@ -103,7 +103,7 @@ class QuotaService:
 
     def get_feature(self, key: str, default: bool = False) -> bool:
         """
-        获取特性开关
+        获取特性开关 / Get feature flag.
 
         Args:
             key: 特性键名
@@ -122,7 +122,7 @@ class QuotaService:
 
     def can_use_feature(self, feature_key: str) -> bool:
         """
-        检查是否可用某功能
+        检查是否可用某功能 / Check if feature is enabled.
 
         Args:
             feature_key: 功能键名（如 ai_enabled, advanced_analytics）
@@ -138,7 +138,7 @@ class QuotaService:
         current_bytes: int | None = None,
     ) -> QuotaCheckResult:
         """
-        检查存储配额
+        检查存储配额 / Check storage quota.
 
         Args:
             additional_bytes: 额外需要的字节数
@@ -177,7 +177,7 @@ class QuotaService:
 
     async def check_user_quota(self, additional: int = 1) -> QuotaCheckResult:
         """
-        检查用户数配额
+        检查用户数配额 / Check user count quota.
 
         Args:
             additional: 额外需要添加的用户数
@@ -221,7 +221,7 @@ class QuotaService:
 
     async def check_admin_quota(self, additional: int = 1) -> QuotaCheckResult:
         """
-        检查管理员数配额
+        检查管理员数配额 / Check admin count quota.
 
         Args:
             additional: 额外需要添加的管理员数
@@ -265,7 +265,7 @@ class QuotaService:
 
     async def check_domain_quota(self, additional: int = 1) -> QuotaCheckResult:
         """
-        检查自定义域名数配额
+        检查自定义域名数配额 / Check custom domain count quota.
 
         Args:
             additional: 额外需要添加的域名数
@@ -324,7 +324,7 @@ class QuotaService:
 
     async def check_api_calls_quota(self, additional: int = 1) -> QuotaCheckResult:
         """
-        检查 API 调用次数配额
+        检查 API 调用次数配额 / Check API calls quota.
 
         Args:
             additional: 额外需要的调用次数
@@ -369,7 +369,7 @@ class QuotaService:
 
     def check_file_size(self, file_size_bytes: int) -> QuotaCheckResult:
         """
-        检查文件大小限制
+        检查文件大小限制 / Check file size limit.
 
         Args:
             file_size_bytes: 文件大小（字节）
@@ -402,7 +402,7 @@ class QuotaService:
 
     def get_all_quotas(self) -> dict[str, Any]:
         """
-        获取所有配额配置
+        获取所有配额配置 / Get all quota config.
 
         Returns:
             配额配置字典
@@ -425,7 +425,7 @@ class QuotaService:
 
     def get_all_features(self) -> dict[str, bool]:
         """
-        获取所有特性开关
+        获取所有特性开关 / Get all feature flags.
 
         Returns:
             特性开关字典
@@ -451,7 +451,7 @@ class QuotaService:
         tenant_id: int,
     ) -> "QuotaCheckResult":
         """
-        通过 tenant_id 检查月 API 调用次数配额（内部加载 Tenant + Plan）
+        通过 tenant_id 检查月 API 调用次数配额（内部加载 Tenant + Plan）/ Check monthly API quota by tenant_id (loads Tenant + Plan internally).
 
         专供 ExecutionDispatcher 等无法预加载 Tenant 的调用方使用，
         避免在 Dispatcher 层写内联 SQL。

@@ -1,8 +1,6 @@
-"""
-AgentService 单元测试
+"""AgentService 单元测试 / Test.
 
-覆盖：CRUD 钩子、版本发布/回滚、访问权限、状态变更、系统智能体保护。
-"""
+覆盖：CRUD 钩子、版本发布/回滚、访问权限、状态变更、系统智能体保护。"""
 
 from __future__ import annotations
 

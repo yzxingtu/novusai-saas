@@ -13,7 +13,7 @@ from app.models.ai import ProviderApiKey
 
 class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
     """
-    AI API Key Repository
+    AI API Key Repository / AI API Key 数据访问.
 
     提供 AI API Key 的数据访问操作
     """
@@ -26,7 +26,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         tenant_id: int | None = None
     ) -> ProviderApiKey | None:
         """
-        获取可用的 API Key
+        获取可用的 API Key / Get available API Key (tenant first, then platform fallback).
 
         优先使用企业自己的 Key，否则回退到平台 Key
 
@@ -83,7 +83,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         tenant_id: int | None = None
     ) -> list[ProviderApiKey]:
         """
-        获取所有可用的 API Key（用于负载均衡）
+        获取所有可用的 API Key（用于负载均衡）/ Get all available API Keys (for load balancing).
 
         Args:
             provider_id: 供应商 ID
@@ -148,7 +148,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         include_deleted: bool = False
     ) -> list[ProviderApiKey]:
         """
-        获取供应商的所有 API Key
+        获取供应商的所有 API Key / Get all API Keys for provider.
 
         Args:
             provider_id: 供应商 ID
@@ -184,7 +184,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         tenant_id: int | None = None,
     ) -> ProviderApiKey | None:
         """
-        获取下一个可用 Key（排除当前 Key，用于重试轮换）
+        获取下一个可用 Key（排除当前 Key，用于重试轮换）/ Get next available key (exclude current, for retry rotation).
 
         Args:
             provider_id: 供应商 ID
@@ -229,7 +229,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         increment: int = 1
     ) -> None:
         """
-        更新 API Key 使用次数
+        更新 API Key 使用次数 / Update API Key usage count.
 
         Args:
             key_id: API Key ID

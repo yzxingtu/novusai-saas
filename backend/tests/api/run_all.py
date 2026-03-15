@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-API 测试运行入口
+"""API 测试运行入口 / API.
 
 运行所有模块的 API 测试
 
@@ -24,8 +23,7 @@ API 测试运行入口
     TEST_ADMIN_PASSWORD=admin123456          # 平台管理员密码
     TEST_TENANT_ADMIN_USERNAME=              # 企业管理员用户名
     TEST_TENANT_ADMIN_PASSWORD=              # 企业管理员密码
-    TEST_LANGUAGE=zh-cn                      # 语言设置
-"""
+    TEST_LANGUAGE=zh-cn                      # 语言设置"""
 import argparse
 import os
 import sys
@@ -36,7 +34,7 @@ from tests.api.base import TestReport, TestStatus
 
 
 def run_admin_tests() -> list[TestReport]:
-    """运行平台管理端测试"""
+    """运行平台管理端测试 / Test."""
     reports = []
 
     # Admin Auth
@@ -68,7 +66,7 @@ def run_admin_tests() -> list[TestReport]:
 
 
 def run_tenant_tests() -> list[TestReport]:
-    """运行企业管理端测试"""
+    """运行企业管理端测试 / Test."""
     reports = []
 
     # Tenant Auth
@@ -90,7 +88,7 @@ def run_tenant_tests() -> list[TestReport]:
 
 
 def print_summary(reports: list[TestReport]) -> int:
-    """打印总体测试摘要"""
+    """打印总体测试摘要 / Test."""
     total_tests = sum(r.total for r in reports)
     total_passed = sum(r.passed for r in reports)
     total_failed = sum(r.failed for r in reports)

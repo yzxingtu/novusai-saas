@@ -1,4 +1,4 @@
-"""Regression tests for plugin lifecycle database cleanup safety."""
+"""Regression tests for plugin lifecycle database cleanup safety. / 插件"""
 
 from __future__ import annotations
 

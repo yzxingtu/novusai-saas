@@ -14,7 +14,7 @@ from app.enums.common import ResourceScopeEnum
 
 
 class PeriodicTaskResponse(BaseSchema):
-    """定时任务响应"""
+    """定时任务响应 / Periodic task response."""
 
     id: int = Field(..., description="ID")
     name: str = Field(..., description="任务名称")
@@ -39,7 +39,7 @@ class PeriodicTaskResponse(BaseSchema):
 
 
 class PeriodicTaskCreateRequest(BaseSchema):
-    """创建定时任务请求"""
+    """创建定时任务请求 / Create periodic task request."""
 
     name: str = Field(..., min_length=1, max_length=255, description="任务名称")
     task_path: str = Field(..., min_length=1, description="任务路径")
@@ -70,7 +70,7 @@ class PeriodicTaskCreateRequest(BaseSchema):
 
 
 class PeriodicTaskUpdateRequest(BaseSchema):
-    """更新定时任务请求"""
+    """更新定时任务请求 / Update periodic task request."""
 
     name: str | None = Field(None, min_length=1, max_length=255, description="任务名称")
     task_path: str | None = Field(None, min_length=1, description="任务路径")
@@ -93,7 +93,7 @@ class PeriodicTaskUpdateRequest(BaseSchema):
 
 
 class PeriodicTaskToggleRequest(BaseSchema):
-    """启用/禁用请求"""
+    """启用/禁用请求 / Enable/disable request."""
 
     is_active: bool = Field(..., description="是否启用")
 

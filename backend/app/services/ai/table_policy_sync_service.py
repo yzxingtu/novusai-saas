@@ -91,12 +91,12 @@ _TABLE_KEYWORDS: dict[str, list[str]] = {
 
 
 def _humanize_table_name(table_name: str) -> str:
-    """将 snake_case 表名转为可读标签"""
+    """将 snake_case 表名转为可读标签 / Convert snake_case table name to readable label."""
     return table_name.replace("_", " ").title()
 
 
 def _derive_permission_code(table_name: str, has_tenant: bool) -> str:
-    """从表名推导权限码"""
+    """从表名推导权限码 / Derive permission code from table name."""
     if not has_tenant:
         return "platform_only"
     # 去除复数 s，转为资源名
@@ -128,7 +128,7 @@ def _derive_permission_code(table_name: str, has_tenant: bool) -> str:
 
 
 def _is_log_table(table_name: str) -> bool:
-    """判断是否为日志/审计/统计表"""
+    """判断是否为日志/审计/统计表 / Whether table is log/audit/stats."""
     return any(
         pattern in table_name
         for pattern in ("_log", "_stat", "operation_log", "task_log")
@@ -136,7 +136,7 @@ def _is_log_table(table_name: str) -> bool:
 
 
 def _get_model_class_for_table(table_name: str) -> type[BaseModel] | None:
-    """根据表名查找对应的 Model 类"""
+    """根据表名查找对应的 Model 类 / Find Model class by table name."""
     for mapper in Base.registry.mappers:
         cls = mapper.class_
         if hasattr(cls, "__tablename__") and cls.__tablename__ == table_name:
@@ -145,7 +145,7 @@ def _get_model_class_for_table(table_name: str) -> type[BaseModel] | None:
 
 
 def _extract_column_descriptions(model_cls: type[BaseModel]) -> dict[str, str]:
-    """从 Model 的 column comment 提取列描述"""
+    """从 Model 的 column comment 提取列描述 / Extract column descriptions from Model comments."""
     descriptions: dict[str, str] = {}
     mapper: Mapper = sa_inspect(model_cls)
 
@@ -194,7 +194,7 @@ def _try_extract_enum_from_default(
     default_value: str,
     desc_parts: list[str],
 ) -> None:
-    """尝试从列默认值反查枚举类并提取合法值"""
+    """尝试从列默认值反查枚举类并提取合法值 / Try to infer enum from column default."""
     import sys
 
     module = sys.modules.get(model_cls.__module__)
@@ -221,7 +221,7 @@ def _try_extract_enum_from_default(
 
 
 def _detect_blocked_columns(table) -> list[str]:
-    """检测表中的敏感列"""
+    """检测表中的敏感列 / Detect sensitive columns in table."""
     blocked = []
     for col in table.columns:
         if col.name in _SENSITIVE_COLUMN_PATTERNS:
@@ -230,7 +230,7 @@ def _detect_blocked_columns(table) -> list[str]:
 
 
 def _detect_readonly_columns(table) -> list[str]:
-    """检测表中的只读列"""
+    """检测表中的只读列 / Detect readonly columns in table."""
     readonly = []
     for col in table.columns:
         if col.name in _READONLY_COLUMNS:
@@ -239,12 +239,12 @@ def _detect_readonly_columns(table) -> list[str]:
 
 
 def _has_tenant_id(table) -> bool:
-    """判断表是否有 tenant_id 列"""
+    """判断表是否有 tenant_id 列 / Whether table has tenant_id column."""
     return "tenant_id" in {c.name for c in table.columns}
 
 
 def _build_default_policy(table_name: str, table) -> dict[str, Any]:
-    """为一张表构建默认策略数据"""
+    """为一张表构建默认策略数据 / Build default policy for a table."""
     model_cls = _get_model_class_for_table(table_name)
     has_tenant = _has_tenant_id(table)
     is_blocked = table_name in _BLOCKED_TABLES
@@ -324,7 +324,8 @@ def _build_default_policy(table_name: str, table) -> dict[str, Any]:
 
 async def sync_table_policies(db: AsyncSession) -> dict[str, int]:
     """
-    同步表策略：扫描所有 SQLAlchemy 模型，为新表创建默认策略。
+    同步表策略：扫描所有 SQLAlchemy 模型，为新表创建默认策略 / Sync table policies: scan models, create default for new tables.
+
     已存在的策略不会被覆盖。
 
     Returns:

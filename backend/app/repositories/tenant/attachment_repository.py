@@ -13,7 +13,7 @@ from app.models.tenant.attachment import Attachment
 
 class AttachmentRepository(TenantRepository[Attachment]):
     """
-    附件仓储
+    附件仓储 / Attachment repository (tenant-scoped).
     """
 
     model = Attachment
@@ -61,7 +61,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
         self, file_hash: str, driver: str | None = None
     ) -> Attachment | None:
         """
-        根据哈希获取附件
+        根据哈希获取附件 / Get attachment by hash.
 
         Args:
             file_hash: 文件哈希
@@ -79,7 +79,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
 
     async def get_by_path(self, path: str) -> Attachment | None:
         """
-        根据存储路径获取附件
+        根据存储路径获取附件 / Get attachment by storage path.
         """
         result = await self.db.execute(
             select(self.model).where(
@@ -92,7 +92,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
 
     async def sum_size(self) -> int:
         """
-        统计企业附件总占用大小
+        统计企业附件总占用大小 / Sum tenant attachment total size.
         """
         result = await self.db.execute(
             select(func.coalesce(func.sum(self.model.size), 0)).where(

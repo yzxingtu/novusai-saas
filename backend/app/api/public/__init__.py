@@ -1,7 +1,7 @@
 """
-公开 API 路由模块
+公开 API 路由模块 / Public API router module.
 
-聚合所有无需认证的公开 API 路由
+聚合所有无需认证的公开 API 路由 / Aggregates all unauthenticated public API routes.
 """
 
 from fastapi import APIRouter
@@ -12,10 +12,10 @@ from app.api.public.health import router as health_router
 from app.api.public.platform import router as platform_router
 from app.api.public.tenant import router as tenant_router
 
-# 创建公开 API 路由器
+# 创建公开 API 路由器 / Create public API router
 public_router = APIRouter()
 
-# 注册子路由
+# 注册子路由 / Register sub-routers
 public_router.include_router(health_router)
 public_router.include_router(tenant_router)
 public_router.include_router(captcha_router)

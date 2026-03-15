@@ -1,6 +1,5 @@
 """
-Event Bus
-事件总线
+Event Bus / 事件总线
 
 Provides async pub/sub event dispatch mechanism with priority and error isolation.
 提供异步 pub/sub 事件分发机制，支持优先级和错误隔离

@@ -1,6 +1,5 @@
 """
-Celery Application Configuration Module
-Celery 应用配置模块
+Celery Application Configuration Module / Celery 应用配置模块
 
 Configures Celery Worker, Broker (Redis), Result Backend with multi-queue routing and priority support.
 配置 Celery Worker、Broker(Redis)、Result Backend，支持多队列路由和优先级

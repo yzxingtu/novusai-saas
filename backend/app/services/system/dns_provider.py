@@ -20,37 +20,35 @@ logger = LogManager.get_logger("ssl")
 
 
 class DnsProvider(abc.ABC):
-    """DNS 提供商抽象基类"""
+    """DNS 提供商抽象基类 / DNS provider abstract base class."""
 
     @abc.abstractmethod
     async def set_txt_record(self, record_name: str, record_value: str) -> None:
         """
-        设置 DNS TXT 记录（用于 ACME DNS-01 验证）
+        设置 DNS TXT 记录（用于 ACME DNS-01 验证） / Set DNS TXT record for ACME DNS-01.
 
         Args:
-            record_name: 完整记录名（如 _acme-challenge.app.example.com）
-            record_value: TXT 记录值（ACME 验证 token）
+            record_name: 完整记录名（如 _acme-challenge.app.example.com） / Full record name
+            record_value: TXT 记录值（ACME 验证 token） / TXT value (ACME token)
         """
 
     @abc.abstractmethod
     async def delete_txt_record(self, record_name: str, record_value: str) -> None:
         """
-        清理 DNS TXT 记录（验证完成后调用）
+        清理 DNS TXT 记录（验证完成后调用） / Remove DNS TXT record after validation.
 
         Args:
-            record_name: 完整记录名
-            record_value: TXT 记录值
+            record_name: 完整记录名 / Full record name
+            record_value: TXT 记录值 / TXT value
         """
 
 
 class CloudflareDnsProvider(DnsProvider):
     """
-    Cloudflare DNS 提供商
+    Cloudflare DNS 提供商 / Cloudflare DNS provider.
 
-    通过 Cloudflare API v4 管理 DNS TXT 记录。
-    需要配置：
-    - dns_cloudflare_api_token: Cloudflare API Token（需 Zone.DNS 编辑权限）
-    - dns_cloudflare_zone_id: Cloudflare Zone ID
+    通过 Cloudflare API v4 管理 DNS TXT 记录。Manages TXT records via Cloudflare API v4.
+    需要配置：Requires dns_cloudflare_api_token and dns_cloudflare_zone_id.
     """
 
     def __init__(self, api_token: str, zone_id: str):
@@ -123,12 +121,9 @@ class CloudflareDnsProvider(DnsProvider):
 
 class AliyunDnsProvider(DnsProvider):
     """
-    阿里云 DNS 提供商（预留接口）
+    阿里云 DNS 提供商（预留接口） / Aliyun DNS provider (reserved).
 
-    需要配置：
-    - dns_aliyun_access_key_id
-    - dns_aliyun_access_key_secret
-    - dns_aliyun_domain: 主域名
+    需要配置：Requires dns_aliyun_access_key_id, dns_aliyun_access_key_secret, dns_aliyun_domain.
     """
 
     def __init__(self, access_key_id: str, access_key_secret: str, domain: str):
@@ -145,10 +140,9 @@ class AliyunDnsProvider(DnsProvider):
 
 class ManualDnsProvider(DnsProvider):
     """
-    手动 DNS 提供商（开发/测试用）
+    手动 DNS 提供商（开发/测试用） / Manual DNS provider (dev/test).
 
-    不实际设置 DNS 记录，仅记录日志。
-    用于 DEBUG 模式或不需要自动 DNS 管理的场景。
+    不实际设置 DNS 记录，仅记录日志。No real DNS changes, log only. For DEBUG or when auto DNS is not needed.
     """
 
     async def set_txt_record(self, record_name: str, record_value: str) -> None:
@@ -175,19 +169,18 @@ _DNS_PROVIDERS = {
 
 async def get_dns_provider(db) -> DnsProvider:
     """
-    从平台配置动态构建 DNS 提供商实例
+    从平台配置动态构建 DNS 提供商实例 / Build DnsProvider from platform config.
 
-    读取 ConfigService 中的 dns_provider 配置项，
-    根据类型创建对应的 DnsProvider 实例。
+    读取 ConfigService 中的 dns_provider 配置项，根据类型创建对应的 DnsProvider 实例。
 
     Args:
         db: AsyncSession
 
     Returns:
-        DnsProvider 实例
+        DnsProvider 实例 / DnsProvider instance
 
     Raises:
-        RuntimeError: 配置缺失或提供商类型不支持
+        RuntimeError: 配置缺失或提供商类型不支持 / Missing config or unsupported provider
     """
     from app.configs.service import ConfigService
     from app.core.config import settings

@@ -1,8 +1,6 @@
-"""
-TenantQuotaService + RateLimitService 单元测试
+"""TenantQuotaService + RateLimitService 单元测试 / Test.
 
-覆盖：配额检查、配额扣减、配额重置、速率限制检查。
-"""
+覆盖：配额检查、配额扣减、配额重置、速率限制检查。"""
 
 from __future__ import annotations
 

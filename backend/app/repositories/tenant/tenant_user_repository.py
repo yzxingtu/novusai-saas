@@ -13,7 +13,7 @@ from app.models.tenant.tenant_user import TenantUser
 
 class TenantUserRepository(TenantRepository[TenantUser]):
     """
-    企业用户仓储
+    企业用户仓储 / Tenant user repository.
 
     提供企业用户特有的数据访问方法，自动过滤企业 ID
     """
@@ -30,18 +30,18 @@ class TenantUserRepository(TenantRepository[TenantUser]):
     }
 
     async def get_by_username(self, username: str) -> TenantUser | None:
-        """根据用户名获取企业用户（企业内）"""
+        """根据用户名获取企业用户（企业内） / Get tenant user by username (within tenant)."""
         return await self.get_one_by(username=username, tenant_id=self.tenant_id)
 
     async def get_by_email(self, email: str) -> TenantUser | None:
-        """根据邮箱获取企业用户（企业内）"""
+        """根据邮箱获取企业用户（企业内） / Get tenant user by email (within tenant)."""
         return await self.get_one_by(email=email, tenant_id=self.tenant_id)
 
     async def get_by_username_or_email(
         self,
         username_or_email: str,
     ) -> TenantUser | None:
-        """根据用户名或邮箱获取企业用户（用于登录）"""
+        """根据用户名或邮箱获取企业用户（用于登录） / Get tenant user by username or email (for login)."""
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
             self.model.is_deleted.is_(False),
@@ -58,7 +58,7 @@ class TenantUserRepository(TenantRepository[TenantUser]):
         username: str,
         exclude_id: int | None = None,
     ) -> bool:
-        """检查用户名是否已存在（企业内唯一）"""
+        """检查用户名是否已存在（企业内唯一） / Check if username already exists (unique within tenant)."""
         query = select(self.model.id).where(
             self.model.tenant_id == self.tenant_id,
             self.model.username == username,
@@ -75,7 +75,7 @@ class TenantUserRepository(TenantRepository[TenantUser]):
         email: str,
         exclude_id: int | None = None,
     ) -> bool:
-        """检查邮箱是否已存在（企业内唯一）"""
+        """检查邮箱是否已存在（企业内唯一） / Check if email already exists (unique within tenant)."""
         query = select(self.model.id).where(
             self.model.tenant_id == self.tenant_id,
             self.model.email == email,
@@ -92,7 +92,7 @@ class TenantUserRepository(TenantRepository[TenantUser]):
         phone: str,
         exclude_id: int | None = None,
     ) -> bool:
-        """检查手机号是否已存在（企业内唯一）"""
+        """检查手机号是否已存在（企业内唯一） / Check if phone already exists (unique within tenant)."""
         if not phone:
             return False
 

@@ -1,6 +1,5 @@
 """
-Execution Engine Abstract Base Class
-执行引擎抽象基类
+Execution Engine Abstract Base Class / 执行引擎抽象基类
 
 Provides shared infrastructure for all execution modes:
 message building, tool parsing, tool call loop, event publishing.
@@ -160,8 +159,7 @@ class BaseEngine(ABC):
         input_variables: dict[str, Any] | None = None,
     ) -> None:
         """
-        Inject available tool summary into system message tail.
-        将可用工具摘要注入 system 消息末尾。
+        Inject available tool summary into system message tail. / 将可用工具摘要注入 system 消息末尾。
 
         Some LLMs (e.g. DeepSeek) tend to generate text rather than call function calling
         when tools are not mentioned in system_prompt.
@@ -195,7 +193,7 @@ class BaseEngine(ABC):
     def _build_page_operations_hint(
         input_variables: dict[str, Any] | None,
     ) -> str:
-        """Build a PAGE OPERATIONS hint when page context has available operations."""
+        """Build a PAGE OPERATIONS hint when page context has available operations. / 当页面上下文有可用操作时构建 PAGE OPERATIONS 提示"""
         if not input_variables:
             return ""
         from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
@@ -402,27 +400,34 @@ class BaseEngine(ABC):
         if route_result is not None and getattr(route_result, "is_overridden", False):
             provider_code: str = route_result.provider_code or ""
             model_code: str = route_result.model_code or ""
-            # Keep image attachments when route reason contains "vision", otherwise conservatively filter
-            # Use False instead of None to ensure non-vision routes don't miss filtering logic
-            # Vision 路由原因包含 "vision" 时保留图片附件，否则保守过滤
-            is_vision: bool = "vision" in (route_result.reason or "")
+            # Keep multimodal attachments when route reason indicates capability
+            # 路由原因包含对应能力时保留对应附件
+            reason_str: str = route_result.reason or ""
+            is_vision: bool = "vision" in reason_str
+            is_audio: bool = "audio" in reason_str
+            is_video: bool = "video" in reason_str
         else:
             model_obj = agent.model
             provider_code = model_obj.provider.code if model_obj and model_obj.provider else ""
             model_code = model_obj.code if model_obj else ""
             is_vision = model_obj.supports_vision if model_obj else False
+            is_audio = getattr(model_obj, "supports_audio", False) if model_obj else False
+            is_video = getattr(model_obj, "supports_video", False) if model_obj else False
 
-        # Non-vision model: remove image attachments to avoid API errors
-        # Don't filter when routed to vision model (is_vision=True)
-        # 非视觉模型：移除图片附件，避免 API 报错（使用 not 而非 is False，防止 None 值绕过过滤）
-        if not is_vision:
-            for msg in messages:
-                if msg.attachments:
-                    msg.attachments = [
-                        a for a in msg.attachments if a.get("type") != "image"
-                    ]
-                    if not msg.attachments:
-                        msg.attachments = None
+        # Non-capability model: remove corresponding attachments to avoid API errors
+        # 无对应能力的模型：移除对应附件，避免 API 报错
+        for msg in messages:
+            if msg.attachments:
+                kept = [
+                    a
+                    for a in msg.attachments
+                    if not (
+                        (a.get("type") == "image" and not is_vision)
+                        or (a.get("type") == "audio" and not is_audio)
+                        or (a.get("type") == "video" and not is_video)
+                    )
+                ]
+                msg.attachments = kept if kept else None
 
         response = await self.gateway.chat(
             provider_code=provider_code,
@@ -435,6 +440,8 @@ class BaseEngine(ABC):
             tenant_id=tenant_id,
             user_id=user_id,
             supports_vision=bool(is_vision),
+            supports_audio=bool(is_audio),
+            supports_video=bool(is_video),
         )
 
         return response

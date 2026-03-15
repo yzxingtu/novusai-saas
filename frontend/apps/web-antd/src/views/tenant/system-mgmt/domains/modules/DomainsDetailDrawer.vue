@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 域名详情/编辑抽屉
+ * 域名详情/编辑抽屉 / Domain detail/edit drawer
  * 查看域名详情，仅允许编辑备注
  */
 import type { DomainDetailData, TenantDomainInfo } from './domains-types';
@@ -60,7 +60,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
   footer: false,
 });
 
-/** 加载域名详情 */
+/** 加载域名详情 / Load domain detail */
 async function loadDetail() {
   if (!detailData.value) return;
 
@@ -75,19 +75,19 @@ async function loadDetail() {
   }
 }
 
-/** 进入编辑模式 */
+/** 进入编辑模式 / Enter edit mode */
 function onEnterEdit() {
   editMode.value = true;
   editRemark.value = domainDetail.value?.remark || '';
 }
 
-/** 取消编辑 */
+/** 取消编辑 / Cancel edit */
 function onCancelEdit() {
   editMode.value = false;
   editRemark.value = domainDetail.value?.remark || '';
 }
 
-/** 保存备注 */
+/** 保存备注 / Save remark */
 async function onSaveRemark() {
   if (!detailData.value) return;
 
@@ -106,7 +106,7 @@ async function onSaveRemark() {
   }
 }
 
-/** 获取验证状态标签配置 */
+/** 获取验证状态标签配置 / Get verification status tag config */
 function getVerificationTagConfig(status: string) {
   switch (status) {
     case 'failed': {
@@ -130,7 +130,7 @@ function getVerificationTagConfig(status: string) {
   }
 }
 
-/** 获取 SSL 状态标签配置 */
+/** 获取 SSL 状态标签配置 / Get SSL status tag config */
 function getSslTagConfig(status: string) {
   switch (status) {
     case 'active': {
@@ -160,7 +160,7 @@ function getSslTagConfig(status: string) {
   }
 }
 
-/** 打开 DNS 引导 */
+/** 打开 DNS 引导 / Open DNS guide */
 function onOpenDnsGuide() {
   if (!domainDetail.value) return;
   const guideData = {
@@ -173,7 +173,7 @@ function onOpenDnsGuide() {
   dnsGuideModalRef.value?.open(guideData);
 }
 
-/** 打开抽屉 */
+/** 打开抽屉 / Open drawer */
 function open(data: DomainDetailData) {
   drawerApi.setData(data).open();
 }

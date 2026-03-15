@@ -1,6 +1,5 @@
 """
-Conversation Execution Engine
-对话执行引擎
+Conversation Execution Engine / 对话执行引擎
 
 Supports multi-turn conversation, maintains session context, handles tool calling loop.
 Supports SSE streaming output.
@@ -239,7 +238,10 @@ class ConversationEngine(BaseEngine):
         if route_result is not None and getattr(route_result, "is_overridden", False):
             provider_code: str = route_result.provider_code or ""
             model_code: str = route_result.model_code or ""
-            is_vision: bool = "vision" in (route_result.reason or "")
+            reason_str: str = route_result.reason or ""
+            is_vision: bool = "vision" in reason_str
+            is_audio: bool = "audio" in reason_str
+            is_video: bool = "video" in reason_str
         else:
             model_obj = agent.model
             provider_code = (
@@ -247,17 +249,23 @@ class ConversationEngine(BaseEngine):
             )
             model_code = model_obj.code if model_obj else ""
             is_vision = model_obj.supports_vision if model_obj else False
+            is_audio = getattr(model_obj, "supports_audio", False) if model_obj else False
+            is_video = getattr(model_obj, "supports_video", False) if model_obj else False
 
-        # Non-vision model: remove image attachments to avoid API errors
-        # 非视觉模型：移除图片附件，避免 API 报错（使用 not 而非 is False，防止 None 值绕过过滤）
-        if not is_vision:
-            for msg in messages:
-                if msg.attachments:
-                    msg.attachments = [
-                        a for a in msg.attachments if a.get("type") != "image"
-                    ]
-                    if not msg.attachments:
-                        msg.attachments = None
+        # Non-capability model: remove corresponding attachments to avoid API errors
+        # 无对应能力的模型：移除对应附件，避免 API 报错
+        for msg in messages:
+            if msg.attachments:
+                kept = [
+                    a
+                    for a in msg.attachments
+                    if not (
+                        (a.get("type") == "image" and not is_vision)
+                        or (a.get("type") == "audio" and not is_audio)
+                        or (a.get("type") == "video" and not is_video)
+                    )
+                ]
+                msg.attachments = kept if kept else None
 
         # Keep model_obj reference for backward compatibility with rate limiting/quota logic / 为了兼容现有限流/配额逻辑，保留 model_obj 引用
         model_obj = agent.model
@@ -304,6 +312,8 @@ class ConversationEngine(BaseEngine):
                 top_p=agent.top_p or 1.0,
                 tools=openai_tools,
                 supports_vision=bool(is_vision),
+                supports_audio=bool(is_audio),
+                supports_video=bool(is_video),
             )
             total_tokens = response.total_tokens or 0
             input_tokens = response.input_tokens or 0
@@ -326,6 +336,8 @@ class ConversationEngine(BaseEngine):
                 top_p=agent.top_p or 1.0,
                 tools=openai_tools,
                 supports_vision=bool(is_vision),
+                supports_audio=bool(is_audio),
+                supports_video=bool(is_video),
             ):
                 if chunk.total_tokens is not None:
                     total_tokens = chunk.total_tokens

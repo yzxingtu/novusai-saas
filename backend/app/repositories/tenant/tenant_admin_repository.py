@@ -13,7 +13,7 @@ from app.models.tenant.tenant_admin import TenantAdmin
 
 class TenantAdminRepository(TenantRepository[TenantAdmin]):
     """
-    企业管理员仓储
+    企业管理员仓储 / Tenant admin repository.
 
     提供企业管理员特有的数据访问方法，自动过滤企业 ID
     """
@@ -38,7 +38,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
 
     async def get_by_username(self, username: str) -> TenantAdmin | None:
         """
-        根据用户名获取企业管理员（企业内）
+        根据用户名获取企业管理员（企业内）/ Get tenant admin by username (within tenant).
 
         Args:
             username: 用户名
@@ -50,7 +50,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
 
     async def get_by_email(self, email: str) -> TenantAdmin | None:
         """
-        根据邮箱获取企业管理员（企业内）
+        根据邮箱获取企业管理员（企业内）/ Get tenant admin by email (within tenant).
 
         Args:
             email: 邮箱
@@ -65,7 +65,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         username_or_email: str,
     ) -> TenantAdmin | None:
         """
-        根据用户名或邮箱获取企业管理员（用于登录）
+        根据用户名或邮箱获取企业管理员（用于登录）/ Get tenant admin by username or email (for login).
 
         Args:
             username_or_email: 用户名或邮箱
@@ -90,7 +90,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查用户名是否已存在（企业内唯一）
+        检查用户名是否已存在（企业内唯一）/ Check if username exists (unique within tenant).
 
         Args:
             username: 用户名
@@ -116,7 +116,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查邮箱是否已存在（企业内唯一）
+        检查邮箱是否已存在（企业内唯一）/ Check if email exists (unique within tenant).
 
         Args:
             email: 邮箱
@@ -142,7 +142,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查手机号是否已存在（企业内唯一）
+        检查手机号是否已存在（企业内唯一）/ Check if phone exists (unique within tenant).
 
         Args:
             phone: 手机号
@@ -170,7 +170,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         user_ids: set[int],
     ) -> dict[int, dict]:
         """
-        批量加载企业管理员摘要信息
+        批量加载企业管理员摘要信息 / Batch load tenant admin summary info.
 
         Args:
             user_ids: 用户 ID 集合
@@ -200,7 +200,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
 
     async def get_owner(self) -> TenantAdmin | None:
         """
-        获取企业所有者
+        获取企业所有者 / Get tenant owner.
 
         Returns:
             企业所有者或 None

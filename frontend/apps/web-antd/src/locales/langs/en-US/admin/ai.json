@@ -91,6 +91,8 @@
     "outputPrice": "Output Price ($/1K)",
     "functionCalling": "Function Calling",
     "vision": "Vision",
+    "supportsAudio": "Supports Audio",
+    "supportsVideo": "Supports Video",
     "streaming": "Streaming",
     "maxImageCount": "Max Image Count",
     "maxImageSizeMb": "Max Image Size (MB)",

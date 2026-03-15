@@ -57,7 +57,7 @@ logger = LogManager.get_logger("ai.agent_chat_service")
 
 class AgentChatService:
     """
-    智能体对话执行 Service
+    智能体对话执行 Service / Agent chat execution service.
 
     职责：
     1. 创建或续接对话（AgentConversation）
@@ -73,6 +73,8 @@ class AgentChatService:
 
     def __init__(self, db: AsyncSession, tenant_id: int):
         """
+        初始化 / Initialize.
+
         Args:
             db: 异步数据库会话
             tenant_id: 企业 ID
@@ -87,7 +89,7 @@ class AgentChatService:
 
     async def _validate_agent(self, agent_id: int) -> "Agent":
         """
-        加载并校验 Agent（存在性 + 已发布状态）
+        加载并校验 Agent（存在性 + 已发布状态）。 / Load and validate agent (existence + published).
 
         Args:
             agent_id: 智能体 ID
@@ -118,7 +120,7 @@ class AgentChatService:
         agent_id: int,
     ) -> dict[str, list[str]]:
         """
-        使用 LLM 从本轮对话中提取会话记忆增量
+        使用 LLM 从本轮对话中提取会话记忆增量 / Extract session memory delta from this turn via LLM.
 
         相比关键词匹配版本，LLM 能更准确地理解上下文、
         区分重要信息、并生成简洁的摘要式记忆条目。
@@ -246,7 +248,7 @@ class AgentChatService:
         request: ExecutionRequest,
     ) -> str:
         """
-        读取会话记忆并拼装为可注入 system 的文本
+        读取会话记忆并拼装为可注入 system 的文本 / Read session memory and build system-injectable text.
         """
         if not request.memory_enabled:
             return ""
@@ -310,7 +312,7 @@ class AgentChatService:
         event_id: str,
     ) -> dict[str, list[str]] | None:
         """
-        将本轮对话增量写入会话记忆
+        将本轮对话增量写入会话记忆 / Persist this turn's memory delta to session memory.
 
         Returns:
             提取到的 delta dict（有内容时），或 None（无记忆提取）
@@ -344,7 +346,7 @@ class AgentChatService:
         memory_source: str,
     ) -> tuple[str, str, str, bool]:
         """
-        解析并归一化会话记忆场景参数。
+        解析并归一化会话记忆场景参数 / Parse and normalize session memory scene params.
 
         Returns:
             (scene, channel, source, enabled)
@@ -374,7 +376,7 @@ class AgentChatService:
         scene_enabled: bool,
     ) -> bool:
         """
-        解析运行时最终记忆开关（入口场景 + 三层开关）
+        解析运行时最终记忆开关（入口场景 + 三层开关）/ Resolve effective memory enabled (scene + 3-layer toggles).
 
         规则：
         1) 非 ai_chat_page/admin_chat 场景直接关闭
@@ -436,7 +438,7 @@ class AgentChatService:
         page_session_id: str | None = None,
     ) -> AgentChatResponse:
         """
-        非流式对话
+        非流式对话 / Non-streaming chat.
 
         完整流程：
         校验 Agent → 获取/创建对话 → 加载历史 → 构建消息 → 调 dispatcher → 持久化 → 返回
@@ -649,7 +651,7 @@ class AgentChatService:
         page_session_id: str | None = None,
     ) -> StreamingResponse:
         """
-        流式对话（返回 StreamingResponse）
+        流式对话（返回 StreamingResponse）/ Streaming chat (returns StreamingResponse).
 
         流程：加载 Agent → 创建/续接对话 → 加载历史 → 通过 engine.stream_execute SSE 推送
 
@@ -895,7 +897,7 @@ class AgentChatService:
         history_count = len(history_messages)
 
         async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
-            """流式完成后持久化消息 + 配额记录 + 并发释放
+            """流式完成后持久化消息 + 配额记录 + 并发释放 / Persist message + quota + release concurrency on stream complete.
 
             使用独立 db session，不依赖 DI session 生命周期。
             SSE 生成器在响应体流式传输期间执行此回调，
@@ -1045,7 +1047,7 @@ class AgentChatService:
         permissions: set[str] | None = None,
     ) -> StreamingResponse:
         """
-        轻量级流式调用（无对话记录，无消息持久化）。
+        轻量级流式调用（无对话记录，无消息持久化）/ Lightweight streaming (no conversation/message persistence).
 
         适用于富文本写作操作（续写、优化、校对等），不需要对话上下文。
         与 stream_chat 的区别：
@@ -1165,7 +1167,7 @@ class AgentChatService:
     @staticmethod
     async def cancel_action(confirm_id: str) -> dict[str, str]:
         """
-        取消 AI 操作确认
+        取消 AI 操作确认 / Cancel AI action confirmation.
 
         删除 Redis 中的 confirm_id 记录
 
@@ -1193,7 +1195,7 @@ class AgentChatService:
         user_id: int,
     ) -> dict[str, Any]:
         """
-        确认 AI 操作（兼容接口）
+        确认 AI 操作（兼容接口）/ Confirm AI action (legacy compatibility).
 
         旧版 ActionExecutor 已废弃，新的确认流程为内联文本触发：
         用户在对话中输入「确认执行」等触发词，引擎自动在消息历史中

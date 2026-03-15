@@ -19,7 +19,7 @@ from app.enums.common import ApprovalStatusEnum
 
 class TenantUser(TenantModel):
     """
-    企业业务用户模型
+    企业业务用户模型 / Tenant user model.
 
     - 属于特定企业
     - 企业的终端用户（客户、会员等）

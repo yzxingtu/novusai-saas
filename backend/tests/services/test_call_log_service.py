@@ -1,8 +1,6 @@
-"""
-CallLogService + MeteringService 单元测试
+"""CallLogService + MeteringService 单元测试 / Test.
 
-覆盖：调用日志查询、统计聚合、计量记录。
-"""
+覆盖：调用日志查询、统计聚合、计量记录。"""
 
 from __future__ import annotations
 

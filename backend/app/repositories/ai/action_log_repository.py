@@ -14,7 +14,7 @@ from app.models.ai.action_log import AIActionLog
 
 class AIActionLogRepository(TenantRepository[AIActionLog]):
     """
-    AI 操作审计日志 Repository
+    AI 操作审计日志 Repository / AI Action Log Repository.
 
     继承 TenantRepository 自动注入 tenant_id 过滤
     """
@@ -23,7 +23,7 @@ class AIActionLogRepository(TenantRepository[AIActionLog]):
 
     async def get_stats(self) -> dict:
         """
-        获取审计日志统计信息
+        获取审计日志统计信息 / Get action log statistics.
 
         返回：总操作数、各状态计数、各级别计数、各类型计数
 
@@ -76,7 +76,7 @@ class AIActionLogRepository(TenantRepository[AIActionLog]):
 
     async def get_type_distribution(self) -> list[dict]:
         """
-        获取操作类型分布（用于饼图）
+        获取操作类型分布（用于饼图）/ Get action type distribution (for pie chart).
 
         Returns:
             [{action_type: str, count: int}, ...]

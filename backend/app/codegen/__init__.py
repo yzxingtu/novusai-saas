@@ -1,4 +1,4 @@
-"""Code generation helpers."""
+"""Code generation helpers. / 代码生成辅助"""
 
 from app.codegen.auto_fix import (
     MAX_FIX_RETRIES,

@@ -27,8 +27,7 @@ async def enrich_plugin_skill_info(
     data: SkillResponse,
 ) -> None:
     """
-    为插件注册的技能补充 source_plugin 和 plugin_tools 信息
-    Enrich plugin-registered skills with source_plugin and plugin_tools info
+    为插件注册的技能补充 source_plugin 和 plugin_tools 信息 / Enrich plugin skill with source_plugin and plugin_tools.
 
     通过 SkillPackage.source_plugin 判断是否为插件技能，
     Determines if skill is plugin-registered via SkillPackage.source_plugin,

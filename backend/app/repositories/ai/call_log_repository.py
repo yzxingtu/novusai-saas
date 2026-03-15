@@ -21,13 +21,13 @@ logger = LogManager.get_logger("ai.call_log")
 
 class AICallLogRepository(BaseRepository[AICallLog]):
     """
-    AI 调用日志 Repository
+    AI 调用日志 Repository / AI call log repository.
     """
     model = AICallLog
 
     async def query_list_with_names(self, spec) -> tuple[list[dict], int]:
         """
-        查询调用日志列表，附带 model_name / provider_name / tenant_name
+        查询调用日志列表，附带 model_name / provider_name / tenant_name / Query call log list with names.
 
         通过批量查 ID→Name 映射，避免逐行 JOIN 性能问题
         """
@@ -101,7 +101,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         group_by: str | None = None
     ) -> list[dict]:
         """
-        获取统计信息
+        获取统计信息 / Get call statistics.
 
         Args:
             tenant_id: 企业 ID (可选)
@@ -192,7 +192,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         tenant_id: int | None = None
     ) -> AICallLog | None:
         """
-        根据请求哈希查询日志(用于缓存命中检测)
+        根据请求哈希查询日志（用于缓存命中检测）/ Get log by request hash (for cache hit detection).
 
         Args:
             request_hash: 请求哈希
@@ -222,7 +222,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         offset: int = 0
     ) -> list[AICallLog]:
         """
-        获取最近的调用日志
+        获取最近的调用日志 / Get recent call logs.
 
         Args:
             tenant_id: 企业 ID (可选)
@@ -250,7 +250,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         limit: int = 100
     ) -> list[AICallLog]:
         """
-        获取失败的调用日志
+        获取失败的调用日志 / Get failed call logs.
 
         Args:
             tenant_id: 企业 ID (可选)
@@ -284,7 +284,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         end_date: date | None = None,
     ) -> dict:
         """
-        获取总体统计汇总（单个 dict，非分组列表）
+        获取总体统计汇总（单个 dict，非分组列表）/ Get overall call summary (single dict, not grouped).
         """
         stmt = select(
             func.count(AICallLog.id).label("total_calls"),

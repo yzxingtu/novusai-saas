@@ -15,7 +15,7 @@ from app.models.tenant.tenant_plan import TenantPlan
 
 class TenantPlanRepository(BaseRepository[TenantPlan]):
     """
-    企业套餐仓储
+    企业套餐仓储 / Tenant plan repository.
 
     提供套餐特有的数据访问方法
     注意：套餐是平台级数据，不做企业隔离
@@ -25,7 +25,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_by_code(self, code: str) -> TenantPlan | None:
         """
-        根据代码获取套餐
+        根据代码获取套餐 / Get plan by code.
 
         Args:
             code: 套餐代码
@@ -41,7 +41,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         exclude_id: int | None = None,
     ) -> bool:
         """
-        检查套餐代码是否已存在
+        检查套餐代码是否已存在 / Check if plan code exists.
 
         Args:
             code: 套餐代码
@@ -62,7 +62,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_with_permissions(self, plan_id: int) -> TenantPlan | None:
         """
-        获取套餐及其关联权限
+        获取套餐及其关联权限 / Get plan with permissions.
 
         Args:
             plan_id: 套餐 ID
@@ -83,7 +83,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_active_plans(self) -> list[TenantPlan]:
         """
-        获取所有启用的套餐
+        获取所有启用的套餐 / Get all active plans.
 
         Returns:
             启用的套餐列表，按 sort_order 排序
@@ -101,7 +101,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_with_tenants(self, plan_id: int) -> TenantPlan | None:
         """
-        获取套餐及其关联企业
+        获取套餐及其关联企业 / Get plan with tenants.
 
         Args:
             plan_id: 套餐 ID
@@ -122,7 +122,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_all_with_permissions(self) -> list[TenantPlan]:
         """
-        获取所有套餐及其权限
+        获取所有套餐及其权限 / Get all plans with permissions.
 
         Returns:
             套餐列表（含权限）
@@ -139,7 +139,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
 
     async def get_tenant_counts_batch(self, plan_ids: list[int]) -> dict[int, int]:
         """
-        批量获取套餐的企业数量
+        批量获取套餐的企业数量 / Batch get tenant count per plan.
 
         Args:
             plan_ids: 套餐 ID 列表

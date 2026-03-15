@@ -1,4 +1,4 @@
-"""插件 ZIP 包安全校验回归测试。"""
+"""插件 ZIP 包安全校验回归测试。 / Plugin."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 
 
 def _get_install_error():
-    """延迟导入避免循环依赖。"""
+    """延迟导入避免循环依赖。 / 。"""
     from app.plugins.package_security import PluginInstallError  # re-exported
     return PluginInstallError
 
@@ -21,12 +21,11 @@ def _import_funcs():
     )
     return extract_plugin_zip_safely, validate_plugin_zip_archive
 
-_MINIMAL_PLUGIN_YAML = b"""name: demo-plugin
+_MINIMAL_PLUGIN_YAML = b"""name: demo-plugin / 插件
 version: \"1.0.0\"
 display_name:
   en: Demo Plugin
-scope: all_tenants
-"""
+scope: all_tenants"""
 
 
 def _build_zip(zip_path: Path, members: dict[str, bytes]) -> None:

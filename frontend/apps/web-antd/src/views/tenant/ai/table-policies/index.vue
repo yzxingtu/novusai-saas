@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 企业端 AI 数据访问策略页面
+ * 企业端 AI 数据访问策略页面 / Tenant AI table policy page
  *
  * 展示有效策略列表（全局 + 企业覆盖合并），支持编辑覆盖和恢复默认。
  */

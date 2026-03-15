@@ -25,8 +25,7 @@ DEFAULT_CACHE_TTL_DAYS = 7
 )
 def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) -> dict:
     """
-    Clean up expired image cache files.
-    清理过期的图片缓存文件。
+    清理过期的图片缓存文件 / Clean up expired image cache files.
 
     Scans LOCAL_IMAGE_CACHE_ROOT and removes files older than ttl_days.
     Also validates cache paths to prevent traversal attacks.

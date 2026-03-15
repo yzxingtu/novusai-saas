@@ -1,6 +1,4 @@
-"""
-分享链接 Service — bcrypt 密码 + secrets token
-"""
+"""分享链接 Service — bcrypt 密码 + secrets token / Share link service — bcrypt password and secrets token."""
 
 from __future__ import annotations
 
@@ -72,7 +70,7 @@ class ShareService(TenantService):
         await self.db.commit()
 
     async def list_my_shares(self, page: int = 1, size: int = 50) -> dict:
-        """当前企业的全部分享链接（分页），含文件名和类型"""
+        """当前企业的全部分享链接（分页），含文件名和类型 / All tenant share links (paged), with file name/type."""
         from sqlalchemy import func, select
 
         from ..models.node import FileNode
@@ -106,7 +104,7 @@ class ShareService(TenantService):
     # ── 公开访问（@public 端点调用）──────────────────────────
 
     async def access_share(self, token: str) -> object:
-        """公开访问分享（不需要登录），返回节点元数据"""
+        """公开访问分享（不需要登录），返回节点元数据 / Access share (no login), return node metadata."""
         share = await self._get_active_share(token)
         from ..repositories.node_repository import NodeRepository
         node_repo = NodeRepository(self.db, share.tenant_id)
@@ -118,15 +116,15 @@ class ShareService(TenantService):
         return {"share": share, "node": node}
 
     async def verify_password(self, token: str, password: str) -> bool:
-        """验证分享密码（调用前已经 IPRateLimiter 限流）"""
+        """验证分享密码（调用前已经 IPRateLimiter 限流） / Verify share password (rate limited by caller)."""
         share = await self._get_active_share(token)
         if share.password_hash is None:
             return True
         return bcrypt.checkpw(password.encode(), share.password_hash.encode())
 
     async def get_download_url(self, token: str, node_id: int) -> str:
-        """获取分享文件的签名下载 URL
-        安全：强制校验 node_id == share.node_id，防止 IDOR
+        """获取分享文件的签名下载 URL / Get signed download URL for share file.
+        安全：强制校验 node_id == share.node_id，防止 IDOR。
         """
         from app.storage.manager import StorageManager
         share = await self._get_active_share(token)
@@ -162,7 +160,7 @@ class ShareService(TenantService):
     # ── 管理端操作（在 Service 层查询，Controller 不直接操作 DB）─────
 
     async def admin_list_shares(self, page: int = 1, size: int = 20) -> dict:
-        """管理端：分页列出全部企业分享记录"""
+        """管理端：分页列出全部企业分享记录 / Admin: list all tenant shares (paged)."""
         from sqlalchemy import func, select
 
         from ..models.share import Share
@@ -180,7 +178,7 @@ class ShareService(TenantService):
         return {"items": items, "total": total}
 
     async def admin_revoke_share(self, token: str) -> None:
-        """管理端：强制撤销指定分享"""
+        """管理端：强制撤销指定分享 / Admin: revoke share."""
         from ..repositories.share_repository import ShareRepository
         repo = ShareRepository(self.db, tenant_id=0)
         share = await repo.get_by_token(token)

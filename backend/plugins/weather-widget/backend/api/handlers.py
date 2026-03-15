@@ -1,17 +1,4 @@
-"""
-天气 API 路由
-
-供前端天气组件调用，避免 CORS 问题。
-缓存统一由 open_meteo.py 管理，handler 层不再维护独立缓存。
-
-路由:
-  GET /current?lat=&lon=
-  GET /forecast?lat=&lon=&days=
-  GET /hourly?lat=&lon=
-  GET /air-quality?lat=&lon=
-  GET /geocoding?name= | ?lat=&lon=
-  GET /config
-"""
+"""天气 API 路由 / Weather API routes — 供前端天气组件调用，避免 CORS；缓存由 open_meteo 管理。路由: GET /current, /forecast, /hourly, /air-quality, /geocoding, /config"""
 
 from __future__ import annotations
 
@@ -39,7 +26,7 @@ def _get_open_meteo():
 
 
 def _parse_coords(request) -> tuple[float, float] | dict:
-    """Extract and validate lat/lon from query params. Returns (lat, lon) or error dict."""
+    """从查询参数解析并校验 lat/lon，返回 (lat, lon) 或错误 dict / Extract and validate lat/lon from query params. Returns (lat, lon) or error dict."""
     lat = request.query_params.get("lat")
     lon = request.query_params.get("lon")
     if not lat or not lon:
@@ -119,7 +106,7 @@ async def get_forecast(request, ctx) -> dict:
 
 
 async def get_hourly(request, ctx) -> dict:
-    """返回未来 24h 逐小时天气。"""
+    """返回未来 24h 逐小时天气。 / Return next 24h hourly weather."""
     coords = _parse_coords(request)
     if isinstance(coords, dict):
         return coords
@@ -140,7 +127,7 @@ async def get_hourly(request, ctx) -> dict:
 
 
 async def get_air_quality(request, ctx) -> dict:
-    """返回 AQI 空气质量数据。"""
+    """返回 AQI 空气质量数据。 / Return AQI air quality data."""
     coords = _parse_coords(request)
     if isinstance(coords, dict):
         return coords

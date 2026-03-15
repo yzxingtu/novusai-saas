@@ -1,8 +1,6 @@
-"""
-OperationLogService 单元测试
+"""OperationLogService 单元测试 / Test.
 
-覆盖：日志记录、查询、清理。
-"""
+覆盖：日志记录、查询、清理。"""
 
 from __future__ import annotations
 

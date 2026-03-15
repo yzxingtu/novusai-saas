@@ -1,6 +1,5 @@
 """
-Hook System
-钩子系统
+Hook System / 钩子系统
 
 Provides before/after hook mechanism for execution pipelines.
 Hooks differ from events: hooks can modify execution context (intercept/modify data), events are notification-only.

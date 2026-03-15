@@ -1,6 +1,4 @@
-"""
-分享链接 Repository
-"""
+"""分享链接 Repository / Share link repository."""
 
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ if TYPE_CHECKING:
 class ShareRepository(TenantRepository["Share"]):
 
     async def get_by_token(self, token: str) -> Share | None:
-        """按 share_token 查询（公开访问，不限企业）"""
+        """按 share_token 查询（公开访问，不限企业） / Get by share_token (public, no tenant)."""
         from ..models.share import Share
         result = await self.db.execute(
             select(Share).where(Share.share_token == token, Share.is_active.is_(True))
@@ -25,7 +23,7 @@ class ShareRepository(TenantRepository["Share"]):
         return result.scalar_one_or_none()
 
     async def list_by_node(self, node_id: int) -> list[Share]:
-        """节点的所有活跃分享"""
+        """节点的所有活跃分享 / All active shares for node."""
         from ..models.share import Share
         result = await self.db.execute(
             select(Share).where(

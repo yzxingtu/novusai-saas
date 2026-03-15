@@ -1,6 +1,5 @@
 """
-Batch Execution Engine
-批量执行引擎
+Batch Execution Engine / 批量执行引擎
 
 Serially processes multiple BatchItems, each item executes independently,
 single failure does not affect others.
@@ -35,10 +34,7 @@ class BatchEngine(BaseEngine):
 
     async def execute(self, agent: Agent, request: ExecutionRequest) -> ExecutionResult:
         """
-        execute is only for satisfying BaseEngine interface.
-        Batch execution should use execute_batch().
-        execute 仅用于满足 BaseEngine 接口。
-        批量执行应使用 execute_batch()。
+        execute is only for satisfying BaseEngine interface. / execute 仅用于满足 BaseEngine 接口；批量执行应使用 execute_batch()。
         """
         logger.debug(
             "BatchEngine.execute is not supported: agent_id=%s request_agent_id=%s",

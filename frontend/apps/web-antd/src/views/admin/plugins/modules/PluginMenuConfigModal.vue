@@ -36,9 +36,9 @@ interface MenuEditRow {
   title: string;
   icon?: string;
   scope: string;
-  /** 管理端父级（admin_only / admin_and_all） */
+  /** 管理端父级（admin_only / admin_and_all） / Admin parent scope */
   adminParent: string;
-  /** 企业端父级（all_tenants / admin_and_all） */
+  /** 企业端父级（all_tenants / admin_and_all） / Tenant parent scope */
   tenantParent: string;
 }
 
@@ -61,14 +61,14 @@ function resolveTitle(title: Record<string, string> | string): string {
   return title?.['zh-CN'] ?? title?.en ?? Object.values(title)[0] ?? '';
 }
 
-/** 规范化旧版 scope 值（manifest 未重新扫描时兼容旧数据） */
+/** 规范化旧版 scope 值（manifest 未重新扫描时兼容旧数据） / Normalize legacy scope */
 function normalizeScope(scope: string | undefined): string {
   if (scope === 'tenant') return 'all_tenants';
   if (scope === 'admin') return 'admin_only';
   return scope || 'admin_only';
 }
 
-/** 将 MenuParentOption[] 转为 AntD TreeSelect 需要的 treeData 格式，含图标渲染 */
+/** 将 MenuParentOption[] 转为 AntD TreeSelect 需要的 treeData 格式，含图标渲染 / Convert to treeData for TreeSelect */
 function toTreeData(options: MenuParentOption[]): object[] {
   return options.map((opt) => ({
     title: h('span', { class: 'flex items-center gap-1.5' }, [
@@ -150,13 +150,13 @@ function handleCancel() {
 
 const hasMenus = computed(() => rows.value.length > 0);
 
-/** 需要展示管理端区块的行 */
+/** 需要展示管理端区块的行 / Rows showing admin block */
 const adminRows = computed(() =>
   rows.value.filter(
     (r) => r.scope === 'admin_only' || r.scope === 'admin_and_all',
   ),
 );
-/** 需要展示企业端区块的行 */
+/** 需要展示企业端区块的行 / Rows showing tenant block */
 const tenantRows = computed(() =>
   rows.value.filter(
     (r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all',

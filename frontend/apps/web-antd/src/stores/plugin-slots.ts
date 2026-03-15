@@ -46,11 +46,11 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
   const floatingPanels = ref<PluginSlotItem[]>([]);
   const dashboardWidgets = ref<PluginSlotItem[]>([]);
   const settingsTabs = ref<PluginSlotItem[]>([]);
-  /** 通知中心自定义 UI 组件（notification_ui slot） */
+  /** 通知中心自定义 UI 组件（notification_ui slot） / Notification center UI slot */
   const notificationUI = ref<PluginSlotItem[]>([]);
-  /** 独立页面路由（standalone_pages slot，无侧边菜单） */
+  /** 独立页面路由（standalone_pages slot，无侧边菜单） / Standalone pages slot */
   const standalonePages = ref<PluginSlotItem[]>([]);
-  /** 是否正在加载插槽数据 */
+  /** 是否正在加载插槽数据 / Whether slot data is loading */
   const loading = ref(false);
 
   function registerSlot(slotType: string, item: PluginSlotItem) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 智能体版本历史抽屉
+ * 智能体版本历史抽屉 / Agent version history drawer
  *
  * 功能：版本列表、回滚、版本对比
  */
@@ -129,7 +129,7 @@ function formatFieldValue(val: unknown): string {
   return String(val);
 }
 
-/** 版本下拉选项 */
+/** 版本下拉选项 / Version dropdown options */
 const versionOptions = computed(() =>
   versions.value.map((v) => ({
     label: `v${v.version}`,

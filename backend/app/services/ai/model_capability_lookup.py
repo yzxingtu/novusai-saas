@@ -20,8 +20,7 @@ logger = LogManager.get_logger("ai")
 
 async def get_registry() -> dict[str, Any] | None:
     """
-    Load the LiteLLM registry from Redis.
-    从 Redis 加载 LiteLLM 注册表。
+    从 Redis 加载 LiteLLM 注册表 / Load the LiteLLM registry from Redis.
     """
     try:
         redis = await get_redis()
@@ -86,8 +85,7 @@ def _extract_capabilities(entry: dict[str, Any]) -> dict[str, Any]:
 
 def _find_entry(registry: dict[str, Any], model_code: str) -> dict[str, Any] | None:
     """
-    Find a model entry using multi-strategy matching.
-    使用多策略匹配查找模型条目。
+    使用多策略匹配查找模型条目 / Find a model entry using multi-strategy matching.
 
     Strategy order:
     1. Exact match: "gpt-4o"
@@ -121,11 +119,9 @@ def _find_entry(registry: dict[str, Any], model_code: str) -> dict[str, Any] | N
 
 async def lookup(model_code: str) -> dict[str, Any] | None:
     """
-    Look up capabilities for a model code.
-    查找模型代码对应的能力信息。
+    查找模型代码对应的能力信息 / Look up capabilities for a model code.
 
     Returns dict with capability fields, or None if not found.
-    返回包含能力字段的 dict，未找到返回 None。
     """
     registry = await get_registry()
     if not registry:
@@ -140,11 +136,9 @@ async def lookup(model_code: str) -> dict[str, Any] | None:
 
 async def enrich_remote_models(models: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
-    Batch enrich remote model list with capabilities from LiteLLM registry.
-    批量为远程模型列表附加 LiteLLM 注册表中的能力信息。
+    批量为远程模型列表附加 LiteLLM 注册表中的能力信息 / Batch enrich remote model list with capabilities from LiteLLM registry.
 
     Graceful degradation: returns original models if registry is unavailable.
-    优雅降级：注册表不可用时返回原始模型列表。
     """
     registry = await get_registry()
     if not registry:

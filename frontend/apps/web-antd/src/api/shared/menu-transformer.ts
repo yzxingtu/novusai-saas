@@ -356,7 +356,7 @@ function transformMenuItemWithCheck(
 }
 
 /**
- * Print missing components warning (forward check).
+ * Print missing components warning (forward check) / 打印缺失组件告警（前置检查）
  * Uses console.error in DEV for high visibility (red highlight in devtools).
  */
 function printMissingComponentsWarning(
@@ -421,7 +421,7 @@ export function collectMenuComponentPaths(
   return paths;
 }
 
-/** Patterns for views that are legitimately hidden (no menu entry needed). */
+/** Patterns for views that are legitimately hidden (no menu entry needed). / 无需菜单项的正规隐藏视图匹配规则 */
 const ORPHAN_EXCLUDED_PATTERNS: RegExp[] = [
   /authentication\//,
   /_core\//,

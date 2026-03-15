@@ -16,7 +16,7 @@ from app.enums.role import RoleType
 
 
 class AdminRoleResponse(BaseSchema):
-    """平台角色响应"""
+    """平台角色响应 / Platform role response."""
 
     id: int = Field(..., description="角色 ID")
     code: str = Field(..., description="角色代码")
@@ -42,20 +42,20 @@ class AdminRoleResponse(BaseSchema):
 
 
 class AdminRoleDetailResponse(AdminRoleResponse):
-    """平台角色详情响应（含权限）"""
+    """平台角色详情响应（含权限） / Platform role detail response (with permissions)."""
 
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
     permission_codes: list[str] = Field(default_factory=list, description="权限代码列表")
 
 
 class AdminRoleTreeNode(AdminRoleResponse):
-    """平台角色树节点（含子节点）"""
+    """平台角色树节点（含子节点） / Platform role tree node (with children)."""
 
     children: list[AdminRoleTreeNode] = Field(default_factory=list, description="子角色列表")
 
 
 class AdminRoleCreateRequest(BaseSchema):
-    """创建平台角色请求"""
+    """创建平台角色请求 / Create platform role request."""
 
     name: str = Field(..., min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
@@ -69,7 +69,7 @@ class AdminRoleCreateRequest(BaseSchema):
 
 
 class AdminRoleUpdateRequest(BaseSchema):
-    """更新平台角色请求"""
+    """更新平台角色请求 / Update platform role request."""
 
     name: str | None = Field(None, min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
@@ -84,13 +84,13 @@ class AdminRoleUpdateRequest(BaseSchema):
 
 
 class AdminRolePermissionsRequest(BaseSchema):
-    """分配角色权限请求"""
+    """分配角色权限请求 / Assign role permissions request."""
 
     permission_ids: list[int] = Field(..., description="权限 ID 列表")
 
 
 class AdminRoleMoveRequest(BaseSchema):
-    """移动角色节点请求"""
+    """移动角色节点请求 / Move role node request."""
 
     new_parent_id: int | None = Field(None, description="新父角色 ID，None 表示移动到根级")
 
@@ -98,19 +98,19 @@ class AdminRoleMoveRequest(BaseSchema):
 # ========== 组织架构管理 Schema ==========
 
 class AdminRoleSetLeaderRequest(BaseSchema):
-    """设置节点负责人请求"""
+    """设置节点负责人请求 / Set node leader request."""
 
     leader_id: int | None = Field(None, description="负责人 ID，None 表示取消负责人")
 
 
 class AdminRoleAddMemberRequest(BaseSchema):
-    """添加成员到节点请求"""
+    """添加成员到节点请求 / Add member to node request."""
 
     admin_id: int = Field(..., description="管理员 ID")
 
 
 class AdminRoleCreateMemberRequest(BaseSchema):
-    """在节点下创建成员请求"""
+    """在节点下创建成员请求 / Create member under node request."""
 
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
@@ -121,7 +121,7 @@ class AdminRoleCreateMemberRequest(BaseSchema):
 
 
 class AdminRoleUpdateMemberRequest(BaseSchema):
-    """更新节点成员请求"""
+    """更新节点成员请求 / Update node member request."""
 
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
@@ -132,19 +132,19 @@ class AdminRoleUpdateMemberRequest(BaseSchema):
 
 
 class AdminRoleResetPasswordRequest(BaseSchema):
-    """重置节点成员密码请求"""
+    """重置节点成员密码请求 / Reset node member password request."""
 
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class AdminRoleToggleStatusRequest(BaseSchema):
-    """切换节点成员状态请求"""
+    """切换节点成员状态请求 / Toggle node member status request."""
 
     is_active: bool = Field(..., description="是否激活")
 
 
 class AdminRoleMemberResponse(BaseSchema):
-    """节点成员响应"""
+    """节点成员响应 / Node member response."""
 
     id: int = Field(..., description="管理员 ID")
     username: str = Field(..., description="用户名")

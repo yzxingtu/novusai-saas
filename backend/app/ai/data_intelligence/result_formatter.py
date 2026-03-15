@@ -281,8 +281,7 @@ class ResultFormatter:
         rows: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """
-        Generate ECharts config.
-        生成 ECharts 配置。
+        生成 ECharts 配置 / Generate ECharts config.
 
         Returns option object that frontend can pass directly to ECharts.
         返回前端可直接传给 ECharts 的 option 对象。

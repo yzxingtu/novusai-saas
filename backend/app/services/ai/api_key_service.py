@@ -18,7 +18,7 @@ from app.schemas.ai.api_key import (
 
 class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository]):
     """
-    AI API Key Service
+    AI API Key Service / AI API key service.
 
     提供 AI API Key 的业务逻辑操作
     """
@@ -28,7 +28,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
     async def create_key(self, data: ProviderApiKeyCreate) -> ProviderApiKey:
         """
-        创建 API Key
+        创建 API Key / Create API key.
 
         Args:
             data: 创建请求
@@ -47,7 +47,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
     async def update_key(self, id: int, data: ProviderApiKeyUpdate) -> ProviderApiKey:
         """
-        更新 API Key
+        更新 API Key / Update API key.
 
         Args:
             id: API Key ID
@@ -75,7 +75,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
     async def toggle_status(self, id: int) -> ProviderApiKey:
         """
-        切换 API Key 启用状态
+        切换 API Key 启用状态 / Toggle API Key active status.
 
         Args:
             id: API Key ID
@@ -96,7 +96,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
 
     async def increment_usage(self, key_id: int, increment: int = 1) -> None:
         """
-        增加 API Key 使用次数
+        增加 API Key 使用次数 / Increment API Key usage count.
 
         Args:
             key_id: API Key ID
@@ -110,7 +110,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         tenant_id: int | None = None,
     ) -> list[ProviderApiKey]:
         """
-        获取供应商的 API Key 列表
+        获取供应商的 API Key 列表 / Get API keys by provider.
 
         Args:
             provider_id: 供应商 ID（None 则不限）
@@ -130,7 +130,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         tenant_id: int | None = None,
     ) -> ProviderApiKey | None:
         """
-        获取可用的 API Key
+        获取可用的 API Key / Get available API Key.
 
         Args:
             provider_id: 供应商 ID

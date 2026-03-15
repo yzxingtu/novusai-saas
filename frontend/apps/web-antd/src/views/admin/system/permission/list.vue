@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 平台权限查看页面
+ * 平台权限查看页面 / Platform permission view page
  * 只读展示权限树结构
  */
 import type { adminApi } from '#/api';

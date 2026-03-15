@@ -24,7 +24,7 @@ from app.enums.knowledge_base import (
 
 class KnowledgeBase(TenantModel):
     """
-    知识库模型
+    知识库模型 / Knowledge base model.
 
     存储知识库配置，包括 Embedding 模型、分块策略、检索模式等
     属于企业级资源，通过 tenant_id 隔离
@@ -54,6 +54,8 @@ class KnowledgeBase(TenantModel):
         "visibility": "visibility",
         "embedding_model_id": "embedding_model_id",
         "vision_model_id": "vision_model_id",
+        "audio_model_id": "audio_model_id",
+        "video_model_id": "video_model_id",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
     }
@@ -135,6 +137,23 @@ class KnowledgeBase(TenantModel):
         nullable=False,
         default=False,
         comment=_("knowledge_base.model.extract_images"),
+    )
+
+    # ==================== Audio/Video 描述配置 ====================
+
+    audio_model_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("ai_models.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment=_("knowledge_base.model.audio_model_id"),
+    )
+    video_model_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("ai_models.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment=_("knowledge_base.model.video_model_id"),
     )
 
     # ==================== 分块配置 ====================
@@ -231,6 +250,18 @@ class KnowledgeBase(TenantModel):
     vision_model = relationship(
         "AIModel",
         foreign_keys=[vision_model_id],
+        lazy="selectin",
+    )
+
+    # 关联的 Audio/Video 描述模型（可选）
+    audio_model = relationship(
+        "AIModel",
+        foreign_keys=[audio_model_id],
+        lazy="selectin",
+    )
+    video_model = relationship(
+        "AIModel",
+        foreign_keys=[video_model_id],
         lazy="selectin",
     )
 

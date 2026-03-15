@@ -102,8 +102,7 @@ class AdminSkillPackageController(GlobalController):
             include_system: bool = Query(False, description="是否包含系统包（用于智能体绑定） / Include system packages (for agent binding)"),
         ):
             """
-            获取技能包下拉选项（用于 Skill 创建时选择所属包）
-            Get skill package dropdown options (for selecting parent package when creating Skill)
+            获取技能包下拉选项（用于 Skill 创建时选择所属包）/ Get skill package select options (for Skill create).
             """
             service = AdminSkillPackageService(db)
             response = await service.get_select_options(
@@ -121,8 +120,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取所有推荐技能包（is_recommended=true）
-            Get all recommended skill packages (is_recommended=true)
+            获取所有推荐技能包（is_recommended=true）/ Get all recommended skill packages.
 
             管理端无 target_audience 限制，返回全部推荐包。
             Admin has no target_audience restriction, returns all recommended packages.
@@ -164,8 +162,7 @@ class AdminSkillPackageController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取全企业技能包列表
-            Get cross-tenant skill package list
+            获取全企业技能包列表 / Get cross-tenant skill package list.
 
             支持 JSON:API 风格筛选、排序、分页
             Supports JSON:API style filtering, sorting, pagination
@@ -198,8 +195,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能包详情（含技能数量）
-            Get skill package details (including skill count)
+            获取技能包详情（含技能数量）/ Get skill package details (including skill count).
             """
             service = AdminSkillPackageService(db)
             data = await service.get_with_skill_count(package_id)
@@ -269,8 +265,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            删除技能包（软删除，连带包内所有技能）
-            Delete skill package (soft delete, cascading to all skills in the package)
+            删除技能包（软删除，连带包内所有技能）/ Delete skill package (soft delete, cascading to all skills in the package).
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -367,8 +362,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
-            Get skill package valves config (schema + current values, secret fields masked)
+            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）/ Get skill package valves config (schema + current values, secret fields masked).
             """
             from app.api.shared._toolkit_helpers import mask_secret_values
 
@@ -392,8 +386,7 @@ class AdminSkillPackageController(GlobalController):
             data: dict[str, Any] = ...,
         ):
             """
-            更新技能包的 valves_config（用户填写的环境变量配置值）
-            Update skill package valves_config (user-filled environment variable config values)
+            更新技能包的 valves_config（用户填写的环境变量配置值）/ Update skill package valves_config (user-filled environment variable config values).
             """
             from app.api.shared._toolkit_helpers import validate_and_update_valves
 
@@ -413,8 +406,7 @@ class AdminSkillPackageController(GlobalController):
             query: QueryParams,
         ):
             """
-            获取指定技能包内的技能列表
-            Get skill list within the specified skill package
+            获取指定技能包内的技能列表 / Get skill list within the specified skill package.
             """
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
@@ -447,8 +439,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能包内所有技能通过 resolve() 解析出的工具定义列表。
-            Get tool definition list resolved from all skills in the package via resolve().
+            获取技能包内所有技能通过 resolve() 解析出的工具定义列表 / Get tool definition list resolved from all skills in the package via resolve().
 
             仅对插件类型技能（source_plugin 不为空）有效。
             Only effective for plugin-type skills (source_plugin is not empty).
@@ -514,8 +505,7 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            导出技能包为 JSON（含所有技能定义、valves_schema）
-            Export skill package as JSON (including all skill definitions, valves_schema)
+            导出技能包为 JSON（含所有技能定义、valves_schema）/ Export skill package as JSON (including all skill definitions, valves_schema).
 
             导出内容： / Export content:
             - package_info: 技能包基本信息（不含 id/tenant_id/created_at 等运行时字段） / Basic info (excluding runtime fields like id/tenant_id/created_at)
@@ -611,8 +601,7 @@ class AdminSkillPackageController(GlobalController):
             days: int = Query(7, ge=1, le=90, description="统计天数"),
         ):
             """
-            获取技能包内所有技能的调用统计
-            Get call statistics for all skills in the package
+            获取技能包内所有技能的调用统计 / Get call statistics for all skills in the package.
 
             返回：总调用次数、成功率、平均耗时、按技能分组统计
             Returns: total calls, success rate, avg duration, per-skill grouped stats

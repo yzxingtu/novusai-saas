@@ -25,7 +25,7 @@ tenant_admin_role_permissions = Table(
 
 class TenantAdminRole(TenantModel):
     """
-    企业管理员角色模型
+    企业管理员角色模型 / Tenant admin role model.
 
     - 属于特定企业
     - 用于企业管理员的权限控制
@@ -205,44 +205,44 @@ class TenantAdminRole(TenantModel):
 
     @property
     def children_count(self) -> int:
-        """获取子角色数量"""
+        """获取子角色数量 / Get children role count."""
         return len([c for c in self.children if not c.is_deleted])
 
     @property
     def permissions_count(self) -> int:
-        """获取权限数量"""
+        """获取权限数量 / Get permissions count."""
         return len(self.permissions)
 
     @property
     def has_children(self) -> bool:
-        """是否有子角色"""
+        """是否有子角色 / Whether has child roles."""
         return self.children_count > 0
 
     @property
     def has_admins(self) -> bool:
-        """是否有关联的管理员"""
+        """是否有关联的管理员 / Whether has linked admins."""
         return len([a for a in self.admins if not a.is_deleted]) > 0
 
     @property
     def member_count(self) -> int:
-        """获取节点成员数量"""
+        """获取节点成员数量 / Get node member count."""
         return len([a for a in self.admins if not a.is_deleted])
 
     @property
     def leader_name(self) -> str | None:
-        """获取负责人名称"""
+        """获取负责人名称 / Get leader display name."""
         if self.leader and not self.leader.is_deleted:
             return self.leader.nickname or self.leader.username
         return None
 
     @property
     def type_enum(self) -> RoleType | None:
-        """获取节点类型枚举"""
+        """获取节点类型枚举 / Get node type enum."""
         return RoleType.from_value(self.type)
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查角色是否拥有指定权限（仅检查自身权限，不含继承）
+        检查角色是否拥有指定权限（仅检查自身权限，不含继承）/ Check if role has permission (self only, no inheritance).
 
         Args:
             permission_code: 权限代码
@@ -254,7 +254,7 @@ class TenantAdminRole(TenantModel):
 
     def get_ancestor_ids(self) -> list[int]:
         """
-        从 path 中解析所有祖先角色 ID
+        从 path 中解析所有祖先角色 ID / Parse ancestor role IDs from path.
 
         Returns:
             祖先角色 ID 列表（不含自身）

@@ -1,12 +1,10 @@
-"""
-SQLSafetyValidator 单元测试 — 重点验证 SELECT INTO 拦截
-"""
+"""SQLSafetyValidator 单元测试 — 重点验证 SELECT INTO 拦截 / Test."""
 
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator, extract_table_names
 
 
 class TestSQLSafetyValidatorSelectInto:
-    """C1: SELECT INTO 必须被拦截"""
+    """C1: SELECT INTO 必须被拦截 / C1: SELECT INTO"""
 
     def test_select_into_table(self) -> None:
         """SELECT * INTO new_table FROM users — PostgreSQL 建表"""
@@ -27,14 +25,14 @@ class TestSQLSafetyValidatorSelectInto:
         assert not result.passed
 
     def test_with_cte_select_into(self) -> None:
-        """WITH CTE 中使用 SELECT INTO"""
+        """WITH CTE 中使用 SELECT INTO / WITH CTE SELECT INTO"""
         sql = "WITH cte AS (SELECT 1) SELECT * INTO new_table FROM cte"
         result = SQLSafetyValidator.validate(sql)
         assert not result.passed
 
 
 class TestSQLSafetyValidatorBasic:
-    """基础安全检查回归测试"""
+    """基础安全检查回归测试 / Test."""
 
     def test_valid_select(self) -> None:
         result = SQLSafetyValidator.validate("SELECT id, name FROM users WHERE id = 1")
@@ -91,7 +89,7 @@ class TestSQLSafetyValidatorBasic:
 
 
 class TestExtractTableNames:
-    """表名提取测试"""
+    """表名提取测试 / Test."""
 
     def test_simple_from(self) -> None:
         tables = extract_table_names("SELECT * FROM users")

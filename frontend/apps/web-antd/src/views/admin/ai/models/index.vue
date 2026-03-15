@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /**
  * AI 模型管理列表页面
+ * AI model management list page
  */
 import type { AIModelInfo } from '#/api/admin/ai';
 
@@ -36,7 +37,7 @@ import Form from './modules/form.vue';
 defineOptions({ name: 'AIModelList' });
 
 /**
- * 格式化 Token 数量
+ * 格式化 Token 数量 / Format token count
  */
 function formatTokens(num: null | number | undefined): string {
   if (!num) return '-';
@@ -46,7 +47,7 @@ function formatTokens(num: null | number | undefined): string {
 }
 
 /**
- * 格式化价格
+ * 格式化价格 / Format price
  */
 function formatPrice(price: null | number | undefined): string {
   if (price === null || price === undefined) return '-';
@@ -70,11 +71,11 @@ function onToggleModelActive(row: AIModelInfo) {
   });
 }
 
-/** 正在测试中的模型 ID 集合 */
+/** 正在测试中的模型 ID 集合 / Set of model IDs currently being tested */
 const testingModelIds = ref<Set<number>>(new Set());
 
 /**
- * 测试模型连通性
+ * 测试模型连通性 / Test model connectivity
  */
 async function onTestModel(row: AIModelInfo) {
   if (testingModelIds.value.has(row.id)) return;

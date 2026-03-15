@@ -28,7 +28,7 @@ from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 
 class KnowledgeDocument(TenantModel):
     """
-    知识文档模型
+    知识文档模型 / Knowledge document model.
 
     存储文档的文件信息、处理状态机、统计数据等
     属于企业级资源，通过 tenant_id 隔离（全局/管理端 KB 的文档 tenant_id 为 NULL）

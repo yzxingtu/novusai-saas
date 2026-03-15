@@ -1,6 +1,5 @@
 """
-RBAC Service Layer
-RBAC 服务层
+RBAC Service Layer. / RBAC 服务层。
 
 Provides permission check business services.
 提供权限检查相关的业务服务。

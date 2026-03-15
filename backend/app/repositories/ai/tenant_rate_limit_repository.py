@@ -11,7 +11,7 @@ from app.models.ai import TenantModelRateLimit
 
 class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
     """
-    企业 AI 模型速率限制配置 Repository
+    企业 AI 模型速率限制配置 Repository / Tenant AI model rate limit config repository.
     """
 
     model = TenantModelRateLimit
@@ -22,7 +22,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         model_id: int
     ) -> TenantModelRateLimit | None:
         """
-        获取企业对指定模型的速率限制配置
+        获取企业对指定模型的速率限制配置 / Get rate limit config for tenant and model.
         """
         stmt = select(TenantModelRateLimit).where(
             and_(
@@ -41,7 +41,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         model_id: int | None = None
     ) -> list[TenantModelRateLimit]:
         """
-        获取企业所有激活的速率限制配置
+        获取企业所有激活的速率限制配置 / Get all active rate limit configs for tenant.
         """
         conditions = [
             TenantModelRateLimit.tenant_id == tenant_id,

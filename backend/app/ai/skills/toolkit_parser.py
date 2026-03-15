@@ -197,8 +197,7 @@ def toolkit_tools_to_definitions(
     timeout: int = 30,
 ) -> list[ToolParameter]:
     """
-    Convert tools from ToolkitMeta to ToolDefinition list.
-    将 ToolkitMeta 中的 tools 转换为 ToolDefinition 列表。
+    Convert tools from ToolkitMeta to ToolDefinition list. / 将 ToolkitMeta 中的 tools 转换为 ToolDefinition 列表。
 
     Note: This function returns a ToolParameter list. The ToolDefinition construction
     is done by SkillResolver._resolve_toolkit (which injects config, etc.).

@@ -12,9 +12,9 @@ import { getDoc, updateDoc, getExportUrl } from '../api/novusdoc';
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string) => string;
   router?: { push: (to: string) => void; currentRoute?: { value?: { params?: Record<string, string> } } };
-  listPageOperations?: (key: string) => readonly { name: string; label?: string; description?: string; readonly?: boolean; params?: unknown; handler?: (p: Record<string, unknown>) => unknown }[];
+  listPageOperations?: (key: string) => readonly { name: string }[];
   registerPageContext?: (key: string, resolver: () => unknown) => () => void;
-  registerPageOperations?: (key: string, ops: unknown[]) => () => void;
+  appendPageOperations?: (key: string, ops: unknown[]) => () => void;
 } | undefined;
 
 const $t = (key: string) => {
@@ -250,12 +250,9 @@ function setupEditorPageAwareness() {
     });
   }
 
-  if (shared?.registerPageOperations) {
-    const existing = shared.listPageOperations?.(editorPageKey.value) ?? [];
-    cleanupOps = shared.registerPageOperations(editorPageKey.value, [
-      ...existing,
-      ...documentOps,
-    ]);
+  // Append document ops so we do not replace platform editor ops (get_editor_html, replace_section, etc.)
+  if (shared?.appendPageOperations) {
+    cleanupOps = shared.appendPageOperations(editorPageKey.value, documentOps);
   }
 }
 
@@ -263,15 +260,38 @@ onMounted(async () => {
   await loadDocument();
   if (doc.value) {
     await nextTickMount();
-    // Defer so RichTextEditor's useEditorPageOps can register first; we then merge editor ops + document ops.
     await nextTick();
+    // Wait until platform useEditorPageOps has registered editor ops, then we append document ops (appendPageOperations).
+    await waitForEditorPageOps();
     setupEditorPageAwareness();
   }
 });
 
+/** Brief delay so the editor container is ready before mounting RichTextEditor. */
 async function nextTickMount() {
   await new Promise(r => setTimeout(r, 50));
   mountEditor();
+}
+
+const EDITOR_OPS_POLL_MS = 80;
+const EDITOR_OPS_POLL_MAX = 2000;
+
+/** Wait until platform has registered editor ops (e.g. get_editor_html) so appendPageOperations does not get overwritten. */
+async function waitForEditorPageOps() {
+  const list = shared?.listPageOperations;
+  if (!list) return;
+  const key = editorPageKey.value;
+  const deadline = Date.now() + EDITOR_OPS_POLL_MAX;
+  while (Date.now() < deadline) {
+    const ops = list(key);
+    if (ops.some((o) => o.name === 'get_editor_html')) return;
+    await new Promise((r) => setTimeout(r, EDITOR_OPS_POLL_MS));
+  }
+  console.warn(
+    '[DocumentEditor] waitForEditorPageOps timed out: platform editor ops (e.g. get_editor_html) not registered within',
+    EDITOR_OPS_POLL_MAX,
+    'ms. Document ops may be overwritten if platform registers later.',
+  );
 }
 
 onBeforeUnmount(() => {

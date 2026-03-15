@@ -1,6 +1,5 @@
 """
-Reranker
-重排序器
+Reranker / 重排序器
 
 Uses LLM to re-score and reorder retrieval results, improving precision.
 Disabled by default, serves as optional enhancement capability.
@@ -24,8 +23,7 @@ logger = LogManager.get_logger("ai.rag.reranker")
 
 class LLMReranker:
     """
-    LLM Reranker
-    LLM 重排序器
+    LLM Reranker / LLM 重排序器
 
     Sends query + each chunk to LLM for scoring 1~10,
     then reorders results by score.

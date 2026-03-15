@@ -239,7 +239,7 @@ class AdminRole(BaseModel):
 
     def has_permission(self, permission_code: str) -> bool:
         """
-        检查角色是否拥有指定权限（仅检查自身权限，不含继承）
+        检查角色是否拥有指定权限（仅检查自身权限，不含继承）/ Check if role has permission (self only, no inheritance).
 
         Args:
             permission_code: 权限代码
@@ -251,7 +251,7 @@ class AdminRole(BaseModel):
 
     def get_ancestor_ids(self) -> list[int]:
         """
-        从 path 中解析所有祖先角色 ID
+        从 path 中解析所有祖先角色 ID / Parse ancestor role IDs from path.
 
         Returns:
             祖先角色 ID 列表（不含自身）

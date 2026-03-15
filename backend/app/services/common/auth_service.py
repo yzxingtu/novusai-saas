@@ -40,7 +40,7 @@ logger = LogManager.get_logger("auth")
 
 class AuthService:
     """
-    认证服务
+    认证服务 / Authentication service.
 
     提供：
     - 平台管理员认证 (Admin)
@@ -52,7 +52,7 @@ class AuthService:
 
     def __init__(self, db: AsyncSession):
         """
-        初始化服务
+        初始化服务 / Initialize service.
 
         Args:
             db: 异步数据库会话
@@ -66,7 +66,7 @@ class AuthService:
         self, password: str, tenant_id: int | None = None,
     ) -> None:
         """
-        验证密码是否符合安全策略
+        验证密码是否符合安全策略 / Validate password against security policy.
 
         Args:
             password: 待验证的密码
@@ -132,7 +132,7 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        平台管理员认证
+        平台管理员认证 / Platform admin authentication.
 
         Args:
             username: 用户名或邮箱
@@ -244,7 +244,7 @@ class AuthService:
         user_type: str = "admin", tenant_id: int | None = None,
     ) -> None:
         """
-        记录登录失败
+        记录登录失败 / Record login failure.
 
         Args:
             username: 登录用户名
@@ -315,12 +315,12 @@ class AuthService:
             await self.db.commit()
 
     async def _record_admin_login_failure(self, username: str, client_ip: str | None) -> None:
-        """记录平台管理员登录失败"""
+        """记录平台管理员登录失败 / Record admin login failure."""
         await self._record_login_failure(username, client_ip, "admin")
 
     async def _is_account_locked(self, user_id: int, user_type: str = "admin") -> bool:
         """
-        检查账户是否被锁定
+        检查账户是否被锁定 / Check if account is locked.
 
         Args:
             user_id: 用户ID
@@ -357,7 +357,7 @@ class AuthService:
 
     async def _reset_login_failures(self, user_id: int, user_type: str = "admin") -> None:
         """
-        重置登录失败计数
+        重置登录失败计数 / Reset login failure count.
 
         Args:
             user_id: 用户ID
@@ -387,7 +387,7 @@ class AuthService:
             await self.db.commit()
 
     async def _reset_admin_login_failures(self, admin_id: int) -> None:
-        """重置平台管理员登录失败计数"""
+        """重置平台管理员登录失败计数 / Reset admin login failure count."""
         await self._reset_login_failures(admin_id, "admin")
 
     async def _verify_captcha(
@@ -398,7 +398,7 @@ class AuthService:
         ctx: dict[str, Any],
     ) -> None:
         """
-        验证验证码
+        验证验证码 / Verify captcha.
 
         Args:
             challenge_id: 验证码挑战ID
@@ -428,7 +428,7 @@ class AuthService:
 
     async def refresh_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
-        刷新平台管理员 Token
+        刷新平台管理员 Token / Refresh platform admin token.
 
         Args:
             refresh_token: 刷新令牌
@@ -469,7 +469,7 @@ class AuthService:
         new_password: str,
     ) -> None:
         """
-        修改平台管理员密码
+        修改平台管理员密码 / Change platform admin password.
 
         Args:
             admin: 管理员实例
@@ -501,7 +501,7 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        企业管理员认证
+        企业管理员认证 / Tenant admin authentication.
 
         Args:
             username: 用户名或邮箱
@@ -634,7 +634,7 @@ class AuthService:
 
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
-        刷新企业管理员 Token
+        刷新企业管理员 Token / Refresh tenant admin token.
 
         Args:
             refresh_token: 刷新令牌
@@ -679,7 +679,7 @@ class AuthService:
         new_password: str,
     ) -> None:
         """
-        修改企业管理员密码
+        修改企业管理员密码 / Change tenant admin password.
 
         Args:
             tenant_admin: 企业管理员实例
@@ -702,7 +702,7 @@ class AuthService:
         impersonate_token: str,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
-        验证平台管理员的 impersonate token 并换取正式 Token
+        验证平台管理员的 impersonate token 并换取正式 Token / Verify impersonate token and exchange for real token.
 
         Args:
             impersonate_token: 一键登录令牌
@@ -803,7 +803,7 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        企业用户认证
+        企业用户认证 / Tenant user authentication.
 
         Args:
             username: 用户名、邮箱或手机号
@@ -925,7 +925,7 @@ class AuthService:
 
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
         """
-        刷新企业用户 Token
+        刷新企业用户 Token / Refresh tenant user token.
 
         Args:
             refresh_token: 刷新令牌
@@ -970,7 +970,7 @@ class AuthService:
         new_password: str,
     ) -> None:
         """
-        修改企业用户密码
+        修改企业用户密码 / Change tenant user password.
 
         Args:
             user: 用户实例
@@ -1005,7 +1005,7 @@ class AuthService:
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
-        企业用户自助注册
+        企业用户自助注册 / Tenant user self-registration.
 
         Args:
             username: 用户名
@@ -1214,7 +1214,7 @@ class AuthService:
         username: str,
         email: str,
     ) -> None:
-        """注册待审批时通知企业管理员"""
+        """注册待审批时通知企业管理员 / Notify tenant admins when registration pending approval."""
         from app.services.common.notification_service import notify
 
         # 获取企业所有活跃管理员
@@ -1252,7 +1252,7 @@ class AuthService:
         email: str | None = None,
     ) -> TenantUser:
         """
-        更新企业用户个人资料
+        更新企业用户个人资料 / Update tenant user profile.
 
         Args:
             user: 当前用户实例
@@ -1322,7 +1322,7 @@ class AuthService:
         tenant_id_from_ctx: int | None = None,
     ) -> dict[str, Any]:
         """
-        请求密码重置
+        请求密码重置 / Request password reset.
 
         生成重置验证码并通过邮件发送
 
@@ -1403,7 +1403,7 @@ class AuthService:
         tenant_id_from_ctx: int | None = None,
     ) -> None:
         """
-        重置企业用户密码
+        重置企业用户密码 / Reset tenant user password.
 
         Args:
             email: 邮箱

@@ -12,7 +12,7 @@ from app.schemas.common.query import FilterRule, QuerySpec
 
 class SkillRepository(TenantRepository[Skill]):
     """
-    企业级技能 Repository
+    企业级技能 Repository / Tenant-level skill repository.
 
     提供基于企业隔离的技能数据访问。
     查询时自动包含 scope=global 的全局技能。
@@ -23,7 +23,7 @@ class SkillRepository(TenantRepository[Skill]):
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> Skill | None:
-        """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能"""
+        """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能 / Get skill by ID (global + assigned package)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
             if instance.tenant_id == self.tenant_id:
@@ -45,8 +45,7 @@ class SkillRepository(TenantRepository[Skill]):
         include_deleted: bool = False,
     ) -> tuple[list[Skill], int]:
         """
-        企业级技能列表查询
-        Tenant-level skill list query
+        企业级技能列表查询 / Tenant-level skill list query.
 
         自动注入条件：(tenant_id = X) OR (所属技能包为平台级包 tenant_id=NULL)
         Auto-inject: (tenant_id = X) OR (package is platform-level, tenant_id=NULL)
@@ -106,7 +105,7 @@ class SkillRepository(TenantRepository[Skill]):
         exclude_id: int | None = None,
     ) -> Skill | None:
         """
-        按名称查找技能（同企业内唯一性检查）
+        按名称查找技能（同企业内唯一性检查）/ Find skill by name (uniqueness within tenant).
 
         Args:
             name: 技能名称
@@ -129,7 +128,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_active_skills(self) -> list[Skill]:
         """
-        获取当前企业所有已激活的技能
+        获取当前企业所有已激活的技能 / Get all active skills for current tenant.
 
         Returns:
             已激活的 Skill 列表
@@ -150,7 +149,7 @@ class SkillRepository(TenantRepository[Skill]):
 
     async def get_by_type(self, skill_type: str) -> list[Skill]:
         """
-        按类型获取当前企业的技能
+        按类型获取当前企业的技能 / Get skills by type for current tenant.
 
         Args:
             skill_type: 技能类型
@@ -176,7 +175,7 @@ class SkillRepository(TenantRepository[Skill]):
 
 class AdminSkillRepository(BaseRepository[Skill]):
     """
-    管理端技能 Repository
+    管理端技能 Repository / Admin skill repository.
 
     无企业隔离，供平台管理端全局查询使用
     """
@@ -190,7 +189,7 @@ class AdminSkillRepository(BaseRepository[Skill]):
         exclude_id: int | None = None,
     ) -> Skill | None:
         """
-        在指定技能包内按名称查找技能
+        在指定技能包内按名称查找技能 / Find skill by name within package.
 
         Args:
             name: 技能名称

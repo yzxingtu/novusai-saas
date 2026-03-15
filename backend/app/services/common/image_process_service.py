@@ -23,14 +23,14 @@ if TYPE_CHECKING:
 
 class ImageProcessService:
     """
-    图片处理服务
+    图片处理服务 / Image processing service.
 
     提供统一的图片处理入口，根据存储驱动自动选择最优处理方式
     """
 
     def __init__(self, db: AsyncSession, tenant_id: int | None = None):
         """
-        初始化服务
+        初始化服务 / Initialize service.
 
         Args:
             db: 数据库会话
@@ -42,7 +42,7 @@ class ImageProcessService:
 
     async def is_enabled(self) -> bool:
         """
-        检查图片处理功能是否启用
+        检查图片处理功能是否启用 / Check if image processing is enabled.
         """
         enabled = await self.config_service.get_platform_config(
             "platform_image_process_enabled",
@@ -52,7 +52,7 @@ class ImageProcessService:
 
     async def get_config(self) -> dict:
         """
-        获取图片处理配置
+        获取图片处理配置 / Get image processing config.
         """
         return {
             "enabled": await self.config_service.get_platform_config(
@@ -89,7 +89,7 @@ class ImageProcessService:
         preset: str | None = None,
     ) -> ImageProcessParams:
         """
-        解析图片处理参数
+        解析图片处理参数 / Parse image process params.
 
         支持预设和自定义参数混合使用，自定义参数优先级更高
         参数会根据平台配置进行限制
@@ -140,7 +140,7 @@ class ImageProcessService:
         expires: int = 3600,
     ) -> str:
         """
-        获取处理后的图片访问 URL
+        获取处理后的图片访问 URL / Get processed image URL.
 
         根据存储驱动自动选择：
         - OSS: 使用 x-oss-process 参数
@@ -176,7 +176,7 @@ class ImageProcessService:
         params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         """
-        获取处理后的图片数据
+        获取处理后的图片数据 / Get processed image data.
 
         用于流式响应场景，直接返回处理后的字节数据
 
@@ -202,7 +202,7 @@ class ImageProcessService:
         expires: int = 3600,
     ) -> str | tuple[bytes, str]:
         """
-        获取处理后的图片响应
+        获取处理后的图片响应 / Get processed image response.
 
         根据存储驱动自动选择最优处理方式:
         - 云存储原生处理: 返回重定向 URL (str)
@@ -260,7 +260,7 @@ class ImageProcessService:
         params: ImageProcessParams,
     ) -> dict[str, Any]:
         """
-        获取图片处理结果信息
+        获取图片处理结果信息 / Get image process result info.
 
         返回处理方式和 URL 等信息
 
@@ -296,7 +296,7 @@ class ImageProcessService:
         expires: int,
     ) -> str:
         """
-        获取原始图片 URL
+        获取原始图片 URL / Get original image URL.
         """
         storage_config = await self._resolve_storage_config(attachment)
         driver = storage_manager.get_driver(storage_config)
@@ -308,7 +308,7 @@ class ImageProcessService:
         attachment: Attachment,
     ) -> StorageConfig:
         """
-        解析附件所属的存储配置（委托给统一 StorageConfigResolver）
+        解析附件所属的存储配置（委托给统一 StorageConfigResolver）/ Resolve storage config for attachment (via StorageConfigResolver).
         """
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
@@ -320,7 +320,7 @@ class ImageProcessService:
 
     @staticmethod
     def _build_direct_cdn_url(attachment: Attachment) -> str | None:
-        """Build direct CDN URL from attachment's own stored base_url + path.
+        """从附件 base_url + path 构建直连 CDN URL / Build direct CDN URL from attachment's own stored base_url + path.
 
         Works for public cloud files regardless of current storage config.
         Returns None for local driver, private files, or missing base_url.
@@ -339,7 +339,7 @@ class ImageProcessService:
 
     async def _get_image_cache_path(self):
         """
-        获取图片缓存路径（本地存储硬编码）
+        获取图片缓存路径（本地存储硬编码）/ Get image cache path (local storage).
         """
         from app.storage import LOCAL_IMAGE_CACHE_ROOT
         return LOCAL_IMAGE_CACHE_ROOT

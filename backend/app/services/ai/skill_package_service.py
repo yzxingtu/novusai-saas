@@ -20,7 +20,7 @@ logger = LogManager.get_logger("ai")
 
 class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     """
-    企业端技能包 Service
+    企业端技能包 Service / Tenant skill package service.
 
     提供技能包的创建、更新、删除等业务逻辑
     """
@@ -29,7 +29,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     repository_class = SkillPackageRepository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性"""
+        """创建前校验：名称唯一性 / Before create: name uniqueness."""
         await super()._before_create(data)
 
         name = data.get("name")
@@ -42,7 +42,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         data["bind_mode"] = SkillBindModeEnum.MANUAL.value
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性、系统技能包保护"""
+        """更新前校验：名称唯一性、系统技能包保护 / Before update: name uniqueness, system package protection."""
         await super()._before_update(id, data)
 
         pkg = await self.repo.get_by_id(id)
@@ -64,7 +64,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能包不可删除、企业自有包保护"""
+        """删除前校验：系统技能包不可删除、企业自有包保护 / Before delete: system package protected, tenant-owned only."""
         await super()._before_delete(id)
 
         pkg = await self.repo.get_by_id(id)
@@ -86,7 +86,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         logger.info("Cascade deleted AgentSkillBindings for package %d", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """升级删除层级，级联升级技能"""
+        """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""
         instance = await self.repo.escalate_delete_by_id(id)
         if instance is None:
             return None
@@ -95,11 +95,11 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         return instance
 
     async def _after_restore(self, instance: SkillPackage) -> None:
-        """恢复后：级联恢复技能包下的技能"""
+        """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""
         await self.repo.cascade_restore_skills(instance.id)
 
     async def _before_permanent_delete(self, id: int) -> None:
-        """永久删除前：清理磁盘存储文件 + 残留绑定"""
+        """永久删除前：清理磁盘存储文件 + 残留绑定 / Before permanent delete: cleanup storage and bindings."""
         await super()._before_permanent_delete(id)
         from app.ai.skills.packaging import cleanup_skill_storage
         cleanup_skill_storage(id)
@@ -108,30 +108,29 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         await self.repo.delete_skill_bindings(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
-        """获取技能包详情及其技能数量"""
+        """获取技能包详情及其技能数量 / Get package detail with skill count."""
         return await self.repo.get_with_skill_count(package_id)
 
     async def get_skill_counts_batch(self, package_ids: list[int]) -> dict[int, int]:
-        """批量获取技能包的技能数量"""
+        """批量获取技能包的技能数量 / Batch get skill counts per package."""
         return await self.repo.get_skill_counts_batch(package_ids)
 
     async def get_active_packages(self) -> list[SkillPackage]:
-        """获取当前企业所有已激活的技能包"""
+        """获取当前企业所有已激活的技能包 / Get all active packages for current tenant."""
         return await self.repo.get_active_packages()
 
 
 class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepository]):
     """
-    管理端技能包 Service
-
-    无企业隔离，供平台管理端全局查询和 CRUD 使用
+    管理端技能包 Service / Admin skill package service.
+    无企业隔离，供平台管理端全局查询和 CRUD 使用 / No tenant isolation, for admin CRUD.
     """
 
     model = SkillPackage
     repository_class = AdminSkillPackageRepository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性"""
+        """创建前校验：名称唯一性 / Before create: name uniqueness."""
         await super()._before_create(data)
 
         data["tenant_id"] = None
@@ -148,7 +147,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：系统技能包关键属性保护"""
+        """更新前校验：系统技能包关键属性保护 / Before update: system package key fields protected."""
         await super()._before_update(id, data)
 
         pkg = await self.repo.get_by_id(id)
@@ -178,7 +177,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             )
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能包不可删除，级联软删除技能"""
+        """删除前校验：系统技能包不可删除，级联软删除技能 / Before delete: system protected, cascade soft-delete skills."""
         await super()._before_delete(id)
 
         pkg = await self.repo.get_by_id(id)
@@ -194,7 +193,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         logger.info("Cascade deleted AgentSkillBindings for package %d", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """升级删除层级，级联升级技能"""
+        """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""
         instance = await self.repo.escalate_delete_by_id(id)
         if instance is None:
             return None
@@ -203,11 +202,11 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         return instance
 
     async def _after_restore(self, instance: SkillPackage) -> None:
-        """恢复后：级联恢复技能包下的技能"""
+        """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""
         await self.repo.cascade_restore_skills(instance.id)
 
     async def _before_permanent_delete(self, id: int) -> None:
-        """永久删除前：清理磁盘存储文件 + 残留绑定"""
+        """永久删除前：清理磁盘存储文件 + 残留绑定 / Before permanent delete: cleanup storage and bindings."""
         await super()._before_permanent_delete(id)
         from app.ai.skills.packaging import cleanup_skill_storage
         cleanup_skill_storage(id)
@@ -215,11 +214,11 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         await self.repo.delete_skill_bindings(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
-        """获取技能包详情及其技能数量"""
+        """获取技能包详情及其技能数量 / Get package detail with skill count."""
         return await self.repo.get_with_skill_count(package_id)
 
     async def get_skill_counts_batch(self, package_ids: list[int]) -> dict[int, int]:
-        """批量获取技能包的技能数量"""
+        """批量获取技能包的技能数量 / Batch get skill counts per package."""
         return await self.repo.get_skill_counts_batch(package_ids)
 
 
@@ -233,7 +232,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         page_size: int = 20,
         **filters: Any,
     ) -> SelectResponse:
-        """管理端下拉选项，自动排除系统内部技能包"""
+        """管理端下拉选项，自动排除系统内部技能包 / Admin select options, exclude internal system packages."""
         filters.setdefault("is_system", False)
         return await super().get_select_options(
             search=search, limit=limit, tree=tree,

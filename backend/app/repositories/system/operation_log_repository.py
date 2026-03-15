@@ -18,7 +18,7 @@ from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 
 class OperationLogRepository(BaseRepository[OperationLog]):
     """
-    操作日志仓储
+    操作日志仓储 / Operation log repository.
 
     提供操作日志的数据访问方法，支持：
     - admin 作用域：平台管理员可查看所有日志
@@ -45,7 +45,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
 
     async def create_log(self, data: dict[str, Any]) -> OperationLog:
         """
-        创建操作日志记录
+        创建操作日志记录 / Create operation log record.
 
         Args:
             data: 日志数据字典
@@ -61,7 +61,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         spec: QuerySpec,
     ) -> tuple[list[OperationLog], int]:
         """
-        查询企业操作日志
+        查询企业操作日志 / Query tenant operation logs.
 
         自动添加企业隔离过滤
 
@@ -87,7 +87,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         soft: bool = True,
     ) -> int:
         """
-        批量删除日志
+        批量删除日志 / Batch delete logs.
 
         Args:
             ids: 日志 ID 列表
@@ -105,7 +105,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         hard_delete: bool = False,
     ) -> int:
         """
-        删除指定日期之前的日志
+        删除指定日期之前的日志 / Delete logs before given date.
 
         用于日志清理任务
 
@@ -146,7 +146,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按模块统计日志数量
+        按模块统计日志数量 / Count logs by module.
 
         Args:
             tenant_id: 企业 ID（可选）
@@ -186,7 +186,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """
-        按操作类型统计日志数量
+        按操作类型统计日志数量 / Count logs by action.
 
         Args:
             tenant_id: 企业 ID（可选）
@@ -226,7 +226,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         subordinate_user_ids: list[int] | None = None,
     ) -> tuple[list[OperationLog], int]:
         """
-        平台端带层级权限的日志查询
+        平台端带层级权限的日志查询 / Admin logs query with hierarchy.
 
         Args:
             spec: 查询规格
@@ -267,7 +267,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         include_tenant_users: bool = True,
     ) -> tuple[list[OperationLog], int]:
         """
-        企业端带层级权限的日志查询
+        企业端带层级权限的日志查询 / Tenant logs query with hierarchy.
 
         Args:
             tenant_id: 企业 ID

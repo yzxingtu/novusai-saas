@@ -1,6 +1,5 @@
 """
-Query Rewriter
-查询改写器
+Query Rewriter / 查询改写器
 
 Improves retrieval recall: rewrites user questions into multi-angle queries or hypothetical answers.
 Disabled by default, serves as optional enhancement capability.
@@ -46,8 +45,7 @@ class NoneRewriter(BaseRewriter):
 
 class MultiQueryRewriter(BaseRewriter):
     """
-    Multi-Query Rewriter
-    多查询改写器
+    Multi-Query Rewriter / 多查询改写器
 
     Calls LLM to rewrite user question into 3 queries from different angles,
     improving retrieval recall.
@@ -75,8 +73,7 @@ class MultiQueryRewriter(BaseRewriter):
 
     async def rewrite(self, query: str) -> list[str]:
         """
-        Generate 3 rewritten queries from different angles
-        生成 3 个不同角度的改写查询
+        Generate 3 rewritten queries from different angles. / 生成 3 个不同角度的改写查询。
 
         Returned list always includes the original query.
         返回列表始终包含原始查询。
@@ -136,8 +133,7 @@ class MultiQueryRewriter(BaseRewriter):
 
 class HyDERewriter(BaseRewriter):
     """
-    HyDE (Hypothetical Document Embedding) Rewriter
-    HyDE（假设性文档嵌入）改写器
+    HyDE（假设性文档嵌入）改写器 / HyDE (Hypothetical Document Embedding) Rewriter.
 
     Has LLM generate a hypothetical answer, then uses it for retrieval,
     since hypothetical answers are typically closer to target document semantics
@@ -161,8 +157,7 @@ class HyDERewriter(BaseRewriter):
 
     async def rewrite(self, query: str) -> list[str]:
         """
-        Generate hypothetical answer as retrieval query
-        生成假设性回答作为检索查询
+        生成假设性回答作为检索查询 / Generate hypothetical answer as retrieval query.
 
         Returns [original query, hypothetical answer].
         返回 [原始查询, 假设性回答]。

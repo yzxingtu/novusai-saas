@@ -1,8 +1,6 @@
-"""
-AuthService 单元测试
+"""AuthService 单元测试 / Test.
 
-覆盖：管理员登录、企业管理员登录、Token 刷新、密码修改、密码策略、账户锁定。
-"""
+覆盖：管理员登录、企业管理员登录、Token 刷新、密码修改、密码策略、账户锁定。"""
 
 from __future__ import annotations
 
@@ -59,7 +57,7 @@ def _make_tenant(**overrides):
 # ── Tests ──
 
 class TestPasswordPolicy:
-    """密码策略验证测试"""
+    """密码策略验证测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_password_too_short(self, mock_db):
@@ -139,7 +137,7 @@ class TestPasswordPolicy:
 
 
 class TestAdminLogin:
-    """管理员登录测试"""
+    """管理员登录测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_login_user_not_found(self, mock_db):
@@ -228,7 +226,7 @@ class TestAdminLogin:
 
 
 class TestChangePassword:
-    """密码修改测试"""
+    """密码修改测试 / Test."""
 
     @pytest.mark.asyncio
     async def test_change_password_wrong_old(self, mock_db):
@@ -291,7 +289,7 @@ class TestRealPasswordHash:
 
 
 class TestRealTokenGeneration:
-    """使用真实 Token 生成函数，验证 JWT 格式"""
+    """使用真实 Token 生成函数，验证 JWT 格式 / Token ， JWT"""
 
     def test_access_token_is_jwt(self):
         from app.core.security import TOKEN_SCOPE_ADMIN, create_access_token

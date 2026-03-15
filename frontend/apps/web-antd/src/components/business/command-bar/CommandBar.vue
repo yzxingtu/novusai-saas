@@ -23,7 +23,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Skeleton, Spin, Tooltip } from 'ant-design-vue';
+import { Input, Skeleton, Spin, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
@@ -88,14 +88,15 @@ const {
   menus: menusRef,
 });
 
-const inputRef = ref<HTMLInputElement | null>(null);
+const inputRef = ref<{ resizableTextArea?: { textArea: HTMLTextAreaElement } } | null>(null);
 const selectedIndex = ref(0);
 
 watch(open, async (isOpen) => {
   if (isOpen) {
     selectedIndex.value = 0;
     await nextTick();
-    inputRef.value?.focus();
+    const el = inputRef.value?.resizableTextArea?.textArea;
+    el?.focus();
   }
 });
 
@@ -107,9 +108,8 @@ watch(menuSearchResults, () => {
   selectedIndex.value = 0;
 });
 
-function handleInput(e: Event) {
-  const target = e.target as HTMLInputElement;
-  onInputChange(target.value);
+function handleInputChange(value: string) {
+  onInputChange(value);
 }
 
 const hasMenuResults = computed(() => menuSearchResults.value.length > 0);
@@ -258,15 +258,19 @@ defineExpose({
               <IconifyIcon icon="lucide:x" class="size-3" />
             </button>
 
-            <input
-              ref="inputRef"
-              :value="inputText"
-              :placeholder="$t('common.commandBar.placeholder')"
-              class="min-w-0 flex-1 border-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-              type="text"
-              @input="handleInput"
-              @keydown="handleKeydown"
-            />
+            <Tooltip
+              :title="`${$t('common.globalAiChat.inputPlaceholder')}，${$t('common.globalAiChat.shiftEnterHint')}`"
+            >
+              <Input.TextArea
+                ref="inputRef"
+                :value="inputText"
+                :placeholder="$t('common.globalAiChat.inputPlaceholder')"
+                :auto-size="{ minRows: 1, maxRows: 4 }"
+                class="min-w-0 flex-1 !border-0 !bg-transparent !py-1.5 !text-sm !text-foreground !outline-none !ring-0 !shadow-none placeholder:!text-muted-foreground/60 resize-none overflow-y-auto"
+                @update:value="handleInputChange"
+                @keydown="handleKeydown"
+              />
+            </Tooltip>
 
             <div class="flex shrink-0 items-center gap-2">
               <kbd

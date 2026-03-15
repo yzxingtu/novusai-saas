@@ -1,6 +1,5 @@
 """
-Toolkit Tool Executor
-Toolkit 工具执行器
+Toolkit Tool Executor. / Toolkit 工具执行器。
 
 Dynamically loads Toolkit Python source code, instantiates the Tools class, injects Valves configuration,
 calls the specified method and returns the result. Supports both async and sync methods.
@@ -115,8 +114,7 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset({
 
 
 def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
-    """Return the set of blocked modules based on security level
-    根据安全等级返回被阻止的模块集合"""
+    """Return the set of blocked modules based on security level. / 根据安全等级返回被阻止的模块集合。"""
     if security_level is None:
         security_level = "normal"
     return _SECURITY_LEVEL_MAP.get(security_level, _BLOCKED_MODULES_NORMAL)
@@ -124,8 +122,7 @@ def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
 
 class ToolkitExecutor(BaseToolExecutor):
     """
-    Toolkit tool executor.
-    Toolkit 工具执行器。
+    Toolkit tool executor. / Toolkit 工具执行器。
 
     Reads from ToolDefinition.config:
     从 ToolDefinition.config 中读取：
@@ -354,8 +351,7 @@ class ToolkitExecutor(BaseToolExecutor):
         valves_config: dict[str, Any],
     ) -> str:
         """
-        Execute Toolkit code in the main process (for dev environment).
-        在主进程中执行 Toolkit 代码（开发环境用）。
+        在主进程中执行 Toolkit 代码（开发环境用）/ Execute Toolkit code in the main process (for dev environment).
 
         Keeps the original importlib loading logic, no process isolation.
         保留原有的 importlib 加载逻辑，不做进程隔离。
@@ -506,8 +502,7 @@ def _get_call_name(node: ast.Call) -> str | None:
 
 def _load_toolkit_module(source: str) -> types.ModuleType:
     """
-    Dynamically load Toolkit Python source code as a module.
-    动态加载 Toolkit Python 源码为模块。
+    动态加载 Toolkit Python 源码为模块 / Dynamically load Toolkit Python source code as a module.
 
     Uses content hash for caching to avoid repeated compilation.
     使用 content hash 做缓存，避免重复编译。
@@ -576,8 +571,7 @@ def _inject_valves(
     valves_config: dict[str, Any],
 ) -> str | None:
     """
-    Inject Valves configuration into the Tools instance.
-    向 Tools 实例注入 Valves 配置。
+    向 Tools 实例注入 Valves 配置 / Inject Valves configuration into the Tools instance.
 
     Finds the Valves class in the module, creates an instance with valves_config,
     and assigns it to tools_instance.valves.
@@ -629,8 +623,7 @@ def _to_string(value: Any) -> str:
 
 
 def clear_toolkit_cache() -> None:
-    """Clear Toolkit module cache (used during testing or hot updates)
-    清空 Toolkit 模块缓存（测试或热更新时使用）"""
+    """清空 Toolkit 模块缓存（测试或热更新时使用）/ Clear Toolkit module cache (used during testing or hot updates)."""
     for mod in _MODULE_CACHE.values():
         mod_name = getattr(mod, "__name__", None)
         if mod_name and mod_name in sys.modules:

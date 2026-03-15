@@ -1,12 +1,10 @@
-"""
-Alibaba Cloud OSS Storage Plugin
-"""
+"""Alibaba Cloud OSS Storage Plugin / 插件"""
 
 from app.plugins.base import PluginBase
 
 
 class OssStoragePlugin(PluginBase):
-    """Alibaba Cloud OSS storage driver plugin"""
+    """Alibaba Cloud OSS storage driver plugin / 插件"""
 
     async def on_install(self, ctx) -> None:
         ctx.get_logger().info("Aliyun OSS storage plugin installed")

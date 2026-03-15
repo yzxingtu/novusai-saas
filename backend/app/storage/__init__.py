@@ -1,6 +1,5 @@
 """
-Storage Module Entry Point
-存储模块入口
+Storage Module Entry Point / 存储模块入口
 """
 
 from pathlib import Path

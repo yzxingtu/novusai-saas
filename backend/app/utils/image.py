@@ -1,6 +1,5 @@
 """
-Image Processing Utilities
-图片处理工具
+图片处理工具 / Image Processing Utilities.
 
 Provides local image processing capabilities (Pillow wrapper).
 Only used for LocalStorageDriver and storage drivers without native image processing.

@@ -18,7 +18,7 @@ from app.enums.agent import ConversationStatusEnum
 
 class AgentConversation(TenantModel):
     """
-    智能体对话模型
+    智能体对话模型 / Agent conversation model.
 
     存储对话的元信息（标题、状态、消耗统计）和消息内容
     初版消息以 JSON 数组存储，后续 M14-T18 将拆分为独立 ConversationMessage 模型

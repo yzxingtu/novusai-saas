@@ -1,6 +1,5 @@
 """
-AI Response Cache Service
-AI 响应缓存服务
+AI Response Cache Service / AI 响应缓存服务
 
 Redis-based AI response caching to improve speed and reduce costs.
 Only caches non-streaming requests.
@@ -209,8 +208,7 @@ class AIResponseCache:
     @staticmethod
     async def get_hit_rate() -> dict:
         """
-        Get cache hit rate statistics.
-        获取缓存命中率统计。
+        Get cache hit rate statistics. / 获取缓存命中率统计。
 
         Returns:
             {

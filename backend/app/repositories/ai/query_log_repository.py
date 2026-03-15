@@ -13,7 +13,7 @@ from app.models.ai.query_log import AIQueryLog
 
 class AIQueryLogRepository(TenantRepository[AIQueryLog]):
     """
-    AI 数据查询审计日志 Repository
+    AI 数据查询审计日志 Repository / AI Query Log Repository.
 
     继承 TenantRepository 自动注入 tenant_id 过滤
     """
@@ -22,7 +22,7 @@ class AIQueryLogRepository(TenantRepository[AIQueryLog]):
 
     async def get_stats(self) -> dict:
         """
-        获取查询日志统计信息
+        获取查询日志统计信息 / Get query log statistics.
 
         Returns:
             统计数据字典

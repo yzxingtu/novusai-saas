@@ -1,8 +1,6 @@
-"""
-API 测试基础工具模块
+"""API 测试基础工具模块 / API.
 
-提供 HTTP 客户端封装、断言辅助函数、测试报告等功能
-"""
+提供 HTTP 客户端封装、断言辅助函数、测试报告等功能"""
 import json
 import sys
 import time
@@ -16,7 +14,7 @@ from tests.api.config import config
 
 
 class TestStatus(Enum):
-    """测试状态"""
+    """测试状态 / Test."""
     PASSED = "✅ PASSED"
     FAILED = "❌ FAILED"
     SKIPPED = "⏭️ SKIPPED"
@@ -24,7 +22,7 @@ class TestStatus(Enum):
 
 @dataclass
 class TestResult:
-    """测试结果"""
+    """测试结果 / Test."""
     name: str
     status: TestStatus
     message: str = ""
@@ -35,7 +33,7 @@ class TestResult:
 
 @dataclass
 class TestReport:
-    """测试报告"""
+    """测试报告 / Test."""
     module: str
     results: list[TestResult] = field(default_factory=list)
     start_time: float = 0.0
@@ -65,7 +63,7 @@ class TestReport:
         self.results.append(result)
 
     def print_summary(self) -> None:
-        """打印测试报告摘要"""
+        """打印测试报告摘要 / Test."""
         print("\n" + "=" * 70)
         print(f"📋 测试模块: {self.module}")
         print("=" * 70)
@@ -87,7 +85,7 @@ class TestReport:
 
 
 class APIClient:
-    """API 测试客户端"""
+    """API 测试客户端 / API."""
 
     def __init__(self, base_url: str = None, timeout: int = None):
         self.base_url = base_url or config.BASE_URL
@@ -96,7 +94,7 @@ class APIClient:
         self.client = httpx.Client(timeout=self.timeout)
 
     def _get_headers(self, extra_headers: dict = None) -> dict:
-        """获取请求头"""
+        """获取请求头 / Get/return."""
         headers = {
             "Content-Type": "application/json",
             "X-Language": config.LANGUAGE,
@@ -116,7 +114,7 @@ class APIClient:
         headers: dict = None,
         form_data: dict = None,
     ) -> httpx.Response:
-        """发送 HTTP 请求"""
+        """发送 HTTP 请求 / HTTP"""
         url = f"{self.base_url}{path}"
         req_headers = self._get_headers(headers)
 
@@ -148,20 +146,20 @@ class APIClient:
         return self.request("DELETE", path, **kwargs)
 
     def set_token(self, token: str) -> None:
-        """设置认证 Token"""
+        """设置认证 Token / Token"""
         self.token = token
 
     def clear_token(self) -> None:
-        """清除认证 Token"""
+        """清除认证 Token / Token"""
         self.token = None
 
     def close(self) -> None:
-        """关闭客户端"""
+        """关闭客户端 / Description."""
         self.client.close()
 
 
 class BaseAPITest:
-    """API 测试基类"""
+    """API 测试基类 / API."""
 
     module_name: str = "未命名模块"
 
@@ -171,11 +169,11 @@ class BaseAPITest:
         self._test_data: dict[str, Any] = {}  # 存储测试过程中的数据
 
     def setup(self) -> None:
-        """测试前置准备（子类可重写）"""
+        """测试前置准备（子类可重写） / Test."""
         pass
 
     def teardown(self) -> None:
-        """测试后置清理（子类可重写）"""
+        """测试后置清理（子类可重写） / Test."""
         pass
 
     def run_test(
@@ -184,7 +182,7 @@ class BaseAPITest:
         test_func: callable,
         skip_reason: str = None,
     ) -> TestResult:
-        """运行单个测试"""
+        """运行单个测试 / Test."""
         if skip_reason:
             result = TestResult(
                 name=name,
@@ -224,7 +222,7 @@ class BaseAPITest:
         return result
 
     def run_all(self) -> TestReport:
-        """运行所有测试"""
+        """运行所有测试 / Test."""
         self.report.start_time = time.time()
 
         try:
@@ -238,14 +236,14 @@ class BaseAPITest:
         return self.report
 
     def _run_tests(self) -> None:
-        """运行测试（子类必须实现）"""
+        """运行测试（子类必须实现） / Test."""
         raise NotImplementedError("子类必须实现 _run_tests 方法")
 
 
 # ========== 断言辅助函数 ==========
 
 def assert_status(response: httpx.Response, expected: int, msg: str = None) -> None:
-    """断言 HTTP 状态码"""
+    """断言 HTTP 状态码 / HTTP"""
     actual = response.status_code
     if actual != expected:
         try:
@@ -257,7 +255,7 @@ def assert_status(response: httpx.Response, expected: int, msg: str = None) -> N
 
 
 def assert_success(response: httpx.Response, msg: str = None) -> dict:
-    """断言请求成功（状态码 200 且 code=0）"""
+    """断言请求成功（状态码 200 且 code=0） / （ 200 code=0）"""
     assert_status(response, 200, msg)
     data = response.json()
     if data.get("code") != 0:
@@ -270,7 +268,7 @@ def assert_success(response: httpx.Response, msg: str = None) -> dict:
 
 
 def assert_error(response: httpx.Response, expected_status: int = None, msg: str = None) -> dict:
-    """断言请求失败"""
+    """断言请求失败 / Description."""
     if expected_status:
         assert_status(response, expected_status, msg)
     data = response.json()
@@ -280,44 +278,44 @@ def assert_error(response: httpx.Response, expected_status: int = None, msg: str
 
 
 def assert_has_keys(data: dict, keys: list[str], msg: str = None) -> None:
-    """断言字典包含指定的键"""
+    """断言字典包含指定的键 / Description."""
     missing = [k for k in keys if k not in data]
     if missing:
         raise AssertionError(f"{msg or '缺少必要字段'}: {missing}")
 
 
 def assert_list_not_empty(data: list, msg: str = None) -> None:
-    """断言列表不为空"""
+    """断言列表不为空 / Description."""
     if not data:
         raise AssertionError(msg or "列表为空")
 
 
 def assert_equals(actual: Any, expected: Any, msg: str = None) -> None:
-    """断言相等"""
+    """断言相等 / Description."""
     if actual != expected:
         raise AssertionError(f"{msg or '值不相等'}: 期望 {expected}，实际 {actual}")
 
 
 def assert_contains(container: Any, item: Any, msg: str = None) -> None:
-    """断言包含"""
+    """断言包含 / Description."""
     if item not in container:
         raise AssertionError(f"{msg or '不包含指定项'}: {item}")
 
 
 def assert_true(condition: bool, msg: str = None) -> None:
-    """断言为真"""
+    """断言为真 / Description."""
     if not condition:
         raise AssertionError(msg or "条件为假")
 
 
 def assert_false(condition: bool, msg: str = None) -> None:
-    """断言为假"""
+    """断言为假 / Description."""
     if condition:
         raise AssertionError(msg or "条件为真")
 
 
 def print_response(response: httpx.Response, title: str = "Response") -> None:
-    """打印响应内容（调试用）"""
+    """打印响应内容（调试用） / （ ）"""
     print(f"\n{'='*50}")
     print(f"{title}")
     print(f"Status: {response.status_code}")

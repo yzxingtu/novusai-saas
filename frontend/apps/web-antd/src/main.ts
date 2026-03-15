@@ -6,6 +6,7 @@ import { sanitizePersistedTabbarStorage } from './utils/tabbar-storage';
 
 /**
  * 应用初始化完成之后再进行页面加载渲染
+ * Defer page load/render until app init completes
  */
 async function initApplication() {
   // name用于指定项目唯一标识 / name: project unique ID for preferences, storage key prefix, data isolation

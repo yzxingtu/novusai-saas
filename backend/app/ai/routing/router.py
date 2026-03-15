@@ -1,6 +1,5 @@
 """
-ModelRouter — AI Multi-Model Routing Engine
-ModelRouter — AI 多模型路由引擎
+ModelRouter — AI Multi-Model Routing Engine / AI 多模型路由引擎
 
 Routing priority (high to low) / 路由优先级（从高到低）：
 1. routing_config.enable_routing=False → Directly return agent's original provider+model (backward compatible)
@@ -82,8 +81,7 @@ class RouteResult:
 
 class ModelRouter:
     """
-    AI Multi-Model Routing Engine
-    AI 多模型路由引擎
+    AI Multi-Model Routing Engine / AI 多模型路由引擎。
 
     Selects the most suitable AI model based on request characteristics (complexity, attachments, tools, token count).
     Automatically falls back to agent.model_id on any exception or if no model is found, without raising errors.
@@ -181,6 +179,18 @@ class ModelRouter:
             if vision_result:
                 return vision_result
 
+        # ── 2b. Audio/Video attachments → Requires audio/video capability ──
+        # ── 2b. 音频/视频附件 → 需要 audio/video 能力 ──
+        has_audio, has_video = self._detect_audio_video_attachments(
+            getattr(request, "attachments", None), messages,
+        )
+        if has_audio or has_video:
+            audio_video_result = await self._route_for_audio_video(
+                routing_config, agent, agent_provider_id, model_repo, has_audio, has_video
+            )
+            if audio_video_result:
+                return audio_video_result
+
         # ── 3. Long context → Requires large context_window ──
         # ── 3. 长上下文 → 需要大 context_window ──
         long_ctx_threshold: int = routing_config.get(
@@ -195,7 +205,9 @@ class ModelRouter:
 
         # ── 4. ComplexityClassifier → tier ──
         complexity = self._classifier.classify(
-            messages, tools, has_attachments=has_attachments or has_image_attachments
+            messages,
+            tools,
+            has_attachments=has_attachments or has_image_attachments or has_audio or has_video,
         )
         target_tiers = _TIER_CANDIDATES.get(complexity.value, [])
 
@@ -247,8 +259,7 @@ class ModelRouter:
         agent_provider_id: int | None,
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
-        """Image routing: prioritize explicitly configured vision_model_id
-        图片路由：优先显式配置的 vision_model_id"""
+        """Image routing: prioritize explicitly configured vision_model_id. / 图片路由：优先显式配置的 vision_model_id。"""
         _ = agent
 
         vision_model_id: int | None = routing_config.get("vision_model_id")
@@ -297,6 +308,90 @@ class ModelRouter:
 
         return None
 
+    async def _route_for_audio_video(
+        self,
+        routing_config: dict,
+        agent: Agent,
+        agent_provider_id: int | None,
+        model_repo: AIModelRepository,
+        has_audio: bool,
+        has_video: bool,
+    ) -> RouteResult | None:
+        """
+        Audio/Video routing: prioritize audio_model_id / video_model_id, else find by tier.
+        音频/视频路由：优先 audio_model_id / video_model_id，否则按 tier 查找。
+        """
+        _ = agent
+
+        # Prefer explicitly configured model for audio or video
+        # 优先显式配置的音频/视频模型
+        audio_model_id: int | None = routing_config.get("audio_model_id")
+        video_model_id: int | None = routing_config.get("video_model_id")
+        ids_to_try: list[int] = []
+        if has_video and video_model_id:
+            ids_to_try.append(video_model_id)
+        if has_audio and audio_model_id and audio_model_id not in ids_to_try:
+            ids_to_try.append(audio_model_id)
+        for model_id_to_try in ids_to_try:
+            model = await model_repo.get_active_with_provider(model_id_to_try)
+            if model and await self._is_provider_healthy(model.provider_id):
+                supports_audio = getattr(model, "supports_audio", False)
+                supports_video = getattr(model, "supports_video", False)
+                if (not has_audio or supports_audio) and (not has_video or supports_video):
+                    # reason must contain "audio"/"video" so engine keeps both attachment types when both present
+                    # reason 需包含 "audio"/"video" 以便引擎在同时存在时保留两类附件
+                    parts = []
+                    if has_audio and supports_audio:
+                        parts.append("audio")
+                    if has_video and supports_video:
+                        parts.append("video")
+                    reason = (":".join(parts) + ":explicit_config") if parts else "audio:explicit_config"
+                    return RouteResult(
+                        provider_code=model.provider.code,
+                        model_code=model.code,
+                        model_id=model.id,
+                        tier=model.tier,
+                        reason=reason,
+                        is_overridden=True,
+                    )
+
+        # Fallback: find by tier (supports_audio or supports_video)
+        # 退而求其次：按 tier 找支持音频/视频的模型
+        fallback_tiers = [
+            ModelTierEnum.STANDARD.value,
+            ModelTierEnum.PREMIUM.value,
+            ModelTierEnum.FAST.value,
+        ]
+        max_tier = routing_config.get("max_tier")
+        if max_tier:
+            fallback_tiers = self._filter_tiers_by_max(fallback_tiers, max_tier)
+
+        for tier in fallback_tiers:
+            model = await model_repo.get_by_tier(
+                tier=tier,
+                preferred_provider_id=agent_provider_id,
+                supports_audio=has_audio,
+                supports_video=has_video,
+            )
+            if model and await self._is_provider_healthy(model.provider_id):
+                # reason must contain "audio"/"video" so engine keeps both when both present
+                parts = []
+                if has_audio:
+                    parts.append("audio")
+                if has_video:
+                    parts.append("video")
+                reason = ":".join(parts) + ":tier_fallback" if parts else "audio:tier_fallback"
+                return RouteResult(
+                    provider_code=model.provider.code,
+                    model_code=model.code,
+                    model_id=model.id,
+                    tier=model.tier,
+                    reason=reason,
+                    is_overridden=True,
+                )
+
+        return None
+
     async def _route_for_long_context(
         self,
         routing_config: dict,
@@ -305,8 +400,7 @@ class ModelRouter:
         estimated_tokens: int,
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
-        """Long context routing: prioritize explicitly configured long_context_model_id
-        长上下文路由：优先显式配置的 long_context_model_id"""
+        """Long context routing: prioritize explicitly configured long_context_model_id. / 长上下文路由：优先显式配置的 long_context_model_id。"""
         _ = agent
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")
@@ -381,8 +475,7 @@ class ModelRouter:
         )
 
     async def _is_provider_healthy(self, provider_id: int | None) -> bool:
-        """Check provider health status (defaults to healthy on failure to avoid false blocking)
-        检查供应商健康状态（失败时默认健康，避免误屏蔽）"""
+        """Check provider health status (defaults to healthy on failure to avoid false blocking). / 检查供应商健康状态（失败时默认健康，避免误屏蔽）。"""
         if not provider_id:
             return True
         try:
@@ -400,8 +493,7 @@ class ModelRouter:
         messages: list[ChatMessage],
     ) -> bool:
         """
-        Detect if request contains image attachments (request-level + message-level)
-        检测请求中是否包含图片附件（request 级 + message 级）
+        检测请求中是否包含图片附件（request 级 + message 级）/ Detect if request contains image attachments (request-level + message-level).
 
         Args:
             request_attachments: ExecutionRequest.attachments
@@ -428,10 +520,42 @@ class ModelRouter:
         return False
 
     @staticmethod
+    def _detect_audio_video_attachments(
+        request_attachments: list[dict[str, Any]] | None,
+        messages: list[ChatMessage],
+    ) -> tuple[bool, bool]:
+        """
+        检测请求中是否包含音频/视频附件（request 级 + message 级）。
+        Detect if request contains audio/video attachments (request-level + message-level).
+
+        Returns:
+            (has_audio, has_video)
+        """
+        has_audio = False
+        has_video = False
+
+        def check_att(att: dict[str, Any]) -> None:
+            nonlocal has_audio, has_video
+            t = att.get("type") if isinstance(att, dict) else None
+            if t == "audio":
+                has_audio = True
+            elif t == "video":
+                has_video = True
+
+        if request_attachments:
+            for att in request_attachments:
+                check_att(att)
+        for msg in messages:
+            if msg.attachments:
+                for att in msg.attachments:
+                    check_att(att)
+
+        return has_audio, has_video
+
+    @staticmethod
     def _filter_tiers_by_max(tiers: list[str], max_tier: str) -> list[str]:
         """
-        Filter by max_tier, keeping only tiers not exceeding max_tier level
-        按 max_tier 过滤，只保留不超过 max_tier 级别的 tier
+        按 max_tier 过滤，只保留不超过 max_tier 级别的 tier / Filter by max_tier, keeping only tiers not exceeding max_tier level.
 
         Level order: fast < standard < premium
         级别顺序：fast < standard < premium

@@ -13,7 +13,7 @@ from app.core.base_schema import BaseSchema
 
 
 class EmailLogResponse(BaseSchema):
-    """邮件日志响应"""
+    """邮件日志响应 / Email log response schema."""
 
     id: int = Field(..., description="ID")
     to_address: str = Field(..., description="收件人")
@@ -29,9 +29,9 @@ class EmailLogResponse(BaseSchema):
 
 
 class EmailSendRequest(BaseSchema):
-    """手动发送邮件请求"""
+    """手动发送邮件请求 / Manual send email request."""
 
-    to: list[str] = Field(..., min_length=1, description="收件人列表")
+    to: list[str] = Field(..., min_length=1, description="收件人列表 / Recipient list")
     subject: str = Field(..., min_length=1, max_length=500, description="邮件主题")
     html_body: str | None = Field(None, description="HTML 正文")
     text_body: str | None = Field(None, description="纯文本正文")
@@ -40,9 +40,9 @@ class EmailSendRequest(BaseSchema):
 
 
 class EmailTestRequest(BaseSchema):
-    """测试邮件请求"""
+    """测试邮件请求 / Test email request."""
 
-    to: str = Field(..., description="测试收件人邮箱")
+    to: str = Field(..., description="测试收件人邮箱 / Test recipient email")
 
 
 __all__ = [

@@ -20,8 +20,7 @@ from app.enums.common import DeleteLevelEnum
 
 def utc_now() -> datetime:
     """
-    返回当前 UTC 时间（无时区的 datetime）
-    Return current UTC time as a naive datetime.
+    返回当前 UTC 时间（无时区的 datetime）。 / Return current UTC time as a naive datetime.
 
     替代已废弃的 ``datetime.utcnow()``，兼容项目中使用的 ``TIMESTAMP WITHOUT TIME ZONE`` 列。
     Replacement for deprecated ``datetime.utcnow()`` that is compatible

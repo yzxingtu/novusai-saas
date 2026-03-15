@@ -34,8 +34,7 @@ _MODEL_REGISTRY: dict[str, type] | None = None
 
 def _get_model_registry() -> dict[str, type]:
     """
-    构建 Model 类名 → ORM 类的映射表（惰性构建，首次调用后缓存）。
-    Build Model class name → ORM class mapping (lazy, cached after first call).
+    构建 Model 类名 → ORM 类的映射表（惰性构建，首次调用后缓存）/ Build Model class name → ORM class mapping (lazy, cached after first call).
 
     通过遍历 SQLAlchemy Base 的所有已注册 mapper 获取。
     Obtained by iterating all registered mappers of SQLAlchemy Base.
@@ -55,8 +54,7 @@ def _get_model_registry() -> dict[str, type]:
 
 def resolve_model_class(class_name: str) -> type | None:
     """
-    根据类名解析 ORM Model 类。
-    Resolve ORM Model class by class name.
+    根据类名解析 ORM Model 类 / Resolve ORM Model class by class name.
 
     Args:
         class_name: Model 类名（如 "AIModel"） / Model class name (e.g. "AIModel")
@@ -198,8 +196,7 @@ async def _check_block(
     dep: DeletionDep,
 ) -> DependencyInfo | None:
     """
-    BLOCK 策略检查：使用 EXISTS 快速判断，存在依赖时获取数量和摘要。
-    BLOCK strategy check: uses EXISTS for fast detection, fetches count and summary when deps exist.
+    BLOCK 策略检查：使用 EXISTS 快速判断，存在依赖时获取数量和摘要 / BLOCK strategy check: EXISTS + count and summary when deps exist.
 
     Returns:
         DependencyInfo if blocked, None otherwise
@@ -232,8 +229,7 @@ async def _count_deps(
     dep: DeletionDep,
 ) -> DependencyInfo | None:
     """
-    非 BLOCK 策略：统计数量（用于级联操作日志）。
-    Non-BLOCK strategy: count records (for cascade operation logging).
+    非 BLOCK 策略：统计数量（用于级联操作日志）/ Non-BLOCK strategy: count records (for cascade logging).
 
     Returns:
         DependencyInfo if count > 0, None otherwise
@@ -258,8 +254,7 @@ async def _fetch_preview_items(
     label_field: str,
 ) -> list[dict[str, Any]]:
     """
-    获取前 N 条记录摘要用于前端展示。
-    Fetch top N record summaries for frontend display.
+    获取前 N 条记录摘要用于前端展示 / Fetch top N record summaries for frontend display.
 
     Returns:
         [{"id": 1, "label": "deepseek-chat"}, ...]

@@ -44,7 +44,7 @@ interface UserPreferenceState {
   loading: boolean;
   /** 当前端 / Current endpoint side */
   side: EndpointSide | null;
-  /** 全局偏好页面正在实时预览中，阻止个人偏好同步 */
+  /** 全局偏好页面正在实时预览中，阻止个人偏好同步 / Global preference page is live-previewing, block personal sync */
   globalPreviewActive: boolean;
 }
 

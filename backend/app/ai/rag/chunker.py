@@ -1,6 +1,5 @@
 """
-Text Chunker Module
-文本分块器模块
+Text Chunker Module / 文本分块器模块
 
 Supports three strategies: recursive splitting, semantic chunking, and paragraph chunking.
 Unified output as ChunkData list for embedding and storage.
@@ -264,8 +263,7 @@ class RecursiveChunker(BaseChunker):
 
 class ParagraphChunker(BaseChunker):
     """
-    Paragraph Chunker
-    段落分块器
+    Paragraph Chunker / 段落分块器
 
     Splits by natural paragraphs (\n\n), merges small paragraphs,
     recursively splits large ones. Suitable for news, blogs and other
@@ -327,8 +325,7 @@ class ParagraphChunker(BaseChunker):
 
 class SemanticChunker(BaseChunker):
     """
-    Semantic Chunker (advanced strategy)
-    语义分块器（高级策略）
+    Semantic Chunker (advanced strategy) / 语义分块器（高级策略）
 
     Splits by sentences first, then at semantic transition points.
     Since semantic chunking requires extra embedding computation,

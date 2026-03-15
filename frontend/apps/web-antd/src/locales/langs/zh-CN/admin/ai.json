@@ -91,6 +91,8 @@
     "outputPrice": "输出价格 ($/1K)",
     "functionCalling": "函数调用",
     "vision": "视觉能力",
+    "supportsAudio": "支持音频",
+    "supportsVideo": "支持视频",
     "streaming": "流式响应",
     "maxImageCount": "最大图片数量",
     "maxImageSizeMb": "单图最大 (MB)",
