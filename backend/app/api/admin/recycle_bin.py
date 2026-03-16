@@ -315,7 +315,7 @@ async def recycle_bin_summary(
                     "is_tenant": config.get("is_tenant", False),
                 })
         except Exception as e:
-            logger.warning("Failed to count %s: %s", code, e)
+            logger.warning("Failed to count {}: {}", code, e)
 
     return success(data=results)
 
@@ -418,7 +418,7 @@ async def recycle_bin_clear_module(
     await db.commit()
     count = result.rowcount or 0
 
-    logger.info("Admin %s cleared module '%s': %d records permanently deleted", admin.id, module, count)
+    logger.info("Admin {} cleared module '{}': {} records permanently deleted", admin.id, module, count)
     return success(
         message=_("recycle_bin.module_cleared"),
         data={"count": count},

@@ -150,7 +150,7 @@ def verify_license_key(
         # Check plugin name match / 检查插件名匹配
         if payload.get("plugin") != plugin_name:
             logger.warning(
-                "License plugin mismatch: key=%s, expected=%s",
+                "License plugin mismatch: key={}, expected={}",
                 payload.get("plugin"), plugin_name,
             )
             return None
@@ -158,7 +158,7 @@ def verify_license_key(
         return payload
 
     except Exception as exc:
-        logger.warning("License verification failed: %s", exc)
+        logger.warning("License verification failed: {}", exc)
         return None
 
 
@@ -263,7 +263,7 @@ async def activate_license(
     await db.flush()
 
     logger.info(
-        "License activated for plugin %s (buyer=%s, expires=%s)",
+        "License activated for plugin {} (buyer={}, expires={})",
         plugin.name, license_info.get("buyer"), expires_at_dt,
     )
 
@@ -418,7 +418,7 @@ async def create_trial_license(
     db.add(license_record)
     await db.flush()
 
-    logger.info("Trial license created for plugin %d (%d days)", plugin_id, trial_days)
+    logger.info("Trial license created for plugin {} ({} days)", plugin_id, trial_days)
 
 
 async def get_license_status_by_id(
@@ -516,7 +516,7 @@ async def revoke_license(
         ).values(is_valid=False)
     )
     await db.flush()
-    logger.info("All licenses revoked for plugin %d", plugin_id)
+    logger.info("All licenses revoked for plugin {}", plugin_id)
 
 
 async def check_trial_expirations(db: AsyncSession) -> list[dict]:
@@ -569,7 +569,7 @@ async def check_trial_expirations(db: AsyncSession) -> list[dict]:
                         "reason": "trial_expired",
                     })
                 except Exception as exc:
-                    logger.warning("Failed to disable expired plugin %s: %s", plugin_name, exc)
+                    logger.warning("Failed to disable expired plugin {}: {}", plugin_name, exc)
             license_rec.is_valid = False
             await db.flush()
 

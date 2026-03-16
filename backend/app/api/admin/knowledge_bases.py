@@ -134,35 +134,13 @@ class AdminKnowledgeBaseController(GlobalController):
             service = AdminKnowledgeBaseService(db)
             items, total = await service.query_list(spec)
 
+            from app.api.shared._kb_helpers import enrich_model_names
+
             result = []
             for kb in items:
                 item = kb.to_dict()
-                item["embedding_model_name"] = None
-                item["vision_model_name"] = None
-                item["audio_model_name"] = None
-                item["video_model_name"] = None
-                try:
-                    if kb.embedding_model:
-                        item["embedding_model_name"] = kb.embedding_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "vision_model", None):
-                        item["vision_model_name"] = kb.vision_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "audio_model", None):
-                        item["audio_model_name"] = kb.audio_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "video_model", None):
-                        item["video_model_name"] = kb.video_model.name
-                except Exception:
-                    pass
+                enrich_model_names(kb, item)
                 result.append(item)
-
             return success(
                 data=PageResponse.create(
                     items=result,
@@ -205,32 +183,10 @@ class AdminKnowledgeBaseController(GlobalController):
             await db.commit()
             await db.refresh(kb)
 
-            result = kb.to_dict()
-            result["embedding_model_name"] = None
-            result["vision_model_name"] = None
-            result["audio_model_name"] = None
-            result["video_model_name"] = None
-            try:
-                if kb.embedding_model:
-                    result["embedding_model_name"] = kb.embedding_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "vision_model", None):
-                    result["vision_model_name"] = kb.vision_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "audio_model", None):
-                    result["audio_model_name"] = kb.audio_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "video_model", None):
-                    result["video_model_name"] = kb.video_model.name
-            except Exception:
-                pass
+            from app.api.shared._kb_helpers import enrich_model_names
 
+            result = kb.to_dict()
+            enrich_model_names(kb, result)
             return created(data=result, message=_("knowledge_base.created"))
 
         @router.put("/{kb_id}", summary="更新知识库")
@@ -270,32 +226,10 @@ class AdminKnowledgeBaseController(GlobalController):
             await db.commit()
             await db.refresh(kb)
 
-            result = kb.to_dict()
-            result["embedding_model_name"] = None
-            result["vision_model_name"] = None
-            result["audio_model_name"] = None
-            result["video_model_name"] = None
-            try:
-                if kb.embedding_model:
-                    result["embedding_model_name"] = kb.embedding_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "vision_model", None):
-                    result["vision_model_name"] = kb.vision_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "audio_model", None):
-                    result["audio_model_name"] = kb.audio_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "video_model", None):
-                    result["video_model_name"] = kb.video_model.name
-            except Exception:
-                pass
+            from app.api.shared._kb_helpers import enrich_model_names
 
+            result = kb.to_dict()
+            enrich_model_names(kb, result)
             return success(data=result, message=_("knowledge_base.updated"))
 
         @router.get("/selectable", summary="获取可 @ 选择的知识库列表")
@@ -329,6 +263,7 @@ class AdminKnowledgeBaseController(GlobalController):
                     ]),
                 )
                 .order_by(KnowledgeBase.name.asc())
+                .limit(500)
             )
             result = await db.execute(stmt)
             kbs = list(result.scalars().all())
@@ -399,32 +334,10 @@ class AdminKnowledgeBaseController(GlobalController):
             if not kb:
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-            result = kb.to_dict()
-            result["embedding_model_name"] = None
-            result["vision_model_name"] = None
-            result["audio_model_name"] = None
-            result["video_model_name"] = None
-            try:
-                if kb.embedding_model:
-                    result["embedding_model_name"] = kb.embedding_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "vision_model", None):
-                    result["vision_model_name"] = kb.vision_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "audio_model", None):
-                    result["audio_model_name"] = kb.audio_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "video_model", None):
-                    result["video_model_name"] = kb.video_model.name
-            except Exception:
-                pass
+            from app.api.shared._kb_helpers import enrich_model_names
 
+            result = kb.to_dict()
+            enrich_model_names(kb, result)
             # 返回已分配的企业 ID 列表 / Return assigned tenant ID list
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
@@ -1044,7 +957,7 @@ class AdminKnowledgeBaseController(GlobalController):
             db: DbSession,
             kb_id: int,
             admin: ActiveAdmin,
-            file: UploadFile = File(..., description="CSV/Excel 文件（需含 question, answer 列）"),
+            file: UploadFile = File(..., description=_("api.param.qa_file")),
         ):
             """
             批量导入 Q&A 问答对（CSV/Excel） / Batch import Q&A pairs (CSV/Excel)

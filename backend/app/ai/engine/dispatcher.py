@@ -261,7 +261,7 @@ class ExecutionDispatcher:
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Execution dispatch failed: agent=%s error=%s",
+                "Execution dispatch failed: agent={} error={}",
                 request.agent_id,
                 str(exc),
                 exc_info=True,
@@ -279,7 +279,7 @@ class ExecutionDispatcher:
                     )
                 except Exception as rollback_exc:
                     logger.warning(
-                        "Quota rollback failed: agent=%s error=%s",
+                        "Quota rollback failed: agent={} error={}",
                         request.agent_id, rollback_exc,
                     )
 
@@ -390,7 +390,7 @@ class ExecutionDispatcher:
         await self.db.commit()
 
         logger.info(
-            "Batch submitted: batch_run_id=%d agent=%d items=%d celery_task=%s",
+            "Batch submitted: batch_run_id={} agent={} items={} celery_task={}",
             batch_run.id, agent.id, len(items), celery_result.id,
         )
 

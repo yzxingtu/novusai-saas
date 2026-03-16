@@ -151,7 +151,7 @@ class NotificationPreferenceService:
                     )
                 )
                 logger.info(
-                    "Cleared individual notification prefs for changed categories: %s "
+                    "Cleared individual notification prefs for changed categories: {} "
                     "(global_type=%s, tenant_id=%s)",
                     changed_categories, global_user_type, tenant_id,
                 )

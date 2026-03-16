@@ -62,13 +62,13 @@ def convert_server_to_toolkit(
     try:
         result = _convert(sources, metadata, env_schema)
         logger.info(
-            "Server package auto-converted to toolkit: %s",
+            "Server package auto-converted to toolkit: {}",
             metadata.get("name", "unknown"),
         )
         return result
     except Exception as exc:
         logger.warning(
-            "Auto-conversion failed for '%s', using fallback: %s",
+            "Auto-conversion failed for '{}', using fallback: {}",
             metadata.get("name", "unknown"), exc,
         )
         return _fallback_combine(sources, metadata)

@@ -249,7 +249,7 @@ class SQLSafetyValidator:
 
         if not passed:
             logger.warning(
-                "SQL safety validation failed: violations=%s sql=%s",
+                "SQL safety validation failed: violations={} sql={}",
                 violations, stripped[:200],
             )
 

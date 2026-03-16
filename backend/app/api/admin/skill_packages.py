@@ -344,7 +344,7 @@ class AdminSkillPackageController(GlobalController):
             await db.commit()
 
             logger.info(
-                "Skill package uploaded (admin): name=%s version=%s package_id=%d",
+                "Skill package uploaded (admin): name={} version={} package_id={}",
                 skill_name, skill_version, pkg.id,
             )
 
@@ -463,7 +463,7 @@ class AdminSkillPackageController(GlobalController):
                     forced_filters=[FilterRule(field="package_id", value=package_id)],
                 )
                 logger.debug(
-                    "Resolved tools: loaded %d skills for package %d",
+                    "Resolved tools: loaded {} skills for package {}",
                     skill_total,
                     package_id,
                 )
@@ -483,8 +483,8 @@ class AdminSkillPackageController(GlobalController):
                                     "source_skill_id": skill_item.id,
                                     "source_skill_name": skill_item.name,
                                 })
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Skill package toolkit parse failed: {}", exc)
 
             return success(data={
                 "package_id": package_id,

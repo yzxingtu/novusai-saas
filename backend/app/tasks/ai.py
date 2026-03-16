@@ -123,7 +123,7 @@ def log_ai_call_task(
     db = sync_session_factory()
     try:
         logger.info(
-            "AI call log start: task=%s tenant=%s model=%s",
+            "AI call log start: task={} tenant={} model={}",
             self.request.id, tenant_id, model_id,
         )
 
@@ -164,14 +164,14 @@ def log_ai_call_task(
         db.commit()
 
         logger.info(
-            "AI call log saved: task=%s tenant=%s model=%s log_id=%s",
+            "AI call log saved: task={} tenant={} model={} log_id={}",
             self.request.id, tenant_id, model_id, call_log.id,
         )
 
     except Exception as e:
         db.rollback()
         logger.error(
-            "AI call log failed: task=%s error=%s",
+            "AI call log failed: task={} error={}",
             self.request.id, str(e),
             exc_info=True,
         )

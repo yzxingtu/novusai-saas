@@ -372,7 +372,7 @@ async def sync_table_policies(db: AsyncSession) -> dict[str, int]:
         await db.commit()
 
     logger.info(
-        "Table policy sync: new=%d, existing=%d, blocked=%d",
+        "Table policy sync: new={}, existing={}, blocked={}",
         new_count, existing_count, blocked_count,
     )
 

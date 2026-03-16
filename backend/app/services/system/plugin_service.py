@@ -229,7 +229,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             plugin.manifest = manifest_data
         except Exception as exc:
             logger.warning(
-                "Failed to load latest manifest for plugin %s, fallback to DB manifest: %s",
+                "Failed to load latest manifest for plugin {}, fallback to DB manifest: {}",
                 plugin.name,
                 exc,
             )
@@ -478,7 +478,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         try:
             data = json.loads(host_pkg.read_text(encoding="utf-8"))
         except Exception as exc:
-            logger.warning("Failed to read host package.json for npm deps: %s", exc)
+            logger.warning("Failed to read host package.json for npm deps: {}", exc)
             return set()
 
         names: set[str] = set()

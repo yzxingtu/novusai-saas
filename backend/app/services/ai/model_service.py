@@ -210,7 +210,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
             from app.services.ai.model_capability_lookup import enrich_remote_models
             remote_models = await enrich_remote_models(remote_models)
         except Exception as e:
-            _logger.warning("LiteLLM capability enrichment skipped: %s", str(e))
+            _logger.warning("LiteLLM capability enrichment skipped: {}", str(e))
 
         return remote_models
 

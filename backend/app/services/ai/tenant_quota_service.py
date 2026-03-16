@@ -196,7 +196,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
         quota = await self.create(data)
 
         logger.info(
-            "Quota created: tenant_id=%s model_id=%s period=%s limit=%s",
+            "Quota created: tenant_id={} model_id={} period={} limit={}",
             self.tenant_id, model_id, period, limit,
         )
 

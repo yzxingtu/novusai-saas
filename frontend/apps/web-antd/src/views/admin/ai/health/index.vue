@@ -39,7 +39,7 @@ const {
   autoRefreshInterval: 30_000,
   ai: {
     entityName: $t('admin.ai.health.name'),
-    entityDescription: 'AI 供应商健康状态监控',
+    entityDescription: $t('admin.ai.health.entityDescription'),
     contextExtras: () => ({
       healthy: healthyCount.value,
       degraded: degradedCount.value,

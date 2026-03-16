@@ -149,7 +149,7 @@ class EmailToolExecutor(BaseToolExecutor):
                     + (f" (cc: {', '.join(cc_list)})" if cc_list else "")
                 )
                 logger.info(
-                    "Email tool sent: to=%s subject=%s skill=%s",
+                    "Email tool sent: to={} subject={} skill={}",
                     ", ".join(to_list), subject, definition.source_skill_name,
                 )
                 return ToolResult(
@@ -170,7 +170,7 @@ class EmailToolExecutor(BaseToolExecutor):
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.error("Email tool error: %s", str(exc), exc_info=True)
+            logger.error("Email tool error: {}", str(exc), exc_info=True)
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

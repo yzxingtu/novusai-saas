@@ -45,7 +45,7 @@ class StorageManager:
             raise StorageConfigError()
         self._drivers[driver_cls.name] = driver_cls
         display = getattr(driver_cls, "display_name", driver_cls.name)
-        logger.info("Storage driver registered: %s (%s)", driver_cls.name, display)
+        logger.info("Storage driver registered: {} ({})", driver_cls.name, display)
 
     def unregister_driver(self, driver_name: str) -> None:
         """
@@ -53,9 +53,9 @@ class StorageManager:
         """
         removed = self._drivers.pop(driver_name, None)
         if removed:
-            logger.info("Storage driver unregistered: %s", driver_name)
+            logger.info("Storage driver unregistered: {}", driver_name)
         else:
-            logger.warning("Storage driver unregister skipped (not found): %s", driver_name)
+            logger.warning("Storage driver unregister skipped (not found): {}", driver_name)
 
     def get_driver(self, config: StorageConfig) -> StorageDriver:
         """

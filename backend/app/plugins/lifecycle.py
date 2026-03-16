@@ -176,7 +176,7 @@ async def _plugin_lock(plugin_id: int):
         try:
             await client.eval(_UNLOCK_IF_OWNER_LUA, 1, key, owner_token)
         except Exception as exc:
-            logger.warning("Failed to release plugin lock %s safely: %s", key, exc)
+            logger.warning("Failed to release plugin lock {} safely: {}", key, exc)
 
 
 class PluginLifecycle:
@@ -199,7 +199,7 @@ class PluginLifecycle:
                     prefixes.append(normalized)
         except Exception as exc:
             logger.warning(
-                "Plugin %s: failed to resolve custom DB table prefixes, fallback to default: %s",
+                "Plugin {}: failed to resolve custom DB table prefixes, fallback to default: {}",
                 plugin_name,
                 exc,
             )
@@ -276,12 +276,12 @@ class PluginLifecycle:
                             message=f"Plugin '{plugin_name}' is already installed",
                         )
                     logger.warning(
-                        "Stale plugin directory found for %s (no DB record), cleaning up",
+                        "Stale plugin directory found for {} (no DB record), cleaning up",
                         plugin_name,
                     )
                     shutil.rmtree(target_dir, ignore_errors=True)
                 shutil.copytree(source_path, target_dir)
-                logger.info("Copied plugin to %s", target_dir)
+                logger.info("Copied plugin to {}", target_dir)
                 # Only mark "copy" if we actually copied — rollback deletes the dir when "copy" in completed_steps / 仅实际复制后才标记 copy，避免误删
                 completed_steps.append("copy")
             else:
@@ -370,14 +370,14 @@ class PluginLifecycle:
                                 )
                         except Exception as exc:
                             logger.warning(
-                                "Version check failed for %s: %s", req.plugin, exc,
+                                "Version check failed for {}: {}", req.plugin, exc,
                             )
                 if version_errors:
                     raise PluginDependencyError(
                         message=f"Plugin dependency version mismatch: {'; '.join(version_errors)}",
                     )
 
-                logger.info("Plugin dependency check passed for %s", plugin_name)
+                logger.info("Plugin dependency check passed for {}", plugin_name)
 
             # 3d. Security scan (high-risk fail-close) / 安全扫描（高风险 fail-close）
             from app.plugins.security_scan import scan_plugin_directory
@@ -437,7 +437,7 @@ class PluginLifecycle:
                 completed_steps.append("ai_features")
                 await emitter.emit_step("ai_features", "success", f"Registered {len(manifest.ai_requirements.features)} AI features")
                 logger.info(
-                    "Registered %d AI features for plugin %s",
+                    "Registered {} AI features for plugin {}",
                     len(manifest.ai_requirements.features), plugin_name,
                 )
 
@@ -445,7 +445,7 @@ class PluginLifecycle:
             locales = self._loader.load_locales(plugin_name)
             if locales:
                 logger.info(
-                    "Plugin %s has %d locale(s): %s",
+                    "Plugin {} has {} locale(s): {}",
                     plugin_name, len(locales), list(locales.keys()),
                 )
                 completed_steps.append("i18n")
@@ -467,7 +467,7 @@ class PluginLifecycle:
             except Exception as exc:
                 await emitter.emit_step("on_install", "warning", f"Install hook warning: {exc}")
                 logger.warning(
-                    "Plugin %s on_install failed (non-fatal): %s",
+                    "Plugin {} on_install failed (non-fatal): {}",
                     plugin_name, exc,
                 )
 
@@ -522,7 +522,7 @@ class PluginLifecycle:
             await emitter.emit_step("db", "success", "Plugin record saved")
 
             logger.info(
-                "Plugin %s v%s installed successfully",
+                "Plugin {} v{} installed successfully",
                 plugin_name, manifest.version,
             )
             await emitter.emit_done(f"Plugin {plugin_name} v{manifest.version} installed successfully")
@@ -530,7 +530,7 @@ class PluginLifecycle:
 
         except Exception as exc:
             logger.error(
-                "Plugin %s install failed at step %s: %s",
+                "Plugin {} install failed at step {}: {}",
                 plugin_name, completed_steps[-1] if completed_steps else "init", exc,
             )
             if emitter is not None:
@@ -667,7 +667,7 @@ class PluginLifecycle:
                             )
                     except Exception as exc:
                         logger.warning(
-                            "Version check failed for %s: %s", req.plugin, exc,
+                            "Version check failed for {}: {}", req.plugin, exc,
                         )
             if version_errors:
                 raise PluginDependencyError(
@@ -727,7 +727,7 @@ class PluginLifecycle:
                     await emitter.emit_step("npm", "success", "npm already satisfied (skipped)")
             except Exception as exc:
                 await emitter.emit_step("npm", "warning", f"npm install warning: {exc}")
-                logger.warning("npm deps install warning for %s: %s", plugin_name, exc)
+                logger.warning("npm deps install warning for {}: {}", plugin_name, exc)
         else:
             await emitter.emit_step("npm", "success", "No npm dependencies")
 
@@ -797,7 +797,7 @@ class PluginLifecycle:
             await emitter.emit_step("on_enable", "success", "Enable hook completed")
         except Exception as exc:
             # on_enable failed: rollback registration, mark error status / on_enable 失败：回滚注册，标记 error 状态
-            logger.warning("Plugin %s on_enable failed: %s", plugin_name, exc)
+            logger.warning("Plugin {} on_enable failed: {}", plugin_name, exc)
             registry.unregister_all(plugin_name)
             plugin.status = PluginStatusEnum.ERROR.value
             plugin.error_message = f"on_enable failed: {exc}"
@@ -823,7 +823,7 @@ class PluginLifecycle:
             perm_sync = PermissionSyncService(self._db)
             await perm_sync.sync_plugin_permissions(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin %s: failed to sync menu permissions to DB: %s", plugin_name, exc)
+            logger.warning("Plugin {}: failed to sync menu permissions to DB: {}", plugin_name, exc)
 
         # Enable plugin menu permissions in DB so menu API immediately returns plugin menus / 启用 DB 中插件菜单权限
         # / 启用 DB 中的插件菜单权限，使菜单 API 立即返回该插件菜单
@@ -834,14 +834,14 @@ class PluginLifecycle:
         try:
             await self._auto_grant_plugin_menus_to_plans(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin %s: failed to auto-grant menus to plans: %s", plugin_name, exc)
+            logger.warning("Plugin {}: failed to auto-grant menus to plans: {}", plugin_name, exc)
 
         # Clear route regex cache (routes may change in DEBUG mode) / 清除路由正则缓存（DEBUG 模式下路由可能变化）
         from app.plugins.api_dispatcher import _compile_route_regex
         _compile_route_regex.cache_clear()
 
         await emitter.emit_done(f"Plugin {plugin_name} enabled successfully")
-        logger.info("Plugin %s enabled", plugin_name)
+        logger.info("Plugin {} enabled", plugin_name)
 
         # T4: Trigger system hook point, other plugins can subscribe to PLUGIN_ENABLED / T4: 触发系统钩子点
         # / T4: 触发系统钩子点，其他插件可订阅 PLUGIN_ENABLED
@@ -852,7 +852,7 @@ class PluginLifecycle:
                 plugin_name=plugin_name, plugin_id=plugin_id,
             )
         except Exception as exc:
-            logger.warning("system_hook PLUGIN_ENABLED failed: %s", exc)
+            logger.warning("system_hook PLUGIN_ENABLED failed: {}", exc)
 
     # ================================================================
     # disable / 禁用
@@ -923,7 +923,7 @@ class PluginLifecycle:
             await plugin_cls().on_disable(ctx)
             await emitter.emit_step("on_disable", "success", "Disable hook completed")
         except Exception as exc:
-            logger.warning("Plugin %s on_disable failed: %s", plugin_name, exc)
+            logger.warning("Plugin {} on_disable failed: {}", plugin_name, exc)
             await emitter.emit_step("on_disable", "success", f"Disable hook warning: {exc}")
 
         # Disable does not uninstall deps — deps only cleaned on uninstall / 禁用不卸载依赖，重新启用无需重装
@@ -951,12 +951,12 @@ class PluginLifecycle:
         try:
             await self._revoke_plugin_menus_from_plans(plugin_name)
         except Exception as exc:
-            logger.warning("Plugin %s: failed to revoke menus from plans: %s", plugin_name, exc)
+            logger.warning("Plugin {}: failed to revoke menus from plans: {}", plugin_name, exc)
 
         await emitter.emit_step("permissions", "success", "Menu permissions disabled")
 
         await emitter.emit_done(f"Plugin {plugin_name} disabled successfully")
-        logger.info("Plugin %s disabled", plugin_name)
+        logger.info("Plugin {} disabled", plugin_name)
 
         # T4: Trigger system hook point / T4: 触发系统钩子点
         try:
@@ -966,7 +966,7 @@ class PluginLifecycle:
                 plugin_name=plugin_name, plugin_id=plugin_id,
             )
         except Exception as exc:
-            logger.warning("system_hook PLUGIN_DISABLED failed: %s", exc)
+            logger.warning("system_hook PLUGIN_DISABLED failed: {}", exc)
 
     # ================================================================
     # dependencies / 依赖
@@ -1073,7 +1073,7 @@ class PluginLifecycle:
 
             if force:
                 logger.warning(
-                    "Ignoring deprecated force=true in dependency uninstall for plugin %s",
+                    "Ignoring deprecated force=true in dependency uninstall for plugin {}",
                     plugin.name,
                 )
 
@@ -1188,7 +1188,7 @@ class PluginLifecycle:
             await emitter.emit_step("on_uninstall", "success", "Uninstall hook completed")
         except Exception as exc:
             await emitter.emit_step("on_uninstall", "warning", f"Uninstall hook warning: {exc}")
-            logger.warning("Plugin %s on_uninstall failed: %s", plugin_name, exc)
+            logger.warning("Plugin {} on_uninstall failed: {}", plugin_name, exc)
 
         # 4. Unregister all extension points / 反注册所有扩展点
         await emitter.emit_step("cleanup_extensions", "running", "Unregistering extensions...")
@@ -1229,16 +1229,16 @@ class PluginLifecycle:
             await emitter.emit_step("cleanup_ai_features", "success", "AI features removed")
         except Exception as exc:
             await emitter.emit_step("cleanup_ai_features", "success", f"AI features warning: {exc}")
-            logger.warning("Failed to cleanup AI features for %s: %s", plugin_name, exc)
+            logger.warning("Failed to cleanup AI features for {}: {}", plugin_name, exc)
 
         # 8.5 Pre-uninstall data backup (non-fatal, failure doesn't block uninstall) / 卸载前数据备份（non-fatal，失败不阻止卸载）
         try:
             from app.plugins.backup import backup_plugin_data
             await emitter.emit_step("cleanup_db", "running", "Backing up plugin data before deletion...")
             backup_path = await backup_plugin_data(plugin_name, plugin.version or "unknown", self._db)
-            logger.info("Plugin %s: pre-uninstall backup saved to %s", plugin_name, backup_path)
+            logger.info("Plugin {}: pre-uninstall backup saved to {}", plugin_name, backup_path)
         except Exception as exc:
-            logger.warning("Plugin %s: pre-uninstall backup failed (continuing): %s", plugin_name, exc)
+            logger.warning("Plugin {}: pre-uninstall backup failed (continuing): {}", plugin_name, exc)
 
         # 9. Database cleanup / 数据库清理
         await emitter.emit_step("cleanup_db", "running", "Cleaning up database tables...")
@@ -1266,7 +1266,7 @@ class PluginLifecycle:
                 else:
                     await emitter.emit_step("cleanup_npm", "success", "No npm dependencies to clean")
             except Exception as exc:
-                logger.warning("Failed to cleanup npm deps for %s: %s", plugin_name, exc)
+                logger.warning("Failed to cleanup npm deps for {}: {}", plugin_name, exc)
         else:
             await emitter.emit_step(
                 "cleanup_pip",
@@ -1310,7 +1310,7 @@ class PluginLifecycle:
         unload_plugin_modules(plugin_name)
         await emitter.emit_step("cleanup_files", "success", "Plugin files removed")
 
-        logger.info("Plugin %s uninstalled completely", plugin_name)
+        logger.info("Plugin {} uninstalled completely", plugin_name)
         await emitter.emit_done(f"Plugin {plugin_name} uninstalled completely")
 
     # ================================================================
@@ -1421,7 +1421,7 @@ class PluginLifecycle:
             .values(is_enabled=is_enabled)
         )
         action = "enabled" if is_enabled else "disabled"
-        logger.info("Plugin %s: %s menu permissions in DB", plugin_name, action)
+        logger.info("Plugin {}: {} menu permissions in DB", plugin_name, action)
 
     async def _auto_grant_plugin_menus_to_plans(self, plugin_name: str) -> None:
         """
@@ -1464,7 +1464,7 @@ class PluginLifecycle:
         )
         await self._db.flush()
         logger.info(
-            "Plugin %s: auto-granted %d menu permission(s) to %d plan(s)",
+            "Plugin {}: auto-granted {} menu permission(s) to {} plan(s)",
             plugin_name, len(perm_ids), len(plan_ids),
         )
 
@@ -1497,7 +1497,7 @@ class PluginLifecycle:
         )
         await self._db.flush()
         logger.info(
-            "Plugin %s: revoked %d menu permission(s) from all plans",
+            "Plugin {}: revoked {} menu permission(s) from all plans",
             plugin_name, len(perm_ids),
         )
 
@@ -1539,7 +1539,7 @@ class PluginLifecycle:
                     ),
                 )
             logger.warning(
-                "Force-disabling '%s': switching platform storage driver from '%s' to 'local'",
+                "Force-disabling '{}': switching platform storage driver from '{}' to 'local'",
                 plugin_name, platform_driver,
             )
             await config_service.set_platform_config("platform_storage_driver", "local")
@@ -1610,7 +1610,7 @@ class PluginLifecycle:
                                     ),
                                 )
                             logger.warning(
-                                "Force-disabling '%s': resetting tenant %s storage mode to 'platform'",
+                                "Force-disabling '{}': resetting tenant {} storage mode to 'platform'",
                                 plugin_name, tenant_id,
                             )
                             await config_service.set_tenant_config(tenant_id, "tenant_storage_mode", "platform")
@@ -1704,7 +1704,7 @@ class PluginLifecycle:
                 )
             if req_obj.marker and not req_obj.marker.evaluate():
                 logger.debug(
-                    "Skipping requirement for %s due environment marker mismatch: %s",
+                    "Skipping requirement for {} due environment marker mismatch: {}",
                     plugin_name,
                     normalized_req,
                 )
@@ -1725,7 +1725,7 @@ class PluginLifecycle:
                     # / 防御：取消/中断安装可能留下仅含 INSTALLER/REQUESTED 的残缺 dist-info
                     force_reinstall = True
                     logger.warning(
-                        "Plugin %s: package %s metadata is corrupted, forcing reinstall",
+                        "Plugin {}: package {} metadata is corrupted, forcing reinstall",
                         plugin_name,
                         req_obj.name,
                     )
@@ -1741,14 +1741,14 @@ class PluginLifecycle:
                             if importable is False:
                                 force_reinstall = True
                                 logger.warning(
-                                    "Plugin %s: package %s is installed (%s) but import path is missing, forcing reinstall",
+                                    "Plugin {}: package {} is installed ({}) but import path is missing, forcing reinstall",
                                     plugin_name,
                                     req_obj.name,
                                     installed_version,
                                 )
                             elif not force_reinstall:
                                 logger.debug(
-                                    "Skipping pip install for %s: already satisfied (%s==%s)",
+                                    "Skipping pip install for {}: already satisfied ({}=={})",
                                     plugin_name,
                                     req_obj.name,
                                     installed_version,
@@ -1759,7 +1759,7 @@ class PluginLifecycle:
                         # / 某些异常分发元数据可能返回非法 version；回退到重装，避免 500
                         force_reinstall = True
                         logger.warning(
-                            "Plugin %s: invalid installed version for %s (%r), reinstalling: %s",
+                            "Plugin {}: invalid installed version for {} ({!r}), reinstalling: {}",
                             plugin_name,
                             req_obj.name,
                             installed_version,
@@ -1768,7 +1768,7 @@ class PluginLifecycle:
                 else:
                     force_reinstall = True
                     logger.debug(
-                        "Plugin %s: installed package %s has no version metadata, reinstalling",
+                        "Plugin {}: installed package {} has no version metadata, reinstalling",
                         plugin_name,
                         req_obj.name,
                     )
@@ -1812,7 +1812,7 @@ class PluginLifecycle:
 
             installed.append(normalized_req)
             needs_cache_refresh = True
-            logger.info("Installed %s for plugin %s", normalized_req, plugin_name)
+            logger.info("Installed {} for plugin {}", normalized_req, plugin_name)
 
         if needs_cache_refresh:
             # Ensure newly installed packages are immediately importable (no restart needed), refresh sys.path and importlib cache / 确保新安装的包立即可导入（无需重启），刷新 sys.path 与 importlib 缓存
@@ -1820,7 +1820,7 @@ class PluginLifecycle:
                 if sp not in sys.path:
                     sys.path.insert(0, sp)
             importlib.invalidate_caches()
-            logger.debug("Import caches refreshed after pip install for plugin %s", plugin_name)
+            logger.debug("Import caches refreshed after pip install for plugin {}", plugin_name)
 
         return installed
 
@@ -1878,7 +1878,7 @@ class PluginLifecycle:
             chosen = str(existing[0])
             if os.path.normcase(chosen) != os.path.normcase(sys.executable):
                 logger.info(
-                    "Plugin lifecycle pip interpreter switched: runtime=%s pip=%s",
+                    "Plugin lifecycle pip interpreter switched: runtime={} pip={}",
                     sys.executable,
                     chosen,
                 )
@@ -1936,7 +1936,7 @@ class PluginLifecycle:
 
         if not resolved_dirs:
             logger.warning(
-                "Plugin %s: cargo not found on PATH and no fallback cargo dir discovered",
+                "Plugin {}: cargo not found on PATH and no fallback cargo dir discovered",
                 plugin_name,
             )
             return env
@@ -1945,7 +1945,7 @@ class PluginLifecycle:
             [*resolved_dirs, current_path] if current_path else resolved_dirs
         )
         logger.info(
-            "Plugin %s: prepended %d Cargo PATH candidate(s) for pip install",
+            "Plugin {}: prepended {} Cargo PATH candidate(s) for pip install",
             plugin_name,
             len(resolved_dirs),
         )
@@ -1970,7 +1970,7 @@ class PluginLifecycle:
 
         if not settings.DEBUG:
             logger.info(
-                "Skipping npm deps install for %s (production mode uses UMD bundles)",
+                "Skipping npm deps install for {} (production mode uses UMD bundles)",
                 plugin_name,
             )
             return 0
@@ -1982,7 +1982,7 @@ class PluginLifecycle:
         frontend_root = PLUGINS_DIR.parent.parent / "frontend"
         if not frontend_root.is_dir():
             logger.warning(
-                "Frontend directory not found at %s, skipping npm deps for %s",
+                "Frontend directory not found at {}, skipping npm deps for {}",
                 frontend_root, plugin_name,
             )
             return 0
@@ -2008,7 +2008,7 @@ class PluginLifecycle:
                 # / 安全校验：拒绝以 "--" 开头的包名（会被 pnpm 当作 CLI flag）
                 if raw_name.startswith("--"):
                     logger.warning(
-                        "Plugin %s: skipping suspicious npm package '%s' (looks like a CLI flag)",
+                        "Plugin {}: skipping suspicious npm package '{}' (looks like a CLI flag)",
                         plugin_name, raw_name,
                     )
                     continue
@@ -2016,7 +2016,7 @@ class PluginLifecycle:
                 # Safety: reject shell metacharacters and whitespace / 安全校验：拒绝 shell 元字符与空白
                 if any(ch in raw_name for ch in [" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"]):
                     logger.warning(
-                        "Plugin %s: skipping suspicious npm package '%s' (contains forbidden characters)",
+                        "Plugin {}: skipping suspicious npm package '{}' (contains forbidden characters)",
                         plugin_name, raw_name,
                     )
                     continue
@@ -2050,7 +2050,7 @@ class PluginLifecycle:
 
         if not missing_packages:
             logger.debug(
-                "Skipping pnpm add for %s: all npm packages already installed",
+                "Skipping pnpm add for {}: all npm packages already installed",
                 plugin_name,
             )
             return 0
@@ -2065,12 +2065,12 @@ class PluginLifecycle:
                 shell=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("pnpm not found, skipping npm deps install for %s", plugin_name)
+            logger.warning("pnpm not found, skipping npm deps install for {}", plugin_name)
             return 0
 
         # pnpm add <missing_packages> --filter=@vben/web-antd
         cmd = [pnpm_cmd, "add", *missing_packages, "--filter=@vben/web-antd"]
-        logger.info("Installing npm deps for %s: %s", plugin_name, " ".join(missing_packages))
+        logger.info("Installing npm deps for {}: {}", plugin_name, " ".join(missing_packages))
 
         try:
             result = await _run_subprocess_async(
@@ -2082,18 +2082,18 @@ class PluginLifecycle:
             if result.returncode != 0:
                 err = result.stderr.strip() or result.stdout.strip()
                 logger.warning(
-                    "npm deps install for %s failed (non-fatal): %s",
+                    "npm deps install for {} failed (non-fatal): {}",
                     plugin_name, err[:500],
                 )
                 return 0
             else:
-                logger.info("npm deps installed for %s", plugin_name)
+                logger.info("npm deps installed for {}", plugin_name)
                 return len(missing_packages)
         except subprocess.TimeoutExpired:
-            logger.warning("npm deps install for %s timed out", plugin_name)
+            logger.warning("npm deps install for {} timed out", plugin_name)
             return 0
         except Exception as exc:
-            logger.warning("npm deps install for %s failed: %s", plugin_name, exc)
+            logger.warning("npm deps install for {} failed: {}", plugin_name, exc)
             return 0
 
     @staticmethod
@@ -2120,7 +2120,7 @@ class PluginLifecycle:
                     continue
                 protected.add(self._normalize_pkg_name(line))
         except Exception as exc:
-            logger.warning("Failed to read requirements.txt: %s", exc)
+            logger.warning("Failed to read requirements.txt: {}", exc)
         return protected
 
     async def _uninstall_python_deps(
@@ -2166,12 +2166,12 @@ class PluginLifecycle:
 
             # Check 1: other plugin needs it / 检查 1：其他插件需要
             if pkg in other_plugin_deps:
-                logger.info("Kept %s (still needed by other plugins)", pkg)
+                logger.info("Kept {} (still needed by other plugins)", pkg)
                 continue
 
             # Check 2: main project needs it / 检查 2：主项目需要
             if pkg in project_deps:
-                logger.info("Kept %s (declared in project requirements.txt)", pkg)
+                logger.info("Kept {} (declared in project requirements.txt)", pkg)
                 continue
 
             # Check 3: pip reverse dependency check / 检查 3：pip 反向依赖检查
@@ -2187,7 +2187,7 @@ class PluginLifecycle:
                             required_by = line.split(":", 1)[1].strip()
                             if required_by:
                                 logger.info(
-                                    "Kept %s (Required-by: %s)", pkg, required_by,
+                                    "Kept {} (Required-by: {})", pkg, required_by,
                                 )
                                 break
                     else:
@@ -2197,11 +2197,11 @@ class PluginLifecycle:
                             timeout=60,
                             shell=False,
                         )
-                        logger.info("Uninstalled %s (no longer needed)", pkg)
+                        logger.info("Uninstalled {} (no longer needed)", pkg)
                 else:
-                    logger.info("Package %s not installed, skipping", pkg)
+                    logger.info("Package {} not installed, skipping", pkg)
             except Exception as exc:
-                logger.warning("Failed to check/uninstall %s: %s", pkg, exc)
+                logger.warning("Failed to check/uninstall {}: {}", pkg, exc)
 
     async def _uninstall_npm_deps(
         self, plugin_name: str, packages: list[str]
@@ -2262,7 +2262,7 @@ class PluginLifecycle:
                     if isinstance(deps_dict, dict):
                         host_deps.update(deps_dict.keys())
             except Exception as exc:
-                logger.warning("Failed to read host package.json: %s", exc)
+                logger.warning("Failed to read host package.json: {}", exc)
 
         to_remove: list[str] = []
         for pkg in packages:
@@ -2273,10 +2273,10 @@ class PluginLifecycle:
                 pkg_name = pkg.rsplit("@", 1)[0]
 
             if pkg_name in other_npm_deps or pkg in other_npm_deps:
-                logger.info("Kept npm %s (still needed by other plugins)", pkg)
+                logger.info("Kept npm {} (still needed by other plugins)", pkg)
                 continue
             if pkg_name in host_deps:
-                logger.info("Kept npm %s (declared in host package.json)", pkg)
+                logger.info("Kept npm {} (declared in host package.json)", pkg)
                 continue
             to_remove.append(pkg)
 
@@ -2292,11 +2292,11 @@ class PluginLifecycle:
                 shell=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("pnpm not found, skipping npm deps removal for %s", plugin_name)
+            logger.warning("pnpm not found, skipping npm deps removal for {}", plugin_name)
             return
 
         cmd = [pnpm_cmd, "remove", *to_remove, "--filter=@vben/web-antd"]
-        logger.info("Removing npm deps for %s: %s", plugin_name, " ".join(to_remove))
+        logger.info("Removing npm deps for {}: {}", plugin_name, " ".join(to_remove))
 
         try:
             result = await _run_subprocess_async(
@@ -2308,15 +2308,15 @@ class PluginLifecycle:
             if result.returncode != 0:
                 err = result.stderr.strip() or result.stdout.strip()
                 logger.warning(
-                    "npm deps removal for %s failed (non-fatal): %s",
+                    "npm deps removal for {} failed (non-fatal): {}",
                     plugin_name, err[:500],
                 )
             else:
-                logger.info("npm deps removed for %s: %s", plugin_name, ", ".join(to_remove))
+                logger.info("npm deps removed for {}: {}", plugin_name, ", ".join(to_remove))
         except subprocess.TimeoutExpired:
-            logger.warning("npm deps removal for %s timed out", plugin_name)
+            logger.warning("npm deps removal for {} timed out", plugin_name)
         except Exception as exc:
-            logger.warning("npm deps removal for %s failed: %s", plugin_name, exc)
+            logger.warning("npm deps removal for {} failed: {}", plugin_name, exc)
 
     async def _purge_orphaned_alembic_stamps(self) -> None:
         """Purge orphaned version stamps in alembic_version that no longer have corresponding migration files.
@@ -2379,7 +2379,7 @@ class PluginLifecycle:
         orphaned = [s for s in all_stamps if s not in known_revisions]
         for stamp in orphaned:
             logger.warning(
-                "Purging orphaned alembic stamp '%s' (no migration file found for it)", stamp
+                "Purging orphaned alembic stamp '{}' (no migration file found for it)", stamp
             )
             await self._db.execute(
                 text("DELETE FROM alembic_version WHERE version_num = :vid"),
@@ -2387,7 +2387,7 @@ class PluginLifecycle:
             )
         if orphaned:
             await self._db.flush()
-            logger.info("Purged %d orphaned alembic stamp(s): %s", len(orphaned), orphaned)
+            logger.info("Purged {} orphaned alembic stamp(s): {}", len(orphaned), orphaned)
 
     async def run_alembic_upgrade(self, plugin_name: str) -> None:
         """Run plugin Alembic migration (public interface, called by version_manager etc.).
@@ -2503,7 +2503,7 @@ except Exception as exc:
         - 使用插件的 revision ID 前缀匹配，而非 branch_label
         """
         if not self._plugin_has_migrations(plugin_name):
-            logger.info("Plugin %s has no migration files, skipping alembic downgrade", plugin_name)
+            logger.info("Plugin {} has no migration files, skipping alembic downgrade", plugin_name)
             return
 
         import re as _re
@@ -2533,7 +2533,7 @@ except Exception as exc:
                     pass
 
         if not plugin_revision_ids:
-            logger.info("Plugin %s: no revision IDs found in migration files, skipping downgrade", plugin_name)
+            logger.info("Plugin {}: no revision IDs found in migration files, skipping downgrade", plugin_name)
             return
 
         # Directly query alembic_version table, no alembic subprocess needed
@@ -2549,7 +2549,7 @@ except Exception as exc:
                 break
 
         if not has_stamp:
-            logger.info("Plugin %s has no alembic version stamp, skipping downgrade", plugin_name)
+            logger.info("Plugin {} has no alembic version stamp, skipping downgrade", plugin_name)
             return
 
         downgrade_script = (
@@ -2568,7 +2568,7 @@ except Exception as exc:
         )
         if result.returncode != 0:
             logger.warning(
-                "Alembic downgrade for %s: %s", plugin_name, result.stderr.strip()
+                "Alembic downgrade for {}: {}", plugin_name, result.stderr.strip()
             )
 
     async def _cleanup_plugin_database(self, plugin_name: str) -> None:
@@ -2597,9 +2597,9 @@ except Exception as exc:
                 await self.run_alembic_downgrade(plugin_name)
                 alembic_ok = True
             except Exception as exc:
-                logger.warning("Plugin %s alembic downgrade failed: %s", plugin_name, exc)
+                logger.warning("Plugin {} alembic downgrade failed: {}", plugin_name, exc)
         else:
-            logger.info("Plugin %s has no migrations, skipping alembic downgrade", plugin_name)
+            logger.info("Plugin {} has no migrations, skipping alembic downgrade", plugin_name)
 
         # Step 2: Check for remaining tables, DROP directly if found
         # / Step 2: 检查是否还有残留表，若有则直接 DROP
@@ -2621,24 +2621,24 @@ except Exception as exc:
                 if remaining_tables:
                     if alembic_ok:
                         logger.warning(
-                            "Plugin %s: alembic downgrade succeeded but %d tables remain, dropping directly",
+                            "Plugin {}: alembic downgrade succeeded but {} tables remain, dropping directly",
                             plugin_name, len(remaining_tables),
                         )
                     for tbl in sorted(remaining_tables):
                         if not _is_safe_plugin_table_name(tbl, table_prefixes):
                             logger.warning(
-                                "Plugin %s: skip dropping unsafe table name '%s'",
+                                "Plugin {}: skip dropping unsafe table name '{}'",
                                 plugin_name, tbl,
                             )
                             continue
                         try:
                             await self._db.execute(text(f'DROP TABLE IF EXISTS "{tbl}" CASCADE'))
-                            logger.info("Plugin %s: dropped table %s", plugin_name, tbl)
+                            logger.info("Plugin {}: dropped table {}", plugin_name, tbl)
                         except Exception as exc:
-                            logger.error("Plugin %s: failed to drop table %s: %s", plugin_name, tbl, exc)
+                            logger.error("Plugin {}: failed to drop table {}: {}", plugin_name, tbl, exc)
                     await self._db.flush()
         except Exception as exc:
-            logger.error("Plugin %s: failed to query/drop residual tables: %s", plugin_name, exc)
+            logger.error("Plugin {}: failed to query/drop residual tables: {}", plugin_name, exc)
 
         # Step 3: Clean alembic_version plugin version stamps
         # Prefer scanning migration files for actual revision IDs (avoid short prefix like ncc_ not matching plugin name)
@@ -2679,7 +2679,7 @@ except Exception as exc:
                         deleted_count += result.rowcount
                     if deleted_count:
                         logger.info(
-                            "Plugin %s: cleaned %d alembic_version stamp(s) by revision ID",
+                            "Plugin {}: cleaned {} alembic_version stamp(s) by revision ID",
                             plugin_name, deleted_count,
                         )
                 else:
@@ -2693,12 +2693,12 @@ except Exception as exc:
                     )
                     if result.rowcount:
                         logger.info(
-                            "Plugin %s: cleaned %d alembic_version stamp(s) by prefix fallback",
+                            "Plugin {}: cleaned {} alembic_version stamp(s) by prefix fallback",
                             plugin_name, result.rowcount,
                         )
                 await self._db.flush()
         except Exception as exc:
-            logger.warning("Plugin %s: failed to clean alembic_version: %s", plugin_name, exc)
+            logger.warning("Plugin {}: failed to clean alembic_version: {}", plugin_name, exc)
 
     async def _rollback_install(
         self, plugin_name: str, completed_steps: list[str]
@@ -2717,31 +2717,31 @@ except Exception as exc:
         3. 文件清理 — 删除复制到 plugins/ 的目录
         """
         logger.info(
-            "Rolling back install for %s (steps: %s)", plugin_name, completed_steps
+            "Rolling back install for {} (steps: {})", plugin_name, completed_steps
         )
 
         # Step 1: Rollback DB transaction / 回滚 DB 事务
         try:
             await self._db.rollback()
-            logger.info("Rollback: DB transaction rolled back for %s", plugin_name)
+            logger.info("Rollback: DB transaction rolled back for {}", plugin_name)
         except Exception as exc:
-            logger.warning("Rollback: DB rollback failed for %s: %s", plugin_name, exc)
+            logger.warning("Rollback: DB rollback failed for {}: {}", plugin_name, exc)
 
         # Step 2: Clean alembic migrations + plugin tables + version stamps
         # / Step 2: 清理 alembic 迁移 + 插件表 + 版本戳
         if "alembic" in completed_steps:
             try:
                 await self._cleanup_plugin_database(plugin_name)
-                logger.info("Rollback: cleaned plugin database for %s", plugin_name)
+                logger.info("Rollback: cleaned plugin database for {}", plugin_name)
             except Exception as exc:
-                logger.warning("Rollback: database cleanup failed for %s: %s", plugin_name, exc)
+                logger.warning("Rollback: database cleanup failed for {}: {}", plugin_name, exc)
 
         # Step 3: Delete copied plugin directory / 删除复制的插件目录
         if "copy" in completed_steps:
             target_dir = PLUGINS_DIR / plugin_name
             if target_dir.exists():
                 shutil.rmtree(target_dir, ignore_errors=True)
-                logger.info("Rollback: removed plugin directory %s", target_dir)
+                logger.info("Rollback: removed plugin directory {}", target_dir)
 
     # ================================================================
     # Plugin skill record management (SkillPackage + Skill) / 插件技能记录管理（SkillPackage + Skill）
@@ -2799,7 +2799,7 @@ except Exception as exc:
             self._db.add(package)
             await self._db.flush()
             logger.info(
-                "Created SkillPackage '%s' (id=%d) for plugin %s",
+                "Created SkillPackage '{}' (id={}) for plugin {}",
                 package.name, package.id, plugin_name,
             )
         else:
@@ -2847,7 +2847,7 @@ except Exception as exc:
                 )
                 self._db.add(skill)
                 logger.info(
-                    "Created Skill '%s' (type=%s) for plugin %s",
+                    "Created Skill '{}' (type={}) for plugin {}",
                     skill_display, skill_ext.type, plugin_name,
                 )
             else:
@@ -2891,7 +2891,7 @@ except Exception as exc:
         )
 
         await self._db.flush()
-        logger.info("Deactivated skill records for plugin %s", plugin_name)
+        logger.info("Deactivated skill records for plugin {}", plugin_name)
 
     async def _delete_plugin_skill_records(self, plugin_name: str) -> None:
         """On uninstall: delete plugin-created SkillPackage (cascade delete Skill) / 卸载时：删除插件创建的 SkillPackage（级联删除 Skill）"""
@@ -2918,7 +2918,7 @@ except Exception as exc:
             delete(SkillPackage).where(SkillPackage.id == package_id)
         )
         await self._db.flush()
-        logger.info("Deleted skill records for plugin %s", plugin_name)
+        logger.info("Deleted skill records for plugin {}", plugin_name)
 
     # ================================================================
     # Module loading / 模块加载
@@ -2961,7 +2961,7 @@ except Exception as exc:
         if result.rowcount:
             await self._db.flush()
             logger.info(
-                "Plugin %s: deleted %d permission record(s) from DB",
+                "Plugin {}: deleted {} permission record(s) from DB",
                 plugin_name, result.rowcount,
             )
 
@@ -3018,7 +3018,7 @@ except Exception as exc:
         if created:
             await self._db.flush()
             logger.info(
-                "Plugin %s: ensured %d AI feature assignment(s) in DB",
+                "Plugin {}: ensured {} AI feature assignment(s) in DB",
                 plugin_name, created,
             )
 
@@ -3089,7 +3089,7 @@ except Exception as exc:
         if synced:
             await self._db.flush()
             logger.info(
-                "Plugin %s: synced %d notification template(s) to DB",
+                "Plugin {}: synced {} notification template(s) to DB",
                 plugin_name, synced,
             )
 
@@ -3108,7 +3108,7 @@ except Exception as exc:
         if result.rowcount:
             await self._db.flush()
             logger.info(
-                "Plugin %s: deleted %d notification template(s) from DB",
+                "Plugin {}: deleted {} notification template(s) from DB",
                 plugin_name, result.rowcount,
             )
 
@@ -3188,11 +3188,11 @@ except Exception as exc:
                 refresh_schedule()
             except Exception as exc:
                 logger.warning(
-                    "Plugin %s: failed to refresh Celery schedule after enable: %s",
+                    "Plugin {}: failed to refresh Celery schedule after enable: {}",
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin %s: synced %d periodic task(s) to DB",
+                "Plugin {}: synced {} periodic task(s) to DB",
                 plugin_name, synced,
             )
 
@@ -3216,11 +3216,11 @@ except Exception as exc:
                 refresh_schedule()
             except Exception as exc:
                 logger.warning(
-                    "Plugin %s: failed to refresh Celery schedule after disable: %s",
+                    "Plugin {}: failed to refresh Celery schedule after disable: {}",
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin %s: deactivated %d periodic task(s)",
+                "Plugin {}: deactivated {} periodic task(s)",
                 plugin_name, result.rowcount,
             )
 
@@ -3243,11 +3243,11 @@ except Exception as exc:
                 refresh_schedule()
             except Exception as exc:
                 logger.warning(
-                    "Plugin %s: failed to refresh Celery schedule after uninstall: %s",
+                    "Plugin {}: failed to refresh Celery schedule after uninstall: {}",
                     plugin_name, exc,
                 )
             logger.info(
-                "Plugin %s: deleted %d periodic task(s) from DB",
+                "Plugin {}: deleted {} periodic task(s) from DB",
                 plugin_name, result.rowcount,
             )
 

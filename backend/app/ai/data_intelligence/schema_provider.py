@@ -289,7 +289,7 @@ class SchemaProvider:
                     tables.append(table_schema)
             except Exception as exc:
                 logger.warning(
-                    "Failed to load schema for table %s: %s",
+                    "Failed to load schema for table {}: {}",
                     policy["table_name"], str(exc),
                 )
 
@@ -558,7 +558,7 @@ class SchemaProvider:
             tables_data = json.loads(data)
             return [_dict_to_table_schema(t) for t in tables_data]
         except Exception as exc:
-            logger.warning("Failed to get cached schema: %s", str(exc))
+            logger.warning("Failed to get cached schema: {}", str(exc))
             return None
 
     @staticmethod
@@ -571,7 +571,7 @@ class SchemaProvider:
             data = json.dumps([t.to_dict() for t in tables], ensure_ascii=False)
             await redis.set(key, data, ex=SCHEMA_CACHE_TTL)
         except Exception as exc:
-            logger.warning("Failed to cache schema: %s", str(exc))
+            logger.warning("Failed to cache schema: {}", str(exc))
 
     @staticmethod
     async def invalidate_cache(tenant_id: int) -> None:
@@ -582,7 +582,7 @@ class SchemaProvider:
             key = schema_cache_key(tenant_id)
             await redis.delete(key)
         except Exception as exc:
-            logger.warning("Failed to invalidate schema cache: %s", str(exc))
+            logger.warning("Failed to invalidate schema cache: {}", str(exc))
 
     @staticmethod
     async def get_table_descriptions(

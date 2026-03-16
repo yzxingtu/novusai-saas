@@ -142,7 +142,7 @@ async def inject_rag_context(
                     primary_kb = kb
             else:
                 logger.warning(
-                    "KB %d not accessible for tenant %d, skipped",
+                    "KB {} not accessible for tenant {}, skipped",
                     kid, tenant_id,
                 )
 
@@ -215,7 +215,7 @@ async def inject_rag_context(
         sources = [s.to_dict() for s in rag_context.sources]
 
         logger.info(
-            "RAG injected: agent=%d, chunks=%d, tokens=%d",
+            "RAG injected: agent={}, chunks={}, tokens={}",
             agent.id, rag_context.chunk_count, rag_context.token_count,
         )
 
@@ -223,7 +223,7 @@ async def inject_rag_context(
 
     except Exception as exc:
         logger.warning(
-            "RAG injection failed for agent %d: %s",
+            "RAG injection failed for agent {}: {}",
             agent.id, str(exc),
         )
         return messages, None

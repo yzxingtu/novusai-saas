@@ -148,7 +148,7 @@ class BaseChunker(ABC):
 
         if len(merged) != len(pages):
             logger.info(
-                "Merged small pages: %d → %d (chunk_size=%d)",
+                "Merged small pages: {} → {} (chunk_size={})",
                 len(pages), len(merged), self.chunk_size,
             )
 
@@ -202,7 +202,7 @@ class RecursiveChunker(BaseChunker):
                 chunks.append(self._build_chunk(segment.strip(), chunk_index, meta))
                 chunk_index += 1
 
-        logger.info("RecursiveChunker: %d pages → %d chunks", len(pages), len(chunks))
+        logger.info("RecursiveChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
 
     def _recursive_split(self, text: str, sep_index: int) -> list[str]:
@@ -319,7 +319,7 @@ class ParagraphChunker(BaseChunker):
                 chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
                 chunk_index += 1
 
-        logger.info("ParagraphChunker: %d pages → %d chunks", len(pages), len(chunks))
+        logger.info("ParagraphChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
 
 
@@ -388,7 +388,7 @@ class SemanticChunker(BaseChunker):
                 chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
                 chunk_index += 1
 
-        logger.info("SemanticChunker: %d pages → %d chunks", len(pages), len(chunks))
+        logger.info("SemanticChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
 
 

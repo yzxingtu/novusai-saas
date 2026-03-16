@@ -86,7 +86,7 @@ class UsageRecorder:
             )
         except RateLimitExceeded as e:
             logger.warning(
-                "Rate limit blocked: tenant=%s error=%s",
+                "Rate limit blocked: tenant={} error={}",
                 tenant_id, str(e),
             )
             raise
@@ -99,7 +99,7 @@ class UsageRecorder:
             )
         except QuotaExceeded as e:
             logger.warning(
-                "Quota blocked: tenant=%s error=%s",
+                "Quota blocked: tenant={} error={}",
                 tenant_id, str(e),
             )
             raise
@@ -195,7 +195,7 @@ class UsageRecorder:
                 user_type=UserTypeEnum.TENANT_ADMIN.value,
             )
         except Exception as log_err:
-            logger.error("Record usage failed: %s", str(log_err))
+            logger.error("Record usage failed: {}", str(log_err))
 
     async def on_stream_complete(
         self,
@@ -260,12 +260,12 @@ class UsageRecorder:
                 )
 
             except Exception as e:
-                logger.error("Stream usage recording failed: %s", str(e))
+                logger.error("Stream usage recording failed: {}", str(e))
 
         await self.db.commit()
 
         logger.info(
-            "Stream completed: model=%s in=%d out=%d total=%d cost=%.4f",
+            "Stream completed: model={} in={} out={} total={} cost={}",
             model, input_tokens, output_tokens, total_tokens, cost,
         )
 

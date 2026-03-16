@@ -88,7 +88,7 @@ class AgentSkillBindingService:
                         "package_is_system": getattr(pkg, "is_system", False),
                     })
             except Exception as exc:
-                logger.warning("Failed to load auto-bind packages for agent %d: %s", agent_id, exc)
+                logger.warning("Failed to load auto-bind packages for agent {}: {}", agent_id, exc)
 
         bindings = await effective_binding_repo.get_by_agent_id(agent_id)
         explicit_pkg_ids = set()
@@ -167,7 +167,7 @@ class AgentSkillBindingService:
         })
 
         logger.info(
-            "SkillPackage %d bound to agent %d (tenant=%s)",
+            "SkillPackage {} bound to agent {} (tenant={})",
             package_id, agent_id, self.tenant_id,
         )
 
@@ -188,7 +188,7 @@ class AgentSkillBindingService:
         await self.binding_repo.permanent_delete(binding.id)
 
         logger.info(
-            "SkillPackage %d unbound from agent %d (tenant=%s)",
+            "SkillPackage {} unbound from agent {} (tenant={})",
             package_id, agent_id, self.tenant_id,
         )
 
@@ -247,7 +247,7 @@ class AgentSkillBindingService:
                 bindings.append(binding)
 
         logger.info(
-            "Batch bound %d skill packages to agent %d (tenant=%s)",
+            "Batch bound {} skill packages to agent {} (tenant={})",
             len(package_ids), agent_id, self.tenant_id,
         )
 

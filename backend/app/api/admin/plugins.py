@@ -228,7 +228,7 @@ class AdminPluginController(GlobalController):
                     if frontend and frontend.admin:
                         styles = list(frontend.admin.styles or [])
                 except Exception as exc:
-                    logger.warning("Failed to load styles for plugin %s: %s", plugin_name, exc)
+                    logger.warning("Failed to load styles for plugin {}: {}", plugin_name, exc)
                     styles = []
                 plugin_styles[plugin_name] = styles
 
@@ -308,7 +308,7 @@ class AdminPluginController(GlobalController):
                     "latency_ms": latency_ms,
                 })
             except Exception as exc:
-                logger.warning("Marketplace connection test failed for %s: %s", source_url, exc)
+                logger.warning("Marketplace connection test failed for {}: {}", source_url, exc)
                 return success(data={
                     "ok": False,
                     "error": "Connection failed. Please check the URL and try again.",
@@ -433,7 +433,7 @@ class AdminPluginController(GlobalController):
                 loader = PluginLoader()
                 manifest = loader.load_manifest_from_path(plugin_dir)
                 logger.info(
-                    "Marketplace confirm install: slug=%s plugin=%s",
+                    "Marketplace confirm install: slug={} plugin={}",
                     slug,
                     manifest.name,
                 )
@@ -945,7 +945,7 @@ class AdminPluginController(GlobalController):
                         perm_sync = PermissionSyncService(db)
                         await perm_sync.sync_plugin_permissions(plugin.name)
                     except Exception as _perm_exc:
-                        logger.warning("Repair: permission sync failed for %s: %s", plugin.name, _perm_exc)
+                        logger.warning("Repair: permission sync failed for {}: {}", plugin.name, _perm_exc)
 
                     # 同步启用权限（error 状态下权限可能被禁用） / Sync enabled permissions (permissions may be disabled in error state)
                     await lifecycle._set_plugin_permissions_enabled(plugin.name, True)

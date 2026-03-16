@@ -150,7 +150,7 @@ class ExtensionRegistry:
         AdapterRegistry.register(provider_type, adapter_class)
         self._track(plugin_name, "adapter", provider_type)
         logger.info(
-            "Plugin %s registered adapter: %s", plugin_name, provider_type
+            "Plugin {} registered adapter: {}", plugin_name, provider_type
         )
 
     def _unregister_adapter(self, ext: RegisteredExtension) -> None:
@@ -173,7 +173,7 @@ class ExtensionRegistry:
         HookRegistry.get_instance().register(hook_point, handler, priority)
         self._track(plugin_name, "hook", hook_point, handler)
         logger.info(
-            "Plugin %s registered hook: %s (priority=%d)",
+            "Plugin {} registered hook: {} (priority={})",
             plugin_name, hook_point, priority,
         )
 
@@ -194,7 +194,7 @@ class ExtensionRegistry:
         driver_name = getattr(driver_class, "name", "")
         self._track(plugin_name, "storage", driver_name, driver_class)
         logger.info(
-            "Plugin %s registered storage driver: %s", plugin_name, driver_name
+            "Plugin {} registered storage driver: {}", plugin_name, driver_name
         )
 
     def _unregister_storage(self, ext: RegisteredExtension) -> None:
@@ -235,7 +235,7 @@ class ExtensionRegistry:
                     executor = executor()
                 except Exception as exc:
                     logger.warning(
-                        "Failed to instantiate executor for plugin '%s': %s",
+                        "Failed to instantiate executor for plugin '{}': {}",
                         plugin_name, exc,
                     )
                     executor = None
@@ -243,7 +243,7 @@ class ExtensionRegistry:
                 self._plugin_executors[plugin_name] = executor
         self._track(plugin_name, "skill", plugin_name)
         logger.info(
-            "Plugin %s registered skill resolver (type=%s)", plugin_name, skill_type
+            "Plugin {} registered skill resolver (type={})", plugin_name, skill_type
         )
 
     def _unregister_skill(self, ext: RegisteredExtension) -> None:
@@ -278,7 +278,7 @@ class ExtensionRegistry:
             get_event_bus().subscribe(event_cls, handler)
             self._track(plugin_name, "event", event_type_name, (event_cls, handler))
         logger.info(
-            "Plugin %s subscribed to event: %s", plugin_name, event_type_name
+            "Plugin {} subscribed to event: {}", plugin_name, event_type_name
         )
 
     def _unregister_event(self, ext: RegisteredExtension) -> None:
@@ -333,7 +333,7 @@ class ExtensionRegistry:
         }
         self._track(plugin_name, "webhook", full_path, handler)
         logger.info(
-            "Plugin %s registered webhook: %s %s",
+            "Plugin {} registered webhook: {} {}",
             plugin_name, method, full_path,
         )
 
@@ -406,14 +406,14 @@ class ExtensionRegistry:
                 )
             else:
                 logger.warning(
-                    "Plugin %s task %s: invalid cron '%s', skipping schedule",
+                    "Plugin {} task {}: invalid cron '{}', skipping schedule",
                     plugin_name, task_name, cron_expression,
                 )
         elif interval_seconds and interval_seconds > 0:
             schedule_entry["schedule"] = float(interval_seconds)
         else:
             logger.warning(
-                "Plugin %s task %s: no valid schedule, task registered but not scheduled",
+                "Plugin {} task {}: no valid schedule, task registered but not scheduled",
                 plugin_name, task_name,
             )
 
@@ -427,7 +427,7 @@ class ExtensionRegistry:
             "handler": handler,
         })
         logger.info(
-            "Plugin %s registered task: %s (%s)",
+            "Plugin {} registered task: {} ({})",
             plugin_name, task_name, schedule_type,
         )
 
@@ -438,9 +438,9 @@ class ExtensionRegistry:
             beat_key = ext.key  # plugin_{name}_{task_name}
             if celery_app.conf.beat_schedule and beat_key in celery_app.conf.beat_schedule:
                 del celery_app.conf.beat_schedule[beat_key]
-                logger.info("Removed beat schedule: %s", beat_key)
+                logger.info("Removed beat schedule: {}", beat_key)
         except Exception as exc:
-            logger.warning("Failed to unregister task %s: %s", ext.key, exc)
+            logger.warning("Failed to unregister task {}: {}", ext.key, exc)
 
     # ── 8. Notification ──
 
@@ -474,7 +474,7 @@ class ExtensionRegistry:
             "category": category,
         })
         logger.info(
-            "Plugin %s registered notification: %s",
+            "Plugin {} registered notification: {}",
             plugin_name, full_code,
         )
 
@@ -517,7 +517,7 @@ class ExtensionRegistry:
             "actions": actions or [],
         })
         logger.info(
-            "Plugin %s registered permission: %s", plugin_name, full_code
+            "Plugin {} registered permission: {}", plugin_name, full_code
         )
 
     def _unregister_permission(self, ext: RegisteredExtension) -> None:
@@ -582,7 +582,7 @@ class ExtensionRegistry:
         self._register_menu_permission(plugin_name, name, path, icon, parent, sort_order, scope, component, hidden)
 
         logger.info(
-            "Plugin %s registered menu: %s (parent=%s, scope=%s)",
+            "Plugin {} registered menu: {} (parent={}, scope={})",
             plugin_name, name, parent, scope,
         )
 
@@ -746,7 +746,7 @@ class ExtensionRegistry:
 
         self._track(plugin_name, "socketio", full_ns, handler_class)
         logger.info(
-            "Plugin %s registered Socket.IO namespace: %s (auth=%s scopes=%s)",
+            "Plugin {} registered Socket.IO namespace: {} (auth={} scopes={})",
             plugin_name, full_ns, auth_required, auth_scopes,
         )
 
@@ -761,14 +761,14 @@ class ExtensionRegistry:
             # / 手动从 namespace_handlers 移除
             if hasattr(sio, "namespace_handlers") and full_ns in sio.namespace_handlers:
                 del sio.namespace_handlers[full_ns]
-                logger.info("Removed Socket.IO namespace: %s", full_ns)
+                logger.info("Removed Socket.IO namespace: {}", full_ns)
             else:
                 logger.warning(
-                    "Socket.IO namespace %s not found in handlers", full_ns
+                    "Socket.IO namespace {} not found in handlers", full_ns
                 )
         except Exception as exc:
             logger.warning(
-                "Failed to unregister socketio namespace %s: %s", ext.key, exc
+                "Failed to unregister socketio namespace {}: {}", ext.key, exc
             )
 
     # ── 12. Frontend Slot ──
@@ -804,7 +804,7 @@ class ExtensionRegistry:
 
         self._track(plugin_name, "frontend_slot", dedup_key, slot_entry)
         logger.info(
-            "Plugin %s registered frontend slot: %s/%s",
+            "Plugin {} registered frontend slot: {}/{}",
             plugin_name, slot_type, data.get("name", ""),
         )
 
@@ -878,7 +878,7 @@ class ExtensionRegistry:
                     count += 1
                 except Exception as exc:
                     logger.warning(
-                        "Failed to unregister %s/%s for plugin %s: %s",
+                        "Failed to unregister {}/{} for plugin {}: {}",
                         ext.ext_type, ext.key, plugin_name, exc,
                     )
         # Clean up webhook dict / 清理 webhook 字典
@@ -903,11 +903,11 @@ class ExtensionRegistry:
             get_plugin_event_bus().unsubscribe_all(plugin_name)
         except Exception as exc:
             logger.warning(
-                "Failed to cleanup PluginEventBus for %s: %s", plugin_name, exc,
+                "Failed to cleanup PluginEventBus for {}: {}", plugin_name, exc,
             )
 
         logger.info(
-            "Unregistered %d extensions for plugin %s", count, plugin_name
+            "Unregistered {} extensions for plugin {}", count, plugin_name
         )
         return count
 
@@ -1019,7 +1019,7 @@ class ExtensionRegistry:
         self._plugin_consumers.setdefault(plugin_name, []).append(consumer_info)
         self._track(plugin_name, "consumer", celery_task_name, consumer_info)
         logger.info(
-            "Plugin %s registered consumer: %s (queue=%s)",
+            "Plugin {} registered consumer: {} (queue={})",
             plugin_name, consumer_name, queue,
         )
 
@@ -1034,7 +1034,7 @@ class ExtensionRegistry:
                 if c.get("celery_task_name") != celery_task_name
             ]
         logger.info(
-            "Plugin consumer unregistered (Celery task remains until restart): %s",
+            "Plugin consumer unregistered (Celery task remains until restart): {}",
             celery_task_name,
         )
 
@@ -1068,12 +1068,12 @@ class ExtensionRegistry:
             from app.main import app as fastapi_app
             fastapi_app.add_middleware(middleware_cls)
             logger.info(
-                "Plugin %s registered middleware: %s (priority=%d)",
+                "Plugin {} registered middleware: {} (priority={})",
                 plugin_name, name, priority,
             )
         except Exception as exc:
             logger.warning(
-                "Plugin %s: failed to add middleware %s at runtime: %s",
+                "Plugin {}: failed to add middleware {} at runtime: {}",
                 plugin_name, name, exc,
             )
 
@@ -1088,7 +1088,7 @@ class ExtensionRegistry:
                 if m.get("name") != name
             ]
         logger.info(
-            "Plugin middleware unregistered (full removal requires restart): %s",
+            "Plugin middleware unregistered (full removal requires restart): {}",
             ext.key,
         )
 
@@ -1135,7 +1135,7 @@ class ExtensionRegistry:
         self._plugin_custom_extensions[plugin_name].append(entry)
         self._track(plugin_name, "custom", key, entry)
         logger.info(
-            "Plugin %s registered custom extension: %s/%s",
+            "Plugin {} registered custom extension: {}/{}",
             plugin_name, ext_type, name,
         )
 

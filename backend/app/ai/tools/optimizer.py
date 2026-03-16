@@ -271,7 +271,7 @@ def optimize_tools(
     selected = protected + selected_optimizable
 
     logger.info(
-        "Tool optimizer: %d → %d tools (%d protected, query=%s)",
+        "Tool optimizer: {} → {} tools ({} protected, query={})",
         total,
         len(selected),
         len(protected),
@@ -279,9 +279,9 @@ def optimize_tools(
     )
     if logger.isEnabledFor(10):  # DEBUG
         for t in protected:
-            logger.debug("  [protected] %s", t.name)
+            logger.debug("  [protected] {}", t.name)
         for s, _, t in scored[:budget]:
-            logger.debug("  [%.1f] %s", s, t.name)
+            logger.debug("  [{}] {}", s, t.name)
 
     return OptimizeResult(
         tools=selected,

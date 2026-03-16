@@ -88,7 +88,7 @@ class AcmeClient:
         Returns:
             (certificate_pem, private_key_pem, chain_pem) 元组
         """
-        logger.info("Starting ACME certificate provisioning for %s", domain)
+        logger.info("Starting ACME certificate provisioning for {}", domain)
 
         # 1. 生成域名私钥
         domain_key = self._generate_private_key()
@@ -103,14 +103,14 @@ class AcmeClient:
 
         # 3. 创建订单
         order = await asyncio.to_thread(self._create_order, domain)
-        logger.info("ACME order created for %s", domain)
+        logger.info("ACME order created for {}", domain)
 
         # 4. 获取 DNS-01 challenge
         authz, challenge, validation = self._get_dns01_challenge(order)
         record_name = f"_acme-challenge.{domain}"
 
         logger.info(
-            "DNS-01 challenge: set TXT record %s = %s",
+            "DNS-01 challenge: set TXT record {} = {}",
             record_name, validation,
         )
 
@@ -128,7 +128,7 @@ class AcmeClient:
 
         # 7. 响应 challenge
         await asyncio.to_thread(self._respond_challenge, challenge)
-        logger.info("ACME challenge responded for %s", domain)
+        logger.info("ACME challenge responded for {}", domain)
 
         # 8. 等待验证完成
         await self._poll_challenge_status(authz)
@@ -136,20 +136,20 @@ class AcmeClient:
         # 9. 生成 CSR 并完成订单
         csr = self._generate_csr(domain, domain_key)
         order = await asyncio.to_thread(self._finalize_order, order, csr)
-        logger.info("ACME order finalized for %s", domain)
+        logger.info("ACME order finalized for {}", domain)
 
         # 10. 下载证书
         cert_pem, chain_pem = self._extract_certificate(order)
-        logger.info("Certificate issued for %s", domain)
+        logger.info("Certificate issued for {}", domain)
 
         # 11. 清理 DNS TXT 记录（静默失败）
         if dns_deleter:
             try:
                 await dns_deleter(record_name, validation)
-                logger.info("DNS TXT record cleaned up: %s", record_name)
+                logger.info("DNS TXT record cleaned up: {}", record_name)
             except Exception as e:
                 logger.warning(
-                    "Failed to clean up DNS TXT record %s: %s",
+                    "Failed to clean up DNS TXT record {}: {}",
                     record_name, str(e),
                 )
 
@@ -186,10 +186,10 @@ class AcmeClient:
         )
         try:
             await asyncio.to_thread(self._client.new_account, registration)
-            logger.info("ACME account registered: %s", self._account_email)
+            logger.info("ACME account registered: {}", self._account_email)
         except Exception as e:
             if "already" in str(e).lower():
-                logger.info("ACME account already exists: %s", self._account_email)
+                logger.info("ACME account already exists: {}", self._account_email)
             else:
                 raise
 
@@ -315,7 +315,7 @@ class AcmeClient:
                 for rdata in answers:
                     txt_value = str(rdata).strip('"').strip()
                     if txt_value == expected_value:
-                        logger.info("DNS propagation confirmed for %s", record_name)
+                        logger.info("DNS propagation confirmed for {}", record_name)
                         return
             except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
                     dns.resolver.NoNameservers, Exception):
@@ -324,7 +324,7 @@ class AcmeClient:
             await asyncio.sleep(interval)
 
         logger.warning(
-            "DNS propagation timeout for %s after %ds, proceeding anyway",
+            "DNS propagation timeout for {} after {}s, proceeding anyway",
             record_name, timeout,
         )
 

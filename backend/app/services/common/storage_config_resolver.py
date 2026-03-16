@@ -270,7 +270,7 @@ class StorageConfigResolver:
             from app.core.logging import LogManager
             logger = LogManager.get_logger("storage")
             logger.warning(
-                "Attachment driver '%s' does not match current config driver '%s'. "
+                "Attachment driver '{}' does not match current config driver '{}'. "
                 "File may not be accessible. Consider migrating old attachments.",
                 driver, config.driver,
             )

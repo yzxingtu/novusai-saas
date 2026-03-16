@@ -56,7 +56,7 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
         if module_dir.is_file():
             module_file = module_dir
         else:
-            logger.debug("Plugin module file not found: %s", module_file)
+            logger.debug("Plugin module file not found: {}", module_file)
             return None
 
     module_name = f"plugins.{plugin_name}.backend.{dotted_path}"
@@ -66,7 +66,7 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
 
         spec = importlib.util.spec_from_file_location(module_name, module_file)
         if spec is None or spec.loader is None:
-            logger.warning("Cannot create module spec for %s", module_name)
+            logger.warning("Cannot create module spec for {}", module_name)
             return None
 
         mod = importlib.util.module_from_spec(spec)
@@ -77,7 +77,7 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
         # Clean up failed module entry / 清理失败的模块条目
         sys.modules.pop(module_name, None)
         logger.warning(
-            "Failed to load plugin module %s: %s",
+            "Failed to load plugin module {}: {}",
             module_name, exc, exc_info=True,
         )
         return None
@@ -104,7 +104,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     parts = handler_dotpath.split(".")
     if len(parts) < 2:
         logger.warning(
-            "Invalid handler path '%s' for plugin '%s': need at least module.attr",
+            "Invalid handler path '{}' for plugin '{}': need at least module.attr",
             handler_dotpath, plugin_name,
         )
         return None
@@ -118,7 +118,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
         attr = getattr(mod, attr_name, None)
         if attr is None:
             logger.warning(
-                "Attribute '%s' not found in module '%s' for plugin '%s'",
+                "Attribute '{}' not found in module '{}' for plugin '{}'",
                 attr_name, module_dotpath, plugin_name,
             )
         return attr
@@ -129,7 +129,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     main_mod = load_plugin_module(plugin_name, "main")
     if main_mod is None:
         logger.warning(
-            "Failed to load handler '%s' for plugin '%s': "
+            "Failed to load handler '{}' for plugin '{}': "
             "neither submodule '%s' nor main.py found",
             handler_dotpath, plugin_name, module_dotpath,
         )
@@ -140,7 +140,7 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
         obj = getattr(obj, part, None)
         if obj is None:
             logger.warning(
-                "Failed to load handler '%s' for plugin '%s': "
+                "Failed to load handler '{}' for plugin '{}': "
                 "attribute '%s' not found in getattr chain on main module",
                 handler_dotpath, plugin_name, part,
             )
@@ -185,7 +185,7 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
                 return cls
         except Exception as exc:
             logger.warning(
-                "Failed to find executor class for skill_type '%s' in plugin '%s': %s",
+                "Failed to find executor class for skill_type '{}' in plugin '{}': {}",
                 skill_type, plugin_name, exc,
             )
 
@@ -207,7 +207,7 @@ def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
             cls = _find_executor_in_module(fallback_mod)
             if cls:
                 logger.info(
-                    "Found plugin executor %s in fallback scan for plugin '%s'",
+                    "Found plugin executor {} in fallback scan for plugin '{}'",
                     cls.__name__, plugin_name,
                 )
                 return cls
@@ -239,7 +239,7 @@ def unload_plugin_modules(plugin_name: str) -> int:
 
     if to_remove:
         logger.debug(
-            "Unloaded %d modules for plugin '%s'",
+            "Unloaded {} modules for plugin '{}'",
             len(to_remove), plugin_name,
         )
     return len(to_remove)

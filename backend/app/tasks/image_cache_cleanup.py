@@ -60,7 +60,7 @@ def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) 
                 resolved = cache_file.resolve()
                 if not str(resolved).startswith(str(resolved_root)):
                     logger.warning(
-                        "Image cache cleanup: skipping suspicious path %s",
+                        "Image cache cleanup: skipping suspicious path {}",
                         cache_file,
                     )
                     continue
@@ -76,7 +76,7 @@ def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) 
                     cleaned_bytes += file_size
             except Exception as exc:
                 logger.error(
-                    "Image cache cleanup: failed to remove %s: %s",
+                    "Image cache cleanup: failed to remove {}: {}",
                     cache_file, exc,
                 )
                 errors += 1
@@ -91,12 +91,12 @@ def cleanup_image_cache(self: BaseTask, ttl_days: int = DEFAULT_CACHE_TTL_DAYS) 
                     pass
 
     except Exception as exc:
-        logger.error("Image cache cleanup: scan failed: %s", exc)
+        logger.error("Image cache cleanup: scan failed: {}", exc)
         errors += 1
 
     duration_ms = int((time.time() - start) * 1000)
     logger.info(
-        "Image cache cleanup completed: cleaned=%d files (%.1f MB), errors=%d, duration=%dms",
+        "Image cache cleanup completed: cleaned={} files ({} MB), errors={}, duration={}ms",
         cleaned, cleaned_bytes / (1024 * 1024), errors, duration_ms,
     )
     return {

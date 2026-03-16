@@ -133,7 +133,7 @@ class ConversationEngine(BaseEngine):
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Conversation execution failed: agent=%d error=%s",
+                "Conversation execution failed: agent={} error={}",
                 agent.id,
                 str(exc),
                 exc_info=True,
@@ -301,7 +301,7 @@ class ConversationEngine(BaseEngine):
 
         if not supports_streaming:
             logger.info(
-                "Model %s does not support streaming, falling back to sync chat",
+                "Model {} does not support streaming, falling back to sync chat",
                 model_code,
             )
             response = await adapter.chat(

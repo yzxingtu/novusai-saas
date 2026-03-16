@@ -191,7 +191,7 @@ class HttpToolExecutor(BaseToolExecutor):
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.error("HTTP tool error: %s %s: %s", method, url, str(exc))
+            logger.error("HTTP tool error: {} {}: {}", method, url, str(exc))
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

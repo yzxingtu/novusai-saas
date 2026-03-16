@@ -23,9 +23,9 @@ def register_channel(channel_cls: type[NotificationChannel]) -> None:
     instance = channel_cls()
     code = instance.channel_code
     if code in CHANNEL_REGISTRY:
-        logger.warning("Notification channel '%s' already registered, overwriting", code)
+        logger.warning("Notification channel '{}' already registered, overwriting", code)
     CHANNEL_REGISTRY[code] = channel_cls
-    logger.info("Notification channel registered: %s", code)
+    logger.info("Notification channel registered: {}", code)
 
 
 def get_channel(code: str) -> NotificationChannel | None:

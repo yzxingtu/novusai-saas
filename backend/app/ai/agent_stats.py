@@ -174,7 +174,7 @@ class AgentStatsManager:
             if cursor == 0:
                 break
 
-        logger.info("Daily stats reset: count=%d", count)
+        logger.info("Daily stats reset: count={}", count)
         return count
 
 

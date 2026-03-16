@@ -66,7 +66,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                     cleaned += 1
                 except Exception as e:
                     logger.error(
-                        "Upload cleanup: failed to remove orphan dir %s: %s",
+                        "Upload cleanup: failed to remove orphan dir {}: {}",
                         session_dir, e,
                     )
                     errors += 1
@@ -90,12 +90,12 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
                     shutil.rmtree(session_dir, ignore_errors=True)
                     cleaned += 1
                     logger.info(
-                        "Upload cleanup: removed expired session %s (age: %.1fh)",
+                        "Upload cleanup: removed expired session {} (age: {}h)",
                         session_dir.name, age_hours,
                     )
             except Exception as e:
                 logger.error(
-                    "Upload cleanup: failed to process %s: %s",
+                    "Upload cleanup: failed to process {}: {}",
                     session_dir, e,
                 )
                 errors += 1
@@ -109,7 +109,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
 
     duration_ms = int((time.time() - start) * 1000)
     logger.info(
-        "Upload cleanup completed: cleaned=%d, errors=%d, duration=%dms",
+        "Upload cleanup completed: cleaned={}, errors={}, duration={}ms",
         cleaned, errors, duration_ms,
     )
     return {"cleaned": cleaned, "errors": errors, "duration_ms": duration_ms}

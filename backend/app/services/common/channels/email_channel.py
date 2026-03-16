@@ -89,16 +89,16 @@ class EmailChannel(NotificationChannel):
                     )
                     if email_enabled is False:
                         logger.debug(
-                            "EmailChannel: tenant %d email notification disabled, skip",
+                            "EmailChannel: tenant {} email notification disabled, skip",
                             tenant_id,
                         )
                         return False
                 except Exception as cfg_err:
-                    logger.warning("EmailChannel: tenant config check failed: %s", cfg_err)
+                    logger.warning("EmailChannel: tenant config check failed: {}", cfg_err)
 
             email = await self._get_user_email(db, user_type, user_id)
             if not email:
-                logger.debug("EmailChannel: no email for %s:%d, skip", user_type, user_id)
+                logger.debug("EmailChannel: no email for {}:{}, skip", user_type, user_id)
                 return False
 
             from app.tasks.notification import send_notification_email
@@ -119,9 +119,9 @@ class EmailChannel(NotificationChannel):
                         priority=priority,
                         link=link,
                     )
-                    logger.debug("EmailChannel: rendered HTML template OK, len=%d", len(email_html))
+                    logger.debug("EmailChannel: rendered HTML template OK, len={}", len(email_html))
                 except Exception as tpl_err:
-                    logger.error("EmailChannel: render_notification_html failed: %s", tpl_err, exc_info=True)
+                    logger.error("EmailChannel: render_notification_html failed: {}", tpl_err, exc_info=True)
                     # 降级为纯文本
                     email_html = body or title
 
@@ -135,7 +135,7 @@ class EmailChannel(NotificationChannel):
             )
             return True
         except Exception as e:
-            logger.warning("EmailChannel deliver failed: %s", str(e))
+            logger.warning("EmailChannel deliver failed: {}", str(e))
             return False
 
     @staticmethod

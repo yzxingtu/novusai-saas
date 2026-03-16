@@ -303,7 +303,7 @@ def extract_skill_package(
     metadata = parse_skill_md(skill_md_file.read_text(encoding="utf-8"))
 
     logger.info(
-        "Skill package extracted: %s -> %s (%s v%s)",
+        "Skill package extracted: {} -> {} ({} v{})",
         zip_path, target_dir,
         metadata.get("name"), metadata.get("version"),
     )
@@ -335,7 +335,7 @@ def cleanup_skill_storage(package_id: int) -> None:
     storage_dir = get_skill_storage_dir(package_id)
     if storage_dir.exists():
         shutil.rmtree(storage_dir, ignore_errors=True)
-        logger.info("Skill storage cleaned: %s", storage_dir)
+        logger.info("Skill storage cleaned: {}", storage_dir)
 
 
 def read_env_example(extract_dir: Path) -> str | None:
@@ -362,10 +362,10 @@ def read_env_example(extract_dir: Path) -> str | None:
         if path.exists() and path.is_file():
             try:
                 content = path.read_text(encoding="utf-8")
-                logger.info("Found .env.example at %s", path)
+                logger.info("Found .env.example at {}", path)
                 return content
             except Exception as exc:
-                logger.warning("Failed to read .env.example: %s", exc)
+                logger.warning("Failed to read .env.example: {}", exc)
     return None
 
 

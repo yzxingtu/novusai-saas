@@ -143,7 +143,7 @@ class PdfParser(DocumentParser):
             doc.close()
 
         logger.info(
-            "PDF parsed: %s, pages=%d (extract_images=%s)",
+            "PDF parsed: {}, pages={} (extract_images={})",
             file_name, len(pages), extract_images,
         )
         return pages
@@ -203,7 +203,7 @@ class DocxParser(DocumentParser):
                 ))
 
         logger.info(
-            "DOCX parsed: %s, segments=%d",
+            "DOCX parsed: {}, segments={}",
             file_name, len(pages),
         )
         return pages
@@ -234,7 +234,7 @@ class TxtParser(DocumentParser):
                 ))
 
         logger.info(
-            "TXT parsed: %s, paragraphs=%d",
+            "TXT parsed: {}, paragraphs={}",
             file_name, len(pages),
         )
         return pages
@@ -283,7 +283,7 @@ class MarkdownParser(DocumentParser):
         flush()
 
         logger.info(
-            "Markdown parsed: %s, sections=%d",
+            "Markdown parsed: {}, sections={}",
             file_name, len(pages),
         )
         return pages
@@ -321,7 +321,7 @@ class CsvParser(DocumentParser):
                 ))
 
         logger.info(
-            "CSV parsed: %s, rows=%d",
+            "CSV parsed: {}, rows={}",
             file_name, len(pages),
         )
         return pages
@@ -374,7 +374,7 @@ class XlsxParser(DocumentParser):
             wb.close()
 
         logger.info(
-            "XLSX parsed: %s, sheets=%d, rows=%d",
+            "XLSX parsed: {}, sheets={}, rows={}",
             file_name, len(wb.sheetnames), len(pages),
         )
         return pages
@@ -468,7 +468,7 @@ class HtmlParser(DocumentParser):
             ))
 
         logger.info(
-            "HTML parsed: %s, sections=%d",
+            "HTML parsed: {}, sections={}",
             file_name, len(pages),
         )
         return pages
@@ -547,7 +547,7 @@ class UrlParser(DocumentParser):
                 ))
 
         logger.info(
-            "URL parsed: %s, sections=%d",
+            "URL parsed: {}, sections={}",
             url, len(pages),
         )
         return pages
@@ -591,7 +591,7 @@ class ImageParser(DocumentParser):
         )
 
         logger.info(
-            "Image parsed via Vision: %s, description_len=%d",
+            "Image parsed via Vision: {}, description_len={}",
             file_name,
             len(description),
         )
@@ -633,7 +633,7 @@ class AudioParser(DocumentParser):
             mime_type=mime_type,
             knowledge_base=self._knowledge_base,
         )
-        logger.info("Audio parsed: %s, description_len=%d", file_name, len(description))
+        logger.info("Audio parsed: {}, description_len={}", file_name, len(description))
         return [ParsedPage(
             content=description,
             metadata={"source": file_name, "mime_type": mime_type},
@@ -669,7 +669,7 @@ class VideoParser(DocumentParser):
             mime_type=mime_type,
             knowledge_base=self._knowledge_base,
         )
-        logger.info("Video parsed: %s, description_len=%d", file_name, len(description))
+        logger.info("Video parsed: {}, description_len={}", file_name, len(description))
         return [ParsedPage(
             content=description,
             metadata={"source": file_name, "mime_type": mime_type},
@@ -752,7 +752,7 @@ class PptxParser(DocumentParser):
             ))
 
         logger.info(
-            "PPTX parsed: %s, slides=%d",
+            "PPTX parsed: {}, slides={}",
             file_name, len(pages),
         )
         return pages

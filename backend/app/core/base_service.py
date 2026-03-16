@@ -711,7 +711,7 @@ class BaseService(Generic[ModelType, RepoType]):
         )
         if stats:
             _logger.info(
-                "Deletion cascade for %s#%d: %s",
+                "Deletion cascade for {}#{}: {}",
                 instance.__class__.__name__, instance.id, stats,
             )
 

@@ -133,14 +133,14 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                 escalate_results[model_name] = model_escalated
                 total_escalated += model_escalated
                 logger.info(
-                    "Recycle bin escalated tenant→admin model=%s count=%d",
+                    "Recycle bin escalated tenant→admin model={} count={}",
                     model_name,
                     model_escalated,
                 )
 
         except Exception as e:
             logger.error(
-                "%s error=%s",
+                "{} error={}",
                 _("task.log.recycle_bin_cleanup_failed"),
                 f"escalate {model_path}: {e}",
             )
@@ -188,7 +188,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                                 cleanup_skill_storage(pkg_id)
                             except Exception as e:
                                 logger.warning(
-                                    "Failed to cleanup skill storage for package %d: %s",
+                                    "Failed to cleanup skill storage for package {}: {}",
                                     pkg_id, e,
                                 )
 
@@ -211,7 +211,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                 delete_results[model_name] = model_cleaned
                 total_deleted += model_cleaned
                 logger.info(
-                    "%s model=%s count=%d",
+                    "{} model={} count={}",
                     _("task.log.recycle_bin_cleaned"),
                     model_name,
                     model_cleaned,
@@ -219,7 +219,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
 
         except Exception as e:
             logger.error(
-                "%s error=%s",
+                "{} error={}",
                 _("task.log.recycle_bin_cleanup_failed"),
                 f"delete {model_path}: {e}",
             )
@@ -231,7 +231,7 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
 
     elapsed = time.monotonic() - start
     logger.info(
-        "%s escalated=%d deleted=%d elapsed=%.2fs",
+        "{} escalated={} deleted={} elapsed={}s",
         _("task.log.recycle_bin_cleanup_total"),
         total_escalated,
         total_deleted,

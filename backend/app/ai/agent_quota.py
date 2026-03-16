@@ -229,7 +229,7 @@ class AgentQuotaManager:
                 # Exceeded: result is current usage after rollback
                 # 超限：result 是回滚后的当前用量
                 logger.warning(
-                    "Agent daily quota exceeded: tenant=%d agent=%d usage=%d limit=%d",
+                    "Agent daily quota exceeded: tenant={} agent={} usage={} limit={}",
                     tenant_id,
                     agent_id,
                     result + estimated_tokens,
@@ -289,7 +289,7 @@ class AgentQuotaManager:
 
             if result >= 0:
                 logger.warning(
-                    "Agent monthly quota exceeded: tenant=%d agent=%d usage=%d limit=%d",
+                    "Agent monthly quota exceeded: tenant={} agent={} usage={} limit={}",
                     tenant_id,
                     agent_id,
                     result + estimated_tokens,
@@ -711,7 +711,7 @@ class AgentConcurrencyLimiter:
             )
             if result >= 0:
                 logger.warning(
-                    "Agent concurrency exceeded: tenant=%d agent=%d current=%d max=%d",
+                    "Agent concurrency exceeded: tenant={} agent={} current={} max={}",
                     tenant_id, agent_id, int(result), max_concurrent,
                 )
                 raise AgentConcurrencyExceeded(

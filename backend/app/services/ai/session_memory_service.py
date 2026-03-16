@@ -97,7 +97,7 @@ class SessionMemoryService:
         redis = self._get_redis_safe()
         if redis is None:
             logger.warning(
-                "Session memory degraded (redis unavailable): tenant=%s agent=%s user=%s conversation=%s",
+                "Session memory degraded (redis unavailable): tenant={} agent={} user={} conversation={}",
                 self.tenant_id,
                 agent_id,
                 user_id,
@@ -114,7 +114,7 @@ class SessionMemoryService:
         raw = await redis.get(key)
         if not raw:
             logger.info(
-                "Session memory miss: tenant=%s agent=%s user=%s conversation=%s",
+                "Session memory miss: tenant={} agent={} user={} conversation={}",
                 self.tenant_id,
                 agent_id,
                 user_id,
@@ -132,7 +132,7 @@ class SessionMemoryService:
             data = json.loads(raw)
             if isinstance(data, dict):
                 logger.info(
-                    "Session memory hit: tenant=%s agent=%s user=%s conversation=%s version=%s",
+                    "Session memory hit: tenant={} agent={} user={} conversation={} version={}",
                     self.tenant_id,
                     agent_id,
                     user_id,
@@ -141,7 +141,7 @@ class SessionMemoryService:
                 )
                 return key, data
         except json.JSONDecodeError:
-            logger.warning("Invalid session memory payload, reset: key=%s", key)
+            logger.warning("Invalid session memory payload, reset: key={}", key)
         return key, self._empty_state(
             tenant_id=self.tenant_id,
             channel=channel,
@@ -200,7 +200,7 @@ class SessionMemoryService:
         if redis is None:
             # Redis 未初始化时降级：直接返回当前空状态
             logger.warning(
-                "Session memory write degraded (redis unavailable): tenant=%s agent=%s user=%s conversation=%s",
+                "Session memory write degraded (redis unavailable): tenant={} agent={} user={} conversation={}",
                 self.tenant_id,
                 agent_id,
                 user_id,
@@ -236,7 +236,7 @@ class SessionMemoryService:
                     current_version = int(state.get("version", 0))
                     if current_version != expected_version:
                         logger.info(
-                            "Session memory CAS conflict: tenant=%s agent=%s user=%s conversation=%s expected=%s actual=%s",
+                            "Session memory CAS conflict: tenant={} agent={} user={} conversation={} expected={} actual={}",
                             self.tenant_id,
                             agent_id,
                             user_id,
@@ -250,7 +250,7 @@ class SessionMemoryService:
                     # 幂等：event_id 重复直接返回成功（不重复写）
                     if event_id and state.get("last_event_id") == event_id:
                         logger.info(
-                            "Session memory idempotent hit: tenant=%s agent=%s user=%s conversation=%s event_id=%s",
+                            "Session memory idempotent hit: tenant={} agent={} user={} conversation={} event_id={}",
                             self.tenant_id,
                             agent_id,
                             user_id,
@@ -288,7 +288,7 @@ class SessionMemoryService:
                     await pipe.set(key, payload, ex=SESSION_MEMORY_TTL_SECONDS)
                     await pipe.execute()
                     logger.info(
-                        "Session memory updated: tenant=%s agent=%s user=%s conversation=%s version=%s",
+                        "Session memory updated: tenant={} agent={} user={} conversation={} version={}",
                         self.tenant_id,
                         agent_id,
                         user_id,
@@ -310,7 +310,7 @@ class SessionMemoryService:
                         conversation_id=conversation_id,
                     )
                     logger.warning(
-                        "Session memory CAS retry required: tenant=%s agent=%s user=%s conversation=%s",
+                        "Session memory CAS retry required: tenant={} agent={} user={} conversation={}",
                         self.tenant_id,
                         agent_id,
                         user_id,
@@ -421,12 +421,12 @@ class SessionMemoryService:
                         merged["updated_at"], int(state.get("updated_at", 0)),
                     )
                 except (json.JSONDecodeError, ValueError):
-                    logger.warning("Invalid session memory payload, skip: key=%s", key)
+                    logger.warning("Invalid session memory payload, skip: key={}", key)
             if cursor == 0:
                 break
 
         logger.info(
-            "Session memory state fetched: tenant=%s conversation=%s version=%s",
+            "Session memory state fetched: tenant={} conversation={} version={}",
             self.tenant_id,
             conversation_id,
             merged["version"],
@@ -450,7 +450,7 @@ class SessionMemoryService:
             if cursor == 0:
                 break
         logger.info(
-            "Session memory cleared by conversation: tenant=%s conversation=%s deleted=%s",
+            "Session memory cleared by conversation: tenant={} conversation={} deleted={}",
             self.tenant_id,
             conversation_id,
             total_deleted,

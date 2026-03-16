@@ -83,13 +83,13 @@ class BatchRunService(TenantService[BatchRun, BatchRunRepository]):
                     batch_run.celery_task_id, terminate=False,
                 )
                 logger.info(
-                    "Celery task %s revoked for batch_run %d",
+                    "Celery task {} revoked for batch_run {}",
                     batch_run.celery_task_id,
                     run_id,
                 )
             except Exception as e:
                 logger.warning(
-                    "Failed to revoke celery task %s: %s",
+                    "Failed to revoke celery task {}: {}",
                     batch_run.celery_task_id,
                     str(e),
                 )

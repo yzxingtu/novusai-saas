@@ -69,7 +69,7 @@ class InboxChannel(NotificationChannel):
             db.add(notification)
             return True
         except Exception as e:
-            logger.warning("InboxChannel deliver failed: %s", str(e))
+            logger.warning("InboxChannel deliver failed: {}", str(e))
             return False
 
 

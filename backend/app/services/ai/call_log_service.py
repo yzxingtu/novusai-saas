@@ -201,7 +201,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         await self.db.flush()
 
         logger.info(
-            "AI call logged | tenant_id=%s model_id=%s total_tokens=%s cost=%s status=%s",
+            "AI call logged | tenant_id={} model_id={} total_tokens={} cost={} status={}",
             tenant_id,
             model_id,
             total_tokens,
@@ -298,7 +298,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         )
 
         logger.debug(
-            "AI call log queued | tenant_id=%s model_id=%s",
+            "AI call log queued | tenant_id={} model_id={}",
             tenant_id,
             model_id,
         )

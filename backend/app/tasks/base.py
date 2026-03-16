@@ -192,7 +192,7 @@ class BaseTask(Task):
 
         # 1. Record notification log / 记录通知日志
         logger.warning(
-            "Task failure notification: task=%s task_id=%s error=%s emails=%s",
+            "Task failure notification: task={} task_id={} error={} emails={}",
             task_name, task_id, str(exc)[:200], notify_emails or "(none)",
         )
 
@@ -208,7 +208,7 @@ class BaseTask(Task):
                 "priority": "high",
             })
         except Exception as ws_err:
-            logger.warning("Failed to send WS task failure notification: %s", str(ws_err))
+            logger.warning("Failed to send WS task failure notification: {}", str(ws_err))
 
         # 3. Email notification (via unified notification system) / 邮件通知（通过统一通知系统）
         if notify_emails:
@@ -233,7 +233,7 @@ class BaseTask(Task):
                 )
             except Exception as mail_err:
                 logger.warning(
-                    "Failed to send task failure notification: %s", str(mail_err),
+                    "Failed to send task failure notification: {}", str(mail_err),
                 )
 
     def _get_elapsed(self) -> float:

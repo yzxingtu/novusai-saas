@@ -62,7 +62,7 @@ class FailoverService:
             return health.get("is_available", True)
 
         except (RedisError, json.JSONDecodeError) as e:
-            logger.error("Failover health check failed: %s", str(e))
+            logger.error("Failover health check failed: {}", str(e))
             # Don't block requests on query failure / 查询失败时不阻断请求
             return True
 
@@ -100,7 +100,7 @@ class FailoverService:
             # Prevent circular chains / 防止循环
             if fallback_id in visited:
                 logger.warning(
-                    "Failover: circular chain detected: model_id=%s fallback_id=%s",
+                    "Failover: circular chain detected: model_id={} fallback_id={}",
                     current_id, fallback_id,
                 )
                 return None
@@ -116,7 +116,7 @@ class FailoverService:
             # Check if fallback model's provider is healthy / 检查备用模型的供应商是否健康
             if await self.is_provider_healthy(fallback.provider_id):
                 logger.info(
-                    "Failover found: original_model=%s fallback_model=%s fallback_name=%s",
+                    "Failover found: original_model={} fallback_model={} fallback_name={}",
                     model_id, fallback.id, fallback.name,
                 )
                 return fallback
@@ -125,7 +125,7 @@ class FailoverService:
             current_id = fallback_id
 
         logger.warning(
-            "Failover: no healthy provider found: model_id=%s max_depth=%s",
+            "Failover: no healthy provider found: model_id={} max_depth={}",
             model_id, max_depth,
         )
         return None
@@ -159,7 +159,7 @@ class FailoverService:
             return sorted(results, key=lambda x: x.get("provider_id", 0))
 
         except (RedisError, json.JSONDecodeError) as e:
-            logger.error("Failover get all health failed: %s", str(e))
+            logger.error("Failover get all health failed: {}", str(e))
             return []
 
     @staticmethod
@@ -194,7 +194,7 @@ class FailoverService:
 
         except (RedisError, json.JSONDecodeError) as e:
             logger.error(
-                "Failover: get history failed: provider_id=%s error=%s",
+                "Failover: get history failed: provider_id={} error={}",
                 provider_id, str(e),
             )
             return []

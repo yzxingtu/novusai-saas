@@ -194,7 +194,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 email_text=text_body,
             )
         except Exception as e:
-            logger.warning("Failed to send welcome notification: %s", str(e))
+            logger.warning("Failed to send welcome notification: {}", str(e))
 
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
@@ -300,7 +300,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         await self.db.flush()
 
         logger.info(
-            "Created default user role (id=%s) for tenant %s",
+            "Created default user role (id={}) for tenant {}",
             default_role.id, tenant_id,
         )
 
@@ -409,7 +409,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 email_text=text_body,
             )
         except Exception as e:
-            logger.warning("Failed to send password reset notification: %s", str(e))
+            logger.warning("Failed to send password reset notification: {}", str(e))
 
     async def update_tenant(
         self,

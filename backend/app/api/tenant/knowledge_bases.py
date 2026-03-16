@@ -213,33 +213,12 @@ class TenantKnowledgeBaseController(TenantController):
             service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
 
+            from app.api.shared._kb_helpers import enrich_model_names
+
             result = []
             for kb in items:
                 item = kb.to_dict()
-                item["embedding_model_name"] = None
-                item["vision_model_name"] = None
-                item["audio_model_name"] = None
-                item["video_model_name"] = None
-                try:
-                    if kb.embedding_model:
-                        item["embedding_model_name"] = kb.embedding_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "vision_model", None):
-                        item["vision_model_name"] = kb.vision_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "audio_model", None):
-                        item["audio_model_name"] = kb.audio_model.name
-                except Exception:
-                    pass
-                try:
-                    if getattr(kb, "video_model", None):
-                        item["video_model_name"] = kb.video_model.name
-                except Exception:
-                    pass
+                enrich_model_names(kb, item)
                 result.append(item)
 
             return paginated(
@@ -284,32 +263,10 @@ class TenantKnowledgeBaseController(TenantController):
             kb = await service.create(data.model_dump(exclude_unset=True))
             await db.commit()
 
-            result = kb.to_dict()
-            result["embedding_model_name"] = None
-            result["vision_model_name"] = None
-            result["audio_model_name"] = None
-            result["video_model_name"] = None
-            try:
-                if kb.embedding_model:
-                    result["embedding_model_name"] = kb.embedding_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "vision_model", None):
-                    result["vision_model_name"] = kb.vision_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "audio_model", None):
-                    result["audio_model_name"] = kb.audio_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(kb, "video_model", None):
-                    result["video_model_name"] = kb.video_model.name
-            except Exception:
-                pass
+            from app.api.shared._kb_helpers import enrich_model_names
 
+            result = kb.to_dict()
+            enrich_model_names(kb, result)
             return created(
                 data=result,
                 message=_("knowledge_base.created"),
@@ -340,32 +297,10 @@ class TenantKnowledgeBaseController(TenantController):
             )
             await db.commit()
 
-            result = updated.to_dict()
-            result["embedding_model_name"] = None
-            result["vision_model_name"] = None
-            result["audio_model_name"] = None
-            result["video_model_name"] = None
-            try:
-                if updated.embedding_model:
-                    result["embedding_model_name"] = updated.embedding_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(updated, "vision_model", None):
-                    result["vision_model_name"] = updated.vision_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(updated, "audio_model", None):
-                    result["audio_model_name"] = updated.audio_model.name
-            except Exception:
-                pass
-            try:
-                if getattr(updated, "video_model", None):
-                    result["video_model_name"] = updated.video_model.name
-            except Exception:
-                pass
+            from app.api.shared._kb_helpers import enrich_model_names
 
+            result = updated.to_dict()
+            enrich_model_names(updated, result)
             return success(
                 data=result,
                 message=_("knowledge_base.updated"),

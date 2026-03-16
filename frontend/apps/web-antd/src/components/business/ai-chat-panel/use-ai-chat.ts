@@ -767,10 +767,10 @@ export function useAIChat(options: UseAIChatOptions) {
           quality,
         );
       });
-      img.onerror = () => {
+      img.addEventListener('error', () => {
         URL.revokeObjectURL(img.src);
         resolve(file);
-      };
+      });
       img.src = URL.createObjectURL(file);
     });
   }

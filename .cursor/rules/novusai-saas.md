@@ -6,6 +6,10 @@
 
 ## 全局禁令
 
+- 禁止 `except Exception: pass/continue`（至少 `logger.debug` 记录）
+- 禁止未经 `DOMPurify.sanitize()` 的 `v-html`
+- 禁止迁移脚本中 `text(f"...")` 拼接 SQL，必须用 `text(...).bindparams()`
+- 禁止 Loguru 日志使用 `%s`/`%d` 风格，必须用 `{}` 风格
 - 禁止硬编码中文字符串，前端用 `$t()`，后端用 `_()`
 - 禁止 `console.log`，使用 `console.warn` / `console.error`
 - 禁止 `any` 类型，使用 `unknown` 或具体类型
@@ -224,6 +228,16 @@ if obj.tenant_id != self.tenant_id:
 from app.core.logging import LogManager
 logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/captcha/impersonate
 ```
+
+Loguru 使用 `{}` 风格，禁止 `%s`/`%d`：`logger.info("id={}", x)` 而不是 `logger.info("id=%s", x)`。
+
+### 安全配置
+
+- `DEBUG` 默认值必须为 `False`
+- CORS 禁止 `allow_origins=["*"]` 且 `allow_credentials=True`
+- 依赖以 `pyproject.toml` 为单一事实来源，与 `requirements.txt` 同步
+- 列表/导出 API 必须有合理 `.limit()` 上限
+- 文件句柄必须用 `with` 或确保关闭
 
 ### 迁移
 

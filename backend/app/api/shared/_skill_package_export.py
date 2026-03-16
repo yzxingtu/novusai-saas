@@ -204,7 +204,7 @@ async def import_skill_package(
         skill_type = skill_data.get("type", "toolkit")
         if skill_type not in valid_skill_types:
             logger.warning(
-                "Skipping skill with invalid type '%s' during import of '%s'",
+                "Skipping skill with invalid type '{}' during import of '{}'",
                 skill_type, pkg_name,
             )
             continue
@@ -230,7 +230,7 @@ async def import_skill_package(
         skills_created += 1
 
     logger.info(
-        "Skill package imported: %s (id=%d) with %d skills",
+        "Skill package imported: {} (id={}) with {} skills",
         pkg_name, new_pkg.id, skills_created,
     )
 

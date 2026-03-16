@@ -815,7 +815,7 @@ class PluginContext:
                 raise
 
             logger.warning(
-                "Plugin %s AI stream failed: %s",
+                "Plugin {} AI stream failed: {}",
                 self.plugin_name, exc,
             )
             is_fallback = True
@@ -825,13 +825,13 @@ class PluginContext:
                     chunk_count = 1
                     yield full_text
             except Exception as fallback_exc:
-                logger.error("Plugin %s AI fallback also failed: %s", self.plugin_name, fallback_exc)
+                logger.error("Plugin {} AI fallback also failed: {}", self.plugin_name, fallback_exc)
                 raise PluginError(message=f"AI call failed: {exc}") from exc
 
         finally:
             latency_ms = int((time.perf_counter() - start_time) * 1000)
             logger.info(
-                "plugin_ai_stream: plugin=%s feature=%s agent_id=%d "
+                "plugin_ai_stream: plugin={} feature={} agent_id={} "
                 "tenant_id=%d chunks=%d latency_ms=%d fallback=%s",
                 self.plugin_name,
                 feature_code,
@@ -914,7 +914,7 @@ class PluginContext:
                 full_event, context, source_plugin=self.plugin_name,
             )
             logger.info(
-                "Plugin %s event '%s': bus delivered=%d failed=%d",
+                "Plugin {} event '{}': bus delivered={} failed={}",
                 self.plugin_name, event_name,
                 bus_result["delivered"], bus_result["failed"],
             )
@@ -927,7 +927,7 @@ class PluginContext:
         if hook_registry.has_hooks(full_event):
             context = await hook_registry.trigger(full_event, **context)
             logger.info(
-                "Plugin %s event '%s': %d hooks triggered",
+                "Plugin {} event '{}': {} hooks triggered",
                 self.plugin_name, event_name,
                 len(hook_registry._hooks.get(full_event, [])),
             )
@@ -1025,13 +1025,13 @@ class PluginContext:
             sio = get_sio()
             await sio.emit(full_event, payload, room=room, namespace=namespace)
             logger.debug(
-                "Plugin %s: pushed event '%s' to user %d (%s)",
+                "Plugin {}: pushed event '{}' to user {} ({})",
                 self.plugin_name, event, user_id, side,
             )
             return True
         except Exception as exc:
             logger.warning(
-                "Plugin %s: push_to_user failed (user=%d event=%s): %s",
+                "Plugin {}: push_to_user failed (user={} event={}): {}",
                 self.plugin_name, user_id, event, exc,
             )
             return False

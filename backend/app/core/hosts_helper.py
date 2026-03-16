@@ -238,7 +238,7 @@ def get_domain_entry_status(domain: str) -> HostEntryStatus:
         return _inspect_entry(_read_lines(), domain)
     except Exception:
         logger.exception(
-            "[NovusAI-Dev] Failed to inspect hosts entry status: %s",
+            "[NovusAI-Dev] Failed to inspect hosts entry status: {}",
             domain,
         )
         return {
@@ -272,14 +272,14 @@ def add_host_entry(domain: str) -> bool:
         entry_status = _inspect_entry(lines, domain)
         if entry_status["status"] == "managed_present":
             logger.info(
-                "[NovusAI-Dev] managed hosts entry already exists, skipping: %s  %s",
+                "[NovusAI-Dev] managed hosts entry already exists, skipping: {}  {}",
                 LOOPBACK_IP,
                 domain,
             )
             return True
         if entry_status["status"] == "manual_present":
             logger.info(
-                "[NovusAI-Dev] manual hosts entry already exists, skipping managed write: %s  %s",
+                "[NovusAI-Dev] manual hosts entry already exists, skipping managed write: {}  {}",
                 entry_status["matched_ip"] or LOOPBACK_IP,
                 domain,
             )
@@ -309,14 +309,14 @@ def add_host_entry(domain: str) -> bool:
         return False
     except OSError as exc:
         logger.warning(
-            "[NovusAI-Dev] Could not write hosts file (%s): %s",
+            "[NovusAI-Dev] Could not write hosts file ({}): {}",
             type(exc).__name__,
             exc,
         )
         return False
     except Exception:
         logger.exception(
-            "[NovusAI-Dev] Unexpected error while adding hosts entry: %s",
+            "[NovusAI-Dev] Unexpected error while adding hosts entry: {}",
             domain,
         )
         return False
@@ -352,7 +352,7 @@ def remove_host_entry(domain: str) -> bool:
 
         _write_lines(new_lines)
         logger.info(
-            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - removed hosts entry: %s",
+            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - removed hosts entry: {}",
             domain,
         )
         return True
@@ -362,14 +362,14 @@ def remove_host_entry(domain: str) -> bool:
         return False
     except OSError as exc:
         logger.warning(
-            "[NovusAI-Dev] Could not update hosts file (%s): %s",
+            "[NovusAI-Dev] Could not update hosts file ({}): {}",
             type(exc).__name__,
             exc,
         )
         return False
     except Exception:
         logger.exception(
-            "[NovusAI-Dev] Unexpected error while removing hosts entry: %s",
+            "[NovusAI-Dev] Unexpected error while removing hosts entry: {}",
             domain,
         )
         return False
@@ -411,7 +411,7 @@ def cleanup_all_entries() -> int:
 
         _write_lines(new_lines)
         logger.info(
-            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - cleaned %d entries from hosts file",
+            "[NovusAI-Dev] LOCAL DEV ENVIRONMENT - cleaned {} entries from hosts file",
             removed,
         )
         return removed
@@ -421,7 +421,7 @@ def cleanup_all_entries() -> int:
         return 0
     except OSError as exc:
         logger.warning(
-            "[NovusAI-Dev] Could not cleanup hosts file (%s): %s",
+            "[NovusAI-Dev] Could not cleanup hosts file ({}): {}",
             type(exc).__name__,
             exc,
         )

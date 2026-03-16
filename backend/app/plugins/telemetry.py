@@ -63,7 +63,7 @@ async def record_call(
 
     except Exception as exc:
         # Telemetry should not affect main logic / 不应影响主逻辑
-        logger.debug("Telemetry record failed for %s: %s", plugin_name, exc)
+        logger.debug("Telemetry record failed for {}: {}", plugin_name, exc)
 
 
 def _parse_hash(raw: dict[bytes | str, bytes | str]) -> dict[str, int]:
@@ -159,7 +159,7 @@ async def get_stats(plugin_name: str, days: int = 30) -> dict:
         }
 
     except Exception as exc:
-        logger.debug("Telemetry get_stats failed for %s: %s", plugin_name, exc)
+        logger.debug("Telemetry get_stats failed for {}: {}", plugin_name, exc)
         return {
             "total_calls": 0, "success_calls": 0, "error_calls": 0,
             "avg_duration_ms": 0, "error_rate": 0, "by_type": {}, "daily": [],

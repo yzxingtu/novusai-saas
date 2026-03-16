@@ -286,13 +286,13 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 doc_repo = KnowledgeDocumentRepository(db, tenant_id)
                 doc = await doc_repo.get_by_id(document_id)
                 if not doc:
-                    logger.error("Document %d not found", document_id)
+                    logger.error("Document {} not found", document_id)
                     return {"error": "Document not found"}
 
                 kb_repo = KnowledgeBaseRepository(db, tenant_id)
                 kb = await kb_repo.get_by_id(doc.knowledge_base_id)
                 if not kb:
-                    logger.error("KnowledgeBase %d not found", doc.knowledge_base_id)
+                    logger.error("KnowledgeBase {} not found", doc.knowledge_base_id)
                     return {"error": "KnowledgeBase not found"}
 
                 # Checkpoint resume: check error_stage to determine starting stage
@@ -302,7 +302,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 skip_chunking = resume_stage == "embedding"
 
                 logger.info(
-                    "Processing document %d (type=%s, kb=%d, resume=%s)",
+                    "Processing document {} (type={}, kb={}, resume={})",
                     document_id, doc.file_type, kb.id, resume_stage or "full",
                 )
 
@@ -327,7 +327,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     await _report_progress(document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id)
 
                     if not pages:
-                        logger.warning("Document %d parsed with 0 pages", document_id)
+                        logger.warning("Document {} parsed with 0 pages", document_id)
 
                 # ===== 3. Chunking stage / 分块阶段 =====
                 if not skip_chunking:
@@ -392,7 +392,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     count_result = await db.execute(count_stmt)
                     existing_chunk_count = count_result.scalar() or 0
                     logger.info(
-                        "Resuming embedding from chunk %d/%d for doc %d",
+                        "Resuming embedding from chunk {}/{} for doc {}",
                         existing_chunk_count, len(chunk_data_list), document_id,
                     )
 
@@ -447,7 +447,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     )
 
                     logger.info(
-                        "Embedding %d/%d for doc %d",
+                        "Embedding {}/{} for doc {}",
                         processed_so_far, total_chunks, document_id,
                     )
 
@@ -532,7 +532,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     pass
 
                 logger.info(
-                    "Document %d processed: %d chunks, %d tokens",
+                    "Document {} processed: {} chunks, {} tokens",
                     document_id, total_chunks, total_token_count,
                 )
 
@@ -545,7 +545,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
             except Exception as exc:
                 logger.error(
-                    "Document %d processing failed: %s",
+                    "Document {} processing failed: {}",
                     document_id, str(exc),
                     exc_info=True,
                 )

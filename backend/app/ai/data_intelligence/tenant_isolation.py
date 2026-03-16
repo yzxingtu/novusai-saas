@@ -177,7 +177,7 @@ class TenantIsolationInjector:
         table_refs = _extract_table_refs(sql)
         if not table_refs:
             logger.warning(
-                "No table references found in SQL, cannot inject tenant_id: %s",
+                "No table references found in SQL, cannot inject tenant_id: {}",
                 sql[:200],
             )
             raise TenantIsolationError(
@@ -207,7 +207,7 @@ class TenantIsolationInjector:
                     )
                 # Platform admin skips isolation / 平台管理员跳过隔离
                 logger.debug(
-                    "Table %s has no tenant_column, skipping isolation (platform_admin)",
+                    "Table {} has no tenant_column, skipping isolation (platform_admin)",
                     table_name,
                 )
                 continue
@@ -234,7 +234,7 @@ class TenantIsolationInjector:
                 ]
                 result = _inject_extra_conditions(result, user_conditions)
                 logger.info(
-                    "Injected user_id=%d isolation for tenant_user on %d table(s)",
+                    "Injected user_id={} isolation for tenant_user on {} table(s)",
                     user_id, len(user_refs),
                 )
 
@@ -341,7 +341,7 @@ def _inject_conditions(
             result = f"{stripped} WHERE {tenant_clause}"
 
     logger.info(
-        "Injected tenant_id=%d for %d table(s)",
+        "Injected tenant_id={} for {} table(s)",
         tenant_id, len(refs),
     )
 

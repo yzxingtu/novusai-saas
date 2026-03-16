@@ -327,7 +327,7 @@ async def _audit_log(
         )
         context.db.add(log)
     except Exception as exc:
-        logger.warning("Failed to write audit log: %s", str(exc))
+        logger.warning("Failed to write audit log: {}", str(exc))
 
 
 # ============================================

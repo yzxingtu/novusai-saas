@@ -68,7 +68,7 @@ async def update_global_preferences(
             room="admins",
             namespace="/admin",
         )
-        logger.info("Emitted preference:global_updated to room=admins (%d keys)", len(changed))
+        logger.info("Emitted preference:global_updated to room=admins ({} keys)", len(changed))
 
     return success(data=data, message=_("common.success"))
 

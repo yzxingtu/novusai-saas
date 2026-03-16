@@ -108,12 +108,12 @@ class MultiQueryRewriter(BaseRewriter):
                     queries.append(line)
 
             logger.info(
-                "MultiQuery rewrite: '%s' → %d queries",
+                "MultiQuery rewrite: '{}' → {} queries",
                 query[:50], len(queries),
             )
 
         except Exception as exc:
-            logger.warning("MultiQuery rewrite failed: %s", str(exc))
+            logger.warning("MultiQuery rewrite failed: {}", str(exc))
 
         return queries
 
@@ -186,12 +186,12 @@ class HyDERewriter(BaseRewriter):
                 queries.append(hypothetical)
 
             logger.info(
-                "HyDE rewrite: '%s' → hypothetical len=%d",
+                "HyDE rewrite: '{}' → hypothetical len={}",
                 query[:50], len(hypothetical),
             )
 
         except Exception as exc:
-            logger.warning("HyDE rewrite failed: %s", str(exc))
+            logger.warning("HyDE rewrite failed: {}", str(exc))
 
         return queries
 

@@ -39,7 +39,7 @@ def extract_json_block(text: str) -> dict[str, Any] | list[Any] | None:
     try:
         return json.loads(match.group(1))
     except json.JSONDecodeError as exc:
-        logger.debug("Failed to parse JSON block: %s", str(exc))
+        logger.debug("Failed to parse JSON block: {}", str(exc))
         return None
 
 

@@ -85,7 +85,7 @@ class CloudflareDnsProvider(DnsProvider):
                 raise RuntimeError(f"Cloudflare API error: {errors}")
 
             logger.info(
-                "Cloudflare TXT record set: %s = %s", record_name, record_value,
+                "Cloudflare TXT record set: {} = {}", record_name, record_value,
             )
 
     async def delete_txt_record(self, record_name: str, record_value: str) -> None:
@@ -114,7 +114,7 @@ class CloudflareDnsProvider(DnsProvider):
                     )
                     del_resp.raise_for_status()
                     logger.info(
-                        "Cloudflare TXT record deleted: %s (id=%s)",
+                        "Cloudflare TXT record deleted: {} (id={})",
                         record_name, record["id"],
                     )
 
@@ -147,13 +147,13 @@ class ManualDnsProvider(DnsProvider):
 
     async def set_txt_record(self, record_name: str, record_value: str) -> None:
         logger.warning(
-            "Manual DNS mode: Please set TXT record %s = %s",
+            "Manual DNS mode: Please set TXT record {} = {}",
             record_name, record_value,
         )
 
     async def delete_txt_record(self, record_name: str, record_value: str) -> None:
         logger.warning(
-            "Manual DNS mode: Please delete TXT record %s = %s",
+            "Manual DNS mode: Please delete TXT record {} = {}",
             record_name, record_value,
         )
 

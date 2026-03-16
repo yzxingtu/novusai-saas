@@ -122,7 +122,7 @@ class ModelRouter:
             return await self._do_route(agent, request, estimated_tokens, tools)
         except Exception as exc:
             logger.warning(
-                "ModelRouter.route failed (agent_id=%s): %s — falling back to agent model",
+                "ModelRouter.route failed (agent_id={}): {} — falling back to agent model",
                 getattr(agent, "id", "?"),
                 str(exc),
             )
@@ -231,7 +231,7 @@ class ModelRouter:
             # ── 5. Provider 健康检查 ──
             if not await self._is_provider_healthy(model.provider_id):
                 logger.warning(
-                    "ModelRouter: provider %d unhealthy for tier=%s, trying next tier",
+                    "ModelRouter: provider {} unhealthy for tier={}, trying next tier",
                     model.provider_id,
                     tier,
                 )
@@ -459,7 +459,7 @@ class ModelRouter:
         model_tier: str | None = getattr(model, "tier", None) if model else None
 
         logger.debug(
-            "ModelRouter fallback: agent_id=%s reason=%s model_id=%s",
+            "ModelRouter fallback: agent_id={} reason={} model_id={}",
             getattr(agent, "id", "?"),
             reason,
             model_id,
@@ -484,7 +484,7 @@ class ModelRouter:
             failover = FailoverService(self.db)
             return await failover.is_provider_healthy(provider_id)
         except Exception as exc:
-            logger.warning("ModelRouter health check failed: %s", str(exc))
+            logger.warning("ModelRouter health check failed: {}", str(exc))
             return True
 
     @staticmethod

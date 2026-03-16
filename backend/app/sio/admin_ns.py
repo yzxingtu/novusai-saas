@@ -136,7 +136,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
         await self.emit("presence:list", {"online_ids": online_ids}, to=sid)
 
         logger.info(
-            "SIO /admin connected: sid=%s user_id=%d username=%s connections=%d",
+            "SIO /admin connected: sid={} user_id={} username={} connections={}",
             sid, user_id, username, connections,
         )
 
@@ -148,14 +148,14 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
             user_id = session.get("user_id")
         except Exception as e:
             logger.warning(
-                "SIO /admin get_session failed on disconnect: sid=%s error=%s",
+                "SIO /admin get_session failed on disconnect: sid={} error={}",
                 sid, e,
             )
             # fallback: get from backup mapping / 从备份映射获取
             fallback = self._sid_sessions.get(sid)
             if fallback:
                 user_id = fallback.get("user_id")
-                logger.info("SIO /admin using fallback session for sid=%s user_id=%s", sid, user_id)
+                logger.info("SIO /admin using fallback session for sid={} user_id={}", sid, user_id)
 
         if user_id:
             try:
@@ -170,7 +170,7 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
                     )
             except Exception as e:
                 logger.error(
-                    "SIO /admin presence cleanup failed: sid=%s user_id=%s error=%s",
+                    "SIO /admin presence cleanup failed: sid={} user_id={} error={}",
                     sid, user_id, e,
                 )
 
@@ -178,6 +178,6 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
         self._sid_sessions.pop(sid, None)
 
         logger.info(
-            "SIO /admin disconnected: sid=%s user_id=%s reason=%s",
+            "SIO /admin disconnected: sid={} user_id={} reason={}",
             sid, user_id, reason,
         )

@@ -151,13 +151,13 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
             await self.db.flush()
 
             logger.info(
-                "Usage recorded: tenant=%s user=%s model=%s in=%s out=%s cost=%s",
+                "Usage recorded: tenant={} user={} model={} in={} out={} cost={}",
                 tenant_id, user_id, model_id,
                 input_tokens, output_tokens, cost,
             )
 
         except Exception as e:
-            logger.error("Record usage failed: %s", str(e))
+            logger.error("Record usage failed: {}", str(e))
             await self.db.rollback()
             raise
 

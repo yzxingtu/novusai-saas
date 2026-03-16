@@ -78,7 +78,7 @@ async def get_ws_config(key: str) -> Any:
                 pass
             return value
     except Exception as e:
-        logger.warning("ws_config read failed for key=%s: %s", key, e)
+        logger.warning("ws_config read failed for key={}: {}", key, e)
 
     return default
 
@@ -131,7 +131,7 @@ async def get_ws_configs(*keys: str) -> dict[str, Any]:
                         except Exception:
                             pass
         except Exception as e:
-            logger.warning("ws_config batch read failed: %s", e)
+            logger.warning("ws_config batch read failed: {}", e)
 
     # Fill in defaults / 补充默认值
     for key in keys:

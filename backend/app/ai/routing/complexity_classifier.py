@@ -97,7 +97,7 @@ class ComplexityClassifier:
             level = self._elevate_for_attachments(level)
 
         logger.debug(
-            "ComplexityClassifier: score=%d level=%s turns=%d tools=%d attachments=%s",
+            "ComplexityClassifier: score={} level={} turns={} tools={} attachments={}",
             score,
             level.value,
             len(messages),

@@ -61,20 +61,18 @@ def upgrade() -> None:
         root_row = result.fetchone()
         if root_row:
             root_id = root_row[0]
-            conn.execute(text(f"""
-                UPDATE admin_roles SET path = '/{root_id}/' WHERE id = {root_id}
-            """))
+            conn.execute(text("UPDATE admin_roles SET path = '/' || :rid || '/' WHERE id = :rid"), {"rid": root_id})
             
             # 将现有的顶级节点（parent_id IS NULL 且不是根节点）挂到根节点下
-            conn.execute(text(f"""
+            conn.execute(text("""
                 UPDATE admin_roles 
-                SET parent_id = {root_id},
+                SET parent_id = :rid,
                     level = level + 1,
-                    path = '/{root_id}/' || COALESCE(path, '/' || id || '/')
+                    path = '/' || :rid || '/' || COALESCE(path, '/' || id || '/')
                 WHERE parent_id IS NULL 
-                  AND id != {root_id}
+                  AND id != :rid
                   AND is_deleted = false
-            """))
+            """), {"rid": root_id})
             
             # 将超级管理员关联到根节点，并设为负责人
             # 查找第一个超级管理员
@@ -87,15 +85,9 @@ def upgrade() -> None:
             if super_admin:
                 super_admin_id = super_admin[0]
                 # 将超级管理员关联到根节点
-                conn.execute(text(f"""
-                    UPDATE admins SET role_id = {root_id}
-                    WHERE id = {super_admin_id}
-                """))
+                conn.execute(text("UPDATE admins SET role_id = :rid WHERE id = :aid"), {"rid": root_id, "aid": super_admin_id})
                 # 设置根节点负责人
-                conn.execute(text(f"""
-                    UPDATE admin_roles SET leader_id = {super_admin_id}
-                    WHERE id = {root_id}
-                """))
+                conn.execute(text("UPDATE admin_roles SET leader_id = :aid WHERE id = :rid"), {"aid": super_admin_id, "rid": root_id})
     
     # ========== 2. 企业端根节点 ==========
     # 查询所有企业
@@ -109,74 +101,66 @@ def upgrade() -> None:
         tenant_name = tenant[1]
         
         # 检查该企业是否已有根节点
-        result = conn.execute(text(f"""
+        result = conn.execute(text("""
             SELECT id FROM tenant_admin_roles 
-            WHERE tenant_id = {tenant_id} 
+            WHERE tenant_id = :tid 
               AND code = 'tenant_root' 
               AND is_deleted = false
-        """))
+        """), {"tid": tenant_id})
         tenant_root = result.fetchone()
         
         if not tenant_root:
             # 插入企业根节点
-            conn.execute(text(f"""
+            conn.execute(text("""
                 INSERT INTO tenant_admin_roles (
                     tenant_id, name, code, description, is_system, is_active, sort_order,
                     parent_id, level, type, allow_members,
                     created_at, updated_at, is_deleted
                 ) VALUES (
-                    {tenant_id}, '{tenant_name}', 'tenant_root', '企业组织架构根节点，不可删除',
+                    :tid, :tname, 'tenant_root', '企业组织架构根节点，不可删除',
                     true, true, 0,
                     NULL, 1, 'department', true,
                     NOW(), NOW(), false
                 )
-            """))
+            """), {"tid": tenant_id, "tname": tenant_name})
             
             # 获取刚插入的根节点 ID 并更新 path
-            result = conn.execute(text(f"""
+            result = conn.execute(text("""
                 SELECT id FROM tenant_admin_roles 
-                WHERE tenant_id = {tenant_id} AND code = 'tenant_root' AND is_deleted = false
-            """))
+                WHERE tenant_id = :tid AND code = 'tenant_root' AND is_deleted = false
+            """), {"tid": tenant_id})
             root_row = result.fetchone()
             if root_row:
                 root_id = root_row[0]
-                conn.execute(text(f"""
-                    UPDATE tenant_admin_roles SET path = '/{root_id}/' WHERE id = {root_id}
-                """))
+                conn.execute(text("UPDATE tenant_admin_roles SET path = '/' || :rid || '/' WHERE id = :rid"), {"rid": root_id})
                 
                 # 将现有的顶级节点挂到根节点下
-                conn.execute(text(f"""
+                conn.execute(text("""
                     UPDATE tenant_admin_roles 
-                    SET parent_id = {root_id},
+                    SET parent_id = :rid,
                         level = level + 1,
-                        path = '/{root_id}/' || COALESCE(path, '/' || id || '/')
-                    WHERE tenant_id = {tenant_id}
+                        path = '/' || :rid || '/' || COALESCE(path, '/' || id || '/')
+                    WHERE tenant_id = :tid
                       AND parent_id IS NULL 
-                      AND id != {root_id}
+                      AND id != :rid
                       AND is_deleted = false
-                """))
+                """), {"rid": root_id, "tid": tenant_id})
                 
                 # 将企业所有者关联到根节点并设为负责人
-                result = conn.execute(text(f"""
+                result = conn.execute(text("""
                     SELECT id FROM tenant_admins 
-                    WHERE tenant_id = {tenant_id}
+                    WHERE tenant_id = :tid
                       AND is_owner = true
                       AND is_deleted = false
                     ORDER BY id LIMIT 1
-                """))
+                """), {"tid": tenant_id})
                 owner = result.fetchone()
                 if owner:
                     owner_id = owner[0]
                     # 将所有者关联到根节点
-                    conn.execute(text(f"""
-                        UPDATE tenant_admins SET role_id = {root_id}
-                        WHERE id = {owner_id}
-                    """))
+                    conn.execute(text("UPDATE tenant_admins SET role_id = :rid WHERE id = :oid"), {"rid": root_id, "oid": owner_id})
                     # 设置根节点负责人
-                    conn.execute(text(f"""
-                        UPDATE tenant_admin_roles SET leader_id = {owner_id}
-                        WHERE id = {root_id}
-                    """))
+                    conn.execute(text("UPDATE tenant_admin_roles SET leader_id = :oid WHERE id = :rid"), {"oid": owner_id, "rid": root_id})
 
 
 def downgrade() -> None:
@@ -197,17 +181,17 @@ def downgrade() -> None:
         root_id = platform_root[0]
         
         # 将子节点提升为顶级节点
-        conn.execute(text(f"""
+        conn.execute(text("""
             UPDATE admin_roles 
             SET parent_id = NULL,
                 level = level - 1
-            WHERE parent_id = {root_id} AND is_deleted = false
-        """))
+            WHERE parent_id = :rid AND is_deleted = false
+        """), {"rid": root_id})
         
         # 删除根节点
-        conn.execute(text(f"""
-            UPDATE admin_roles SET is_deleted = true WHERE id = {root_id}
-        """))
+        conn.execute(text("""
+            UPDATE admin_roles SET is_deleted = true WHERE id = :rid
+        """), {"rid": root_id})
     
     # 企业端根节点
     result = conn.execute(text("""
@@ -221,23 +205,23 @@ def downgrade() -> None:
         tenant_id = root[1]
         
         # 将子节点提升为顶级节点
-        conn.execute(text(f"""
+        conn.execute(text("""
             UPDATE tenant_admin_roles 
             SET parent_id = NULL,
                 level = level - 1
-            WHERE parent_id = {root_id} AND is_deleted = false
-        """))
+            WHERE parent_id = :rid AND is_deleted = false
+        """), {"rid": root_id})
         
         # 清除所有者的角色关联（如果关联的是根节点）
-        conn.execute(text(f"""
+        conn.execute(text("""
             UPDATE tenant_admins 
             SET role_id = NULL
-            WHERE tenant_id = {tenant_id}
-              AND role_id = {root_id}
+            WHERE tenant_id = :tid
+              AND role_id = :rid
               AND is_deleted = false
-        """))
+        """), {"tid": tenant_id, "rid": root_id})
         
         # 删除根节点
-        conn.execute(text(f"""
-            UPDATE tenant_admin_roles SET is_deleted = true WHERE id = {root_id}
-        """))
+        conn.execute(text("""
+            UPDATE tenant_admin_roles SET is_deleted = true WHERE id = :rid
+        """), {"rid": root_id})

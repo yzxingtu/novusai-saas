@@ -110,14 +110,14 @@ class PageSessionMixin:
                     key = (scope, int(user_id), page_key)
                     _active_sessions[key] = page_session_id
                     logger.debug(
-                        "SIO %s active_session stored scope=%s user_id=%s page_key=%s -> %s",
+                        "SIO {} active_session stored scope={} user_id={} page_key={} -> {}",
                         self.namespace, scope, user_id, page_key, page_session_id,
                     )
             except Exception as e:
-                logger.debug("SIO %s get_session for active_session failed: %s", self.namespace, e)
+                logger.debug("SIO {} get_session for active_session failed: {}", self.namespace, e)
 
         logger.debug(
-            "SIO %s sid=%s joined room %s",
+            "SIO {} sid={} joined room {}",
             self.namespace, sid, room,
         )
 
@@ -139,7 +139,7 @@ class PageSessionMixin:
             _active_sessions.pop(k, None)
 
         logger.debug(
-            "SIO %s sid=%s left room %s",
+            "SIO {} sid={} left room {}",
             self.namespace, sid, room,
         )
 
@@ -157,7 +157,7 @@ class PageSessionMixin:
         if future and not future.done():
             future.set_result(data)
             logger.debug(
-                "SIO %s page_operation:result received invoke_id=%s success=%s",
+                "SIO {} page_operation:result received invoke_id={} success={}",
                 self.namespace, invoke_id, data.get("success"),
             )
 
@@ -233,7 +233,7 @@ async def invoke_page_operation(
             )
 
         logger.debug(
-            "page_operation:invoke sent invoke_id=%s page_key=%s op=%s room=%s",
+            "page_operation:invoke sent invoke_id={} page_key={} op={} room={}",
             invoke_id, page_key, operation_name, room,
         )
 
@@ -243,7 +243,7 @@ async def invoke_page_operation(
 
     except asyncio.TimeoutError:
         logger.warning(
-            "page_operation:invoke timed out invoke_id=%s page_key=%s op=%s timeout=%ss",
+            "page_operation:invoke timed out invoke_id={} page_key={} op={} timeout={}s",
             invoke_id, page_key, operation_name, timeout,
         )
         return {
@@ -255,7 +255,7 @@ async def invoke_page_operation(
 
     except Exception as e:
         logger.error(
-            "page_operation:invoke failed invoke_id=%s error=%s",
+            "page_operation:invoke failed invoke_id={} error={}",
             invoke_id, e,
         )
         return {

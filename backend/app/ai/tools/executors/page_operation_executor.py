@@ -88,7 +88,7 @@ class PageOperationExecutor(BaseToolExecutor):
             )
 
         logger.info(
-            "Invoking page operation: page_key=%s op=%s page_session=%s",
+            "Invoking page operation: page_key={} op={} page_session={}",
             page_key, operation_name, session_id,
         )
 
@@ -108,7 +108,7 @@ class PageOperationExecutor(BaseToolExecutor):
 
         if success:
             logger.info(
-                "Page operation succeeded: page_key=%s op=%s duration=%dms",
+                "Page operation succeeded: page_key={} op={} duration={}ms",
                 page_key, operation_name, duration_ms,
             )
             output = f"Operation '{operation_name}' executed successfully on page '{page_key}'."
@@ -152,7 +152,7 @@ class PageOperationExecutor(BaseToolExecutor):
 
         # Failure case with recovery guidance / 失败情况，含恢复指引
         logger.warning(
-            "Page operation failed: page_key=%s op=%s error_type=%s message=%s duration=%dms",
+            "Page operation failed: page_key={} op={} error_type={} message={} duration={}ms",
             page_key, operation_name, error_type, message, duration_ms,
         )
         error_msg = _("page_operation.error.failed", op=operation_name, page=page_key)

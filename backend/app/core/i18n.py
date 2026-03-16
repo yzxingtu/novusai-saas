@@ -82,7 +82,7 @@ def _load_translations(locale: str) -> dict[str, Any]:
                     data = json.load(f)
                     translations = _deep_merge(translations, data)
             except (OSError, json.JSONDecodeError) as e:
-                logger.warning("Failed to load translation file %s: %s", json_file, e)
+                logger.warning("Failed to load translation file {}: {}", json_file, e)
 
     # 2. 扫描插件翻译文件
     # 两个位置：app/plugins/*/locales/ 和 plugins/*/locales/（已安装插件）
@@ -107,7 +107,7 @@ def _load_translations(locale: str) -> dict[str, Any]:
                         translations = _deep_merge(translations, data)
                 except (OSError, json.JSONDecodeError) as e:
                     logger.warning(
-                        "Failed to load plugin translation %s: %s",
+                        "Failed to load plugin translation {}: {}",
                         locale_file, e,
                     )
 

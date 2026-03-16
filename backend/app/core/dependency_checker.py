@@ -143,7 +143,7 @@ async def check_deletion_deps(
         target_cls = resolve_model_class(dep.model)
         if target_cls is None:
             logger.warning(
-                "DeletionDep references unknown model %r on %s",
+                "DeletionDep references unknown model {!r} on {}",
                 dep.model, model_cls.__name__,
             )
             continue
@@ -151,7 +151,7 @@ async def check_deletion_deps(
         fk_col = getattr(target_cls, dep.fk_field, None)
         if fk_col is None:
             logger.warning(
-                "DeletionDep references unknown field %r on %s",
+                "DeletionDep references unknown field {!r} on {}",
                 dep.fk_field, dep.model,
             )
             continue
@@ -356,7 +356,7 @@ async def execute_cascade_deps(
             if affected > 0:
                 stats["cascade_soft"] = stats.get("cascade_soft", 0) + affected
                 logger.info(
-                    "CASCADE_SOFT %s.%s=%d → %s: %d rows",
+                    "CASCADE_SOFT {}.{}={} → {}: {} rows",
                     model_cls.__name__, "id", instance_id,
                     dep.model, affected,
                 )
@@ -369,7 +369,7 @@ async def execute_cascade_deps(
             if affected > 0:
                 stats["cascade_delete"] = stats.get("cascade_delete", 0) + affected
                 logger.info(
-                    "CASCADE_DELETE %s.%s=%d → %s: %d rows",
+                    "CASCADE_DELETE {}.{}={} → {}: {} rows",
                     model_cls.__name__, "id", instance_id,
                     dep.model, affected,
                 )
@@ -385,7 +385,7 @@ async def execute_cascade_deps(
             if affected > 0:
                 stats["nullify"] = stats.get("nullify", 0) + affected
                 logger.info(
-                    "NULLIFY %s.%s=%d → %s.%s: %d rows",
+                    "NULLIFY {}.{}={} → {}.{}: {} rows",
                     model_cls.__name__, "id", instance_id,
                     dep.model, dep.fk_field, affected,
                 )

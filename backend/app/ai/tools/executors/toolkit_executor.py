@@ -185,7 +185,7 @@ class ToolkitExecutor(BaseToolExecutor):
                 if violations:
                     detail = "; ".join(violations[:5])
                     logger.warning(
-                        "Toolkit security violation in %s: %s",
+                        "Toolkit security violation in {}: {}",
                         definition.name, detail,
                     )
                     return ToolResult(
@@ -221,7 +221,7 @@ class ToolkitExecutor(BaseToolExecutor):
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(
-                "Toolkit execution timeout: %s.%s (%ds)",
+                "Toolkit execution timeout: {}.{} ({}s)",
                 definition.name, method_name, self._timeout,
             )
             return ToolResult(
@@ -236,7 +236,7 @@ class ToolkitExecutor(BaseToolExecutor):
             # Argument mismatch / 参数不匹配
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(
-                "Toolkit method argument error: %s.%s: %s",
+                "Toolkit method argument error: {}.{}: {}",
                 definition.name,
                 method_name,
                 str(exc),
@@ -252,7 +252,7 @@ class ToolkitExecutor(BaseToolExecutor):
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Toolkit execution error: %s.%s: %s",
+                "Toolkit execution error: {}.{}: {}",
                 definition.name,
                 method_name,
                 str(exc),
@@ -600,7 +600,7 @@ def _inject_valves(
         return None
     except Exception as exc:
         logger.warning(
-            "Failed to inject Valves config: %s. Using defaults.",
+            "Failed to inject Valves config: {}. Using defaults.",
             str(exc),
         )
         return str(exc)

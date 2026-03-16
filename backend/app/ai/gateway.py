@@ -150,7 +150,7 @@ class AIGateway:
 
             cached_response = await AIResponseCache.get(cache_key)
             if cached_response:
-                logger.info("Cache hit: key=%s", cache_key)
+                logger.info("Cache hit: key={}", cache_key)
                 return ChatResponse(**cached_response)
 
         # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅企业调用）
@@ -196,7 +196,7 @@ class AIGateway:
                 raise
 
             logger.info(
-                "Fallback attempt: original_model=%s fallback_model=%s",
+                "Fallback attempt: original_model={} fallback_model={}",
                 model, fallback_model.code,
             )
 
@@ -222,12 +222,12 @@ class AIGateway:
                 model_id = fallback_model.id
                 model = fallback_model.code
                 logger.info(
-                    "Fallback succeeded: fallback_model=%s",
+                    "Fallback succeeded: fallback_model={}",
                     fallback_model.code,
                 )
             except (AIGatewayError, NotFoundException, BusinessException):
                 logger.warning(
-                    "Fallback failed: fallback_model=%s",
+                    "Fallback failed: fallback_model={}",
                     fallback_model.code,
                 )
                 await self.usage_recorder.log_call_failure(
@@ -305,7 +305,7 @@ class AIGateway:
                 )
 
             except Exception as e:
-                logger.error("Record usage failed: %s", str(e))
+                logger.error("Record usage failed: {}", str(e))
 
         await self.db.commit()
 
@@ -318,7 +318,7 @@ class AIGateway:
                     ttl=settings.AI_CACHE_TTL,
                 )
             except Exception as e:
-                logger.error("Cache set failed: %s", str(e))
+                logger.error("Cache set failed: {}", str(e))
 
         return response
 
@@ -397,7 +397,7 @@ class AIGateway:
 
                         # Call adapter streaming interface / 调用适配器流式接口
                         logger.info(
-                            "Gateway stream call: provider=%s model=%s",
+                            "Gateway stream call: provider={} model={}",
                             provider_code, model,
                         )
 
@@ -415,7 +415,7 @@ class AIGateway:
                         # Log on retry success / 重试成功时记录日志
                         if attempt > 0:
                             logger.info(
-                                "Stream retry succeeded: provider=%s model=%s attempt=%s",
+                                "Stream retry succeeded: provider={} model={} attempt={}",
                                 provider_code, model, attempt,
                             )
 
@@ -427,7 +427,7 @@ class AIGateway:
                         # Non-retryable exception, raise immediately / 不可重试的异常直接抛出
                         if not is_retryable(e):
                             logger.error(
-                                "Non-retryable error: provider=%s model=%s error_code=%s error=%s",
+                                "Non-retryable error: provider={} model={} error_code={} error={}",
                                 provider_code, model, e.error_code, str(e),
                             )
                             raise
@@ -435,7 +435,7 @@ class AIGateway:
                         # Max retries exhausted / 已达最大重试次数
                         if attempt >= MAX_RETRIES:
                             logger.error(
-                                "Max retries exhausted: provider=%s model=%s attempts=%s error=%s",
+                                "Max retries exhausted: provider={} model={} attempts={} error={}",
                                 provider_code, model, attempt + 1, str(e),
                             )
                             raise
@@ -446,7 +446,7 @@ class AIGateway:
                             delay = float(e.retry_after)
 
                         logger.warning(
-                            "Retrying after error: provider=%s model=%s attempt=%s delay=%.1fs error_code=%s error=%s",
+                            "Retrying after error: provider={} model={} attempt={} delay={}s error_code={} error={}",
                             provider_code, model, attempt, delay, e.error_code, str(e),
                         )
 
@@ -458,7 +458,7 @@ class AIGateway:
                         )
                         if next_key:
                             logger.info(
-                                "Switching API key: provider=%s old_key=%s new_key=%s",
+                                "Switching API key: provider={} old_key={} new_key={}",
                                 provider_code, current_key.id, next_key.id,
                             )
                             current_key = next_key
@@ -487,7 +487,7 @@ class AIGateway:
                     raise
 
                 logger.info(
-                    "Fallback attempt: original_model=%s fallback_model=%s",
+                    "Fallback attempt: original_model={} fallback_model={}",
                     model, fallback_model.code,
                 )
 
@@ -517,12 +517,12 @@ class AIGateway:
                     provider = fb_provider
                     ai_model = fallback_model
                     logger.info(
-                        "Fallback succeeded: fallback_model=%s",
+                        "Fallback succeeded: fallback_model={}",
                         fallback_model.code,
                     )
                 except (AIGatewayError, NotFoundException, BusinessException):
                     logger.warning(
-                        "Fallback failed: fallback_model=%s",
+                        "Fallback failed: fallback_model={}",
                         fallback_model.code,
                     )
                     await self.usage_recorder.log_call_failure(
@@ -692,7 +692,7 @@ class AIGateway:
                 )
 
             except Exception as e:
-                logger.error("Record usage failed: %s", str(e))
+                logger.error("Record usage failed: {}", str(e))
 
         await self.db.commit()
 
@@ -826,7 +826,7 @@ class AIGateway:
                 )
 
             except Exception as e:
-                logger.error("Record image generation usage failed: %s", str(e))
+                logger.error("Record image generation usage failed: {}", str(e))
 
         await self.db.commit()
 
@@ -977,7 +977,7 @@ class AIGateway:
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error("Model test failed: provider=%s model=%s error=%s", provider.code, model_code, str(e))
+            logger.error("Model test failed: provider={} model={} error={}", provider.code, model_code, str(e))
 
             return TestModelResult(
                 connected=False,

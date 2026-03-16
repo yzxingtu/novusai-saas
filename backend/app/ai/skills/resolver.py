@@ -107,7 +107,7 @@ class SkillResolver:
                 warning_msg = f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
                 result.warnings.append(warning_msg)
                 logger.warning(
-                    "Failed to resolve skill %d (%s): %s",
+                    "Failed to resolve skill {} ({}): {}",
                     skill.id, skill.name, str(exc),
                 )
 
@@ -116,7 +116,7 @@ class SkillResolver:
         self._ensure_unique_tool_names(result.tools)
 
         logger.info(
-            "Resolved %d skills → %d tools",
+            "Resolved {} skills → {} tools",
             len(skills), len(result.tools),
         )
         return result
@@ -199,7 +199,7 @@ class SkillResolver:
             self._resolve_code_execution(skill, config, result)
         else:
             logger.warning(
-                "Unknown skill type: %s (skill=%d), no resolver available",
+                "Unknown skill type: {} (skill={}), no resolver available",
                 skill_type, skill.id,
             )
 
@@ -252,7 +252,7 @@ class SkillResolver:
                     self.db, table_policy_ids=table_policy_ids,
                 )
             except Exception as exc:
-                logger.warning("Failed to load table descriptions: %s", str(exc))
+                logger.warning("Failed to load table descriptions: {}", str(exc))
 
         # data_query tool (always generated) / data_query 工具（始终生成）
         if table_descriptions:
@@ -408,7 +408,7 @@ class SkillResolver:
         toolkit_content = getattr(skill, "toolkit_content", None) or ""
         if not toolkit_content:
             logger.warning(
-                "Toolkit skill %d (%s) has no toolkit_content",
+                "Toolkit skill {} ({}) has no toolkit_content",
                 skill.id, skill.name,
             )
             return
@@ -442,7 +442,7 @@ class SkillResolver:
             result.tools.append(td)
 
         logger.debug(
-            "Toolkit skill '%s' resolved %d tools",
+            "Toolkit skill '{}' resolved {} tools",
             skill.name, len(tool_defs),
         )
 
@@ -537,7 +537,7 @@ class SkillResolver:
         url = config.get("url", "")
         if not url:
             logger.warning(
-                "HTTP skill %d (%s) has no URL configured",
+                "HTTP skill {} ({}) has no URL configured",
                 skill.id, skill.name,
             )
             return
@@ -605,7 +605,7 @@ class SkillResolver:
         ))
 
         logger.debug(
-            "HTTP skill '%s' resolved: %s %s (%d params)",
+            "HTTP skill '{}' resolved: {} {} ({} params)",
             skill.name, method, url, len(params),
         )
 
@@ -695,7 +695,7 @@ class SkillResolver:
             source_skill_type=skill.type,
         ))
 
-        logger.debug("Email skill '%s' resolved", skill.name)
+        logger.debug("Email skill '{}' resolved", skill.name)
 
     # ========================================
     # Code Execution Skill
@@ -763,7 +763,7 @@ class SkillResolver:
         ))
 
         logger.debug(
-            "Code execution skill '%s' resolved: lang=%s",
+            "Code execution skill '{}' resolved: lang={}",
             skill.name, language,
         )
 
@@ -793,7 +793,7 @@ class SkillResolver:
 
         if resolver_func is None:
             logger.warning(
-                "No plugin resolver for plugin '%s' (skill=%d, type=%s)",
+                "No plugin resolver for plugin '{}' (skill={}, type={})",
                 source_plugin, skill.id, skill.type,
             )
             return
@@ -808,12 +808,12 @@ class SkillResolver:
                     td.source_plugin = source_plugin
                     result.tools.append(td)
                 logger.info(
-                    "Plugin '%s' skill '%s' resolved %d tools",
+                    "Plugin '{}' skill '{}' resolved {} tools",
                     source_plugin, skill.name, len(tool_defs),
                 )
         except Exception as exc:
             logger.error(
-                "Plugin skill resolver failed for '%s' (plugin=%s): %s",
+                "Plugin skill resolver failed for '{}' (plugin={}): {}",
                 skill.name, source_plugin, exc,
             )
 
@@ -866,7 +866,7 @@ class SkillResolver:
             )
             unique_name = cls._build_unique_tool_name(name, suffix, used_names)
             logger.warning(
-                "Duplicate tool name '%s' detected, renamed to '%s' (skill_id=%s)",
+                "Duplicate tool name '{}' detected, renamed to '{}' (skill_id={})",
                 name,
                 unique_name,
                 td.source_skill_id,
@@ -945,7 +945,7 @@ def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
         return user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
     # Unknown value fallback: allow through / 未知值兖底：允许通过
-    logger.warning("Unknown target_audience value: %s", target_audience)
+    logger.warning("Unknown target_audience value: {}", target_audience)
     return True
 
 
@@ -1062,7 +1062,7 @@ async def resolve_for_agent(
         )
     except SQLAlchemyError as exc:
         logger.warning(
-            "Failed to load auto-bind packages for agent %d: %s",
+            "Failed to load auto-bind packages for agent {}: {}",
             agent.id, str(exc),
         )
         # Degrade: auto-bind load failure doesn't block, continue with explicit bindings
@@ -1070,7 +1070,7 @@ async def resolve_for_agent(
 
     if auto_packages:
         logger.info(
-            "Auto-bind: %d packages for agent=%s (scope=%s)",
+            "Auto-bind: {} packages for agent={} (scope={})",
             len(auto_packages),
             agent.name if agent else "?",
             agent_scope,
@@ -1103,7 +1103,7 @@ async def resolve_for_agent(
         bindings = list(binding_result.scalars().all())
     except SQLAlchemyError as exc:
         logger.error(
-            "DB error loading skill bindings for agent %d: %s",
+            "DB error loading skill bindings for agent {}: {}",
             agent.id, str(exc),
         )
         raise
@@ -1167,7 +1167,7 @@ async def resolve_for_agent(
         skills = list(result.scalars().all())
     except SQLAlchemyError as exc:
         logger.error(
-            "DB error loading skills for agent %d: %s",
+            "DB error loading skills for agent {}: {}",
             agent.id, str(exc),
         )
         raise
@@ -1269,7 +1269,7 @@ async def resolve_for_agent(
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
 
     logger.info(
-        "Resolved skills for agent=%s: packages=%s, tools=%s, warnings=%d",
+        "Resolved skills for agent={}: packages={}, tools={}, warnings={}",
         agent.name if agent else "?",
         package_ids,
         [t.name for t in resolve_result.tools],

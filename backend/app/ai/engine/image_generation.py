@@ -151,7 +151,7 @@ class ImageGenerationEngine:
                         if isinstance(cb_result, dict):
                             extra_done_data = cb_result
                     except Exception as cb_exc:
-                        logger.error("on_complete callback error: %s", str(cb_exc))
+                        logger.error("on_complete callback error: {}", str(cb_exc))
 
                 # Completion event / 完成事件
                 yield SSEChunkEncoder.encode({
@@ -165,7 +165,7 @@ class ImageGenerationEngine:
 
             except Exception as exc:
                 logger.error(
-                    "Image generation failed: agent=%d error=%s",
+                    "Image generation failed: agent={} error={}",
                     agent.id, str(exc), exc_info=True,
                 )
                 try:

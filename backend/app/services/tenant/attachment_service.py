@@ -755,17 +755,17 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             deleted = await driver.delete(path)
             if deleted:
                 logger.info(
-                    "Storage file deleted: driver=%s path=%s",
+                    "Storage file deleted: driver={} path={}",
                     driver_name, path,
                 )
             else:
                 logger.warning(
-                    "Storage file not found (already removed?): driver=%s path=%s",
+                    "Storage file not found (already removed?): driver={} path={}",
                     driver_name, path,
                 )
         except Exception as e:
             logger.error(
-                "Failed to delete storage file: driver=%s path=%s error=%s",
+                "Failed to delete storage file: driver={} path={} error={}",
                 driver_name, path, str(e),
             )
 

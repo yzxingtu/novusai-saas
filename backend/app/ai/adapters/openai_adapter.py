@@ -125,7 +125,7 @@ class OpenAIAdapter(BaseAdapter):
             request_params.update(kwargs)
 
             # Call API / 调用 API
-            logger.info("Chat request: model=%s messages=%d", model, len(messages))
+            logger.info("Chat request: model={} messages={}", model, len(messages))
             response: ChatCompletion = await self.client.chat.completions.create(**request_params)
 
             # Convert response / 转换响应
@@ -134,7 +134,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error("Chat error: model=%s error=%s", model, str(e))
+            logger.error("Chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
     async def stream_chat(
@@ -184,7 +184,7 @@ class OpenAIAdapter(BaseAdapter):
             request_params.update(kwargs)
 
             # Call streaming API / 调用流式 API
-            logger.info("Stream chat request: model=%s", model)
+            logger.info("Stream chat request: model={}", model)
             stream = await self.client.chat.completions.create(**request_params)
 
             # Convert streaming response / 转换流式响应
@@ -194,7 +194,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error("Stream chat error: model=%s error=%s", model, str(e))
+            logger.error("Stream chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
     async def embedding(
@@ -208,7 +208,7 @@ class OpenAIAdapter(BaseAdapter):
         """
         try:
             # Call API / 调用 API
-            logger.info("Embedding request: model=%s texts=%d", model, len(texts))
+            logger.info("Embedding request: model={} texts={}", model, len(texts))
             response: CreateEmbeddingResponse = await self.client.embeddings.create(
                 input=texts,
                 model=model,
@@ -226,7 +226,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error("Embedding error: model=%s error=%s", model, str(e))
+            logger.error("Embedding error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
     async def list_models(self) -> list[dict]:
@@ -249,7 +249,7 @@ class OpenAIAdapter(BaseAdapter):
                 for model in response.data
             ]
         except Exception as e:
-            logger.error("List models error: %s", str(e))
+            logger.error("List models error: {}", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
 
     async def _fetch_audio_bytes(self, url: str) -> bytes | None:
@@ -270,7 +270,7 @@ class OpenAIAdapter(BaseAdapter):
                 try:
                     return base64.b64decode(match.group(1))
                 except Exception as e:
-                    logger.warning("Audio data URL base64 decode failed: %s", e)
+                    logger.warning("Audio data URL base64 decode failed: {}", e)
                     return None
             return None
         try:
@@ -284,7 +284,7 @@ class OpenAIAdapter(BaseAdapter):
                     cl = None
                 if cl is not None and cl > _AUDIO_MAX_BYTES:
                     logger.warning(
-                        "Audio too large (content-length=%s > %s), skip native",
+                        "Audio too large (content-length={} > {}), skip native",
                         cl,
                         _AUDIO_MAX_BYTES,
                     )
@@ -292,14 +292,14 @@ class OpenAIAdapter(BaseAdapter):
                 data = resp.content
                 if len(data) > _AUDIO_MAX_BYTES:
                     logger.warning(
-                        "Audio body too large (%d > %d), skip native",
+                        "Audio body too large ({} > {}), skip native",
                         len(data),
                         _AUDIO_MAX_BYTES,
                     )
                     return None
                 return data
         except Exception as e:
-            logger.warning("Fetch audio URL failed: %s", e)
+            logger.warning("Fetch audio URL failed: {}", e)
             return None
 
     async def _convert_messages(
@@ -523,7 +523,7 @@ class OpenAIAdapter(BaseAdapter):
         """
         try:
             logger.info(
-                "Image generation request: model=%s size=%s quality=%s n=%d",
+                "Image generation request: model={} size={} quality={} n={}",
                 model, size, quality, n,
             )
 
@@ -567,7 +567,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error("Image generation error: model=%s error=%s", model, str(e))
+            logger.error("Image generation error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
     def get_supported_features(self) -> dict[str, bool]:

@@ -89,7 +89,7 @@ class RetryService:
                 )
 
                 logger.info(
-                    "AI call: provider=%s model=%s attempt=%d log_key=%s",
+                    "AI call: provider={} model={} attempt={} log_key={}",
                     provider.code,
                     model,
                     attempt,
@@ -100,7 +100,7 @@ class RetryService:
 
                 if attempt > 0:
                     logger.info(
-                        "Retry succeeded: provider=%s model=%s attempt=%d",
+                        "Retry succeeded: provider={} model={} attempt={}",
                         provider.code, model, attempt,
                     )
 
@@ -111,14 +111,14 @@ class RetryService:
 
                 if not is_retryable(e):
                     logger.error(
-                        "Non-retryable error: provider=%s model=%s code=%s error=%s",
+                        "Non-retryable error: provider={} model={} code={} error={}",
                         provider.code, model, e.error_code, str(e),
                     )
                     raise
 
                 if attempt >= MAX_RETRIES:
                     logger.error(
-                        "Max retries exhausted: provider=%s model=%s attempts=%d error=%s",
+                        "Max retries exhausted: provider={} model={} attempts={} error={}",
                         provider.code, model, attempt + 1, str(e),
                     )
                     raise
@@ -128,7 +128,7 @@ class RetryService:
                     delay = float(e.retry_after)
 
                 logger.warning(
-                    "Retrying after error: provider=%s model=%s attempt=%d delay=%.1fs code=%s error=%s",
+                    "Retrying after error: provider={} model={} attempt={} delay={}s code={} error={}",
                     provider.code, model, attempt, delay, e.error_code, str(e),
                 )
 
@@ -139,7 +139,7 @@ class RetryService:
                 )
                 if next_key:
                     logger.info(
-                        "Switching API key: provider=%s old_key=%d new_key=%d",
+                        "Switching API key: provider={} old_key={} new_key={}",
                         provider.code, current_key.id, next_key.id,
                     )
                     current_key = next_key
@@ -148,7 +148,7 @@ class RetryService:
 
             except Exception as e:
                 logger.error(
-                    "Unexpected error: provider=%s model=%s error=%s",
+                    "Unexpected error: provider={} model={} error={}",
                     provider.code, model, str(e),
                 )
                 raise ProviderError(

@@ -87,7 +87,7 @@ class NotificationService:
         # 查询模板
         template = await self._get_template(template_code)
         if not template:
-            logger.warning("Notification template not found: %s", template_code)
+            logger.warning("Notification template not found: {}", template_code)
             return 0
 
         # 渲染标题和正文
@@ -158,7 +158,7 @@ class NotificationService:
                 await self._enforce_max_per_user(user_type, user_id)
 
         logger.info(
-            "Notification sent: template=%s recipients=%d sent=%d",
+            "Notification sent: template={} recipients={} sent={}",
             template_code, len(recipients), sent,
         )
         return sent
@@ -397,11 +397,11 @@ class NotificationService:
                     .values(is_deleted=True, deleted_at=utc_now())
                 )
                 logger.info(
-                    "Notification overflow cleanup: type=%s user_id=%d deleted=%d",
+                    "Notification overflow cleanup: type={} user_id={} deleted={}",
                     recipient_type, recipient_id, len(oldest_ids),
                 )
         except Exception as e:
-            logger.warning("_enforce_max_per_user failed: %s", str(e))
+            logger.warning("_enforce_max_per_user failed: {}", str(e))
 
     @staticmethod
     def _render_template(template: str | None, data: dict[str, Any] | None) -> str:

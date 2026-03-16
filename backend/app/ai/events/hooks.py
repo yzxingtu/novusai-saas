@@ -193,7 +193,7 @@ class HookRegistry:
         entries.sort(key=lambda e: e.priority)
 
         logger.debug(
-            "Hook registered: %s -> %s (priority=%d)",
+            "Hook registered: {} -> {} (priority={})",
             hook_point,
             handler.__qualname__,
             priority,
@@ -255,7 +255,7 @@ class HookRegistry:
                     context.update(result)
             except Exception as exc:
                 logger.error(
-                    "Hook error: %s in %s: %s",
+                    "Hook error: {} in {}: {}",
                     hook_point,
                     entry.handler.__qualname__,
                     str(exc),

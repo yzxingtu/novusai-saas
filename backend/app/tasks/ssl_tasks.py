@@ -64,15 +64,15 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 domain = result.scalar_one_or_none()
 
                 if not domain:
-                    logger.error("Domain %d not found for SSL provisioning", domain_id)
+                    logger.error("Domain {} not found for SSL provisioning", domain_id)
                     return {"error": "domain_not_found", "domain_id": domain_id}
 
                 if not domain.is_verified:
-                    logger.warning("Domain %d not verified, skipping SSL", domain_id)
+                    logger.warning("Domain {} not verified, skipping SSL", domain_id)
                     return {"error": "domain_not_verified", "domain_id": domain_id}
 
                 logger.info(
-                    "Starting SSL provisioning for domain %s (id=%d)",
+                    "Starting SSL provisioning for domain {} (id={})",
                     domain.domain, domain_id,
                 )
 
@@ -113,7 +113,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 await db.commit()
 
                 logger.info(
-                    "SSL certificate issued for %s, expires %s",
+                    "SSL certificate issued for {}, expires {}",
                     domain.domain, cert.expires_at,
                 )
                 return {
@@ -131,7 +131,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 from app.services.system.acme_client import AcmeDnsSetterMissingError
                 if isinstance(exc, AcmeDnsSetterMissingError):
                     logger.warning(
-                        "SSL provisioning skipped for domain %d: %s",
+                        "SSL provisioning skipped for domain {}: {}",
                         domain_id, str(exc),
                     )
                     return {
@@ -142,7 +142,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
 
                 # Other errors: log ERROR + mark failed + retry / 其他错误：记录 ERROR + 标记失败 + 重试
                 logger.error(
-                    "SSL provisioning failed for domain %d: %s",
+                    "SSL provisioning failed for domain {}: {}",
                     domain_id, str(exc), exc_info=True,
                 )
                 try:
@@ -213,13 +213,13 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                         task_renew_ssl.delay(cert_id=cert.id)
                         stats["platform_renewals_triggered"] += 1
                         logger.info(
-                            "Renewal triggered for cert %d (domain_id=%d, expires=%s)",
+                            "Renewal triggered for cert {} (domain_id={}, expires={})",
                             cert.id, cert.domain_id, cert.expires_at,
                         )
                     except Exception as e:
                         stats["errors"] += 1
                         logger.error(
-                            "Failed to trigger renewal for cert %d: %s",
+                            "Failed to trigger renewal for cert {}: {}",
                             cert.id, str(e),
                         )
 
@@ -232,7 +232,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                     )
                     stats["custom_expiring_notified"] += 1
                     logger.info(
-                        "Custom cert %d expiring soon (domain_id=%d, expires=%s)",
+                        "Custom cert {} expiring soon (domain_id={}, expires={})",
                         cert.id, cert.domain_id, cert.expires_at,
                     )
                     # Send SSL expiry reminder email (extract associated data in async context) / 发送 SSL 到期提醒邮件（在 async 上下文中提取关联数据）
@@ -252,13 +252,13 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                         await ssl_service.mark_expired(cert.id, cert.domain_id)
                         stats["expired_marked"] += 1
                         logger.info(
-                            "Cert %d marked expired (domain_id=%d)",
+                            "Cert {} marked expired (domain_id={})",
                             cert.id, cert.domain_id,
                         )
                     except Exception as e:
                         stats["errors"] += 1
                         logger.error(
-                            "Failed to mark cert %d expired: %s",
+                            "Failed to mark cert {} expired: {}",
                             cert.id, str(e),
                         )
 
@@ -266,11 +266,11 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
 
             except Exception as e:
                 await db.rollback()
-                logger.error("SSL renewal check failed: %s", str(e), exc_info=True)
+                logger.error("SSL renewal check failed: {}", str(e), exc_info=True)
                 stats["errors"] += 1
 
         logger.info(
-            "SSL renewal check completed: %d renewals, %d custom warnings, "
+            "SSL renewal check completed: {} renewals, {} custom warnings, "
             "%d expired, %d errors",
             stats["platform_renewals_triggered"],
             stats["custom_expiring_notified"],
@@ -314,12 +314,12 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 # 1. Get certificate info / 获取证书信息
                 cert = await ssl_service.get_by_id(cert_id)
                 if not cert:
-                    logger.error("Cert %d not found for renewal", cert_id)
+                    logger.error("Cert {} not found for renewal", cert_id)
                     return {"error": "cert_not_found", "cert_id": cert_id}
 
                 if cert.cert_type != SslCertType.PLATFORM.value:
                     logger.warning(
-                        "Cert %d is custom type, cannot auto-renew", cert_id,
+                        "Cert {} is custom type, cannot auto-renew", cert_id,
                     )
                     return {"error": "custom_cert_no_renew", "cert_id": cert_id}
 
@@ -327,7 +327,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 domain = await ssl_service._get_domain(cert.domain_id)
 
                 logger.info(
-                    "Starting SSL renewal for cert %d (domain=%s)",
+                    "Starting SSL renewal for cert {} (domain={})",
                     cert_id, domain.domain,
                 )
 
@@ -367,7 +367,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 await db.commit()
 
                 logger.info(
-                    "SSL certificate renewed for %s, new cert %d expires %s",
+                    "SSL certificate renewed for {}, new cert {} expires {}",
                     domain.domain, new_cert.id, new_cert.expires_at,
                 )
                 return {
@@ -381,7 +381,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
             except Exception as exc:
                 await db.rollback()
                 logger.error(
-                    "SSL renewal failed for cert %d: %s",
+                    "SSL renewal failed for cert {}: {}",
                     cert_id, str(exc), exc_info=True,
                 )
 
@@ -437,7 +437,7 @@ async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | Non
                 "tenant_id": row.tenant_id,
             }
     except Exception as e:
-        logger.warning("Failed to query cert notify email: %s", str(e))
+        logger.warning("Failed to query cert notify email: {}", str(e))
     return None
 
 
@@ -473,7 +473,7 @@ def _send_ssl_expiry_email(
             email_text=text_body,
         )
     except Exception as e:
-        logger.warning("Failed to send SSL expiry notification: %s", str(e))
+        logger.warning("Failed to send SSL expiry notification: {}", str(e))
 
 
 __all__ = ["task_provision_ssl", "task_check_ssl_renewals", "task_renew_ssl"]

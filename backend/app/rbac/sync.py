@@ -225,7 +225,7 @@ class PermissionSyncService(LoggerMixin):
 
         if issues:
             self.logger.warning(
-                "菜单组件路径校验发现 %d 个问题:\n%s",
+                "菜单组件路径校验发现 {} 个问题:\n{}",
                 len(issues),
                 "\n".join(issues),
             )

@@ -230,7 +230,7 @@ class PluginLoader:
                     result[lang_code] = data
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning(
-                    "Failed to load locale file %s for plugin %s: %s",
+                    "Failed to load locale file {} for plugin {}: {}",
                     json_file.name, plugin_name, exc,
                 )
         return result

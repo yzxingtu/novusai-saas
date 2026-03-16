@@ -127,7 +127,7 @@ class EmbeddingService:
             total_tokens += response.total_tokens or 0
 
             logger.info(
-                "Embedding batch %d/%d (%d texts)",
+                "Embedding batch {}/{} ({} texts)",
                 min(i + batch_size, len(texts)),
                 len(texts),
                 len(batch),

@@ -64,7 +64,7 @@ class AudioDescriber:
             return ""
         if len(audio_bytes) > _MAX_AUDIO_BYTES:
             logger.warning(
-                "Audio too large (%d bytes > %d), skipping",
+                "Audio too large ({} bytes > {}), skipping",
                 len(audio_bytes),
                 _MAX_AUDIO_BYTES,
             )
@@ -72,14 +72,14 @@ class AudioDescriber:
         model = await self._get_audio_model(knowledge_base)
         if not model:
             logger.debug(
-                "No audio model available for KB %s, skipping ASR",
+                "No audio model available for KB {}, skipping ASR",
                 getattr(knowledge_base, "id", None) if knowledge_base else None,
             )
             return ""
         # Placeholder: no ASR yet; return empty so processor filters this page
         # 占位：尚未接入 ASR；返回空字符串，processor 会过滤该页
         logger.info(
-            "Audio describer placeholder: mime=%s, size=%d, model=%s",
+            "Audio describer placeholder: mime={}, size={}, model={}",
             mime_type,
             len(audio_bytes),
             model.code,
@@ -112,7 +112,7 @@ class AudioDescriber:
             if model:
                 return model
             logger.warning(
-                "Configured audio_model_id=%d not active/available, falling back to default",
+                "Configured audio_model_id={} not active/available, falling back to default",
                 audio_model_id,
             )
         stmt = (

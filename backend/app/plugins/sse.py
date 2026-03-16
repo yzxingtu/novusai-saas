@@ -98,7 +98,7 @@ def plugin_sse_response(
 
         except Exception as exc:
             logger.error(
-                "Plugin SSE error (plugin=%s): %s",
+                "Plugin SSE error (plugin={}): {}",
                 plugin_name, exc,
                 exc_info=True,
             )
@@ -112,7 +112,7 @@ def plugin_sse_response(
             latency_ms = int((time.perf_counter() - start) * 1000)
             if chunk_count > 0 or latency_ms > 100:
                 logger.info(
-                    "plugin_sse: plugin=%s chunks=%d latency_ms=%d heartbeat=%s",
+                    "plugin_sse: plugin={} chunks={} latency_ms={} heartbeat={}",
                     plugin_name, chunk_count, latency_ms, heartbeat,
                 )
 

@@ -64,7 +64,7 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
                 retention_days = int(row)
 
         if retention_days <= 0:
-            logger.info("Notification cleanup skipped: retention_days=%d", retention_days)
+            logger.info("Notification cleanup skipped: retention_days={}", retention_days)
             return {"deleted": 0, "retention_days": retention_days, "skipped": True}
 
         # Calculate cutoff time / 计算截止时间
@@ -80,7 +80,7 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
 
         elapsed = round(time.time() - start, 2)
         logger.info(
-            "Notification cleanup completed: deleted=%d retention_days=%d cutoff=%s elapsed=%ss",
+            "Notification cleanup completed: deleted={} retention_days={} cutoff={} elapsed={}s",
             deleted, retention_days, cutoff.isoformat(), elapsed,
         )
         return {
@@ -91,7 +91,7 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
         }
     except Exception as e:
         session.rollback()
-        logger.error("Notification cleanup failed: %s", str(e))
+        logger.error("Notification cleanup failed: {}", str(e))
         raise
     finally:
         session.close()

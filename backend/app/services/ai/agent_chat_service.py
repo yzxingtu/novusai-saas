@@ -225,7 +225,7 @@ class AgentChatService:
 
                 if any(result.values()):
                     logger.info(
-                        "LLM memory extraction: tenant=%s agent=%s prefs=%d constraints=%d tasks=%d facts=%d",
+                        "LLM memory extraction: tenant={} agent={} prefs={} constraints={} tasks={} facts={}",
                         self.tenant_id, agent_id,
                         len(result["preferences"]),
                         len(result["constraints"]),
@@ -237,7 +237,7 @@ class AgentChatService:
 
         except Exception as exc:
             logger.warning(
-                "LLM memory extraction failed, returning empty: tenant=%s agent=%s err=%s",
+                "LLM memory extraction failed, returning empty: tenant={} agent={} err={}",
                 self.tenant_id, agent_id, str(exc),
             )
             return empty
@@ -266,7 +266,7 @@ class AgentChatService:
             )
         except Exception as exc:
             logger.warning(
-                "Session memory load degraded: tenant=%s agent=%s user=%s conversation=%s err=%s",
+                "Session memory load degraded: tenant={} agent={} user={} conversation={} err={}",
                 self.tenant_id,
                 request.agent_id,
                 request.user_id,
@@ -287,7 +287,7 @@ class AgentChatService:
 
         if not parts:
             logger.info(
-                "Session memory context empty: tenant=%s agent=%s user=%s conversation=%s",
+                "Session memory context empty: tenant={} agent={} user={} conversation={}",
                 self.tenant_id,
                 request.agent_id,
                 request.user_id,
@@ -295,7 +295,7 @@ class AgentChatService:
             )
             return ""
         logger.info(
-            "Session memory context injected: tenant=%s agent=%s user=%s conversation=%s",
+            "Session memory context injected: tenant={} agent={} user={} conversation={}",
             self.tenant_id,
             request.agent_id,
             request.user_id,
@@ -397,7 +397,7 @@ class AgentChatService:
 
             enabled = bool(config.get("effective_memory_enabled", False))
             logger.info(
-                "Session memory switch resolved: tenant=%s agent=%s scene=%s enabled=%s",
+                "Session memory switch resolved: tenant={} agent={} scene={} enabled={}",
                 self.tenant_id,
                 agent_id,
                 scene,
@@ -407,7 +407,7 @@ class AgentChatService:
         except Exception as exc:
             # 记忆开关解析失败时降级，不影响主对话链路 / Memory switch parse fail: degrade silently, no impact on main flow
             logger.warning(
-                "Resolve session memory switch degraded: tenant=%s agent=%s scene=%s err=%s",
+                "Resolve session memory switch degraded: tenant={} agent={} scene={} err={}",
                 self.tenant_id,
                 agent_id,
                 scene,
@@ -602,7 +602,7 @@ class AgentChatService:
                 await self.conversation_svc.mark_memory_updated(conversation.id)
         except Exception as exc:
             logger.warning(
-                "Persist session memory failed: tenant=%s conversation=%s err=%s",
+                "Persist session memory failed: tenant={} conversation={} err={}",
                 self.tenant_id,
                 conversation.id,
                 str(exc),
@@ -612,7 +612,7 @@ class AgentChatService:
         duration_ms = int((time.perf_counter() - start) * 1000)
 
         logger.info(
-            "Chat completed: agent=%d conversation=%d tokens=%d duration=%dms",
+            "Chat completed: agent={} conversation={} tokens={} duration={}ms",
             agent_id,
             conversation.id,
             result.total_tokens,
@@ -869,7 +869,7 @@ class AgentChatService:
                 )
             except Exception as skill_exc:
                 logger.error(
-                    "Skill resolution failed for agent %d: %s",
+                    "Skill resolution failed for agent {}: {}",
                     agent_id, str(skill_exc),
                 )
                 skill_result = None
@@ -960,7 +960,7 @@ class AgentChatService:
                                     )
                             except Exception as mem_exc:
                                 logger.warning(
-                                    "Persist stream session memory failed: tenant=%s conversation=%s err=%s",
+                                    "Persist stream session memory failed: tenant={} conversation={} err={}",
                                     self.tenant_id,
                                     conversation.id,
                                     str(mem_exc),

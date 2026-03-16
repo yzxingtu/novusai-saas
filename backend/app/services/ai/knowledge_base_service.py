@@ -294,7 +294,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
             )
 
         logger.info(
-            "Reindex triggered: kb=%d, docs=%d",
+            "Reindex triggered: kb={}, docs={}",
             kb_id, count,
         )
 

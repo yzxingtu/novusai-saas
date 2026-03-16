@@ -50,7 +50,7 @@ def encrypt_plugin_config(config: dict, schema: dict) -> dict:
             try:
                 result[name] = encrypt_data(val)
             except Exception as exc:
-                logger.warning("Failed to encrypt config field '%s': %s", name, exc)
+                logger.warning("Failed to encrypt config field '{}': {}", name, exc)
     return result
 
 
@@ -75,7 +75,7 @@ def decrypt_plugin_config(config: dict, schema: dict) -> dict:
             try:
                 result[name] = decrypt_data(val)
             except Exception as exc:
-                logger.warning("Failed to decrypt config field '%s': %s", name, exc)
+                logger.warning("Failed to decrypt config field '{}': {}", name, exc)
                 result[name] = ""
     return result
 

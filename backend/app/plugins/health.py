@@ -70,7 +70,7 @@ class PluginHealthMonitor:
         await self._db.flush()
 
         logger.warning(
-            "Plugin %s error #%d: %s",
+            "Plugin {} error #{}: {}",
             plugin_name, plugin.error_count, error_msg,
         )
         return plugin.error_count
@@ -136,7 +136,7 @@ class PluginHealthMonitor:
             await self._db.flush()
         except Exception as exc:
             logger.warning(
-                "Plugin %s auto-disable via lifecycle failed: %s, forcing error status",
+                "Plugin {} auto-disable via lifecycle failed: {}, forcing error status",
                 plugin_name, exc,
             )
             plugin.status = PluginStatusEnum.ERROR.value
@@ -145,7 +145,7 @@ class PluginHealthMonitor:
             await self._db.flush()
 
         logger.error(
-            "Plugin %s auto-disabled after %d consecutive errors",
+            "Plugin {} auto-disabled after {} consecutive errors",
             plugin_name, plugin.error_count,
         )
         return True

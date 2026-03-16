@@ -60,7 +60,7 @@ async def update_global_preferences(
         room=room,
         namespace="/tenant",
     )
-    logger.info("Emitted notification_preference:global_updated to room=%s", room)
+    logger.info("Emitted notification_preference:global_updated to room={}", room)
 
     return success(message=_("common.success"))
 

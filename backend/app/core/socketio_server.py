@@ -78,8 +78,8 @@ async def apply_ws_config() -> None:
 
         ws_enabled = cfg.get("ws_enabled", True)
         logger.info(
-            "Socket.IO config applied: enabled=%s ping_interval=%s ping_timeout=%s",
+            "Socket.IO config applied: enabled={} ping_interval={} ping_timeout={}",
             ws_enabled, ping_interval, ping_timeout,
         )
     except Exception as e:
-        logger.warning("Failed to apply WS config: %s", e)
+        logger.warning("Failed to apply WS config: {}", e)

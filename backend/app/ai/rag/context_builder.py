@@ -184,7 +184,7 @@ class RAGContextBuilder:
         total_tokens = used_tokens + header_tokens + footer_tokens
 
         logger.info(
-            "RAG context built: %d chunks, %d tokens (budget=%d)",
+            "RAG context built: {} chunks, {} tokens (budget={})",
             len(sources), total_tokens, token_budget,
         )
 

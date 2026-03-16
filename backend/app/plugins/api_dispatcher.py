@@ -170,7 +170,7 @@ async def _dispatch_plugin_api(
         )
         if not has_perm:
             logger.warning(
-                "Plugin permission denied: %s/%s requires '%s' (user=%s role=%s)",
+                "Plugin permission denied: {}/{} requires '{}' (user={} role={})",
                 plugin_name, path, route_permission, user_id, user_role,
             )
             return JSONResponse(
@@ -185,7 +185,7 @@ async def _dispatch_plugin_api(
     handler_path = matched_route.get("handler", "")
     handler = load_plugin_handler(plugin_name, handler_path)
     if not handler:
-        logger.error("Handler '%s' failed to load for plugin '%s'", handler_path, plugin_name)
+        logger.error("Handler '{}' failed to load for plugin '{}'", handler_path, plugin_name)
         return JSONResponse(
             status_code=500,
             content={"code": 5000, "message": "Plugin handler failed to load"},
@@ -266,7 +266,7 @@ async def _dispatch_plugin_api(
         raise
     except Exception as exc:
         logger.error(
-            "Plugin API handler error: %s/%s: %s",
+            "Plugin API handler error: {}/{}: {}",
             plugin_name, path, exc, exc_info=True,
         )
         err_message = str(exc) if settings.DEBUG else "Internal server error"
@@ -442,7 +442,7 @@ async def _check_plugin_permission(
     parts = route_permission.split(":")
     if len(parts) != 2:
         logger.warning(
-            "Invalid plugin permission format '%s' (expected 'code:action')",
+            "Invalid plugin permission format '{}' (expected 'code:action')",
             route_permission,
         )
         return False
@@ -465,7 +465,7 @@ async def _check_plugin_permission(
     if action not in declared_actions:
         # C2: Fail-close — undeclared actions denied by default / 未声明的 action 默认拒绝
         logger.warning(
-            "Plugin permission action '%s' not declared in '%s' actions %s — denying",
+            "Plugin permission action '{}' not declared in '{}' actions {} — denying",
             action, full_perm_code, declared_actions,
         )
         return False
@@ -496,7 +496,7 @@ async def _check_plugin_permission(
             # Check permission in full_perm_code:action format / 检查 full_perm_code:action 格式的权限
             return perm_service.check_permission(user_perms, f"{full_perm_code}:{action}")
         except Exception as exc:
-            logger.error("Plugin permission check failed: %s", exc)
+            logger.error("Plugin permission check failed: {}", exc)
             return False
 
     # Other roles (e.g. tenant_user) don't support plugin permissions yet, deny / 其他角色（如 tenant_user）暂不支持插件权限，拒绝

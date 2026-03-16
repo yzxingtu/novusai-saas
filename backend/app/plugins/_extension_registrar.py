@@ -346,7 +346,7 @@ def _record_failure(plugin_name: str, ext_type: str, entry_point: str) -> None:
         {"type": ext_type, "entry_point": entry_point},
     )
     logger.warning(
-        "Plugin %s: failed to load %s extension '%s'",
+        "Plugin {}: failed to load {} extension '{}'",
         plugin_name, ext_type, entry_point,
     )
 

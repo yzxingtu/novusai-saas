@@ -66,11 +66,11 @@ def sio_emit_sync(
         mgr = _get_sync_manager()
         mgr.emit(event, data, room=room, namespace=namespace)
         logger.debug(
-            "SIO sync emit: event=%s room=%s namespace=%s",
+            "SIO sync emit: event={} room={} namespace={}",
             event, room, namespace,
         )
     except Exception as e:
-        logger.warning("SIO sync emit failed: %s", str(e))
+        logger.warning("SIO sync emit failed: {}", str(e))
 
 
 def notify_user_sync(
@@ -144,8 +144,8 @@ async def emit_force_logout(user_id: int, user_type: str) -> None:
         ns = NS_MAP.get(user_type)
         if ns:
             await sio.emit("force_logout", payload, room=room, namespace=ns)
-    except Exception:
-        pass  # 静默失败，不影响主流程 / Fail silently
+    except Exception as exc:
+        logger.debug("Force logout Socket.IO emit failed: {}", exc)  # 静默失败，不影响主流程 / Fail silently
 
 
 def notify_tenant_sync(

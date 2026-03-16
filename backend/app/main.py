@@ -351,12 +351,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
                 if wait_seconds >= wait_limit:
                     logger.warning(
-                        "Plugin restore(non-owner): owner lock wait timeout (%ss), continuing with register-only mode",
+                        "Plugin restore(non-owner): owner lock wait timeout ({}s), continuing with register-only mode",
                         wait_limit,
                     )
                 else:
                     logger.info(
-                        "Plugin restore(non-owner): owner completed after waiting %ss",
+                        "Plugin restore(non-owner): owner completed after waiting {}s",
                         wait_seconds,
                     )
 
@@ -429,7 +429,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 configured_driver = str(configured_driver)
                 if configured_driver != "local" and not storage_manager.has_driver(configured_driver):
                     logger.warning(
-                        "Platform storage driver '%s' is configured but not available. "
+                        "Platform storage driver '{}' is configured but not available. "
                         "The corresponding plugin may not be installed or enabled. "
                         "File operations will fail until the driver is available.",
                         configured_driver,
@@ -536,7 +536,11 @@ def create_application() -> FastAPI:
     # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
     # ⚠️  In DEBUG mode, allows all Origins to support tenant domain (e.g. demo.app.local:5666) cross-origin access
     # ⚠️  DEBUG 模式下允许所有 Origin，支持企业域名（如 demo.app.local:5666）跨域访问
-    cors_origins: list[str] = ["*"] if settings.DEBUG else settings.CORS_ORIGINS
+    cors_origins: list[str] = (
+        ["http://localhost:5666", "http://localhost:3000", "http://127.0.0.1:5666"]
+        if settings.DEBUG
+        else settings.CORS_ORIGINS
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,

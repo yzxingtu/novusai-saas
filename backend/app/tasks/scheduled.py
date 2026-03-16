@@ -54,10 +54,10 @@ def clean_expired_captchas(self: BaseTask) -> dict:
                     cleaned += client.delete(*expired_keys)
             if cursor == 0:
                 break
-        logger.info("%s count=%d", _("task.log.captcha_cleaned"), cleaned)
+        logger.info("{} count={}", _("task.log.captcha_cleaned"), cleaned)
         return {"cleaned": cleaned}
     except Exception as e:
-        logger.warning("%s error=%s", _("task.log.captcha_cleanup_skipped"), str(e))
+        logger.warning("{} error={}", _("task.log.captcha_cleanup_skipped"), str(e))
         return {"cleaned": 0, "error": str(e)}
 
 
@@ -124,10 +124,10 @@ def reset_agent_daily_quotas(self: BaseTask) -> dict:
                         cleaned += client.delete(*no_ttl)
                 if cursor == 0:
                     break
-        logger.info("%s count=%d", _("task.log.quota_reset"), cleaned)
+        logger.info("{} count={}", _("task.log.quota_reset"), cleaned)
         return {"cleaned": cleaned}
     except Exception as e:
-        logger.warning("%s error=%s", _("task.log.quota_reset_skipped"), str(e))
+        logger.warning("{} error={}", _("task.log.quota_reset_skipped"), str(e))
         return {"cleaned": 0, "error": str(e)}
 
 
@@ -149,10 +149,10 @@ def reset_agent_daily_stats(self: BaseTask) -> dict:
                 reset_count += client.delete(*keys)
             if cursor == 0:
                 break
-        logger.info("%s count=%d", _("task.log.stats_reset"), reset_count)
+        logger.info("{} count={}", _("task.log.stats_reset"), reset_count)
         return {"reset_count": reset_count}
     except Exception as e:
-        logger.warning("%s error=%s", _("task.log.stats_reset_skipped"), str(e))
+        logger.warning("{} error={}", _("task.log.stats_reset_skipped"), str(e))
         return {"reset_count": 0, "error": str(e)}
 
 
@@ -187,7 +187,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
                 # Redis unavailable: downgrade — license will still be marked invalid, but disable() may fail
                 # Redis 不可用时降级：license 仍会标记为 invalid，但 disable() 可能失败
                 logger.warning(
-                    "Plugin trial check: Redis unavailable (%s), "
+                    "Plugin trial check: Redis unavailable ({}), "
                     "plugin disable may fail (license will still be invalidated)",
                     redis_err,
                 )
@@ -215,12 +215,12 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
         warnings = [a for a in actions if a.get("action") == "warning"]
         if disabled or warnings:
             logger.info(
-                "Plugin trial check: disabled=%d, warnings=%d",
+                "Plugin trial check: disabled={}, warnings={}",
                 len(disabled), len(warnings),
             )
         return {"disabled": len(disabled), "warnings": len(warnings), "total": len(actions)}
     except Exception as exc:
-        logger.warning("Plugin trial check failed: %s", exc)
+        logger.warning("Plugin trial check failed: {}", exc)
         return {"disabled": 0, "warnings": 0, "error": str(exc)}
 
 
@@ -242,12 +242,12 @@ def clean_expired_task_logs(self: BaseTask) -> dict:
             .update({"is_deleted": True})
         )
         session.commit()
-        logger.info("%s count=%d", _("task.log.task_log_cleaned"), result)
+        logger.info("{} count={}", _("task.log.task_log_cleaned"), result)
         return {"deleted": result}
     except Exception as e:
         if session:
             session.rollback()
-        logger.error("%s error=%s", _("task.log.task_log_cleanup_failed"), str(e))
+        logger.error("{} error={}", _("task.log.task_log_cleanup_failed"), str(e))
         return {"deleted": 0, "error": str(e)}
     finally:
         if session:
@@ -289,10 +289,10 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
                     cleaned += client.delete(*no_ttl)
             if cursor == 0:
                 break
-        logger.info("Session memory cleanup finished, cleaned=%d", cleaned)
+        logger.info("Session memory cleanup finished, cleaned={}", cleaned)
         return {"cleaned": cleaned}
     except Exception as e:
-        logger.warning("Session memory cleanup skipped: %s", str(e))
+        logger.warning("Session memory cleanup skipped: {}", str(e))
         return {"cleaned": 0, "error": str(e)}
 
 
@@ -435,7 +435,7 @@ def _merge_llmring_into_registry(registry: dict, payload: dict) -> int:
         model_id = raw_key.split(":", 1)[-1] if ":" in raw_key else raw_key
         normalized = _normalize_llmring_entry(raw_entry)
         if not normalized or (len(normalized) == 1 and normalized.get("mode") == "chat"):
-            logger.debug("Skip empty LLMRing entry: reg_key=%s", reg_key)
+            logger.debug("Skip empty LLMRing entry: reg_key={}", reg_key)
             continue
         existing_key = _find_registry_key_for_model_id(registry, model_id, reg_key)
         if existing_key:
@@ -474,7 +474,7 @@ def sync_litellm_registry(self: BaseTask) -> dict:
             raw = resp.json()
             if not isinstance(raw, dict) or len(raw) < 10:
                 logger.warning(
-                    "LiteLLM registry looks invalid, entries=%s",
+                    "LiteLLM registry looks invalid, entries={}",
                     len(raw) if isinstance(raw, dict) else "N/A",
                 )
                 continue
@@ -495,7 +495,7 @@ def sync_litellm_registry(self: BaseTask) -> dict:
                     llmring_added_keys += added
                 except Exception as llm_err:
                     logger.warning(
-                        "LLMRing provider fetch failed: provider=%s error=%s",
+                        "LLMRing provider fetch failed: provider={} error={}",
                         provider,
                         str(llm_err),
                     )
@@ -503,7 +503,7 @@ def sync_litellm_registry(self: BaseTask) -> dict:
         except Exception as e:
             last_error = e
             logger.warning(
-                "LiteLLM registry fetch failed: url=%s error=%s", url, str(e)
+                "LiteLLM registry fetch failed: url={} error={}", url, str(e)
             )
 
     if registry is None or source_url is None:
@@ -517,7 +517,7 @@ def sync_litellm_registry(self: BaseTask) -> dict:
     )
     model_count = len(registry)
     logger.info(
-        "LiteLLM registry synced: source=%s models=%d litellm_keys=%d llmring_added=%d",
+        "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={}",
         source_url,
         model_count,
         litellm_keys,

@@ -11,6 +11,7 @@ import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 import { VbenIcon } from '@vben-core/shadcn-ui';
 import { isHttpUrl } from '@vben-core/shared/utils';
 
+import DOMPurify from 'dompurify';
 import { onKeyStroke, useLocalStorage, useThrottleFn } from '@vueuse/core';
 
 defineOptions({
@@ -71,7 +72,7 @@ function highlightMatch(text: string, keyword: string): string {
       result += char;
     }
   }
-  return result;
+  return DOMPurify.sanitize(result);
 }
 
 const handleSearch = useThrottleFn(search, 200);

@@ -57,7 +57,7 @@ def _get_plugin_table_prefixes(plugin_name: str) -> tuple[str, ...]:
                 prefixes.append(normalized)
     except Exception as exc:
         logger.warning(
-            "Failed to resolve custom table prefixes for %s, fallback to default: %s",
+            "Failed to resolve custom table prefixes for {}, fallback to default: {}",
             plugin_name,
             exc,
         )
@@ -85,7 +85,7 @@ async def backup_plugin_data(
     if plugin_dir.is_dir():
         files_dir = backup_dir / "files"
         shutil.copytree(plugin_dir, files_dir)
-        logger.info("Backed up plugin files: %s", files_dir)
+        logger.info("Backed up plugin files: {}", files_dir)
 
     # 2. Back up config snapshot / 备份配置快照
     try:
@@ -112,9 +112,9 @@ async def backup_plugin_data(
                 }
                 config_path = backup_dir / "config_snapshot.json"
                 config_path.write_text(json.dumps(config_snapshot, ensure_ascii=False, indent=2))
-                logger.info("Backed up config snapshot: %s", config_path)
+                logger.info("Backed up config snapshot: {}", config_path)
     except Exception as exc:
-        logger.warning("Failed to backup config for %s: %s", plugin_name, exc)
+        logger.warning("Failed to backup config for {}: {}", plugin_name, exc)
 
     # 3. Back up plugin data tables (default px_{name}_*, supports manifest extended prefixes)
     # / 备份插件数据表（默认 px_{name}_*，支持 manifest 扩展前缀）
@@ -146,7 +146,7 @@ async def backup_plugin_data(
 
                 for table_name in sorted(table_names):
                     if not _is_safe_plugin_table(table_name, table_prefixes):
-                        logger.warning("Skipping unsafe table name: %s", table_name)
+                        logger.warning("Skipping unsafe table name: {}", table_name)
                         continue
                     rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
                     columns = list(rows_result.keys())
@@ -161,12 +161,12 @@ async def backup_plugin_data(
                         json.dumps(rows, ensure_ascii=False, indent=2, default=str)
                     )
                     logger.info(
-                        "Backed up table %s: %d rows", table_name, len(rows)
+                        "Backed up table {}: {} rows", table_name, len(rows)
                     )
     except Exception as exc:
-        logger.warning("Failed to backup data tables for %s: %s", plugin_name, exc)
+        logger.warning("Failed to backup data tables for {}: {}", plugin_name, exc)
 
-    logger.info("Plugin %s v%s backup complete: %s", plugin_name, version, backup_dir)
+    logger.info("Plugin {} v{} backup complete: {}", plugin_name, version, backup_dir)
     return backup_dir
 
 
@@ -183,7 +183,7 @@ async def restore_plugin_data(
         if target_dir.exists():
             shutil.rmtree(target_dir)
         shutil.copytree(files_dir, target_dir)
-        logger.info("Restored plugin files from %s", files_dir)
+        logger.info("Restored plugin files from {}", files_dir)
 
     # Restore config / 恢复配置
     config_path = backup_path / "config_snapshot.json"
@@ -206,9 +206,9 @@ async def restore_plugin_data(
             await db.flush()
             logger.info("Restored config from snapshot")
         except Exception as exc:
-            logger.warning("Failed to restore config for %s: %s", plugin_name, exc)
+            logger.warning("Failed to restore config for {}: {}", plugin_name, exc)
 
-    logger.info("Plugin %s restore complete from %s", plugin_name, backup_path)
+    logger.info("Plugin {} restore complete from {}", plugin_name, backup_path)
 
 
 async def export_plugin_data(
@@ -242,7 +242,7 @@ async def export_plugin_data(
 
         for table_name in sorted(table_names):
             if not _is_safe_plugin_table(table_name, table_prefixes):
-                logger.warning("Skipping unsafe table name in export: %s", table_name)
+                logger.warning("Skipping unsafe table name in export: {}", table_name)
                 continue
             rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
             columns = list(rows_result.keys())
@@ -266,7 +266,7 @@ async def export_plugin_data(
                 exports[table_name] = json.dumps(rows, ensure_ascii=False, indent=2, default=str)
 
     except Exception as exc:
-        logger.warning("Failed to export data for %s: %s", plugin_name, exc)
+        logger.warning("Failed to export data for {}: {}", plugin_name, exc)
 
     return exports
 

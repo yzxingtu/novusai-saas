@@ -229,7 +229,7 @@ class ExecutionLimiter:
 
             if current > max_calls:
                 logger.warning(
-                    "Tool execution limit exceeded: conversation=%d count=%d max=%d",
+                    "Tool execution limit exceeded: conversation={} count={} max={}",
                     conversation_id, current, max_calls,
                 )
                 raise ToolExecutionLimitExceeded(
@@ -239,7 +239,7 @@ class ExecutionLimiter:
         except ToolExecutionLimitExceeded:
             raise
         except Exception as exc:
-            logger.error("ExecutionLimiter error: %s", str(exc))
+            logger.error("ExecutionLimiter error: {}", str(exc))
             return 0
 
 
@@ -336,7 +336,7 @@ class UrlValidator:
         except socket.gaierror:
             raise SSRFBlockedError(_("tool.error.dns_resolve_failed", hostname=hostname))
         except Exception as exc:
-            logger.error("URL validation error: %s", str(exc))
+            logger.error("URL validation error: {}", str(exc))
             raise SSRFBlockedError(_("tool.error.url_validation_failed", detail=str(exc)))
 
     @staticmethod
@@ -490,7 +490,7 @@ class EmailRateLimiter:
         except EmailRateLimitError:
             raise
         except Exception as exc:
-            logger.error("EmailRateLimiter error: %s", str(exc))
+            logger.error("EmailRateLimiter error: {}", str(exc))
 
     @staticmethod
     def validate_recipients(recipients: list[str]) -> None:

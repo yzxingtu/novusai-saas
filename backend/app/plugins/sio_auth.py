@@ -233,7 +233,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         await PresenceManager.set_online(rate_key, user_id, tenant_id)
 
         logger.info(
-            "Plugin SIO %s connected: sid=%s user_id=%d scope=%s tenant_id=%s",
+            "Plugin SIO {} connected: sid={} user_id={} scope={} tenant_id={}",
             self.namespace, sid, user_id, matched_scope, tenant_id,
         )
 
@@ -265,12 +265,12 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                     )
                 except Exception as exc:
                     logger.warning(
-                        "Plugin SIO %s presence cleanup failed: %s",
+                        "Plugin SIO {} presence cleanup failed: {}",
                         self.namespace, exc,
                     )
 
         logger.info(
-            "Plugin SIO %s disconnected: sid=%s reason=%s",
+            "Plugin SIO {} disconnected: sid={} reason={}",
             self.namespace, sid, reason,
         )
 

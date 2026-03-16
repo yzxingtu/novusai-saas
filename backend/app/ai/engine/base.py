@@ -136,17 +136,17 @@ class BaseEngine(ABC):
             prompt = template.render(**variables)
         except TemplateSyntaxError as exc:
             logger.warning(
-                "Template syntax error: agent_id=%s error=%s",
+                "Template syntax error: agent_id={} error={}",
                 agent.id, str(exc),
             )
         except UndefinedError as exc:
             logger.warning(
-                "Template undefined variable: agent_id=%s error=%s",
+                "Template undefined variable: agent_id={} error={}",
                 agent.id, str(exc),
             )
         except Exception as exc:
             logger.warning(
-                "Template render error: agent_id=%s error=%s",
+                "Template render error: agent_id={} error={}",
                 agent.id, str(exc),
             )
 
@@ -398,7 +398,7 @@ class BaseEngine(ABC):
             router = ModelRouter(self.db)
             route_result = await router.route(agent, request, estimated_tokens, tools=tools)
         except Exception as _routing_exc:
-            logger.warning("ModelRouter integration failed: %s", str(_routing_exc))
+            logger.warning("ModelRouter integration failed: {}", str(_routing_exc))
 
         return PreparedExecution(
             messages=messages,

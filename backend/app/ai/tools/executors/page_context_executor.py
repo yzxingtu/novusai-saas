@@ -228,7 +228,7 @@ class PageContextExecutor(BaseToolExecutor):
                 if len(data_str) > MAX_OUTPUT_CHARS:
                     data_str = data_str[:MAX_OUTPUT_CHARS] + "... [truncated]"
                     logger.warning(
-                        "page_data truncated: original %d chars, limit %d",
+                        "page_data truncated: original {} chars, limit {}",
                         len(json.dumps(remaining, ensure_ascii=False, default=str)),
                         MAX_OUTPUT_CHARS,
                     )
@@ -238,7 +238,7 @@ class PageContextExecutor(BaseToolExecutor):
         duration_ms = int((time.perf_counter() - start) * 1000)
 
         logger.info(
-            "Page context resolved: page_key=%s",
+            "Page context resolved: page_key={}",
             page_ctx.get("page_key", "unknown") if isinstance(page_ctx, dict) else "raw",
         )
 

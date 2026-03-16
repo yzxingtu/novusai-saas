@@ -232,7 +232,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.error("Code execution error: %s", str(exc), exc_info=True)
+            logger.error("Code execution error: {}", str(exc), exc_info=True)
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

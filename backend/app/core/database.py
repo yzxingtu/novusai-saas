@@ -221,7 +221,7 @@ async def check_database_connection() -> bool:
         return True
     except Exception as e:
         _warn_if_pg_not_running(e)
-        logger.error("Database connection failed: %s", e)
+        logger.error("Database connection failed: {}", e)
         return False
 
 
@@ -255,18 +255,18 @@ def create_database_if_not_exists() -> bool:
             exists = result.scalar() is not None
 
             if not exists:
-                logger.info("Database '%s' does not exist, creating...", settings.DATABASE_NAME)
+                logger.info("Database '{}' does not exist, creating...", settings.DATABASE_NAME)
                 conn.execute(
                     text(f'CREATE DATABASE "{settings.DATABASE_NAME}"')
                 )
-                logger.info("Database '%s' created successfully", settings.DATABASE_NAME)
+                logger.info("Database '{}' created successfully", settings.DATABASE_NAME)
             else:
-                logger.debug("Database '%s' already exists", settings.DATABASE_NAME)
+                logger.debug("Database '{}' already exists", settings.DATABASE_NAME)
 
         return True
     except Exception as e:
         _warn_if_pg_not_running(e)
-        logger.error("Database creation failed: %s", e)
+        logger.error("Database creation failed: {}", e)
         return False
     finally:
         admin_engine.dispose()
@@ -443,7 +443,7 @@ except Exception as e:
         logger.warning("Alembic not installed, skipping migrations")
         return True
     except Exception as e:
-        logger.error("Database migration failed: %s", e)
+        logger.error("Database migration failed: {}", e)
         return False
 
 

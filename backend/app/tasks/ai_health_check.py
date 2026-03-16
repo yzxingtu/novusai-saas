@@ -65,16 +65,16 @@ def ai_provider_health_check(self: BaseTask) -> dict:
         result = db.execute(stmt)
         providers = result.scalars().all()
 
-        logger.info("%s provider_count=%d", _("ai.log.health_check_start"), len(providers))
+        logger.info("{} provider_count={}", _("ai.log.health_check_start"), len(providers))
 
         for provider in providers:
             _check_provider_health(provider, db, redis_client)
 
-        logger.info("%s provider_count=%d", _("ai.log.health_check_completed"), len(providers))
+        logger.info("{} provider_count={}", _("ai.log.health_check_completed"), len(providers))
         return {"provider_count": len(providers), "status": "completed"}
 
     except Exception as e:
-        logger.error("%s error=%s", _("ai.log.health_check_task_failed"), str(e))
+        logger.error("{} error={}", _("ai.log.health_check_task_failed"), str(e))
         raise
     finally:
         db.close()
@@ -116,7 +116,7 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
         if not api_key:
             error_message = _("ai.log.health_no_api_key")
             logger.warning(
-                "%s provider=%s",
+                "{} provider={}",
                 _("ai.log.health_skip_no_key"),
                 provider.code,
             )
@@ -133,7 +133,7 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
         error_message = str(e)
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(
-            "%s provider=%s error=%s",
+            "{} provider={} error={}",
             _("ai.log.health_check_provider_failed"),
             provider.code,
             str(e),
@@ -188,7 +188,7 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
     redis_client.expire(history_key, HEALTH_HISTORY_TTL)
 
     logger.info(
-        "%s provider=%s is_healthy=%s consecutive_failures=%d response_time_ms=%d",
+        "{} provider={} is_healthy={} consecutive_failures={} response_time_ms={}",
         _("ai.log.health_check_result"),
         provider.code,
         is_healthy,

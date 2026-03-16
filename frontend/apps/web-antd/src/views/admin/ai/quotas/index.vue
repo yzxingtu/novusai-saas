@@ -79,7 +79,7 @@ const {
   ai: {
     formSchema: useFormSchema,
     entityName: $t('admin.ai.quota.name'),
-    entityDescription: 'AI 配额与速率限制管理',
+    entityDescription: $t('admin.ai.quota.entityDescription'),
     contextExtras: () => ({
       total_quotas: quotaTotal.value,
     }),

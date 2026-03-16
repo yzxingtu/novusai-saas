@@ -366,6 +366,7 @@
   "agent": {
     "title": "智能体管理",
     "pageDesc": "管理全平台智能体，支持创建全局/企业/管理端专属智能体。可发布、禁用或删除。",
+    "entityDescription": "管理 AI 智能体的配置、技能绑定和发布状态",
     "detail": {
       "title": "智能体详情",
       "overview": "概览",
@@ -633,9 +634,16 @@
       "allLevels": "全部等级"
     }
   },
+  "agentAssignments": {
+    "entityDescription": "系统智能体分配管理"
+  },
+  "quota": {
+    "entityDescription": "AI 配额与速率限制管理"
+  },
   "health": {
     "title": "健康状态",
     "pageDesc": "实时监控各 AI 供应商的连接状态、响应时间和故障次数。",
+    "entityDescription": "AI 供应商健康状态监控",
     "providers": "个供应商",
     "refresh": "刷新",
     "responseTime": "响应时间",

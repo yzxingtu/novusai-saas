@@ -29,7 +29,7 @@ async def get_registry() -> dict[str, Any] | None:
             return None
         return json.loads(raw)
     except Exception as e:
-        logger.warning("Failed to load LiteLLM registry from Redis: %s", e)
+        logger.warning("Failed to load LiteLLM registry from Redis: {}", e)
         return None
 
 

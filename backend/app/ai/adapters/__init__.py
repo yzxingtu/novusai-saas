@@ -31,6 +31,8 @@ class AdapterRegistry:
             provider_type: Provider type (e.g. openai_compatible) / 供应商类型
             adapter_class: Adapter class / 适配器类
         """
+        if provider_type in cls._adapters and cls._adapters[provider_type] is adapter_class:
+            return  # idempotent: already registered same class, skip
         cls._adapters[provider_type] = adapter_class
         logger.info(_("ai.log.adapter_registered"), extra={"provider_type": provider_type})
 

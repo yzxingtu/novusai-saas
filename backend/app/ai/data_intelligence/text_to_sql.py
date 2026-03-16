@@ -233,7 +233,7 @@ class TextToSQLGenerator:
                         ChatMessage(role="user", content=retry_msg),
                     )
                     logger.warning(
-                        "SQL generation attempt %d/%d failed validation: %s",
+                        "SQL generation attempt {}/{} failed validation: {}",
                         attempt + 1,
                         MAX_GENERATE_ATTEMPTS,
                         validation.violations,
@@ -241,7 +241,7 @@ class TextToSQLGenerator:
                 else:
                     # Last attempt still failed / 最后一次尝试仍失败
                     logger.error(
-                        "SQL generation failed after %d attempts: %s",
+                        "SQL generation failed after {} attempts: {}",
                         MAX_GENERATE_ATTEMPTS,
                         validation.violations,
                     )
@@ -255,7 +255,7 @@ class TextToSQLGenerator:
 
             except Exception as exc:
                 logger.error(
-                    "SQL generation attempt %d/%d error: %s",
+                    "SQL generation attempt {}/{} error: {}",
                     attempt + 1,
                     MAX_GENERATE_ATTEMPTS,
                     str(exc),

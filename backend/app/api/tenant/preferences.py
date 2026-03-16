@@ -69,7 +69,7 @@ async def update_global_preferences(
             namespace="/tenant",
         )
         logger.info(
-            "Emitted preference:global_updated to room=%s (%d keys)",
+            "Emitted preference:global_updated to room={} ({} keys)",
             room,
             len(changed),
         )

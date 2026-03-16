@@ -63,7 +63,7 @@ class VideoDescriber:
             return ""
         if len(video_bytes) > _MAX_VIDEO_BYTES:
             logger.warning(
-                "Video too large (%d bytes > %d), skipping",
+                "Video too large ({} bytes > {}), skipping",
                 len(video_bytes),
                 _MAX_VIDEO_BYTES,
             )
@@ -71,14 +71,14 @@ class VideoDescriber:
         model = await self._get_video_model(knowledge_base)
         if not model:
             logger.debug(
-                "No video model available for KB %s, skipping video description",
+                "No video model available for KB {}, skipping video description",
                 getattr(knowledge_base, "id", None) if knowledge_base else None,
             )
             return ""
         # Placeholder: no video understanding yet
         # 占位：尚未接入视频理解
         logger.info(
-            "Video describer placeholder: mime=%s, size=%d, model=%s",
+            "Video describer placeholder: mime={}, size={}, model={}",
             mime_type,
             len(video_bytes),
             model.code,
@@ -111,7 +111,7 @@ class VideoDescriber:
             if model:
                 return model
             logger.warning(
-                "Configured video_model_id=%d not active/available, falling back to default",
+                "Configured video_model_id={} not active/available, falling back to default",
                 video_model_id,
             )
         stmt = (

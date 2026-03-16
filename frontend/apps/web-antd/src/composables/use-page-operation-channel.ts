@@ -169,11 +169,17 @@ export function usePageOperationChannel(): void {
     });
 
     // null sentinel distinguishes timeout from user-cancel (false) / null 哨兵区分超时与用户取消(false)
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), CONFIRM_TIMEOUT_MS);
+      timerId = setTimeout(() => resolve(null), CONFIRM_TIMEOUT_MS);
     });
 
-    const result = await Promise.race([confirmPromise, timeoutPromise]);
+    let result: boolean | null;
+    try {
+      result = await Promise.race([confirmPromise, timeoutPromise]);
+    } finally {
+      if (timerId !== undefined) clearTimeout(timerId);
+    }
 
     if (result === null) {
       // Timeout: dismiss the lingering confirmation card in the panel / 超时：清理面板中残留的确认卡片

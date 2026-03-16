@@ -133,7 +133,7 @@ class AdminAIQuotaController(GlobalController):
                 stmt = stmt.where(TenantModelRateLimit.tenant_id == tenant_id)
             if model_id is not None:
                 stmt = stmt.where(TenantModelRateLimit.model_id == model_id)
-            stmt = stmt.order_by(TenantModelRateLimit.created_at.desc())
+            stmt = stmt.order_by(TenantModelRateLimit.created_at.desc()).limit(500)
 
             result = await db.execute(stmt)
             items = result.scalars().all()

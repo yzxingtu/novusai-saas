@@ -108,7 +108,7 @@ async def webhook_dispatcher(
         )
         if not is_valid:
             logger.warning(
-                "Webhook auth failed: %s/%s (type=%s)",
+                "Webhook auth failed: {}/{} (type={})",
                 plugin_name, path, auth_type,
             )
             return JSONResponse(
@@ -167,7 +167,7 @@ async def webhook_dispatcher(
 
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.info(
-            "Webhook %s/%s handled in %dms",
+            "Webhook {}/{} handled in {}ms",
             plugin_name, path, duration_ms,
         )
 
@@ -178,7 +178,7 @@ async def webhook_dispatcher(
     except Exception as exc:
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.error(
-            "Webhook handler error: %s/%s: %s (%dms)",
+            "Webhook handler error: {}/{}: {} ({}ms)",
             plugin_name, path, exc, duration_ms, exc_info=True,
         )
         err_message = str(exc) if settings.DEBUG else "Internal server error"
@@ -259,7 +259,7 @@ async def _verify_webhook_auth(
 
     # unknown auth type → fail-close
     logger.warning(
-        "Webhook auth: unknown auth_type '%s', denying request",
+        "Webhook auth: unknown auth_type '{}', denying request",
         auth_type,
     )
     return False

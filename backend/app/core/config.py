@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "NovusAI SaaS"
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"  # development, staging, production
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # 时区配置（用于后端和数据库） / Timezone config (for backend and database)
     TIMEZONE: str = "Asia/Shanghai"

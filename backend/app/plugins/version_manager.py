@@ -51,7 +51,7 @@ class VersionManager:
             shutil.rmtree(target)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, target)
-        logger.info("Archived %s v%s to %s", plugin_name, version, target)
+        logger.info("Archived {} v{} to {}", plugin_name, version, target)
         return target
 
     async def upgrade(
@@ -204,7 +204,7 @@ class VersionManager:
                 )
                 await plugin_cls().on_upgrade(ctx, old_version)
             except Exception as exc:
-                logger.warning("on_upgrade failed for %s: %s", plugin_name, exc)
+                logger.warning("on_upgrade failed for {}: {}", plugin_name, exc)
 
             # 8. Re-enable (if previously enabled, call _enable_impl to avoid nested locks)
             # / 重新启用
@@ -212,12 +212,12 @@ class VersionManager:
                 await lifecycle._enable_impl(plugin_id)
 
             logger.info(
-                "Plugin %s upgraded: %s → %s", plugin_name, old_version, new_version
+                "Plugin {} upgraded: {} → {}", plugin_name, old_version, new_version
             )
 
         except Exception as exc:
             # Rollback: restore old version files / 回滚
-            logger.error("Upgrade failed for %s, rolling back: %s", plugin_name, exc)
+            logger.error("Upgrade failed for {}, rolling back: {}", plugin_name, exc)
             if old_backup.exists():
                 if target_dir.exists():
                     shutil.rmtree(target_dir)
@@ -283,7 +283,7 @@ class VersionManager:
             await lifecycle.run_alembic_downgrade(plugin_name)
         except Exception as exc:
             logger.warning(
-                "Rollback %s: alembic downgrade failed (continuing with file restore): %s",
+                "Rollback {}: alembic downgrade failed (continuing with file restore): {}",
                 plugin_name, exc,
             )
 
@@ -309,7 +309,7 @@ class VersionManager:
         if was_enabled:
             await lifecycle._enable_impl(plugin_id)
 
-        logger.info("Plugin %s rolled back to v%s", plugin_name, target_version)
+        logger.info("Plugin {} rolled back to v{}", plugin_name, target_version)
 
     async def list_versions(self, plugin_id: int) -> list[dict]:
         """Query plugin version history / 查询插件版本历史"""

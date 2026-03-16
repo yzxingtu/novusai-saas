@@ -335,7 +335,7 @@ async def stream_writing_feature(
     finally:
         latency_ms = int((time.perf_counter() - start_time) * 1000)
         logger.info(
-            "ai_writing_stream: feature=%s agent_id=%d tenant_id=%s chunks=%d latency_ms=%d",
+            "ai_writing_stream: feature={} agent_id={} tenant_id={} chunks={} latency_ms={}",
             feature, agent_id, tenant_id, chunk_count, latency_ms,
         )
 

@@ -298,7 +298,7 @@ class HybridRetriever:
         )
         cached = await self._get_cache(cache_key)
         if cached is not None:
-            logger.info("Search cache hit: %s", cache_key)
+            logger.info("Search cache hit: {}", cache_key)
             # Cache hit still needs AFTER hook (plugins may do permission filtering/masking)
             # 缓存命中也需过 AFTER hook（插件可能做权限过滤/脱敏）
             if hook_registry.has_hooks(HookPoint.AFTER_KB_SEARCH):
@@ -373,7 +373,7 @@ class HybridRetriever:
         await self._set_cache(cache_key, results)
 
         logger.info(
-            "Search: mode=%s, kb_ids=%s, query_len=%d, results=%d, rewrite=%s, rerank=%s",
+            "Search: mode={}, kb_ids={}, query_len={}, results={}, rewrite={}, rerank={}",
             mode, target_kb_ids, len(query), len(results),
             rewrite_strategy, reranker_enabled,
         )

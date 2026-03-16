@@ -54,7 +54,7 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
             }
     except Exception as exc:
         logger.warning(
-            "Skill test failed: skill=%d type=%s error=%s",
+            "Skill test failed: skill={} type={} error={}",
             skill.id, skill_type, str(exc),
         )
         return {

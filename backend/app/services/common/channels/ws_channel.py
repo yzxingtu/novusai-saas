@@ -79,7 +79,7 @@ class WSChannel(NotificationChannel):
             )
             return True
         except Exception as e:
-            logger.warning("WSChannel deliver failed: %s", str(e))
+            logger.warning("WSChannel deliver failed: {}", str(e))
             return False
 
 

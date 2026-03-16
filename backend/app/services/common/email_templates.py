@@ -96,7 +96,7 @@ def render_email(
     try:
         template = env.get_template(html_template_name)
     except Exception:
-        logger.error("Email template not found: %s", html_template_name)
+        logger.error("Email template not found: {}", html_template_name)
         raise
 
     html_body = template.render(**ctx)

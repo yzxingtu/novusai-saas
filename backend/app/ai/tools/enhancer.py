@@ -69,7 +69,7 @@ def enhance_tools_with_page_context(
             param.default = page_key
 
     logger.debug(
-        "Enhanced %s: page_key=%s ops=%s",
+        "Enhanced {}: page_key={} ops={}",
         _TARGET_TOOL,
         page_key,
         op_names,

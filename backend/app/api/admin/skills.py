@@ -299,7 +299,7 @@ class AdminSkillController(GlobalController):
                         "source_plugin": td.source_plugin,
                     })
             except Exception as exc:
-                logger.warning("Failed to resolve tools for skill %d: %s", skill_id, exc)
+                logger.warning("Failed to resolve tools for skill {}: {}", skill_id, exc)
 
             return success(data=tools_data)
 
@@ -365,7 +365,7 @@ class AdminSkillController(GlobalController):
             if skill_ids:
                 skills = await service.get_by_ids(skill_ids)
             else:
-                skills = await service.get_list(limit=10000)
+                skills = await service.get_list(limit=2000)
 
             if not skills:
                 raise NotFoundException(message=_("skill.error.not_found"))

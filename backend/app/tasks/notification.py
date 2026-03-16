@@ -69,7 +69,7 @@ def send_notification_email(
 
         if result.success:
             logger.info(
-                "Notification email sent: to=%s subject=%s triggered_by=%s",
+                "Notification email sent: to={} subject={} triggered_by={}",
                 ", ".join(to), subject, triggered_by,
             )
             return {
@@ -83,7 +83,7 @@ def send_notification_email(
             "email_disabled", "config_incomplete", "no_recipients",
         ):
             logger.warning(
-                "Notification email skipped: reason=%s to=%s",
+                "Notification email skipped: reason={} to={}",
                 result.message, ", ".join(to),
             )
             return {
@@ -98,7 +98,7 @@ def send_notification_email(
     except RuntimeError:
         raise
     except Exception as e:
-        logger.error("Notification email task failed: %s", str(e))
+        logger.error("Notification email task failed: {}", str(e))
         _record_notification_email_log(
             to=to,
             subject=subject,
@@ -148,7 +148,7 @@ def _record_notification_email_log(
         session.add(log)
         session.commit()
     except Exception as e:
-        logger.warning("Failed to record notification email log: %s", str(e))
+        logger.warning("Failed to record notification email log: {}", str(e))
         if session:
             session.rollback()
     finally:

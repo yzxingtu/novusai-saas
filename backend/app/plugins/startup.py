@@ -73,7 +73,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
             manifest = loader.load_manifest(plugin_name)
         except Exception as exc:
             logger.warning(
-                "Discover: skipping %s (invalid manifest): %s", plugin_name, exc,
+                "Discover: skipping {} (invalid manifest): {}", plugin_name, exc,
             )
             failed += 1
             continue
@@ -90,12 +90,12 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     if scan_result.has_warnings:
                         security_warnings = scan_result.warnings[:10]
                         logger.warning(
-                            "Discover: plugin %s has %d security warning(s): %s",
+                            "Discover: plugin {} has {} security warning(s): {}",
                             plugin_name, len(scan_result.warnings),
                             "; ".join(scan_result.warnings[:3]),
                         )
                 except Exception as exc:
-                    logger.warning("Discover: security scan failed for %s: %s", plugin_name, exc)
+                    logger.warning("Discover: security scan failed for {}: {}", plugin_name, exc)
 
                 plugin = PluginModel(
                     name=plugin_name,
@@ -148,9 +148,9 @@ async def discover_and_register(db: AsyncSession) -> dict:
                         from app.plugins.lifecycle import PluginLifecycle
                         lifecycle = PluginLifecycle(db)
                         await lifecycle.run_alembic_upgrade(plugin_name)
-                        logger.info("Discover: ran alembic for %s", plugin_name)
+                        logger.info("Discover: ran alembic for {}", plugin_name)
                     except Exception as exc:
-                        logger.warning("Discover: alembic failed for %s: %s", plugin_name, exc)
+                        logger.warning("Discover: alembic failed for {}: {}", plugin_name, exc)
 
                 # AI features registration (if any) / AI features 注册
                 if manifest.ai_requirements and manifest.ai_requirements.features:
@@ -190,19 +190,19 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     )
                     await plugin_cls().on_install(ctx)
                 except Exception as exc:
-                    logger.warning("Discover: on_install failed for %s: %s", plugin_name, exc)
+                    logger.warning("Discover: on_install failed for {}: {}", plugin_name, exc)
 
                 await db.flush()
                 discovered += 1
                 logger.info(
-                    "Discover: auto-registered plugin %s v%s (disabled)",
+                    "Discover: auto-registered plugin {} v{} (disabled)",
                     plugin_name, manifest.version,
                 )
 
             except Exception as exc:
                 failed += 1
                 logger.error(
-                    "Discover: failed to register %s: %s", plugin_name, exc, exc_info=True,
+                    "Discover: failed to register {}: {}", plugin_name, exc, exc_info=True,
                 )
         else:
             # ── Already exists: sync manifest / 已存在：同步 manifest ──
@@ -221,7 +221,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 existing_plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else existing_plugin.ai_requirements
                 existing_plugin.granted_capabilities = manifest.capabilities or existing_plugin.granted_capabilities
                 synced += 1
-                logger.info("Discover: synced manifest for %s", plugin_name)
+                logger.info("Discover: synced manifest for {}", plugin_name)
 
     # ── In DB but not on disk → mark error / DB 有但磁盘无 → 标记 error ──
     for plugin_name, plugin in db_plugins.items():
@@ -230,13 +230,13 @@ async def discover_and_register(db: AsyncSession) -> dict:
             plugin.error_message = "Plugin files missing from disk"
             plugin.error_count += 1
             missing += 1
-            logger.warning("Discover: plugin %s missing from disk, marked error", plugin_name)
+            logger.warning("Discover: plugin {} missing from disk, marked error", plugin_name)
 
     if discovered > 0 or synced > 0 or missing > 0:
         await db.flush()
 
     logger.info(
-        "Plugin discover complete: discovered=%d, synced=%d, missing=%d, failed=%d",
+        "Plugin discover complete: discovered={}, synced={}, missing={}, failed={}",
         discovered, synced, missing, failed,
     )
     return {
@@ -315,7 +315,7 @@ async def restore_enabled_plugins(
                         await lifecycle.run_alembic_upgrade(plugin.name)
                     except Exception as exc:
                         logger.warning(
-                            "Restore(%s): alembic upgrade for %s failed: %s",
+                            "Restore({}): alembic upgrade for {} failed: {}",
                             mode_label,
                             plugin.name,
                             exc,
@@ -358,7 +358,7 @@ async def restore_enabled_plugins(
 
             restored += 1
             logger.info(
-                "Restored plugin(%s): %s (v%s, %d extensions)",
+                "Restored plugin({}): {} (v{}, {} extensions)",
                 mode_label,
                 plugin.name, plugin.version,
                 registry.get_registered_count(plugin.name),
@@ -371,7 +371,7 @@ async def restore_enabled_plugins(
                 plugin.error_message = f"Startup restore failed: {exc}"
                 plugin.error_count += 1
             logger.error(
-                "Failed to restore plugin(%s) %s: %s",
+                "Failed to restore plugin({}) {}: {}",
                 mode_label,
                 plugin.name,
                 exc,
@@ -382,7 +382,7 @@ async def restore_enabled_plugins(
         await db.flush()
 
     logger.info(
-        "Plugin restore(%s) complete: %d restored, %d failed, %d total",
+        "Plugin restore({}) complete: {} restored, {} failed, {} total",
         mode_label,
         restored,
         failed,
@@ -402,12 +402,12 @@ async def restore_enabled_plugins(
         if error_plugins:
             names = [row[0] for row in error_plugins]
             logger.warning(
-                "Plugin system: %d plugin(s) in ERROR state and need manual repair: %s. "
+                "Plugin system: {} plugin(s) in ERROR state and need manual repair: {}. "
                 "Go to Admin > Plugins and click the Repair button.",
                 len(error_plugins), ", ".join(names),
             )
             for row in error_plugins:
-                logger.warning("  ↳ [%s] %s", row[0], (row[1] or "unknown error")[:200])
+                logger.warning("  ↳ [{}] {}", row[0], (row[1] or "unknown error")[:200])
 
     return {
         "restored": restored,

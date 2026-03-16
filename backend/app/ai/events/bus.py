@@ -96,7 +96,7 @@ class EventBus:
         subs.sort(key=lambda s: s.priority)
 
         logger.debug(
-            "Event handler subscribed: %s -> %s (priority=%d)",
+            "Event handler subscribed: {} -> {} (priority={})",
             event_type.__name__,
             handler.__qualname__,
             priority,
@@ -127,7 +127,7 @@ class EventBus:
 
         if removed > 0:
             logger.debug(
-                "Event handler unsubscribed: %s -> %s",
+                "Event handler unsubscribed: {} -> {}",
                 event_type.__name__,
                 handler.__qualname__,
             )
@@ -166,7 +166,7 @@ class EventBus:
                 handlers_called += 1
             except Exception as exc:
                 logger.error(
-                    "Event handler error: %s in %s: %s",
+                    "Event handler error: {} in {}: {}",
                     event_type.__name__,
                     sub.handler.__qualname__,
                     str(exc),
@@ -175,7 +175,7 @@ class EventBus:
 
         if handlers_called > 0:
             logger.debug(
-                "Event dispatched: %s -> %d handlers",
+                "Event dispatched: {} -> {} handlers",
                 event_type.__name__,
                 handlers_called,
             )

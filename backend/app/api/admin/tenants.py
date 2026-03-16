@@ -393,7 +393,7 @@ class AdminTenantController(GlobalController):
 
             # 记录审计日志 / Record audit log
             _audit_helper.logger.info(
-                "Admin impersonate initiated | admin_id=%s | admin_username=%s | "
+                "Admin impersonate initiated | admin_id={} | admin_username={} | "
                 "target_tenant_id=%s | target_tenant_code=%s | target_role_id=%s",
                 current_admin.id,
                 current_admin.username,

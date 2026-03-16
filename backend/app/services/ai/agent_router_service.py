@@ -116,7 +116,7 @@ class AgentRouterService:
                         routed_by=ROUTED_BY_PINNED,
                     )
                 logger.warning(
-                    "Pinned agent %s not accessible for tenant=%s user_role=%s",
+                    "Pinned agent {} not accessible for tenant={} user_role={}",
                     pinned_agent_id, tenant_id, user_role,
                 )
 
@@ -151,7 +151,7 @@ class AgentRouterService:
                 router_agent, candidates, message, page_context
             )
         except Exception as exc:
-            logger.error("Router call failed: %s", exc, exc_info=True)
+            logger.error("Router call failed: {}", exc, exc_info=True)
             return await self._fallback_to_default(
                 tenant_id, user_role
             )
@@ -167,7 +167,7 @@ class AgentRouterService:
 
         if routed_id not in valid_ids:
             logger.warning(
-                "Router selected agent_id=%s not in valid_ids, falling back",
+                "Router selected agent_id={} not in valid_ids, falling back",
                 routed_id,
             )
             return await self._fallback_to_default(
@@ -176,7 +176,7 @@ class AgentRouterService:
 
         if confidence < MIN_CONFIDENCE_THRESHOLD:
             logger.info(
-                "Router confidence %.2f below threshold, falling back",
+                "Router confidence {} below threshold, falling back",
                 confidence,
             )
             return await self._fallback_to_default(
@@ -365,11 +365,11 @@ class AgentRouterService:
                 timeout=ROUTER_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
-            logger.warning("Router agent timed out after %ss", ROUTER_TIMEOUT_SECONDS)
+            logger.warning("Router agent timed out after {}s", ROUTER_TIMEOUT_SECONDS)
             return None
 
         if not result.success or not result.output:
-            logger.warning("Router agent returned no output: %s", result.error)
+            logger.warning("Router agent returned no output: {}", result.error)
             return None
 
         # 解析 JSON
@@ -414,7 +414,7 @@ class AgentRouterService:
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
 
-        logger.warning("Failed to parse router output: %s", output[:200])
+        logger.warning("Failed to parse router output: {}", output[:200])
         return None
 
     # ========================================

@@ -66,7 +66,7 @@ class MarketplaceClient:
             if ttl:
                 self._cache_ttl = int(ttl)
         except Exception as exc:
-            logger.warning("Failed to load marketplace config: %s", exc)
+            logger.warning("Failed to load marketplace config: {}", exc)
 
     async def _select_source(self) -> str:
         """
@@ -90,7 +90,7 @@ class MarketplaceClient:
             # / auto: 尝试 GitHub 优先，超时 3s 则用 Gitee
             self._selected_source = await self._ping_and_select()
 
-        logger.info("Marketplace source selected: %s", self._selected_source)
+        logger.info("Marketplace source selected: {}", self._selected_source)
         return self._selected_source
 
     async def _ping_and_select(self) -> str:
@@ -132,7 +132,7 @@ class MarketplaceClient:
             from app.core.redis import cache_set
             await cache_set(f"{_CACHE_PREFIX}{key}", value, ttl=self._cache_ttl)
         except Exception as exc:
-            logger.debug("Marketplace cache_set failed for %s: %s", key, exc)
+            logger.debug("Marketplace cache_set failed for {}: {}", key, exc)
 
     # ── Local fallback / 本地回退 ──
 
@@ -147,7 +147,7 @@ class MarketplaceClient:
             data = json.loads(local_path.read_text(encoding="utf-8"))
             return data.get("plugins", []) if isinstance(data, dict) else []
         except Exception as exc:
-            logger.warning("Failed to load local registry: %s", exc)
+            logger.warning("Failed to load local registry: {}", exc)
             return []
 
     # ── Public methods / 公开方法 ──
@@ -179,7 +179,7 @@ class MarketplaceClient:
                 return plugins
             return []
         except Exception as exc:
-            logger.warning("Failed to fetch marketplace registry: %s", exc)
+            logger.warning("Failed to fetch marketplace registry: {}", exc)
             # Return stale cache from Redis (if available) / 返回 Redis 中的过期缓存（如果有）
             stale = await self._get_cached(cache_key)
             if stale:
@@ -290,12 +290,12 @@ class MarketplaceClient:
                     await self._set_cached(cache_key, data)
                     return data
                 logger.info(
-                    "Marketplace detail %s not found at %s, trying registry fallback",
+                    "Marketplace detail {} not found at {}, trying registry fallback",
                     slug,
                     url,
                 )
         except Exception as exc:
-            logger.warning("Failed to fetch plugin detail for %s: %s", slug, exc)
+            logger.warning("Failed to fetch plugin detail for {}: {}", slug, exc)
 
         # Fallback: some index sources only provide registry.json, not plugins/{slug}.json
         # Search registry by slug/name to ensure confirm-install can continue.
@@ -308,12 +308,12 @@ class MarketplaceClient:
                 detail = dict(item)
                 await self._set_cached(cache_key, detail)
                 logger.info(
-                    "Marketplace detail fallback hit from registry: slug=%s",
+                    "Marketplace detail fallback hit from registry: slug={}",
                     slug,
                 )
                 return detail
 
-        logger.warning("Marketplace plugin detail not found for slug=%s", slug)
+        logger.warning("Marketplace plugin detail not found for slug={}", slug)
 
         # Last resort: read possibly stale cache (handle intermittent cache backend errors)
         # / 最后尝试读取可能存在的旧缓存
@@ -398,7 +398,7 @@ class MarketplaceClient:
                 validate_plugin_zip_archive(zip_path)
 
                 logger.info(
-                    "Downloaded plugin %s v%s (%d bytes)",
+                    "Downloaded plugin {} v{} ({} bytes)",
                     slug, version, zip_path.stat().st_size,
                 )
                 return zip_path
@@ -410,7 +410,7 @@ class MarketplaceClient:
                 zip_path.unlink(missing_ok=True)
                 if attempt < 2:
                     logger.warning(
-                        "Download attempt %d failed for %s: %s, retrying...",
+                        "Download attempt {} failed for {}: {}, retrying...",
                         attempt + 1, slug, exc,
                     )
                     continue
@@ -429,7 +429,7 @@ class MarketplaceClient:
                         )
                         validate_plugin_zip_archive(stub_zip)
                         logger.warning(
-                            "Using DEBUG marketplace stub package for %s v%s "
+                            "Using DEBUG marketplace stub package for {} v{} "
                             "because remote download failed: %s",
                             slug,
                             version,
@@ -438,7 +438,7 @@ class MarketplaceClient:
                         return stub_zip
                     except Exception as stub_exc:
                         logger.warning(
-                            "Failed to build DEBUG marketplace stub for %s: %s",
+                            "Failed to build DEBUG marketplace stub for {}: {}",
                             slug,
                             stub_exc,
                         )

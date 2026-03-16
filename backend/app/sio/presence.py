@@ -88,7 +88,7 @@ async def check_connect_rate(user_type: str, user_id: int, window: int = 60, max
     count = await redis.eval(_LUA_RATE, 1, key, str(window))
     if count > max_connects:
         logger.warning(
-            "SIO rate limit exceeded: %s user_id=%d count=%d",
+            "SIO rate limit exceeded: {} user_id={} count={}",
             user_type, user_id, count,
         )
         return False
@@ -127,7 +127,7 @@ class PresenceManager:
         connections = await redis.eval(_LUA_INCR, 1, key, str(user_id), str(PRESENCE_TTL))
 
         logger.debug(
-            "Presence set_online: %s user_id=%d tenant_id=%s connections=%d",
+            "Presence set_online: {} user_id={} tenant_id={} connections={}",
             user_type, user_id, tenant_id, connections,
         )
         return int(connections)
@@ -150,7 +150,7 @@ class PresenceManager:
         connections = await redis.eval(_LUA_DECR, 1, key, str(user_id))
 
         logger.debug(
-            "Presence set_offline: %s user_id=%d tenant_id=%s connections=%d",
+            "Presence set_offline: {} user_id={} tenant_id={} connections={}",
             user_type, user_id, tenant_id, connections,
         )
         return int(connections)
@@ -250,7 +250,7 @@ class PresenceManager:
                 break
 
         if deleted > 0:
-            logger.info("Presence cleared on startup: %d keys removed", deleted)
+            logger.info("Presence cleared on startup: {} keys removed", deleted)
         return deleted
 
 

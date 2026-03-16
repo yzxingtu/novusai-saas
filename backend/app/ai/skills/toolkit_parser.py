@@ -170,7 +170,7 @@ def parse_toolkit(source: str) -> ToolkitMeta:
     meta.tools = _extract_tools_methods(tools_class, source)
 
     if not meta.tools:
-        logger.warning("Toolkit '%s' has no public methods in Tools class", meta.title)
+        logger.warning("Toolkit '{}' has no public methods in Tools class", meta.title)
 
     # 5. Extract Valves schema / 提取 Valves schema
     valves_class = _find_class(tree, "Valves")
@@ -178,7 +178,7 @@ def parse_toolkit(source: str) -> ToolkitMeta:
         meta.valves_schema = _extract_valves_schema(valves_class, source)
 
     logger.info(
-        "Toolkit parsed: '%s' v%s — %d tools, valves=%s",
+        "Toolkit parsed: '{}' v{} — {} tools, valves={}",
         meta.title,
         meta.version,
         len(meta.tools),

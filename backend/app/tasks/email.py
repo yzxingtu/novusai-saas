@@ -74,7 +74,7 @@ def send_email_task(
 
         if result.success:
             logger.info(
-                "Email sent: to=%s subject=%s triggered_by=%s",
+                "Email sent: to={} subject={} triggered_by={}",
                 ", ".join(to), subject, triggered_by,
             )
             return {
@@ -89,7 +89,7 @@ def send_email_task(
             "too_many_recipients", "invalid_email", "attachment_too_large",
         ):
             logger.warning(
-                "Email skipped: reason=%s to=%s",
+                "Email skipped: reason={} to={}",
                 result.message, ", ".join(to),
             )
             return {
@@ -104,7 +104,7 @@ def send_email_task(
     except RuntimeError:
         raise
     except Exception as e:
-        logger.error("Email task failed: %s", str(e))
+        logger.error("Email task failed: {}", str(e))
         _record_email_log(
             to=to, cc=cc, bcc=bcc, subject=subject,
             triggered_by=triggered_by, tenant_id=tenant_id,
@@ -154,7 +154,7 @@ def _record_email_log(
         session.add(log)
         session.commit()
     except Exception as e:
-        logger.warning("Failed to record email log: %s", str(e))
+        logger.warning("Failed to record email log: {}", str(e))
         if session:
             session.rollback()
     finally:

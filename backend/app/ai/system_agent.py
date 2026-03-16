@@ -114,7 +114,7 @@ class SystemAgentService:
         agent = await self._get_system_agent(self.CHAT_AGENT_NAME)
 
         logger.info(
-            "System chat dispatch: agent_id=%d model=%s/%s tenant=%s",
+            "System chat dispatch: agent_id={} model={}/{} tenant={}",
             agent.id, provider_code, model, tenant_id,
         )
 
@@ -154,7 +154,7 @@ class SystemAgentService:
         agent = await self._get_system_agent(self.CHAT_AGENT_NAME)
 
         logger.info(
-            "System stream chat dispatch: agent_id=%d model=%s/%s tenant=%s",
+            "System stream chat dispatch: agent_id={} model={}/{} tenant={}",
             agent.id, provider_code, model, tenant_id,
         )
 
@@ -192,7 +192,7 @@ class SystemAgentService:
         agent = await self._get_system_agent(self.EMBEDDING_AGENT_NAME)
 
         logger.info(
-            "System embedding dispatch: agent_id=%d model=%s/%s tenant=%s",
+            "System embedding dispatch: agent_id={} model={}/{} tenant={}",
             agent.id, provider_code, model, tenant_id,
         )
 

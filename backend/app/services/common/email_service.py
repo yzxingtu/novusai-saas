@@ -138,7 +138,7 @@ class EmailService:
             missing.append("from_address")
         if missing:
             error_msg = _("email.error.config_missing", fields=", ".join(missing))
-            logger.warning("Email config incomplete: %s", ", ".join(missing))
+            logger.warning("Email config incomplete: {}", ", ".join(missing))
             return EmailResult(
                 success=False,
                 message="config_incomplete",
@@ -195,7 +195,7 @@ class EmailService:
         try:
             self._smtp_send(config, mime_msg, all_recipients)
             logger.info(
-                "Email sent: to=%s subject=%s",
+                "Email sent: to={} subject={}",
                 ", ".join(message.to), message.subject,
             )
             return EmailResult(
@@ -204,7 +204,7 @@ class EmailService:
                 recipients=all_recipients,
             )
         except smtplib.SMTPAuthenticationError as e:
-            logger.error("SMTP auth failed: %s", str(e))
+            logger.error("SMTP auth failed: {}", str(e))
             return EmailResult(
                 success=False,
                 message="auth_failed",
@@ -212,7 +212,7 @@ class EmailService:
                 error=str(e),
             )
         except smtplib.SMTPException as e:
-            logger.error("SMTP error: %s", str(e))
+            logger.error("SMTP error: {}", str(e))
             return EmailResult(
                 success=False,
                 message="smtp_error",
@@ -220,7 +220,7 @@ class EmailService:
                 error=str(e),
             )
         except Exception as e:
-            logger.error("Email send failed: %s", str(e))
+            logger.error("Email send failed: {}", str(e))
             return EmailResult(
                 success=False,
                 message="send_failed",
@@ -352,11 +352,11 @@ def send_email_sync(
 
         EmailService._smtp_send(config, mime_msg, all_recipients)
 
-        logger.info("Email sent (sync): to=%s subject=%s", ", ".join(to), subject)
+        logger.info("Email sent (sync): to={} subject={}", ", ".join(to), subject)
         return EmailResult(success=True, message="sent", recipients=all_recipients)
 
     except Exception as e:
-        logger.error("Email send failed (sync): %s", str(e))
+        logger.error("Email send failed (sync): {}", str(e))
         return EmailResult(success=False, message="send_failed", recipients=to, error=str(e))
     finally:
         session.close()

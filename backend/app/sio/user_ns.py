@@ -143,7 +143,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
         await self.emit("presence:list", {"online_ids": online_ids}, to=sid)
 
         logger.info(
-            "SIO /user connected: sid=%s user_id=%d tenant_id=%d username=%s connections=%d",
+            "SIO /user connected: sid={} user_id={} tenant_id={} username={} connections={}",
             sid, user_id, tenant_id, username, connections,
         )
 
@@ -157,7 +157,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             tenant_id = session.get("tenant_id")
         except Exception as e:
             logger.warning(
-                "SIO /user get_session failed on disconnect: sid=%s error=%s",
+                "SIO /user get_session failed on disconnect: sid={} error={}",
                 sid, e,
             )
             # fallback: get from backup mapping / 从备份映射获取
@@ -165,7 +165,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             if fallback:
                 user_id = fallback.get("user_id")
                 tenant_id = fallback.get("tenant_id")
-                logger.info("SIO /user using fallback session for sid=%s user_id=%s", sid, user_id)
+                logger.info("SIO /user using fallback session for sid={} user_id={}", sid, user_id)
 
         if user_id and tenant_id:
             try:
@@ -188,7 +188,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                     )
             except Exception as e:
                 logger.error(
-                    "SIO /user presence cleanup failed: sid=%s user_id=%s error=%s",
+                    "SIO /user presence cleanup failed: sid={} user_id={} error={}",
                     sid, user_id, e,
                 )
 
@@ -196,6 +196,6 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
         self._sid_sessions.pop(sid, None)
 
         logger.info(
-            "SIO /user disconnected: sid=%s user_id=%s tenant_id=%s reason=%s",
+            "SIO /user disconnected: sid={} user_id={} tenant_id={} reason={}",
             sid, user_id, tenant_id, reason,
         )

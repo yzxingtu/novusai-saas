@@ -326,7 +326,7 @@ class QuotaManager:
             )
             if result >= 0:
                 logger.warning(
-                    "Quota exceeded: tenant=%s model=%s current=%s limit=%s period=%s",
+                    "Quota exceeded: tenant={} model={} current={} limit={} period={}",
                     tenant_id, model_id, result, quota.limit, quota.period,
                 )
                 raise QuotaExceeded(
@@ -347,7 +347,7 @@ class QuotaManager:
 
             if current_usage + estimated_tokens > quota.limit:
                 logger.warning(
-                    "Soft quota exceeded: tenant=%s model=%s current=%s limit=%s period=%s",
+                    "Soft quota exceeded: tenant={} model={} current={} limit={} period={}",
                     tenant_id, model_id, current_usage, quota.limit, quota.period,
                 )
                 # Soft limit allows overuse, but logs warning

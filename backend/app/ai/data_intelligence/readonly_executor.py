@@ -201,7 +201,7 @@ class ReadOnlyExecutor:
                 truncated = len(rows) >= self.max_rows
 
                 logger.info(
-                    "ReadOnlyExecutor: %d rows in %dms (truncated=%s)",
+                    "ReadOnlyExecutor: {} rows in {}ms (truncated={})",
                     len(rows), duration_ms, truncated,
                 )
 
@@ -217,7 +217,7 @@ class ReadOnlyExecutor:
             except Exception as exc:
                 duration_ms = int((time.monotonic() - start_time) * 1000)
                 logger.error(
-                    "ReadOnlyExecutor failed in %dms: %s",
+                    "ReadOnlyExecutor failed in {}ms: {}",
                     duration_ms, str(exc),
                 )
                 raise
@@ -235,7 +235,7 @@ class ReadOnlyExecutor:
                 await session.execute(text("SELECT 1"))
                 return True
         except Exception as exc:
-            logger.error("ReadOnlyExecutor connection check failed: %s", str(exc))
+            logger.error("ReadOnlyExecutor connection check failed: {}", str(exc))
             return False
 
 

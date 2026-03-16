@@ -198,7 +198,7 @@ class PluginProgressEmitter:
         room = f"user:{self._operator_id}"
         step = data.get("step")
         logger.debug(
-            "Emitting plugin_progress for %s step=%s status=%s room=%s",
+            "Emitting plugin_progress for {} step={} status={} room={}",
             self._plugin_name, step, data.get("status"), room,
         )
         try:
@@ -212,15 +212,15 @@ class PluginProgressEmitter:
                 ),
                 timeout=1.0,
             )
-            logger.debug("Emitted plugin_progress for %s step=%s OK", self._plugin_name, step)
+            logger.debug("Emitted plugin_progress for {} step={} OK", self._plugin_name, step)
         except asyncio.TimeoutError:
             logger.warning(
-                "Timeout emitting plugin progress for %s (step=%s) — "
+                "Timeout emitting plugin progress for {} (step={}) — "
                 "Redis pub/sub may be unavailable; SIO events lost but enable continues",
                 self._plugin_name, step,
             )
         except Exception as exc:
             logger.error(
-                "Failed to emit plugin progress for %s (step=%s): %s",
+                "Failed to emit plugin progress for {} (step={}): {}",
                 self._plugin_name, step, exc,
             )

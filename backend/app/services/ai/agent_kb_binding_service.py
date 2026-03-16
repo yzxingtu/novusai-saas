@@ -132,7 +132,7 @@ class AgentKBBindingService:
         })
 
         logger.info(
-            "KnowledgeBase %d bound to agent %d (tenant=%s)",
+            "KnowledgeBase {} bound to agent {} (tenant={})",
             knowledge_base_id, agent_id, self.tenant_id,
         )
 
@@ -155,7 +155,7 @@ class AgentKBBindingService:
         await self.binding_repo.permanent_delete(binding.id)
 
         logger.info(
-            "KnowledgeBase %d unbound from agent %d (tenant=%s)",
+            "KnowledgeBase {} unbound from agent {} (tenant={})",
             knowledge_base_id, agent_id, self.tenant_id,
         )
 
@@ -200,7 +200,7 @@ class AgentKBBindingService:
                 bindings.append(binding)
 
         logger.info(
-            "Batch bound %d knowledge bases to agent %d (tenant=%s)",
+            "Batch bound {} knowledge bases to agent {} (tenant={})",
             len(knowledge_base_ids), agent_id, self.tenant_id,
         )
 

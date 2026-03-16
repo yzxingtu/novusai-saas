@@ -355,14 +355,14 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             await memory_svc.clear_conversation_memory(conversation_id)
         except Exception as exc:
             logger.warning(
-                "Archive conversation memory cleanup failed: conversation=%d tenant=%s err=%s",
+                "Archive conversation memory cleanup failed: conversation={} tenant={} err={}",
                 conversation_id,
                 self.tenant_id,
                 str(exc),
             )
 
         logger.info(
-            "Conversation archived: conversation_id=%s tenant_id=%s",
+            "Conversation archived: conversation_id={} tenant_id={}",
             conversation_id, self.tenant_id,
         )
 
@@ -411,7 +411,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                     await memory_svc.clear_conversation_memory(cid)
                 except Exception as exc:
                     logger.warning(
-                        "Batch archive memory cleanup failed: conversation=%d tenant=%s err=%s",
+                        "Batch archive memory cleanup failed: conversation={} tenant={} err={}",
                         cid,
                         self.tenant_id,
                         str(exc),
@@ -423,7 +423,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         if total_count > 0:
             logger.info(
-                "Conversations batch archived: count=%s tenant_id=%s agent_id=%s before_days=%s",
+                "Conversations batch archived: count={} tenant_id={} agent_id={} before_days={}",
                 total_count, self.tenant_id, agent_id, before_days,
             )
 
@@ -439,7 +439,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             await memory_svc.clear_conversation_memory(id)
         except Exception as exc:
             logger.warning(
-                "Delete conversation memory cleanup failed: conversation=%d tenant=%s err=%s",
+                "Delete conversation memory cleanup failed: conversation={} tenant={} err={}",
                 id,
                 self.tenant_id,
                 str(exc),
@@ -633,7 +633,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         })
 
         logger.info(
-            "Conversation created: id=%d agent=%d tenant=%d",
+            "Conversation created: id={} agent={} tenant={}",
             conversation.id,
             agent_id,
             self.tenant_id,

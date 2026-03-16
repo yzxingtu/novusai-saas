@@ -110,7 +110,7 @@ class PluginEventBus:
         subs.append(sub)
         subs.sort(key=lambda s: s.priority)
         logger.info(
-            "PluginEventBus: %s subscribed to '%s' (priority=%d)",
+            "PluginEventBus: {} subscribed to '{}' (priority={})",
             plugin_name or "unknown", event_name, priority,
         )
 
@@ -142,7 +142,7 @@ class PluginEventBus:
         removed = before - len(subs)
         if removed > 0:
             logger.info(
-                "PluginEventBus: removed %d subscription(s) from '%s'",
+                "PluginEventBus: removed {} subscription(s) from '{}'",
                 removed, event_name,
             )
         return removed
@@ -157,7 +157,7 @@ class PluginEventBus:
 
         if total_removed > 0:
             logger.info(
-                "PluginEventBus: removed all %d subscription(s) for plugin '%s'",
+                "PluginEventBus: removed all {} subscription(s) for plugin '{}'",
                 total_removed, plugin_name,
             )
         return total_removed
@@ -182,7 +182,7 @@ class PluginEventBus:
         subs = self._subscribers.get(event_name, [])
         if not subs:
             logger.debug(
-                "PluginEventBus: no subscribers for '%s'", event_name,
+                "PluginEventBus: no subscribers for '{}'", event_name,
             )
             return {"delivered": 0, "failed": 0, "errors": []}
 
@@ -198,7 +198,7 @@ class PluginEventBus:
             payload_size = sys.getsizeof(str(safe_payload))
         if payload_size > _MAX_PAYLOAD_SIZE:
             logger.warning(
-                "PluginEventBus: payload too large for '%s' (%d bytes, max %d)",
+                "PluginEventBus: payload too large for '{}' ({} bytes, max {})",
                 event_name, payload_size, _MAX_PAYLOAD_SIZE,
             )
             return {
@@ -225,7 +225,7 @@ class PluginEventBus:
                 err_msg = f"{subs[i].plugin_name}: {result}"
                 errors.append(err_msg)
                 logger.warning(
-                    "PluginEventBus: handler failed for '%s' (plugin=%s): %s",
+                    "PluginEventBus: handler failed for '{}' (plugin={}): {}",
                     event_name, subs[i].plugin_name, result,
                 )
                 # Record to dead letter queue / 记入死信队列
@@ -237,7 +237,7 @@ class PluginEventBus:
 
         latency_ms = int((time.perf_counter() - start) * 1000)
         logger.info(
-            "plugin_event: event=%s source=%s subscribers=%d delivered=%d "
+            "plugin_event: event={} source={} subscribers={} delivered={} "
             "failed=%d latency_ms=%d",
             event_name, source_plugin, len(subs),
             delivered, failed, latency_ms,

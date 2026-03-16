@@ -100,7 +100,7 @@ class CacheManagementService:
                 except Exception:
                     pass
         except Exception as exc:
-            logger.warning("Failed to scan Redis pattern %s: %s", pattern, exc)
+            logger.warning("Failed to scan Redis pattern {}: {}", pattern, exc)
         return stats
 
     @staticmethod
@@ -121,7 +121,7 @@ class CacheManagementService:
                             stats.key_count += 1
                             stats.size_bytes += sub_entry.stat().st_size
         except Exception as exc:
-            logger.warning("Failed to scan image cache directory: %s", exc)
+            logger.warning("Failed to scan image cache directory: {}", exc)
         return stats
 
     @staticmethod
@@ -230,7 +230,7 @@ class CacheManagementService:
             if keys_to_delete:
                 await redis.delete(*keys_to_delete)
         except Exception as exc:
-            logger.error("Failed to clear Redis pattern %s: %s", pattern, exc)
+            logger.error("Failed to clear Redis pattern {}: {}", pattern, exc)
         return stats
 
     @staticmethod
@@ -258,7 +258,7 @@ class CacheManagementService:
                     stats.size_bytes += dir_size
                     shutil.rmtree(entry.path, ignore_errors=True)
         except Exception as exc:
-            logger.error("Failed to clear image cache directory: %s", exc)
+            logger.error("Failed to clear image cache directory: {}", exc)
         return stats
 
     @staticmethod
@@ -288,7 +288,7 @@ class CacheManagementService:
             captcha_service._rate_limits.clear()
             return _CategoryStats(key_count=count, size_bytes=0)
         except Exception as exc:
-            logger.warning("Failed to clear captcha cache: %s", exc)
+            logger.warning("Failed to clear captcha cache: {}", exc)
             return _CategoryStats()
 
     @staticmethod
@@ -300,7 +300,7 @@ class CacheManagementService:
             clear_update_cache()
             return _CategoryStats(key_count=count, size_bytes=0)
         except Exception as exc:
-            logger.warning("Failed to clear plugin update cache: %s", exc)
+            logger.warning("Failed to clear plugin update cache: {}", exc)
             return _CategoryStats()
 
     @classmethod
@@ -334,7 +334,7 @@ class CacheManagementService:
             elif category == CacheCategoryEnum.PLUGIN_UPDATE:
                 stats = cls._clear_plugin_update_cache()
             else:
-                logger.warning("Unknown cache category: %s", category.value)
+                logger.warning("Unknown cache category: {}", category.value)
                 continue
 
             total_keys += stats.key_count
@@ -342,7 +342,7 @@ class CacheManagementService:
             cleared.append(category.value)
 
             logger.info(
-                "Cache cleared: category=%s keys=%d size=%s",
+                "Cache cleared: category={} keys={} size={}",
                 category.value,
                 stats.key_count,
                 _format_size(stats.size_bytes),
@@ -351,7 +351,7 @@ class CacheManagementService:
         duration_ms = int((time.monotonic() - start) * 1000)
 
         logger.info(
-            "Cache clear completed: categories=%d total_keys=%d total_size=%s duration=%dms",
+            "Cache clear completed: categories={} total_keys={} total_size={} duration={}ms",
             len(cleared),
             total_keys,
             _format_size(total_size),

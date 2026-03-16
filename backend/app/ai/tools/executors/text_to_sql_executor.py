@@ -261,7 +261,7 @@ class TextToSQLExecutor(BaseToolExecutor):
             )
 
             logger.info(
-                "Text-to-SQL completed: tenant=%d question=%s "
+                "Text-to-SQL completed: tenant={} question={} "
                 "rows=%d display=%s duration=%dms",
                 tenant_id,
                 question[:50],
@@ -293,7 +293,7 @@ class TextToSQLExecutor(BaseToolExecutor):
         except TenantIsolationError as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Tenant isolation failed: %s", str(exc),
+                "Tenant isolation failed: {}", str(exc),
             )
             await self._log_query(
                 context=context,
@@ -319,7 +319,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                 core_msg = str(exc.orig)
             error_detail = f"{type(exc).__name__}: {core_msg[:300]}"
             logger.error(
-                "Text-to-SQL execution error: %s | generated_sql=%s | final_sql=%s",
+                "Text-to-SQL execution error: {} | generated_sql={} | final_sql={}",
                 error_detail,
                 _generated_sql,
                 _final_sql,
@@ -396,7 +396,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                     raise
         except Exception as log_exc:
             logger.warning(
-                "Failed to write query audit log: %s", str(log_exc),
+                "Failed to write query audit log: {}", str(log_exc),
             )
 
     async def validate(

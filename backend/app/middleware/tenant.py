@@ -225,7 +225,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     Usage:
         tenant_ctx = get_tenant_context(request)
         if tenant_ctx and tenant_ctx.is_resolved:
-            logger.debug("Tenant: %s", tenant_ctx.tenant.name)
+            logger.debug("Tenant: {}", tenant_ctx.tenant.name)
     """
     return getattr(request.state, "tenant_ctx", None)
 
@@ -237,7 +237,7 @@ def get_current_tenant(request: Request) -> Tenant | None:
     Usage:
         tenant = get_current_tenant(request)
         if tenant:
-            logger.debug("Tenant: %s", tenant.name)
+            logger.debug("Tenant: {}", tenant.name)
     """
     ctx = get_tenant_context(request)
     if ctx and ctx.is_resolved:

@@ -110,7 +110,7 @@ class TaskEngine(BaseEngine):
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Task execution failed: agent=%d error=%s",
+                "Task execution failed: agent={} error={}",
                 agent.id,
                 str(exc),
                 exc_info=True,

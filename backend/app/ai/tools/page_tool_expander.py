@@ -127,7 +127,7 @@ def expand_editor_tools(
 
     if expanded:
         logger.info(
-            "PageToolExpander: page_key=%s expanded %d editor tools: %s",
+            "PageToolExpander: page_key={} expanded {} editor tools: {}",
             page_key,
             len(expanded),
             [t.name for t in expanded],

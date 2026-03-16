@@ -63,7 +63,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 batch_run = result.scalar_one_or_none()
 
                 if not batch_run:
-                    logger.error("BatchRun %d not found", batch_run_id)
+                    logger.error("BatchRun {} not found", batch_run_id)
                     return {"error": "BatchRun not found"}
 
                 # Check if already cancelled / 检查是否已取消
@@ -100,7 +100,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     )
                 except Exception as skill_exc:
                     logger.warning(
-                        "Batch %d: skill resolution failed: %s",
+                        "Batch {}: skill resolution failed: {}",
                         batch_run_id, str(skill_exc),
                     )
 
@@ -142,7 +142,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     await db.refresh(batch_run, ["status"])
                     if batch_run.status == BatchRunStatusEnum.CANCELLED.value:
                         logger.info(
-                            "Batch %d cancelled at item %d/%d",
+                            "Batch {} cancelled at item {}/{}",
                             batch_run_id, idx, len(items),
                         )
                         break
@@ -186,7 +186,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                             "error": str(exc),
                         })
                         logger.error(
-                            "Batch item %s failed: %s",
+                            "Batch item {} failed: {}",
                             item_id, str(exc),
                             exc_info=True,
                         )
@@ -259,7 +259,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     pass
 
                 logger.info(
-                    "Batch %d done: %d/%d succeeded, %d failed",
+                    "Batch {} done: {}/{} succeeded, {} failed",
                     batch_run_id, succeeded, len(items), failed,
                 )
 
@@ -273,7 +273,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
 
             except Exception as exc:
                 logger.error(
-                    "Batch %d execution error: %s",
+                    "Batch {} execution error: {}",
                     batch_run_id, str(exc),
                     exc_info=True,
                 )

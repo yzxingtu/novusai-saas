@@ -165,10 +165,13 @@ class LocalStorageDriver(StorageDriver):
         """
         Open file and return binary stream / 打开文件并返回二进制流
         """
+        from io import BytesIO
+
         full_path = self._full_path(path)
         if not full_path.exists():
             raise StorageNotFoundError()
-        return open(full_path, "rb")
+        data = full_path.read_bytes()
+        return BytesIO(data)
 
     async def delete(self, path: str) -> bool:
         """
@@ -398,7 +401,7 @@ class LocalStorageDriver(StorageDriver):
         variant_count = await anyio.to_thread.run_sync(lambda: self._count_variants(path))
         if variant_count >= max_variants:
             self.logger.warning(
-                "Image cache variant limit reached for %s (%d/%d), returning original",
+                "Image cache variant limit reached for {} ({}/{}), returning original",
                 path, variant_count, max_variants,
             )
             source = await self.get(path)

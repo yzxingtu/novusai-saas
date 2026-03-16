@@ -110,7 +110,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             pkg = await self.db.get(SkillPackage, pkg_id)
             if not pkg or pkg.is_deleted:
                 logger.warning(
-                    "Skipping deleted package %d during rollback for agent %d",
+                    "Skipping deleted package {} during rollback for agent {}",
                     pkg_id, agent_id,
                 )
                 continue
@@ -441,7 +441,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         })
 
         logger.info(
-            "Agent published: agent_id=%s tenant_id=%s version=%s",
+            "Agent published: agent_id={} tenant_id={} version={}",
             agent_id, self.tenant_id, new_version,
         )
 
@@ -489,7 +489,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         )
 
         logger.info(
-            "Agent rolled back: agent_id=%s tenant_id=%s version=%s",
+            "Agent rolled back: agent_id={} tenant_id={} version={}",
             agent_id, self.tenant_id, version,
         )
 
@@ -645,7 +645,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         })
 
         logger.info(
-            "Agent access updated: agent_id=%s tenant_id=%s",
+            "Agent access updated: agent_id={} tenant_id={}",
             agent_id, self.tenant_id,
         )
 
@@ -917,7 +917,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         updated = await self.repo.update(agent_id, {"status": status})
 
         logger.info(
-            "Agent admin status updated: agent_id=%s status=%s",
+            "Agent admin status updated: agent_id={} status={}",
             agent_id, status,
         )
 

@@ -303,7 +303,7 @@ class ToolSandbox:
                 }
                 definition = page_op_def
                 logger.debug(
-                    "Redirected pageop_%s -> invoke_page_operation(operation_name=%s)",
+                    "Redirected pageop_{} -> invoke_page_operation(operation_name={})",
                     underlying,
                     underlying,
                 )
@@ -364,7 +364,7 @@ class ToolSandbox:
                         for k in extra_keys:
                             arguments.pop(k, None)
                     logger.info(
-                        "invoke_page_operation: inferred operation_name=%s "
+                        "invoke_page_operation: inferred operation_name={} "
                         "from params keys=%s",
                         inferred,
                         list(effective_params.keys()),
@@ -465,7 +465,7 @@ class ToolSandbox:
                 from app.plugins.registry import ExtensionRegistry
                 executor = ExtensionRegistry.get_instance().get_plugin_executor(definition.source_plugin)
             except Exception as pe:
-                logger.warning("Plugin executor lookup failed for %s: %s", definition.source_plugin, pe)
+                logger.warning("Plugin executor lookup failed for {}: {}", definition.source_plugin, pe)
         if not executor:
             executor = self._named_executors.get(name) or self._executors.get(definition.tool_type)
         if not executor:
@@ -502,7 +502,7 @@ class ToolSandbox:
                 )
         except Exception as val_exc:
             logger.warning(
-                "Executor validate() error for %s: %s",
+                "Executor validate() error for {}: {}",
                 name, str(val_exc),
             )
             return ToolResult(
@@ -525,7 +525,7 @@ class ToolSandbox:
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(
-                "Tool execution timed out: %s after %dms (timeout=%ds)",
+                "Tool execution timed out: {} after {}ms (timeout={}s)",
                 name,
                 duration_ms,
                 tool_timeout,
@@ -540,7 +540,7 @@ class ToolSandbox:
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Tool execution error: %s: %s",
+                "Tool execution error: {}: {}",
                 name,
                 str(exc),
                 exc_info=True,
@@ -595,7 +595,7 @@ class ToolSandbox:
                 result=result,
             )
         except Exception as log_exc:
-            logger.warning("Failed to log skill call: %s", str(log_exc))
+            logger.warning("Failed to log skill call: {}", str(log_exc))
 
         return result
 
@@ -725,7 +725,7 @@ class ToolSandbox:
                 new_args["page_key"] = pk
 
         logger.info(
-            "Redirecting bare tool call '%s' → invoke_page_operation "
+            "Redirecting bare tool call '{}' → invoke_page_operation "
             "(operation_name=%s)",
             name,
             name,

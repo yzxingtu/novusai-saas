@@ -83,7 +83,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
 
         # 级联物理删除关联的 AgentSkillBinding（绑定关系无需回收站）
         await self.repo.delete_skill_bindings(id)
-        logger.info("Cascade deleted AgentSkillBindings for package %d", id)
+        logger.info("Cascade deleted AgentSkillBindings for package {}", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
         """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""
@@ -172,7 +172,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if new_tenant_id is not None and new_tenant_id != pkg.tenant_id:
             await self.repo.cascade_update_skill_tenant_id(id, new_tenant_id)
             logger.info(
-                "Cascade synced Skill.tenant_id to %s for package %d",
+                "Cascade synced Skill.tenant_id to {} for package {}",
                 new_tenant_id, id,
             )
 
@@ -190,7 +190,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
         await self.repo.delete_skill_bindings(id)
-        logger.info("Cascade deleted AgentSkillBindings for package %d", id)
+        logger.info("Cascade deleted AgentSkillBindings for package {}", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
         """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""

@@ -107,14 +107,14 @@ class LLMReranker:
                 reranked = reranked[:top_k]
 
             logger.info(
-                "LLM rerank: query='%s', input=%d, output=%d",
+                "LLM rerank: query='{}', input={}, output={}",
                 query[:50], len(results), len(reranked),
             )
 
             return reranked
 
         except Exception as exc:
-            logger.warning("LLM rerank failed, returning original: %s", str(exc))
+            logger.warning("LLM rerank failed, returning original: {}", str(exc))
             return results[:top_k] if top_k else results
 
     @staticmethod

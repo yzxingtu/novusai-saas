@@ -49,7 +49,7 @@ const {
   pager: false,
   ai: {
     entityName: $t('admin.ai.agentAssignment.title'),
-    entityDescription: '系统智能体分配管理',
+    entityDescription: $t('admin.ai.agentAssignments.entityDescription'),
     contextExtras: () => ({
       active: stats.value.active,
       assigned: stats.value.assigned,

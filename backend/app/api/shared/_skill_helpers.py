@@ -86,7 +86,7 @@ async def enrich_plugin_skill_info(
                 for td in tool_defs
             ]
     except Exception as exc:
-        logger.warning("Failed to resolve plugin tools for skill %d: %s", skill.id, exc)
+        logger.warning("Failed to resolve plugin tools for skill {}: {}", skill.id, exc)
 
 
 __all__ = ["enrich_plugin_skill_info"]

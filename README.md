@@ -17,7 +17,7 @@
 - **Vue.js 3.x** - 前端框架
 - **TypeScript** - 类型安全
 - **Vite** - 构建工具
-- **Element Plus** - UI 组件库
+- **Ant Design Vue** - UI 组件库
 - **Pinia** - 状态管理
 - **Vue Router** - 路由管理
 - **vue-i18n** - 国际化

@@ -171,7 +171,7 @@ class StreamExecutionHandler:
                     if isinstance(cb_result, dict):
                         extra_done_data = cb_result
                 except Exception as cb_exc:
-                    logger.error("on_complete callback error: %s", str(cb_exc))
+                    logger.error("on_complete callback error: {}", str(cb_exc))
 
             # ---- Send done event (with extra data from callback) ---- / 发送完成事件（含回调返回的额外数据）
             yield SSEChunkEncoder.encode({
@@ -185,7 +185,7 @@ class StreamExecutionHandler:
 
         except Exception as exc:
             logger.error(
-                "Stream execution failed: agent=%d error=%s",
+                "Stream execution failed: agent={} error={}",
                 self.agent.id,
                 str(exc),
                 exc_info=True,
@@ -212,14 +212,14 @@ class StreamExecutionHandler:
                     await self.on_complete(failed_result)
                 except Exception as cb_exc:
                     logger.error(
-                        "on_complete callback error: %s",
+                        "on_complete callback error: {}",
                         str(cb_exc),
                     )
 
         except BaseException as exc:
             # Catch CancelledError / GeneratorExit and other non-Exception exceptions / 捕获 CancelledError / GeneratorExit 等非 Exception 异常
             logger.error(
-                "Stream BaseException: agent=%d type=%s error=%s",
+                "Stream BaseException: agent={} type={} error={}",
                 self.agent.id, type(exc).__name__, str(exc),
                 exc_info=True,
             )
@@ -406,7 +406,7 @@ class StreamExecutionHandler:
                         _consecutive_page_op_failures += 1
                         if _consecutive_page_op_failures >= PAGE_OP_ABORT_THRESHOLD:
                             logger.warning(
-                                "Aborting tool loop: %d consecutive page op failures (incl. parse errors) conversation=%s",
+                                "Aborting tool loop: {} consecutive page op failures (incl. parse errors) conversation={}",
                                 _consecutive_page_op_failures,
                                 self.request.conversation_id,
                             )
@@ -475,7 +475,7 @@ class StreamExecutionHandler:
                         _consecutive_page_op_failures += 1
                         if _consecutive_page_op_failures >= PAGE_OP_ABORT_THRESHOLD:
                             logger.warning(
-                                "Aborting tool loop: %d consecutive page operation failures (conversation=%s)",
+                                "Aborting tool loop: {} consecutive page operation failures (conversation={})",
                                 _consecutive_page_op_failures,
                                 self.request.conversation_id,
                             )
@@ -514,7 +514,7 @@ class StreamExecutionHandler:
                 break
         else:
             logger.warning(
-                "Tool call rounds exceeded max: conversation=%s max_rounds=%s",
+                "Tool call rounds exceeded max: conversation={} max_rounds={}",
                 self.request.conversation_id,
                 MAX_TOOL_CALL_ROUNDS,
             )
@@ -642,7 +642,7 @@ class StreamExecutionHandler:
             func = tc.get("function") or {}
             name = (func.get("name") or "").strip()
             if not name:
-                logger.warning("Skip invalid streamed tool_call without name: %s", tc)
+                logger.warning("Skip invalid streamed tool_call without name: {}", tc)
                 continue
 
             arguments = func.get("arguments")

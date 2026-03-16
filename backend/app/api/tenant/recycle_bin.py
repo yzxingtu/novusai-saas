@@ -159,7 +159,7 @@ async def recycle_bin_summary(
                     "count": count,
                 })
         except Exception as e:
-            logger.warning("Failed to count %s: %s", code, e)
+            logger.warning("Failed to count {}: {}", code, e)
 
     return success(data=results)
 

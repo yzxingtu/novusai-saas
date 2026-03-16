@@ -227,7 +227,7 @@ async def impersonate_login(
 
     # 记录审计日志 / Record audit log
     _audit_helper.logger.info(
-        "Admin impersonate completed | admin_id=%s | admin_username=%s | "
+        "Admin impersonate completed | admin_id={} | admin_username={} | "
         "target_tenant_id=%s | target_tenant_code=%s | tenant_owner_id=%s | "
         "target_role_id=%s | client_ip=%s",
         audit_info["admin_id"],

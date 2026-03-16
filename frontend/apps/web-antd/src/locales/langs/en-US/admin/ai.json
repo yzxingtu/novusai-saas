@@ -365,6 +365,7 @@
   },
   "agent": {
     "title": "Agent Management",
+    "entityDescription": "Manage AI agent configuration, skill bindings and publish status",
     "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
     "detail": {
       "title": "Agent Detail",
@@ -632,9 +633,16 @@
       "allLevels": "All Levels"
     }
   },
+  "agentAssignments": {
+    "entityDescription": "System agent assignment management"
+  },
+  "quota": {
+    "entityDescription": "AI quota and rate limit management"
+  },
   "health": {
     "title": "Health Status",
     "pageDesc": "Real-time monitoring of AI provider connectivity, response times, and failure counts.",
+    "entityDescription": "AI provider health status monitoring",
     "providers": "providers",
     "refresh": "Refresh",
     "responseTime": "Response Time",

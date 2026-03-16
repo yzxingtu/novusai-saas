@@ -117,7 +117,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.error(
-                "Builtin tool error: %s: %s",
+                "Builtin tool error: {}: {}",
                 func_name,
                 str(exc),
                 exc_info=True,
@@ -268,7 +268,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         except httpx.TimeoutException:
             return f"Error: Search timed out for query: {query}"
         except Exception as exc:
-            logger.warning("web_search failed: %s", exc)
+            logger.warning("web_search failed: {}", exc)
             return f"Error: Search failed - {exc}"
 
     @staticmethod
@@ -320,7 +320,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         except httpx.TimeoutException:
             return f"Error: Request timed out for URL: {url}"
         except Exception as exc:
-            logger.warning("fetch_url failed for %s: %s", url, exc)
+            logger.warning("fetch_url failed for {}: {}", url, exc)
             return f"Error: Failed to fetch URL - {exc}"
 
 

@@ -86,7 +86,7 @@ class VisionDescriber:
 
         if len(image_bytes) > _MAX_IMAGE_BYTES:
             logger.warning(
-                "Image too large (%d bytes > %d), skipping vision description for KB %d",
+                "Image too large ({} bytes > {}), skipping vision description for KB {}",
                 len(image_bytes),
                 _MAX_IMAGE_BYTES,
                 knowledge_base.id,
@@ -96,7 +96,7 @@ class VisionDescriber:
         model = await self._get_vision_model(knowledge_base)
         if not model:
             logger.warning(
-                "No vision model available for KB %d, skipping image description",
+                "No vision model available for KB {}, skipping image description",
                 knowledge_base.id,
             )
             return ""
@@ -104,7 +104,7 @@ class VisionDescriber:
         provider = model.provider
         if not provider:
             logger.warning(
-                "Vision model id=%d has no associated provider, skipping",
+                "Vision model id={} has no associated provider, skipping",
                 model.id,
             )
             return ""
@@ -138,7 +138,7 @@ class VisionDescriber:
 
         except asyncio.TimeoutError:
             logger.warning(
-                "Vision description timeout (%ds) for KB %d model=%s",
+                "Vision description timeout ({}s) for KB {} model={}",
                 int(_VISION_TIMEOUT_SECONDS),
                 knowledge_base.id,
                 model.code,
@@ -147,7 +147,7 @@ class VisionDescriber:
 
         except Exception as exc:
             logger.warning(
-                "Vision description failed for KB %d model=%s: %s",
+                "Vision description failed for KB {} model={}: {}",
                 knowledge_base.id,
                 model.code,
                 str(exc),
@@ -185,7 +185,7 @@ class VisionDescriber:
             if model:
                 return model
             logger.warning(
-                "Configured vision_model_id=%d not active/available, falling back to default",
+                "Configured vision_model_id={} not active/available, falling back to default",
                 vision_model_id,
             )
 
