@@ -22,6 +22,8 @@
  * ```
  */
 
+import { $t } from '#/locales';
+
 import type { EnhancedFormFieldDescriptor } from './use-ai-operations';
 
 /**
@@ -131,7 +133,7 @@ class FormStateTrackerImpl {
       try {
         const { valid } = await entry.formApi.validate();
         if (!valid) {
-          validationErrors = { _form: 'Form has validation errors / 表单存在验证错误' };
+          validationErrors = { _form: $t('shared.pageOperation.msg.formHasValidationErrors') };
         }
       } catch {
         // Validation may throw if form is not ready

@@ -10,13 +10,14 @@ Provides multi-language support, including:
 
 import contextlib
 import json
-import logging
 from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("app.i18n")
+from app.core.logging import get_logger
+
+logger = get_logger("app.i18n")
 
 # 当前请求的语言上下文
 _current_locale: ContextVar[str] = ContextVar("current_locale", default="zh_CN")

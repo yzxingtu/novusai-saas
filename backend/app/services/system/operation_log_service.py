@@ -66,6 +66,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         user_agent: str | None = None,
         duration_ms: int | None = None,
         nickname: str | None = None,
+        trace_id: str | None = None,
     ) -> OperationLog:
         """
         创建操作日志记录 / Create operation log record.
@@ -89,6 +90,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             user_agent: User-Agent
             duration_ms: 请求耗时（毫秒）
             nickname: 用户昵称
+            trace_id: 请求追踪 ID（用于关联审计日志与日志）
 
         Returns:
             创建的日志实例
@@ -112,6 +114,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             "ip": ip,
             "user_agent": user_agent,
             "duration_ms": duration_ms,
+            "trace_id": trace_id,
         }
 
         return await self.repo.create_log(data)
@@ -696,6 +699,7 @@ def create_log_async(
     user_agent: str | None = None,
     duration_ms: int | None = None,
     nickname: str | None = None,
+    trace_id: str | None = None,
 ) -> None:
     """
     异步创建操作日志（不阻塞当前请求）/ Create operation log async (non-blocking).
@@ -721,6 +725,7 @@ def create_log_async(
         user_agent: User-Agent
         duration_ms: 请求耗时（毫秒）
         nickname: 用户昵称
+        trace_id: 请求追踪 ID
 
     Example:
         from app.services.system.operation_log_service import create_log_async
@@ -757,6 +762,7 @@ def create_log_async(
         "ip": ip,
         "user_agent": user_agent,
         "duration_ms": duration_ms,
+        "trace_id": trace_id,
     }
 
     # 获取当前事件循环并创建任务

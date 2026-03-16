@@ -26,6 +26,7 @@ from typing import Any
 
 import socketio
 
+from app.core.i18n import _
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
@@ -38,7 +39,8 @@ _pending_invocations: dict[str, asyncio.Future[dict[str, Any]]] = {}
 _active_sessions: dict[tuple[str, int, str], str] = {}
 
 # Default operation timeout (seconds) / 默认操作超时（秒）
-PAGE_OPERATION_TIMEOUT = 30
+# 60s to align with frontend CONFIRM_TIMEOUT_MS / 与前端确认超时 60s 对齐
+PAGE_OPERATION_TIMEOUT = 60
 
 
 def _user_role_to_scope(user_role: str) -> str:
@@ -247,7 +249,7 @@ async def invoke_page_operation(
         return {
             "invoke_id": invoke_id,
             "success": False,
-            "message": f"Operation '{operation_name}' timed out after {timeout}s",
+            "message": _("page_operation.error.timeout", op=operation_name, timeout=int(timeout)),
             "error_type": "timeout",
         }
 
@@ -259,7 +261,7 @@ async def invoke_page_operation(
         return {
             "invoke_id": invoke_id,
             "success": False,
-            "message": f"Operation '{operation_name}' failed: {e!s}",
+            "message": _("page_operation.error.internal_failed", op=operation_name, error=str(e)),
             "error_type": "internal_error",
         }
 

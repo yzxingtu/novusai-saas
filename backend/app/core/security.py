@@ -1,10 +1,11 @@
 """
 安全模块 / Security Module
 
-提供 JWT Token 生成/验证、密码哈希等安全相关功能
-Provides JWT token generation/verification, password hashing and other security features.
+提供 JWT Token 生成/验证、密码哈希、Token 黑名单吊销等安全相关功能
+Provides JWT token generation/verification, password hashing, token blacklist revoke.
 """
 
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -34,7 +35,7 @@ def create_access_token(
     scope: str,
     expires_delta: timedelta | None = None,
     extra_claims: dict[str, Any] | None = None,
-) -> str:
+) -> tuple[str, str]:
     """
     创建 Access Token / Create access token
 
@@ -45,7 +46,7 @@ def create_access_token(
         extra_claims: 额外的 claims / Additional claims
 
     Returns:
-        编码后的 JWT Token / Encoded JWT token
+        (token, jti) 元组 / Tuple of (token, jti)
     """
     if expires_delta:
         expire = utc_now() + expires_delta
@@ -53,6 +54,7 @@ def create_access_token(
         expire = utc_now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
+    jti = str(uuid.uuid4())
 
     to_encode = {
         "sub": str(subject),
@@ -60,19 +62,21 @@ def create_access_token(
         "exp": expire,
         "iat": utc_now(),
         "type": TOKEN_TYPE_ACCESS,
+        "jti": jti,
     }
 
     if extra_claims:
         to_encode.update(extra_claims)
 
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token, jti
 
 
 def create_refresh_token(
     subject: str | int,
     scope: str,
     expires_delta: timedelta | None = None,
-) -> str:
+) -> tuple[str, str]:
     """
     创建 Refresh Token / Create refresh token
 
@@ -82,7 +86,7 @@ def create_refresh_token(
         expires_delta: 过期时间增量 / Expiration time delta
 
     Returns:
-        编码后的 JWT Token / Encoded JWT token
+        (token, jti) 元组 / Tuple of (token, jti)
     """
     if expires_delta:
         expire = utc_now() + expires_delta
@@ -90,6 +94,7 @@ def create_refresh_token(
         expire = utc_now() + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
+    jti = str(uuid.uuid4())
 
     to_encode = {
         "sub": str(subject),
@@ -97,16 +102,73 @@ def create_refresh_token(
         "exp": expire,
         "iat": utc_now(),
         "type": TOKEN_TYPE_REFRESH,
+        "jti": jti,
     }
 
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token, jti
 
 
 class TokenExpiredError(Exception):
     """Token 已过期（区别于无效 Token） / Token expired (distinct from invalid token)"""
 
 
-def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] | None:
+# Redis key prefix for token blacklist / Token 黑名单 Redis key 前缀
+TOKEN_BLACKLIST_PREFIX = "token_blacklist:"
+ACTIVE_TOKENS_PREFIX = "active_tokens:"
+
+
+async def revoke_token(jti: str, ttl_seconds: int) -> None:
+    """
+    将 Token 加入黑名单（吊销）/ Revoke token by adding to blacklist.
+
+    Args:
+        jti: JWT ID
+        ttl_seconds: 剩余有效时间（秒），用作 Redis TTL / Remaining TTL in seconds for Redis key
+    """
+    try:
+        from app.core.redis import get_redis_client
+        client = get_redis_client()
+        key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
+        await client.setex(key, ttl_seconds, "1")
+    except Exception:
+        pass  # Redis 不可用时静默失败，Token 将在自然过期后失效
+
+
+def _decode_token_no_blacklist(token: str) -> dict[str, Any] | None:
+    """
+    解码 Token（不检查黑名单，用于登出时获取 jti/exp） / Decode token without blacklist check (for logout flow).
+    """
+    try:
+        return jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+    except (ExpiredSignatureError, JWTError):
+        return None
+
+
+async def is_token_revoked(jti: str | None) -> bool:
+    """
+    检查 Token 是否已被吊销 / Check if token is revoked.
+
+    Args:
+        jti: JWT ID，None 或空则视为未吊销（兼容旧 Token）/ None or empty => not revoked (legacy tokens)
+
+    Returns:
+        True 表示已吊销 / True if revoked
+    """
+    if not jti:
+        return False
+    try:
+        from app.core.redis import get_redis_client
+        client = get_redis_client()
+        key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
+        return bool(await client.exists(key))
+    except Exception:
+        return False  # Redis 不可用时视为未吊销，避免误杀
+
+
+async def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] | None:
     """
     解码并验证 Token / Decode and verify token
 
@@ -127,6 +189,10 @@ def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] |
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+        # 旧 Token 无 jti，跳过黑名单检查 / Legacy tokens without jti skip blacklist check
+        jti = payload.get("jti")
+        if jti and await is_token_revoked(jti):
+            return None
         return payload
     except ExpiredSignatureError:
         if raise_on_expired:
@@ -136,7 +202,7 @@ def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] |
         return None
 
 
-def verify_token(token: str, token_type: str = TOKEN_TYPE_ACCESS) -> str | None:
+async def verify_token(token: str, token_type: str = TOKEN_TYPE_ACCESS) -> str | None:
     """
     验证 Token 并返回 subject / Verify token and return subject
 
@@ -147,7 +213,7 @@ def verify_token(token: str, token_type: str = TOKEN_TYPE_ACCESS) -> str | None:
     Returns:
         Token 的 subject（用户 ID），验证失败返回 None / Token subject (user ID), None on failure
     """
-    payload = decode_token(token)
+    payload = await decode_token(token)
     if payload is None:
         return None
 
@@ -158,7 +224,7 @@ def verify_token(token: str, token_type: str = TOKEN_TYPE_ACCESS) -> str | None:
     return payload.get("sub")
 
 
-def verify_token_with_scope(
+async def verify_token_with_scope(
     token: str,
     expected_scope: str,
     token_type: str = TOKEN_TYPE_ACCESS,
@@ -179,7 +245,7 @@ def verify_token_with_scope(
     Raises:
         TokenExpiredError: raise_on_expired=True 且 Token 已过期 / when True and token is expired
     """
-    payload = decode_token(token, raise_on_expired=raise_on_expired)
+    payload = await decode_token(token, raise_on_expired=raise_on_expired)
     if payload is None:
         return None, None
 
@@ -195,7 +261,7 @@ def verify_token_with_scope(
     return payload.get("sub"), scope
 
 
-def get_token_payload(
+async def get_token_payload(
     token: str,
     token_type: str = TOKEN_TYPE_ACCESS,
 ) -> dict[str, Any] | None:
@@ -209,7 +275,7 @@ def get_token_payload(
     Returns:
         Token 的 payload，验证失败返回 None / Token payload, None on failure
     """
-    payload = decode_token(token)
+    payload = await decode_token(token)
     if payload is None:
         return None
 
@@ -267,11 +333,16 @@ def create_token_pair(
         extra_claims: 额外的 claims（仅添加到 access_token） / Extra claims (access_token only)
 
     Returns:
-        包含 access_token 和 refresh_token 的字典 / Dict with access_token and refresh_token
+        包含 access_token、refresh_token、access_jti、refresh_jti 的字典
+        Dict with access_token, refresh_token, access_jti, refresh_jti
     """
+    access_token, access_jti = create_access_token(subject, scope=scope, extra_claims=extra_claims)
+    refresh_token, refresh_jti = create_refresh_token(subject, scope=scope)
     return {
-        "access_token": create_access_token(subject, scope=scope, extra_claims=extra_claims),
-        "refresh_token": create_refresh_token(subject, scope=scope),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "access_jti": access_jti,
+        "refresh_jti": refresh_jti,
         "token_type": "bearer",
     }
 
@@ -316,7 +387,7 @@ def create_impersonate_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_impersonate_token(
+async def verify_impersonate_token(
     token: str,
     expected_target_scope: str,
 ) -> dict[str, Any] | None:
@@ -331,7 +402,7 @@ def verify_impersonate_token(
         Token 的 payload，验证失败返回 None / Token payload, None on failure
         payload 包含 / contains: sub, target_scope, target_tenant_id, target_role_id(可选/optional)
     """
-    payload = decode_token(token)
+    payload = await decode_token(token)
     if payload is None:
         return None
 
@@ -395,6 +466,8 @@ def decrypt_data(ciphertext: str) -> str:
 __all__ = [
     "create_access_token",
     "create_refresh_token",
+    "revoke_token",
+    "is_token_revoked",
     "decode_token",
     "verify_token",
     "verify_token_with_scope",

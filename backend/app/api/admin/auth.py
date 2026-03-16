@@ -75,11 +75,19 @@ async def refresh_token(
 @router.post("/logout", summary="管理员登出")
 @auth_only
 async def admin_logout(
+    request: Request,
+    db: DbSession,
     current_admin: ActiveAdmin,
 ):
     """
     管理员登出 / Admin logout
+    吊销当前 access/refresh token，并从未生效的 active_tokens 中移除
     """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        auth_service = AuthService(db)
+        await auth_service.revoke_on_logout(token, "admin", str(current_admin.id))
     return success(
         message=_("auth.logout_success"),
     )

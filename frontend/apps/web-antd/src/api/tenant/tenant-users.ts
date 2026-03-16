@@ -200,6 +200,17 @@ export async function deleteTenantUserApi(
 }
 
 /**
+ * Force logout tenant user / 强制下线企业用户
+ * POST /tenant/users/{user_id}/force-logout
+ */
+export async function forceLogoutTenantUserApi(
+  userId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(`${API_PREFIX}/${userId}/force-logout`, {}, options);
+}
+
+/**
  * Reset user password / 重置用户密码
  * PUT /tenant/users/{user_id}/reset-password
  */

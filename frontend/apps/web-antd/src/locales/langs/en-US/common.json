@@ -107,7 +107,28 @@
   "confirmDelete": "Are you sure to delete?",
   "pleaseRetry": "Please try again later",
   "requestFailed": "Request failed",
+  "auth": {
+    "forceLogoutMessage": "You have been logged out by an administrator",
+    "forceLogoutUnsavedHint": "You may lose unsaved data.",
+    "forceLogoutConfirm": "Force logout this user? All active sessions will be terminated.",
+    "forceLogoutSuccess": "Successfully logged out {name}",
+    "forceLogout": "Force Logout"
+  },
+  "role": {
+    "dataScope": "Data Scope",
+    "dataScopeAll": "All Data",
+    "dataScopeDeptChildren": "Department and Children",
+    "dataScopeDeptOnly": "Current Department Only",
+    "dataScopeSelf": "Self Only",
+    "dataScopeCustom": "Custom",
+    "customDepts": "Custom Departments",
+    "customDeptRequired": "Please select custom departments"
+  },
   "http": {
+    "traceId": "Trace ID",
+    "copyTraceId": "Copy Trace ID",
+    "copied": "Copied",
+    "copyFailed": "Copy failed, please copy manually",
     "loading": "Loading...",
     "networkError": "Network error",
     "requestTimeout": "Request timeout",
@@ -214,8 +235,10 @@
     "linkRemoved": "Link removed",
     "hrefRequired": "href required when action is set",
     "linkSet": "Link set: {href}",
-    "tableInserted": "Table {rows}x{cols} inserted"
+    "tableInserted": "Table {rows}x{cols} inserted",
+    "snippetMatchesMultiple": "Snippet matches multiple times in content; use a longer unique fragment"
   },
+  "richTextEditor": "Rich Text Editor",
   "sourceCode": "Source Code",
   "wysiwyg": "WYSIWYG",
   "startConversation": "Send a message to start",
@@ -281,6 +304,7 @@
     "savePersonalSuccess": "Personal notification preferences saved"
   },
   "globalAiChat": {
+    "user": "User",
     "history": "History",
     "noHistory": "No conversations yet",
     "welcomeDesc": "Select an AI agent to start chatting",

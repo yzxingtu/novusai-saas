@@ -99,7 +99,7 @@ async def get_current_admin(
         raise credentials_exception
 
     # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = verify_token_with_scope(
+    user_id, scope = await verify_token_with_scope(
         token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
     )
     if user_id is None:
@@ -168,7 +168,7 @@ async def get_current_tenant_admin(
         raise credentials_exception
 
     # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = verify_token_with_scope(
+    user_id, scope = await verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
     )
     if user_id is None:
@@ -237,7 +237,7 @@ async def get_current_tenant_user(
         raise credentials_exception
 
     # 验证 Token 并检查 scope / Verify token and check scope
-    user_id, scope = verify_token_with_scope(
+    user_id, scope = await verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS
     )
     if user_id is None:

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.i18n import _
 from app.core.logging import LogManager
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error="Both 'page_key' and 'operation_name' are required.",
+                error=_("page_operation.error.both_required"),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 error_type="invalid_input",
             )
@@ -81,7 +82,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                error="No page_session_id available. Cannot invoke page operation without an active page session.",
+                error=_("page_operation.error.no_session"),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 error_type="session_not_found",
             )
@@ -125,7 +126,7 @@ class PageOperationExecutor(BaseToolExecutor):
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
                         html_content = html_content[:max_html_chars] + "\n... (truncated)"
-                    hint = result_data.get("_hint", "Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.")
+                    hint = result_data.get("_hint") or _("page_operation.hint.replace_section")
                     output += f"\n{hint}\nHTML:\n{html_content}"
                     output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
                 # Agent Loop guidance: suggest next step based on context_diff
@@ -154,38 +155,20 @@ class PageOperationExecutor(BaseToolExecutor):
             "Page operation failed: page_key=%s op=%s error_type=%s message=%s duration=%dms",
             page_key, operation_name, error_type, message, duration_ms,
         )
-        error_msg = f"Operation '{operation_name}' failed on page '{page_key}'."
+        error_msg = _("page_operation.error.failed", op=operation_name, page=page_key)
         if error_type == "timeout":
-            error_msg = (
-                f"Operation '{operation_name}' timed out (30s). "
-                f"The WebSocket connection to page '{page_key}' may be broken. "
-                "Do NOT retry this operation — tell the user the operation failed "
-                "and suggest they refresh the page, then try again."
-            )
+            error_msg = _("page_operation.error.timeout_hint", op=operation_name, page=page_key)
         elif error_type == "pending_confirmation":
-            error_msg = f"Operation '{operation_name}' requires user confirmation. Awaiting user approval."
+            error_msg = _("page_operation.error.pending_confirmation", op=operation_name)
         elif error_type == "target_not_found":
-            error_msg += (
-                f" Reason: {message}. "
-                "Next step: Call get_editor_html again to get current content, "
-                "then use a short, unique HTML snippet (not the entire document) as old_html for replace_section."
-            )
+            error_msg = _("page_operation.error.target_not_found_next", message=message or "")
         elif error_type == "non_unique_match":
-            error_msg += (
-                f" Reason: {message}. "
-                "Next step: Use a longer or more specific HTML snippet so it uniquely identifies the target section."
-            )
+            error_msg = _("page_operation.error.non_unique_next", message=message or "")
         elif error_type == "invalid_html":
-            error_msg += (
-                f" Reason: {message}. "
-                "Next step: Ensure new_html is valid HTML; avoid broken tags or invalid structure."
-            )
+            error_msg = _("page_operation.error.invalid_html_next", message=message or "")
         elif message:
-            error_msg += f" Reason: {message}"
-        error_msg += (
-            "\n\nDo NOT echo HTML, JSON, tool params or raw error content to the user. "
-            "Return a brief natural language summary only."
-        )
+            error_msg += _("page_operation.error.reason_suffix", message=message)
+        error_msg += "\n\n" + _("page_operation.error.no_echo")
 
         return ToolResult(
             tool_call_id=tool_call_id,

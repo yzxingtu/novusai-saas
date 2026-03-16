@@ -7,12 +7,12 @@ Platform-level roles for admin permission control, supports multi-level role hie
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import Base, BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
-from app.enums.role import RoleType
+from app.enums.role import DataScope, RoleType
 
 # 角色-权限关联表（多对多）
 admin_role_permissions = Table(
@@ -54,6 +54,7 @@ class AdminRole(BaseModel):
         "level": "level",
         "type": "type",
         "leader_id": "leader_id",
+        "data_scope": "data_scope",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
@@ -157,6 +158,22 @@ class AdminRole(BaseModel):
         nullable=True,
         index=True,
         comment="负责人 ID"
+    )
+
+    # ========== 数据权限字段 ==========
+    # 数据范围（用于行级数据过滤） / Data scope for row-level filtering
+    data_scope: Mapped[str] = mapped_column(
+        String(20),
+        default=DataScope.SELF_ONLY.value,
+        index=True,
+        comment="数据范围: all/dept_children/dept_only/self/custom"
+    )
+
+    # 自定义部门 ID 列表（当 data_scope=custom 时生效） / Custom department IDs (when data_scope=custom)
+    custom_dept_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="自定义部门 ID 列表 [1,2,3]"
     )
 
     # ========== 关联关系 ==========

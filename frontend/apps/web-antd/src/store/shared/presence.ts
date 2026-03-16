@@ -8,10 +8,13 @@
 
 import { reactive, ref } from 'vue';
 
+import { Modal } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
+import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
+import { useMultiAuthStore } from './multi-auth';
 import { useSocketIOStore } from './socketio';
 
 /** Presence detail / 在线状态详情 */
@@ -84,6 +87,16 @@ export const usePresenceStore = defineStore('presence', () => {
     } else if (user_type === 'tenant_user') {
       tenantUserOnlineIds.delete(user_id);
     }
+  };
+
+  const handleForceLogout = () => {
+    Modal.warning({
+      content: `${$t('common.auth.forceLogoutMessage')} ${$t('common.auth.forceLogoutUnsavedHint')}`,
+      okText: $t('common.confirm'),
+      onOk: () => {
+        useMultiAuthStore().logout(true);
+      },
+    });
   };
 
   const handleTenantPresenceOnline = (data: unknown) => {
@@ -314,6 +327,7 @@ export const usePresenceStore = defineStore('presence', () => {
       handleUserPresenceOffline,
     );
     sioStore.unregisterHandler('presence:list', handlePresenceList);
+    sioStore.unregisterHandler('force_logout', handleForceLogout);
 
     sioStore.registerHandler('presence:online', handlePresenceOnline);
     sioStore.registerHandler('presence:offline', handlePresenceOffline);
@@ -334,6 +348,7 @@ export const usePresenceStore = defineStore('presence', () => {
       handleUserPresenceOffline,
     );
     sioStore.registerHandler('presence:list', handlePresenceList);
+    sioStore.registerHandler('force_logout', handleForceLogout);
   }
 
   // ============================================================
@@ -362,6 +377,7 @@ export const usePresenceStore = defineStore('presence', () => {
         handleUserPresenceOffline,
       );
       sioStore.unregisterHandler('presence:list', handlePresenceList);
+      sioStore.unregisterHandler('force_logout', handleForceLogout);
     } catch {
       // Silent / 静默
     }

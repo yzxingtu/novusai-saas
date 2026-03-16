@@ -57,6 +57,8 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         parent_id: int | None = None,
         type: str = RoleType.ROLE.value,
         allow_members: bool = True,
+        data_scope: str | None = None,
+        custom_dept_ids: list[int] | None = None,
     ) -> TenantAdminRole:
         """
         创建角色（企业内）/ Create role (within tenant).
@@ -98,9 +100,9 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_MAX_DEPTH_EXCEEDED,
             )
 
-        # 创建角色（先不设置 path，需要先获取 ID）
-        # tenant_id 由 TenantService 自动注入
-        data = {
+        # 创建角色（先不设置 path，需要先获取 ID） / Create role (path set after ID)
+        # tenant_id 由 TenantService 自动注入 / tenant_id auto-injected by TenantService
+        data: dict[str, Any] = {
             "name": name,
             "code": code,
             "description": description,
@@ -112,6 +114,10 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             "type": type,
             "allow_members": allow_members,
         }
+        if data_scope is not None:
+            data["data_scope"] = data_scope
+        if custom_dept_ids is not None:
+            data["custom_dept_ids"] = custom_dept_ids
 
         role = await self.repo.create(data)
 

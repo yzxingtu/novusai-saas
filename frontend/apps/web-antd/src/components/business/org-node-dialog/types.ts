@@ -9,6 +9,14 @@ import { $t } from '#/locales';
 /** Dialog mode / 弹窗模式 */
 export type DialogMode = 'create' | 'edit';
 
+/** Data scope enum / 数据范围枚举 */
+export type DataScopeType =
+  | 'all'
+  | 'dept_children'
+  | 'dept_only'
+  | 'self'
+  | 'custom';
+
 /** Node form data / 节点表单数据 */
 export interface OrgNodeFormData {
   /** Name / 名称 */
@@ -25,6 +33,10 @@ export interface OrgNodeFormData {
   sortOrder: number;
   /** Permission ID list / 权限 ID 列表 */
   permissionIds: number[];
+  /** Data scope / 数据范围 */
+  dataScope: DataScopeType;
+  /** Custom department IDs (when dataScope=custom) / 自定义部门 ID 列表 */
+  customDeptIds: number[];
 }
 
 /** Node Dialog Props / 节点弹窗 Props */

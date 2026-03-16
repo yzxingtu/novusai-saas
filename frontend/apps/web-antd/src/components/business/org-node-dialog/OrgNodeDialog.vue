@@ -21,9 +21,12 @@ import {
   Modal,
   Radio,
   RadioGroup,
+  Select,
+  SelectOption,
   Spin,
   Switch,
   Textarea,
+  TreeSelect,
 } from 'ant-design-vue';
 
 // Admin API
@@ -43,6 +46,7 @@ import {
 import { PermissionSelector } from '#/components/business/permission-selector';
 import { $t } from '#/locales';
 
+import type { DataScopeType } from './types';
 import {
   formRules,
   getAllowedChildTypes,
@@ -95,6 +99,17 @@ const loading = ref(false);
 const submitting = ref(false);
 const permissionLoading = ref(false);
 const permissionTree = ref<PermissionNode[]>([]);
+const deptTreeLoading = ref(false);
+const deptTreeData = ref<{ title: string; value: number; children?: { title: string; value: number; children?: unknown[] }[] }[]>([]);
+
+// Data scope options / 数据范围选项
+const DATA_SCOPE_OPTIONS: { value: DataScopeType; labelKey: string }[] = [
+  { value: 'all', labelKey: 'common.role.dataScopeAll' },
+  { value: 'dept_children', labelKey: 'common.role.dataScopeDeptChildren' },
+  { value: 'dept_only', labelKey: 'common.role.dataScopeDeptOnly' },
+  { value: 'self', labelKey: 'common.role.dataScopeSelf' },
+  { value: 'custom', labelKey: 'common.role.dataScopeCustom' },
+];
 
 // Form data / 表单数据
 const formData = ref<OrgNodeFormData>({
@@ -105,7 +120,59 @@ const formData = ref<OrgNodeFormData>({
   isActive: true,
   sortOrder: 0,
   permissionIds: [],
+  dataScope: 'self',
+  customDeptIds: [],
 });
+
+/** Whether to show custom dept selector / 是否显示自定义部门选择器 */
+const showCustomDeptSelector = computed(() => formData.value.dataScope === 'custom');
+
+/** Form rules with dynamic customDeptIds validation / 含 customDeptIds 动态校验的表单规则 */
+const formRulesWithDataScope = computed(() => ({
+  ...formRules,
+  customDeptIds: [
+    {
+      validator: (_rule: unknown, value: number[]) => {
+        if (formData.value.dataScope === 'custom' && (!value || value.length === 0)) {
+          return Promise.reject($t('common.role.customDeptRequired'));
+        }
+        return Promise.resolve();
+      },
+      trigger: 'change' as const,
+    },
+  ],
+}));
+
+/** Load org tree for custom dept selection (department nodes only) / 加载组织树用于自定义部门选择 */
+async function loadDeptTree() {
+  deptTreeLoading.value = true;
+  try {
+    const treeApi =
+      props.apiPrefix === 'tenant'
+        ? (await import('#/api/tenant/role')).getTenantRoleTreeApi
+        : (await import('#/api/admin/role')).getRoleTreeApi;
+    const nodes = await treeApi();
+    // Build tree for TreeSelect: only department nodes (title, value) / 构建 TreeSelect 所需树结构
+    const buildTree = (
+      items: { id: number; name: string; type?: string; children?: unknown[] }[],
+    ): { title: string; value: number; children?: ReturnType<typeof buildTree> }[] => {
+      return items
+        .filter((n) => n.type === 'department')
+        .map((n) => ({
+          title: n.name,
+          value: n.id,
+          children: n.children
+            ? buildTree(n.children as { id: number; name: string; type?: string; children?: unknown[] }[])
+            : undefined,
+        }));
+    };
+    deptTreeData.value = buildTree(nodes as { id: number; name: string; type?: string; children?: unknown[] }[]);
+  } catch {
+    deptTreeData.value = [];
+  } finally {
+    deptTreeLoading.value = false;
+  }
+}
 
 // Select API based on apiPrefix / 根据 apiPrefix 选择 API
 const api = computed(() => {
@@ -158,8 +225,7 @@ async function loadPermissionTree() {
   permissionLoading.value = true;
   try {
     permissionTree.value = await api.value.getPermissionTree();
-  } catch (error) {
-    console.error('Failed to load permission tree:', error);
+  } catch {
     permissionTree.value = [];
   } finally {
     permissionLoading.value = false;
@@ -181,9 +247,11 @@ async function loadNodeDetail() {
       isActive: detail.isActive,
       sortOrder: detail.sortOrder,
       permissionIds: detail.permissionIds || [],
+      dataScope: (detail.dataScope as DataScopeType) || 'self',
+      customDeptIds: detail.customDeptIds || [],
     };
-  } catch (error) {
-    console.error('Failed to load node detail:', error);
+  } catch {
+    // Silent fail / 静默失败
   } finally {
     loading.value = false;
   }
@@ -199,6 +267,8 @@ function resetForm() {
     isActive: true,
     sortOrder: 0,
     permissionIds: [],
+    dataScope: 'self',
+    customDeptIds: [],
   };
   formRef.value?.resetFields();
 }
@@ -234,6 +304,11 @@ async function handleSubmit() {
       sort_order: formData.value.sortOrder,
       permission_ids: formData.value.permissionIds,
       parent_id: props.mode === 'create' ? props.parentId : undefined,
+      data_scope: formData.value.dataScope,
+      custom_dept_ids:
+        formData.value.dataScope === 'custom' && formData.value.customDeptIds?.length
+          ? formData.value.customDeptIds
+          : undefined,
     };
 
     const result = await (props.mode === 'edit' && props.nodeId
@@ -246,8 +321,8 @@ async function handleSubmit() {
       type: result.type || 'role',
     });
     emit('update:open', false);
-  } catch (error) {
-    console.error('Failed to save node:', error);
+  } catch {
+    // Error handled by request interceptor / 错误由请求拦截器处理
   } finally {
     submitting.value = false;
   }
@@ -257,11 +332,12 @@ async function handleSubmit() {
 watch(
   () => props.open,
   (open) => {
-    if (open) {
-      // Load permission tree / 加载权限树
-      loadPermissionTree();
+      if (open) {
+        // Load permission tree / 加载权限树
+        loadPermissionTree();
+        loadDeptTree();
 
-      if (props.mode === 'edit' && props.nodeId) {
+        if (props.mode === 'edit' && props.nodeId) {
         // Edit mode: load detail / 编辑模式加载详情
         loadNodeDetail();
       } else if (props.initialData) {
@@ -276,6 +352,8 @@ watch(
           isActive: props.initialData.isActive ?? true,
           sortOrder: props.initialData.sortOrder ?? 0,
           permissionIds: props.initialData.permissionIds || [],
+          dataScope: (props.initialData.dataScope as DataScopeType) || 'self',
+          customDeptIds: props.initialData.customDeptIds || [],
         };
       } else {
         // Reset form / 重置表单
@@ -312,7 +390,7 @@ watch(
       <Form
         ref="formRef"
         :model="formData"
-        :rules="formRules"
+        :rules="formRulesWithDataScope"
         layout="vertical"
         :disabled="mode === 'create' && !canCreateChild"
       >
@@ -435,6 +513,41 @@ watch(
                 :default-expanded-level="1"
               />
             </Spin>
+          </CollapsePanel>
+
+          <!-- Data scope / 数据范围 -->
+          <CollapsePanel key="dataScope" :header="$t('common.role.dataScope')">
+            <FormItem :label="$t('common.role.dataScope')" name="dataScope">
+              <Select
+                v-model:value="formData.dataScope"
+                :placeholder="$t('common.select')"
+                class="!w-full"
+              >
+                <SelectOption
+                  v-for="opt in DATA_SCOPE_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                  :label="$t(opt.labelKey)"
+                />
+              </Select>
+            </FormItem>
+            <FormItem
+              v-if="showCustomDeptSelector"
+              :label="$t('common.role.customDepts')"
+              name="customDeptIds"
+            >
+              <TreeSelect
+                v-model:value="formData.customDeptIds"
+                :tree-data="deptTreeData"
+                :loading="deptTreeLoading"
+                tree-checkable
+                multiple
+                allow-clear
+                show-checked-strategy="SHOW_CHILD"
+                :placeholder="$t('common.select')"
+                class="!w-full"
+              />
+            </FormItem>
           </CollapsePanel>
         </Collapse>
       </Form>

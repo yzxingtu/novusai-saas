@@ -36,6 +36,7 @@ class OperationLog(BaseModel):
     # 可过滤字段声明
     __filterable__ = {
         "id": "id",
+        "trace_id": "trace_id",
         "tenant_id": "tenant_id",
         "user_type": "user_type",
         "user_id": "user_id",
@@ -117,6 +118,16 @@ class OperationLog(BaseModel):
         nullable=True,
         index=True,
         comment="资源标识（权限代码）"
+    )
+
+    # ==================== 追踪信息 ====================
+
+    # 请求追踪 ID（用于关联日志、审计、Celery 任务）
+    trace_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        comment="请求追踪 ID / Trace ID for request correlation",
     )
 
     # ==================== 请求信息 ====================

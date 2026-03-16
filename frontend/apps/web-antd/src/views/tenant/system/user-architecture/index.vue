@@ -39,6 +39,7 @@ import {
   approveTenantUserApi,
   batchApproveTenantUserApi,
   batchRejectTenantUserApi,
+  forceLogoutTenantUserApi,
   getTenantUserListApi,
   rejectTenantUserApi,
   resetTenantUserPasswordApi,
@@ -276,6 +277,16 @@ async function handleBatchReject() {
 
 const newPasswordRef = ref('');
 
+async function onForceLogout(row: TenantUserInfo) {
+  try {
+    await forceLogoutTenantUserApi(row.id);
+    message.success($t('common.auth.forceLogoutSuccess', { name: row.username }));
+    onMemberRefresh();
+  } catch {
+    message.error($t('common.requestFailed'));
+  }
+}
+
 async function onResetPassword(row: TenantUserInfo) {
   newPasswordRef.value = '';
   Modal.confirm({
@@ -322,6 +333,7 @@ const {
   defaultSort: '-created_at',
   createPermission: 'tenant_user:create',
   customActions: {
+    forceLogout: onForceLogout,
     resetPassword: onResetPassword,
   },
   ai: { pageKey: 'tenant.system.userArchitecture', formSchema: useUserFormSchema },

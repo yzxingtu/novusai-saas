@@ -12,6 +12,8 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
+    /** API prefix (admin or tenant) for permission check / API 前缀，用于权限校验 */
+    apiPrefix?: 'admin' | 'tenant';
     /** Whether actions are disabled / 是否禁用操作 */
     disabled?: boolean;
     /** Whether this member is a leader / 是否为负责人 */
@@ -26,6 +28,7 @@ const props = withDefaults(
     showOnlineStatus?: boolean;
   }>(),
   {
+    apiPrefix: 'admin',
     isLeader: false,
     disabled: false,
     online: false,
@@ -37,6 +40,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'cancelLeader', member: OrgMember): void;
   (e: 'edit', member: OrgMember): void;
+  (e: 'forceLogout', member: OrgMember): void;
   (e: 'remove', member: OrgMember): void;
   (e: 'resetPassword', member: OrgMember): void;
   (e: 'setLeader', member: OrgMember): void;
@@ -76,6 +80,11 @@ function handleEdit() {
 /** Handle reset password / 处理重置密码 */
 function handleResetPassword() {
   emit('resetPassword', props.member);
+}
+
+/** Handle force logout / 处理强制下线 */
+function handleForceLogout() {
+  emit('forceLogout', props.member);
 }
 </script>
 
@@ -185,6 +194,35 @@ function handleResetPassword() {
           </template>
         </Button>
       </Tooltip>
+
+      <!-- Force logout / 强制下线（仅在线时显示，需权限） -->
+      <span
+        v-if="showOnlineStatus && online"
+        v-access:code="[
+          apiPrefix === 'admin'
+            ? 'admin_user:force_logout'
+            : 'tenant_admin:force_logout',
+        ]"
+      >
+        <Tooltip :title="$t('common.auth.forceLogout')">
+          <Popconfirm
+            :title="$t('common.auth.forceLogoutConfirm')"
+            :ok-text="$t('common.confirm')"
+            :cancel-text="$t('common.cancel')"
+            @confirm="handleForceLogout"
+          >
+            <Button
+              type="text"
+              size="small"
+              class="hover:!text-destructive hover:!bg-destructive/10"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:log-out" />
+              </template>
+            </Button>
+          </Popconfirm>
+        </Tooltip>
+      </span>
 
       <!-- Set/cancel leader / 设置/取消负责人 -->
       <Tooltip

@@ -290,7 +290,7 @@ class ToolSandbox:
                     tool_call_id=tool_call_id,
                     name=name,
                     success=False,
-                    error="Page context missing (page_key). Cannot invoke dedicated editor tool.",
+                    error=_("page_operation.error.page_context_missing"),
                     error_type="invalid_input",
                 )
             page_op_def = self._find_definition("invoke_page_operation", definitions)
@@ -323,11 +323,9 @@ class ToolSandbox:
                     tool_call_id=tool_call_id,
                     name=name,
                     success=False,
-                    error=(
-                        f"Invalid top-level fields: {', '.join(sorted(unknown_top))}. "
-                        "Editor params (content, old_html, new_html, title, etc.) must go inside "
-                        "'params'. Example: invoke_page_operation(page_key='...', "
-                        "operation_name='replace_content', params={{'content': '<p>...</p>'}})."
+                    error=_(
+                        "page_operation.error.invalid_top_level_full",
+                        fields=", ".join(sorted(unknown_top)),
                     ),
                     error_type="invalid_input",
                 )
@@ -349,10 +347,7 @@ class ToolSandbox:
                         tool_call_id=tool_call_id,
                         name=name,
                         success=False,
-                        error=(
-                            "operation_name must be a top-level parameter, not inside params. "
-                            "Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={})"
-                        ),
+                        error=_("page_operation.error.operation_name_top_level_full"),
                         error_type="invalid_input",
                     )
                 extra_keys = {
@@ -407,11 +402,10 @@ class ToolSandbox:
                         tool_call_id=tool_call_id,
                         name=name,
                         success=False,
-                        error=(
-                            "Missing required parameter: operation_name. "
-                            "You MUST specify operation_name in every "
-                            "invoke_page_operation call."
-                            f"{ops_hint}{example}"
+                        error=_(
+                            "page_operation.error.missing_operation_name_full",
+                            ops_hint=ops_hint,
+                            example=example,
                         ),
                         error_type="invalid_input",
                     )

@@ -7,9 +7,12 @@ Handles connection auth, room management, and online status broadcast.
 处理连接认证、房间管理、在线状态广播。
 """
 
+import uuid
+
 import socketio
 
 from app.core.logging import LogManager
+from app.middleware.trace import trace_id_var
 from app.core.security import (
     TOKEN_SCOPE_TENANT_USER,
     TokenExpiredError,
@@ -42,6 +45,8 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
         从 auth.token 提取 JWT，验证 scope=tenant_user。
         从 DB 查询 TenantUser 获取 tenant_id。
         """
+        # 为 WebSocket 连接生成追踪 ID / Generate trace ID for WebSocket connection
+        trace_id_var.set(str(uuid.uuid4()))
         _ = environ
         # Check real-time communication master switch / 检查实时通信总开关
         from app.sio.ws_config import get_ws_configs
@@ -57,7 +62,7 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
             raise ConnectionRefusedError("token_required")
 
         try:
-            user_id_str, scope = verify_token_with_scope(
+            user_id_str, scope = await verify_token_with_scope(
                 token, TOKEN_SCOPE_TENANT_USER, raise_on_expired=True,
             )
         except TokenExpiredError:

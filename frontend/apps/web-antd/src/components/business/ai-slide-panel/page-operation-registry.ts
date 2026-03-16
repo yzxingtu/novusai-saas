@@ -41,6 +41,7 @@
 
 import { ref } from 'vue';
 
+import { $t } from '#/locales';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 
 import { normalizePageKey } from './page-key-utils';
@@ -187,23 +188,23 @@ export async function executePageOperation(
   if (!operations) {
     return {
       success: false,
-      message: `Page "${nk}" has no registered operations`,
+      message: $t('shared.pageOperation.msg.pageNoOperations', { page: nk }),
     };
   }
 
   const operation = operations.find((op) => op.name === operationName);
   if (!operation) {
-    const available = operations.map((op) => op.name).join(', ');
+    const available = operations.map((op) => op.name).join(', ') || 'none';
     return {
       success: false,
-      message: `Operation "${operationName}" not found on page "${nk}". Available: ${available || 'none'}`,
+      message: $t('shared.pageOperation.msg.opNotFound', { op: operationName, page: nk, available }),
     };
   }
 
   if (!operation.handler) {
     return {
       success: false,
-      message: `Operation "${operationName}" has no handler (discovery only)`,
+      message: $t('shared.pageOperation.msg.opNoHandler', { op: operationName }),
     };
   }
 
@@ -238,13 +239,13 @@ export async function executePageOperation(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
-    console.error(
+    console.warn(
       `[PageOperation] Failed to execute "${operationName}" on "${nk}":`,
       error,
     );
     return {
       success: false,
-      message: `Operation "${operationName}" failed: ${errorMessage}`,
+      message: $t('shared.pageOperation.msg.opFailed', { op: operationName, error: errorMessage }),
     };
   }
 }

@@ -50,7 +50,8 @@
     "reset_code_invalid": "验证码无效或已过期",
     "reset_rate_limited": "操作过于频繁，请稍后再试",
     "password_reset_success": "密码重置成功",
-    "approval_pending": "注册成功，等待管理员审批"
+    "approval_pending": "注册成功，等待管理员审批",
+    "force_logout_success": "已强制下线 {name}"
   },
   "user": {
     "profile_edit_disabled": "管理员已关闭资料修改功能",
@@ -1491,6 +1492,13 @@
       "position": "岗位",
       "role": "职能角色"
     },
+    "data_scope": {
+      "all": "全部数据",
+      "dept_children": "本部门及下级",
+      "dept_only": "仅本部门",
+      "self": "仅自己",
+      "custom": "自定义"
+    },
     "attachment_visibility": {
       "public": "公开",
       "private": "私有"
@@ -2916,5 +2924,30 @@
   "skill_package.system.engine": "系统引擎技能包",
   "skill_package.system.data_management": "平台数据管理",
   "skill_package.system.web_search": "联网搜索",
-  "skill_package.system.page_awareness": "页面感知交互"
+  "skill_package.system.page_awareness": "页面感知交互",
+
+  "page_operation.error.both_required": "必须同时提供 page_key 和 operation_name。",
+  "page_operation.error.no_session": "无 page_session_id。需先建立活跃页面会话才能调用页面操作。",
+  "page_operation.error.timeout": "操作 '{op}' 在 {timeout}s 后超时",
+  "page_operation.error.internal_failed": "操作 '{op}' 失败：{error}",
+  "page_operation.error.failed": "操作 '{op}' 在页面 '{page}' 上失败。",
+  "page_operation.error.timeout_hint": "操作 '{op}' 超时（60s）。与页面 '{page}' 的 WebSocket 连接可能已断开。请勿重试 — 告知用户操作失败，建议刷新页面后重试。",
+  "page_operation.error.pending_confirmation": "操作 '{op}' 需用户确认。等待用户批准中。",
+  "page_operation.error.target_not_found_next": "原因：{message}。下一步：再次调用 get_editor_html 获取当前内容，使用短且唯一的 HTML 片段（非整篇）作为 replace_section 的 old_html。",
+  "page_operation.error.non_unique_next": "原因：{message}。下一步：使用更长或更具体的 HTML 片段以唯一标识目标区域。",
+  "page_operation.error.invalid_html_next": "原因：{message}。下一步：确保 new_html 为有效 HTML；避免残缺标签或无效结构。",
+  "page_operation.error.no_echo": "请勿将 HTML、JSON、工具参数或原始错误内容回显给用户。仅返回简短的自然语言摘要。",
+  "page_operation.error.reason_suffix": " 原因：{message}",
+  "page_operation.error.page_context_missing": "页面上下文缺失（page_key）。请确保请求中包含页面标识。",
+  "page_operation.error.invalid_top_level": "无效的顶层字段：{fields}",
+  "page_operation.error.invalid_top_level_full": "无效的顶层字段：{fields}。Editor 参数（content、old_html、new_html、title 等）必须放在 params 内。示例：invoke_page_operation(page_key='...', operation_name='replace_content', params={{'content': '<p>...</p>'}})。",
+  "page_operation.error.operation_name_top_level": "operation_name 必须是顶层参数。",
+  "page_operation.error.operation_name_top_level_full": "operation_name 必须是顶层参数，不能放在 params 内。示例：invoke_page_operation(page_key='...', operation_name='replace_content', params={{}})",
+  "page_operation.error.missing_operation_name": "缺少必填参数：operation_name",
+  "page_operation.error.missing_operation_name_full": "缺少必填参数：operation_name。每次调用 invoke_page_operation 都必须指定 operation_name。{ops_hint}{example}",
+  "page_operation.error.multiple_failures_hint": "[System] Multiple page operations failed. Check page session and retry.",
+  "page_operation.error.multiple_failures_parse": "[System] Multiple page operations failed (including JSON parse errors). Please tell the user to retry with valid input or refresh the page.",
+  "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
+  "page_operation.error.json_parse_failed": "工具参数 JSON 解析失败。请确保参数为有效 JSON。请勿使用相同无效输入重试。",
+  "page_operation.hint.replace_section": "使用短且唯一的 HTML 片段作为 replace_section 的 old_html；避免使用整篇文档。"
 }

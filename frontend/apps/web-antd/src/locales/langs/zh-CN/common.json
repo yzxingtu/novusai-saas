@@ -106,7 +106,28 @@
   "confirmDelete": "确定要删除吗？",
   "pleaseRetry": "请稍后再试",
   "requestFailed": "请求失败",
+  "auth": {
+    "forceLogoutMessage": "您已被管理员强制下线",
+    "forceLogoutUnsavedHint": "您有未保存的数据可能丢失。",
+    "forceLogoutConfirm": "确定要强制下线该用户吗？此操作会立即终止其所有会话。",
+    "forceLogoutSuccess": "已强制下线 {name}",
+    "forceLogout": "强制下线"
+  },
+  "role": {
+    "dataScope": "数据范围",
+    "dataScopeAll": "全部数据",
+    "dataScopeDeptChildren": "本部门及下级",
+    "dataScopeDeptOnly": "仅本部门",
+    "dataScopeSelf": "仅自己",
+    "dataScopeCustom": "自定义",
+    "customDepts": "自定义部门",
+    "customDeptRequired": "请选择自定义部门"
+  },
   "http": {
+    "traceId": "追踪 ID",
+    "copyTraceId": "复制追踪 ID",
+    "copied": "已复制",
+    "copyFailed": "复制失败，请手动复制",
     "loading": "加载中...",
     "networkError": "网络错误",
     "requestTimeout": "请求超时",
@@ -213,8 +234,10 @@
     "linkRemoved": "已移除链接",
     "hrefRequired": "action 为 set 时 href 为必填",
     "linkSet": "链接已设置：{href}",
-    "tableInserted": "已插入 {rows}x{cols} 表格"
+    "tableInserted": "已插入 {rows}x{cols} 表格",
+    "snippetMatchesMultiple": "片段在内容中多次出现，请使用更长的唯一片段定位"
   },
+  "richTextEditor": "富文本编辑器",
   "sourceCode": "源码模式",
   "wysiwyg": "可视化编辑",
   "startConversation": "发送消息开始对话",
@@ -281,6 +304,7 @@
     "savePersonalSuccess": "个人通知偏好已保存"
   },
   "globalAiChat": {
+    "user": "用户",
     "history": "历史对话",
     "noHistory": "暂无历史对话",
     "welcomeDesc": "选择一个 AI 助理开始对话",

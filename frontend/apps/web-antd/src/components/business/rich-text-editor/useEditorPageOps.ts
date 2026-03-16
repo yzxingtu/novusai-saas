@@ -100,9 +100,9 @@ export function useEditorPageOps(
       const documentBodyLength = fullText.length;
       return {
         page_key: effectiveKey,
-        page_title: 'Rich Text Editor',
+        page_title: $t('common.richTextEditor'),
         page_data: {
-          entity_name: 'Rich Text Editor',
+          entity_name: $t('common.richTextEditor'),
           entity_description:
             'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
             + 'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n'
@@ -288,7 +288,7 @@ export function useEditorPageOps(
           if (matchCount > 1) {
             return {
               success: false,
-              message: $t('common.editorOp.oldHtmlNotFound') + ' Snippet matches multiple times; use a longer unique fragment.',
+              message: $t('common.editorOp.oldHtmlNotFound') + ` ${$t('common.editorOp.snippetMatchesMultiple')}`,
               error_type: 'non_unique_match',
             };
           }

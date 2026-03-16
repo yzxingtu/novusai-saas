@@ -26,6 +26,7 @@ from app.schemas.tenant import (
     TenantUserResponse,
     TenantUserUpdateRequest,
 )
+from app.services.common import AuthService
 from app.services.tenant.tenant_user_service import TenantUserService
 
 
@@ -194,6 +195,30 @@ class TenantUserController(TenantController):
             await service.reset_password(user_id, new_password)
 
             return success(message=_("auth.password_reset_success"))
+
+        @router.post("/{user_id}/force-logout", summary="强制下线用户")
+        @action_create("action.tenant_user.force_logout")
+        async def force_logout_user(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            user_id: int,
+        ):
+            """强制下线指定企业用户 / Force logout tenant user"""
+            service = TenantUserService(db, current_admin.tenant_id)
+            user = await service.get_by_id(user_id)
+            if not user:
+                raise NotFoundException(message=_("tenant_user.not_found"))
+
+            auth_service = AuthService(db)
+            await auth_service.force_logout(
+                user_type="tenant_user",
+                user_id=user_id,
+                tenant_id=current_admin.tenant_id,
+            )
+            return success(
+                message=_("auth.force_logout_success", name=user.username),
+            )
 
         @router.put("/{user_id}/approve", summary="审批通过用户")
         @action_update("action.tenant_user.approve")

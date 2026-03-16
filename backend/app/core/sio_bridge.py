@@ -115,6 +115,39 @@ def notify_admins_sync(notification_data: dict[str, Any]) -> None:
     )
 
 
+# user_type -> namespace 映射（强制下线仅发送到对应用户类型所在 namespace）
+# user_type to namespace mapping (force_logout only sent to corresponding user type's namespace)
+NS_MAP = {
+    "admin": "/admin",
+    "tenant_admin": "/tenant",
+    "tenant_user": "/user",
+}
+
+
+async def emit_force_logout(user_id: int, user_type: str) -> None:
+    """
+    向指定用户所在的 Socket.IO namespace 发送强制下线事件
+    Emit force_logout event to user's Socket.IO namespace.
+
+    三个 namespace 的 user_id 是独立序列（Admin.id=5 ≠ TenantAdmin.id=5），
+    必须按 user_type 仅向对应 namespace 发送，避免误踢其他端同名 ID 用户。
+    Three namespaces have separate user_id sequences; emit only to the correct one.
+
+    Args:
+        user_id: 用户 ID（对应 room 中的 user_id）/ User ID
+        user_type: 用户类型 admin/tenant_admin/tenant_user / User type
+    """
+    try:
+        from app.core.socketio_server import sio
+        room = f"user:{user_id}"
+        payload = {"reason": "admin_force_logout"}
+        ns = NS_MAP.get(user_type)
+        if ns:
+            await sio.emit("force_logout", payload, room=room, namespace=ns)
+    except Exception:
+        pass  # 静默失败，不影响主流程 / Fail silently
+
+
 def notify_tenant_sync(
     tenant_id: int,
     notification_data: dict[str, Any],
@@ -141,4 +174,5 @@ __all__ = [
     "notify_user_sync",
     "notify_admins_sync",
     "notify_tenant_sync",
+    "emit_force_logout",
 ]

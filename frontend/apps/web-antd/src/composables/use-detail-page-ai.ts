@@ -99,7 +99,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
       readonly: true,
       handler: async () => {
         await refreshFn();
-        return { success: true, message: 'Detail refreshed / 详情已刷新' };
+        return { success: true, message: $t('shared.pageOperation.msg.detailRefreshed') };
       },
     });
   }
@@ -116,7 +116,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
         router.push(backRoute);
         return {
           success: true,
-          message: `Navigated to ${backRoute} / 已返回 ${backRoute}`,
+          message: $t('shared.pageOperation.msg.navigatedTo', { path: backRoute }),
         };
       },
     });

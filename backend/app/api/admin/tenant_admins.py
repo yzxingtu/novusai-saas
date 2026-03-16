@@ -24,6 +24,7 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
+from app.services.common import AuthService
 from app.services.system import TenantService
 
 # ==========================================
@@ -333,6 +334,49 @@ class AdminTenantAdminController(GlobalController):
                 "id": tenant_admin.id,
                 "is_active": tenant_admin.is_active,
             })
+
+        @router.post("/{admin_id}/force-logout", summary="强制下线企业管理员")
+        @action_create("action.tenant_admin.force_logout")
+        async def force_logout_tenant_admin(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            admin_id: int,
+        ):
+            """
+            强制下线指定企业管理员 / Force logout tenant admin
+            吊销其所有 Token 并通知前端跳转登录页。
+            """
+            await _verify_tenant(db, tenant_id)
+
+            from sqlalchemy import select
+
+            from app.models import TenantAdmin
+
+            result = await db.execute(
+                select(TenantAdmin).where(
+                    TenantAdmin.id == admin_id,
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                )
+            )
+            tenant_admin = result.scalar_one_or_none()
+            if not tenant_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_admin.not_found"),
+                )
+
+            auth_service = AuthService(db)
+            await auth_service.force_logout(
+                user_type="tenant_admin",
+                user_id=admin_id,
+                tenant_id=tenant_id,
+            )
+            return success(
+                message=_("auth.force_logout_success", name=tenant_admin.username),
+            )
 
 
 # 创建 router（GlobalController 自动注册路由） / Create router (GlobalController auto-registers routes)

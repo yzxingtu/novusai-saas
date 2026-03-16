@@ -22,6 +22,7 @@ import {
 } from 'ant-design-vue';
 
 import {
+  forceLogoutTenantAdminApi,
   getTenantAdminsApi,
   toggleTenantAdminStatusApi,
 } from '#/api/admin/tenant';
@@ -59,7 +60,7 @@ async function loadAdmins() {
     ]);
     admins.value = data || [];
   } catch {
-    console.error('[TenantAdminPanel] Failed to load admins');
+    admins.value = [];
   } finally {
     loading.value = false;
   }
@@ -93,6 +94,17 @@ function handleEdit(admin: TenantAdminItem) {
 /** 重置密码 / Reset password */
 function handleResetPassword(admin: TenantAdminItem) {
   resetPwdRef.value?.open(admin.id, admin.nickname || admin.username);
+}
+
+/** 强制下线 / Force logout */
+async function handleForceLogout(admin: TenantAdminItem) {
+  try {
+    await forceLogoutTenantAdminApi(props.tenantId, admin.id);
+    message.success($t('common.auth.forceLogoutSuccess', { name: admin.nickname || admin.username }));
+    await loadAdmins();
+  } catch {
+    message.error($t('common.requestFailed'));
+  }
 }
 
 /** 创建成功后刷新 / Refresh after create success */
@@ -236,6 +248,30 @@ onMounted(() => {
                   </template>
                 </Button>
               </Tooltip>
+              <!-- 强制下线按钮（仅在线时显示） -->
+              <span
+                v-if="isAdminOnline(admin.id)"
+                v-access:code="['tenant_admin:force_logout']"
+              >
+                <Tooltip :title="$t('common.auth.forceLogout')">
+                  <Popconfirm
+                    :title="$t('common.auth.forceLogoutConfirm')"
+                    :ok-text="$t('common.confirm')"
+                    :cancel-text="$t('common.cancel')"
+                    @confirm="handleForceLogout(admin)"
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      class="hover:!text-destructive hover:!bg-destructive/10"
+                    >
+                      <template #icon>
+                        <IconifyIcon icon="lucide:log-out" class="size-3.5" />
+                      </template>
+                    </Button>
+                  </Popconfirm>
+                </Tooltip>
+              </span>
               <!-- 启用/禁用开关 -->
               <Tooltip
                 v-if="admin.is_owner"

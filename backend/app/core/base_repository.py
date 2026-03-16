@@ -72,6 +72,7 @@ class BaseRepository(Generic[ModelType]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
+        query = self._apply_data_permission_if_needed(query)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
@@ -98,6 +99,7 @@ class BaseRepository(Generic[ModelType]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
+        query = self._apply_data_permission_if_needed(query)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -131,6 +133,8 @@ class BaseRepository(Generic[ModelType]):
         for key, value in filters.items():
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
+
+        query = self._apply_data_permission_if_needed(query)
 
         # 排序 / Sort
         if order_by is not None:
@@ -169,6 +173,7 @@ class BaseRepository(Generic[ModelType]):
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
 
+        query = self._apply_data_permission_if_needed(query)
         result = await self.db.execute(query)
         return result.scalar() or 0
 
@@ -334,6 +339,7 @@ class BaseRepository(Generic[ModelType]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
+        query = self._apply_data_permission_if_needed(query)
         result = await self.db.execute(query)
         count = result.scalar() or 0
         return count > 0
@@ -362,6 +368,7 @@ class BaseRepository(Generic[ModelType]):
             if hasattr(self.model, key) and value is not None:
                 query = query.where(getattr(self.model, key) == value)
 
+        query = self._apply_data_permission_if_needed(query)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
@@ -573,6 +580,20 @@ class BaseRepository(Generic[ModelType]):
 
         return query
 
+    def _apply_data_permission_if_needed(self, query: Select) -> Select:
+        """
+        对声明 __data_permission__ 的 Model 应用数据权限过滤
+        Apply data permission filter for models with __data_permission__ = True.
+        """
+        if not getattr(self.model, "__data_permission__", False):
+            return query
+        from app.core.data_permission import DataPermissionFilter, data_permission_ctx
+
+        ctx = data_permission_ctx.get()
+        if not ctx:
+            return query
+        return DataPermissionFilter.apply(query, self.model, ctx.get("current_user_id"))
+
     def _apply_sort(
         self,
         query: Select,
@@ -662,6 +683,9 @@ class BaseRepository(Generic[ModelType]):
         # 再应用用户过滤条件（受 scope 限制） / Then apply user filters (scope-restricted)
         if spec.filters:
             query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        # 数据权限过滤（仅对声明 __data_permission__ 的 Model 生效）/ Data permission filter (opt-in via __data_permission__)
+        query = self._apply_data_permission_if_needed(query)
 
         # 查询总数
         count_query = select(func.count()).select_from(query.subquery())
@@ -755,10 +779,12 @@ class BaseRepository(Generic[ModelType]):
             # 树型模式不支持分页，total 返回 items 数量
             return items, len(items)
 
-        # 列表模式
+        # 列表模式 / List mode
         query = select(self.model).where(self.model.is_deleted.is_(False))
 
-        # 应用额外过滤条件
+        query = self._apply_data_permission_if_needed(query)
+
+        # 应用额外过滤条件 / Apply extra filters
         if filters:
             for key, value in filters.items():
                 if hasattr(self.model, key) and value is not None:
@@ -825,14 +851,15 @@ class BaseRepository(Generic[ModelType]):
         order_field = tree_config.get("order_by", "sort_order")
         search_fields = selectable.get("search", [selectable.get("label", "name")])
 
-        # 懒加载模式：仅返回指定父节点的直接子节点
+        # 懒加载模式：仅返回指定父节点的直接子节点 / Lazy load: direct children only
         if parent_id is not None:
             query = select(self.model).where(
                 self.model.is_deleted.is_(False),
                 getattr(self.model, parent_field) == parent_id,
             )
+            query = self._apply_data_permission_if_needed(query)
 
-            # 应用额外过滤条件
+            # 应用额外过滤条件 / Apply extra filters
             if filters:
                 for key, value in filters.items():
                     if hasattr(self.model, key) and value is not None:
@@ -851,10 +878,11 @@ class BaseRepository(Generic[ModelType]):
                 items, selectable, tree_mode=True, children_field=children_field
             )
 
-        # 全量树模式：返回完整树结构
+        # 全量树模式：返回完整树结构 / Full tree mode
         query = select(self.model).where(self.model.is_deleted.is_(False))
+        query = self._apply_data_permission_if_needed(query)
 
-        # 应用额外过滤条件
+        # 应用额外过滤条件 / Apply extra filters
         if filters:
             for key, value in filters.items():
                 if hasattr(self.model, key) and value is not None:
@@ -1171,6 +1199,7 @@ class BaseRepository(Generic[ModelType]):
         all_fields = self.get_allowed_fields(None)
 
         query = select(self.model).where(self.model.is_deleted.is_(True))
+        query = self._apply_data_permission_if_needed(query)
 
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
@@ -1401,8 +1430,17 @@ class TenantRepository(BaseRepository[ModelType]):
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
-        """创建企业级记录 / Create tenant-scoped record"""
+        """创建企业级记录，对 __data_permission__ 模型自动填充 created_by / dept_id / Create tenant-scoped record, auto-fill created_by/dept_id for __data_permission__ models"""
         data["tenant_id"] = self.tenant_id
+        if getattr(self.model, "__data_permission__", False):
+            from app.core.data_permission import data_permission_ctx
+
+            ctx = data_permission_ctx.get()
+            if ctx:
+                if "created_by" not in data and ctx.get("current_user_id") is not None and hasattr(self.model, "created_by"):
+                    data = {**data, "created_by": ctx["current_user_id"]}
+                if "dept_id" not in data and ctx.get("primary_department_id") is not None and hasattr(self.model, "dept_id"):
+                    data = {**data, "dept_id": ctx["primary_department_id"]}
         return await super().create(data)
 
     async def get_by_id(

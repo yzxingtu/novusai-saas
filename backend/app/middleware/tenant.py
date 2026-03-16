@@ -6,7 +6,6 @@ Resolves tenant info from request Host header, supports / 根据 Host 头解析�
 2. Custom domain mode / 自定义域名模式: custom.domain.com -> tenant_domains table
 """
 
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,7 +14,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 from app.core.database import async_session_factory
+from app.core.logging import get_logger
 from app.models import Tenant, TenantDomain
+
+logger = get_logger(__name__)
 
 
 class TenantContext:
@@ -223,7 +225,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     Usage:
         tenant_ctx = get_tenant_context(request)
         if tenant_ctx and tenant_ctx.is_resolved:
-            print(f"Tenant: {tenant_ctx.tenant.name}")
+            logger.debug("Tenant: %s", tenant_ctx.tenant.name)
     """
     return getattr(request.state, "tenant_ctx", None)
 
@@ -235,7 +237,7 @@ def get_current_tenant(request: Request) -> Tenant | None:
     Usage:
         tenant = get_current_tenant(request)
         if tenant:
-            print(f"Tenant: {tenant.name}")
+            logger.debug("Tenant: %s", tenant.name)
     """
     ctx = get_tenant_context(request)
     if ctx and ctx.is_resolved:

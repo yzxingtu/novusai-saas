@@ -219,6 +219,17 @@ export async function resetAdminPasswordApi(
 }
 
 /**
+ * Force logout platform admin / 强制下线平台管理员
+ * POST /admin/users/{admin_id}/force-logout
+ */
+export async function forceLogoutAdminApi(
+  adminId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(`/admin/users/${adminId}/force-logout`, {}, options);
+}
+
+/**
  * Toggle admin status / 切换管理员状态
  * PUT /admin/admins/{admin_id}/status?is_active=true/false
  */

@@ -686,7 +686,7 @@ export function createStandardOperations(
       readonly: true,
       handler: async () => {
         await loadList();
-        return { success: true, message: 'List refreshed / 列表已刷新' };
+        return { success: true, message: $t('shared.pageOperation.msg.listRefreshed') };
       },
     });
   }
@@ -722,8 +722,8 @@ export function createStandardOperations(
           success: true,
           message:
             applied.length > 0
-              ? `Search applied: ${applied.join(', ')} / 搜索已应用：${applied.join(', ')}`
-              : 'Search cleared / 搜索已清空',
+              ? $t('shared.pageOperation.msg.searchApplied', { fields: applied.join(', ') })
+              : $t('shared.pageOperation.msg.searchCleared'),
         };
       },
     });
@@ -783,8 +783,8 @@ export function createStandardOperations(
           success: true,
           message:
             filled.length > 0
-              ? `Create form opened with pre-filled: ${filled.join(', ')}. Please review and submit. / 表单已打开并预填了 ${filled.join(', ')}，请确认后提交。`
-              : 'Create form opened. Please fill in and submit. / 新建表单已打开，请填写并提交。',
+              ? $t('shared.pageOperation.msg.createFormOpened', { fields: filled.join(', ') })
+              : $t('shared.pageOperation.msg.createFormOpenedEmpty'),
         };
       },
     });
@@ -813,7 +813,7 @@ export function createStandardOperations(
         if (id == null) {
           return {
             success: false,
-            message: 'id is required / 请提供要编辑的记录 id',
+            message: $t('shared.pageOperation.msg.idRequired'),
           };
         }
 
@@ -827,7 +827,7 @@ export function createStandardOperations(
         if (!record) {
           return {
             success: false,
-            message: `Record id=${id} not found in current list. Try refreshing first. / 当前列表中未找到 id=${id} 的记录，请先刷新列表。`,
+            message: $t('shared.pageOperation.msg.recordNotFoundInList', { id }),
           };
         }
 
@@ -886,14 +886,14 @@ export function createStandardOperations(
         if (id == null) {
           return {
             success: false,
-            message: 'id is required / 请提供记录 id',
+            message: $t('shared.pageOperation.msg.navigateIdRequired'),
           };
         }
         const path = detailRoute.replace(':id', String(id));
         router.push(path);
         return {
           success: true,
-          message: `Navigated to ${path} / 已跳转到 ${path}`,
+          message: $t('shared.pageOperation.msg.navigatedTo', { path }),
         };
       },
     });
@@ -910,7 +910,7 @@ export function createStandardOperations(
         openRecycleBin();
         return {
           success: true,
-          message: 'Recycle bin opened / 回收站已打开',
+          message: $t('shared.pageOperation.msg.recycleBinOpened'),
         };
       },
     });
@@ -957,7 +957,7 @@ export function createStandardOperations(
         if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
           return {
             success: false,
-            message: 'Form is not open. Use create_record or edit_record first. / 表单未打开，请先使用 create_record 或 edit_record。',
+            message: $t('shared.pageOperation.msg.formNotOpen'),
           };
         }
 
@@ -965,7 +965,7 @@ export function createStandardOperations(
         if (!trackedApi) {
           return {
             success: false,
-            message: 'Form API not available / 表单 API 不可用',
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
           };
         }
 
@@ -983,7 +983,7 @@ export function createStandardOperations(
         if (Object.keys(validFields).length === 0) {
           return {
             success: false,
-            message: `No valid fields to fill. Known fields: ${Object.keys(formParamsMap).join(', ')} / 没有有效字段。已知字段：${Object.keys(formParamsMap).join(', ')}`,
+            message: $t('shared.pageOperation.msg.noValidFields', { fields: Object.keys(formParamsMap).join(', ') }),
           };
         }
 
@@ -991,17 +991,17 @@ export function createStandardOperations(
           trackedApi.setValues(expandDotKeys(validFields));
           await new Promise<void>((r) => setTimeout(r, 100));
         } catch {
-          return { success: false, message: 'Failed to set form values / 设置表单值失败' };
+          return { success: false, message: $t('shared.pageOperation.msg.setFormValuesFailed') };
         }
 
         const filledKeys = Object.keys(validFields);
         const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
-        const skippedInfo = skippedFields.length > 0 ? `. Skipped unknown: ${skippedFields.join(', ')}` : '';
+        const skippedInfo = skippedFields.length > 0 ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}` : '';
         return {
           success: true,
-          message: mismatchCount > 0
-            ? `Filled ${filledKeys.length} field(s), ${mismatchCount} may need attention${skippedInfo}`
-            : `All ${filledKeys.length} field(s) filled successfully${skippedInfo}`,
+          message: (mismatchCount > 0
+            ? $t('shared.pageOperation.msg.fillFormPartial', { count: filledKeys.length, mismatch: mismatchCount })
+            : $t('shared.pageOperation.msg.fillFormResult', { count: filledKeys.length })) + skippedInfo,
           data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
         };
       },
@@ -1020,24 +1020,24 @@ export function createStandardOperations(
         if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
           return {
             success: false,
-            message: 'Form is not open / 表单未打开',
+            message: $t('shared.pageOperation.msg.formNotOpen'),
           };
         }
         const trackedApi = formStateTracker.getFormApi(optsPageKey);
         if (!trackedApi) {
-          return { success: false, message: 'Form API not available / 表单 API 不可用' };
+          return { success: false, message: $t('shared.pageOperation.msg.formApiNotAvailable') };
         }
         try {
           const { valid } = await trackedApi.validate();
           return {
             success: true,
             message: valid
-              ? 'All fields are valid / 所有字段校验通过'
-              : 'Form has validation errors / 表单存在校验错误',
+              ? $t('shared.pageOperation.msg.allFieldsValid')
+              : $t('shared.pageOperation.msg.formHasValidationErrors'),
             data: { valid },
           };
         } catch {
-          return { success: false, message: 'Validation failed / 校验执行失败' };
+          return { success: false, message: $t('shared.pageOperation.msg.validationFailed') };
         }
       },
     });
@@ -1068,7 +1068,7 @@ export function createStandardOperations(
           if (!fieldName || !formParamsMap[fieldName]) {
             return {
               success: false,
-              message: `Unknown field: ${fieldName}. Available: ${remoteFields.join(', ')}`,
+              message: $t('shared.pageOperation.msg.unknownField', { field: fieldName, available: remoteFields.join(', ') }),
             };
           }
 
@@ -1077,14 +1077,14 @@ export function createStandardOperations(
           if (desc?.options && desc.options.length > 0) {
             return {
               success: true,
-              message: `Found ${desc.options.length} options for "${fieldName}"`,
+              message: $t('shared.pageOperation.msg.foundOptions', { field: fieldName, count: desc.options.length }),
               data: { field: fieldName, options: desc.options },
             };
           }
 
           return {
             success: true,
-            message: `No options loaded for "${fieldName}" / 未加载到 "${fieldName}" 的选项`,
+            message: $t('shared.pageOperation.msg.noOptionsLoaded', { field: fieldName }),
             data: { field: fieldName, options: [] },
           };
         },
@@ -1197,7 +1197,7 @@ export function createFormOperations(
       if (!formStateTracker.isOpenWithFallback(pageKey)) {
         return {
           success: false,
-          message: 'Form is not open. Use create_record or edit_record first. / 表单未打开，请先使用 create_record 或 edit_record。',
+          message: $t('shared.pageOperation.msg.formNotOpen'),
         };
       }
 
@@ -1205,7 +1205,7 @@ export function createFormOperations(
       if (!trackedApi) {
         return {
           success: false,
-          message: 'Form API not available / 表单 API 不可用',
+          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
         };
       }
 
@@ -1222,25 +1222,25 @@ export function createFormOperations(
       if (Object.keys(validFields).length === 0) {
         return {
           success: false,
-          message: `No valid fields to fill. Known fields: ${Object.keys(formParamsMap).join(', ')} / 没有有效字段。已知字段：${Object.keys(formParamsMap).join(', ')}`,
+          message: $t('shared.pageOperation.msg.noValidFields', { fields: Object.keys(formParamsMap).join(', ') }),
         };
       }
 
       try {
-        trackedApi.setValues(validFields);
+        trackedApi.setValues(expandDotKeys(validFields));
         await new Promise<void>((r) => setTimeout(r, 100));
       } catch {
-        return { success: false, message: 'Failed to set form values / 设置表单值失败' };
+        return { success: false, message: $t('shared.pageOperation.msg.setFormValuesFailed') };
       }
 
       const filledKeys = Object.keys(validFields);
       const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
-      const skippedInfo = skippedFields.length > 0 ? `. Skipped unknown: ${skippedFields.join(', ')}` : '';
+      const skippedInfo = skippedFields.length > 0 ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}` : '';
       return {
         success: true,
-        message: mismatchCount > 0
-          ? `Filled ${filledKeys.length} field(s), ${mismatchCount} may need attention${skippedInfo}`
-          : `All ${filledKeys.length} field(s) filled successfully${skippedInfo}`,
+        message: (mismatchCount > 0
+          ? $t('shared.pageOperation.msg.fillFormPartial', { count: filledKeys.length, mismatch: mismatchCount })
+          : $t('shared.pageOperation.msg.fillFormResult', { count: filledKeys.length })) + skippedInfo,
         data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
       };
     },
@@ -1257,24 +1257,24 @@ export function createFormOperations(
       if (!formStateTracker.isOpenWithFallback(pageKey)) {
         return {
           success: false,
-          message: 'Form is not open / 表单未打开',
+          message: $t('shared.pageOperation.msg.formNotOpen'),
         };
       }
       const trackedApi = formStateTracker.getFormApi(pageKey);
       if (!trackedApi) {
-        return { success: false, message: 'Form API not available / 表单 API 不可用' };
+        return { success: false, message: $t('shared.pageOperation.msg.formApiNotAvailable') };
       }
       try {
         const { valid } = await trackedApi.validate();
         return {
           success: true,
           message: valid
-            ? 'All fields are valid / 所有字段校验通过'
-            : 'Form has validation errors / 表单存在校验错误',
+            ? $t('shared.pageOperation.msg.allFieldsValid')
+            : $t('shared.pageOperation.msg.formHasValidationErrors'),
           data: { valid },
         };
       } catch {
-        return { success: false, message: 'Validation failed / 校验执行失败' };
+        return { success: false, message: $t('shared.pageOperation.msg.validationFailed') };
       }
     },
   });
@@ -1303,7 +1303,7 @@ export function createFormOperations(
         if (!fieldName || !formParamsMap[fieldName]) {
           return {
             success: false,
-            message: `Unknown field: ${fieldName}. Available: ${remoteFields.join(', ')}`,
+            message: $t('shared.pageOperation.msg.unknownField', { field: fieldName, available: remoteFields.join(', ') }),
           };
         }
 
@@ -1312,14 +1312,14 @@ export function createFormOperations(
         if (desc?.options && desc.options.length > 0) {
           return {
             success: true,
-            message: `Found ${desc.options.length} options for "${fieldName}"`,
+            message: $t('shared.pageOperation.msg.foundOptions', { field: fieldName, count: desc.options.length }),
             data: { field: fieldName, options: desc.options },
           };
         }
 
         return {
           success: true,
-          message: `No options loaded for "${fieldName}" / 未加载到 "${fieldName}" 的选项`,
+          message: $t('shared.pageOperation.msg.noOptionsLoaded', { field: fieldName }),
           data: { field: fieldName, options: [] },
         };
       },

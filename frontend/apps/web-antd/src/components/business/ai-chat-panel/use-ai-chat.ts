@@ -1425,7 +1425,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const agentName = selectedAgent.value?.name || 'AI';
     const lines: string[] = [];
     for (const msg of chatMessages.value) {
-      const label = msg.role === 'user' ? 'User' : agentName;
+      const label = msg.role === 'user' ? $t('common.globalAiChat.user') : agentName;
       lines.push(`${label}:`);
       if (msg.content) lines.push(msg.content);
       lines.push('');

@@ -12,7 +12,7 @@ from datetime import datetime
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
-from app.enums.role import RoleType
+from app.enums.role import DataScope, RoleType
 
 
 class AdminRoleResponse(BaseSchema):
@@ -38,6 +38,8 @@ class AdminRoleResponse(BaseSchema):
     leader_id: int | None = Field(None, description="负责人 ID")
     leader_name: str | None = Field(None, description="负责人名称")
     member_count: int = Field(0, description="成员数量")
+    data_scope: str = Field(DataScope.SELF_ONLY.value, description="数据范围: all/dept_children/dept_only/self/custom")
+    custom_dept_ids: list[int] | None = Field(None, description="自定义部门 ID 列表（data_scope=custom 时生效）")
     created_at: datetime = Field(..., description="创建时间")
 
 
@@ -66,6 +68,9 @@ class AdminRoleCreateRequest(BaseSchema):
     # 组织架构字段
     type: str = Field(RoleType.ROLE.value, description="节点类型: department/position/role")
     allow_members: bool = Field(True, description="是否允许添加成员")
+    # 数据权限
+    data_scope: str = Field(DataScope.SELF_ONLY.value, description="数据范围: all/dept_children/dept_only/self/custom")
+    custom_dept_ids: list[int] | None = Field(None, description="自定义部门 ID 列表（data_scope=custom 时生效）")
 
 
 class AdminRoleUpdateRequest(BaseSchema):
@@ -81,6 +86,9 @@ class AdminRoleUpdateRequest(BaseSchema):
     type: str | None = Field(None, description="节点类型: department/position/role")
     allow_members: bool | None = Field(None, description="是否允许添加成员")
     leader_id: int | None = Field(None, description="负责人 ID")
+    # 数据权限
+    data_scope: str | None = Field(None, description="数据范围: all/dept_children/dept_only/self/custom")
+    custom_dept_ids: list[int] | None = Field(None, description="自定义部门 ID 列表（data_scope=custom 时生效）")
 
 
 class AdminRolePermissionsRequest(BaseSchema):

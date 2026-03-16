@@ -16,8 +16,12 @@ from app.captcha.service import captcha_service
 from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.i18n import _
+from app.core.config import settings
 from app.core.security import (
+    ACTIVE_TOKENS_PREFIX,
     TOKEN_SCOPE_ADMIN,
+    _decode_token_no_blacklist,
+    revoke_token,
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
     TOKEN_TYPE_REFRESH,
@@ -30,7 +34,7 @@ from app.core.security import (
     verify_token_with_scope,
 )
 from app.core.logging import LogManager
-from app.core.redis import cache_delete, cache_get, cache_set
+from app.core.redis import cache_delete, cache_get, cache_set, get_redis_client
 from app.enums.common import ApprovalStatusEnum
 from app.exceptions import AuthenticationException, BusinessException, NotFoundException, ValidationException
 from app.models import Admin, Tenant, TenantAdmin, TenantUser
@@ -59,6 +63,104 @@ class AuthService:
         """
         self.db = db
         self._config_service = ConfigService(db)
+
+    async def _record_active_tokens(
+        self,
+        user_type: str,
+        user_id: str,
+        access_jti: str,
+        refresh_jti: str,
+    ) -> None:
+        """
+        记录活跃 Token 到 Redis（用于登出/强制下线时吊销） / Record active tokens for logout/force-logout revoke.
+        Key: active_tokens:{user_type}:{user_id}, Hash: {access_jti: refresh_jti}, TTL=7d
+        """
+        try:
+            client = get_redis_client()
+            key = f"{ACTIVE_TOKENS_PREFIX}{user_type}:{user_id}"
+            await client.hset(key, access_jti, refresh_jti)
+            ttl_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
+            await client.expire(key, ttl_days * 24 * 3600)
+        except Exception:
+            pass  # Redis 不可用时静默失败
+
+    async def revoke_on_logout(
+        self,
+        access_token: str,
+        user_type: str,
+        user_id: str,
+    ) -> None:
+        """
+        登出时吊销 Token / Revoke tokens on logout.
+        从 active_tokens 获取 refresh_jti，吊销 access 和 refresh，并从 Hash 中移除。
+        """
+        payload = _decode_token_no_blacklist(access_token)
+        if not payload or not payload.get("jti"):
+            return  # 旧 Token 无 jti，跳过
+        access_jti = payload["jti"]
+        exp = payload.get("exp")
+        from time import time
+        access_ttl = max(1, int(exp - time())) if exp else 86400
+
+        try:
+            client = get_redis_client()
+            key = f"{ACTIVE_TOKENS_PREFIX}{user_type}:{user_id}"
+            refresh_jti = await client.hget(key, access_jti)
+            await revoke_token(access_jti, access_ttl)
+            if refresh_jti:
+                refresh_ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+                await revoke_token(refresh_jti, refresh_ttl)
+            await client.hdel(key, access_jti)
+        except Exception:
+            pass
+
+    async def force_logout(
+        self,
+        user_type: str,
+        user_id: int,
+        tenant_id: int | None = None,
+    ) -> None:
+        """
+        强制下线用户：吊销所有 Token、清除 Presence、发送 Socket.IO 事件
+        Force logout user: revoke all tokens, clear presence, emit Socket.IO event.
+
+        Args:
+            user_type: admin / tenant_admin / tenant_user
+            user_id: 用户 ID / User ID
+            tenant_id: 企业 ID（admin 为 None；tenant_admin/tenant_user 必填）
+        """
+        from app.core.redis import get_redis_client
+        from app.core.sio_bridge import emit_force_logout
+        from app.sio.presence import PresenceManager
+
+        user_id_str = str(user_id)
+        key = f"{ACTIVE_TOKENS_PREFIX}{user_type}:{user_id_str}"
+        try:
+            client = get_redis_client()
+            pairs = await client.hgetall(key)
+            if pairs:
+                from time import time
+                for access_jti, refresh_jti in pairs.items():
+                    # 使用剩余 TTL 作为吊销 TTL（简化：用 refresh 的 7 天）
+                    access_ttl = 86400  # access 最多 24h
+                    refresh_ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+                    await revoke_token(access_jti, access_ttl)
+                    if refresh_jti:
+                        await revoke_token(refresh_jti, refresh_ttl)
+                await client.delete(key)
+        except Exception:
+            pass
+
+        # 清除在线状态 / Clear presence
+        try:
+            await PresenceManager.set_offline(
+                user_type, user_id, tenant_id=tenant_id
+            )
+        except Exception:
+            pass
+
+        # 向对应用户类型所在 namespace 发送 force_logout / Emit to user's namespace only
+        await emit_force_logout(user_id, user_type)
 
     # ==================== 密码策略验证 ====================
 
@@ -222,12 +324,16 @@ class AuthService:
         session_timeout = await self._config_service.get_platform_config(
             "session_timeout_minutes", default=120
         )
-        access_token = create_access_token(
+        access_token, access_jti = create_access_token(
             admin.id,
             scope=TOKEN_SCOPE_ADMIN,
             expires_delta=timedelta(minutes=session_timeout)
         )
-        refresh_token = create_refresh_token(admin.id, scope=TOKEN_SCOPE_ADMIN)
+        refresh_token, refresh_jti = create_refresh_token(admin.id, scope=TOKEN_SCOPE_ADMIN)
+
+        await self._record_active_tokens(
+            "admin", str(admin.id), access_jti, refresh_jti
+        )
 
         tokens = {
             "access_token": access_token,
@@ -439,7 +545,7 @@ class AuthService:
         Raises:
             AuthenticationException: Token 无效
         """
-        admin_id, scope = verify_token_with_scope(
+        admin_id, scope = await verify_token_with_scope(
             refresh_token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_REFRESH
         )
         if admin_id is None:
@@ -460,7 +566,12 @@ class AuthService:
         if not admin.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
 
-        return create_token_pair(admin.id, scope=TOKEN_SCOPE_ADMIN)
+        tokens = create_token_pair(admin.id, scope=TOKEN_SCOPE_ADMIN)
+        await self._record_active_tokens(
+            "admin", str(admin.id),
+            tokens["access_jti"], tokens["refresh_jti"],
+        )
+        return tokens
 
     async def change_admin_password(
         self,
@@ -629,6 +740,10 @@ class AuthService:
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims={"tenant_id": tenant_admin.tenant_id},
         )
+        await self._record_active_tokens(
+            "tenant_admin", str(tenant_admin.id),
+            tokens["access_jti"], tokens["refresh_jti"],
+        )
 
         return tokens
 
@@ -645,7 +760,7 @@ class AuthService:
         Raises:
             AuthenticationException: Token 无效
         """
-        admin_id, scope = verify_token_with_scope(
+        admin_id, scope = await verify_token_with_scope(
             refresh_token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_REFRESH
         )
         if admin_id is None:
@@ -666,11 +781,16 @@ class AuthService:
         if not tenant_admin.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
 
-        return create_token_pair(
+        tokens = create_token_pair(
             tenant_admin.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims={"tenant_id": tenant_admin.tenant_id},
         )
+        await self._record_active_tokens(
+            "tenant_admin", str(tenant_admin.id),
+            tokens["access_jti"], tokens["refresh_jti"],
+        )
+        return tokens
 
     async def change_tenant_admin_password(
         self,
@@ -715,7 +835,7 @@ class AuthService:
             NotFoundException: 企业或所有者不存在
         """
         # 验证 impersonate token
-        payload = verify_impersonate_token(impersonate_token, TOKEN_SCOPE_TENANT_ADMIN)
+        payload = await verify_impersonate_token(impersonate_token, TOKEN_SCOPE_TENANT_ADMIN)
 
         if payload is None:
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
@@ -775,6 +895,10 @@ class AuthService:
             tenant_owner.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims=extra_claims,
+        )
+        await self._record_active_tokens(
+            "tenant_admin", str(tenant_owner.id),
+            tokens["access_jti"], tokens["refresh_jti"],
         )
 
         # 返回审计信息
@@ -920,6 +1044,10 @@ class AuthService:
             scope=TOKEN_SCOPE_TENANT_USER,
             extra_claims={"tenant_id": user.tenant_id},
         )
+        await self._record_active_tokens(
+            "tenant_user", str(user.id),
+            tokens["access_jti"], tokens["refresh_jti"],
+        )
 
         return tokens
 
@@ -936,7 +1064,7 @@ class AuthService:
         Raises:
             AuthenticationException: Token 无效
         """
-        user_id, scope = verify_token_with_scope(
+        user_id, scope = await verify_token_with_scope(
             refresh_token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_REFRESH
         )
         if user_id is None:
@@ -957,11 +1085,16 @@ class AuthService:
         if not user.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
 
-        return create_token_pair(
+        tokens = create_token_pair(
             user.id,
             scope=TOKEN_SCOPE_TENANT_USER,
             extra_claims={"tenant_id": user.tenant_id},
         )
+        await self._record_active_tokens(
+            "tenant_user", str(user.id),
+            tokens["access_jti"], tokens["refresh_jti"],
+        )
+        return tokens
 
     async def change_tenant_user_password(
         self,
@@ -1203,6 +1336,10 @@ class AuthService:
                 user.id,
                 scope=TOKEN_SCOPE_TENANT_USER,
                 extra_claims={"tenant_id": tenant_id},
+            )
+            await self._record_active_tokens(
+                "tenant_user", str(user.id),
+                tokens["access_jti"], tokens["refresh_jti"],
             )
             result_data["tokens"] = tokens
 

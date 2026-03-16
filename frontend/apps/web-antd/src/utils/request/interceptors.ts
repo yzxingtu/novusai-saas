@@ -12,12 +12,16 @@
  * @module utils/request/interceptors
  */
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { h } from 'vue';
+
+import { Button, notification } from 'ant-design-vue';
 
 import type { RequestClient } from './request-client';
 import type { ApiEndpoint, RequestOptions } from './types';
 
 import axios from 'axios';
 
+import { generateUUID } from '#/utils/common';
 import { isAuthError } from './error-codes';
 
 // ============================================================
@@ -114,6 +118,9 @@ export function createRequestInterceptor(
   return {
     fulfilled: async (config: ExtendedConfig) => {
       const options = config?.__options || {};
+
+      // 0. 注入 X-Trace-ID（用于请求关联与问题反馈）/ Inject for request correlation
+      config.headers['X-Trace-ID'] = generateUUID();
 
       // 1. 重复请求取消
       if (options.cancelDuplicateRequest !== false) {
@@ -434,7 +441,56 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         };
         const messageKey =
           statusMessages[status] || 'common.http.internalServerError';
-        messageHandler.showMessage('error', messageHandler.t(messageKey));
+        const msg = messageHandler.t(messageKey);
+
+        // 5xx: use notification with trace ID and copy button (non-closing)
+        // 5xx：使用 notification 展示追踪 ID 与复制按钮（不自动关闭）
+        if (status >= 500) {
+          const traceId =
+            (error?.response?.headers?.['x-trace-id'] as string) ||
+            (error?.response?.headers?.['X-Trace-ID'] as string) ||
+            '';
+          const description =
+            traceId
+              ? h('div', { class: 'flex flex-col gap-2' }, [
+                  h('span', msg),
+                  h('div', { class: 'flex items-center gap-2' }, [
+                    h('span', { class: 'text-gray-500 text-sm' }, `${messageHandler.t('common.http.traceId')}: ${traceId}`),
+                    h(
+                      Button,
+                      {
+                        size: 'small',
+                        type: 'link',
+                        onClick: () => {
+                          navigator.clipboard
+                            .writeText(traceId)
+                            .then(() =>
+                              messageHandler.showMessage(
+                                'success',
+                                messageHandler.t('common.http.copied'),
+                              ),
+                            )
+                            .catch(() =>
+                              messageHandler.showMessage(
+                                'error',
+                                messageHandler.t('common.http.copyFailed'),
+                              ),
+                            );
+                        },
+                      },
+                      () => messageHandler.t('common.http.copyTraceId'),
+                    ),
+                  ]),
+                ])
+              : msg;
+          notification.error({
+            message: msg,
+            description,
+            duration: 0,
+          });
+        } else {
+          messageHandler.showMessage('error', msg);
+        }
       }
 
       return Promise.reject(error);

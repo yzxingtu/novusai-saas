@@ -123,7 +123,7 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
                 if scope_value is None:
                     continue
 
-                uid, _ = verify_token_with_scope(
+                uid, _ = await verify_token_with_scope(
                     token, scope_value, raise_on_expired=True,
                 )
                 if uid:

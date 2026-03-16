@@ -403,6 +403,8 @@ class TenantRoleController(TenantController):
                     parent_id=data.parent_id,
                     type=data.type,
                     allow_members=data.allow_members,
+                    data_scope=data.data_scope,
+                    custom_dept_ids=data.custom_dept_ids,
                 )
 
                 # 分配权限（只能分配企业端权限，且必须是自己拥有的） / Assign permissions (tenant-scope only, must be owned)
@@ -507,6 +509,13 @@ class TenantRoleController(TenantController):
                     update_data["sort_order"] = data.sort_order
                 if data.parent_id is not None:
                     update_data["parent_id"] = data.parent_id
+                if data.data_scope is not None:
+                    update_data["data_scope"] = data.data_scope
+                    from app.enums.role import DataScope
+                    if data.data_scope != DataScope.CUSTOM.value:
+                        update_data["custom_dept_ids"] = None
+                if data.custom_dept_ids is not None:
+                    update_data["custom_dept_ids"] = data.custom_dept_ids
 
                 role = await service.update_role(role_id, update_data)
 

@@ -15,6 +15,7 @@ from celery import Task
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.middleware.trace import trace_id_var
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
@@ -91,7 +92,32 @@ class BaseTask(Task):
     _start_time: float | None = None
     _db_config: dict[str, int] | None = None
 
+    def apply_async(
+        self,
+        args: tuple | None = None,
+        kwargs: dict | None = None,
+        **options: Any,
+    ) -> Any:
+        """
+        Override to inject trace_id from context into task headers.
+        覆盖以从上下文注入 trace_id 到任务 headers。
+        """
+        headers = dict(options.get("headers") or {})
+        tid = trace_id_var.get()
+        if tid:
+            headers["trace_id"] = tid
+        if headers:
+            options = {**options, "headers": headers}
+        return super().apply_async(args=args, kwargs=kwargs, **options)
+
     def before_start(self, task_id: str, args: tuple, kwargs: dict) -> None:
+        # Restore trace_id from task headers for log correlation
+        # 从任务 headers 恢复 trace_id 用于日志关联
+        req_headers = getattr(self.request, "headers", None) or {}
+        tid = req_headers.get("trace_id") if isinstance(req_headers, dict) else None
+        if tid:
+            trace_id_var.set(tid)
+
         self._start_time = time.monotonic()
         self._apply_db_config()
         logger.info(f"Task started: {self.name} [{task_id}]")

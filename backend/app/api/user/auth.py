@@ -137,16 +137,19 @@ async def refresh_token(
 @router.post("/logout", summary="用户登出 / User logout")
 @auth_only
 async def logout(
+    request: Request,
+    db: DbSession,
     current_user: ActiveTenantUser,
 ):
     """
     用户登出 / User logout
-
-    注意：JWT 是无状态的，登出只是客户端行为。
-    Note: JWT is stateless, logout is only a client-side action.
-    如需服务端黑名单机制，请使用 Redis 存储已失效的 Token。
-    For server-side blacklist mechanism, use Redis to store invalidated tokens.
+    吊销当前 access/refresh token
     """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        auth_service = AuthService(db)
+        await auth_service.revoke_on_logout(token, "tenant_user", str(current_user.id))
     return success(
         message=_("auth.logout_success"),
     )

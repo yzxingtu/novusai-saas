@@ -132,7 +132,7 @@ class TestInvokePageOperationTopLevelWhitelist:
 
         assert result.success is False
         assert result.error_type == "invalid_input"
-        assert "Invalid top-level fields" in result.error
+        assert "Invalid top-level fields" in result.error or "无效的顶层字段" in result.error
         assert "content" in result.error
 
 

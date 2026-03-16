@@ -13,13 +13,18 @@ import {
   Button,
   Empty,
   Input,
+  message,
   Pagination,
   Spin,
   Switch,
   Tooltip,
 } from 'ant-design-vue';
 
+import { forceLogoutAdminApi } from '#/api/admin/admin-user';
+import { forceLogoutTenantAdminApi } from '#/api/admin/tenant';
+import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
+import { useTenantAuthStore } from '#/store/tenant/auth';
 
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
@@ -63,6 +68,7 @@ const emit = defineEmits<{
 }>();
 
 const presenceStore = usePresenceStore();
+const tenantAuthStore = useTenantAuthStore();
 
 /** Check if member is online / 判断成员是否在线 */
 function isMemberOnline(memberId: number): boolean {
@@ -152,6 +158,27 @@ function handleEditMember(member: OrgMember) {
 /** Handle reset password / 处理重置密码 */
 function handleResetPassword(member: OrgMember) {
   resetPasswordModalRef.value?.open(toResetPasswordInfo(member));
+}
+
+/** Handle force logout / 处理强制下线 */
+async function handleForceLogout(member: OrgMember) {
+  try {
+    if (props.apiPrefix === 'admin') {
+      await forceLogoutAdminApi(member.id);
+    } else {
+      const tenantId = tenantAuthStore.getTenantId();
+      if (typeof tenantId !== 'number') {
+        message.error($t('common.requestFailed'));
+        return;
+      }
+      await forceLogoutTenantAdminApi(tenantId as number, member.id);
+    }
+    message.success($t('common.auth.forceLogoutSuccess', { name: member.nickname || member.username }));
+    await refresh();
+    emit('refresh');
+  } catch {
+    message.error($t('common.requestFailed'));
+  }
 }
 
 /** Handle member operation success / 处理成员操作成功 */
@@ -326,11 +353,13 @@ onMounted(() => {
                 {{ $t('shared.memberPanel.leader') }}
               </div>
               <MemberItem
+                :api-prefix="apiPrefix"
                 :member="leaderInfo"
                 :is-leader="true"
                 :show-online-status="showOnlineStatus"
                 :online="isMemberOnline(leaderInfo.id)"
                 @edit="handleEditMember"
+                @force-logout="handleForceLogout"
                 @reset-password="handleResetPassword"
                 @remove="handleRemoveMember"
                 @set-leader="handleSetLeader"
@@ -349,11 +378,13 @@ onMounted(() => {
                 !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
               )"
               :key="member.id"
+              :api-prefix="apiPrefix"
               :member="member"
               :is-leader="member.isLeader"
               :show-online-status="showOnlineStatus"
               :online="isMemberOnline(member.id)"
               @edit="handleEditMember"
+              @force-logout="handleForceLogout"
               @reset-password="handleResetPassword"
               @remove="handleRemoveMember"
               @set-leader="handleSetLeader"

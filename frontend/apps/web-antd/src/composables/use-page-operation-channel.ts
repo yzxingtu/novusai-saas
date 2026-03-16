@@ -180,7 +180,7 @@ export function usePageOperationChannel(): void {
       aiPanelStore.resolvePageOp(event.invoke_id, false);
       emitResult(socketIOStore, event.invoke_id, {
         success: false,
-        message: 'Confirmation timed out',
+        message: $t('shared.pageOperation.msg.confirmationTimedOut'),
       }, 'timeout');
     } else if (result) {
       if (CHAIN_TRIGGER_OPS.has(event.operation_name)) {
@@ -190,7 +190,7 @@ export function usePageOperationChannel(): void {
     } else {
       emitResult(socketIOStore, event.invoke_id, {
         success: false,
-        message: 'User cancelled the operation',
+        message: $t('shared.pageOperation.msg.userCancelled'),
       }, 'user_cancelled');
     }
   }
@@ -212,7 +212,7 @@ export function usePageOperationChannel(): void {
     if (!operation) {
       emitResult(socketIOStore, event.invoke_id, {
         success: false,
-        message: `Operation '${event.operation_name}' is not registered on page '${event.page_key}'`,
+        message: $t('shared.pageOperation.msg.operationNotRegistered', { op: event.operation_name, page: event.page_key }),
       }, 'not_registered');
       return;
     }

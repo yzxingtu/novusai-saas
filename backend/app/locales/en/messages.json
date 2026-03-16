@@ -50,7 +50,8 @@
     "reset_code_invalid": "Verification code is invalid or expired",
     "reset_rate_limited": "Too many requests, please try again later",
     "password_reset_success": "Password reset successful",
-    "approval_pending": "Registration successful, pending admin approval"
+    "approval_pending": "Registration successful, pending admin approval",
+    "force_logout_success": "Successfully logged out {name}"
   },
   "user": {
     "profile_edit_disabled": "Profile editing has been disabled by the administrator",
@@ -1489,6 +1490,13 @@
       "position": "Position",
       "role": "Functional Role"
     },
+    "data_scope": {
+      "all": "All Data",
+      "dept_children": "Department and Children",
+      "dept_only": "Current Department Only",
+      "self": "Self Only",
+      "custom": "Custom"
+    },
     "attachment_visibility": {
       "public": "Public",
       "private": "Private"
@@ -2911,5 +2919,30 @@
   "skill_package.system.engine": "System Engine Skills",
   "skill_package.system.data_management": "Platform Data Management",
   "skill_package.system.web_search": "Web Search",
-  "skill_package.system.page_awareness": "Page Awareness"
+  "skill_package.system.page_awareness": "Page Awareness",
+
+  "page_operation.error.both_required": "Both 'page_key' and 'operation_name' are required.",
+  "page_operation.error.no_session": "No page_session_id available. Cannot invoke page operation without an active page session.",
+  "page_operation.error.timeout": "Operation '{op}' timed out after {timeout}s",
+  "page_operation.error.internal_failed": "Operation '{op}' failed: {error}",
+  "page_operation.error.failed": "Operation '{op}' failed on page '{page}'.",
+  "page_operation.error.timeout_hint": "Operation '{op}' timed out (60s). WebSocket connection to page '{page}' may be broken. Do NOT retry — tell the user the operation failed and suggest they refresh the page, then try again.",
+  "page_operation.error.pending_confirmation": "Operation '{op}' requires user confirmation. Awaiting user approval.",
+  "page_operation.error.target_not_found_next": "Reason: {message}. Next: Call get_editor_html again to get current content, then use a short, unique HTML snippet (not entire document) as old_html for replace_section.",
+  "page_operation.error.non_unique_next": "Reason: {message}. Next: Use a longer or more specific HTML snippet to uniquely identify the target section.",
+  "page_operation.error.invalid_html_next": "Reason: {message}. Next: Ensure new_html is valid HTML; avoid broken tags or invalid structure.",
+  "page_operation.error.no_echo": "Do NOT echo HTML, JSON, tool params or raw error content to the user. Return a brief natural language summary only.",
+  "page_operation.error.reason_suffix": " Reason: {message}",
+  "page_operation.error.page_context_missing": "Page context missing (page_key). Ensure the request includes page identifier.",
+  "page_operation.error.invalid_top_level": "Invalid top-level fields: {fields}",
+  "page_operation.error.invalid_top_level_full": "Invalid top-level fields: {fields}. Editor params (content, old_html, new_html, title, etc.) must go inside 'params'. Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={{'content': '<p>...</p>'}}).",
+  "page_operation.error.operation_name_top_level": "operation_name must be a top-level parameter.",
+  "page_operation.error.operation_name_top_level_full": "operation_name must be a top-level parameter, not inside params. Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={{}})",
+  "page_operation.error.missing_operation_name": "Missing required parameter: operation_name",
+  "page_operation.error.missing_operation_name_full": "Missing required parameter: operation_name. You MUST specify operation_name in every invoke_page_operation call.{ops_hint}{example}",
+  "page_operation.error.multiple_failures_hint": "[System] Multiple page operations failed. Check page session and retry.",
+  "page_operation.error.multiple_failures_parse": "[System] Multiple page operations failed (including JSON parse errors). Please tell the user to retry with valid input or refresh the page.",
+  "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
+  "page_operation.error.json_parse_failed": "Tool arguments JSON parse failed. Ensure arguments are valid JSON. Do not retry with the same invalid input.",
+  "page_operation.hint.replace_section": "Use short, unique HTML snippets for replace_section old_html; avoid using the entire document."
 }

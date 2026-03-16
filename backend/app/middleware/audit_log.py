@@ -386,7 +386,7 @@ class AuditLogMiddleware:
         info["_body_parts"] = body_parts
         return info
 
-    def _get_user_info(self, scope: Scope) -> dict[str, Any]:
+    async def _get_user_info(self, scope: Scope) -> dict[str, Any]:
         """
         从 scope 获取用户信息 / Get user info from scope
 
@@ -412,7 +412,7 @@ class AuditLogMiddleware:
         token = auth_header[7:]
 
         # Get full token payload / 获取完整的 token payload
-        payload = get_token_payload(token, TOKEN_TYPE_ACCESS)
+        payload = await get_token_payload(token, TOKEN_TYPE_ACCESS)
         if payload is None:
             return user_info
 
@@ -467,11 +467,18 @@ class AuditLogMiddleware:
         from app.services.system.operation_log_service import create_log_async
 
         # Get user info / 获取用户信息
-        user_info = self._get_user_info(scope)
+        user_info = await self._get_user_info(scope)
 
         # Get username and nickname / 获取用户名和昵称
         username = user_info.get("username")
         nickname = user_info.get("nickname")
+
+        # Get trace_id from scope state (injected by TraceIdMiddleware)
+        # 从 scope state 获取 trace_id（由 TraceIdMiddleware 注入）
+        trace_id = ""
+        if "state" in scope:
+            state = scope["state"]
+            trace_id = getattr(state, "trace_id", "") or ""
 
         # If user_id exists, prefer from scope state (injected by PermissionMiddleware) / 优先从 scope state 获取
         if user_info.get("user_id") and "state" in scope:
@@ -502,6 +509,7 @@ class AuditLogMiddleware:
 
         # Async write / 异步写入
         create_log_async(
+            trace_id=trace_id or None,
             tenant_id=user_info.get("tenant_id"),
             user_type=user_info.get("user_type", UserTypeEnum.ANONYMOUS.value),
             user_id=user_info.get("user_id"),

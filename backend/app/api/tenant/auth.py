@@ -96,11 +96,19 @@ async def refresh_token(
 @router.post("/logout", summary="企业管理员登出")
 @auth_only
 async def tenant_admin_logout(
+    request: Request,
+    db: DbSession,
     current_admin: ActiveTenantAdmin,
 ):
     """
     企业管理员登出 / Tenant admin logout
+    吊销当前 access/refresh token
     """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        auth_service = AuthService(db)
+        await auth_service.revoke_on_logout(token, "tenant_admin", str(current_admin.id))
     return success(
         message=_("auth.logout_success"),
     )

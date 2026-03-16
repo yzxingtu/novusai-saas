@@ -58,6 +58,8 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         parent_id: int | None = None,
         type: str = RoleType.ROLE.value,
         allow_members: bool = True,
+        data_scope: str | None = None,
+        custom_dept_ids: list[int] | None = None,
     ) -> AdminRole:
         """
         创建角色 / Create role.
@@ -99,8 +101,8 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
                 code=ErrorCode.ROLE_MAX_DEPTH_EXCEEDED,
             )
 
-        # 创建角色（先不设置 path，需要先获取 ID）
-        data = {
+        # 创建角色（先不设置 path，需要先获取 ID） / Create role (path set after ID)
+        data: dict[str, Any] = {
             "name": name,
             "code": code,
             "description": description,
@@ -112,6 +114,10 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
             "type": type,
             "allow_members": allow_members,
         }
+        if data_scope is not None:
+            data["data_scope"] = data_scope
+        if custom_dept_ids is not None:
+            data["custom_dept_ids"] = custom_dept_ids
 
         role = await self.repo.create(data)
 

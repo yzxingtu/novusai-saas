@@ -322,6 +322,7 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
     failed_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success") is False]
     assert len(failed_calls) >= 3
 
-    # 熔断后 output 应包含恢复提示
-    assert "Multiple page operations failed" in (handler._output or "")
-    assert "retry" in (handler._output or "").lower() or "refresh" in (handler._output or "").lower()
+    # 熔断后 output 应包含恢复提示（兼容中英双语 i18n）
+    output = handler._output or ""
+    assert "Multiple page operations failed" in output or "多次页面操作失败" in output
+    assert "retry" in output.lower() or "refresh" in output.lower() or "重试" in output or "刷新" in output

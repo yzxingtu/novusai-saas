@@ -16,6 +16,7 @@ import {
 } from '#/adapter/form';
 import { checkboxColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
+import { usePresenceStore } from '#/store';
 
 // ============================================================
 // Role form Schema (for create/edit role) / 角色表单 Schema（创建/编辑角色用）
@@ -145,6 +146,14 @@ export function useMemberColumns<T = TenantUserInfo>(
             text: $t('tenant.system.user.resetPassword'),
             icon: 'lucide:key',
             accessCodes: ['tenant_user:reset_password'],
+          },
+          {
+            code: 'forceLogout',
+            text: $t('common.auth.forceLogout'),
+            icon: 'lucide:log-out',
+            accessCodes: ['tenant_user:force_logout'],
+            show: (row: TenantUserInfo) =>
+              usePresenceStore().isOnline('tenant_user', row.id),
           },
           'delete',
         ],

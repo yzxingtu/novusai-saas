@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
+from app.core.i18n import _
 from app.core.logging import LogManager
 
 from .base import MAX_TOOL_CALL_ROUNDS
@@ -384,10 +385,7 @@ class StreamExecutionHandler:
                         tool_call_id=tc_id,
                         name=func_name or "unknown",
                         success=False,
-                        error=(
-                            "Tool arguments JSON parse failed. "
-                            "Ensure arguments are valid JSON. Do not retry with the same invalid input."
-                        ),
+                        error=_("page_operation.error.json_parse_failed"),
                         error_type=parse_error,
                     )
                     all_tool_results.append(err_result)
@@ -399,7 +397,7 @@ class StreamExecutionHandler:
                     )
                     messages.append(processor.build_tool_message(err_result, tc_id))
 
-                    # Count parse error as page op failure for熔断 / parse error 计入页面操作失败以触发熔断
+                    # Count parse error as page op failure (circuit breaking) / parse error 计入页面操作失败以触发熔断
                     _is_page_op = (
                         func_name == "invoke_page_operation"
                         or (func_name.startswith("pageop_") if func_name else False)
@@ -415,8 +413,8 @@ class StreamExecutionHandler:
                             _page_op_aborted = True
                             self._output = (
                                 round_output.strip()
-                                + "\n\n[System] Multiple page operations failed (including JSON parse errors). "
-                                "Please tell the user to retry with valid input or refresh the page."
+                                + "\n\n"
+                                + _("page_operation.error.multiple_failures_parse")
                             )
 
                     if _page_op_aborted:
@@ -484,9 +482,8 @@ class StreamExecutionHandler:
                             _page_op_aborted = True
                             self._output = (
                                 round_output.strip()
-                                + "\n\n[System] Multiple page operations failed in sequence. "
-                                "Please tell the user the operation encountered issues "
-                                "and suggest they retry or refresh the page."
+                                + "\n\n"
+                                + _("page_operation.error.multiple_failures_sequence")
                             )
 
                 # Push tool_result event / 推送 tool_result 事件（name_override 保持与 tool_start 一致，避免前端匹配失败）

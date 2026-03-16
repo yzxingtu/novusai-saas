@@ -27,6 +27,7 @@ from app.middleware.audit_log import AuditLogMiddleware
 from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.trace import TraceIdMiddleware
 
 # Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
 # 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
@@ -542,7 +543,12 @@ def create_application() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Trace-ID"],
     )
+
+    # Trace ID middleware (outermost = runs first; propagates X-Trace-ID for request correlation)
+    # 追踪 ID 中间件（最外层 = 最先执行；传播 X-Trace-ID 用于请求关联）
+    app.add_middleware(TraceIdMiddleware)
 
     # ========================================
     # Register exception handlers / 注册异常处理器
@@ -562,13 +568,22 @@ def create_application() -> FastAPI:
             }
         return {}
 
+    def _get_error_response_headers(request: Request) -> dict[str, str]:
+        """Get CORS + X-Trace-ID headers for error responses / 获取错误响应所需的 CORS 与 trace_id 头"""
+        headers = _get_cors_headers(request)
+        from app.middleware.trace import trace_id_var
+        tid = trace_id_var.get()
+        if tid:
+            headers["X-Trace-ID"] = tid
+        return headers
+
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         """Application exception handler / 应用异常处理器"""
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
-            headers=_get_cors_headers(request),
+            headers=_get_error_response_headers(request),
         )
 
     @app.exception_handler(RequestValidationError)
@@ -586,7 +601,7 @@ def create_application() -> FastAPI:
         ]
         # validation_error() returns JSONResponse / validation_error() 返回 JSONResponse
         response = validation_error(errors=errors)
-        response.headers.update(_get_cors_headers(request))
+        response.headers.update(_get_error_response_headers(request))
         return response
 
     @app.exception_handler(StarletteHTTPException)
@@ -615,7 +630,7 @@ def create_application() -> FastAPI:
             code=code,
             status_code=exc.status_code,
         )
-        response.headers.update(_get_cors_headers(request))
+        response.headers.update(_get_error_response_headers(request))
         return response
 
     @app.exception_handler(Exception)
@@ -642,7 +657,7 @@ def create_application() -> FastAPI:
             status_code=500,
             data=error_data,
         )
-        response.headers.update(_get_cors_headers(request))
+        response.headers.update(_get_error_response_headers(request))
         return response
 
     # ========================================

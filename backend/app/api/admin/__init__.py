@@ -87,6 +87,8 @@ from app.api.admin.tenant_domains import AdminTenantDomainController
 from app.api.admin.tenant_domains import router as tenant_domains_router
 from app.api.admin.tenants import AdminTenantController
 from app.api.admin.tenants import router as tenants_router
+from app.api.admin.users import AdminUserController
+from app.api.admin.users import router as users_router
 from app.api.admin.ws import router as ws_router
 
 # 创建平台管理后台路由器 / Create platform admin router
@@ -98,6 +100,7 @@ admin_router.include_router(dashboard_router)
 admin_router.include_router(analytics_router)
 admin_router.include_router(permissions_router)
 admin_router.include_router(roles_router)
+admin_router.include_router(users_router)
 admin_router.include_router(tenants_router)
 admin_router.include_router(tenant_domains_router)
 admin_router.include_router(configs_router)
@@ -163,6 +166,7 @@ __all__ = [
     "AdminRoleController",
     "AdminTenantController",
     "AdminTenantDomainController",
+    "AdminUserController",
     "AdminConfigController",
     "AdminPlanController",
     "AdminOperationLogController",

@@ -461,3 +461,19 @@ export async function toggleTenantAdminStatusApi(
     { is_active: isActive },
   );
 }
+
+/**
+ * Force logout tenant admin / 强制下线企业管理员
+ * POST /admin/tenants/{tenant_id}/admins/{admin_id}/force-logout
+ */
+export async function forceLogoutTenantAdminApi(
+  tenantId: number,
+  adminId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `${API_PREFIX}/${tenantId}/admins/${adminId}/force-logout`,
+    {},
+    options,
+  );
+}

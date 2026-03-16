@@ -219,8 +219,8 @@ class TestPageOperationExecutor:
 
         assert result.success is False
         assert result.error_type == "target_not_found"
-        assert "get_editor_html" in result.error or "short" in result.error.lower()
-        assert "Do NOT echo" in result.error
+        assert "get_editor_html" in result.error or "short" in result.error.lower() or "短" in result.error
+        assert "HTML" in result.error and "JSON" in result.error
 
     @pytest.mark.asyncio
     async def test_missing_operation_name(self, executor, definition):
@@ -268,7 +268,7 @@ class TestPageOperationExecutor:
             )
 
         assert result.success is False
-        assert "timed out" in result.error
+        assert "超时" in result.error or "timed out" in result.error
 
     @pytest.mark.asyncio
     async def test_user_cancelled(self, executor, definition):
