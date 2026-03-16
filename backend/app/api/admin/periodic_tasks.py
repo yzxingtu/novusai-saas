@@ -72,6 +72,13 @@ class AdminPeriodicTaskController(GlobalController):
         ):
             service = self.get_service(db)
             items, total = await service.query_list(query)
+            # Fill next_run_at when null for Cron/Interval tasks (e.g. pre-seeded tasks)
+            # 当 next_run_at 为空时，为 Cron/Interval 任务计算下次执行时间
+            for item in items:
+                if item.next_run_at is None and item.is_active:
+                    next_run = PeriodicTaskService._compute_next_run(item)
+                    if next_run:
+                        item.next_run_at = next_run
             return paginated(
                 items=[PeriodicTaskResponse.model_validate(item, from_attributes=True) for item in items],
                 total=total,
