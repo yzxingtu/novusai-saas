@@ -49,6 +49,8 @@ redis_asyncio_module.ConnectionPool = _RedisConnectionPool
 redis_asyncio_module.Redis = _RedisClient
 redis_asyncio_client_module.Pipeline = _RedisPipeline
 redis_exceptions_module.RedisError = _RedisError
+redis_module.Redis = _RedisClient
+redis_module.from_url = lambda *a, **kw: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
 bcrypt_module.checkpw = _bcrypt_checkpw
@@ -582,7 +584,7 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
 
     agent = MagicMock(spec=[
         "id", "name", "system_prompt", "model",
-        "temperature", "max_tokens", "top_p",
+        "temperature", "max_tokens", "top_p", "rag_config",
     ])
     agent.id = 99
     agent.name = "ToolInjectionAgent"
@@ -591,6 +593,7 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
     agent.temperature = 0.1
     agent.max_tokens = 256
     agent.top_p = 1.0
+    agent.rag_config = None
 
     request = ExecutionRequest(
         agent_id=99,
@@ -616,6 +619,10 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
 
     with (
         patch("app.ai.rag_injector.merge_kb_ids", return_value=None),
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=(None, {})),
+        ),
         patch("app.ai.tools.optimizer.optimize_tools", return_value=opt_result),
         patch(
             "app.ai.routing.router.ModelRouter.route",
@@ -756,12 +763,11 @@ class TestPageContextDataSizeLimit:
 
     def test_normalize_rejects_oversized(self):
         """normalize 方法对超大 page_data 返回 None / normalize page_data N..."""
-        from app.schemas.ai.agent_chat import PageContext
+        from app.schemas.ai.agent_chat import MAX_PAGE_DATA_BYTES, PageContext
 
-        result = PageContext.normalize({
-            "page_key": "test",
-            "page_data": {"key": "x" * 5000},
-        })
+        # 超过 MAX_PAGE_DATA_BYTES（8KB）的 page_data 应返回 None
+        oversized = {"key": "x" * (MAX_PAGE_DATA_BYTES + 100)}
+        result = PageContext.normalize({"page_key": "test", "page_data": oversized})
         assert result is None
 
     def test_boundary_page_data_passes(self):

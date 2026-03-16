@@ -960,6 +960,8 @@ async def _load_auto_bind_packages(
     加载 bind_mode=auto 的自动绑定技能包，按 target_audience 过滤。
 
     Rules / 规则:
+    - Admin call (tenant_id=None) + agent_scope=ALL_TENANTS: return [] (tenant-scoped agent in admin context)
+      管理端调用 + agent 为 all_tenants：直接返回空（tenant 作用域智能体在管理端无需加载）
     - Admin call (tenant_id=None): load all auto packages (any target_audience)
       管理端调用：加载所有 auto 包
     - Tenant call: exclude target_audience=admin_only packages
@@ -967,6 +969,9 @@ async def _load_auto_bind_packages(
     - user_role filter: further filter by target_audience (three-endpoint isolation)
       user_role 过滤：按三端隔离进一步筛选
     """
+    if tenant_id is None and agent_scope == ResourceScopeEnum.ALL_TENANTS.value:
+        return []
+
     from sqlalchemy import and_, select
 
     from app.enums.common import SkillBindModeEnum

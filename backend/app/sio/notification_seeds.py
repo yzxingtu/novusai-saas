@@ -119,6 +119,14 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
+    {
+        "code": "ai.soft_quota_exceeded",
+        "category": "ai",
+        "title_template": "AI 配额已超限提醒",
+        "body_template": "您的 AI 使用量已达 {current} Token，已超过软限制 {limit}（周期：{period}），请关注用量并及时续费或升级套餐。",
+        "channels": ["ws", "inbox", "email", "webhook"],
+        "priority": "high",
+    },
     # ===== task (1) =====
     {
         "code": "task.failed",

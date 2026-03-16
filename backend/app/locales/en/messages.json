@@ -2294,6 +2294,14 @@
         "name": "Max Notifications per User",
         "desc": "Maximum number of notifications kept in each user's inbox, oldest are auto-cleaned when exceeded"
       },
+      "webhook_enabled": {
+        "name": "Enable Webhook Notifications",
+        "desc": "Whether to push notifications via HTTP POST to the configured Webhook URL (WeCom, DingTalk, Slack, etc.)"
+      },
+      "webhook_url": {
+        "name": "Webhook URL",
+        "desc": "Webhook URL to receive notifications, must start with http:// or https://"
+      },
       "platform_default_memory_enabled": {
         "name": "Default Memory Enabled",
         "desc": "Default memory switch for all agents"

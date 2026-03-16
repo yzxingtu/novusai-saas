@@ -258,21 +258,6 @@ export async function setPrimaryDomainApi(
   return transformDomainInfo(raw);
 }
 
-// TODO: getDomainDnsInfoApi 待后端实现对应端点后启用
-// /**
-//  * 获取域名 DNS 验证信息
-//  * GET /tenant/domains/{domain_id}/dns-info
-//  */
-// export async function getDomainDnsInfoApi(
-//   domainId: number,
-//   options?: ApiRequestOptions,
-// ): Promise<DnsVerificationInfo> {
-//   return await requestClient.get<DnsVerificationInfo>(
-//     `/tenant/domains/${domainId}/dns-info`,
-//     options,
-//   );
-// }
-
 // ============================================================
 // SSL 证书管理 API (types imported from '#/types/domain')
 // ============================================================

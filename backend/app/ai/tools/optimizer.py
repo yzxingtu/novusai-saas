@@ -277,7 +277,8 @@ def optimize_tools(
         len(protected),
         user_query[:50],
     )
-    if logger.isEnabledFor(10):  # DEBUG
+    # Loguru 无 isEnabledFor，使用 getattr 兼容 / Loguru has no isEnabledFor, use getattr for compat
+    if getattr(logger, "isEnabledFor", lambda _: False)(10):
         for t in protected:
             logger.debug("  [protected] {}", t.name)
         for s, _, t in scored[:budget]:

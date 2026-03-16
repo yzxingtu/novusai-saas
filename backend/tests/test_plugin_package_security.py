@@ -21,11 +21,13 @@ def _import_funcs():
     )
     return extract_plugin_zip_safely, validate_plugin_zip_archive
 
-_MINIMAL_PLUGIN_YAML = b"""name: demo-plugin / 插件
-version: \"1.0.0\"
-display_name:
-  en: Demo Plugin
-scope: all_tenants"""
+_MINIMAL_PLUGIN_YAML = (
+    "name: demo-plugin\n"
+    "version: \"1.0.0\"\n"
+    "display_name:\n"
+    "  en: Demo Plugin\n"
+    "scope: all_tenants"
+).encode("utf-8")
 
 
 def _build_zip(zip_path: Path, members: dict[str, bytes]) -> None:

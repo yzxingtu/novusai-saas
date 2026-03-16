@@ -60,6 +60,8 @@ redis_asyncio_module.ConnectionPool = _RedisConnectionPool
 redis_asyncio_module.Redis = _RedisClient
 redis_asyncio_client_module.Pipeline = _RedisPipeline
 redis_exceptions_module.RedisError = _RedisError
+redis_module.Redis = _RedisClient
+redis_module.from_url = lambda *a, **kw: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
 bcrypt_module.checkpw = _bcrypt_checkpw
@@ -505,7 +507,7 @@ class TestInvokePageOperation:
 
     @pytest.mark.asyncio
     async def test_emits_to_all_namespaces_by_default(self):
-        """默认向 /admin 和 /tenant 两个 namespace 发送"""
+        """默认向 /admin、/tenant、/user 三个 namespace 发送"""
         import asyncio
 
         from app.sio.page_session import _pending_invocations, invoke_page_operation
@@ -530,14 +532,15 @@ class TestInvokePageOperation:
             timeout=5,
         )
 
-        # emit 应被调用 2 次（/admin + /tenant）
-        assert _mock_sio_instance.emit.call_count == 2
+        # emit 应被调用 3 次（/admin + /tenant + /user）
+        assert _mock_sio_instance.emit.call_count == 3
         namespaces_called = {
             call.kwargs.get("namespace")
             for call in _mock_sio_instance.emit.call_args_list
         }
         assert "/admin" in namespaces_called
         assert "/tenant" in namespaces_called
+        assert "/user" in namespaces_called
 
     @pytest.mark.asyncio
     async def test_emits_to_specific_namespace(self):

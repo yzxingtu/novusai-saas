@@ -317,7 +317,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
         """
-        为新企业自动绑定插件（插件系统待重建）/ Auto-bind plugins for new tenant (plugin system TBD).
+        插件绑定由管理员在管理端自行配置，新建企业不自动绑定。
+        Plugin binding is configured by admins in the admin panel; new tenants are not auto-bound.
         """
         pass
 

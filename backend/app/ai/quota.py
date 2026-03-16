@@ -7,6 +7,7 @@ Manages tenant Token quota, monthly budget, and usage tracking.
 
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.i18n import _
@@ -350,9 +351,46 @@ class QuotaManager:
                     "Soft quota exceeded: tenant={} model={} current={} limit={} period={}",
                     tenant_id, model_id, current_usage, quota.limit, quota.period,
                 )
-                # Soft limit allows overuse, but logs warning
-                # 软限制允许超额，但记录警告
-                # TODO: 发送通知给企业
+                # Soft limit allows overuse, but notify tenant admins (rate-limited: 1/day per tenant+model)
+                # 软限制允许超额，但通知企业管理员（限流：每企业+模型每天最多 1 次）
+                try:
+                    from app.core.redis import cache_get, cache_set
+                    from app.models import TenantAdmin
+                    from app.services.common.notification_service import notify
+
+                    today = date.today().isoformat()
+                    notify_key = f"ai:quota_notified:{tenant_id}:{model_id}:{today}"
+                    if await cache_get(notify_key):
+                        pass  # Already notified today
+                    else:
+                        result = await self.db.execute(
+                            select(TenantAdmin.id).where(
+                                TenantAdmin.tenant_id == tenant_id,
+                                TenantAdmin.is_deleted.is_(False),
+                                TenantAdmin.is_active.is_(True),
+                            )
+                        )
+                        admin_ids = [r[0] for r in result.all()]
+                        if admin_ids:
+                            current = current_usage + estimated_tokens
+                            period_display = "daily" if quota.period == "daily" else "monthly"
+                            await notify(
+                                self.db,
+                                template_code="ai.soft_quota_exceeded",
+                                recipients=[("tenant_admin", aid) for aid in admin_ids],
+                                data={
+                                    "current": current,
+                                    "limit": quota.limit,
+                                    "period": period_display,
+                                },
+                                tenant_id=tenant_id,
+                            )
+                            await cache_set(notify_key, True, ttl=86400)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to send soft quota exceeded notification: tenant={} error={}",
+                        tenant_id, str(e),
+                    )
 
         return True
 

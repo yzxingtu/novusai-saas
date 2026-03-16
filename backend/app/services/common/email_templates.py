@@ -180,6 +180,31 @@ def render_password_reset_email(
     return subject, html, text
 
 
+def render_verification_code_email(
+    user_name: str,
+    code: str,
+    expire_minutes: int = 15,
+    platform_name: str | None = None,
+    lang: str = "zh-CN",
+) -> tuple[str, str, str]:
+    """
+    渲染验证码邮件（密码重置用） / Render verification code email (for password reset).
+
+    Returns:
+        (subject, html_body, text_body)
+    """
+    platform_name = platform_name or _default_platform_name()
+    t = _get_translations(lang)
+    subject = t["verification_code"]["subject"].format(platform_name=platform_name)
+    html, text = render_email("verification_code", {
+        "user_name": user_name,
+        "code": code,
+        "expire_minutes": expire_minutes,
+        "platform_name": platform_name,
+    }, lang=lang)
+    return subject, html, text
+
+
 def render_welcome_email(
     tenant_name: str,
     admin_name: str,
@@ -323,6 +348,13 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
             "ignore_notice": "如果您未请求重置密码，请忽略此邮件。",
             "admin_reset_notice": "您的密码已被平台管理员重置，请使用新密码登录后及时修改。",
         },
+        "verification_code": {
+            "subject": "[{platform_name}] 密码重置验证码",
+            "title": "密码重置验证码",
+            "body": "您正在重置密码，请在重置页面输入以下验证码：",
+            "expire_notice": "验证码将在 {expire_minutes} 分钟后失效。",
+            "ignore_notice": "如果您未请求重置密码，请忽略此邮件。",
+        },
         "welcome": {
             "subject": "欢迎加入 {platform_name}",
             "title": "欢迎加入！",
@@ -372,6 +404,13 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
             "ignore_notice": "If you did not request a password reset, please ignore this email.",
             "admin_reset_notice": "Your password has been reset by the platform administrator. Please log in with the new password and change it promptly.",
         },
+        "verification_code": {
+            "subject": "[{platform_name}] Password Reset Verification Code",
+            "title": "Password Reset Verification Code",
+            "body": "You are resetting your password. Please enter the following verification code on the reset page:",
+            "expire_notice": "The verification code will expire in {expire_minutes} minutes.",
+            "ignore_notice": "If you did not request a password reset, please ignore this email.",
+        },
         "welcome": {
             "subject": "Welcome to {platform_name}",
             "title": "Welcome!",
@@ -409,6 +448,7 @@ __all__ = [
     "render_test_email",
     "render_task_failure_email",
     "render_password_reset_email",
+    "render_verification_code_email",
     "render_welcome_email",
     "render_ssl_expiry_email",
 ]

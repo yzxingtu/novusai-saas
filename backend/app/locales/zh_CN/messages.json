@@ -2303,6 +2303,14 @@
         "name": "每用户最大通知数",
         "desc": "每个用户收件箱中保留的最大通知条数，超出后自动清理最早的通知"
       },
+      "webhook_enabled": {
+        "name": "启用 Webhook 通知",
+        "desc": "是否将通知通过 HTTP POST 推送到配置的 Webhook URL（企业微信、钉钉、Slack 等）"
+      },
+      "webhook_url": {
+        "name": "Webhook URL",
+        "desc": "接收通知的 Webhook 地址，需以 http:// 或 https:// 开头"
+      },
       "platform_default_memory_enabled": {
         "name": "默认开启记忆",
         "desc": "所有智能体的默认记忆开关"

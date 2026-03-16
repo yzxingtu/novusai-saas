@@ -5,7 +5,7 @@ Includes Socket.IO connection params and notification system config.
 """
 
 from app.configs.definitions.groups import PLATFORM_WEBSOCKET_GROUP
-from app.configs.meta import ConfigMeta, DisplayRule
+from app.configs.meta import ConfigMeta, DisplayRule, max_length
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
@@ -109,6 +109,32 @@ NOTIFICATION_MAX_PER_USER = ConfigMeta(
     ],
 )
 
+# Webhook notification toggle / Webhook 通知开关
+WEBHOOK_ENABLED = ConfigMeta(
+    key="webhook_enabled",
+    name_key="config.platform.webhook_enabled.name",
+    description_key="config.platform.webhook_enabled.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=False,
+    sort_order=130,
+)
+
+# Webhook URL / Webhook 地址
+WEBHOOK_URL = ConfigMeta(
+    key="webhook_url",
+    name_key="config.platform.webhook_url.name",
+    description_key="config.platform.webhook_url.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    validation_rules=[max_length(500, "validation.max_length")],
+    sort_order=140,
+    display_rules=[
+        DisplayRule(field="webhook_enabled", operator="equals", value=True, action="show"),
+    ],
+)
+
 
 # ==========================================
 # Register configs to group / 注册配置到分组
@@ -122,6 +148,8 @@ PLATFORM_WEBSOCKET_GROUP.configs = [
     NOTIFICATION_ENABLED,
     NOTIFICATION_RETENTION_DAYS,
     NOTIFICATION_MAX_PER_USER,
+    WEBHOOK_ENABLED,
+    WEBHOOK_URL,
 ]
 
 
@@ -133,4 +161,6 @@ __all__ = [
     "NOTIFICATION_ENABLED",
     "NOTIFICATION_RETENTION_DAYS",
     "NOTIFICATION_MAX_PER_USER",
+    "WEBHOOK_ENABLED",
+    "WEBHOOK_URL",
 ]

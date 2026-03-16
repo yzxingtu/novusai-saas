@@ -4,19 +4,19 @@ overview: 基于 LiteLLM 主数据和 LLMRing 补充数据构建统一模型能�
 todos:
   - id: constants
     content: 在 scheduled.py 增加常量 LLMRING_REGISTRY_BASE、LLMRING_PROVIDERS、REQUEST_TIMEOUT
-    status: pending
+    status: completed
   - id: helpers
     content: 实现 _find_registry_key_for_model_id、_is_valid_litellm_entry、_normalize_llmring_entry、_merge_entry_fill_empty、_build_registry_from_litellm、_merge_llmring_into_registry
-    status: pending
+    status: completed
   - id: sync_task
     content: 将 sync_litellm_registry 改为多源拉取 + 查重合并 + 写 Redis
-    status: pending
+    status: completed
   - id: verify
     content: 确认定时任务仍为每日 4:00，cron 不变
-    status: pending
+    status: completed
   - id: optional_lookup
     content: 可选 在 model_capability_lookup._find_entry 中扩展 common_prefixes
-    status: pending
+    status: completed
 isProject: false
 ---
 

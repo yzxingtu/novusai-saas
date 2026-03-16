@@ -1526,9 +1526,33 @@ class AuthService:
         # 设置频率限制
         await cache_set(rate_key, True, ttl=self.RESET_RATE_LIMIT_TTL)
 
-        # TODO: 通过邮件发送验证码（集成邮件服务后实现）
-        logger.info(f"Password reset code generated for user {user.id} (tenant={tenant_id})")
+        # 通过邮件发送验证码 / Send verification code via email
+        expire_minutes = self.RESET_CODE_TTL // 60
+        try:
+            from app.services.common.email_templates import render_verification_code_email
+            from app.tasks.email import send_email_task
 
+            user_name = (user.nickname or user.username or "").strip()
+            subject, html_body, text_body = render_verification_code_email(
+                user_name=user_name or email,
+                code=code,
+                expire_minutes=expire_minutes,
+            )
+            send_email_task.delay(
+                to=[email],
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+                triggered_by="password_reset",
+                tenant_id=tenant_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to queue verification code email: user_id={} tenant_id={} error={}",
+                user.id, tenant_id, str(e),
+            )
+
+        logger.info(f"Password reset code generated for user {user.id} (tenant={tenant_id})")
         return {"message": _("auth.reset_code_sent")}
 
     async def reset_tenant_user_password(
