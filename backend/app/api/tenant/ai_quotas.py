@@ -71,9 +71,9 @@ class TenantAIQuotaController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            model_id: int | None = Query(None, description="模型 ID"),
-            period: str | None = Query(None, description="周期"),
-            include_usage: bool = Query(False, description="是否包含使用量"),
+            model_id: int | None = Query(None, description=_("api.param.model_id")),
+            period: str | None = Query(None, description=_("api.param.period")),
+            include_usage: bool = Query(False, description=_("api.param.include_usage")),
         ):
             """
             获取企业配额配置列表 / Get tenant quota config list
@@ -123,7 +123,7 @@ class TenantAIQuotaController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            model_id: int | None = Query(None, description="模型 ID"),
+            model_id: int | None = Query(None, description=_("api.param.model_id")),
         ):
             """
             获取速率限制配置列表 / Get rate limit config list

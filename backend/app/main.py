@@ -57,6 +57,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
         logger.info(f"Environment: {settings.APP_ENV}")
         logger.info(f"Debug mode: {settings.DEBUG}")
+        if not settings.DEBUG and settings.SECRET_KEY == "your-secret-key-change-in-production":
+            logger.warning("SECURITY WARNING: SECRET_KEY is using the default value! Change it in production.")
 
         # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
         if not await init_database():
@@ -106,8 +108,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
                         await _perm_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _perm_lock_key, _perm_owner)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Redis perm_sync lock release failed: {}", exc)
         else:
             logger.debug("Permission sync: skipped (another worker is syncing)")
 
@@ -146,8 +148,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
                         await _cfg_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, "plugin:startup:config_sync_lock", _cfg_owner)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Redis lock release failed: {}", exc)
 
         # Sync AI table policies (auto-discover new tables and create default policies)
         # 同步 AI 表策略（自动发现新表并创建默认策略）
@@ -180,8 +182,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     try:
                         from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
                         await _tp_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, "plugin:startup:table_policy_lock", _tp_owner)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Redis lock release failed: {}", exc)
 
         # Initialize Redis connection / 初始化 Redis 连接
         from app.core.redis import RedisManager
@@ -289,8 +291,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                             from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
 
                             await _redis_client.eval(_UNLOCK_IF_OWNER_LUA, 1, _discover_lock_key, _discover_owner)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Redis plugin discover lock release failed: {}", exc)
             else:
                 logger.info("Plugin discover: skipped (another worker is running discovery)")
 
@@ -334,8 +336,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                             from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
 
                             await _restore_redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _restore_lock_key, _restore_owner)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Redis plugin restore lock release failed: {}", exc)
             else:
                 # Non-owner worker waits for owner heavy restore to complete, then does in-process registration
                 # 非 owner worker 等待 owner 重恢复完成，再进行本 worker 进程内注册
@@ -414,8 +416,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                             _UNLOCK_IF_OWNER_LUA, 1,
                             "plugin:startup:plugin_perm_sync_lock", _plugin_perm_owner,
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Redis plugin perm sync lock release failed: {}", exc)
 
         # Check if configured storage driver is available / 检查配置的存储驱动是否可用
         try:

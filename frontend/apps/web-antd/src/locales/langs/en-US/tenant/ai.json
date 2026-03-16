@@ -139,6 +139,7 @@
   "agent": {
     "readonlyHint": "This agent is assigned by admin. You can view and chat, but cannot edit configuration.",
     "title": "Agent Management",
+    "entityDescription": "Manage AI agent configuration and publish status",
     "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
     "detail": {
       "title": "Agent Detail",

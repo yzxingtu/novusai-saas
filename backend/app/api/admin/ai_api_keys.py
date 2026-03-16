@@ -178,7 +178,7 @@ class AdminAIApiKeyController(GlobalController):
             db: DbSession,
             provider_id: int,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="企业 ID"),
+            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
         ):
             """
             根据供应商 ID 获取其所有 API Key / Get all API Keys by provider ID

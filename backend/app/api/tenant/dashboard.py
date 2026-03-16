@@ -11,6 +11,7 @@
 from fastapi import APIRouter, Query
 
 from app.core.deps import ActiveTenantAdmin, DbSession
+from app.core.i18n import _
 from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.services.system.dashboard_service import TenantDashboardService
@@ -43,7 +44,7 @@ async def get_tenant_dashboard_stats(
 async def get_ai_trend(
     db: DbSession,
     current_admin: ActiveTenantAdmin,
-    days: int = Query(7, ge=1, le=90, description="天数"),
+    days: int = Query(7, ge=1, le=90, description=_("api.param.days")),
 ):
     """B2: 近 N 天每日 AI 调用量 + Token 量 / Last N days daily AI calls + token usage"""
     service = TenantDashboardService(db, current_admin.tenant_id)
@@ -68,7 +69,7 @@ async def get_storage_detail(
 async def get_recent_activities(
     db: DbSession,
     current_admin: ActiveTenantAdmin,
-    limit: int = Query(20, ge=1, le=100, description="返回条数"),
+    limit: int = Query(20, ge=1, le=100, description=_("api.param.limit")),
 ):
     """B4: 最近 N 条操作日志 / Last N operation logs"""
     service = TenantDashboardService(db, current_admin.tenant_id)

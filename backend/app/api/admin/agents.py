@@ -266,7 +266,7 @@ class AdminAgentController(GlobalController):
             db: DbSession,
             agent_id: int,
             admin: ActiveAdmin,
-            status: str = Query(..., description="目标状态: disabled / draft / published"),
+            status: str = Query(..., description=_("api.param.status_target")),
         ):
             """
             管理员更新智能体状态（启用/禁用） / Admin update agent status (enable/disable)

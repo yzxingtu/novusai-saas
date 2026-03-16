@@ -392,7 +392,7 @@ class AdminKnowledgeBaseController(GlobalController):
             db: DbSession,
             kb_id: int,
             admin: ActiveAdmin,
-            file: UploadFile = File(..., description="上传的文档文件"),
+            file: UploadFile = File(..., description=_("api.param.doc_file")),
         ):
             """
             上传文档到知识库 / Upload document to knowledge base
@@ -1079,7 +1079,7 @@ class AdminKnowledgeBaseController(GlobalController):
             db: DbSession,
             kb_id: int,
             admin: ActiveAdmin,
-            urls: list[str] = Form(..., description="URL 列表"),
+            urls: list[str] = Form(..., description=_("api.param.urls")),
         ):
             """
             通过 URL 导入网页内容 / Import web content via URL

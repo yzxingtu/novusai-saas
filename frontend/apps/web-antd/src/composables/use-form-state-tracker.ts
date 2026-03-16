@@ -49,7 +49,9 @@ export interface FormState {
 export interface TrackableFormApi {
   getValues: () => Promise<Record<string, unknown>>;
   setValues: (values: Record<string, unknown>) => void;
-  validate: () => Promise<{ valid: boolean }>;
+  validate: () => Promise<{ valid: boolean } | { valid: boolean; errors?: Record<string, unknown> }>;
+  /** Optional: programmatic form submit (e.g. trigger drawer onConfirm) / 可选：程序化表单提交 */
+  submitForm?: () => Promise<void>;
 }
 
 interface TrackerEntry {

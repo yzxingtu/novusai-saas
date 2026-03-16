@@ -203,7 +203,7 @@ class AdminAIConversationController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             query: QueryParams,
-            tenant_id: int | None = Query(None, description="按企业筛选"),
+            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
         ):
             """
             获取全企业对话列表 / Get cross-tenant conversation list

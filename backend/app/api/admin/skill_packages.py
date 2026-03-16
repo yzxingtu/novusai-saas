@@ -98,8 +98,8 @@ class AdminSkillPackageController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词 / Search keyword"),
-            include_system: bool = Query(False, description="是否包含系统包（用于智能体绑定） / Include system packages (for agent binding)"),
+            search: str = Query("", description=_("api.param.search")),
+            include_system: bool = Query(False, description=_("api.param.include_system")),
         ):
             """
             获取技能包下拉选项（用于 Skill 创建时选择所属包）/ Get skill package select options (for Skill create).
@@ -598,7 +598,7 @@ class AdminSkillPackageController(GlobalController):
             db: DbSession,
             package_id: int,
             admin: ActiveAdmin,
-            days: int = Query(7, ge=1, le=90, description="统计天数"),
+            days: int = Query(7, ge=1, le=90, description=_("api.param.days")),
         ):
             """
             获取技能包内所有技能的调用统计 / Get call statistics for all skills in the package.

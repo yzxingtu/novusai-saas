@@ -28,10 +28,10 @@ from app.repositories.common.notification_template_repository import (
 
 class UpdateTemplateRequest(BaseModel):
     """更新通知模板请求 / Update notification template request"""
-    channels: list[str] | None = Field(None, description="投递渠道列表")
-    priority: str | None = Field(None, description="优先级: low/normal/high/urgent")
-    title_template: str | None = Field(None, description="标题模板")
-    body_template: str | None = Field(None, description="正文模板")
+    channels: list[str] | None = Field(None, description=_("api.param.channels"))
+    priority: str | None = Field(None, description=_("api.param.priority"))
+    title_template: str | None = Field(None, description=_("api.param.title_template"))
+    body_template: str | None = Field(None, description=_("api.param.body_template"))
 
 
 @permission_resource(

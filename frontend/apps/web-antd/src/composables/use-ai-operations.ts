@@ -29,6 +29,7 @@ import type { VbenFormSchema } from '#/core/adapter/form/setup';
 
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
+import { requestClient } from '#/utils/request';
 import { formStateTracker } from './use-form-state-tracker';
 
 // ============ Types / 类型定义 ============
@@ -177,8 +178,7 @@ export function extractSearchParams(
       continue;
     }
 
-    // Filter field: filter[field] or filter[field][op]
-    // JSON:API 过滤字段
+    // Filter field: filter[field] or filter[field][op] / JSON:API 过滤字段
     const filterMatch = fieldName.match(/^filter\[([^\]]+)\](?:\[[^\]]+\])?$/);
     if (filterMatch) {
       const field = filterMatch[1]!;
@@ -401,13 +401,13 @@ export async function resolveRemoteOptions(
 
     const cacheKey = buildOptionsCacheKey(resource, fieldName);
 
-    // Return cached / 直接用缓存
+    // Return cached / 直接返回缓存
     if (_remoteOptionsCache.has(cacheKey)) {
       result.set(fieldName, _remoteOptionsCache.get(cacheKey)!);
       continue;
     }
 
-    // Deduplicate in-flight requests / 去重正在进行的请求
+    // Deduplicate in-flight requests / 去重进行中的请求 / 去重正在进行的请求
     if (_remoteOptionsPending.has(cacheKey)) {
       tasks.push({ fieldName, promise: _remoteOptionsPending.get(cacheKey)! });
       continue;
@@ -536,7 +536,7 @@ async function buildFillFormFeedback(
   try {
     actualValues = await trackedApi.getValues();
   } catch {
-    // Form may not be ready — return optimistic feedback
+    // Form may not be ready — return optimistic feedback / 表单可能未就绪，返回乐观反馈
     const feedback: Record<string, FieldFeedback> = {};
     for (const [k, v] of Object.entries(requestedValues)) {
       feedback[k] = { requested: v, actual: v, match: true };
@@ -676,7 +676,7 @@ export function createStandardOperations(
 
   const operations: PageOperation[] = [];
 
-  // ── 1. refresh_list ──
+  // ── 1. refresh_list — Reload list / 刷新列表 ──
   if (!isDisabled('refresh_list')) {
     operations.push({
       name: 'refresh_list',
@@ -691,7 +691,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 2. search (only if searchSchema provides fields) ──
+  // ── 2. search — Search (needs searchSchema) / 搜索，需 searchSchema ──
   if (!isDisabled('search') && Object.keys(searchParamsMap).length > 0) {
     operations.push({
       name: 'search',
@@ -729,7 +729,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 3. clear_search (only if searchSchema provides fields) ──
+  // ── 3. clear_search — Clear search (needs searchSchema) / 清空搜索，需 searchSchema ──
   if (!isDisabled('clear_search') && Object.keys(searchParamsMap).length > 0) {
     operations.push({
       name: 'clear_search',
@@ -741,14 +741,13 @@ export function createStandardOperations(
         onSearch({});
         return {
           success: true,
-          message:
-            'Search cleared, showing all data / 搜索条件已清空，显示全部数据',
+          message: $t('shared.pageOperation.msg.searchCleared'),
         };
       },
     });
   }
 
-  // ── 4. create_record (only if formSchema + formPopupApi are available) ──
+  // ── 4. create_record — Create record (needs formSchema + formPopupApi) / 新建记录 ──
   if (!isDisabled('create_record') && formPopupApi && formSchema) {
     operations.push({
       name: 'create_record',
@@ -790,7 +789,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 5. edit_record (only if formSchema + formPopupApi are available) ──
+  // ── 5. edit_record — Edit record (needs formSchema + formPopupApi) / 编辑记录 ──
   if (!isDisabled('edit_record') && formPopupApi && formSchema) {
     const editOpParams: Record<string, unknown> = {
       id: {
@@ -860,14 +859,48 @@ export function createStandardOperations(
           success: true,
           message:
             changed.length > 0
-              ? `Edit form opened for id=${id}, pre-filled: ${changed.join(', ')}. Please review and submit. / 编辑表单已打开 (id=${id})，已预填：${changed.join(', ')}，请确认后提交。`
-              : `Edit form opened for id=${id}. / 编辑表单已打开 (id=${id})。`,
+              ? $t('shared.pageOperation.msg.editFormOpened', { id, fields: changed.join(', ') })
+              : $t('shared.pageOperation.msg.editFormOpenedEmpty', { id }),
         };
       },
     });
   }
 
-  // ── 6. navigate_to_detail (only if detailRoute is provided) ──
+  // ── 5b. delete_record — Delete by ID (same condition as edit_record) / 按 ID 删除记录 ──
+  if (!isDisabled('delete_record') && formSchema && formPopupApi) {
+    operations.push({
+      name: 'delete_record',
+      label: $t('shared.pageOperation.deleteRecord'),
+      description: 'Delete a record by ID. Requires user confirmation. / 按 ID 删除记录。需用户确认。',
+      readonly: false,
+      params: {
+        id: {
+          type: 'number',
+          description: 'Record ID to delete / 要删除的记录 ID',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const id = params.id;
+        if (id == null) {
+          return { success: false, message: $t('shared.pageOperation.msg.missingIdParam') };
+        }
+        try {
+          await requestClient.delete(`${resource}/${id}`, {
+            showSuccessMessage: true,
+            showCodeMessage: false,
+          });
+          await loadList();
+          return { success: true, message: $t('shared.pageOperation.msg.recordDeleted', { id }) };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { success: false, message: msg };
+        }
+      },
+    });
+  }
+
+  // ── 6. navigate_to_detail — Navigate to detail (needs detailRoute) / 跳转详情页 ──
   if (!isDisabled('navigate_to_detail') && detailRoute) {
     operations.push({
       name: 'navigate_to_detail',
@@ -899,7 +932,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 7. view_recycle_bin (only if hasRecycleBin=true) ──
+  // ── 7. view_recycle_bin — Open recycle bin (needs hasRecycleBin) / 打开回收站 ──
   if (!isDisabled('view_recycle_bin') && hasRecycleBin && openRecycleBin) {
     operations.push({
       name: 'view_recycle_bin',
@@ -916,7 +949,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 8. get_form_state (if formSchema + formApi are available) ──
+  // ── 8. get_form_state — Get form state (needs formSchema + pageKey) / 获取表单状态 ──
   if (!isDisabled('get_form_state') && formSchema && optsPageKey) {
     operations.push({
       name: 'get_form_state',
@@ -929,8 +962,8 @@ export function createStandardOperations(
         return {
           success: true,
           message: state.isOpen
-            ? `Form is open in ${state.mode} mode / 表单已打开，模式：${state.mode}`
-            : 'Form is not open / 表单未打开',
+            ? $t('shared.pageOperation.msg.formIsOpen', { mode: state.mode })
+            : $t('shared.pageOperation.msg.formNotOpen'),
           data: {
             isOpen: state.isOpen,
             mode: state.mode,
@@ -944,7 +977,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 9. fill_form (if formSchema + formApi are available) ──
+  // ── 9. fill_form — Fill form (needs formSchema + pageKey) / 填充表单 ──
   if (!isDisabled('fill_form') && formSchema && optsPageKey) {
     operations.push({
       name: 'fill_form',
@@ -1008,7 +1041,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 10. validate_form ──
+  // ── 10. validate_form — Trigger validation / 校验表单 ──
   if (!isDisabled('validate_form') && formSchema && optsPageKey) {
     operations.push({
       name: 'validate_form',
@@ -1043,7 +1076,56 @@ export function createStandardOperations(
     });
   }
 
-  // ── 11. get_form_options (for remote select fields) ──
+  // ── 10b. submit_form — Submit form (same condition as fill_form) / 提交表单 ──
+  if (!isDisabled('submit_form') && formSchema && optsPageKey) {
+    operations.push({
+      name: 'submit_form',
+      label: $t('shared.pageOperation.submitForm'),
+      description:
+        'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
+      readonly: false,
+      handler: async () => {
+        if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formNotOpen'),
+          };
+        }
+        const trackedApi = formStateTracker.getFormApi(optsPageKey);
+        if (!trackedApi) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+          };
+        }
+        const validResult = await trackedApi.validate();
+        const valid = validResult && (validResult as { valid?: boolean }).valid !== false;
+        const errors = (validResult as { errors?: Record<string, unknown> })?.errors;
+        if (!valid && errors && Object.keys(errors).length > 0) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.validationFailedMsg'),
+            data: { errors },
+          };
+        }
+        if (trackedApi.submitForm) {
+          try {
+            await trackedApi.submitForm();
+            return { success: true, message: $t('shared.pageOperation.msg.formSubmittedSuccess') };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            return { success: false, message: msg };
+          }
+        }
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+        };
+      },
+    });
+  }
+
+  // ── 11. get_form_options — Remote select options / 远程下拉选项 ──
   if (!isDisabled('get_form_options') && formSchema && optsPageKey) {
     const remoteFields = Object.entries(formParamsMap)
       .filter(([_, desc]) => desc.optionsSource === 'remote')
@@ -1159,7 +1241,7 @@ export function createFormOperations(
 
   const operations: PageOperation[] = [];
 
-  // get_form_state
+  // get_form_state / 获取表单状态
   operations.push({
     name: 'get_form_state',
     label: $t('shared.pageOperation.getFormState'),
@@ -1171,8 +1253,8 @@ export function createFormOperations(
       return {
         success: true,
         message: state.isOpen
-          ? `Form is open in ${state.mode} mode / 表单已打开，模式：${state.mode}`
-          : 'Form is not open / 表单未打开',
+          ? $t('shared.pageOperation.msg.formIsOpen', { mode: state.mode })
+          : $t('shared.pageOperation.msg.formNotOpen'),
         data: {
           isOpen: state.isOpen,
           mode: state.mode,
@@ -1185,7 +1267,7 @@ export function createFormOperations(
     },
   });
 
-  // fill_form
+  // fill_form / 填充表单
   operations.push({
     name: 'fill_form',
     label: $t('shared.pageOperation.fillForm'),
@@ -1246,7 +1328,7 @@ export function createFormOperations(
     },
   });
 
-  // validate_form
+  // validate_form / 校验表单
   operations.push({
     name: 'validate_form',
     label: $t('shared.pageOperation.validateForm'),
@@ -1279,7 +1361,54 @@ export function createFormOperations(
     },
   });
 
-  // get_form_options (for remote select fields)
+  // submit_form / 提交表单
+  operations.push({
+    name: 'submit_form',
+    label: $t('shared.pageOperation.submitForm'),
+    description:
+      'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
+    readonly: false,
+    handler: async () => {
+      if (!formStateTracker.isOpenWithFallback(pageKey)) {
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.formNotOpen'),
+        };
+      }
+      const trackedApi = formStateTracker.getFormApi(pageKey);
+      if (!trackedApi) {
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+        };
+      }
+      const validResult = await trackedApi.validate();
+      const valid = validResult && (validResult as { valid?: boolean }).valid !== false;
+      const errors = (validResult as { errors?: Record<string, unknown> })?.errors;
+      if (!valid && errors && Object.keys(errors).length > 0) {
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.validationFailedMsg'),
+          data: { errors },
+        };
+      }
+      if (trackedApi.submitForm) {
+        try {
+          await trackedApi.submitForm();
+          return { success: true, message: $t('shared.pageOperation.msg.formSubmittedSuccess') };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { success: false, message: msg };
+        }
+      }
+      return {
+        success: false,
+        message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+      };
+    },
+  });
+
+  // get_form_options / 获取远程下拉选项
   const remoteFields = Object.entries(formParamsMap)
     .filter(([_, desc]) => desc.optionsSource === 'remote')
     .map(([key]) => key);

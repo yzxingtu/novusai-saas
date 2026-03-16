@@ -15,6 +15,9 @@ from jose import ExpiredSignatureError, JWTError, jwt
 
 from app.core.base_model import utc_now
 from app.core.config import settings
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app.core.security")
 
 # Token 类型常量 / Token type constants
 TOKEN_TYPE_ACCESS = "access"
@@ -131,8 +134,8 @@ async def revoke_token(jti: str, ttl_seconds: int) -> None:
         client = get_redis_client()
         key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
         await client.setex(key, ttl_seconds, "1")
-    except Exception:
-        pass  # Redis 不可用时静默失败，Token 将在自然过期后失效
+    except Exception as exc:
+        logger.debug("Token blacklist add failed: {}", exc)  # Redis 不可用时静默失败，Token 将在自然过期后失效
 
 
 def _decode_token_no_blacklist(token: str) -> dict[str, Any] | None:

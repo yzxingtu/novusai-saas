@@ -60,7 +60,7 @@ class TenantSkillPackageController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            search: str = Query("", description="搜索关键词"),
+            search: str = Query("", description=_("api.param.search")),
         ):
             """
             获取技能包下拉选项（用于 Skill 创建时选择所属包）/ Get skill package select options (for Skill create).

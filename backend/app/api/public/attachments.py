@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from app.core.deps import DbSession
+from app.core.i18n import _
 from app.rbac.decorators import public
 from app.services.common import ImageProcessService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
@@ -45,8 +46,8 @@ async def access_attachment(
     db: DbSession,
     token: str | None = None,
     preview: bool = Query(False),
-    exp: str | None = Query(None, description="签名过期时间戳"),
-    sign: str | None = Query(None, description="HMAC 签名"),
+    exp: str | None = Query(None, description=_("api.param.sig_exp")),
+    sign: str | None = Query(None, description=_("api.param.sig_hmac")),
 ):
     if sign or exp:
         AttachmentDownloadService.verify_access_sign(attachment_id, exp, sign)
@@ -81,15 +82,14 @@ async def get_processed_image(
     attachment_id: int,
     db: DbSession,
     token: str | None = None,
-    exp: str | None = Query(None, description="签名过期时间戳"),
-    sign: str | None = Query(None, description="HMAC 签名"),
-    # 图片处理参数 / Image processing parameters
-    w: int | None = Query(None, ge=1, le=4096, description="宽度 / Width"),
-    h: int | None = Query(None, ge=1, le=4096, description="高度 / Height"),
-    q: int | None = Query(None, ge=1, le=100, description="质量 / Quality"),
-    f: Literal["jpg", "png", "webp", "gif"] | None = Query(None, description="格式 / Format"),
-    m: Literal["fit", "fill", "crop", "pad"] | None = Query(None, description="模式 / Mode"),
-    p: str | None = Query(None, description="预设 / Preset (thumb/avatar/preview/banner/small/medium/large)"),
+    exp: str | None = Query(None, description=_("api.param.sig_exp")),
+    sign: str | None = Query(None, description=_("api.param.sig_hmac")),
+    w: int | None = Query(None, ge=1, le=4096, description=_("api.param.img_width")),
+    h: int | None = Query(None, ge=1, le=4096, description=_("api.param.img_height")),
+    q: int | None = Query(None, ge=1, le=100, description=_("api.param.img_quality")),
+    f: Literal["jpg", "png", "webp", "gif"] | None = Query(None, description=_("api.param.img_format")),
+    m: Literal["fit", "fill", "crop", "pad"] | None = Query(None, description=_("api.param.img_mode")),
+    p: str | None = Query(None, description=_("api.param.img_preset")),
 ):
     """
     动态图片处理端点 / Dynamic image processing endpoint

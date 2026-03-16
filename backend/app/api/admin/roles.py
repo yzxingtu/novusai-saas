@@ -602,10 +602,10 @@ class AdminRoleController(GlobalController):
             db: DbSession,
             role_id: int,
             current_admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词（用户名/昵称/邮箱）"),
-            page: int = Query(1, ge=1, alias="page[number]", description="页码"),
-            page_size: int = Query(20, ge=1, le=100, alias="page[size]", description="每页数量"),
-            include_descendants: bool = Query(True, description="是否包含子节点成员"),
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(1, ge=1, alias="page[number]", description=_("api.param.page")),
+            page_size: int = Query(20, ge=1, le=100, alias="page[size]", description=_("api.param.page_size")),
+            include_descendants: bool = Query(True, description=_("api.param.include_descendants")),
         ):
             """
             获取节点成员列表（分页 + 搜索 + 递归子节点） / Get node members (paginated + search + recursive children)

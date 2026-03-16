@@ -54,6 +54,8 @@ export function setupAriaHiddenFix(): void {
   });
 
   // Delay starting the observer to wait for the DOM to be ready
+  // Global lifetime observer, intentionally no disconnect() — active for entire app lifecycle
+  // 全局生命周期 observer，无需 disconnect，应用存活期间持续生效
   setTimeout(() => {
     observer.observe(document.body, {
       attributes: true,

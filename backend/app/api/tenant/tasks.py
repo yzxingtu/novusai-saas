@@ -75,7 +75,7 @@ class TenantTaskLogController(TenantController):
             request: Request,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
-            days: int = Query(7, ge=1, le=30, description="统计天数"),
+            days: int = Query(7, ge=1, le=30, description=_("api.param.days")),
         ):
             service = TenantTaskLogService(db, current_admin.tenant_id)
             end_date = utc_now()

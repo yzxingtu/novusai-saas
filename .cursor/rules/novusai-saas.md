@@ -77,6 +77,16 @@ const canEdit = row.scope === 'all_tenants';
 - 组件：统一用 `IconifyIcon`
 - Tailwind 类：`icon-[lucide--user]`（`--` 代替 `:`）
 
+### Vue 应用启动
+
+- 必须在 `bootstrap.ts` 配置 `app.config.errorHandler`，统一捕获组件渲染异常，避免白屏
+
+### AI 页面操作
+
+- 页面操作 handler 返回的 `message` 必须用 `$t('shared.pageOperation.msg.xxx')`，禁止硬编码中英文
+- **pageop_ 优先**：有 `pageop_*` 专用工具时优先使用，仅不可用时回退到 `invoke_page_operation`
+- **JSON 参数容错**：`invoke_page_operation` 参数 JSON 解析失败连续 3 次后中止 tool loop，避免无限重试
+
 ### 命名
 
 - 目录/TS 文件：kebab-case
@@ -140,6 +150,7 @@ error(message, code, status_code)         # 自定义错误
 - 方法装饰器：`@action_read` / `@action_create` / `@action_update` / `@action_delete`
 - 公开接口：`@public`
 - 仅登录：`@auth_only`
+- **导入顺序影响权限注册**：`admin/__init__.py` 中父资源 Controller 必须先于子资源导入，否则权限树 parent_id 可能为 null
 
 ### 异常
 
@@ -235,6 +246,8 @@ Loguru 使用 `{}` 风格，禁止 `%s`/`%d`：`logger.info("id={}", x)` 而不�
 
 - `DEBUG` 默认值必须为 `False`
 - CORS 禁止 `allow_origins=["*"]` 且 `allow_credentials=True`
+- 登录、注册、忘记密码等公开认证端点必须使用 `check_login_rate_limit` 进行 IP 限流
+- 非 DEBUG 环境启动时，若 `SECRET_KEY` 仍为默认值，必须输出 SECURITY WARNING 日志
 - 依赖以 `pyproject.toml` 为单一事实来源，与 `requirements.txt` 同步
 - 列表/导出 API 必须有合理 `.limit()` 上限
 - 文件句柄必须用 `with` 或确保关闭

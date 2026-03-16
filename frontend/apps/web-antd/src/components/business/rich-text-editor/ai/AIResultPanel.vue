@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import { Button } from 'ant-design-vue';
+import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import { $t } from '@vben/locales';
 
@@ -29,7 +30,8 @@ const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 const renderedHTML = computed(() => {
   if (!props.result) return '';
-  return md.render(props.result);
+  const raw = md.render(props.result);
+  return DOMPurify.sanitize(raw);
 });
 
 const maxH = computed(() => {

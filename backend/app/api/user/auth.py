@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.deps import ActiveTenantUser, DbSession
+from app.core.rate_limit import check_login_rate_limit
 from app.core.i18n import _
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
@@ -54,6 +55,9 @@ async def login_oauth2(
     - **username**: 用户名或邮箱 / Username or email
     - **password**: 密码 / Password
     """
+    rate_limited = check_login_rate_limit(request)
+    if rate_limited:
+        return rate_limited
     auth_service = AuthService(db)
     form = await request.form()
 
@@ -92,6 +96,9 @@ async def login_json(
     - **username**: 用户名或邮箱 / Username or email
     - **password**: 密码 / Password
     """
+    rate_limited = check_login_rate_limit(request)
+    if rate_limited:
+        return rate_limited
     auth_service = AuthService(db)
 
     # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback

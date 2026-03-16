@@ -97,10 +97,10 @@ class AdminTenantController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词 / Search keyword"),
-            is_active: str = Query("", description="筛选状态，默认仅启用 / Filter status, default active only"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页） / Page number (0=no pagination, >=1=paginated)"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量 / Items per page"),
+            search: str = Query("", description=_("api.param.search")),
+            is_active: str = Query("", description=_("api.param.is_active")),
+            page: int = Query(0, ge=0, description=_("api.param.page")),
+            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
         ):
             """
             获取企业下拉选项 / Get tenant dropdown options

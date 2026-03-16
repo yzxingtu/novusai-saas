@@ -92,7 +92,7 @@ const {
     pageKey: AI_PAGE_KEY,
     formSchema: (isEdit?: boolean) => useFormSchema(!(isEdit ?? false)),
     entityName: $t('tenant.ai.agent.name'),
-    entityDescription: '管理 AI 智能体的配置和发布状态',
+    entityDescription: $t('tenant.ai.agent.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     contextExtras: () => ({
       published: stats.value.published,

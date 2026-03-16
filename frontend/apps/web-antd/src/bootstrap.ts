@@ -52,6 +52,10 @@ async function bootstrap(namespace: string) {
 
   const app = createApp(App);
 
+  app.config.errorHandler = (err, instance, info) => {
+    console.warn(`[Vue Error] ${info}:`, err);
+  };
+
   // 注册v-loading指令
   registerLoadingDirective(app, {
     loading: 'loading', // 在这里可以自定义指令名称，也可以明确提供false表示不注册这个指令

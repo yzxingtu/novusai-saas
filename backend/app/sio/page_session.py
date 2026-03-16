@@ -149,7 +149,7 @@ class PageSessionMixin:
         data: dict[str, Any] | None = None,
     ) -> None:
         """Frontend returns operation execution result / 前端回传操作执行结果"""
-        _ = sid
+        _sid = sid  # noqa: F841
         if not data or not data.get("invoke_id"):
             return
         invoke_id = data["invoke_id"]
@@ -188,7 +188,7 @@ async def invoke_page_operation(
         params: Operation params / 操作参数
         requires_confirmation: Whether user confirmation is needed / 是否需要用户确认
         tool_call_id: Tool call ID for frontend to associate confirmation card with message / 工具调用 ID，供前端将确认卡片关联到对应消息
-        timeout: Timeout (seconds), default 30s / 超时时间（秒），默认 30s
+        timeout: Timeout (seconds), default 60s / 超时时间（秒），默认 60s
         namespace: Socket.IO namespace, None broadcasts to all namespaces / Socket.IO namespace，None 时向所有 namespace 广播
 
     Returns:

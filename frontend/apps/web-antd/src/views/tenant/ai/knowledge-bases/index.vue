@@ -71,7 +71,7 @@ const {
     pageKey: AI_PAGE_KEY,
     formSchema: useFormSchema,
     entityName: $t('tenant.knowledgeBase.name'),
-    entityDescription: '管理知识库的配置和文档',
+    entityDescription: $t('tenant.knowledgeBase.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     extra: [
       {

@@ -82,7 +82,7 @@ class AdminTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            days: int = Query(7, ge=1, le=30, description="统计天数"),
+            days: int = Query(7, ge=1, le=30, description=_("api.param.days")),
         ):
             service = self.get_service(db)
             end_date = utc_now()
@@ -114,7 +114,7 @@ class AdminTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_log_id: int = Path(..., description="任务日志 ID"),
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
         ):
             service = self.get_service(db)
             task_log = await service.get_by_id(task_log_id)
@@ -128,7 +128,7 @@ class AdminTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_log_id: int = Path(..., description="任务日志 ID"),
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
             body: TaskRetryRequest | None = None,
         ):
             service = self.get_service(db)
@@ -147,7 +147,7 @@ class AdminTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_log_id: int = Path(..., description="任务日志 ID"),
+            task_log_id: int = Path(..., description=_("api.param.task_log_id")),
         ):
             service = self.get_service(db)
             task_log = await service.get_by_id(task_log_id)

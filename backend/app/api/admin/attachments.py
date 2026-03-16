@@ -123,7 +123,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: AttachmentPreflightRequest,
-            tenant_id: int = Query(0, ge=0, description="目标企业 ID，0 表示平台附件"),
+            tenant_id: int = Query(0, ge=0, description=_("api.param.tenant_id")),
         ):
             """
             预检文件是否已存在 / Check if file already exists (preflight)
@@ -168,11 +168,11 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            file: UploadFile = File(..., description="上传的文件"),
-            tenant_id: int = Form(0, ge=0, description="目标企业 ID，0 表示平台附件"),
-            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
-            business_type: str | None = Form(None, description="业务类型"),
-            business_id: int | None = Form(None, description="业务 ID"),
+            file: UploadFile = File(..., description=_("api.param.file")),
+            tenant_id: int = Form(0, ge=0, description=_("api.param.tenant_id")),
+            visibility: str = Form("", description=_("api.param.visibility")),
+            business_type: str | None = Form(None, description=_("api.param.business_type")),
+            business_id: int | None = Form(None, description=_("api.param.business_id")),
         ):
             """
             平台端上传附件 / Platform upload attachment
@@ -220,11 +220,11 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            files: list[UploadFile] = File(..., description="上传的文件列表（最多 20 个）"),
-            tenant_id: int = Form(0, ge=0, description="目标企业 ID，0 表示平台附件"),
-            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
-            business_type: str | None = Form(None, description="业务类型"),
-            business_id: int | None = Form(None, description="业务 ID"),
+            files: list[UploadFile] = File(..., description=_("api.param.files")),
+            tenant_id: int = Form(0, ge=0, description=_("api.param.tenant_id")),
+            visibility: str = Form("", description=_("api.param.visibility")),
+            business_type: str | None = Form(None, description=_("api.param.business_type")),
+            business_id: int | None = Form(None, description=_("api.param.business_id")),
         ):
             """
             平台端批量上传附件 / Platform batch upload attachments
@@ -328,8 +328,8 @@ class AdminAttachmentController(GlobalController):
             upload_id: str,
             db: DbSession,
             current_admin: ActiveAdmin,
-            chunk_index: int = Form(..., ge=0, description="分片索引（从 0 开始）"),
-            file: UploadFile = File(..., description="分片数据"),
+            chunk_index: int = Form(..., ge=0, description=_("api.param.chunk_index")),
+            file: UploadFile = File(..., description=_("api.param.chunk_data")),
         ):
             """
             上传分片数据 / Upload chunk data
@@ -418,10 +418,10 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词"),
-            tenant_id: int | None = Query(None, description="企业 ID"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+            search: str = Query("", description=_("api.param.search")),
+            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
+            page: int = Query(0, ge=0, description=_("api.param.page")),
+            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
         ):
             """
             获取附件下拉选项 / Get attachment dropdown options
@@ -449,7 +449,7 @@ class AdminAttachmentController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            tenant_id: int | None = Query(None, description="企业 ID"),
+            tenant_id: int | None = Query(None, description=_("api.param.tenant_id_filter")),
         ):
             """
             获取附件存储统计 / Get attachment storage statistics

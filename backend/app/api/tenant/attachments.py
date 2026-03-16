@@ -166,10 +166,10 @@ class TenantAttachmentController(TenantController):
             request: Request,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
-            file: UploadFile = File(..., description="上传的文件"),
-            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
-            business_type: str | None = Form(None, description="业务类型"),
-            business_id: int | None = Form(None, description="业务 ID"),
+            file: UploadFile = File(..., description=_("api.param.file")),
+            visibility: str = Form("", description=_("api.param.visibility")),
+            business_type: str | None = Form(None, description=_("api.param.business_type")),
+            business_id: int | None = Form(None, description=_("api.param.business_id")),
         ):
             """
             上传附件（普通上传） / Upload attachment (standard upload)
@@ -214,10 +214,10 @@ class TenantAttachmentController(TenantController):
             request: Request,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
-            files: list[UploadFile] = File(..., description="上传的文件列表（最多 20 个）"),
-            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
-            business_type: str | None = Form(None, description="业务类型"),
-            business_id: int | None = Form(None, description="业务 ID"),
+            files: list[UploadFile] = File(..., description=_("api.param.files")),
+            visibility: str = Form("", description=_("api.param.visibility")),
+            business_type: str | None = Form(None, description=_("api.param.business_type")),
+            business_id: int | None = Form(None, description=_("api.param.business_id")),
         ):
             """
             批量上传附件（普通上传，每文件独立处理） / Batch upload attachments (standard upload, each file processed independently)
@@ -320,8 +320,8 @@ class TenantAttachmentController(TenantController):
             upload_id: str,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
-            chunk_index: int = Form(..., ge=0, description="分片索引（从 0 开始）"),
-            file: UploadFile = File(..., description="分片数据"),
+            chunk_index: int = Form(..., ge=0, description=_("api.param.chunk_index")),
+            file: UploadFile = File(..., description=_("api.param.chunk_data")),
         ):
             """
             上传分片数据 / Upload chunk data
@@ -445,9 +445,9 @@ class TenantAttachmentController(TenantController):
             request: Request,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
-            search: str = Query("", description="搜索关键词"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(0, ge=0, description=_("api.param.page")),
+            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
         ):
             """
             获取附件下拉选项 / Get attachment dropdown options

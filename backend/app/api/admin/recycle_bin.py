@@ -329,8 +329,8 @@ async def recycle_bin_list(
     db: DbSession,
     admin: ActiveAdmin,
     query: QueryParams,
-    module: str = Query(..., description="模块代码"),
-    delete_level: str = Query("", description="删除层级筛选：tenant/admin/空=全部"),
+    module: str = Query(..., description=_("api.param.module")),
+    delete_level: str = Query("", description=_("api.param.delete_level")),
 ):
     """
     查询指定模块的已删除记录。

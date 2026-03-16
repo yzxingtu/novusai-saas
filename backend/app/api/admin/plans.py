@@ -95,10 +95,10 @@ class AdminPlanController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            search: str = Query("", description="搜索关键词"),
-            is_active: str = Query("true", description="筛选状态，默认仅启用"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+            search: str = Query("", description=_("api.param.search")),
+            is_active: str = Query("true", description=_("api.param.is_active")),
+            page: int = Query(0, ge=0, description=_("api.param.page")),
+            page_size: int = Query(20, ge=1, le=100, description=_("api.param.page_size")),
         ):
             """
             获取套餐下拉选项 / Get plan dropdown options

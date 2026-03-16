@@ -27,6 +27,8 @@ EDITOR_OPS_TO_EXPAND: frozenset[str] = frozenset({
     "insert_content",
     "append_content",
     "update_title",
+    "insert_table",
+    "manage_link",
 })
 
 PREFIX = "pageop_"

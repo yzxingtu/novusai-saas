@@ -102,9 +102,9 @@ class TenantMiddleware:
         self.app = app
 
     # Path prefixes that need tenant domain resolution / 需要执行企业域名解析的路径前缀
+    # Note: No /api/v1/ routes in this project (API routes use /admin/, /tenant/, /api/user/, /api/public/)
     TENANT_PATHS = (
         "/tenant/",
-        "/api/v1/",
         "/api/user/",
         "/api/public/tenant",
     )

@@ -8,6 +8,7 @@ Provides tenant admin login, logout, token refresh endpoints
 from fastapi import APIRouter, Request
 
 from app.core.deps import ActiveTenantAdmin, DbSession
+from app.core.rate_limit import check_login_rate_limit
 from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
 from app.core.response import success
@@ -51,6 +52,9 @@ async def tenant_admin_login(
     - **username**: 用户名或邮箱 / Username or email
     - **password**: 密码 / Password
     """
+    rate_limited = check_login_rate_limit(request)
+    if rate_limited:
+        return rate_limited
     auth_service = AuthService(db)
 
     # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback

@@ -62,7 +62,7 @@ class TenantAIConfigController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            provider_id: int | None = Query(None, description="供应商 ID"),
+            provider_id: int | None = Query(None, description=_("api.param.provider_id")),
         ):
             """
             获取企业可用的 AI 模型列表 / Get tenant available AI model list

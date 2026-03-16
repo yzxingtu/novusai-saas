@@ -27,36 +27,36 @@ from app.services.system import SystemLogService
 
 class LogCategoryResponse(BaseModel):
     """日志分类响应 / Log category response"""
-    code: str = Field(..., description="分类代码 / Category code")
-    name: str = Field(..., description="分类名称 / Category name")
-    description: str = Field(..., description="分类描述 / Category description")
-    file_count: int = Field(..., description="文件数量 / File count")
-    total_size: int = Field(..., description="总大小（字节） / Total size (bytes)")
+    code: str = Field(..., description=_("api.param.code"))
+    name: str = Field(..., description=_("api.param.name"))
+    description: str = Field(..., description=_("api.param.desc"))
+    file_count: int = Field(..., description=_("api.param.file_count"))
+    total_size: int = Field(..., description=_("api.param.total_size"))
 
 
 class LogFileResponse(BaseModel):
     """日志文件响应 / Log file response"""
-    name: str = Field(..., description="文件名 / Filename")
-    category: str = Field(..., description="分类代码 / Category code")
-    size: int = Field(..., description="文件大小（字节） / File size (bytes)")
-    modified_at: datetime = Field(..., description="最后修改时间 / Last modified time")
-    is_current: bool = Field(..., description="是否为当前活动日志 / Whether this is the current active log")
+    name: str = Field(..., description=_("api.param.filename"))
+    category: str = Field(..., description=_("api.param.code"))
+    size: int = Field(..., description=_("api.param.size"))
+    modified_at: datetime = Field(..., description=_("api.param.modified_at"))
+    is_current: bool = Field(..., description=_("api.param.is_current"))
 
 
 class LogContentResponse(BaseModel):
     """日志内容响应 / Log content response"""
-    lines: list[str] = Field(..., description="日志行内容 / Log line content")
-    total_lines: int = Field(..., description="总行数 / Total lines")
-    page: int = Field(..., description="当前页码 / Current page")
-    page_size: int = Field(..., description="每页行数 / Lines per page")
-    has_more: bool = Field(..., description="是否有更多 / Has more")
+    lines: list[str] = Field(..., description=_("api.param.lines"))
+    total_lines: int = Field(..., description=_("api.param.total_lines"))
+    page: int = Field(..., description=_("api.param.page"))
+    page_size: int = Field(..., description=_("api.param.lines_per_page"))
+    has_more: bool = Field(..., description=_("api.param.has_more"))
 
 
 class LogStatsResponse(BaseModel):
     """日志统计响应 / Log statistics response"""
-    total_files: int = Field(..., description="总文件数 / Total files")
-    total_size: int = Field(..., description="总大小（字节） / Total size (bytes)")
-    categories: list[LogCategoryResponse] = Field(..., description="分类统计 / Category statistics")
+    total_files: int = Field(..., description=_("api.param.total_files"))
+    total_size: int = Field(..., description=_("api.param.total_size"))
+    categories: list[LogCategoryResponse] = Field(..., description=_("api.param.categories"))
 
 
 # ============ Controller / 控制器 ============
@@ -156,7 +156,7 @@ class AdminSystemLogController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            category: str = Query(None, description="日志分类 / Log category"),
+            category: str = Query(None, description=_("api.param.log_category")),
         ):
             """
             获取日志文件列表 / Get log file list
@@ -190,9 +190,9 @@ class AdminSystemLogController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             filename: str,
-            page: int = Query(1, ge=1, description="页码 / Page number"),
-            page_size: int = Query(100, ge=1, le=500, description="每页行数 / Lines per page"),
-            reverse: bool = Query(True, description="是否倒序（最新在前） / Reverse order (newest first)"),
+            page: int = Query(1, ge=1, description=_("api.param.page")),
+            page_size: int = Query(100, ge=1, le=500, description=_("api.param.lines_per_page")),
+            reverse: bool = Query(True, description=_("api.param.reverse")),
         ):
             """
             分页读取日志文件内容 / Read log file content with pagination

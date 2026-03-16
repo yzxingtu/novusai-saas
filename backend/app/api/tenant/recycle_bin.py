@@ -171,7 +171,7 @@ async def recycle_bin_list(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
     query: QueryParams,
-    module: str = Query(..., description="模块代码"),
+    module: str = Query(..., description=_("api.param.module")),
 ):
     config = TENANT_RECYCLABLE_MODULES.get(module)
     if not config:

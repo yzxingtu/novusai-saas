@@ -395,6 +395,23 @@ def action_import(name: str = "导入", **kwargs: Any) -> Callable[[F], F]:
 
 # ==================== Operation Permission Auto-Registration / 操作权限自动注册 ====================
 
+# Action -> sort_order mapping (CRUD semantics) / 按 CRUD 语义分配操作排序
+_ACTION_SORT_ORDER: dict[str, int] = {
+    "list": 10,
+    "tree": 11,
+    "detail": 20,
+    "read": 20,
+    "create": 30,
+    "update": 40,
+    "delete": 50,
+    "export": 60,
+    "import": 70,
+    "force_logout": 45,
+    "toggle_status": 46,
+}
+_DEFAULT_SORT_ORDER = 99
+
+
 def register_action_permissions(controller_cls: type, router: Any) -> None:
     """
     Scan routes on router and auto-register operation permissions.
@@ -464,6 +481,7 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
         registered_actions.add(action)
 
         # Register operation permission (mount under corresponding menu) / 注册操作权限（挂载到对应菜单下）
+        sort_order = _ACTION_SORT_ORDER.get(action, _DEFAULT_SORT_ORDER)
         action_perm = PermissionMeta(
             code=f"{resource}:{action}",
             name=action_info["name"],
@@ -473,6 +491,7 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
             action=action,
             description=action_info.get("description", ""),
             parent_code=parent_code,
+            sort_order=sort_order,
         )
         permission_registry.register(action_perm)
 

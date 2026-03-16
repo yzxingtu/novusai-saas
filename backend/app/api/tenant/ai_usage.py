@@ -56,8 +56,8 @@ class TenantAIUsageController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            start_date: date | None = Query(None, description="开始日期"),
-            end_date: date | None = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description=_("api.param.start_date")),
+            end_date: date | None = Query(None, description=_("api.param.end_date")),
         ):
             """
             获取当前企业使用量汇总 / Get current tenant usage summary
@@ -80,8 +80,8 @@ class TenantAIUsageController(TenantController):
             db: DbSession,
             user_id: int,
             tenant_admin: ActiveTenantAdmin,
-            start_date: date | None = Query(None, description="开始日期"),
-            end_date: date | None = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description=_("api.param.start_date")),
+            end_date: date | None = Query(None, description=_("api.param.end_date")),
         ):
             """
             获取企业下指定用户的使用量汇总 / Get usage summary for specified user under tenant

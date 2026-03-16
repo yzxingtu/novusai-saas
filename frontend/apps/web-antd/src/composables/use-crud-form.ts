@@ -221,47 +221,49 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   // 防抖状态
   const isSubmitting = ref(false);
 
+  async function doSubmit() {
+    if (isSubmitting.value) return;
+    if (!formApi) return;
+
+    const { valid } = await formApi.validate();
+    if (!valid) return;
+
+    const values = await formApi.getValues();
+    const requestData = transform(values, isEdit.value);
+
+    isSubmitting.value = true;
+    drawerApi.lock();
+
+    try {
+      const response = await (isEdit.value && recordId.value
+        ? requestClient.put(
+            `${resource.value}/${recordId.value}`,
+            requestData,
+            {
+              showSuccessMessage: true,
+              successMessage: $t('ui.actionMessage.updateSuccess'),
+            },
+          )
+        : requestClient.post(resource.value, requestData, {
+            showSuccessMessage: true,
+            successMessage: $t('ui.actionMessage.createSuccess'),
+          }));
+      if (afterSave) {
+        await afterSave(response, values, isEdit.value);
+      }
+      if (aiPageKey) formStateTracker.close(aiPageKey);
+      await onSuccess?.();
+      drawerApi.close();
+    } catch {
+      drawerApi.unlock();
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
   const [Drawer, drawerApi] = useVbenDrawer({
     async onConfirm() {
-      // 防抖：如果正在提交中，直接返回
-      if (isSubmitting.value) return;
-
-      if (!formApi) return;
-
-      const { valid } = await formApi.validate();
-      if (!valid) return;
-
-      const values = await formApi.getValues();
-      const requestData = transform(values, isEdit.value);
-
-      isSubmitting.value = true;
-      drawerApi.lock();
-
-      try {
-        const response = await (isEdit.value && recordId.value
-          ? requestClient.put(
-              `${resource.value}/${recordId.value}`,
-              requestData,
-              {
-                showSuccessMessage: true,
-                successMessage: $t('ui.actionMessage.updateSuccess'),
-              },
-            )
-          : requestClient.post(resource.value, requestData, {
-              showSuccessMessage: true,
-              successMessage: $t('ui.actionMessage.createSuccess'),
-            }));
-        if (afterSave) {
-          await afterSave(response, values, isEdit.value);
-        }
-        if (aiPageKey) formStateTracker.close(aiPageKey);
-        await onSuccess?.();
-        drawerApi.close();
-      } catch {
-        drawerApi.unlock();
-      } finally {
-        isSubmitting.value = false;
-      }
+      await doSubmit();
     },
 
     async onOpenChange(isOpen) {
@@ -355,9 +357,15 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         } catch {
           // Form may not be fully ready
         }
+        const trackableApi = {
+          getValues: () => formApi.getValues() as Promise<Record<string, unknown>>,
+          setValues: (v: Record<string, unknown>) => formApi.setValues(v),
+          validate: () => formApi.validate() as Promise<{ valid: boolean }>,
+          submitForm: doSubmit,
+        };
         formStateTracker.open(aiPageKey, {
           mode: mode.value as 'add' | 'edit' | 'view',
-          formApi: formApi as any,
+          formApi: trackableApi,
           fieldDescriptors,
           initialValues,
         });

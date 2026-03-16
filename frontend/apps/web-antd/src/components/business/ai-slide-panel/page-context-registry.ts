@@ -136,7 +136,7 @@ function mergeExtrasIntoContext(
       delete merged.entity_description_append;
       result = { ...result, page_data: merged };
     } catch (e) {
-      console.error('[PageContextRegistry] Extras merge error:', e);
+      console.warn('[PageContextRegistry] Extras merge error:', e);
     }
   }
   return result;
@@ -174,7 +174,7 @@ export function resolvePageContext(
         }
         return base;
       } catch (error) {
-        console.error(
+        console.warn(
           `[PageContextRegistry] Resolver '${key}' error:`,
           error,
         );
@@ -196,7 +196,7 @@ export function resolvePageContext(
       }
       if (base) return base;
     } catch (error) {
-      console.error(
+      console.warn(
         `[PageContextRegistry] Route-inferred resolver '${inferredKey}' error:`,
         error,
       );
@@ -214,7 +214,7 @@ export function resolvePageContext(
         resultKey = registeredKey;
       }
     } catch (error) {
-      console.error(
+      console.warn(
         `[PageContextRegistry] Resolver '${registeredKey}' error:`,
         error,
       );

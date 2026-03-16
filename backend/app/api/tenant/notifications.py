@@ -24,8 +24,8 @@ router = APIRouter(prefix="/notifications", tags=["通知管理"])
 async def list_notifications(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
-    category: str = Query("", description="分类筛选"),
-    is_read: str = Query("", description="已读筛选: true/false/空"),
+    category: str = Query("", description=_("api.param.category")),
+    is_read: str = Query("", description=_("api.param.is_read")),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
@@ -102,7 +102,7 @@ async def mark_read(
 async def mark_all_read(
     db: DbSession,
     tenant_admin: ActiveTenantAdmin,
-    category: str = Query("", description="可选分类筛选"),
+    category: str = Query("", description=_("api.param.category_optional")),
 ):
     """标记全部通知已读 / Mark all notifications as read"""
     service = NotificationService(db)

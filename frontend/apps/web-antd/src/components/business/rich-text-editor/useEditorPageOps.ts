@@ -15,6 +15,8 @@ import { $t } from '@vben/locales';
 import MarkdownIt from 'markdown-it';
 
 import {
+  appendPageOperations,
+  listPageOperations,
   registerPageContext,
   registerPageOperations,
 } from '#/components/business/ai-slide-panel';
@@ -118,7 +120,8 @@ export function useEditorPageOps(
       };
     });
 
-    cleanupOps = registerPageOperations(effectiveKey, [
+    const existingOps = listPageOperations(effectiveKey);
+    const editorOps = [
       {
         name: 'get_editor_text',
         label: $t('common.getEditorText'),
@@ -588,7 +591,12 @@ export function useEditorPageOps(
           return { success: true, message: $t('common.editorOp.tableInserted', { rows, cols }) };
         },
       },
-    ]);
+    ];
+    if (existingOps.length > 0) {
+      cleanupOps = appendPageOperations(effectiveKey, editorOps);
+    } else {
+      cleanupOps = registerPageOperations(effectiveKey, editorOps);
+    }
   }
 
   const unwatch = watch(

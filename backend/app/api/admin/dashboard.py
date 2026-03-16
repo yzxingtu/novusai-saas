@@ -13,6 +13,7 @@
 from fastapi import APIRouter, Query
 
 from app.core.deps import ActiveAdmin, DbSession
+from app.core.i18n import _
 from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.services.system.dashboard_service import AdminDashboardService
@@ -91,7 +92,7 @@ async def get_plugin_overview(
 async def get_tenant_growth(
     db: DbSession,
     _current_admin: ActiveAdmin,
-    days: int = Query(30, ge=1, le=365, description="天数"),
+    days: int = Query(30, ge=1, le=365, description=_("api.param.days")),
 ):
     """A5: 近 N 天每日新增企业数 / Daily new tenants in last N days"""
     service = AdminDashboardService(db)
@@ -104,7 +105,7 @@ async def get_tenant_growth(
 async def get_recent_activities(
     db: DbSession,
     _current_admin: ActiveAdmin,
-    limit: int = Query(20, ge=1, le=100, description="返回条数"),
+    limit: int = Query(20, ge=1, le=100, description=_("api.param.limit")),
 ):
     """A6: 最近 N 条操作日志 / Last N operation logs"""
     service = AdminDashboardService(db)

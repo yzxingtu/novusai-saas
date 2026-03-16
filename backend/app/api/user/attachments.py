@@ -66,8 +66,8 @@ async def upload_attachment(
     request: Request,
     db: DbSession,
     current_user: ActiveTenantUser,
-    file: UploadFile = File(..., description="上传的文件 / File to upload"),
-    visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认 / Visibility, empty uses platform default"),
+    file: UploadFile = File(..., description=_("api.param.file")),
+    visibility: str = Form("", description=_("api.param.visibility")),
 ):
     """
     用户端上传附件（头像等）/ User upload attachment (avatars etc.).

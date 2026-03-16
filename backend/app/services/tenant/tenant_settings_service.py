@@ -422,9 +422,5 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
 
         await self.db.execute(query)
 
-    def get_cname_target(self, tenant: Tenant) -> str:
-        """获取 CNAME 目标地址 / Get CNAME target address."""
-        return f"{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
-
 
 __all__ = ["TenantSettingsService"]

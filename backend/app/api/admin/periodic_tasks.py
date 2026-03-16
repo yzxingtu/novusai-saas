@@ -9,6 +9,7 @@ from fastapi import Path, Request
 
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
+from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
 from app.enums.rbac import PermissionScope
@@ -98,7 +99,7 @@ class AdminPeriodicTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_id: int = Path(..., description="定时任务 ID"),
+            task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
             task = await service.get_by_id(task_id)
@@ -113,7 +114,7 @@ class AdminPeriodicTaskController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: PeriodicTaskUpdateRequest,
-            task_id: int = Path(..., description="定时任务 ID"),
+            task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
             task = await service.update(task_id, body.model_dump(exclude_unset=True))
@@ -127,7 +128,7 @@ class AdminPeriodicTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_id: int = Path(..., description="定时任务 ID"),
+            task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
             await service.delete(task_id)
@@ -140,7 +141,7 @@ class AdminPeriodicTaskController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: PeriodicTaskToggleRequest,
-            task_id: int = Path(..., description="定时任务 ID"),
+            task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
             task = await service.toggle_active(task_id, body.is_active)
@@ -154,7 +155,7 @@ class AdminPeriodicTaskController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            task_id: int = Path(..., description="定时任务 ID"),
+            task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
             new_task_id = await service.trigger_now(task_id)

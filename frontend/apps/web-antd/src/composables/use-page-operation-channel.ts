@@ -208,45 +208,53 @@ export function usePageOperationChannel(): void {
       return;
     }
 
-    // Find operation registration / 查找操作注册
-    const operation = findPageOperation(
-      event.page_key,
-      event.operation_name,
-    );
+    try {
+      // Find operation registration / 查找操作注册
+      const operation = findPageOperation(
+        event.page_key,
+        event.operation_name,
+      );
 
-    // Unregistered operation → reject / 未注册操作 → 拒绝执行
-    if (!operation) {
+      // Unregistered operation → reject / 未注册操作 → 拒绝执行
+      if (!operation) {
+        emitResult(socketIOStore, event.invoke_id, {
+          success: false,
+          message: $t('shared.pageOperation.msg.operationNotRegistered', { op: event.operation_name, page: event.page_key }),
+        }, 'not_registered');
+        return;
+      }
+
+      // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
+      if (operation.readonly) {
+        await executeAndEmit(event);
+        return;
+      }
+
+      // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record)
+      if (
+        CHAIN_AUTO_OPS.has(event.operation_name) &&
+        isChainConfirmed(event.page_key)
+      ) {
+        await executeAndEmit(event);
+        return;
+      }
+
+      // readonly=false → show confirmation dialog / 弹出确认对话框
+      let desc = operation.description || '';
+      if (event.operation_name === 'replace_content') {
+        const contentLen = String(event.params?.content ?? '').length;
+        desc = $t('shared.pageOperation.replaceContentConfirm', {
+          count: contentLen,
+        });
+      }
+      await confirmAndExecute(event, operation.label, desc);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       emitResult(socketIOStore, event.invoke_id, {
         success: false,
-        message: $t('shared.pageOperation.msg.operationNotRegistered', { op: event.operation_name, page: event.page_key }),
-      }, 'not_registered');
-      return;
+        message: msg,
+      }, 'internal_error');
     }
-
-    // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
-    if (operation.readonly) {
-      await executeAndEmit(event);
-      return;
-    }
-
-    // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record)
-    if (
-      CHAIN_AUTO_OPS.has(event.operation_name) &&
-      isChainConfirmed(event.page_key)
-    ) {
-      await executeAndEmit(event);
-      return;
-    }
-
-    // readonly=false → show confirmation dialog / 弹出确认对话框
-    let desc = operation.description || '';
-    if (event.operation_name === 'replace_content') {
-      const contentLen = String(event.params?.content ?? '').length;
-      desc = $t('shared.pageOperation.replaceContentConfirm', {
-        count: contentLen,
-      });
-    }
-    confirmAndExecute(event, operation.label, desc);
   }
 
   // Register invoke event handler / 注册 invoke 事件处理器

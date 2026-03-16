@@ -14,6 +14,7 @@ Extracts shared tool call core logic for execute() and stream_execute():
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -35,6 +36,29 @@ _REJECTION_TEXTS: frozenset[str] = frozenset({
     "取消", "拒绝", "不执行", "不", "算了",
     "cancel", "no", "reject", "abort", "stop",
 })
+
+
+def _try_repair_json(raw: str) -> dict[str, Any] | None:
+    """
+    Attempt to repair common JSON malformations (trailing commas, missing brackets).
+    尝试修复常见 JSON 畸形（尾部逗号、缺失括号）。
+    """
+    s = raw.strip()
+    # Remove trailing commas before ] or } / 去除 ] 或 } 前的尾部逗号
+    s = re.sub(r",\s*([}\]])", r"\1", s)
+    # Add missing closing braces / 补全缺失的 }
+    opens = s.count("{") - s.count("}")
+    if opens > 0:
+        s += "}" * opens
+    # Add missing closing brackets / 补全缺失的 ]
+    opens = s.count("[") - s.count("]")
+    if opens > 0:
+        s += "]" * opens
+    try:
+        parsed = json.loads(s)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        return None
 
 
 @dataclass
@@ -91,6 +115,9 @@ class ToolCallProcessor:
                 return None, "invalid_tool_arguments_json"
             return parsed, None
         except json.JSONDecodeError:
+            repaired = _try_repair_json(raw_args)
+            if repaired is not None:
+                return repaired, None
             return None, "invalid_tool_arguments_json"
 
     async def execute_tool(

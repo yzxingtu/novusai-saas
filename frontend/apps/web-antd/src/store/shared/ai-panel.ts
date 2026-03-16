@@ -232,7 +232,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
       try {
         handler(toolName, output);
       } catch (error) {
-        console.error(`[AIPanel] Tool call handler '${key}' error:`, error);
+        console.warn(`[AIPanel] Tool call handler '${key}' error:`, error);
       }
     }
   }

@@ -179,6 +179,7 @@ class TenantKnowledgeBaseController(TenantController):
                     ),
                 )
                 .order_by(KnowledgeBase.name.asc())
+                .limit(500)
             )
             result = await db.execute(stmt)
             kbs = list(result.scalars().all())
@@ -378,7 +379,7 @@ class TenantKnowledgeBaseController(TenantController):
             db: DbSession,
             kb_id: int,
             tenant_admin: ActiveTenantAdmin,
-            file: UploadFile = File(..., description="上传的文档文件"),
+            file: UploadFile = File(..., description=_("api.param.doc_file")),
         ):
             """
             上传文档到知识库 / Upload document to knowledge base
@@ -853,7 +854,7 @@ class TenantKnowledgeBaseController(TenantController):
             db: DbSession,
             kb_id: int,
             tenant_admin: ActiveTenantAdmin,
-            file: UploadFile = File(..., description="CSV/Excel 文件（需含 question, answer 列）"),
+            file: UploadFile = File(..., description=_("api.param.qa_file")),
         ):
             """
             批量导入 Q&A 问答对（CSV/Excel） / Batch import Q&A pairs (CSV/Excel)
@@ -977,7 +978,7 @@ class TenantKnowledgeBaseController(TenantController):
             db: DbSession,
             kb_id: int,
             tenant_admin: ActiveTenantAdmin,
-            urls: list[str] = Form(..., description="URL 列表"),
+            urls: list[str] = Form(..., description=_("api.param.urls")),
         ):
             """
             通过 URL 导入网页内容 / Import web page content via URL

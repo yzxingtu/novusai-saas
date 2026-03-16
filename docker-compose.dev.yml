@@ -6,7 +6,7 @@ services:
     image: pgvector/pgvector:0.8.0-pg14
     container_name: novusai-postgres-dev
     environment:
-      POSTGRES_DB: novusai
+      POSTGRES_DB: novusai_saas
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"

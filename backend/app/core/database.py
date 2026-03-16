@@ -341,7 +341,8 @@ def _collect_revisions_from_dir(_dir: str) -> None:
         if not _f.endswith('.py') or _f == '__init__.py':
             continue
         try:
-            _src = open(os.path.join(_dir, _f), encoding='utf-8').read()
+            with open(os.path.join(_dir, _f), encoding='utf-8') as _fh:
+                _src = _fh.read()
             _m = _rev_pat.search(_src)
             if _m:
                 known_revs.add(_m.group(1))
