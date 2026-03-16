@@ -50,14 +50,6 @@ PACKAGE_UPDATES = [
             "不可删除或禁用。"
         ),
     },
-    {
-        "name": "CRUD Generator 技能包",
-        "description": (
-            "CRUD 代码生成 AI 辅助工具集。包含字段建议、枚举生成、标签翻译、"
-            "插槽代码生成、Schema 审查、校验规则建议、搜索配置建议、"
-            "模板语法解释等 8 种开发辅助工具。供 CRUD Generator Wizard 使用。"
-        ),
-    },
 ]
 
 SKILL_UPDATES = [
@@ -84,14 +76,6 @@ SKILL_UPDATES = [
             "为平台管理员提供便捷的数据管理能力。"
         ),
     },
-    {
-        "name": "crud_generator",
-        "description": (
-            "CRUD 代码生成辅助技能：提供 8 种 AI 工具（字段建议、枚举生成、"
-            "标签翻译、插槽代码、Schema 审查、校验规则、搜索配置、模板解释），"
-            "在 Wizard 中辅助开发者快速构建 CRUD 模块。"
-        ),
-    },
 ]
 
 # Original descriptions for downgrade
@@ -107,10 +91,6 @@ PACKAGE_ORIGINALS = [
     {
         "name": "系统数据智能技能包",
         "description": "系统内置的数据智能技能包，提供自然语言查询和操作数据库的能力",
-    },
-    {
-        "name": "CRUD Generator 技能包",
-        "description": "CRUD 代码生成 AI 辅助工具集",
     },
 ]
 
@@ -129,10 +109,6 @@ SKILL_ORIGINALS = [
             "平台管理员的数据操作技能。自动使用所有已配置的表策略，"
             "支持自然语言查询和 CRUD 操作。"
         ),
-    },
-    {
-        "name": "crud_generator",
-        "description": "CRUD 代码生成辅助技能，提供 8 种 AI 开发工具",
     },
 ]
 

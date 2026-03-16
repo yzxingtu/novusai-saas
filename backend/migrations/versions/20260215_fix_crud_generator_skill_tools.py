@@ -2,8 +2,7 @@
 
 Superseded by 20260216_remove_crud_generator_seed_data (all CRUD data soft-deleted).
 
-Original: Update crud_generator skill config and input_schema to align with
-CrudGeneratorExecutor._DISPATCH (8 tools).
+Original: Update crud_generator skill config and input_schema.
 
 Revision ID: aa0215010000
 Revises: dd0215006000

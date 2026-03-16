@@ -23,7 +23,7 @@
 
 ```bash
 cd backend
-python scripts/plugin_cli.py create my-plugin --template=skill
+novusai plugin create my-plugin --template=skill
 ```
 
 三种模板：
@@ -203,10 +203,10 @@ plugin_modules = [k for k in sys.modules if k.startswith("plugins.my-plugin")]
 
 ```bash
 # 校验
-python scripts/plugin_cli.py validate my-plugin/
+novusai plugin validate my-plugin/
 
 # 打包
-python scripts/plugin_cli.py pack my-plugin/
+novusai plugin pack my-plugin/
 ```
 
 ## 四、发布到市场

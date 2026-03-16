@@ -1,23 +1,29 @@
 """
-完整清理脚本：novus-crud-code 插件所有 DB 记录 + Alembic downgrade
+插件完整清理脚本：DB 记录 + Alembic downgrade + 文件系统产物
 
 覆盖所有插件安装/启用阶段产生的 DB 副作用：
   install 阶段:
     - plugins             （插件主记录）
     - plugin_versions     （版本快照）
-    - system_agent_assignments  （ai_requirements 声明的3个 feature）
+    - system_agent_assignments  （ai_requirements 声明的 feature）
     - skill_packages / skills   （on_install 钩子创建的 toolkit）
-    - ncc_* tables        （alembic migration）
+    - 插件迁移创建的表      （alembic downgrade）
   enable 阶段:
-    - permissions         （菜单权限，代码 menu:admin.plugin_novus_crud_code_*）
+    - permissions         （菜单权限）
     - resource_tenant_assignments
-    - periodic_tasks      （插件定时任务，当前插件无，预防性清理）
-    - notification_templates   （同上）
-  startup discover 阶段:
-    - 同 install，已被以上步骤覆盖
+    - periodic_tasks      （插件定时任务）
+    - notification_templates
 
-用法: python scripts/cleanup_plugin.py
+用法:
+  # 通过 CLI（推荐）
+  novusai plugin cleanup --plugin <plugin-name> [--revision ncc_001,ncc_002]
+
+  # 或直接运行脚本
+  python scripts/cleanup_plugin.py --plugin <plugin-name> [--revision ncc_001]
+
+示例: novusai plugin cleanup -p novus-crud-code -r ncc_001
 """
+import argparse
 import subprocess
 import sys
 
@@ -26,11 +32,21 @@ _this_file: str = __file__
 _base_dir = _this_file.replace("\\", "/").rsplit("/", 1)[0]  # scripts/
 PROJECT_ROOT_STR = _base_dir.rsplit("/", 1)[0]              # backend/
 
-PLUGIN_NAME = "novus-crud-code"
-PLUGIN_SAFE = PLUGIN_NAME.replace("-", "_")   # novus_crud_code
-PLUGIN_MIGRATIONS = (
-    PROJECT_ROOT_STR + "/plugins/" + PLUGIN_NAME + "/backend/migrations/versions"
-)
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="完整清理指定插件的 DB 记录与迁移")
+    parser.add_argument(
+        "--plugin",
+        required=True,
+        metavar="NAME",
+        help="插件名（如 novus-crud-code）",
+    )
+    parser.add_argument(
+        "--revision",
+        metavar="REV",
+        help="可选：alembic_version 中需清理的 revision（如 ncc_001），逗号分隔多个",
+    )
+    return parser.parse_args()
 
 
 def get_db_url() -> str:
@@ -39,14 +55,15 @@ def get_db_url() -> str:
     return settings.DATABASE_URL_SYNC
 
 
-def run_alembic_downgrade() -> None:
-    """降级 plugin_novus_crud_code 分支，删除 ncc_* 4张表。"""
-    branch_label = f"plugin_{PLUGIN_SAFE}"
+def run_alembic_downgrade(plugin_name: str, plugin_safe: str) -> None:
+    """降级插件分支，删除插件迁移创建的表。"""
+    migrations_path = PROJECT_ROOT_STR + "/plugins/" + plugin_name + "/backend/migrations/versions"
+    branch_label = f"plugin_{plugin_safe}"
     script = (
         "from alembic.config import Config; from alembic import command; "
         "cfg = Config('alembic.ini'); "
         "vl = cfg.get_main_option('version_locations') or 'migrations/versions'; "
-        f"pm = '{PLUGIN_MIGRATIONS}'; "
+        f"pm = '{migrations_path}'; "
         "cfg.set_main_option('version_locations', vl + ' ' + pm); "
         f"command.downgrade(cfg, '{branch_label}@base')"
     )
@@ -57,11 +74,11 @@ def run_alembic_downgrade() -> None:
         text=True,
     )
     if r.returncode == 0:
-        print("  ✅ Alembic downgrade OK  →  ncc_* 表已删除")
+        print(f"  ✅ Alembic downgrade OK  →  plugin_{plugin_safe} 表已删除")
     else:
         stderr = r.stderr.strip()[-600:]
         if "already at base" in stderr or "No such revision" in stderr:
-            print("  ℹ️  Alembic: 已在 base（ncc_* 表本来就不存在）")
+            print(f"  ℹ️  Alembic: 已在 base（插件表本来就不存在）")
         else:
             print(f"  ⚠️  Alembic downgrade warning:\n{stderr}")
 
@@ -95,108 +112,105 @@ def execute_step(cur, conn, sql: str, label: str) -> None:
             print(f"  ⚠️  {label}: {exc}")
 
 
-def clean_db() -> None:
+def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None) -> None:
     conn = connect()
     cur = conn.cursor()
 
     # ── 按依赖顺序清理 ──────────────────────────────────────────────
 
-    # 1. 定时任务（若 plugin.yaml 有 tasks）
     execute_step(cur, conn,
-        f"DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{PLUGIN_NAME}.%'",
+        f"DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{plugin_name}.%'",
         "periodic_tasks",
     )
 
-    # 2. 通知模板（若 plugin.yaml 有 notifications）
     execute_step(cur, conn,
-        f"DELETE FROM notification_templates WHERE code LIKE 'plugin.{PLUGIN_NAME}.%'",
+        f"DELETE FROM notification_templates WHERE code LIKE 'plugin.{plugin_name}.%'",
         "notification_templates",
     )
 
-    # 3. AI feature 绑定记录
     execute_step(cur, conn,
         f"DELETE FROM system_agent_assignments "
-        f"WHERE feature_code LIKE 'plugin.{PLUGIN_NAME}.%'",
+        f"WHERE feature_code LIKE 'plugin.{plugin_name}.%'",
         "system_agent_assignments",
     )
 
-    # 4. Skills（级联删除 skill_packages）
     execute_step(cur, conn,
         f"DELETE FROM skills WHERE package_id IN ("
-        f"  SELECT id FROM skill_packages WHERE source_plugin = '{PLUGIN_NAME}'"
+        f"  SELECT id FROM skill_packages WHERE source_plugin = '{plugin_name}'"
         f")",
         "skills",
     )
 
-    # 5. SkillPackage（on_install 钩子创建 + 框架 extensions.skills 创建）
     execute_step(cur, conn,
-        f"DELETE FROM skill_packages WHERE source_plugin = '{PLUGIN_NAME}'",
+        f"DELETE FROM skill_packages WHERE source_plugin = '{plugin_name}'",
         "skill_packages",
     )
 
-    # 6. 菜单权限 DB 记录
-    #    代码格式: menu:admin.plugin_novus_crud_code_<menu_name>
     execute_step(cur, conn,
         f"DELETE FROM permissions "
-        f"WHERE code LIKE 'menu:%.plugin_{PLUGIN_SAFE}_%' "
-        f"   OR code LIKE 'plugin.{PLUGIN_NAME}.%' "
-        f"   OR code LIKE '%{PLUGIN_NAME}%'",
+        f"WHERE code LIKE 'menu:%.plugin_{plugin_safe}_%' "
+        f"   OR code LIKE 'plugin.{plugin_name}.%' "
+        f"   OR code LIKE '%{plugin_name}%'",
         "permissions",
     )
 
-    # 7. 企业资源分配（插件菜单/配置分配）
     execute_step(cur, conn,
         f"DELETE FROM resource_tenant_assignments "
         f"WHERE resource_type = 'plugin' AND resource_id IN ("
-        f"  SELECT id FROM plugins WHERE name = '{PLUGIN_NAME}'"
+        f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
         f")",
         "resource_tenant_assignments",
     )
 
-    # 8. 版本快照
     execute_step(cur, conn,
         f"DELETE FROM plugin_versions WHERE plugin_id IN ("
-        f"  SELECT id FROM plugins WHERE name = '{PLUGIN_NAME}'"
+        f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
         f")",
         "plugin_versions",
     )
 
-    # 9. 插件主记录（最后删除）
     execute_step(cur, conn,
-        f"DELETE FROM plugins WHERE name = '{PLUGIN_NAME}'",
+        f"DELETE FROM plugins WHERE name = '{plugin_name}'",
         "plugins",
     )
 
-    # 10. alembic_version 残留（downgrade 应自动清理，这里二次保险）
-    execute_step(cur, conn,
-        "DELETE FROM alembic_version "
-        "WHERE version_num = 'ncc_001'",
-        "alembic_version (ncc_001)",
-    )
+    if revision_ids:
+        for rev in revision_ids:
+            execute_step(cur, conn,
+                f"DELETE FROM alembic_version WHERE version_num = '{rev.strip()}'",
+                f"alembic_version ({rev})",
+            )
 
     cur.close()
     conn.close()
 
 
-MANUAL_SQL = f"""
+def build_manual_sql(plugin_name: str, plugin_safe: str, revision_ids: list[str]) -> str:
+    rev_sql = ""
+    if revision_ids:
+        for r in revision_ids:
+            rev_sql += f"DELETE FROM alembic_version WHERE version_num = '{r}';\n"
+    return f"""
 -- 手动执行（psycopg2 不可用时）:
-DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{PLUGIN_NAME}.%';
-DELETE FROM notification_templates WHERE code LIKE 'plugin.{PLUGIN_NAME}.%';
-DELETE FROM system_agent_assignments WHERE feature_code LIKE 'plugin.{PLUGIN_NAME}.%';
-DELETE FROM skills WHERE package_id IN (SELECT id FROM skill_packages WHERE source_plugin = '{PLUGIN_NAME}');
-DELETE FROM skill_packages WHERE source_plugin = '{PLUGIN_NAME}';
-DELETE FROM permissions WHERE code LIKE 'menu:%.plugin_{PLUGIN_SAFE}_%' OR code LIKE 'plugin.{PLUGIN_NAME}.%';
-DELETE FROM resource_tenant_assignments WHERE resource_type = 'plugin' AND resource_id IN (SELECT id FROM plugins WHERE name = '{PLUGIN_NAME}');
-DELETE FROM plugin_versions WHERE plugin_id IN (SELECT id FROM plugins WHERE name = '{PLUGIN_NAME}');
-DELETE FROM plugins WHERE name = '{PLUGIN_NAME}';
-DELETE FROM alembic_version WHERE version_num = 'ncc_001';
+DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{plugin_name}.%';
+DELETE FROM notification_templates WHERE code LIKE 'plugin.{plugin_name}.%';
+DELETE FROM system_agent_assignments WHERE feature_code LIKE 'plugin.{plugin_name}.%';
+DELETE FROM skills WHERE package_id IN (SELECT id FROM skill_packages WHERE source_plugin = '{plugin_name}');
+DELETE FROM skill_packages WHERE source_plugin = '{plugin_name}';
+DELETE FROM permissions WHERE code LIKE 'menu:%.plugin_{plugin_safe}_%' OR code LIKE 'plugin.{plugin_name}.%';
+DELETE FROM resource_tenant_assignments WHERE resource_type = 'plugin' AND resource_id IN (SELECT id FROM plugins WHERE name = '{plugin_name}');
+DELETE FROM plugin_versions WHERE plugin_id IN (SELECT id FROM plugins WHERE name = '{plugin_name}');
+DELETE FROM plugins WHERE name = '{plugin_name}';
+{rev_sql}
 """
 
-def clean_filesystem() -> None:
+
+def clean_filesystem(plugin_name: str) -> None:
     """清理插件目录中的生成产物和缓存文件（不删除源码）。"""
+    import os
     import shutil
 
-    plugin_root = PROJECT_ROOT_STR + "/plugins/" + PLUGIN_NAME
+    plugin_root = PROJECT_ROOT_STR + "/plugins/" + plugin_name
     frontend_dir = plugin_root + "/frontend"
 
     targets = [
@@ -205,17 +219,15 @@ def clean_filesystem() -> None:
         (frontend_dir + "/package-lock.json", "frontend/package-lock.json"),
     ]
 
-    # 递归找 __pycache__
-    import os
-    for dirpath, dirnames, _ in os.walk(plugin_root):
-        for d in dirnames:
-            if d == "__pycache__":
-                targets.append((
-                    dirpath.replace("\\", "/") + "/" + d,
-                    ".../__pycache__",
-                ))
-        # 跳过 node_modules（已在上面处理）
-        dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".git")]
+    if os.path.isdir(plugin_root):
+        for dirpath, dirnames, _ in os.walk(plugin_root):
+            for d in dirnames:
+                if d == "__pycache__":
+                    targets.append((
+                        dirpath.replace("\\", "/") + "/" + d,
+                        ".../__pycache__",
+                    ))
+            dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".git")]
 
     for path, label in targets:
         path_native = path.replace("/", "\\") if "\\" in PROJECT_ROOT_STR else path
@@ -230,19 +242,24 @@ def clean_filesystem() -> None:
 
 
 if __name__ == "__main__":
+    args = parse_args()
+    plugin_name = args.plugin
+    plugin_safe = plugin_name.replace("-", "_")
+    revision_ids = [r.strip() for r in args.revision.split(",")] if args.revision else []
+
     print(f"\n{'=' * 50}")
-    print("  novus-crud-code 插件完整清理")
+    print(f"  {plugin_name} 插件完整清理")
     print(f"{'=' * 50}\n")
 
-    print("步骤 1 — Alembic downgrade (ncc_* 4张表)...")
-    run_alembic_downgrade()
+    print("步骤 1 — Alembic downgrade...")
+    run_alembic_downgrade(plugin_name, plugin_safe)
 
     print("\n步骤 2 — 清理数据库记录...")
     try:
-        clean_db()
+        clean_db(plugin_name, plugin_safe, revision_ids)
     except ImportError:
         print("  ⚠️  psycopg2 未安装，请手动执行以下 SQL：")
-        print(MANUAL_SQL)
+        print(build_manual_sql(plugin_name, plugin_safe, revision_ids))
     except Exception as exc:
         print(f"  ❌ DB cleanup error: {exc}")
         import traceback
@@ -250,7 +267,7 @@ if __name__ == "__main__":
 
     print("\n步骤 3 — 清理文件系统产物 (node_modules / dist / __pycache__)...")
     try:
-        clean_filesystem()
+        clean_filesystem(plugin_name)
     except Exception as exc:
         print(f"  ⚠️  Filesystem cleanup warning: {exc}")
 

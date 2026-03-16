@@ -1,4 +1,7 @@
 """
+# DEPRECATED: Use `novusai plugin <create|validate|pack|list>` instead.
+# 已弃用：请使用 `novusai plugin <create|validate|pack|list>` 替代。
+
 NovusAI 插件开发 CLI 工具
 
 用法:

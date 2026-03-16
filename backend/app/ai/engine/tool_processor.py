@@ -373,7 +373,7 @@ class ToolCallProcessor:
                 or parsed.get("record")
             ),
         }
-        # CRUD Generator file generation confirmation / CRUD Generator 文件生成确认
+        # File generation confirmation (e.g. plugin codegen)
         if parsed.get("files"):
             event["files"] = parsed["files"]
             event["message"] = parsed.get("message", "")

@@ -18,8 +18,21 @@
 - 禁止跨端导入（admin 页面不导入 tenant API/store）。后端跨端共享逻辑放 `app/api/shared/`（如 `_skill_helpers.py`）
 - 禁止 Controller 写业务逻辑或直接 DB 查询，禁止 Service 直接操作 DB。统计/Dashboard 查询必须在 Service 层
 - 禁止裸返回数据，后端必须用 `success()` / `created()` / `paginated()` 等统一响应
+- **指标埋点**：新增 AI/Celery/WebSocket 等关键路径时，需在 `app/core/metrics.py` 对应指标处埋入 `*.labels(...).inc()` / `.observe()` / `.set()`，并用 `try/except` 包裹，避免影响主流程
 - 禁止手写重复 Schema 配置，前端必须用 `searchInput` / `inputField` 等辅助函数
+
+### 指标监控（Prometheus 埋点）
+
+新增 AI、Celery、WebSocket 等关键路径时，**必须**在 `app/core/metrics.py` 对应指标处埋点：
+
+- **AI 调用**：`ai_gateway_calls_total`、`ai_gateway_tokens_total`、`ai_gateway_latency_seconds`（AIGateway / ai/gateway.py）
+- **Celery 任务**：`celery_tasks_total`（成功/失败，tasks/base.py）
+- **WebSocket**：`ws_connections_total`（admin/tenant/user namespace 的 connect/disconnect）
+- 埋点需用 `try/except` 包裹，禁止因指标异常影响主流程
+
 - 禁止敏感信息（密钥、密码）写入代码，通过环境变量配置
+
+---
 
 ## 前端规则
 
@@ -241,6 +254,12 @@ logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/c
 ```
 
 Loguru 使用 `{}` 风格，禁止 `%s`/`%d`：`logger.info("id={}", x)` 而不是 `logger.info("id=%s", x)`。
+
+### CLI 管理
+
+- 统一使用 `novusai` CLI 入口（`pip install -e .` 后可用）
+- 禁止新增独立脚本；新命令必须在 `app/cli.py` 中注册子命令
+- 日常操作：`novusai run`、`novusai celery dev`、`novusai db autogenerate -m "..."`、`novusai check`
 
 ### 安全配置
 

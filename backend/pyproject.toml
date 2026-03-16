@@ -120,7 +120,7 @@ dev = [
 ]
 
 [project.scripts]
-crud-gen = "app.codegen.cli:main"
+novusai = "app.cli:cli"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

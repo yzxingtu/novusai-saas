@@ -6,17 +6,29 @@ Manages application configuration using pydantic-settings, supports environment 
 """
 
 from functools import lru_cache
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# env_file 固定为 backend/.env，避免 cwd 不同导致加载失败
+# Fix env_file to backend/.env so it loads regardless of startup directory
+_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _CONFIG_DIR / ".env"
+
+# 显式加载 .env 到 os.environ（pydantic-settings 有时未正确加载）
+# Explicitly load .env into os.environ when pydantic-settings may not load it
+if _ENV_FILE.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_ENV_FILE, override=False)
 
 
 class Settings(BaseSettings):
     """应用配置类 / Application Configuration Class"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE) if _ENV_FILE.exists() else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

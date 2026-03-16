@@ -22,7 +22,7 @@ import { defineStore } from 'pinia';
 
 /** 编辑器扩展声明（Tiptap Extension / ProseMirror Plugin 等） / Editor extension item */
 export interface EditorExtensionItem {
-  /** 扩展唯一 ID（如 "novusdoc-pro.ai-completion"） / Extension unique ID */
+  /** 扩展唯一 ID（如 "novusdoc.ai-completion"） / Extension unique ID */
   id: string;
   /** 注册插件名 / Plugin name that registered this extension */
   pluginName: string;
@@ -58,7 +58,7 @@ export interface EditorPanelItem {
 
 /** 命令声明（命令面板 / 快捷键） / Editor command item */
 export interface EditorCommandItem {
-  /** 命令唯一 ID（如 "novusdoc-pro.ai-rewrite"） / Command unique ID */
+  /** 命令唯一 ID（如 "novusdoc.ai-rewrite"） / Command unique ID */
   id: string;
   /** 注册插件名 / Plugin name */
   pluginName: string;

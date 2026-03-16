@@ -1,8 +1,7 @@
 """remove_crud_generator_seed_data
 
 Remove CRUD Generator / CRUD Form Toolkit seed data from the database.
-The CRUD Generator is now a standalone plugin that manages its own
-SkillPackage + Skill via SkillPlugin lifecycle hooks.
+The builtin CRUD Generator was removed; any replacement is via plugins.
 
 This migration soft-deletes:
 1. "CRUD 表单工具包" SkillPackage + "crud_form_toolkit" Skill
@@ -78,8 +77,7 @@ def upgrade() -> None:
     ))
     disabled += result2.rowcount if result2.rowcount else 0
 
-    print(f"[MIGRATION] CRUD Generator seed data soft-deleted, {disabled} menu/permission entries disabled — "
-          "now managed by novusai-crud-generator plugin SkillPlugin lifecycle")
+    print(f"[MIGRATION] CRUD Generator seed data soft-deleted, {disabled} menu/permission entries disabled")
 
 
 def downgrade() -> None:

@@ -1,7 +1,7 @@
 """[NO-OP] seed_crud_generator_agent_skill
 
 Superseded by 20260216_remove_crud_generator_seed_data (all data soft-deleted).
-CRUD Generator is now a standalone plugin managing its own lifecycle.
+Builtin CRUD Generator removed.
 
 Original: Create system-level CRUD Generator SkillPackage, Skill, and Agent.
   - SkillPackage: CRUD Generator 技能包 (is_system=true)

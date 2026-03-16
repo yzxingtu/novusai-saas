@@ -15,6 +15,7 @@ from celery import Task
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.core.config import settings
 from app.middleware.trace import trace_id_var
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory

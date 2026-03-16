@@ -2323,7 +2323,7 @@ class PluginLifecycle:
         / 升级前清除 alembic_version 中已无对应迁移文件的孤立版本戳。
 
         Background: if downgrade fails during plugin uninstall, or revision ID prefix doesn't
-        match plugin name (e.g. novus-crud-code uses ncc_001 instead of novus_crud_code_001),
+        match plugin name (e.g. some plugins use custom prefix like ncc_001),
         the version stamp remains in alembic_version, causing subsequent upgrades to fail:
           "Can't locate revision identified by 'xxx'"
         This method scans all currently installed migration files to get valid revision IDs,

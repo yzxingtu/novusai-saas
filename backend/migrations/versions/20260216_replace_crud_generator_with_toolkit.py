@@ -1,7 +1,7 @@
 """[NO-OP] replace_crud_generator_with_toolkit
 
 Superseded by 20260216_remove_crud_generator_seed_data (all CRUD data soft-deleted).
-CRUD Generator is now a standalone plugin managing its own lifecycle.
+Builtin CRUD Generator removed.
 
 Original: Replace old CRUD Generator (builtin) agent/skill/package with new
 CRUD Form Toolkit (toolkit type) agent/skill/package.
@@ -14,7 +14,6 @@ Create Date: 2026-02-16 03:00:00.000000+08:00
 from typing import Sequence, Union
 
 import json
-import os
 
 from alembic import op
 from sqlalchemy import text
@@ -27,18 +26,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _read_toolkit_source() -> str:
-    """Read crud_form_toolkit.py source code."""
-    toolkit_path = os.path.join(
-        os.path.dirname(__file__),
-        "..", "..", "app", "codegen", "crud_form_toolkit.py",
-    )
-    toolkit_path = os.path.normpath(toolkit_path)
-    try:
-        with open(toolkit_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        print(f"[SEED] WARNING: {toolkit_path} not found, using empty toolkit")
-        return ""
+    """crud_form_toolkit.py removed; return empty for NO-OP migration."""
+    return ""
 
 
 _SYSTEM_PROMPT = """\

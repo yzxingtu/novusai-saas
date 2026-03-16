@@ -84,6 +84,16 @@ novusai-saas/
 - Node.js 18+
 - PostgreSQL 14+
 - Redis 6+
+- Docker（可选，用于 PostgreSQL / Redis / Prometheus / Grafana）
+
+### Docker 依赖服务（推荐）
+
+```bash
+# 在项目根目录启动 PostgreSQL、Redis、Prometheus、Grafana
+docker compose -f docker-compose.dev.yml up -d
+```
+
+包含：PostgreSQL(5432)、Redis(6379)、Prometheus(9090)、Grafana(3000)。开发环境下 Grafana 会自动配置为 `http://localhost:3000`，监控页 Grafana Tab 可直接使用。
 
 ### 后端开发
 
@@ -97,20 +107,21 @@ source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
 # 安装依赖
-pip install -r requirements.txt
+pip install -e .  # 或 pip install -r requirements.txt
+# 安装 -e . 后可获得 novusai CLI
 
 # 配置环境变量
 cp .env.example .env
 # 编辑 .env 文件配置数据库等
 
-# 运行数据库迁移
-alembic upgrade head
+# 运行数据库迁移（启动时也会自动执行）
+novusai db upgrade head
 
 # 启动开发服务器
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-# 启动队列
-python scripts/start_worker.py dev
-# 启动前端 
+novusai run --reload
+# 另开终端启动 Celery Worker + Beat
+novusai celery dev
+# 启动前端
 pnpm dev:antd
 ```
 

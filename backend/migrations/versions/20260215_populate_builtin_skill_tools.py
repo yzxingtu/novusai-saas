@@ -81,15 +81,6 @@ PACKAGE_DESC_FIXES = [
         ),
         "original": "系统内置的数据智能技能包，提供自然语言查询和操作数据库的能力",
     },
-    {
-        "name": "CRUD Generator 技能包",
-        "description": (
-            "CRUD 代码生成 AI 辅助工具集。包含字段建议、枚举生成、标签翻译、"
-            "插槽代码生成、Schema 审查、校验规则建议、搜索配置建议、"
-            "模板语法解释等 8 种开发辅助工具。供 CRUD Generator Wizard 使用。"
-        ),
-        "original": "CRUD 代码生成 AI 辅助工具集",
-    },
 ]
 
 
