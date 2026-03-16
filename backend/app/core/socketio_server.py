@@ -27,15 +27,12 @@ _redis_manager = socketio.AsyncRedisManager(
 # AsyncServer 实例
 # ========================================
 
-_cors_origins: list[str] | str = (
-    "*" if settings.APP_ENV == "development"
-    else (settings.CORS_ORIGINS if settings.CORS_ORIGINS else [])
-)
-
+# Allow all origins for multi-tenant SaaS (subdomain + custom domains are dynamic)
+# 多租户 SaaS 允许所有 Origin（子域名 + 自定义域名是动态的）
 sio = socketio.AsyncServer(
     async_mode="asgi",
     client_manager=_redis_manager,
-    cors_allowed_origins=_cors_origins,
+    cors_allowed_origins="*",
     ping_interval=25,
     ping_timeout=20,
     logger=False,

@@ -526,16 +526,11 @@ def create_application() -> FastAPI:
     # ensuring all middleware responses (including AccessControlMiddleware 403) carry CORS headers
     # CORS 中间件 — 必须最后注册（= 最外层），
     # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
-    # ⚠️  In DEBUG mode, allows all Origins to support tenant domain (e.g. demo.app.local:5666) cross-origin access
-    # ⚠️  DEBUG 模式下允许所有 Origin，支持企业域名（如 demo.app.local:5666）跨域访问
-    cors_origins: list[str] = (
-        ["http://localhost:5666", "http://localhost:3000", "http://127.0.0.1:5666"]
-        if settings.DEBUG
-        else settings.CORS_ORIGINS
-    )
+    # Allow all origins for multi-tenant SaaS (subdomain + custom domains are dynamic)
+    # 多租户 SaaS 允许所有 Origin（子域名 + 自定义域名是动态的，静态白名单不可行）
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -553,16 +548,12 @@ def create_application() -> FastAPI:
     def _get_cors_headers(request: Request) -> dict[str, str]:
         """Get CORS response headers / 获取 CORS 响应头"""
         origin = request.headers.get("origin", "")
-        # Check if origin is in allowed list (allows all in DEBUG mode)
-        # 检查 origin 是否在允许列表中（DEBUG 模式下允许所有）
-        if "*" in cors_origins or origin in cors_origins:
-            return {
-                "Access-Control-Allow-Origin": origin or "*",
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*",
-            }
-        return {}
+        return {
+            "Access-Control-Allow-Origin": origin or "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        } if origin else {}
 
     def _get_error_response_headers(request: Request) -> dict[str, str]:
         """Get CORS + X-Trace-ID headers for error responses / 获取错误响应所需的 CORS 与 trace_id 头"""

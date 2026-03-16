@@ -116,10 +116,15 @@
   "role": {
     "dataScope": "数据范围",
     "dataScopeAll": "全部数据",
+    "dataScopeAllDesc": "可查看所有部门数据",
     "dataScopeDeptChildren": "本部门及下级",
+    "dataScopeDeptChildrenDesc": "可查看所属部门及其下级部门数据",
     "dataScopeDeptOnly": "仅本部门",
+    "dataScopeDeptOnlyDesc": "仅可查看所属部门数据",
     "dataScopeSelf": "仅自己",
+    "dataScopeSelfDesc": "仅可查看自己的数据",
     "dataScopeCustom": "自定义",
+    "dataScopeCustomDesc": "可查看指定部门的数据",
     "customDepts": "自定义部门",
     "customDeptRequired": "请选择自定义部门"
   },

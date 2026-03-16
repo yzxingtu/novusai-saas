@@ -117,10 +117,15 @@
   "role": {
     "dataScope": "Data Scope",
     "dataScopeAll": "All Data",
+    "dataScopeAllDesc": "Access data from all departments",
     "dataScopeDeptChildren": "Department and Children",
+    "dataScopeDeptChildrenDesc": "Access data from own department and sub-departments",
     "dataScopeDeptOnly": "Current Department Only",
+    "dataScopeDeptOnlyDesc": "Access data from own department only",
     "dataScopeSelf": "Self Only",
+    "dataScopeSelfDesc": "Access own data only",
     "dataScopeCustom": "Custom",
+    "dataScopeCustomDesc": "Access data from specified departments",
     "customDepts": "Custom Departments",
     "customDeptRequired": "Please select custom departments"
   },

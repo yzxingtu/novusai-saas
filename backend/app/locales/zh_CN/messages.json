@@ -865,6 +865,9 @@
       "toggle_status": "切换管理员状态",
       "select": "管理员远程下拉"
     },
+    "admin_user": {
+      "force_logout": "强制下线"
+    },
     "permission": {
       "tree": "查看权限树",
       "list": "查看权限列表"
@@ -880,6 +883,9 @@
       "select": "企业远程下拉",
       "reset_owner_password": "重置企业超级管理员密码",
       "recycle_bin": "回收站"
+    },
+    "tenant_admin": {
+      "force_logout": "强制下线"
     },
     "tenant_settings": {
       "view": "查看企业设置",
@@ -946,7 +952,8 @@
       "reset_password": "重置用户密码",
       "approve": "审批通过用户",
       "reject": "审批拒绝用户",
-      "select": "用户远程下拉"
+      "select": "用户远程下拉",
+      "force_logout": "强制下线"
     },
     "tenant_user_role": {
       "list": "查看用户角色列表",

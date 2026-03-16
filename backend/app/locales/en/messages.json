@@ -865,6 +865,9 @@
       "toggle_status": "Toggle Admin Status",
       "select": "Admin Remote Select"
     },
+    "admin_user": {
+      "force_logout": "Force Logout"
+    },
     "permission": {
       "tree": "View Permission Tree",
       "list": "View Permission List"
@@ -880,6 +883,9 @@
       "select": "Tenant Remote Select",
       "reset_owner_password": "Reset Tenant Owner Password",
       "recycle_bin": "Recycle Bin"
+    },
+    "tenant_admin": {
+      "force_logout": "Force Logout"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",
@@ -946,7 +952,8 @@
       "reset_password": "Reset User Password",
       "approve": "Approve User",
       "reject": "Reject User",
-      "select": "User Remote Select"
+      "select": "User Remote Select",
+      "force_logout": "Force Logout"
     },
     "tenant_user_role": {
       "list": "View User Role List",

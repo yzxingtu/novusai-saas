@@ -103,12 +103,16 @@ const deptTreeLoading = ref(false);
 const deptTreeData = ref<{ title: string; value: number; children?: { title: string; value: number; children?: unknown[] }[] }[]>([]);
 
 // Data scope options / 数据范围选项
-const DATA_SCOPE_OPTIONS: { value: DataScopeType; labelKey: string }[] = [
-  { value: 'all', labelKey: 'common.role.dataScopeAll' },
-  { value: 'dept_children', labelKey: 'common.role.dataScopeDeptChildren' },
-  { value: 'dept_only', labelKey: 'common.role.dataScopeDeptOnly' },
-  { value: 'self', labelKey: 'common.role.dataScopeSelf' },
-  { value: 'custom', labelKey: 'common.role.dataScopeCustom' },
+const DATA_SCOPE_OPTIONS: {
+  value: DataScopeType;
+  labelKey: string;
+  descKey: string;
+}[] = [
+  { value: 'all', labelKey: 'common.role.dataScopeAll', descKey: 'common.role.dataScopeAllDesc' },
+  { value: 'dept_children', labelKey: 'common.role.dataScopeDeptChildren', descKey: 'common.role.dataScopeDeptChildrenDesc' },
+  { value: 'dept_only', labelKey: 'common.role.dataScopeDeptOnly', descKey: 'common.role.dataScopeDeptOnlyDesc' },
+  { value: 'self', labelKey: 'common.role.dataScopeSelf', descKey: 'common.role.dataScopeSelfDesc' },
+  { value: 'custom', labelKey: 'common.role.dataScopeCustom', descKey: 'common.role.dataScopeCustomDesc' },
 ];
 
 // Form data / 表单数据
@@ -528,7 +532,14 @@ watch(
                   :key="opt.value"
                   :value="opt.value"
                   :label="$t(opt.labelKey)"
-                />
+                >
+                  <div>
+                    <span>{{ $t(opt.labelKey) }}</span>
+                    <span class="ml-2 text-xs text-muted-foreground">
+                      {{ $t(opt.descKey) }}
+                    </span>
+                  </div>
+                </SelectOption>
               </Select>
             </FormItem>
             <FormItem
