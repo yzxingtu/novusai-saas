@@ -491,17 +491,7 @@ def create_application() -> FastAPI:
     # preventing browser from caching GET causing stale data after save
     # 仅对未设置 Cache-Control 的 JSON 响应添加 no-store，
     # 避免浏览器缓存 GET 导致保存后数据不更新
-    from starlette.middleware.base import BaseHTTPMiddleware
-
-    class NoCacheAPIMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            response = await call_next(request)
-            if "Cache-Control" not in response.headers:
-                content_type = response.headers.get("Content-Type", "")
-                if "application/json" in content_type:
-                    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-                    response.headers["Pragma"] = "no-cache"
-            return response
+    from app.middleware.nocache import NoCacheAPIMiddleware
 
     app.add_middleware(NoCacheAPIMiddleware)
 
