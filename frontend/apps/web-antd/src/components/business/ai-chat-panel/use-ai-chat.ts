@@ -31,6 +31,7 @@ import type {
 import {
   clearChatConversationMemoryApi,
   deleteChatConversationApi,
+  updateChatConversationTitleApi,
   getChatAgentKBBindingsApi,
   getChatAgentsApi,
   getChatConversationMemoryApi,
@@ -165,6 +166,11 @@ export function useAIChat(options: UseAIChatOptions) {
    */
   function startNewConversation(keepVars = false) {
     messagesRequestSeq += 1;
+    if (debounceTimerId) {
+      clearTimeout(debounceTimerId);
+      debounceTimerId = null;
+    }
+    pendingMessages.value = [];
     activeConversationId.value = null;
     chatMessages.value = [];
     memoryState.value = null;
@@ -189,8 +195,24 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
+  async function updateConversationTitle(convId: number, title: string) {
+    try {
+      const prefix = unref(options.apiPrefix) as string;
+      await updateChatConversationTitleApi(prefix, convId, title);
+      const conv = conversations.value.find((c) => c.id === convId);
+      if (conv) conv.title = title || null;
+    } catch {
+      // handled by interceptor
+    }
+  }
+
   async function loadConversationMessages(convId: number) {
     const reqSeq = ++messagesRequestSeq;
+    if (debounceTimerId) {
+      clearTimeout(debounceTimerId);
+      debounceTimerId = null;
+    }
+    pendingMessages.value = [];
     activeConversationId.value = convId;
     const currentConversation = conversations.value.find((c) => c.id === convId);
     if (currentConversation?.agent_id) {
@@ -305,6 +327,7 @@ export function useAIChat(options: UseAIChatOptions) {
       agent_id?: null | number;
       agent_name?: null | string;
       content: null | string;
+      created_at?: null | string;
       metadata?: null | { attachments?: ChatAttachment[]; memory_updated?: boolean };
       role: string;
       tool_call_id?: null | string;
@@ -349,6 +372,7 @@ export function useAIChat(options: UseAIChatOptions) {
           role: 'user',
           content: msg.content ?? '',
           attachments: msg.metadata?.attachments,
+          ...(msg.created_at ? { created_at: msg.created_at } : {}),
         });
         i++;
         continue;
@@ -363,12 +387,14 @@ export function useAIChat(options: UseAIChatOptions) {
       let turnAgentAvatar: null | string = null;
       let turnAgentDescription: null | string = null;
       let turnModelName: null | string = null;
+      let turnCreatedAt: null | string = null;
       const startIdx = i;
 
       while (i < filtered.length && filtered[i]!.role !== 'user') {
         const cur = filtered[i]!;
 
-        if (cur.role === 'assistant') {
+          if (cur.role === 'assistant') {
+          if (cur.created_at) turnCreatedAt = cur.created_at;
           // Capture agent info from the first assistant message in this turn
           if (turnAgentId === null && cur.agent_id) {
             turnAgentId = cur.agent_id;
@@ -447,6 +473,7 @@ export function useAIChat(options: UseAIChatOptions) {
           agent_description: turnAgentDescription,
           model_name: turnModelName,
         };
+        if (turnCreatedAt) assistantMsg.created_at = turnCreatedAt;
         if (hasMemoryUpdated) {
           assistantMsg.memoryUpdated = true;
         }
@@ -553,6 +580,11 @@ export function useAIChat(options: UseAIChatOptions) {
   }
   const sending = ref(false);
   const streaming = ref(false);
+
+  /** 发送前 800ms 防抖：多条消息合并为一次请求 */
+  const SEND_DEBOUNCE_MS = 800;
+  const pendingMessages = ref<{ text: string }[]>([]);
+  let debounceTimerId: ReturnType<typeof setTimeout> | null = null;
   const messagesContainer = ref<HTMLElement | null>(null);
 
   let streamAbortController: AbortController | null = null;
@@ -562,6 +594,8 @@ export function useAIChat(options: UseAIChatOptions) {
 
   /** Whether user has manually scrolled up / 用户是否手动向上滚动 */
   const userScrolledUp = ref(false);
+  /** Whether user has scrolled down from top (show scroll-to-top button) / 用户是否从顶部向下滚动 */
+  const userNotAtTop = ref(false);
 
   /**
    * Smart scroll: only auto-scroll to bottom if user hasn't scrolled up / 智能滚动：仅当用户未上滑时自动滚到底部
@@ -577,6 +611,14 @@ export function useAIChat(options: UseAIChatOptions) {
     });
   }
 
+  function scrollToTop() {
+    nextTick(() => {
+      const el = messagesContainer.value;
+      if (!el) return;
+      el.scrollTop = 0;
+    });
+  }
+
   /** Check if the user is near the bottom of the scroll container / 是否接近滚动容器底部 */
   function isNearBottom(): boolean {
     const el = messagesContainer.value;
@@ -587,7 +629,10 @@ export function useAIChat(options: UseAIChatOptions) {
 
   /** Handle scroll events to detect manual user scroll-up / 处理滚动以检测用户手动上滑 */
   function handleMessagesScroll() {
+    const el = messagesContainer.value;
+    if (!el) return;
     userScrolledUp.value = !isNearBottom();
+    userNotAtTop.value = el.scrollTop > 80;
   }
 
   async function copyMessage(content: string) {
@@ -899,6 +944,37 @@ export function useAIChat(options: UseAIChatOptions) {
     const userMsg = inputMessage.value.trim();
     const msgAttachments = [...pendingAttachments.value];
 
+    const useDebounce =
+      !silent &&
+      !hasAttachments &&
+      msgAttachments.length === 0 &&
+      userMsg.length > 0;
+
+    if (useDebounce) {
+      if (!silent) {
+        chatMessages.value.push({
+          role: 'user',
+          content: userMsg,
+          created_at: new Date().toISOString(),
+        });
+      }
+      pendingMessages.value.push({ text: userMsg });
+      inputMessage.value = '';
+      clearPendingAttachments();
+      userScrolledUp.value = false;
+      scrollToBottom(true);
+
+      if (debounceTimerId) clearTimeout(debounceTimerId);
+      debounceTimerId = setTimeout(() => {
+        debounceTimerId = null;
+        flushPendingAndSend({
+          targetAgentId: targetAgentId!,
+          pageContext,
+        });
+      }, SEND_DEBOUNCE_MS);
+      return;
+    }
+
     if (!silent) {
       chatMessages.value.push({
         role: 'user',
@@ -907,7 +983,6 @@ export function useAIChat(options: UseAIChatOptions) {
         created_at: new Date().toISOString(),
       });
     }
-    // Resolve agent info for multi-agent avatar display
     const targetAgent = agents.value.find((a) => a.id === targetAgentId);
     chatMessages.value.push({
       role: 'assistant',
@@ -918,6 +993,7 @@ export function useAIChat(options: UseAIChatOptions) {
       agent_avatar: targetAgent?.avatar ?? null,
       agent_description: targetAgent?.description ?? null,
       model_name: targetAgent?.model_name ?? null,
+      created_at: new Date().toISOString(),
     });
     userScrolledUp.value = false;
     scrollToBottom(true);
@@ -926,21 +1002,70 @@ export function useAIChat(options: UseAIChatOptions) {
     clearPendingAttachments();
     await nextTick();
 
+    await doStreamRequest({
+      texts: [userMsg],
+      apiAttachments:
+        msgAttachments.length > 0
+          ? msgAttachments.map(({ type, url, name, mime_type }) => ({
+              type,
+              url,
+              name,
+              mime_type,
+            }))
+          : undefined,
+      targetAgentId: targetAgentId!,
+      pageContext,
+    });
+  }
+
+  async function flushPendingAndSend(opts: {
+    targetAgentId: number;
+    pageContext: null | PageContext;
+  }) {
+    const msgs = [...pendingMessages.value];
+    pendingMessages.value = [];
+    if (msgs.length === 0) return;
+    if (sending.value) return;
+
+    const { targetAgentId, pageContext } = opts;
+    const targetAgent = agents.value.find((a) => a.id === targetAgentId);
+    chatMessages.value.push({
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      agent_id: targetAgentId,
+      agent_name: targetAgent?.name ?? null,
+      agent_avatar: targetAgent?.avatar ?? null,
+      agent_description: targetAgent?.description ?? null,
+      model_name: targetAgent?.model_name ?? null,
+      created_at: new Date().toISOString(),
+    });
+    userScrolledUp.value = false;
+    scrollToBottom(true);
+    await nextTick();
+
+    await doStreamRequest({
+      texts: msgs.map((m) => m.text),
+      apiAttachments: undefined,
+      targetAgentId,
+      pageContext,
+    });
+  }
+
+  async function doStreamRequest(params: {
+    texts: string[];
+    apiAttachments?:
+      | { type: string; url: string; name?: string; mime_type?: string }[]
+      | undefined;
+    targetAgentId: number;
+    pageContext: null | PageContext;
+  }) {
+    const { texts, apiAttachments, targetAgentId, pageContext } = params;
     sending.value = true;
     streaming.value = true;
     const sseBuffer = { value: '' };
     streamAbortController = new AbortController();
     const assistantIdx = chatMessages.value.length - 1;
-
-    const apiAttachments =
-      msgAttachments.length > 0
-        ? msgAttachments.map(({ type, url, name, mime_type }) => ({
-            type,
-            url,
-            name,
-            mime_type,
-          }))
-        : undefined;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -966,7 +1091,9 @@ export function useAIChat(options: UseAIChatOptions) {
     try {
       const prefix = unref(options.apiPrefix) as string;
       const requestBody: AgentChatRequestBody = {
-        message: userMsg || ' ',
+        ...(texts.length === 1
+          ? { message: texts[0]! || ' ' }
+          : { messages: texts }),
         conversation_id: activeConversationId.value,
         ...(selectedKBIds.value.length > 0
           ? { knowledge_base_ids: selectedKBIds.value }
@@ -1404,6 +1531,7 @@ export function useAIChat(options: UseAIChatOptions) {
     loadConversations,
     startNewConversation,
     deleteConversation,
+    updateConversationTitle,
     clearConversationMemory,
     clearingMemory,
     fetchConversationMemory,
@@ -1430,8 +1558,10 @@ export function useAIChat(options: UseAIChatOptions) {
     sendMessage,
     stopGeneration,
     scrollToBottom,
+    scrollToTop,
     handleMessagesScroll,
     showScrollToBottom: userScrolledUp,
+    showScrollToTop: userNotAtTop,
     copyMessage,
     handleInputKeyDown,
     confirmAction,

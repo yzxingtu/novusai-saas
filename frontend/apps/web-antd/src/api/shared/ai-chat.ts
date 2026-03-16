@@ -107,6 +107,20 @@ export async function deleteChatConversationApi(
 }
 
 /**
+ * Update conversation title / 更新对话标题
+ */
+export async function updateChatConversationTitleApi(
+  apiPrefix: string,
+  conversationId: number,
+  title: string,
+): Promise<{ id: number; title: string | null }> {
+  return requestClient.patch<{ id: number; title: string | null }>(
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}`,
+    { title },
+  );
+}
+
+/**
  * Clear conversation memory state (without deleting messages) / 清空会话记忆状态
  */
 export async function clearChatConversationMemoryApi(
@@ -194,7 +208,9 @@ export interface AgentChatRequestBody {
   conversation_id?: null | number;
   image_params?: AgentChatImageParams;
   knowledge_base_ids?: number[];
-  message: string;
+  message?: string;
+  /** 批量消息（800ms 内多条合并为一次请求） */
+  messages?: string[];
   page_context?: null | PageContext;
   page_session_id?: null | string;
   variables?: Record<string, string>;

@@ -51,9 +51,27 @@ class AgentChatRequest(BaseModel):
     """对话请求 / Agent chat request."""
 
     message: str = Field(
-        ..., min_length=1, max_length=32000,
+        "",
+        min_length=0,
+        max_length=32000,
         description=_("agent_chat.field.message"),
     )
+    messages: list[str] | None = Field(
+        None,
+        max_length=10,
+        description=_("agent_chat.field.messages_batch"),
+    )
+
+    @model_validator(mode="after")
+    def require_message_or_messages(self) -> "AgentChatRequest":
+        msgs = self.messages or []
+        single = (self.message or "").strip()
+        if not msgs and not single:
+            raise ValueError("message or messages required")
+        if msgs and any(not (m or "").strip() for m in msgs):
+            raise ValueError("messages must not contain empty strings")
+        return self
+
     conversation_id: int | None = Field(
         None,
         description=_("agent_chat.field.conversation_id"),
@@ -86,6 +104,17 @@ class AgentChatRequest(BaseModel):
         None,
         max_length=64,
         description=_("agent_chat.field.page_session_id"),
+    )
+
+
+class UpdateConversationTitleRequest(BaseModel):
+    """更新对话标题请求 / Update conversation title request."""
+
+    title: str = Field(
+        "",
+        min_length=0,
+        max_length=200,
+        description=_("agent_chat.field.conversation_title"),
     )
 
 

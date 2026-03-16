@@ -527,7 +527,9 @@
   "agent_chat": {
     "field": {
       "message": "User Message",
+      "messages_batch": "Batch messages (multi-turn merge)",
       "conversation_id": "Conversation ID",
+      "conversation_title": "Conversation title",
       "variables": "Input Variables",
       "reply_message": "Reply Message",
       "tool_calls": "Tool Calls",

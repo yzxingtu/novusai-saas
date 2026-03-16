@@ -32,6 +32,7 @@ from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentConfirmRequest,
     AgentRouteRequest,
+    UpdateConversationTitleRequest,
 )
 from app.schemas.common.query import FilterRule
 from app.services.ai.agent_chat_service import AgentChatService
@@ -153,7 +154,8 @@ class UserAgentChatController(BaseController):
 
             return await service.stream_chat(
                 agent_id=agent_id,
-                message=data.message,
+                message=data.message or "",
+                messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 page_context=data.page_context,
@@ -277,6 +279,28 @@ class UserAgentChatController(BaseController):
                 user_id=current_user.id,
             )
             return success(data=result)
+
+        @router.patch(
+            "/conversations/{conversation_id}",
+            summary="更新对话标题 / Update conversation title",
+        )
+        @auth_only
+        async def update_conversation_title(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            data: UpdateConversationTitleRequest,
+            current_user: ActiveTenantUser,
+        ):
+            """更新对话标题 / Update conversation title"""
+            service = ConversationService(db, current_user.tenant_id)
+            conv = await service.update_conversation_title(
+                conversation_id,
+                title=data.title,
+                user_id=current_user.id,
+            )
+            await db.commit()
+            return success(data={"id": conv.id, "title": conv.title})
 
         @router.delete(
             "/conversations/{conversation_id}",

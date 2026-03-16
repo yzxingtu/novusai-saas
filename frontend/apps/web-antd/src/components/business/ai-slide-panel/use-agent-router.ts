@@ -1,3 +1,6 @@
+/** Route cache TTL: 5 minutes / 路由缓存 TTL 5 分钟 */
+const ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /**
  * Agent Router Composable
  * 智能体路由 Composable
@@ -16,7 +19,7 @@
  * P3+P4 are combined into a single API call; backend handles degradation.
  * P3+P4 合并为一次 API 调用，后端自行处理降级。
  */
-import { type Ref, ref, unref } from 'vue';
+import { type Ref, ref, unref, watch } from 'vue';
 
 import type {
   AgentRouteResponse,
@@ -62,6 +65,19 @@ export interface UseAgentRouterOptions {
 export function useAgentRouter(options: UseAgentRouterOptions) {
   const routing = ref(false);
   const lastRouteResult = ref<null | RouteResult>(null);
+  /** Route cache: key = pageKey-convId, 同一对话/页面后续消息复用 */
+  const routeCache = new Map<
+    string,
+    { result: RouteResult; expiresAt: number }
+  >();
+
+  function clearRouteCache() {
+    routeCache.clear();
+  }
+
+  if (options.activeConversationId) {
+    watch(options.activeConversationId, () => clearRouteCache());
+  }
 
   /**
    * Execute P1-P4 routing chain
@@ -118,7 +134,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
 
     // ---- P3+P4: Backend routing (with fallback) / 后端路由（含 fallback） ----
     const pageCtx = pageContext ?? resolvePageContext(pageContextKey);
-    return await _callRouteApi(message, pageCtx);
+    return await _callRouteApi(message, pageContextKey, pageCtx);
   }
 
   /**
@@ -169,34 +185,51 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
   }
 
   /**
-   * P3+P4: Call backend /route API
+   * P3+P4: Call backend /route API (with cache)
    * Backend handles Router agent invocation and default_chat fallback.
-   * P3+P4: 调用后端 /route API
-   * 后端处理 Router 智能体调用和 default_chat fallback。
+   * 同对话/同页面后续消息复用缓存，跳过 API 以减少 500ms-3s 延迟。
    */
   async function _callRouteApi(
     message: string,
+    pageContextKey: string | undefined,
     pageContext: null | PageContext,
   ): Promise<RouteResult> {
-    const prefix = unref(options.apiPrefix);
-    const conversationId = options.activeConversationId
+    const convId = options.activeConversationId
       ? unref(options.activeConversationId)
       : null;
+    const pageKey =
+      pageContextKey ??
+      pageContext?.page_key ??
+      'global';
+    const cacheKey = `${pageKey}-${convId ?? 'new'}`;
+
+    const now = Date.now();
+    const cached = routeCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.result;
+    }
+
+    const prefix = unref(options.apiPrefix);
     const pinId = unref(options.pinnedAgentId);
 
     const response: AgentRouteResponse = await routeMessageApi(prefix, {
       message,
-      conversation_id: conversationId,
+      conversation_id: convId,
       page_context: pageContext,
       pinned_agent_id: pinId,
     });
 
-    return {
+    const result: RouteResult = {
       agentId: response.agent_id,
       agentName: response.agent_name,
       confidence: response.confidence,
       routedBy: response.routed_by,
     };
+    routeCache.set(cacheKey, {
+      result,
+      expiresAt: now + ROUTE_CACHE_TTL_MS,
+    });
+    return result;
   }
 
   return {

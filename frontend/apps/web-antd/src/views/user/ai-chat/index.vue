@@ -62,6 +62,7 @@ const {
   loadConversations,
   startNewConversation,
   deleteConversation,
+  updateConversationTitle,
   loadConversationMessages,
   chatMessages,
   inputMessage,
@@ -72,7 +73,9 @@ const {
   stopGeneration,
   handleMessagesScroll,
   showScrollToBottom,
+  showScrollToTop,
   scrollToBottom,
+  scrollToTop,
   copyMessage,
   handleInputKeyDown,
   cleanup,
@@ -115,7 +118,9 @@ void messagesContainer;
 void fileInput;
 void handleMessagesScroll;
 void showScrollToBottom;
+void showScrollToTop;
 void scrollToBottom;
+void scrollToTop;
 
 // ============ Sidebar ============
 
@@ -196,6 +201,28 @@ function onDeleteConversation(convId: number) {
     title: $t('common.globalAiChat.confirmDelete'),
     onOk: () => deleteConversation(convId),
   });
+}
+
+const editingConversationId = ref<number | null>(null);
+const editingTitle = ref('');
+
+function startEditTitle(conv: { id: number; title?: string | null }) {
+  editingConversationId.value = conv.id;
+  editingTitle.value = conv.title || '';
+}
+
+function commitEditTitle() {
+  const id = editingConversationId.value;
+  if (id == null) return;
+  const title = editingTitle.value.trim().slice(0, 200);
+  editingConversationId.value = null;
+  editingTitle.value = '';
+  updateConversationTitle(id, title);
+}
+
+function cancelEditTitle() {
+  editingConversationId.value = null;
+  editingTitle.value = '';
 }
 
 function onStartNewChat() {
@@ -532,17 +559,19 @@ onUnmounted(() => {
                   :key="conv.id"
                   class="group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all duration-150"
                   :class="
-                    activeConversationId === conv.id
+                    activeConversationId === conv.id && editingConversationId !== conv.id
                       ? 'bg-primary/8 text-foreground shadow-sm shadow-primary/5 ring-1 ring-primary/15'
                       : 'text-muted-foreground hover:bg-accent/50'
                   "
-                  @click="onSelectConversation(conv.id)"
+                  @click="editingConversationId !== conv.id && onSelectConversation(conv.id)"
+                  @dblclick.stop="startEditTitle(conv)"
                 >
                   <div
-                    v-if="activeConversationId === conv.id"
+                    v-if="activeConversationId === conv.id && editingConversationId !== conv.id"
                     class="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary"
                   ></div>
                   <div
+                    v-if="editingConversationId !== conv.id"
                     class="flex size-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-medium"
                     :class="
                       activeConversationId === conv.id
@@ -554,17 +583,32 @@ onUnmounted(() => {
                     <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
                   </div>
                   <div class="flex min-w-0 flex-1 flex-col">
-                    <span
-                      class="truncate text-[13px]"
-                      :class="activeConversationId === conv.id ? 'font-medium' : ''"
-                    >
-                      {{ conv.title || `#${conv.id}` }}
-                    </span>
-                    <span class="truncate text-[10px] text-muted-foreground/50">
-                      {{ conv.agent_name || '' }}
-                    </span>
+                    <template v-if="editingConversationId === conv.id">
+                      <Input
+                        v-model:value="editingTitle"
+                        size="small"
+                        :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
+                        class="!h-7 text-[13px]"
+                        @blur="commitEditTitle"
+                        @keydown.enter="commitEditTitle"
+                        @keydown.esc="cancelEditTitle"
+                        @click.stop
+                      />
+                    </template>
+                    <template v-else>
+                      <span
+                        class="truncate text-[13px]"
+                        :class="activeConversationId === conv.id ? 'font-medium' : ''"
+                      >
+                        {{ conv.title || `#${conv.id}` }}
+                      </span>
+                      <span class="truncate text-[10px] text-muted-foreground/50">
+                        {{ conv.agent_name || '' }}
+                      </span>
+                    </template>
                   </div>
                   <button
+                    v-if="editingConversationId !== conv.id"
                     class="absolute right-2 flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                     @click.stop="onDeleteConversation(conv.id)"
                   >
@@ -827,6 +871,7 @@ onUnmounted(() => {
             :msg="msg"
             :index="idx"
             :api-prefix="API_PREFIX"
+            :agents="agents"
             :selected-agent="selectedAgent"
             :show-agent-switch="isAgentSwitch(idx)"
             @copy="onCopyMessage"
@@ -842,8 +887,18 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Floating action buttons (scroll-to-bottom only; stop is merged into send button) -->
+        <!-- Floating action buttons (scroll-to-top + scroll-to-bottom) -->
         <div class="sticky bottom-2 z-10 flex justify-center gap-2">
+          <Transition name="fade">
+            <button
+              v-if="showScrollToTop && !streaming"
+              class="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/95 text-muted-foreground shadow-lg backdrop-blur-sm transition-all hover:bg-primary hover:text-white hover:shadow-xl"
+              :aria-label="$t('common.globalAiChat.scrollToTop')"
+              @click="scrollToTop()"
+            >
+              <IconifyIcon icon="lucide:arrow-up" class="size-4" />
+            </button>
+          </Transition>
           <Transition name="fade">
             <button
               v-if="showScrollToBottom && !streaming"
@@ -938,6 +993,12 @@ onUnmounted(() => {
             <Spin size="small" />
           </div>
         </TransitionGroup>
+        <div
+          v-if="pendingAttachments.length > 0"
+          class="mb-1 text-[10px] text-muted-foreground/70"
+        >
+          {{ $t('common.globalAiChat.attachmentCount', { count: pendingAttachments.length, max: 5 }) }}
+        </div>
 
         <!-- Trust session toggle -->
         <div
@@ -1003,13 +1064,20 @@ onUnmounted(() => {
             v-model:value="inputMessage"
             :placeholder="$t('user.aiChat.inputPlaceholder')"
             :auto-size="{ minRows: 1, maxRows: 4 }"
+            :maxlength="32000"
+            :show-count="true"
             :disabled="agents.length === 0 || sending"
             class="flex-1 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
             @keydown="handleKeyDown"
             @paste="handlePaste"
           />
           <button
-            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+            :class="[
+              'flex size-8 shrink-0 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100',
+              streaming
+                ? 'bg-destructive text-destructive-foreground'
+                : 'bg-primary text-primary-foreground',
+            ]"
             :aria-label="streaming ? $t('common.globalAiChat.stop') : $t('common.commandBar.send')"
             :disabled="
               !streaming &&
@@ -1118,17 +1186,31 @@ onUnmounted(() => {
                 :key="conv.id"
                 class="group relative flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 transition-all"
                 :class="
-                  activeConversationId === conv.id
+                  activeConversationId === conv.id && editingConversationId !== conv.id
                     ? 'bg-primary/8 text-foreground'
                     : 'text-muted-foreground hover:bg-accent/50'
                 "
-                @click="onSelectConversation(conv.id)"
+                @click="editingConversationId !== conv.id && onSelectConversation(conv.id)"
+                @dblclick.stop="startEditTitle(conv)"
               >
-                <IconifyIcon icon="lucide:message-square" class="size-3.5 shrink-0" />
-                <span class="flex-1 truncate text-sm">
+                <IconifyIcon v-if="editingConversationId !== conv.id" icon="lucide:message-square" class="size-3.5 shrink-0" />
+                <template v-if="editingConversationId === conv.id">
+                  <Input
+                    v-model:value="editingTitle"
+                    size="small"
+                    :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
+                    class="flex-1 text-sm"
+                    @blur="commitEditTitle"
+                    @keydown.enter="commitEditTitle"
+                    @keydown.esc="cancelEditTitle"
+                    @click.stop
+                  />
+                </template>
+                <span v-else class="flex-1 truncate text-sm">
                   {{ conv.title || `#${conv.id}` }}
                 </span>
                 <button
+                  v-if="editingConversationId !== conv.id"
                   class="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                   @click.stop="onDeleteConversation(conv.id)"
                 >

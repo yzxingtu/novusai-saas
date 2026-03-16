@@ -32,6 +32,7 @@ import type {
 import {
   getChatAgentsApi,
   getGlobalConversationsApi,
+  updateChatConversationTitleApi,
 } from '#/api/shared/ai-chat';
 import { useAIPanelStore } from '#/store';
 
@@ -255,6 +256,20 @@ export function useCommandBar(options: UseCommandBarOptions) {
     }
   }
 
+  /**
+   * Update conversation title / 更新对话标题
+   */
+  async function updateConversationTitle(convId: number, title: string) {
+    try {
+      const prefix = unref(options.apiPrefix);
+      await updateChatConversationTitleApi(prefix, convId, title);
+      const conv = recentConversations.value.find((c) => c.id === convId);
+      if (conv) conv.title = title || null;
+    } catch {
+      // handled by interceptor
+    }
+  }
+
   // ==================== @mention ====================
 
   /**
@@ -374,6 +389,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     loadAgents,
     refreshAgents,
     loadRecentConversations,
+    updateConversationTitle,
     enterMentionMode,
     selectMentionAgent,
     exitMentionMode,

@@ -40,6 +40,8 @@ export interface PendingPageOpForDisplay {
 const props = withDefaults(
   defineProps<{
     apiPrefix?: string;
+    /** Agents list for resolving avatar/name by msg.agent_id (fix avatar mismatch) / 智能体列表，按 msg.agent_id 解析头像 */
+    agents?: AgentItem[];
     compact?: boolean;
     index: number;
     msg: ChatMessage;
@@ -51,18 +53,53 @@ const props = withDefaults(
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
   }>(),
-  { apiPrefix: '', compact: false, selectedAgent: null, showAgentSwitch: false, pendingOps: () => [] },
+  {
+    apiPrefix: '',
+    agents: () => [],
+    compact: false,
+    selectedAgent: null,
+    showAgentSwitch: false,
+    pendingOps: () => [],
+  },
 );
 
-/** Resolve agent display info: prefer message-level, fallback to selectedAgent / 解析智能体展示信息：优先消息级，否则用 selectedAgent */
-const msgAgentName = computed(() =>
-  props.msg.agent_name || props.selectedAgent?.name || null,
+/** Agent resolved by msg.agent_id from agents list (fix avatar mismatch when msg.agent_avatar is null) */
+const resolvedAgent = computed(() => {
+  if (props.msg.agent_id && props.agents?.length) {
+    return props.agents.find((a) => a.id === props.msg.agent_id) ?? null;
+  }
+  return null;
+});
+
+/** Avatar: msg > agents[agent_id] > selectedAgent (avoid wrong agent avatar in history) */
+const resolvedAvatar = computed(
+  () =>
+    props.msg.agent_avatar ??
+    resolvedAgent.value?.avatar ??
+    props.selectedAgent?.avatar ??
+    null,
 );
-const msgAgentDescription = computed(() =>
-  props.msg.agent_description || props.selectedAgent?.description || null,
+/** Resolve agent display info: prefer message-level, then agents by id, fallback to selectedAgent */
+const msgAgentName = computed(
+  () =>
+    props.msg.agent_name ??
+    resolvedAgent.value?.name ??
+    props.selectedAgent?.name ??
+    null,
 );
-const msgModelName = computed(() =>
-  props.msg.model_name || props.selectedAgent?.model_name || null,
+const msgAgentDescription = computed(
+  () =>
+    props.msg.agent_description ??
+    resolvedAgent.value?.description ??
+    props.selectedAgent?.description ??
+    null,
+);
+const msgModelName = computed(
+  () =>
+    props.msg.model_name ??
+    resolvedAgent.value?.model_name ??
+    props.selectedAgent?.model_name ??
+    null,
 );
 
 const emit = defineEmits<{
@@ -80,6 +117,19 @@ const emit = defineEmits<{
 
 
 const aiPanelStore = useAIPanelStore();
+
+/** Long message fold: content exceeds 1000 chars and not streaming / 长消息折叠阈值 */
+const COLLAPSE_THRESHOLD = 1000;
+const canCollapse = computed(
+  () =>
+    !!props.msg.content &&
+    !props.msg.streaming &&
+    props.msg.content.length > COLLAPSE_THRESHOLD,
+);
+const expandedMap = ref<Record<number, boolean>>({});
+function toggleExpand(idx: number) {
+  expandedMap.value = { ...expandedMap.value, [idx]: !expandedMap.value[idx] };
+}
 
 /** Whether this tool call has a pending confirmation (inline) / 该工具调用是否有待确认（内联） */
 function hasPendingForToolCall(tc: { id?: string; name: string; status: string }): boolean {
@@ -160,8 +210,8 @@ onUnmounted(stopTick);
     >
       <!-- Avatar with profile card popover -->
       <AgentProfilePopover
-        :agent-id="msg.agent_id || selectedAgent?.id"
-        :agent-avatar="msg.agent_avatar || selectedAgent?.avatar"
+        :agent-id="msg.agent_id ?? selectedAgent?.id"
+        :agent-avatar="resolvedAvatar"
         :agent-name="msgAgentName"
         :agent-description="msgAgentDescription"
         :model-name="msgModelName"
@@ -233,17 +283,38 @@ onUnmounted(stopTick);
         <!-- Markdown content -->
         <div
           v-if="msg.content"
-          class="rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm"
+          class="rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm overflow-hidden"
           :class="compact ? 'px-2.5 py-1.5 text-sm' : 'px-4 py-3'"
         >
-          <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
-          <span v-if="msg.streaming" class="streaming-cursor"></span>
-          <span
-            v-if="msg.stoppedByUser && !msg.streaming"
-            class="ml-1 text-muted-foreground/70"
+          <div
+            :class="[
+              'transition-[max-height] duration-200',
+              canCollapse && !expandedMap[index]
+                ? 'max-h-[300px] overflow-hidden relative'
+                : '',
+            ]"
           >
-            {{ $t('common.globalAiChat.generationStopped') }}
-          </span>
+            <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
+            <span v-if="msg.streaming" class="streaming-cursor"></span>
+            <span
+              v-if="msg.stoppedByUser && !msg.streaming"
+              class="ml-1 text-muted-foreground/70"
+            >
+              {{ $t('common.globalAiChat.generationStopped') }}
+            </span>
+            <div
+              v-if="canCollapse && !expandedMap[index]"
+              class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-muted/90 to-transparent pointer-events-none"
+            />
+          </div>
+          <button
+            v-if="canCollapse && !msg.streaming"
+            type="button"
+            class="mt-1 flex w-full items-center justify-center gap-1 rounded py-1 text-xs text-primary transition-colors hover:underline"
+            @click="toggleExpand(index)"
+          >
+            {{ expandedMap[index] ? $t('common.globalAiChat.collapseMessage') : $t('common.globalAiChat.expandMore') }}
+          </button>
         </div>
         <!-- SSE error retry -->
         <div
@@ -830,6 +901,9 @@ onUnmounted(stopTick);
             compact ? 'opacity-0' : 'opacity-60 hover:opacity-100',
           ]"
         >
+          <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
+            {{ formatTimeOnly(msg.created_at) }}
+          </span>
           <span v-if="msg.tokenUsage" class="mr-0.5 tabular-nums"
             >{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span
           >

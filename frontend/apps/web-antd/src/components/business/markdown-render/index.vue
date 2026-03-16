@@ -129,7 +129,7 @@ function handleCopyClick(e: Event) {
   if (el) {
     navigator.clipboard
       .writeText(el.textContent || '')
-      .then(() => message.success($t('common.copied')))
+      .then(() => message.success($t('common.globalAiChat.copySuccess')))
       .catch(() => message.error($t('common.requestFailed')));
   }
 }

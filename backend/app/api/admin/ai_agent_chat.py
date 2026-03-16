@@ -37,6 +37,7 @@ from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentConfirmRequest,
     AgentRouteRequest,
+    UpdateConversationTitleRequest,
 )
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AdminAgentService
@@ -158,7 +159,8 @@ class AdminAgentChatController(GlobalController):
             service = AgentChatService(db, tenant_id)
             return await service.stream_chat(
                 agent_id=agent_id,
-                message=data.message,
+                message=data.message or "",
+                messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 page_context=data.page_context,
@@ -308,6 +310,31 @@ class AdminAgentChatController(GlobalController):
             await service.delete_accessible_conversation(conversation_id)
             await db.commit()
             return deleted(message=_("agent_chat.conversation_deleted"))
+
+        @router.patch(
+            "/conversations/{conversation_id}",
+            summary="Update conversation title",
+        )
+        @action_create("action.admin_agent_chat.update_conversation")
+        async def update_conversation_title(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            data: UpdateConversationTitleRequest,
+            admin: ActiveAdmin,
+        ):
+            """更新对话标题 / Update conversation title"""
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            conv = await service.update_conversation_title(
+                conversation_id,
+                title=data.title,
+                user_id=None,
+            )
+            await db.commit()
+            return success(data={"id": conv.id, "title": conv.title})
 
         @router.get(
             "/conversations/{conversation_id}/memory-state",

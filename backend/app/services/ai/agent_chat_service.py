@@ -634,7 +634,8 @@ class AgentChatService:
     async def stream_chat(
         self,
         agent_id: int,
-        message: str,
+        message: str = "",
+        messages: list[str] | None = None,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
         page_context: PageContext | dict[str, Any] | None = None,
@@ -672,13 +673,17 @@ class AgentChatService:
         # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
 
+        # 解析消息：支持单条 message 或批量 messages
+        batch = messages if messages else ([message] if message else [])
+        first_message = batch[0] if batch else ""
+
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
             conversation_id=conversation_id,
             user_id=user_id,
-            first_message=message,
+            first_message=first_message,
         )
 
         # 1.5 新对话时递增每日对话计数
@@ -700,12 +705,18 @@ class AgentChatService:
             max_tokens=ctx_cfg.get("max_history_tokens", 0),
         )
 
-        # 3. 追加新用户消息（含附件）/ Append new user message (with attachments)
-        user_msg = ChatMessage(
-            role="user", content=message,
-            attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
-        )
-        all_messages = [*history_messages, user_msg]
+        # 3. 追加新用户消息（支持单条或批量；仅第一条支持附件）/ Append new user messages (single or batch; attachments only on first)
+        attach_list = [a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None
+        if batch:
+            user_msgs = [
+                ChatMessage(role="user", content=m, attachments=attach_list if i == 0 else None)
+                for i, m in enumerate(batch)
+            ]
+        else:
+            user_msgs = [
+                ChatMessage(role="user", content=message, attachments=attach_list),
+            ]
+        all_messages = [*history_messages, *user_msgs]
 
         # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）/ BEFORE_AGENT_CHAT hook
         hook_registry = get_hook_registry()

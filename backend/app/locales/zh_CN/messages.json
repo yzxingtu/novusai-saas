@@ -527,7 +527,9 @@
   "agent_chat": {
     "field": {
       "message": "用户消息",
+      "messages_batch": "批量消息（多轮合并发送）",
       "conversation_id": "对话 ID",
+      "conversation_title": "对话标题",
       "variables": "输入变量",
       "reply_message": "回复消息",
       "tool_calls": "工具调用",

@@ -35,6 +35,7 @@ from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentConfirmRequest,
     AgentRouteRequest,
+    UpdateConversationTitleRequest,
 )
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
@@ -162,7 +163,8 @@ class TenantAgentChatController(TenantController):
 
             return await service.stream_chat(
                 agent_id=agent_id,
-                message=data.message,
+                message=data.message or "",
+                messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 page_context=data.page_context,
@@ -319,6 +321,28 @@ class TenantAgentChatController(TenantController):
             )
             await db.commit()
             return deleted(message=_("agent_chat.conversation_deleted"))
+
+        @router.patch(
+            "/conversations/{conversation_id}",
+            summary="更新对话标题",
+        )
+        @action_create("action.agent_chat.update_conversation")
+        async def update_conversation_title(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            data: UpdateConversationTitleRequest,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """更新对话标题 / Update conversation title"""
+            service = ConversationService(db, tenant_admin.tenant_id)
+            conv = await service.update_conversation_title(
+                conversation_id,
+                title=data.title,
+                user_id=tenant_admin.id,
+            )
+            await db.commit()
+            return success(data={"id": conv.id, "title": conv.title})
 
         @router.get(
             "/conversations/{conversation_id}/memory-state",

@@ -239,6 +239,22 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         )
         await self.delete(conversation_id)
 
+    async def update_conversation_title(
+        self,
+        conversation_id: int,
+        title: str,
+        user_id: int | None = None,
+    ) -> AgentConversation:
+        """更新对话标题 / Update conversation title."""
+        conversation = await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+        )
+        s = (title or "").strip()
+        conversation.title = s[:200] if s else None
+        await self.db.flush()
+        return conversation
+
     def _get_memory_tenant_id(self) -> int:
         return self.tenant_id if self.tenant_id is not None else 0
 

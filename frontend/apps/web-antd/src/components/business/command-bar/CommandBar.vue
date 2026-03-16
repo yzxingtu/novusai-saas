@@ -18,7 +18,7 @@ import type {
  * - Menu search (smart detection) / 菜单搜索（智能判断）
  * - Ctrl+K shortcut to invoke / Ctrl+K 快捷键唤起
  */
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -82,6 +82,7 @@ const {
   exitMentionMode,
   onInputChange,
   submit,
+  updateConversationTitle,
 } = useCommandBar({
   apiPrefix: apiPrefixRef,
   canChat: canChatRef,
@@ -94,6 +95,12 @@ const selectedIndex = ref(0);
 watch(open, async (isOpen) => {
   if (isOpen) {
     selectedIndex.value = 0;
+    editingConversationId.value = null;
+    editingTitle.value = '';
+    if (clickNavigateTimer) {
+      clearTimeout(clickNavigateTimer);
+      clickNavigateTimer = null;
+    }
     await nextTick();
     const el = inputRef.value?.resizableTextArea?.textArea;
     el?.focus();
@@ -106,6 +113,10 @@ watch(mode, () => {
 
 watch(menuSearchResults, () => {
   selectedIndex.value = 0;
+});
+
+onUnmounted(() => {
+  if (clickNavigateTimer) clearTimeout(clickNavigateTimer);
 });
 
 function handleInputChange(value: string) {
@@ -200,12 +211,46 @@ function agentInitial(agent: AgentItem): string {
   return agent.name.charAt(0).toUpperCase();
 }
 
+let clickNavigateTimer: ReturnType<typeof setTimeout> | null = null;
+
 function handleConversationClick(conv: ConversationItem) {
-  hide();
-  if (!aiPanelStore.visible) {
-    aiPanelStore.open();
+  if (editingConversationId.value === conv.id) return;
+  // Delay navigation to allow dblclick to take precedence / 延迟跳转以区分单击与双击
+  if (clickNavigateTimer) clearTimeout(clickNavigateTimer);
+  clickNavigateTimer = setTimeout(() => {
+    clickNavigateTimer = null;
+    hide();
+    if (!aiPanelStore.visible) {
+      aiPanelStore.open();
+    }
+    emit('selectConversation', conv.id);
+  }, 250);
+}
+
+const editingConversationId = ref<number | null>(null);
+const editingTitle = ref('');
+
+function startEditTitle(conv: ConversationItem) {
+  if (clickNavigateTimer) {
+    clearTimeout(clickNavigateTimer);
+    clickNavigateTimer = null;
   }
-  emit('selectConversation', conv.id);
+  editingConversationId.value = conv.id;
+  editingTitle.value = conv.title || '';
+}
+
+function commitEditTitle() {
+  const id = editingConversationId.value;
+  if (id == null) return;
+  const title = editingTitle.value.trim().slice(0, 200);
+  editingConversationId.value = null;
+  editingTitle.value = '';
+  updateConversationTitle(id, title);
+}
+
+function cancelEditTitle() {
+  editingConversationId.value = null;
+  editingTitle.value = '';
 }
 
 const pinnedName = computed(() => aiPanelStore.pinnedAgentName);
@@ -489,8 +534,10 @@ defineExpose({
                   :key="conv.id"
                   class="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
                   @click="handleConversationClick(conv)"
+                  @dblclick.stop="startEditTitle(conv)"
                 >
                   <div
+                    v-if="editingConversationId !== conv.id"
                     class="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-[10px] font-medium text-muted-foreground"
                   >
                     <img
@@ -503,11 +550,23 @@ defineExpose({
                     <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
                   </div>
                   <div class="min-w-0 flex-1">
-                    <div class="truncate text-[13px] text-foreground">
+                    <template v-if="editingConversationId === conv.id">
+                      <Input
+                        v-model:value="editingTitle"
+                        size="small"
+                        :placeholder="$t('common.globalAiChat.conversationTitlePlaceholder')"
+                        class="!h-6 text-[13px]"
+                        @blur="commitEditTitle"
+                        @keydown.enter="commitEditTitle"
+                        @keydown.esc="cancelEditTitle"
+                        @click.stop
+                      />
+                    </template>
+                    <div v-else class="truncate text-[13px] text-foreground">
                       {{ conv.title || `#${conv.id}` }}
                     </div>
                   </div>
-                  <Tooltip :title="formatDate(conv.created_at)" placement="left">
+                  <Tooltip v-if="editingConversationId !== conv.id" :title="formatDate(conv.created_at)" placement="left">
                     <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
                       {{ formatRelativeTime(conv.created_at) }}
                     </span>
