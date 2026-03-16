@@ -289,7 +289,7 @@ class TestSyncLitellmRegistryTask:
         assert "llmring_added_keys" in result
 
         mock_logger.warning.assert_any_call(
-            "LLMRing provider fetch failed: provider=%s error=%s",
+            "LLMRing provider fetch failed: provider={} error={}",
             "openai",
             "openai fetch failed",
         )
@@ -340,7 +340,7 @@ class TestSyncLitellmRegistryTask:
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
         assert call_args[0][0] == (
-            "LiteLLM registry synced: source=%s models=%d litellm_keys=%d llmring_added=%d"
+            "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={}"
         )
         assert call_args[0][1] == result["source"]
         assert call_args[0][2] == result["model_count"]

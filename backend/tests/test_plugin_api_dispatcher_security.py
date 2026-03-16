@@ -77,10 +77,11 @@ def test_handler_accepts_param_by_name() -> None:
 
 
 def test_handler_accepts_param_by_kwargs() -> None:
+    """**kwargs 不视为显式接受参数，不自动注入 / **kwargs does not receive auto-injection."""
     def handler(request, **kwargs):
         return request, kwargs
 
-    assert _handler_accepts_param(handler, "db") is True
+    assert _handler_accepts_param(handler, "db") is False
 
 
 def test_context_has_db_capability() -> None:

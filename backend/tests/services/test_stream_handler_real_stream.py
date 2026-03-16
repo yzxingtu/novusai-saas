@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Stub redis/bcrypt/socketio before app imports (same pattern as test_tool_argument_recovery)
+# Stub redis/socketio before app imports（不 stub bcrypt，以免污染 TestRealPasswordHash）
 redis_module = types.ModuleType("redis")
 redis_asyncio_module = types.ModuleType("redis.asyncio")
 redis_asyncio_client_module = types.ModuleType("redis.asyncio.client")
@@ -44,20 +44,16 @@ redis_module.Redis = _RedisClient
 redis_module.from_url = lambda *a, **kw: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
-bcrypt_module = types.ModuleType("bcrypt")
-bcrypt_module.checkpw = lambda *a, **k: True
-bcrypt_module.gensalt = lambda: b"salt"
-bcrypt_module.hashpw = lambda p, s: p + s
 sys.modules.setdefault("redis", redis_module)
 sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
 sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
-sys.modules.setdefault("bcrypt", bcrypt_module)
 
 _mock_sio = MagicMock()
 _mock_sio.emit = AsyncMock()
 _sio_mod = types.ModuleType("app.core.socketio_server")
 _sio_mod.get_sio = lambda: _mock_sio
+_sio_mod.sio = _mock_sio  # emit_force_logout 等使用 sio 直接导入
 sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
 from app.ai.engine.stream_handler import StreamExecutionHandler

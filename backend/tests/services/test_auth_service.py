@@ -215,8 +215,8 @@ class TestAdminLogin:
             patch.object(service, "_reset_admin_login_failures", new_callable=AsyncMock),
             patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False),
             patch("app.services.common.auth_service.verify_password", return_value=True),
-            patch("app.services.common.auth_service.create_access_token", return_value="access_tok"),
-            patch("app.services.common.auth_service.create_refresh_token", return_value="refresh_tok"),
+            patch("app.services.common.auth_service.create_access_token", return_value=("access_tok", "jti_ok")),
+            patch("app.services.common.auth_service.create_refresh_token", return_value=("refresh_tok", "refresh_jti_ok")),
         ):
             result = await service.authenticate_admin("admin", "correct_password")
 
@@ -294,7 +294,7 @@ class TestRealTokenGeneration:
     def test_access_token_is_jwt(self):
         from app.core.security import TOKEN_SCOPE_ADMIN, create_access_token
 
-        token = create_access_token(subject=1, scope=TOKEN_SCOPE_ADMIN)
+        token, _jti = create_access_token(subject=1, scope=TOKEN_SCOPE_ADMIN)
         parts = token.split(".")
         assert len(parts) == 3  # JWT: header.payload.signature
 

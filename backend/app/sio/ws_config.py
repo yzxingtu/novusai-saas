@@ -149,8 +149,8 @@ async def invalidate_ws_config_cache() -> None:
     """
     try:
         redis = get_redis_client()
-    for key in _DEFAULTS:
-        await redis.delete(f"{_CACHE_PREFIX}{key}")
+        for key in _DEFAULTS:
+            await redis.delete(f"{_CACHE_PREFIX}{key}")
     except Exception:
         pass
 

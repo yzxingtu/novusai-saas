@@ -10,7 +10,7 @@ export const overridesPreferences = defineOverridesPreferences({
     accessMode: 'backend',
     name: import.meta.env.VITE_APP_TITLE,
     enableRefreshToken: true,
-    loginExpiredMode: 'page',
+    loginExpiredMode: 'modal',
     defaultHomePath: '/',
     layout: 'sidebar-nav',
     locale: 'zh-CN',

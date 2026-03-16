@@ -90,22 +90,22 @@ class TestPluginMenuI18n:
                 path="/admin/plugins/demo-plugin/docs",
                 title={"zh-CN": "文档管理", "en": "Documents"},
             )
+            # i18n key 格式为 {safe_name}.{name}.title，即 demo_plugin.docs.title
+            i18n_key = "demo_plugin.docs.title"
 
             set_locale("zh_CN")
-            assert PermissionService._translate_name(
-                "plugin.demo-plugin.menu.docs.title"
-            ) == "文档管理"
+            assert PermissionService._translate_name(i18n_key) == "文档管理"
 
             set_locale("en")
-            assert PermissionService._translate_name(
-                "plugin.demo-plugin.menu.docs.title"
-            ) == "Documents"
+            assert PermissionService._translate_name(i18n_key) == "Documents"
         finally:
             # 清理 registry + permission_registry 侧影响
             reg.unregister_all("demo-plugin")
             set_locale("zh_CN")
 
     def test_menu_i18n_key_is_unique_per_menu(self):
+        from app.core.i18n import set_locale
+
         reg = ExtensionRegistry.get_instance()
         try:
             reg.register_menu(
@@ -120,16 +120,11 @@ class TestPluginMenuI18n:
                 path="/admin/plugins/demo-plugin/detail",
                 title={"zh-CN": "详情", "en": "Detail"},
             )
-
-            assert reg.resolve_plugin_menu_title(
-                "plugin.demo-plugin.menu.list.title", locale="en"
-            ) == "List"
-            assert reg.resolve_plugin_menu_title(
-                "plugin.demo-plugin.menu.detail.title", locale="en"
-            ) == "Detail"
-            assert reg.resolve_plugin_menu_title(
-                "plugin.demo-plugin.menu.title", locale="en"
-            ) is None
+            # i18n key 格式为 {safe_name}.{name}.title；resolve_plugin_menu_title 使用 get_locale()
+            set_locale("en")
+            assert reg.resolve_plugin_menu_title("demo_plugin.list.title") == "List"
+            assert reg.resolve_plugin_menu_title("demo_plugin.detail.title") == "Detail"
+            assert reg.resolve_plugin_menu_title("demo_plugin.title") is None
         finally:
             reg.unregister_all("demo-plugin")
 
@@ -388,30 +383,30 @@ class TestApiDispatcherHelpers:
 
     def test_handler_accepts_ctx_positive(self):
         """handler 签名含 ctx → True / handler ctx → True"""
-        from app.plugins.api_dispatcher import _handler_accepts_ctx
+        from app.plugins.api_dispatcher import _handler_accepts_param
 
         async def handler_with_ctx(request, db, ctx):
             pass
 
-        assert _handler_accepts_ctx(handler_with_ctx) is True
+        assert _handler_accepts_param(handler_with_ctx, "ctx") is True
 
     def test_handler_accepts_ctx_negative(self):
         """handler 签名不含 ctx → False / handler ctx → False"""
-        from app.plugins.api_dispatcher import _handler_accepts_ctx
+        from app.plugins.api_dispatcher import _handler_accepts_param
 
         async def handler_without_ctx(request, db):
             pass
 
-        assert _handler_accepts_ctx(handler_without_ctx) is False
+        assert _handler_accepts_param(handler_without_ctx, "ctx") is False
 
     def test_handler_accepts_ctx_kwargs(self):
         """handler 用 **kwargs → False（不自动注入） / handler **kwargs → False（ ..."""
-        from app.plugins.api_dispatcher import _handler_accepts_ctx
+        from app.plugins.api_dispatcher import _handler_accepts_param
 
         async def handler_kwargs(**kwargs):
             pass
 
-        assert _handler_accepts_ctx(handler_kwargs) is False
+        assert _handler_accepts_param(handler_kwargs, "ctx") is False
 
 
 class TestPluginContextAIStream:
@@ -582,6 +577,9 @@ class TestSocketIONamespaceRegistry:
 
     def test_register_and_unregister_socketio_namespace(self, monkeypatch):
         import socketio
+
+        # 确保 app.core.socketio_server 已导入，以便 monkeypatch 能解析路径
+        import app.core.socketio_server  # noqa: F401
 
         from app.plugins.registry import ExtensionRegistry
 

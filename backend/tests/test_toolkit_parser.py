@@ -7,7 +7,7 @@ from app.ai.skills.toolkit_parser import (
 )
 
 SAMPLE_TOOLKIT = '''
-"""title: Weather API / 接口/处理器
+"""title: Weather API
 description: Query weather forecast
 version: 1.0.0
 author: NovusAI
@@ -124,7 +124,7 @@ def test_roundtrip():
 
 def test_no_valves():
     source = '''
-"""title: Simple Tool / 说明
+"""title: Simple Tool
 description: No valves
 version: 0.1.0"""
 

@@ -388,15 +388,14 @@ def _get_plugin_loader():
 
 
 def _handler_accepts_param(handler: Callable[..., object], param_name: str) -> bool:
-    """Check if handler accepts the specified parameter (including **kwargs compatibility). / 检查 handler 是否接受指定参数（含 **kwargs 兼容）。"""
+    """Check if handler explicitly accepts the specified parameter. / 检查 handler 是否显式接受指定参数。
+
+    Returns True only when param_name is an explicit parameter. **kwargs does NOT
+    count—we do not auto-inject ctx into handlers that only have **kwargs.
+    """
     try:
         sig = inspect.signature(handler)
-        if param_name in sig.parameters:
-            return True
-        return any(
-            p.kind == inspect.Parameter.VAR_KEYWORD
-            for p in sig.parameters.values()
-        )
+        return param_name in sig.parameters
     except (ValueError, TypeError):
         return False
 

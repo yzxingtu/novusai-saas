@@ -516,7 +516,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             "title": conversation.title,
             "status": conversation.status,
             "token_count": conversation.token_count,
-            "created_at": self._format_dt(conversation.created_at),
+            "created_at": ConversationService._format_dt(conversation.created_at),
             "messages": [
                 {
                     "role": msg.role,
@@ -527,7 +527,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                     "agent_id": msg.agent_id,
                     "agent_name": getattr(getattr(msg, "agent", None), "name", None),
                     "agent_avatar": getattr(getattr(msg, "agent", None), "avatar", None),
-                    "created_at": self._format_dt(msg.created_at),
+                    "created_at": ConversationService._format_dt(msg.created_at),
                 }
                 for msg in messages
             ],

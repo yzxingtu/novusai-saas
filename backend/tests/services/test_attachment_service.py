@@ -62,21 +62,25 @@ class TestAttachmentDelete:
         service.repo.get_by_id = AsyncMock(return_value=None)
 
         with pytest.raises(NotFoundException):
-            await service.soft_delete(999)
+            await service.delete(999, soft=True)
 
     @pytest.mark.asyncio
     async def test_soft_delete_success(self, mock_db):
+        from unittest.mock import patch
+
         from app.services.tenant.attachment_service import AttachmentService
 
         att = _make_attachment()
+        att.soft_delete = MagicMock()
         service = AttachmentService.__new__(AttachmentService)
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=att)
-        service.repo.delete = AsyncMock(return_value=True)
+        service.repo.db = mock_db
 
-        result = await service.soft_delete(1)
+        with patch.object(service, "_delete_storage_file", new_callable=AsyncMock):
+            result = await service.delete(1, soft=True)
         assert result is True
 
 

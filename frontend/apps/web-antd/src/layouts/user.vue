@@ -4,7 +4,7 @@ import type { MenuRecordRaw } from '@vben/types';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { VbenAvatar } from '@vben/common-ui';
+import { AuthenticationLoginExpiredModal, VbenAvatar } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 import { LanguageToggle, ThemeToggle } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
@@ -12,6 +12,7 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { Drawer, Dropdown, Tooltip } from 'ant-design-vue';
 
+import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { $t } from '#/locales';
 import { useMultiAuthStore, usePresenceStore, usePublicConfigStore, useSocketIOStore } from '#/store';
 
@@ -300,5 +301,13 @@ onBeforeUnmount(() => {
     >
       <span>&copy; {{ year }} {{ brandName }}</span>
     </footer>
+
+    <!-- 登录过期弹窗 / Login expired modal -->
+    <AuthenticationLoginExpiredModal
+      v-model:open="accessStore.loginExpired"
+      :avatar="avatar"
+    >
+      <ReLoginForm />
+    </AuthenticationLoginExpiredModal>
   </div>
 </template>

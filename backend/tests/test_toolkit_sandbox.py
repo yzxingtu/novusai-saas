@@ -41,12 +41,13 @@ def _make_definition(
 class TestSubprocessExecution:
     """Test subprocess sandbox mode. / 测试"""
 
-    SIMPLE_TOOLKIT = '''class Tools: / 说明
+    SIMPLE_TOOLKIT = '''class Tools:
     def hello(self, name: str = "World") -> str:
         return f"Hello, {name}!"
 
     def add(self, a: int = 0, b: int = 0) -> int:
-        return a + b'''
+        return a + b
+'''
 
     @pytest.mark.asyncio
     async def test_simple_execution(self) -> None:
@@ -120,7 +121,7 @@ class Tools:
     @pytest.mark.asyncio
     async def test_exception_in_toolkit(self) -> None:
         """Exception in toolkit code is captured. / 说明"""
-        error_toolkit = '''class Tools: / 说明
+        error_toolkit = '''class Tools:
     def fail(self) -> str:
         raise ValueError("intentional error")'''
         executor = ToolkitExecutor(sandbox_mode="subprocess")
@@ -132,7 +133,7 @@ class Tools:
     @pytest.mark.asyncio
     async def test_dict_return(self) -> None:
         """Toolkit returning dict is serialized as JSON. / 获取/返回"""
-        dict_toolkit = '''class Tools: / 说明
+        dict_toolkit = '''class Tools:
     def get_data(self) -> dict:
         return {"key": "value", "num": 42}'''
         executor = ToolkitExecutor(sandbox_mode="subprocess")
@@ -167,7 +168,7 @@ class Tools:
 class TestInprocessExecution:
     """Test inprocess mode (backward compatibility). / 测试"""
 
-    SIMPLE_TOOLKIT = '''class Tools: / 说明
+    SIMPLE_TOOLKIT = '''class Tools:
     def greet(self, name: str = "World") -> str:
         return f"Hi, {name}!"'''
 
@@ -227,7 +228,7 @@ class TestOutputTruncation:
     @pytest.mark.asyncio
     async def test_output_truncated(self) -> None:
         """Large output is truncated. / 说明"""
-        large_toolkit = '''class Tools: / 说明
+        large_toolkit = '''class Tools:
     def big(self) -> str:
         return "x" * 50000'''
         executor = ToolkitExecutor(

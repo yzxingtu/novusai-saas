@@ -47,7 +47,7 @@ import {
 } from '#/store';
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
-import LoginForm from '#/views/user/authentication/login.vue';
+import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -505,7 +505,7 @@ watch(
         v-model:open="accessStore.loginExpired"
         :avatar
       >
-        <LoginForm />
+        <ReLoginForm />
       </AuthenticationLoginExpiredModal>
       <CommandBar
         v-if="aiEnabled"

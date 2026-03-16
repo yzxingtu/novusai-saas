@@ -19,7 +19,6 @@ redis_module = types.ModuleType("redis")
 redis_asyncio_module = types.ModuleType("redis.asyncio")
 redis_asyncio_client_module = types.ModuleType("redis.asyncio.client")
 redis_exceptions_module = types.ModuleType("redis.exceptions")
-bcrypt_module = types.ModuleType("bcrypt")
 
 
 class _RedisConnectionPool:
@@ -44,18 +43,6 @@ class _RedisPipeline:
     pass
 
 
-def _bcrypt_checkpw(*args, **kwargs) -> bool:
-    return True
-
-
-def _bcrypt_gensalt() -> bytes:
-    return b"salt"
-
-
-def _bcrypt_hashpw(password: bytes, salt: bytes) -> bytes:
-    return password + salt
-
-
 redis_asyncio_module.ConnectionPool = _RedisConnectionPool
 redis_asyncio_module.Redis = _RedisClient
 redis_asyncio_client_module.Pipeline = _RedisPipeline
@@ -64,14 +51,10 @@ redis_module.Redis = _RedisClient
 redis_module.from_url = lambda *a, **kw: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
-bcrypt_module.checkpw = _bcrypt_checkpw
-bcrypt_module.gensalt = _bcrypt_gensalt
-bcrypt_module.hashpw = _bcrypt_hashpw
 sys.modules.setdefault("redis", redis_module)
 sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
 sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
-sys.modules.setdefault("bcrypt", bcrypt_module)
 
 # Stub socketio_server 模块（避免 Redis Manager 初始化）
 _mock_sio_instance = MagicMock()
@@ -79,6 +62,7 @@ _mock_sio_instance.emit = AsyncMock()
 
 socketio_server_module = types.ModuleType("app.core.socketio_server")
 socketio_server_module.get_sio = lambda: _mock_sio_instance
+socketio_server_module.sio = _mock_sio_instance  # emit_force_logout 等使用 sio 直接导入
 sys.modules.setdefault("app.core.socketio_server", socketio_server_module)
 
 from app.ai.skills.resolver import SkillResolver
