@@ -26,6 +26,7 @@ import {
 } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
 {% if _import %}import { ref } from 'vue';
 {% endif %}
+import { Page } from '@vben/common-ui';
 import { useCrudPage } from '#/composables';
 {% if model.drag_sort | default(false) %}
 import { useAutoTableDragSort } from '#/adapter/vxe-table';
@@ -45,7 +46,8 @@ import {
 } from './data';
 import Form from './modules/form.vue';
 
-defineOptions({ name: '{{ resource | pascal }}List' });
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}List' });
 
 {% if toggle_field %}
 function onToggleStatus(row: {{ resource | pascal }}Info) {
@@ -127,6 +129,7 @@ useAutoTableDragSort(() => gridApi.grid, {
 </script>
 
 <template>
+  <Page auto-content-height content-class="flex flex-col gap-4">
   <Grid>
     <template #toolbar-tools>
       {% if _import %}
@@ -159,4 +162,5 @@ useAutoTableDragSort(() => gridApi.grid, {
     @change="onImportChange"
   />
   {% endif %}
+  </Page>
 </template>

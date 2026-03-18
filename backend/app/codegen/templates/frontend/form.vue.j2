@@ -11,7 +11,8 @@ import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
-defineOptions({ name: '{{ resource | pascal }}Form' });
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}Form' });
 
 const emits = defineEmits<{ success: [] }>();
 

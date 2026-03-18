@@ -30,8 +30,9 @@ import Form from './modules/form.vue';
 {% set _recycle_bin = _fe.get('recycle_bin', False) %}
 {% set _page_size = _fe.get('page_size') or 12 %}
 {% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+{% set _scope_cap = (api_scope | default('admin') | capitalize) %}
 
-defineOptions({ name: '{{ resource | pascal }}CardList' });
+defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}CardList' });
 
 const {
   FormDrawer,
