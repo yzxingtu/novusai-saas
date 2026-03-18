@@ -164,7 +164,6 @@ admin_router.include_router(cache_router)
 # 代码生成器 / Codegen (DEBUG only)
 admin_router.include_router(codegen_router)
 
-
 __all__ = [
     "admin_router",
     # 导出控制器类，确保权限装饰器被执行 / Export controller classes to ensure permission decorators are executed

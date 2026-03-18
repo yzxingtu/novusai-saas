@@ -100,6 +100,8 @@ class TableSchema:
                 parts.append(f"-- {c.description}")
             if c.is_primary:
                 parts.append("PK")
+            elif not c.nullable:
+                parts.append("NOT NULL")
             if c.is_foreign_key and c.fk_table:
                 parts.append(f"FK\u2192{c.fk_table}")
             cols.append(" ".join(parts))
@@ -737,6 +739,62 @@ class SchemaProvider:
             if row[4]:
                 crud_tables["delete"].append((tname, label))
         return crud_tables
+
+    @staticmethod
+    async def get_crud_column_hints(
+        db: AsyncSession,
+        table_policy_ids: list[int] | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Get writable column hints for CRUD-allowed tables.
+        为 CRUD 允许的表获取可写列信息（复用 _load_table_schema）。
+
+        Returns:
+            {table_name: [{"name": str, "type": str, "desc": str, "required": bool, "fk_table": str|None}, ...]}
+        """
+        # System-managed columns: never writable in data_create
+        _SYSTEM_MANAGED = frozenset({
+            "id", "created_at", "updated_at", "is_deleted", "deleted_at", "tenant_id",
+        })
+
+        policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id=0)
+        filtered = [
+            p for p in policies
+            if (table_policy_ids is None or p["id"] in table_policy_ids)
+            and (p.get("allow_create") or p.get("allow_update"))
+        ]
+
+        provider = SchemaProvider()
+        result: dict[str, list[dict[str, Any]]] = {}
+
+        for policy in filtered:
+            try:
+                table_schema = await provider._load_table_schema(db, policy)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load schema for table {}: {}",
+                    policy["table_name"], str(exc),
+                )
+                continue
+
+            if not table_schema:
+                continue
+
+            hints: list[dict[str, Any]] = []
+            for c in table_schema.columns:
+                if c.name in _SYSTEM_MANAGED:
+                    continue
+                # required = NOT NULL and not auto-generated (PK)
+                required = not c.nullable and not c.is_primary
+                hints.append({
+                    "name": c.name,
+                    "type": c.type,
+                    "desc": c.description or "",
+                    "required": required,
+                    "fk_table": c.fk_table,
+                })
+            result[table_schema.table_name] = hints
+
+        return result
 
 
 # ============================================

@@ -185,6 +185,9 @@ class BaseEngine(ABC):
         page_hint = BaseEngine._build_page_operations_hint(input_variables, tools)
         if page_hint:
             hint += page_hint
+        data_hint = BaseEngine._build_data_operations_hint(tools)
+        if data_hint:
+            hint += data_hint
 
         messages[0] = ChatMessage(
             role="system",
@@ -229,6 +232,13 @@ class BaseEngine(ABC):
 
         tool_names = [t.name for t in (tools or [])]
         has_dedicated_editor_tools = any(n.startswith("pageop_") for n in tool_names)
+        has_data_tools = any(n.startswith("data_") for n in tool_names)
+        data_distinction_note = ""
+        if has_data_tools:
+            data_distinction_note = (
+                "\nNOTE: For direct database operations (query/create/update/delete records), "
+                "use data_* tools instead of page operations."
+            )
 
         if has_dedicated_editor_tools:
             # Preferred: pageop_* for expanded ops; invoke_page_operation for others (17 ops).
@@ -255,6 +265,7 @@ class BaseEngine(ABC):
                 f"{other_ops_hint}\n"
                 f"Do NOT show HTML, JSON, tool params or call examples to the user. "
                 f"Tools are for internal execution; return natural language results only."
+                f"{data_distinction_note}"
             )
         # Fallback: invoke_page_operation format for non-rich-text pages
         has_replace_section = "replace_section" in op_names
@@ -278,6 +289,28 @@ class BaseEngine(ABC):
             f'Read: invoke_page_operation(page_key="{page_key}", '
             f'operation_name="get_editor_html", params={{}})'
             f"{section_example}"
+            f"{data_distinction_note}"
+        )
+
+    @staticmethod
+    def _build_data_operations_hint(tools: list[ToolDefinition]) -> str:
+        """
+        Build a DATA OPERATIONS hint when data_* tools are available.
+        当存在 data_* 工具时构建 DATA OPERATIONS 提示。
+        """
+        data_tools = [t.name for t in tools if t.name.startswith("data_")]
+        if not data_tools:
+            return ""
+        return (
+            "\n\n[DATA OPERATIONS]\n"
+            f"Database tools available: {', '.join(data_tools)}.\n"
+            "When the user asks to query data, create/update/delete records, "
+            "view statistics, or explicitly mentions '平台数据管理' / 'data management', "
+            "you MUST use data_* tools to operate the database directly.\n"
+            "Do NOT use get_page_context / invoke_page_operation for database CRUD — "
+            "those are for page UI interactions only (opening forms, navigating pages).\n"
+            "Distinction: data_create = direct DB insert; "
+            "create_record (page op) = open a UI form for user to fill."
         )
 
     @staticmethod

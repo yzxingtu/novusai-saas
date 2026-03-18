@@ -8,6 +8,7 @@ Provides async database connections, session management and dependency injection
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -272,6 +273,64 @@ def create_database_if_not_exists() -> bool:
         admin_engine.dispose()
 
 
+def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
+    """
+    清除 alembic_version 中无法对应到迁移文件的孤立版本戳。
+    Purge orphaned version stamps in alembic_version that have no corresponding migration file.
+
+    用于 codegen auto-migrate 前清理插件残留（如 sm_001_init），避免 alembic revision 报错。
+    Used before codegen auto-migrate to clean plugin residuals.
+    """
+    import os
+    import re
+
+    backend = backend_dir or Path(__file__).resolve().parent.parent.parent
+    versions_path = backend / "migrations" / "versions"
+    if not versions_path.exists():
+        return True
+
+    known_revs: set[str] = set()
+    rev_pat = re.compile(r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']', re.MULTILINE)
+
+    def _collect(d: Path) -> None:
+        if not d.is_dir():
+            return
+        for f in d.iterdir():
+            if f.suffix != ".py" or f.name == "__init__.py":
+                continue
+            try:
+                m = rev_pat.search(f.read_text(encoding="utf-8", errors="replace"))
+                if m:
+                    known_revs.add(m.group(1))
+            except Exception:
+                pass
+
+    _collect(versions_path)
+    plugins_root = backend.parent / "plugins"
+    if plugins_root.is_dir():
+        for p in plugins_root.iterdir():
+            if p.name.startswith("."):
+                continue
+            _collect(p / "backend" / "migrations" / "versions")
+
+    if not known_revs:
+        return True
+
+    db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
+    engine = create_engine(db_url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+            for (stamp,) in rows:
+                if stamp not in known_revs:
+                    logger.info("Purging orphaned alembic stamp: {}", stamp)
+                    conn.execute(text("DELETE FROM alembic_version WHERE version_num = :v"), {"v": stamp})
+            conn.commit()
+    finally:
+        engine.dispose()
+    return True
+
+
 def run_migrations() -> bool:
     """
     运行数据库迁移 / Run database migrations (sync, called at startup)
@@ -497,6 +556,7 @@ __all__ = [
     "get_db_context",
     "check_database_connection",
     "create_database_if_not_exists",
+    "purge_orphaned_alembic_stamps",
     "run_migrations",
     "init_database",
     "close_database",

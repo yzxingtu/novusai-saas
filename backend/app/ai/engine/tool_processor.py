@@ -38,27 +38,166 @@ _REJECTION_TEXTS: frozenset[str] = frozenset({
 })
 
 
+# DeepSeek DSML markers (same as conversation.py, for tool arguments cleanup)
+_MODEL_FC_TOKEN_RE = re.compile(r"</?｜[A-Za-z]+｜[^>]*>")
+_MODEL_FC_BLOCK_RE = re.compile(
+    r"<｜DSML｜function_calls>.*?</｜DSML｜function_calls>",
+    re.DOTALL,
+)
+
+
+def _strip_dsml_from_args(s: str) -> str:
+    """Remove leaked DSML markers from tool arguments (DeepSeek etc.)."""
+    if "｜" not in s:
+        return s
+    s = _MODEL_FC_BLOCK_RE.sub("", s)
+    return _MODEL_FC_TOKEN_RE.sub("", s)
+
+
+def _fix_unescaped_control_chars(s: str) -> str:
+    """Replace unescaped control chars inside JSON string values."""
+    result: list[str] = []
+    in_string = False
+    escape_next = False
+    for ch in s:
+        if in_string:
+            if escape_next:
+                result.append(ch)
+                escape_next = False
+            elif ch == "\\":
+                result.append(ch)
+                escape_next = True
+            elif ch == '"':
+                in_string = False
+                result.append(ch)
+            elif ch == "\n":
+                result.append("\\n")
+            elif ch == "\r":
+                result.append("\\r")
+            elif ch == "\t":
+                result.append("\\t")
+            else:
+                result.append(ch)
+        else:
+            if ch == '"':
+                in_string = True
+            result.append(ch)
+    return "".join(result)
+
+
+def _try_convert_single_quotes(s: str) -> str | None:
+    """Try converting Python-style single-quoted dict to JSON (only when appropriate)."""
+    s = s.strip()
+    if not s.startswith("{") or "'" not in s:
+        return None
+    try:
+        import ast
+
+        parsed = ast.literal_eval(s)
+        if isinstance(parsed, dict):
+            return json.dumps(parsed, ensure_ascii=False)
+    except (ValueError, SyntaxError):
+        pass
+    return None
+
+
+def _try_fix_truncation(s: str) -> str:
+    """Try closing truncated string and brackets."""
+    result: list[str] = []
+    in_string = False
+    escape_next = False
+    brace_stack: list[str] = []  # "{" or "["
+    for ch in s:
+        if in_string:
+            if escape_next:
+                result.append(ch)
+                escape_next = False
+            elif ch == "\\":
+                result.append(ch)
+                escape_next = True
+            elif ch == '"':
+                in_string = False
+                result.append(ch)
+            elif ch == "\n":
+                result.append("\\n")
+            elif ch == "\r":
+                result.append("\\r")
+            elif ch == "\t":
+                result.append("\\t")
+            else:
+                result.append(ch)
+        else:
+            if ch == '"':
+                in_string = True
+            if ch == "{":
+                brace_stack.append("}")
+            elif ch == "[":
+                brace_stack.append("]")
+            elif ch in "}]" and brace_stack:
+                brace_stack.pop()
+            result.append(ch)
+    if in_string:
+        result.append('"')
+    while brace_stack:
+        result.append(brace_stack.pop())
+    return "".join(result)
+
+
 def _try_repair_json(raw: str) -> dict[str, Any] | None:
     """
-    Attempt to repair common JSON malformations (trailing commas, missing brackets).
-    尝试修复常见 JSON 畸形（尾部逗号、缺失括号）。
+    Attempt to repair common JSON malformations.
+    尝试修复常见 JSON 畸形：DSML 泄漏、尾部逗号、缺失括号、
+    未转义控制字符、Python 风格单引号、截断。
     """
     s = raw.strip()
-    # Remove trailing commas before ] or } / 去除 ] 或 } 前的尾部逗号
+    # Phase A: DSML cleanup
+    s = _strip_dsml_from_args(s)
+
+    # Existing: trailing comma, missing brackets
     s = re.sub(r",\s*([}\]])", r"\1", s)
-    # Add missing closing braces / 补全缺失的 }
+    s_before_braces = s
     opens = s.count("{") - s.count("}")
     if opens > 0:
         s += "}" * opens
-    # Add missing closing brackets / 补全缺失的 ]
     opens = s.count("[") - s.count("]")
     if opens > 0:
         s += "]" * opens
+
     try:
         parsed = json.loads(s)
         return parsed if isinstance(parsed, dict) else None
     except json.JSONDecodeError:
-        return None
+        pass
+
+    # Phase B: fix unescaped control chars
+    s2 = _fix_unescaped_control_chars(s)
+    if s2 != s:
+        try:
+            parsed = json.loads(s2)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            s = s2
+
+    # Phase C: Python-style single quotes
+    s3 = _try_convert_single_quotes(s)
+    if s3:
+        try:
+            parsed = json.loads(s3)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+
+    # Phase D: truncation fix — use string BEFORE we added closing braces,
+    # otherwise a trailing } would be incorrectly placed inside an unclosed string
+    s4 = _try_fix_truncation(s_before_braces)
+    if s4 != s:
+        try:
+            parsed = json.loads(s4)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+
+    return None
 
 
 @dataclass
@@ -118,6 +257,15 @@ class ToolCallProcessor:
             repaired = _try_repair_json(raw_args)
             if repaired is not None:
                 return repaired, None
+            raw_snippet = (
+                (raw_args[:500] + "…")
+                if isinstance(raw_args, str) and len(raw_args) > 500
+                else raw_args
+            )
+            logger.warning(
+                "Tool arguments JSON parse failed: raw_args_snippet=%s error=invalid_tool_arguments_json",
+                repr(raw_snippet)[:600],
+            )
             return None, "invalid_tool_arguments_json"
 
     async def execute_tool(

@@ -947,7 +947,9 @@
       "recycle_bin": "回收站"
     },
     "tenant_admin": {
-      "force_logout": "强制下线"
+      "list": "查看企业管理员列表",
+      "create": "创建企业管理员",
+      "update": "编辑企业管理员"
     },
     "tenant_settings": {
       "view": "查看企业设置",
@@ -1420,11 +1422,6 @@
       "update": "编辑技能",
       "delete": "删除技能",
       "update_status": "修改技能状态"
-    },
-    "tenant_admin": {
-      "list": "查看企业管理员列表",
-      "create": "创建企业管理员",
-      "update": "编辑企业管理员"
     }
   },
   "role": {
@@ -2853,6 +2850,9 @@
       "cross_tenant_denied": "禁止跨企业数据访问",
       "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线",
       "invalid_column_names": "以下列名包含非法字符: {columns}，仅允许小写字母、数字和下划线",
+      "missing_required_fields": "Missing required fields for table '{table}': {columns}. Please provide values for these fields.",
+      "json_parse_guidance": "请勿切换到 invoke_page_operation。请修复 JSON 格式：确保字符串值中的换行符转义为 \\n。",
+      "json_parse_guidance_tip": "提示：请简化长文本字段（如 system_prompt）——先用简短占位符创建记录，再使用 data_update 更新完整内容。",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表"
@@ -3037,7 +3037,6 @@
   "skill_package.system.data_management": "平台数据管理",
   "skill_package.system.web_search": "联网搜索",
   "skill_package.system.page_awareness": "页面感知交互",
-
   "page_operation.error.both_required": "必须同时提供 page_key 和 operation_name。",
   "page_operation.error.no_session": "无 page_session_id。需先建立活跃页面会话才能调用页面操作。",
   "page_operation.error.timeout": "操作 '{op}' 在 {timeout}s 后超时",
@@ -3062,7 +3061,6 @@
   "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
   "page_operation.error.json_parse_failed": "工具参数 JSON 解析失败。请确保参数为有效 JSON。请勿使用相同无效输入重试。",
   "page_operation.hint.replace_section": "使用短且唯一的 HTML 片段作为 replace_section 的 old_html；避免使用整篇文档。",
-
   "api.param.tenant_id": "目标企业 ID，0 表示平台附件",
   "api.param.tenant_id_filter": "按企业筛选",
   "api.param.file": "上传的文件",

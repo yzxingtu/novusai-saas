@@ -53,14 +53,14 @@ from app.services.{{ module }}.{{ resource }}_service import {{ resource | pasca
 
 @permission_resource(
     resource="{{ res_name }}",
-    name="menu.tenant.{{ res_name }}",
+    name="menu.tenant.{{ resource }}",
     scope=PermissionScope.ALL_TENANTS,
     parent_resource="{{ perm.get('parent_resource') or 'system' }}",
     menu=MenuConfig(
         icon="{{ menu.get('icon') or 'lucide:file' }}",
-        path="{{ menu.get('path') or '/tenant/' + module + '/' + resource_plural }}",
+        path="{{ menu.get('path') or '/' + (perm.get('parent_resource') or module)|replace('_', '-') + '/' + resource_plural }}",
         component="{{ tenant_ep.get('frontend', {}).get('component') or 'tenant/' + module + '/' + resource + '/index' }}",
-        parent="{{ menu.get('parent') or 'system' }}",
+        parent="{{ menu.get('parent') or perm.get('parent_resource') or 'system' }}",
         sort_order={{ menu.get('sort_order') or 50 }},
     ),
 )

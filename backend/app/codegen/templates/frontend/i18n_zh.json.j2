@@ -1,5 +1,5 @@
 {
-  "title": "{{ display_name }}",
+  "_name": "{{ display_name }}",
     "list": "{{ display_name }}列表",
     "create": "新增{{ display_name | replace('管理', '') }}",
     "edit": "编辑{{ display_name | replace('管理', '') }}",
@@ -44,6 +44,18 @@
       "clone": "克隆",
       "transition": "状态流转"
     }
+{% set enum_fields = (fields | default([])) | selectattr('enum_values') | list %}
+{% if enum_fields %}
+    ,"enum": {
+{% for f in enum_fields %}
+{% set floop = loop %}
+{% for v in f.enum_values %}
+      "{{ v.value if v is mapping else v }}": "{{ (v.label_zh if v is mapping else v) | default(v.value if v is mapping else v) }}"{% if not (floop.last and loop.last) %},{% endif %}
+
+{% endfor %}
+{% endfor %}
+    }
+{% endif %}
 {% set _has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
 {% set _has_workflow = workflow and workflow.get('transitions') %}
 {% set _has_unique = (fields | selectattr('unique') | list | length > 0) %}

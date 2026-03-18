@@ -113,6 +113,76 @@ def test_rollback_merged_removes_keys(tmp_path: Path) -> None:
     assert data["common"]["ok"] == "确定"
 
 
+def test_rollback_merged_nested_key_removes_subkey(tmp_path: Path) -> None:
+    """merge_json 回滚支持嵌套 key 路径，如 tenant.article."""
+    target = tmp_path / "messages.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    existing = {
+        "tenant": {
+            "article": {"not_found": "Article not found", "created": "Article created"},
+            "other": {"not_found": "Other not found"},
+        }
+    }
+    target.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    _setup_manifest(
+        tmp_path,
+        "article",
+        [
+            {
+                "path": "messages.json",
+                "action": "merge_json",
+                "merged_keys": ["tenant.article"],
+            }
+        ],
+    )
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="article")
+
+    assert result.success is True
+    assert "messages.json" in result.files_modified
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert "article" not in data.get("tenant", {})
+    assert data["tenant"]["other"]["not_found"] == "Other not found"
+
+
+def test_rollback_merged_multiple_nested_keys(tmp_path: Path) -> None:
+    """merge_json 回滚支持多条嵌套 key，如 tenant.article 和 action.article."""
+    target = tmp_path / "messages.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    existing = {
+        "tenant": {"article": {"not_found": "Article not found"}},
+        "action": {
+            "article": {"list": "View Article", "create": "Create Article"},
+            "notice": {"list": "View Notice"},
+        },
+    }
+    target.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    _setup_manifest(
+        tmp_path,
+        "article",
+        [
+            {
+                "path": "messages.json",
+                "action": "merge_json",
+                "merged_keys": ["tenant.article", "action.article"],
+            }
+        ],
+    )
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="article")
+
+    assert result.success is True
+    assert "messages.json" in result.files_modified
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert "article" not in data.get("tenant", {})
+    assert "article" not in data.get("action", {})
+    assert data["action"]["notice"]["list"] == "View Notice"
+
+
 def test_rollback_modified_file_warning_skips_append(tmp_path: Path) -> None:
     """当 append 内容已被修改时，跳过并记录 files_skipped."""
     target = tmp_path / "routers.py"

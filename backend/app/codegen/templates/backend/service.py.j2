@@ -21,6 +21,7 @@ from app.repositories.{{ module }}.{{ resource }}_repository import {{ resource 
 
 {% set base_class = model.base_class | default('TenantModel') %}
 {% set use_tenant_svc = base_class == 'TenantModel' and scenario in ['C', 'D'] %}
+{% set is_scenario_d = scenario == 'D' %}
 {% set unique_fields = fields | selectattr('unique', 'equalto', true) | list %}
 {% set has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
 {% set has_batch_delete = batch and batch.get('delete') %}
@@ -29,6 +30,24 @@ from app.repositories.{{ module }}.{{ resource }}_repository import {{ resource 
 {% set has_workflow = workflow and workflow.get('transitions') %}
 {% set has_clone = clone and clone.get('enabled') %}
 
+{% if is_scenario_d %}
+from app.repositories.{{ module }}.{{ resource }}_repository import Admin{{ resource | pascal }}Repository
+
+
+class Admin{{ resource | pascal }}Service(GlobalService[{{ resource | pascal }}, Admin{{ resource | pascal }}Repository]):
+    """
+    {{ display_name }}管理端服务（跨租户）/ {{ display_name_en }} admin service (cross-tenant).
+    """
+
+    model = {{ resource | pascal }}
+    repository_class = Admin{{ resource | pascal }}Repository
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        """管理端创建时注入 tenant_id=0（平台级）/ Inject tenant_id=0 for platform-level records"""
+        data.setdefault("tenant_id", 0)
+        await super()._before_create(data)
+
+{% endif %}
 
 class {{ resource | pascal }}Service({{ 'TenantService' if use_tenant_svc else 'GlobalService' }}[{{ resource | pascal }}, {{ resource | pascal }}Repository]):
     """
@@ -179,4 +198,9 @@ class {{ resource | pascal }}Service({{ 'TenantService' if use_tenant_svc else '
 
 {% endif %}
 
-__all__ = ["{{ resource | pascal }}Service"]
+__all__ = [
+{% if is_scenario_d %}
+    "Admin{{ resource | pascal }}Service",
+{% endif %}
+    "{{ resource | pascal }}Service",
+]

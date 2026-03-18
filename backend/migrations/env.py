@@ -152,6 +152,16 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+_known_model_tables = set(target_metadata.tables.keys())
+
+
+def _include_object(obj, name, type_, reflected, compare_to):
+    """Only emit autogenerate diffs for tables registered in our models."""
+    if type_ == "table" and reflected and name not in _known_model_tables:
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """
     离线模式运行迁移
@@ -166,6 +176,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        include_object=_include_object,
     )
 
     with context.begin_transaction():
@@ -190,6 +201,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
+            include_object=_include_object,
         )
 
         with context.begin_transaction():

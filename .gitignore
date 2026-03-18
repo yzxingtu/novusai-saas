@@ -288,3 +288,9 @@ scripts/local/
 
 # Test / scratch files
 test_doc.txt
+
+# Codegen temporary and backup files
+.novus_codegen_tmp/
+.novus_codegen_backup/
+.codegen_tmp/
+.codegen_backup/

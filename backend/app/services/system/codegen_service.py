@@ -349,6 +349,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         else:
             config_json = config_id_or_json
             config_id = None
+            config = None
             parsed = ConfigParser().parse(config_json)
             resource = parsed.resource
             module = parsed.module
@@ -385,6 +386,30 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if result.success:
             format_code(root, files)
 
+        # CLI generate from YAML: auto-save to DB so config appears in Web UI
+        if result.success and config_id is None and resource and module and self.db is not None:
+            existing = await self.get_by_resource(resource)
+            if existing:
+                await self.update(existing.id, {"config_json": config_json})
+                config_id = existing.id
+                config = existing
+            else:
+                created = await self.create({
+                    "name": parsed.display_name or resource,
+                    "resource": resource,
+                    "module": module,
+                    "display_name": parsed.display_name or resource,
+                    "display_name_en": parsed.display_name_en or resource.replace("_", " ").title(),
+                    "config_json": config_json,
+                    "status": CodegenConfigStatusEnum.DRAFT.value,
+                })
+                config_id = created.id
+                config = created
+
+        if config_id is not None and resource and module:
+            manifest = ManifestManager(root)
+            manifest.update_config_id(resource, config_id)
+
         if config_id is not None:
             update_data: dict[str, Any] = {
                 "last_generated_at": datetime.now(timezone.utc),
@@ -401,6 +426,38 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
             await self.update(config_id, update_data)
 
         return result
+
+    @staticmethod
+    def run_auto_migrate(resource: str, project_root: Path) -> dict[str, Any]:
+        """执行 alembic autogenerate / Run alembic autogenerate."""
+        import os
+
+        backend_dir = project_root / "backend"
+        if not backend_dir.exists():
+            return {"success": False, "error": "backend dir not found"}
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(str(backend_dir))
+            from alembic import command
+            from alembic.config import Config
+
+            cfg = Config(str(backend_dir / "alembic.ini"))
+            plugin_paths: list[str] = []
+            plugins_dir = backend_dir.parent / "plugins"
+            if plugins_dir.exists():
+                for d in sorted(plugins_dir.iterdir()):
+                    versions = d / "backend" / "migrations" / "versions"
+                    if versions.is_dir():
+                        plugin_paths.append(str(versions))
+            if plugin_paths:
+                base = cfg.get_main_option("version_locations") or ""
+                cfg.set_main_option("version_locations", f"{base} {' '.join(plugin_paths)}")
+            command.revision(cfg, message=f"codegen_{resource}", autogenerate=True)
+            return {"success": True, "message": f"Migration generated for {resource}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            os.chdir(orig_cwd)
 
     def rollback(
         self,
@@ -424,6 +481,25 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         root = project_root or _PROJECT_ROOT
         rb = CodegenRollback(root)
         return rb.rollback(config_id=config_id, force=force, dry_run=dry_run)
+
+    async def rollback_async(
+        self,
+        config_id: int,
+        force: bool = False,
+        dry_run: bool = False,
+        project_root: Path | None = None,
+    ) -> RollbackResult:
+        """
+        回滚生成的代码（支持 config_id 查找失败时按 resource 回退）/ Rollback with resource fallback.
+        """
+        root = project_root or _PROJECT_ROOT
+        rb = CodegenRollback(root)
+        result = rb.rollback(config_id=config_id, force=force, dry_run=dry_run)
+        if not result.success and result.errors and self.db is not None:
+            config = await self.get_by_id(config_id)
+            if config:
+                result = rb.rollback(resource=config.resource, force=force, dry_run=dry_run)
+        return result
 
     async def download(self, config_id: int, project_root: Path | None = None) -> bytes:
         """

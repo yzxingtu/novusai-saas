@@ -599,7 +599,11 @@ def codegen_cmd() -> None:
 @click.option("--stdin", is_flag=True, help="Read config from stdin (priority: stdin > config > id/resource)")
 @click.option("--template-type", "-t", type=click.Choice(["single", "tree", "master-sub"]), default=None, help="Template: single|tree|master-sub")
 @click.option("--force", "-f", is_flag=True, help="Force overwrite existing files")
-@click.option("--auto-migrate", is_flag=True, help="Run alembic autogenerate after generate")
+@click.option(
+    "--auto-migrate/--no-auto-migrate",
+    default=True,
+    help="Run alembic autogenerate after generate (default: on)",
+)
 @click.option("--dry-run", is_flag=True, help="Preview only, do not write files")
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def codegen_generate(
@@ -739,9 +743,45 @@ def codegen_generate(
         sys.exit(1)
 
     if auto_migrate and result.success:
-        cfg = _get_alembic_config()
-        from alembic import command
-        command.revision(cfg, message="codegen autogenerate", autogenerate=True)
+        import re as _re
+
+        import subprocess as _sp
+
+        from app.core.database import purge_orphaned_alembic_stamps
+        from app.codegen.config_parser import ConfigParser
+        from app.codegen.manifest import ManifestManager
+
+        _backend_dir = Path(__file__).parent.parent
+        _resource = ConfigParser().parse(config_json).resource if config_json else None
+
+        click.echo("[auto-migrate] Purging orphaned alembic stamps ...")
+        purge_orphaned_alembic_stamps(_backend_dir)
+
+        click.echo("[auto-migrate] Running alembic autogenerate in subprocess ...")
+        _rev = _sp.run(
+            [sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", "codegen_auto"],
+            cwd=str(_backend_dir), capture_output=True, text=True,
+        )
+        if _rev.returncode != 0:
+            click.echo(f"[auto-migrate] revision failed:\n{_rev.stderr}", err=True)
+        else:
+            click.echo("[auto-migrate] revision OK")
+            _migration_path = None
+            _out = (_rev.stdout or "") + (_rev.stderr or "")
+            _m = _re.search(r"Generating\s+(.+\.py)", _out)
+            if _m:
+                _migration_path = _m.group(1).strip()
+            _up = _sp.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=str(_backend_dir), capture_output=True, text=True,
+            )
+            if _up.returncode != 0:
+                click.echo(f"[auto-migrate] upgrade failed:\n{_up.stderr}", err=True)
+            else:
+                click.echo("[auto-migrate] upgrade OK")
+            if _resource and _migration_path:
+                manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
+                manifest.update_migration_file(_resource, _migration_path)
 
 
 @codegen_cmd.command("preview")
@@ -861,12 +901,18 @@ def codegen_validate(config_path: str | None, stdin: bool, output_json: bool) ->
 @click.option("--id", "config_id", type=int, default=None)
 @click.option("--force", "-f", is_flag=True)
 @click.option("--dry-run", is_flag=True)
+@click.option(
+    "--auto-migrate/--no-auto-migrate",
+    default=True,
+    help="Run alembic downgrade and delete migration file (default: on)",
+)
 @click.option("--json", "output_json", is_flag=True)
 def codegen_rollback(
     resource: str | None,
     config_id: int | None,
     force: bool,
     dry_run: bool,
+    auto_migrate: bool,
     output_json: bool,
 ) -> None:
     """Rollback generated code / 回滚生成代码"""
@@ -880,6 +926,18 @@ def codegen_rollback(
         sys.exit(1)
 
     from app.codegen.rollback import CodegenRollback
+    from app.codegen.manifest import ManifestManager
+
+    manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
+    entry = None
+    if resource:
+        entry = manifest.get_entry(resource)
+    elif config_id is not None:
+        for e in manifest.list_entries():
+            if e.config_id == config_id:
+                entry = e
+                break
+    migration_file = entry.migration_file if entry else None
 
     rb = CodegenRollback(_CODEGEN_PROJECT_ROOT)
     result = rb.rollback(
@@ -888,6 +946,24 @@ def codegen_rollback(
         force=force,
         dry_run=dry_run,
     )
+
+    if result.success and auto_migrate and migration_file and not dry_run:
+        _backend_dir = Path(__file__).parent.parent
+        _mp = Path(migration_file)
+        if not _mp.is_absolute():
+            _mp = _backend_dir / migration_file
+        click.echo("[auto-migrate] Running alembic downgrade -1 ...")
+        _downgrade = subprocess.run(
+            [sys.executable, "-m", "alembic", "downgrade", "-1"],
+            cwd=str(_backend_dir), capture_output=True, text=True,
+        )
+        if _downgrade.returncode != 0:
+            click.echo(f"[auto-migrate] downgrade failed:\n{_downgrade.stderr}", err=True)
+        else:
+            click.echo("[auto-migrate] downgrade OK")
+            if _mp.exists():
+                _mp.unlink()
+                click.echo(f"[auto-migrate] Deleted migration file: {_mp}")
 
     if output_json:
         import json

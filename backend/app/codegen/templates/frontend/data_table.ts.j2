@@ -341,7 +341,7 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
 {% elif 'Text' in ftype or comp == 'textarea' %}
     textareaField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { rows: 3{% if f.get('required', true) %}, required: true{% endif %} }),
 {% elif 'Integer' in ftype or 'Float' in ftype or 'Decimal' in ftype or comp == 'number' %}
-    numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { {% if f.get('min_value') is defined %}min: {{ f.get('min_value') }}{% else %}min: 0{% endif %}{% if f.get('max_value') is defined %}, max: {{ f.get('max_value') }}{% endif %}{% if f.get('default') is defined %}, defaultValue: {{ f.get('default') }}{% endif %} }),
+    numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { {% if f.get('min_value') is not none %}min: {{ f.get('min_value') }}{% else %}min: undefined{% endif %}{% if f.get('max_value') is not none %}, max: {{ f.get('max_value') }}{% endif %}{% if f.get('default') is not none %}, defaultValue: {{ f.get('default') }}{% endif %} }),
 {% elif f.get('dict_code') %}
     {
       ...apiSelect({
@@ -368,9 +368,9 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
 
 export function getFormDefaults(): Record<string, unknown> {
   return {
-{% for f in fields if not f.get('divider') and (f.get('default') is defined or f.get('form_default') is defined) %}
-{% set dv = f.get('form_default') if f.get('form_default') is defined else f.get('default') %}
-    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% else %}'{{ dv }}'{% endif %},
+{% for f in fields if not f.get('divider') and (f.get('default') is not none or f.get('form_default') is not none) %}
+{% set dv = f.get('form_default') if f.get('form_default') is not none else f.get('default') %}
+    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv }}'{% endif %},
 {% endfor %}
   };
 }

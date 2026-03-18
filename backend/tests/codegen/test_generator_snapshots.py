@@ -70,7 +70,10 @@ def test_simple_generates_frontend() -> None:
 def test_simple_files_have_content() -> None:
     """生成文件包含非空内容."""
     files = _generate("simple")
+    skip_actions = {"register_model", "register_route"}  # 元动作，内容由 FileWriter 写入
     for f in files:
+        if f.action in skip_actions:
+            continue
         assert isinstance(f.content, str), f"{f.path} should have content"
         assert len(f.content) > 20, f"{f.path} content too short"
 
@@ -145,8 +148,11 @@ def test_generate_step_model_only() -> None:
     paths = [f.path for f in files]
     for p in paths:
         assert "backend" in p
-        # model 步骤包含 models/schemas/repositories/services
-        assert any(x in p for x in ("models", "schemas", "repositories", "services"))
+        # model 步骤包含 models/schemas/repositories/services、migrations、locales（后端 i18n）
+        assert any(
+            x in p
+            for x in ("models", "schemas", "repositories", "services", "migrations", "locales")
+        )
 
 
 def test_generate_step_controller() -> None:

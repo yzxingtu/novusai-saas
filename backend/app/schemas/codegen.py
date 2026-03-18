@@ -188,6 +188,7 @@ class GenerateResultSchema(BaseModel):
     conflicts: list[dict[str, str]] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     backup_dir: str | None = Field(None)
+    migration: dict[str, Any] | None = Field(None, description="auto_migrate 执行结果 / auto_migrate result")
 
 
 class RollbackResultSchema(BaseModel):
@@ -241,6 +242,10 @@ class CodegenGenerateBodySchema(BaseModel):
         description="完整配置 JSON（与 config_id 二选一）/ Full config JSON (alternative to config_id)",
     )
     force: bool = Field(False, description="强制覆盖已存在文件 / Force overwrite")
+    auto_migrate: bool = Field(
+        True,
+        description="生成后自动执行 alembic autogenerate / Run alembic autogenerate after generate",
+    )
 
     @field_validator("config_json")
     @classmethod

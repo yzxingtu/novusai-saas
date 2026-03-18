@@ -30,6 +30,7 @@ class ManifestEntry:
     config_id: int | None
     config_hash: str | None
     files: list[dict[str, Any]] = field(default_factory=list)
+    migration_file: str | None = None
 
 
 class ManifestManager:
@@ -80,6 +81,10 @@ class ManifestManager:
                 item["appended_content"] = f.appended_content
             elif f.action == "merge_json" and f.merged_keys:
                 item["merged_keys"] = f.merged_keys
+            elif f.action == "register_route" and f.route_meta:
+                item["route_meta"] = f.route_meta
+            elif f.action == "register_model" and f.model_meta:
+                item["model_meta"] = f.model_meta
             file_list.append(item)
 
         lock_path = Path(str(self.path) + ".lock")
@@ -95,9 +100,32 @@ class ManifestManager:
                     "config_id": config_id,
                     "config_hash": config_hash,
                     "files": file_list,
+                    "migration_file": None,
                 }
             )
             data["entries"] = entries
+            self._save_unlocked(data)
+
+    def update_config_id(self, resource: str, config_id: int) -> None:
+        """更新某 resource 对应条目的 config_id / Update config_id for resource entry."""
+        lock_path = Path(str(self.path) + ".lock")
+        with FileLock(lock_path):
+            data = self._load()
+            for e in data.get("entries", []):
+                if e.get("resource") == resource:
+                    e["config_id"] = config_id
+                    break
+            self._save_unlocked(data)
+
+    def update_migration_file(self, resource: str, migration_path: str) -> None:
+        """更新某 resource 对应条目的 migration_file / Update migration file path for resource entry."""
+        lock_path = Path(str(self.path) + ".lock")
+        with FileLock(lock_path):
+            data = self._load()
+            for e in data.get("entries", []):
+                if e.get("resource") == resource:
+                    e["migration_file"] = migration_path
+                    break
             self._save_unlocked(data)
 
     def get_entry(self, resource: str) -> ManifestEntry | None:
@@ -112,6 +140,7 @@ class ManifestManager:
                     config_id=e.get("config_id"),
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
+                    migration_file=e.get("migration_file"),
                 )
         return None
 
@@ -136,6 +165,7 @@ class ManifestManager:
                     config_id=e.get("config_id"),
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
+                    migration_file=e.get("migration_file"),
                 )
             )
         return result

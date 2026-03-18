@@ -50,11 +50,11 @@ class {{ resource | pascal }}Create(BaseCreateSchema):
 {% set has_default = def_val is defined and def_val is not none %}
 {% set is_sql_expr = has_default and def_val is string and ('()' in def_val or def_val.startswith('now')) %}
 {% if f.get('required', true) and not has_default %}
-    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is defined %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is defined %}, le={{ f.max_value }}{% endif %})
+    {{ f.name }}: {{ py_type }} = Field(..., description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
 {% elif has_default and not is_sql_expr %}
-    {{ f.name }}: {{ py_type }} = Field({{ def_val | tojson if def_val is string else def_val }}, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is defined %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is defined %}, le={{ f.max_value }}{% endif %})
+    {{ f.name }}: {{ py_type }} = Field({{ def_val | tojson if def_val is string else def_val }}, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
 {% else %}
-    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is defined %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is defined %}, le={{ f.max_value }}{% endif %})
+    {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"){% if f.get('max_length') %}, max_length={{ f.max_length }}{% endif %}{% if f.get('min_value') is not none %}, ge={{ f.min_value }}{% endif %}{% if f.get('max_value') is not none %}, le={{ f.max_value }}{% endif %})
 {% endif %}
 {% endfor %}
 

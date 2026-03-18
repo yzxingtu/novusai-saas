@@ -33,7 +33,11 @@ from app.schemas.{{ module }}.{{ resource }} import (
     {{ resource | pascal }}Response,
 {% endif %}
 )
+{% if scenario == 'D' %}
+from app.services.{{ module }}.{{ resource }}_service import Admin{{ resource | pascal }}Service
+{% else %}
 from app.services.{{ module }}.{{ resource }}_service import {{ resource | pascal }}Service
+{% endif %}
 
 
 {% set admin_ep = admin_ep | default({}) %}
@@ -50,10 +54,11 @@ from app.services.{{ module }}.{{ resource }}_service import {{ resource | pasca
 {% set _fe = (admin_ep.get('frontend') or {}) %}
 {% set res_name = resource.replace('_', '-') %}
 {% set ResponseCls = 'Admin' + resource | pascal + 'Response' if scenario == 'D' else resource | pascal + 'Response' %}
+{% set SvcCls = 'Admin' + resource | pascal + 'Service' if scenario == 'D' else resource | pascal + 'Service' %}
 
 @permission_resource(
     resource="{{ res_name }}",
-    name="menu.admin.{{ res_name }}",
+    name="menu.admin.{{ resource }}",
     scope=PermissionScope.ADMIN_ONLY,
     parent_resource="{{ perm.get('parent_resource') or 'system' }}",
     menu=MenuConfig(
@@ -69,7 +74,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
 
     prefix = "{{ route_prefix }}"
     tags = ["{{ display_name_en }}"]
-    service_class = {{ resource | pascal }}Service
+    service_class = {{ SvcCls }}
 
     def _register_routes(self) -> None:
         router = self.router
@@ -77,7 +82,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
 {% if _fe.get('recycle_bin') %}
         register_admin_recycle_bin_routes(
             router=router,
-            service_class={{ resource | pascal }}Service,
+            service_class={{ SvcCls }},
             resource_name="{{ res_name }}",
         )
 
@@ -93,7 +98,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             page: int = 0,
             page_size: int = 20,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             response = await service.get_select_options(search=search, page=page, page_size=page_size)
             return success(data=response, message=_("common.success"))
 
@@ -107,7 +112,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             current_admin: ActiveAdmin,
             parent_id: int | None = None,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             tree = await service.repo.get_tree(parent_id=parent_id)
             return success(data=[{{ ResponseCls }}.from_model(n) for n in tree], message=_("common.success"))
 
@@ -121,7 +126,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             data: ReorderRequest,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             count = await service.reorder(ordered_ids=data.ids)
             await db.commit()
             return success(data={"updated_count": count}, message=_("common.reorder_success"))
@@ -136,7 +141,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             ids: list[int],
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             count = await service.batch_delete(ids)
             await db.commit()
             return success(data={"deleted_count": count}, message=_("common.deleted"))
@@ -150,7 +155,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             spec: QueryParams,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             items, total = await service.query_list(spec, scope="admin")
             return success(
                 data=PageResponse.create(
@@ -170,7 +175,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             id: int,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.get_by_id(id)
             if not item:
                 raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
@@ -184,7 +189,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             data: {{ resource | pascal }}Create,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.create(data.model_dump(exclude_none=True))
             await db.commit()
             return success(data={{ ResponseCls }}.from_model(item), message=_("{{ module }}.{{ resource }}.created"))
@@ -199,7 +204,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             data: dict,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.toggle_status(id, data.get("{{ toggle_field }}", True))
             await db.commit()
             return success(data={{ ResponseCls }}.from_model(item), message=_("common.success"))
@@ -214,7 +219,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             data: {{ resource | pascal }}Update,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.update(id, data.model_dump(exclude_none=True))
             await db.commit()
             if not item:
@@ -229,7 +234,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             id: int,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             await service.delete(id)
             await db.commit()
             return success(message=_("common.deleted"))
@@ -244,7 +249,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             data: dict,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.transition_status(id, data.get("action", ""), data.get("comment"))
             await db.commit()
             return success(data={{ ResponseCls }}.from_model(item), message=_("common.success"))
@@ -259,7 +264,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             id: int,
             current_admin: ActiveAdmin,
         ):
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             item = await service.clone(id)
             await db.commit()
             return success(data={{ ResponseCls }}.from_model(item), message=_("common.success"))
@@ -277,7 +282,7 @@ class Admin{{ resource | pascal }}Controller(GlobalController):
             """Import records from Excel. First row = headers (field names). / 从 Excel 导入，首行为列名"""
             from io import BytesIO
             from openpyxl import load_workbook
-            service = {{ resource | pascal }}Service(db)
+            service = {{ SvcCls }}(db)
             content = await file.read()
             wb = load_workbook(BytesIO(content), read_only=True)
             ws = wb.active

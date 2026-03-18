@@ -95,6 +95,22 @@ def test_shorthand_expansion_form() -> None:
     assert f.get("form", {}).get("component") == "input"
 
 
+def test_shorthand_expansion_comment_en_split() -> None:
+    """comment "中文 / English" 自动拆分为 comment 和 comment_en."""
+    config = {
+        "module": "x",
+        "resource": "r",
+        "display_name": "D",
+        "fields": [{"name": "title", "type": "String", "comment": "标题 / Title"}],
+    }
+    parser = ConfigParser()
+    parsed = parser.parse(config)
+
+    f = parsed.fields[0]
+    assert f.get("comment") == "标题"
+    assert f.get("comment_en") == "Title"
+
+
 # ============================================================
 # test_validation_errors
 # ============================================================

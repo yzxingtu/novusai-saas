@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 
+from app.codegen.rollback import CodegenRollback
 from app.core.config import settings
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -500,6 +501,17 @@ class AdminCodegenController(GlobalController):
                 "errors": result.errors,
                 "backup_dir": result.backup_dir,
             }
+            if body.auto_migrate and result.success:
+                if body.config_id is not None:
+                    cfg = await service.get_by_id(body.config_id)
+                    resource = cfg.resource if cfg else None
+                else:
+                    from app.codegen.config_parser import ConfigParser
+                    parsed = ConfigParser().parse(body.config_json or {})
+                    resource = parsed.resource
+                if resource:
+                    migrate_result = CodegenService.run_auto_migrate(resource, _PROJECT_ROOT)
+                    data["migration"] = migrate_result
             validated = GenerateResultSchema.model_validate(data)
             return success(data=validated.model_dump())
 
@@ -559,7 +571,36 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             service = CodegenService(db)
-            result = service.rollback(id, force=force, dry_run=dry_run, project_root=_PROJECT_ROOT)
+            result = await service.rollback_async(
+                id, force=force, dry_run=dry_run, project_root=_PROJECT_ROOT
+            )
+            data = {
+                "success": result.success,
+                "files_deleted": result.files_deleted,
+                "files_modified": result.files_modified,
+                "files_skipped": result.files_skipped,
+                "manual_steps": result.manual_steps,
+                "errors": result.errors,
+            }
+            validated = RollbackResultSchema.model_validate(data)
+            return success(data=validated.model_dump())
+
+        @router.delete(
+            "/rollback/{resource}",
+            summary=_("codegen.api.rollback_by_resource"),
+        )
+        @action_delete("action.codegen.rollback")
+        async def rollback_by_resource(
+            request: Request,
+            resource: str,
+            current_admin: ActiveAdmin,
+            force: bool = False,
+            dry_run: bool = False,
+        ):
+            """按 resource 回滚 / Rollback by resource name."""
+            _require_debug()
+            rb = CodegenRollback(_PROJECT_ROOT)
+            result = rb.rollback(resource=resource, force=force, dry_run=dry_run)
             data = {
                 "success": result.success,
                 "files_deleted": result.files_deleted,

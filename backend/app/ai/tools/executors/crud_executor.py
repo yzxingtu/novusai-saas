@@ -276,6 +276,10 @@ _SYSTEM_MANAGED_COLUMNS: set[str] = {
     "tenant_id", "is_deleted", "deleted_at", "delete_level",
     "created_at", "updated_at",
 }
+# Columns never required from user (auto-generated or always injected)
+_CREATE_SKIP_REQUIRED: frozenset[str] = frozenset({
+    "id", "created_at", "updated_at", "tenant_id", "is_deleted", "deleted_at",
+})
 
 
 def _strip_system_columns(data: dict[str, Any]) -> None:
@@ -290,6 +294,26 @@ def _strip_system_columns(data: dict[str, Any]) -> None:
     """
     for col in _SYSTEM_MANAGED_COLUMNS:
         data.pop(col, None)
+
+
+async def _get_required_columns_for_create(
+    context: ExecutionContext,
+    table_name: str,
+) -> set[str]:
+    """Get NOT NULL columns without default that user must provide for INSERT.
+    获取 INSERT 时用户必须提供的 NOT NULL 且无默认值的列。"""
+    if not context.db:
+        return set()
+    query = text("""
+        SELECT c.column_name
+        FROM information_schema.columns c
+        WHERE c.table_schema = 'public' AND c.table_name = :tbl
+          AND c.is_nullable = 'NO'
+          AND (c.column_default IS NULL OR c.column_default = '')
+    """)
+    result = await context.db.execute(query, {"tbl": table_name})
+    cols = {row[0] for row in result.fetchall()}
+    return cols - _CREATE_SKIP_REQUIRED
 
 
 def _serialize_for_sql(data: dict[str, Any]) -> None:
@@ -429,6 +453,20 @@ class CreateRecordExecutor(BaseToolExecutor):
         _enforce_tenant_isolation(context, policy, data)
         data["is_deleted"] = False
 
+        # Pre-validate required fields / 预校验必填字段
+        required = await _get_required_columns_for_create(context, table_name)
+        provided = set(data.keys())
+        missing = required - provided
+        if missing:
+            return ToolResult.error_result(
+                tool_call_id,
+                _("data_intelligence.crud.missing_required_fields").format(
+                    table=table_name,
+                    columns=", ".join(sorted(missing)),
+                ),
+                name=_name,
+            )
+
         # Confirmation flow / 确认流程
         if not confirmed:
             preview = {
@@ -481,8 +519,16 @@ class CreateRecordExecutor(BaseToolExecutor):
                 context, "create", table_name, None, data,
                 success=False, error=str(exc),
             )
+            error_msg = str(exc)
+            if "NotNullViolationError" in type(exc).__name__ or "not-null constraint" in error_msg:
+                col_match = re.search(r'column "(\w+)"', error_msg)
+                col_name = col_match.group(1) if col_match else "unknown"
+                error_msg = (
+                    f"Missing required field '{col_name}' for table '{table_name}'. "
+                    f"Please include '{col_name}' in the data parameter."
+                )
             return ToolResult.error_result(
-                tool_call_id, str(exc), name=_name,
+                tool_call_id, error_msg, name=_name,
             )
 
 

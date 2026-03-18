@@ -1,5 +1,5 @@
 {
-  "title": "{{ display_name_en }}",
+  "_name": "{{ display_name_en }}",
     "list": "{{ display_name_en }} List",
     "create": "Create {{ display_name_en | replace(' Management', '') }}",
     "edit": "Edit {{ display_name_en | replace(' Management', '') }}",
@@ -44,6 +44,18 @@
       "clone": "Clone",
       "transition": "Transition"
     }
+{% set enum_fields = (fields | default([])) | selectattr('enum_values') | list %}
+{% if enum_fields %}
+    ,"enum": {
+{% for f in enum_fields %}
+{% set floop = loop %}
+{% for v in f.enum_values %}
+      "{{ v.value if v is mapping else v }}": "{{ (v.label_en if v is mapping else v) | default(v.label_zh if v is mapping else v) | default(v.value if v is mapping else v) }}"{% if not (floop.last and loop.last) %},{% endif %}
+
+{% endfor %}
+{% endfor %}
+    }
+{% endif %}
 {% set _has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
 {% set _has_workflow = workflow and workflow.get('transitions') %}
 {% set _has_unique = (fields | selectattr('unique') | list | length > 0) %}

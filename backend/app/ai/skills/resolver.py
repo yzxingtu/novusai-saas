@@ -207,6 +207,35 @@ class SkillResolver:
     # Data Intelligence Skill / 数据智能 Skill
     # ========================================
 
+    def _format_crud_schema_block(
+        self,
+        tables: list[tuple[str, str]],
+        hints: dict[str, list[dict[str, Any]]],
+    ) -> str:
+        """Format column schema for CRUD tool description / 格式化 CRUD 工具描述的列 schema"""
+        if not hints:
+            return ""
+        lines: list[str] = []
+        for table_name, label in tables:
+            cols = hints.get(table_name)
+            if not cols:
+                continue
+            parts: list[str] = []
+            for c in cols:
+                p = f"{c['name']}({c['type']}"
+                if c.get("required"):
+                    p += ", required"
+                if c.get("fk_table"):
+                    p += f", FK->{c['fk_table']}"
+                p += ")"
+                if c.get("desc"):
+                    p += f" -- {c['desc'][:40]}{'...' if len(c.get('desc', '')) > 40 else ''}"
+                parts.append(p)
+            lines.append(f"\n{table_name}({label}): " + ", ".join(parts))
+        if not lines:
+            return ""
+        return "\n\nTable schemas (include all required fields):" + "".join(lines)
+
     async def _resolve_data_intelligence(
         self,
         skill: Skill,
@@ -242,6 +271,7 @@ class SkillResolver:
         table_descriptions: list[tuple[str, str]] = []
         crud_allowed_tables: dict[str, list[tuple[str, str]]] = {}
 
+        crud_column_hints: dict[str, list[dict[str, Any]]] = {}
         if self.db:
             try:
                 from app.ai.data_intelligence.schema_provider import SchemaProvider
@@ -249,6 +279,9 @@ class SkillResolver:
                     self.db, table_policy_ids=table_policy_ids,
                 )
                 crud_allowed_tables = await SchemaProvider.get_crud_allowed_tables(
+                    self.db, table_policy_ids=table_policy_ids,
+                )
+                crud_column_hints = await SchemaProvider.get_crud_column_hints(
                     self.db, table_policy_ids=table_policy_ids,
                 )
             except Exception as exc:
@@ -297,6 +330,9 @@ class SkillResolver:
             create_list = ", ".join(
                 f"{table_name}({labels})" for table_name, labels in create_tables
             )
+            schema_block = self._format_crud_schema_block(
+                create_tables, crud_column_hints,
+            )
             result.tools.append(ToolDefinition(
                 name="data_create",
                 description=(
@@ -305,6 +341,7 @@ class SkillResolver:
                     "then call again with confirmed=true after user approval. "
                     f"ONLY these tables allow creation: {create_list}. "
                     "Do NOT attempt to create records in any other table."
+                    f"{schema_block}"
                 ),
                 tool_type=ToolTypeEnum.DATA_CREATE.value,
                 parameters=[
@@ -328,6 +365,9 @@ class SkillResolver:
             update_list = ", ".join(
                 f"{table_name}({labels})" for table_name, labels in update_tables
             )
+            schema_block = self._format_crud_schema_block(
+                update_tables, crud_column_hints,
+            )
             result.tools.append(ToolDefinition(
                 name="data_update",
                 description=(
@@ -336,6 +376,7 @@ class SkillResolver:
                     "then call again with confirmed=true after user approval. "
                     f"ONLY these tables allow updates: {update_list}. "
                     "Do NOT attempt to update records in any other table."
+                    f"{schema_block}"
                 ),
                 tool_type=ToolTypeEnum.DATA_UPDATE.value,
                 parameters=[

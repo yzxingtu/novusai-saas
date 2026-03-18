@@ -128,7 +128,6 @@ tenant_router.include_router(ai_writing_router)
 # 回收站 / Recycle bin
 tenant_router.include_router(recycle_bin_router)
 
-
 __all__ = [
     "tenant_router",
     # 导出控制器类，确保权限装饰器被执行 / Export controllers for permission decorators

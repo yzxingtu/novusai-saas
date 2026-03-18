@@ -947,7 +947,9 @@
       "recycle_bin": "Recycle Bin"
     },
     "tenant_admin": {
-      "force_logout": "Force Logout"
+      "list": "View Tenant Admin List",
+      "create": "Create Tenant Admin",
+      "update": "Update Tenant Admin"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",
@@ -1420,11 +1422,6 @@
       "update": "Update Skill",
       "delete": "Delete Skill",
       "update_status": "Update Skill Status"
-    },
-    "tenant_admin": {
-      "list": "View Tenant Admin List",
-      "create": "Create Tenant Admin",
-      "update": "Update Tenant Admin"
     }
   },
   "role": {
@@ -2835,6 +2832,9 @@
       "cross_tenant_denied": "Cross-tenant data access is not allowed",
       "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed",
       "invalid_column_names": "The following column names contain invalid characters: {columns}, only lowercase letters, digits and underscores are allowed",
+      "missing_required_fields": "Missing required fields for table '{table}': {columns}. Please provide values for these fields.",
+      "json_parse_guidance": " Do NOT fall back to invoke_page_operation. Fix the JSON: ensure all newlines in string values are escaped as \\n. ",
+      "json_parse_guidance_tip": "TIP: Simplify long text fields (e.g. system_prompt) — use a short placeholder, create the record first, then update with the full text.",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users"
@@ -3032,7 +3032,6 @@
   "skill_package.system.data_management": "Platform Data Management",
   "skill_package.system.web_search": "Web Search",
   "skill_package.system.page_awareness": "Page Awareness",
-
   "page_operation.error.both_required": "Both 'page_key' and 'operation_name' are required.",
   "page_operation.error.no_session": "No page_session_id available. Cannot invoke page operation without an active page session.",
   "page_operation.error.timeout": "Operation '{op}' timed out after {timeout}s",
@@ -3057,7 +3056,6 @@
   "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",
   "page_operation.error.json_parse_failed": "Tool arguments JSON parse failed. Ensure arguments are valid JSON. Do not retry with the same invalid input.",
   "page_operation.hint.replace_section": "Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.",
-
   "api.param.tenant_id": "Tenant ID (0 = platform level)",
   "api.param.tenant_id_filter": "Filter by tenant",
   "api.param.file": "File to upload",

@@ -312,6 +312,7 @@ class StreamExecutionHandler:
 
         # Track consecutive page operation failures to abort apology loops / 追踪连续页面操作失败以中止道歉循环
         _consecutive_page_op_failures = 0
+        _consecutive_data_op_failures = 0
         _page_op_aborted = False
         PAGE_OP_ABORT_THRESHOLD = 3
 
@@ -380,12 +381,30 @@ class StreamExecutionHandler:
                 # JSON parse failure: do not execute, push error result instead / JSON 解析失败：不执行，推送错误结果
                 # Parse error 也纳入连续 pageop/invoke 失败计数，达阈值后熔断
                 if parse_error:
+                    raw_snippet = (
+                        (raw_args[:500] + "…")
+                        if isinstance(raw_args, str) and len(raw_args) > 500
+                        else raw_args
+                    )
+                    logger.warning(
+                        "Tool JSON parse failed: tool=%s error=%s raw_args_snippet=%s",
+                        func_name,
+                        parse_error,
+                        repr(raw_snippet)[:600],
+                    )
                     from app.ai.tools.types import ToolResult
+
+                    err_msg = _("page_operation.error.json_parse_failed")
+                    if func_name and func_name.startswith("data_"):
+                        _consecutive_data_op_failures += 1
+                        err_msg += " " + _("data_intelligence.crud.json_parse_guidance")
+                        if _consecutive_data_op_failures >= 2:
+                            err_msg += " " + _("data_intelligence.crud.json_parse_guidance_tip")
                     err_result = ToolResult(
                         tool_call_id=tc_id,
                         name=func_name or "unknown",
                         success=False,
-                        error=_("page_operation.error.json_parse_failed"),
+                        error=err_msg,
                         error_type=parse_error,
                     )
                     all_tool_results.append(err_result)
@@ -485,6 +504,8 @@ class StreamExecutionHandler:
                                 + "\n\n"
                                 + _("page_operation.error.multiple_failures_sequence")
                             )
+                elif func_name and func_name.startswith("data_") and result.success:
+                    _consecutive_data_op_failures = 0
 
                 # Push tool_result event / 推送 tool_result 事件（name_override 保持与 tool_start 一致，避免前端匹配失败）
                 yield SSEChunkEncoder.encode(

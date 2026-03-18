@@ -134,7 +134,7 @@ def expand_editor_tools(
             len(expanded),
             [t.name for t in expanded],
         )
-        return expanded + tools
+        return tools + expanded
 
     return tools
 

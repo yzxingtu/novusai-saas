@@ -12,21 +12,42 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+{% set _types_joined = (fields | map(attribute='type', default='') | join('|')) if fields else '' %}
+{% set _need_py_datetime = 'DateTime' in _types_joined %}
+{% set _need_py_date = (fields | selectattr('type', 'equalto', 'Date') | list | length > 0) %}
+{% if _need_py_datetime or _need_py_date %}
+from datetime import {{ 'date, ' if _need_py_date else '' }}datetime
+
+{% endif %}
+{% set _has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+{% set _has_fk = 'ForeignKey' in _types_joined or _has_tree %}
+{% set _has_json = 'JSON' in _types_joined or 'FilePicker' in _types_joined or 'Images' in _types_joined or 'Files' in _types_joined or 'CodeEditor' in _types_joined %}
+{% set _has_decimal = 'Decimal' in _types_joined or 'Numeric' in _types_joined %}
 from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
+{% if 'Boolean' in _types_joined %}    Boolean,
+{% endif %}
+{% if _m2m %}    Column,
+{% endif %}
+{% if 'DateTime' in _types_joined %}    DateTime,
+{% endif %}
+{% if 'Float' in _types_joined %}    Float,
+{% endif %}
+{% if _has_fk or _m2m %}    ForeignKey,
+{% endif %}
     Integer,
-    Numeric,
+{% if _has_decimal %}    Numeric,
+{% endif %}
     String,
 {% if _m2m %}    Table,
 {% endif %}
-    Text,
-    UniqueConstraint,
+{% if 'Text' in _types_joined or 'RichText' in _types_joined %}    Text,
+{% endif %}
+{% if model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}    UniqueConstraint,
+{% endif %}
 )
+{% if _has_json %}
 from sqlalchemy.dialects.postgresql import JSON
+{% endif %}
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import Base, {{ model.base_class | default('TenantModel') }}
@@ -76,6 +97,9 @@ class {{ resource | pascal }}({{ base_class }}):
 
     # 可排序字段 / Sortable fields
     __sortable_fields__ = {
+        "id": "id",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
 {% for f in fields if not f.get('divider') and f.get('sortable') %}
         "{{ f.name }}": "{{ f.name }}",
 {% endfor %}

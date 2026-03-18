@@ -7,6 +7,7 @@ Jinja2 template engine, generates code files from ParsedConfig.
 
 from __future__ import annotations
 
+import json as _json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,9 +30,11 @@ class GeneratedFile:
 
     path: str
     content: str
-    action: str  # create | append | merge_json
+    action: str  # create | append | merge_json | register_route
     appended_content: str | None = None  # for append
     merged_keys: list[str] | None = None  # for merge_json
+    route_meta: dict | None = None  # for register_route: {scope, resource}
+    model_meta: dict | None = None  # for register_model: {module, resource}
 
 
 @dataclass
@@ -360,6 +363,47 @@ class CodeGenerator:
                         action="create",
                     )
                 )
+                # 自动注册模型，便于 alembic autogenerate 发现 / auto-register model for alembic
+                pascal = "".join(w.capitalize() for w in resource.replace("-", "_").split("_"))
+                files.append(
+                    GeneratedFile(
+                        path=f"backend/app/models/{module}/__init__.py",
+                        content="",
+                        action="register_model",
+                        model_meta={
+                            "module": module,
+                            "resource": resource,
+                            "pascal": pascal,
+                            "target": "module",
+                        },
+                    )
+                )
+                files.append(
+                    GeneratedFile(
+                        path="backend/app/models/__init__.py",
+                        content="",
+                        action="register_model",
+                        model_meta={
+                            "module": module,
+                            "resource": resource,
+                            "pascal": pascal,
+                            "target": "root",
+                        },
+                    )
+                )
+                files.append(
+                    GeneratedFile(
+                        path="backend/migrations/env.py",
+                        content="",
+                        action="register_model",
+                        model_meta={
+                            "module": module,
+                            "resource": resource,
+                            "pascal": pascal,
+                            "target": "env",
+                        },
+                    )
+                )
             except Exception as e:
                 err_msg = f"model: {e!s}"
                 logger.warning("codegen template render failed: %s", e)
@@ -391,6 +435,28 @@ class CodeGenerator:
                             action="create",
                         )
                     )
+                    sub_pascal = "".join(
+                        w.capitalize() for w in sub_res.replace("-", "_").split("_")
+                    )
+                    for tgt in ("module", "root", "env"):
+                        path_map = {
+                            "module": f"backend/app/models/{module}/__init__.py",
+                            "root": "backend/app/models/__init__.py",
+                            "env": "backend/migrations/env.py",
+                        }
+                        files.append(
+                            GeneratedFile(
+                                path=path_map[tgt],
+                                content="",
+                                action="register_model",
+                                model_meta={
+                                    "module": module,
+                                    "resource": sub_res,
+                                    "pascal": sub_pascal,
+                                    "target": tgt,
+                                },
+                            )
+                        )
                 except Exception as e:
                     err_msg = f"sub_model:{sub_res}: {e!s}"
                     logger.warning("codegen sub model template render failed: %s", e)
@@ -437,6 +503,61 @@ class CodeGenerator:
                 err_msg = f"service: {e!s}"
                 logger.warning("codegen template render failed: %s", e)
                 errors.append(err_msg)
+            # 后端 i18n 自动合并 / Backend i18n auto-merge
+            display_name = parsed_config.display_name or resource.replace("_", " ").title()
+            display_name_en = parsed_config.display_name_en or resource.replace("_", " ").title()
+            res_name = resource.replace("_", "-")  # 与 Controller @permission_resource(resource=...) 一致
+            i18n_zh = {
+                module: {
+                    resource: {
+                        "not_found": f"{display_name}不存在",
+                        "created": f"{display_name}创建成功",
+                        "updated": f"{display_name}更新成功",
+                    }
+                },
+                "action": {
+                    res_name: {
+                        "list": f"查看{display_name}",
+                        "create": f"创建{display_name}",
+                        "update": f"更新{display_name}",
+                        "delete": f"删除{display_name}",
+                    }
+                },
+            }
+            i18n_en = {
+                module: {
+                    resource: {
+                        "not_found": f"{display_name_en} not found",
+                        "created": f"{display_name_en} created successfully",
+                        "updated": f"{display_name_en} updated successfully",
+                    }
+                },
+                "action": {
+                    res_name: {
+                        "list": f"View {display_name_en}",
+                        "create": f"Create {display_name_en}",
+                        "update": f"Update {display_name_en}",
+                        "delete": f"Delete {display_name_en}",
+                    }
+                },
+            }
+            merged_keys = [f"{module}.{resource}", f"action.{res_name}"]
+            files.append(
+                GeneratedFile(
+                    path="backend/app/locales/zh_CN/messages.json",
+                    content=_json.dumps(i18n_zh, ensure_ascii=False),
+                    action="merge_json",
+                    merged_keys=merged_keys,
+                )
+            )
+            files.append(
+                GeneratedFile(
+                    path="backend/app/locales/en/messages.json",
+                    content=_json.dumps(i18n_en, ensure_ascii=False),
+                    action="merge_json",
+                    merged_keys=merged_keys,
+                )
+            )
 
         if step in (None, "controller"):
             admin_eps = [e for e in (parsed_config.endpoints or []) if (e or {}).get("scope") in ("admin", "admin_only")]
@@ -449,6 +570,15 @@ class CodeGenerator:
                             path=f"backend/app/api/admin/{resource}.py",
                             content=content,
                             action="create",
+                        )
+                    )
+                    # 3c: 自动注册路由 / auto-register route
+                    files.append(
+                        GeneratedFile(
+                            path="backend/app/api/admin/__init__.py",
+                            content="",
+                            action="register_route",
+                            route_meta={"scope": "admin", "resource": resource},
                         )
                     )
                 except Exception as e:
@@ -465,6 +595,15 @@ class CodeGenerator:
                             path=f"backend/app/api/tenant/{resource}.py",
                             content=content,
                             action="create",
+                        )
+                    )
+                    # 3c: 自动注册路由 / auto-register route
+                    files.append(
+                        GeneratedFile(
+                            path="backend/app/api/tenant/__init__.py",
+                            content="",
+                            action="register_route",
+                            route_meta={"scope": "tenant", "resource": resource},
                         )
                     )
                 except Exception as e:
@@ -705,6 +844,42 @@ class CodeGenerator:
                     err_msg = f"i18n_en_tenant: {e!s}"
                     logger.warning("codegen template render failed: %s", e)
                     errors.append(err_msg)
+
+        if step in (None, "controller"):
+            display_name = parsed_config.display_name or resource.replace("_", " ").title()
+            display_name_en = parsed_config.display_name_en or resource.replace("_", " ").title()
+            admin_ep = ctx.get("admin_ep") or {}
+            tenant_ep = ctx.get("tenant_ep") or {}
+            menu_zh: dict[str, dict[str, str]] = {}
+            menu_en: dict[str, dict[str, str]] = {}
+            if admin_ep:
+                menu_zh.setdefault("admin", {})[resource] = display_name
+                menu_en.setdefault("admin", {})[resource] = display_name_en
+            if tenant_ep:
+                menu_zh.setdefault("tenant", {})[resource] = display_name
+                menu_en.setdefault("tenant", {})[resource] = display_name_en
+            if menu_zh:
+                merged_keys_list = []
+                if admin_ep:
+                    merged_keys_list.append(f"menu.admin.{resource}")
+                if tenant_ep:
+                    merged_keys_list.append(f"menu.tenant.{resource}")
+                files.append(
+                    GeneratedFile(
+                        path="backend/app/locales/zh_CN/menu.json",
+                        content=_json.dumps({"menu": menu_zh}, ensure_ascii=False),
+                        action="merge_json",
+                        merged_keys=merged_keys_list,
+                    )
+                )
+                files.append(
+                    GeneratedFile(
+                        path="backend/app/locales/en/menu.json",
+                        content=_json.dumps({"menu": menu_en}, ensure_ascii=False),
+                        action="merge_json",
+                        merged_keys=merged_keys_list,
+                    )
+                )
 
         return GenerateResult(files=files, errors=errors)
 

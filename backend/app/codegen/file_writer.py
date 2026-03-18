@@ -100,31 +100,165 @@ class SmartAppender:
         return True
 
     @staticmethod
+    def append_to_import_block(file_path: Path, import_prefix: str, symbol: str) -> bool:
+        """
+        幂等追加到多行 import 块 / Idempotent append to multi-line import block.
+
+        在 `{import_prefix} (...)` 块的 `)` 之前插入 symbol。
+        """
+        if not file_path.exists():
+            return False
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        if symbol in text:
+            return False
+        lines = text.splitlines()
+        in_block = False
+        insert_idx = -1
+        indent = "    "
+        for i, line in enumerate(lines):
+            if import_prefix in line and "(" in line:
+                in_block = True
+                continue
+            if in_block:
+                stripped = line.strip()
+                if stripped.startswith(")"):
+                    insert_idx = i
+                    break
+                if stripped and not stripped.startswith("#") and not stripped.startswith(")"):
+                    indent = line[: len(line) - len(line.lstrip())]
+        if insert_idx < 0:
+            return False
+        lines.insert(insert_idx, f"{indent}{symbol},")
+        file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return True
+
+    @staticmethod
+    def append_to_tenant_import_block(file_path: Path, symbol: str, all_export: str | None = None) -> bool:
+        """
+        幂等追加到 app.models.tenant import 块 / Idempotent append to tenant import block.
+
+        在 `from app.models.tenant import (...)` 块内添加 symbol，避免错误插入独立 import 行。
+        """
+        if not file_path.exists():
+            return False
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        lines_list = text.splitlines()
+        for ln in lines_list:
+            if ln.strip().rstrip(",").strip() == symbol:
+                return False
+        lines = text.splitlines()
+        in_tenant_block = False
+        insert_idx = -1
+        indent = "    "
+        for i, line in enumerate(lines):
+            if "from app.models.tenant import" in line and "(" in line:
+                in_tenant_block = True
+                continue
+            if in_tenant_block:
+                stripped = line.strip()
+                if stripped.startswith(")"):
+                    insert_idx = i
+                    break
+                if stripped and not stripped.startswith(")"):
+                    indent = line[: len(line) - len(line.lstrip())]
+        if insert_idx < 0:
+            return False
+        new_line = f"{indent}{symbol},"
+        lines.insert(insert_idx, new_line)
+        # __all__ 追加（若未包含）/ Append to __all__ if not present
+        if all_export and f'"{all_export}"' not in text:
+            for i, line in enumerate(lines):
+                if "__all__" in line and "=" in line:
+                    for j in range(i + 1, len(lines)):
+                        if "]" in lines[j]:
+                            pad = len(lines[j]) - len(lines[j].lstrip())
+                            lines.insert(j, " " * pad + f'"{all_export}",')
+                            break
+                    break
+        file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return True
+
+    @staticmethod
     def append_router_registration(
         file_path: Path,
         import_line: str,
         include_line: str,
+        controller_name: str,
         comment: str = "",
     ) -> bool:
         """
         幂等追加路由注册 / Idempotent append router registration.
 
-        Args:
-            file_path: __init__.py 路径
-            import_line: Controller import
-            include_line: router.include_router(...)
-            comment: 注释
-
-        Returns:
-            是否实际追加
+        智能插入：import 到 import 区，include_router 到路由注册区，Controller 到 __all__。
         """
         if not file_path.exists():
             return False
         text = file_path.read_text(encoding="utf-8", errors="replace")
-        if include_line.strip() in text or import_line.strip() in text:
+        if include_line.strip() in text:
             return False
-        block = f"\n{comment}\n{import_line}\n{include_line}\n" if comment else f"\n{import_line}\n{include_line}\n"
-        file_path.write_text(text.rstrip() + block, encoding="utf-8")
+        if f'"{controller_name}"' in text or f"'{controller_name}'" in text:
+            return False
+        lines = text.splitlines()
+        import_lines = [ln.strip() for ln in import_line.strip().split("\n") if ln.strip()]
+        if not import_lines:
+            return False
+
+        # 1. 找到最后一个 from app.api.{scope} 的 import 行后插入
+        last_scope_import_idx = -1
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("from app.api.") and (" import " in stripped):
+                last_scope_import_idx = i
+        insert_import_at = last_scope_import_idx + 1 if last_scope_import_idx >= 0 else 0
+
+        # 2. 找到最后一个 include_router 行后插入
+        router_var = "tenant_router" if "tenant_router" in include_line else "admin_router"
+        last_include_idx = -1
+        for i, line in enumerate(lines):
+            if f"{router_var}.include_router(" in line:
+                last_include_idx = i
+        insert_include_at = last_include_idx + 1 if last_include_idx >= 0 else len(lines)
+
+        # 3. 找到 __all__ 中 ] 前插入 controller_name
+        all_insert_idx = -1
+        all_indent = "    "
+        for i, line in enumerate(lines):
+            if "__all__" in line and "=" in line:
+                for j in range(i + 1, len(lines)):
+                    if "]" in lines[j]:
+                        indent = ""
+                        for c in lines[j]:
+                            if c in " \t":
+                                indent += c
+                            else:
+                                break
+                        all_indent = indent or "    "
+                        if f'"{controller_name}"' not in lines[j] and f"'{controller_name}'" not in lines[j]:
+                            all_insert_idx = j
+                        break
+                break
+
+        # 插入 import
+        for idx, imp in enumerate(reversed(import_lines)):
+            lines.insert(insert_import_at, imp)
+        insert_include_at += len(import_lines)
+        if all_insert_idx >= 0:
+            all_insert_idx += len(import_lines)
+
+        # 插入 include_router（在注释后）
+        include_block = [comment] if comment else []
+        include_block.append(include_line)
+        for idx, inc in enumerate(reversed(include_block)):
+            if inc.strip():
+                lines.insert(insert_include_at, inc)
+        if all_insert_idx >= 0:
+            all_insert_idx += len([x for x in include_block if x.strip()])
+
+        # 插入 __all__
+        if all_insert_idx >= 0:
+            lines.insert(all_insert_idx, f'{all_indent}"{controller_name}",')
+
+        file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return True
 
     @staticmethod
@@ -208,8 +342,8 @@ class FileWriter:
         """
         原子写入 / Atomic write.
 
-        流程：.codegen_tmp/{ts}/ -> 移动 -> 覆盖前备份到 .codegen_backup/{ts}/
-        Flow: .codegen_tmp/{ts}/ -> move -> backup to .codegen_backup/{ts}/ before overwrite
+        流程：.novus_codegen_tmp/{ts}/ -> 移动 -> 覆盖前备份到 .novus_codegen_backup/{ts}/
+        Flow: .novus_codegen_tmp/{ts}/ -> move -> backup to .novus_codegen_backup/{ts}/ before overwrite
 
         Args:
             files: 生成文件列表
@@ -221,8 +355,8 @@ class FileWriter:
         """
         root = project_root or self.project_root
         ts = int(time.time() * 1000)
-        tmp_dir = root / ".codegen_tmp" / str(ts)
-        backup_dir = root / ".codegen_backup" / str(ts)
+        tmp_dir = root / ".novus_codegen_tmp" / str(ts)
+        backup_dir = root / ".novus_codegen_backup" / str(ts)
         result = WriteResult(success=False)
 
         try:
@@ -261,6 +395,50 @@ class FileWriter:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                     if rel_str not in modified:
                         created.append(rel_str)
+                elif f.action == "register_model" and f.model_meta:
+                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    meta = f.model_meta
+                    module = meta.get("module", "")
+                    resource = meta.get("resource", "")
+                    pascal = meta.get("pascal", "")
+                    target = meta.get("target", "module")
+                    if module and resource and pascal:
+                        if target == "module":
+                            import_line = f"from app.models.{module}.{resource} import {pascal}"
+                            if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
+                                modified.append(rel_str)
+                        elif target == "root":
+                            if module == "tenant":
+                                if SmartAppender.append_to_tenant_import_block(dest, pascal, all_export=pascal):
+                                    modified.append(rel_str)
+                            else:
+                                import_line = f"from app.models.{module}.{resource} import {pascal}"
+                                if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
+                                    modified.append(rel_str)
+                        elif target == "env":
+                            if SmartAppender.append_to_import_block(dest, "from app.models import", pascal):
+                                modified.append(rel_str)
+                elif f.action == "register_route" and f.route_meta:
+                    rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                    scope = f.route_meta.get("scope", "")
+                    resource = f.route_meta.get("resource", "")
+                    if scope and resource:
+                        pascal = "".join(
+                            w.capitalize() for w in str(resource).replace("-", "_").split("_")
+                        )
+                        prefix = "Admin" if scope == "admin" else "Tenant"
+                        controller_name = f"{prefix}{pascal}Controller"
+                        router_var = f"{scope}_router"
+                        import_line = (
+                            f"from app.api.{scope}.{resource} import {controller_name}\n"
+                            f"from app.api.{scope}.{resource} import router as {resource}_router"
+                        )
+                        include_line = f"{router_var}.include_router({resource}_router)"
+                        comment = f"# Codegen auto-registered: {resource}"
+                        if SmartAppender.append_router_registration(
+                            dest, import_line, include_line, controller_name, comment
+                        ):
+                            modified.append(rel_str)
                 elif f.action == "append" and f.appended_content:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                     if dest.exists():
@@ -278,9 +456,9 @@ class FileWriter:
                         data = json.loads(f.content) if f.content else {}
                     except (json.JSONDecodeError, TypeError):
                         data = {}
-                    # Ensure all merged_keys present; fill missing with {}
+                    # Ensure top-level merged_keys present; skip nested (e.g. "tenant.article")
                     for k in f.merged_keys:
-                        if k not in data:
+                        if "." not in k and k not in data:
                             data[k] = {}
                     SmartAppender.merge_json(dest, data)
                     modified.append(rel_str)

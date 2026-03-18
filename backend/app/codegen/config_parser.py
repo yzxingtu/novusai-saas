@@ -136,6 +136,13 @@ def _expand_shorthand_field(field_def: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(form_val, dict):
             out["form"] = dict(form_val)
 
+    # 自动拆分 comment 的 中文 / English 格式为 comment 和 comment_en
+    comment = out.get("comment", "")
+    if comment and " / " in comment and not out.get("comment_en"):
+        parts = str(comment).split(" / ", 1)
+        out["comment"] = parts[0].strip()
+        out["comment_en"] = parts[1].strip()
+
     return out
 
 
@@ -184,6 +191,8 @@ def _expand_defaults(config: dict[str, Any]) -> dict[str, Any]:
             ep = dict(ep)
             ep.setdefault("scope", "admin")
             ep.setdefault("data_mode", "cross_tenant" if ep.get("scope") == "admin" else "independent")
+            if "route_prefix" in ep and ep["route_prefix"] and not str(ep["route_prefix"]).startswith("/"):
+                ep["route_prefix"] = "/" + str(ep["route_prefix"])
             frontend = ep.get("frontend") or {}
             if isinstance(frontend, dict):
                 frontend = dict(frontend)
