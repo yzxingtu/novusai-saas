@@ -49,7 +49,6 @@
       "notification_template": "通知模板",
       "cache_management": "缓存管理",
       "codegen": "代码生成器"
-
     },
     "tags": {
       "admin_agent_mgmt": "智能体管理（平台）",
@@ -130,7 +129,6 @@
       "plugin": "插件管理",
       "agent_assignment": "功能分配",
       "knowledge_base": "知识库"
-      
     }
   }
 }

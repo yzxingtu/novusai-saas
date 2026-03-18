@@ -757,6 +757,16 @@ def codegen_generate(
         click.echo("[auto-migrate] Purging orphaned alembic stamps ...")
         purge_orphaned_alembic_stamps(_backend_dir)
 
+        click.echo("[auto-migrate] Ensuring DB is up to date (alembic upgrade head) ...")
+        _up_pre = _sp.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=str(_backend_dir), capture_output=True, text=True,
+        )
+        if _up_pre.returncode != 0:
+            click.echo(f"[auto-migrate] upgrade (pre) failed, DB must be up to date before autogenerate:\n{_up_pre.stderr}", err=True)
+        else:
+            click.echo("[auto-migrate] DB up to date")
+
         click.echo("[auto-migrate] Running alembic autogenerate in subprocess ...")
         _rev = _sp.run(
             [sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", "codegen_auto"],
@@ -946,37 +956,87 @@ def codegen_rollback(
         force=force,
         dry_run=dry_run,
     )
+    _migration_cleaned = False
 
-    if result.success and auto_migrate and migration_file and not dry_run:
+    if auto_migrate and not dry_run and (result.success or resource):
         _backend_dir = Path(__file__).parent.parent
-        _mp = Path(migration_file)
-        if not _mp.is_absolute():
-            _mp = _backend_dir / migration_file
-        click.echo("[auto-migrate] Running alembic downgrade -1 ...")
-        _downgrade = subprocess.run(
-            [sys.executable, "-m", "alembic", "downgrade", "-1"],
-            cwd=str(_backend_dir), capture_output=True, text=True,
-        )
-        if _downgrade.returncode != 0:
-            click.echo(f"[auto-migrate] downgrade failed:\n{_downgrade.stderr}", err=True)
+        _mp = None
+        if migration_file:
+            _mp = Path(migration_file)
+            if not _mp.is_absolute():
+                _mp = _backend_dir / migration_file.replace(
+                    "backend" + os.sep, ""
+                ).replace("backend/", "")
+            if not _mp.exists():
+                _mp = _backend_dir / "migrations" / "versions" / Path(migration_file).name
+        if not _mp or not _mp.exists():
+            _resource = resource or (entry.resource if entry else None)
+            if _resource:
+                _table = _resource.replace("-", "_") + "s"
+                _vers = _backend_dir / "migrations" / "versions"
+                if _vers.exists():
+                    for _f in _vers.glob("*.py"):
+                        if _f.name.startswith(".") or _f.name == "__init__.py":
+                            continue
+                        try:
+                            _t = _f.read_text(encoding="utf-8", errors="replace")
+                            if f"'{_table}'" in _t or f'"{_table}"' in _t:
+                                _mp = _f
+                                break
+                        except Exception:
+                            pass
+
+        from app.core.database import purge_orphaned_alembic_stamps
+
+        click.echo("[auto-migrate] Purging orphaned alembic stamps ...")
+        purge_orphaned_alembic_stamps(_backend_dir)
+
+        _down_rev = None
+        if _mp and _mp.exists():
+            import re as _re
+            _txt = _mp.read_text(encoding="utf-8", errors="replace")
+            _m = _re.search(r"down_revision[^=]*=\s*['\"]([^'\"]+)['\"]", _txt)
+            if _m:
+                _down_rev = _m.group(1).strip()
+
+        if _down_rev:
+            click.echo("[auto-migrate] Running alembic downgrade {0} ...".format(_down_rev))
+            _downgrade = subprocess.run(
+                [sys.executable, "-m", "alembic", "downgrade", _down_rev],
+                cwd=str(_backend_dir), capture_output=True, text=True,
+            )
+        elif _mp and _mp.exists():
+            click.echo("[auto-migrate] Running alembic downgrade -1 ...")
+            _downgrade = subprocess.run(
+                [sys.executable, "-m", "alembic", "downgrade", "-1"],
+                cwd=str(_backend_dir), capture_output=True, text=True,
+            )
         else:
-            click.echo("[auto-migrate] downgrade OK")
-            if _mp.exists():
-                _mp.unlink()
-                click.echo(f"[auto-migrate] Deleted migration file: {_mp}")
+            _downgrade = None
+
+        _migration_cleaned = False
+        if _downgrade is not None:
+            if _downgrade.returncode != 0:
+                click.echo(f"[auto-migrate] downgrade failed:\n{_downgrade.stderr}", err=True)
+            else:
+                click.echo("[auto-migrate] downgrade OK")
+                if _mp and _mp.exists():
+                    _mp.unlink()
+                    click.echo("[auto-migrate] Deleted migration file: {0}".format(_mp))
+                    _migration_cleaned = True
 
     if output_json:
         import json
-        click.echo(json.dumps({
-            "success": result.success,
-            "files_deleted": result.files_deleted,
-            "files_modified": result.files_modified,
-            "errors": result.errors,
-        }, ensure_ascii=False, indent=2))
+        _out = {"success": result.success, "files_deleted": result.files_deleted, "files_modified": result.files_modified, "errors": result.errors}
+        if auto_migrate and not dry_run:
+            _out["migration_cleaned"] = _migration_cleaned
+        click.echo(json.dumps(_out, ensure_ascii=False, indent=2))
     elif result.success:
         click.echo("[{}] Rollback completed".format(_STATUS_OK))
         for p in result.files_deleted:
             click.echo("  - {}".format(p))
+    elif _migration_cleaned:
+        click.echo("[{}] Migration cleanup completed (no manifest entry for file rollback)".format(_STATUS_OK))
     else:
         for e in result.errors:
             click.echo("Error: {}".format(e), err=True)

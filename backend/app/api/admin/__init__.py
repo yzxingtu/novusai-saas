@@ -83,6 +83,7 @@ from app.api.admin.system_logs import AdminSystemLogController
 from app.api.admin.system_logs import router as system_logs_router
 from app.api.admin.tasks import AdminTaskController
 from app.api.admin.tasks import router as tasks_router
+
 # Must import tenants before tenant_admins/tenant_domains so menu:admin.tenant is registered first
 # 必须先导入 tenants，注册 menu:admin.tenant，否则 tenant_admins/tenant_domains 的操作权限找不到父菜单
 from app.api.admin.tenants import AdminTenantController

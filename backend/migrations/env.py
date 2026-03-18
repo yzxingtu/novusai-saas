@@ -81,6 +81,7 @@ from app.models import (
     PluginLicense,
     ResourceTenantAssignment,
 )
+
 # AI 子模块中有但未在 models/__init__.py 再导出的模型
 from app.models.ai.query_log import AIQueryLog
 from app.models.ai.knowledge_base import KnowledgeBase
@@ -94,6 +95,7 @@ from app.models.common.user_preference import UserPreference
 # Dynamic plugin model discovery (Alembic autogenerate needs models registered on Base.metadata)
 # Scans plugins/*/backend/models/__init__.py — no hardcoded plugin names
 import importlib
+
 _plugins_base = Path(__file__).parent.parent / "plugins"
 if _plugins_base.exists():
     for _pd in sorted(_plugins_base.iterdir()):
@@ -121,6 +123,7 @@ if _plugins_dir.exists():
     _installed_plugin_names: set[str] = set()
     try:
         import psycopg2
+
         _conn = psycopg2.connect(settings.DATABASE_URL_SYNC)
         _cur = _conn.cursor()
         _cur.execute("SELECT name FROM plugins WHERE is_deleted = false")
@@ -162,7 +165,7 @@ def _include_object(obj, name, type_, reflected, compare_to):
 def run_migrations_offline() -> None:
     """
     离线模式运行迁移
-    
+
     仅生成 SQL 脚本，不实际连接数据库
     """
     url = config.get_main_option("sqlalchemy.url")
@@ -182,7 +185,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """
     在线模式运行迁移
-    
+
     连接数据库并执行迁移
     """
     connectable = engine_from_config(
