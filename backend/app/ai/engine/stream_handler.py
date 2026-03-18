@@ -387,7 +387,7 @@ class StreamExecutionHandler:
                         else raw_args
                     )
                     logger.warning(
-                        "Tool JSON parse failed: tool=%s error=%s raw_args_snippet=%s",
+                        "Tool JSON parse failed: tool={} error={} raw_args_snippet={}",
                         func_name,
                         parse_error,
                         repr(raw_snippet)[:600],
@@ -671,6 +671,13 @@ class StreamExecutionHandler:
                 arguments = "{}"
 
             tc_id = tc.get("id") or f"stream_tool_{idx}"
+            if isinstance(arguments, str) and len(arguments) > 200:
+                logger.debug(
+                    "Finalized tool_call: name={} args_len={} args_head={}",
+                    name,
+                    len(arguments),
+                    repr(arguments[:300]),
+                )
             finalized.append(
                 {
                     "id": tc_id,

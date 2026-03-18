@@ -31,6 +31,18 @@ fields:
     nullable: true
     comment: 备注 / Remark
 
+# 详情页配置 / Detail page config
+detail:
+  enabled: true
+  name_field: product_name
+  groups:
+    - title_zh: 基本信息
+      title_en: Basic Info
+      fields: [product_name, quantity, remark]
+    - title_zh: 系统信息
+      title_en: System Info
+      fields: [created_at, updated_at]
+
 endpoints:
   - scope: admin
     data_mode: independent

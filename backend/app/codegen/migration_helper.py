@@ -4,8 +4,8 @@
 为生成的迁移文件注入 codegen 元数据变量
 Injects codegen metadata variables into generated migration files.
 
-Web/CLI 回滚时执行 alembic downgrade 并删除迁移文件（与 CLI --auto-migrate 逻辑一致）
-Run alembic downgrade and delete migration file on web/CLI rollback.
+Web/CLI 回滚时执行 alembic downgrade、删除迁移文件、并自动 DROP 数据表
+Run alembic downgrade, delete migration file, and auto DROP table on web/CLI rollback.
 """
 
 from __future__ import annotations
@@ -15,6 +15,31 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _get_table_name(resource: str) -> str:
+    """从 resource 推断表名，与 model 模板一致。Infer table name from resource."""
+    from app.codegen.config_parser import _infer_plural
+    return _infer_plural(resource.replace("-", "_")) if resource else ""
+
+
+def _drop_table_if_exists(resource: str) -> bool:
+    """
+    回滚时强制删除数据表。无论 downgrade 是否成功，均执行 DROP TABLE。
+    Force drop table on rollback. Runs DROP TABLE regardless of downgrade result.
+    """
+    table = _get_table_name(resource)
+    if not table:
+        return False
+    try:
+        from sqlalchemy import text
+        from app.core.database import sync_session_factory
+        with sync_session_factory() as session:
+            session.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+            session.commit()
+        return True
+    except Exception:
+        return False
 
 
 def run_rollback_migration_cleanup(
@@ -43,19 +68,20 @@ def run_rollback_migration_cleanup(
         if not _mp.exists():
             _mp = _backend / "migrations" / "versions" / Path(migration_file).name
     if not _mp or not _mp.exists():
-        _table = resource.replace("-", "_") + "s"
-        _vers = _backend / "migrations" / "versions"
-        if _vers.exists():
-            for _f in _vers.glob("*.py"):
-                if _f.name.startswith(".") or _f.name == "__init__.py":
-                    continue
-                try:
-                    _t = _f.read_text(encoding="utf-8", errors="replace")
-                    if f"'{_table}'" in _t or f'"{_table}"' in _t:
-                        _mp = _f
-                        break
-                except Exception:
-                    pass
+        _table = _get_table_name(resource)
+        if _table:
+            _vers = _backend / "migrations" / "versions"
+            if _vers.exists():
+                for _f in _vers.glob("*.py"):
+                    if _f.name.startswith(".") or _f.name == "__init__.py":
+                        continue
+                    try:
+                        _t = _f.read_text(encoding="utf-8", errors="replace")
+                        if f"'{_table}'" in _t or f'"{_table}"' in _t:
+                            _mp = _f
+                            break
+                    except Exception:
+                        pass
 
     from app.core.database import purge_orphaned_alembic_stamps
 
@@ -68,6 +94,7 @@ def run_rollback_migration_cleanup(
         if _m:
             _down_rev = _m.group(1).strip()
 
+    _proc = None
     if _down_rev:
         _proc = subprocess.run(
             [sys.executable, "-m", "alembic", "downgrade", _down_rev],
@@ -78,14 +105,18 @@ def run_rollback_migration_cleanup(
             [sys.executable, "-m", "alembic", "downgrade", "-1"],
             cwd=str(_backend), capture_output=True, text=True,
         )
-    else:
-        return False
 
-    if _proc.returncode != 0:
-        return False
-    if _mp and _mp.exists():
-        _mp.unlink()
-    return True
+    migration_cleaned = False
+    if _proc is not None and _proc.returncode == 0:
+        if _mp and _mp.exists():
+            _mp.unlink()
+            migration_cleaned = True
+
+    # 无论 downgrade 是否成功，均执行 DROP TABLE 确保数据表被删除
+    # Always run DROP TABLE to ensure table is removed, regardless of downgrade result
+    table_dropped = _drop_table_if_exists(resource) if resource else False
+
+    return migration_cleaned or table_dropped
 
 
 def inject_migration_metadata(

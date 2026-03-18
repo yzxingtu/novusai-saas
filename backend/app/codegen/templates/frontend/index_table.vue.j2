@@ -24,7 +24,7 @@ import {
   {% if batch and batch.get('delete') %}batchDelete{{ resource | pascal }}sApi,{% endif %}
   {% if _import %}import{{ resource | pascal }}Api,{% endif %}
 } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
-{% if _import %}import { ref } from 'vue';
+{% if _import or (detail and detail.get('enabled')) %}import { ref } from 'vue';
 {% endif %}
 import { Page } from '@vben/common-ui';
 import { useCrudPage } from '#/composables';
@@ -45,9 +45,21 @@ import {
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
+{% if detail and detail.get('enabled') %}
+import Detail from './modules/detail.vue';
+{% endif %}
 
 {% set _scope_cap = (api_scope | default('admin') | capitalize) %}
 defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}List' });
+
+{% if detail and detail.get('enabled') %}
+const detailVisible = ref(false);
+const detailId = ref<number | null>(null);
+function onViewDetail(row: {{ resource | pascal }}Info) {
+  detailId.value = row.id;
+  detailVisible.value = true;
+}
+{% endif %}
 
 {% if toggle_field %}
 function onToggleStatus(row: {{ resource | pascal }}Info) {
@@ -80,7 +92,8 @@ const {
     {% if toggle_field %}toggles: { {{ toggle_field }}: toggle{{ resource | pascal }}StatusApi },{% endif %}
   },
   columns: useColumns,
-  createPermission: '{{ perm_resource }}:create',
+  {% if detail and detail.get('enabled') %}customActions: { detail: onViewDetail },
+  {% endif %}createPermission: '{{ perm_resource }}:create',
   defaultSort: '{{ _default_sort }}',
   formComponent: Form,
   formDefaults: getFormDefaults,
@@ -152,6 +165,9 @@ useAutoTableDragSort(() => gridApi.grid, {
 {% endfor %}
   </Grid>
   <FormDrawer @success="onFormSuccess" />
+  {% if detail and detail.get('enabled') %}
+  <Detail v-model:visible="detailVisible" :id="detailId" />
+  {% endif %}
   <ExportModal />
   {% if _import %}
   <input

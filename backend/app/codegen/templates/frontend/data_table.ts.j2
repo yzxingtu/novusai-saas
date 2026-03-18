@@ -50,7 +50,8 @@ import { $t } from '#/locales';
 {% set res_name = resource | replace('_', '-') %}
 {% set _ep = (admin_ep if (api_scope | default('admin')) == 'admin' else tenant_ep) or {} %}
 {% set _fe = _ep.get('frontend') or {} %}
-{% set op_options = _fe.get('operation_options') or (['edit', 'delete'] + ((actions or []) | selectattr('action') | map(attribute='action') | list)) %}
+{% set _base_ops = ['edit', 'delete'] + ((actions or []) | selectattr('action') | map(attribute='action') | list) %}
+{% set _has_detail = detail and detail.get('enabled') %}
 
 {# useColumns: fields with column.visible != false #}
 export function useColumns<T = {{ resource | pascal }}Info>(
@@ -123,7 +124,15 @@ export function useColumns<T = {{ resource | pascal }}Info>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: {{ op_options | tojson }},
+        options: [
+{% for op in (_fe.get('operation_options') or (['detail'] + _base_ops if _has_detail else _base_ops)) %}
+{% if op is string and op == 'detail' and _has_detail %}
+          { code: 'detail', text: $t('common.detail'), icon: 'lucide:eye', accessCodes: ['{{ res_name }}:detail'] },
+{% else %}
+          {{ op | tojson }},
+{% endif %}
+{% endfor %}
+        ],
       },
       field: 'operation',
       fixed: 'right',

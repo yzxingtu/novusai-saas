@@ -55,11 +55,17 @@ def _strip_dsml_from_args(s: str) -> str:
 
 
 def _fix_unescaped_control_chars(s: str) -> str:
-    """Replace unescaped control chars inside JSON string values."""
+    """Replace unescaped control chars inside JSON string values (with look-ahead
+    quote disambiguation to handle embedded quotes like "她叫"小喵"的猫").
+    """
+    chars = list(s)
+    n = len(chars)
     result: list[str] = []
     in_string = False
     escape_next = False
-    for ch in s:
+    i = 0
+    while i < n:
+        ch = chars[i]
         if in_string:
             if escape_next:
                 result.append(ch)
@@ -68,8 +74,16 @@ def _fix_unescaped_control_chars(s: str) -> str:
                 result.append(ch)
                 escape_next = True
             elif ch == '"':
-                in_string = False
-                result.append(ch)
+                # Look-ahead: if next non-whitespace is a JSON structural char,
+                # this quote ends the string; otherwise it's an embedded quote
+                j = i + 1
+                while j < n and chars[j] in " \t\r\n":
+                    j += 1
+                if j >= n or chars[j] in ":,}]":
+                    in_string = False
+                    result.append(ch)
+                else:
+                    result.append('\\"')
             elif ch == "\n":
                 result.append("\\n")
             elif ch == "\r":
@@ -82,7 +96,14 @@ def _fix_unescaped_control_chars(s: str) -> str:
             if ch == '"':
                 in_string = True
             result.append(ch)
+        i += 1
     return "".join(result)
+
+
+def _brute_force_control_chars(s: str) -> str:
+    """Replace ALL literal control characters (\n, \r, \t) with spaces
+    as a last-resort fix when context-aware repair fails."""
+    return s.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("\t", " ")
 
 
 def _try_convert_single_quotes(s: str) -> str | None:
@@ -102,12 +123,16 @@ def _try_convert_single_quotes(s: str) -> str | None:
 
 
 def _try_fix_truncation(s: str) -> str:
-    """Try closing truncated string and brackets."""
+    """Try closing truncated string and brackets with look-ahead quote handling."""
+    chars = list(s)
+    n = len(chars)
     result: list[str] = []
     in_string = False
     escape_next = False
-    brace_stack: list[str] = []  # "{" or "["
-    for ch in s:
+    brace_stack: list[str] = []
+    i = 0
+    while i < n:
+        ch = chars[i]
         if in_string:
             if escape_next:
                 result.append(ch)
@@ -116,8 +141,14 @@ def _try_fix_truncation(s: str) -> str:
                 result.append(ch)
                 escape_next = True
             elif ch == '"':
-                in_string = False
-                result.append(ch)
+                j = i + 1
+                while j < n and chars[j] in " \t\r\n":
+                    j += 1
+                if j >= n or chars[j] in ":,}]":
+                    in_string = False
+                    result.append(ch)
+                else:
+                    result.append('\\"')
             elif ch == "\n":
                 result.append("\\n")
             elif ch == "\r":
@@ -136,6 +167,7 @@ def _try_fix_truncation(s: str) -> str:
             elif ch in "}]" and brace_stack:
                 brace_stack.pop()
             result.append(ch)
+        i += 1
     if in_string:
         result.append('"')
     while brace_stack:
@@ -194,6 +226,26 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         try:
             parsed = json.loads(s4)
             return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+
+    # Phase E: brute-force replace all control chars with spaces (last resort —
+    # loses newline semantics but at least lets the record be created)
+    s5 = _brute_force_control_chars(s)
+    if s5 != s:
+        # also strip trailing commas & fix braces again on the cleaned string
+        s5 = re.sub(r",\s*([}\]])", r"\1", s5)
+        opens = s5.count("{") - s5.count("}")
+        if opens > 0:
+            s5 += "}" * opens
+        opens = s5.count("[") - s5.count("]")
+        if opens > 0:
+            s5 += "]" * opens
+        try:
+            parsed = json.loads(s5)
+            if isinstance(parsed, dict):
+                logger.info("JSON repaired via brute-force control-char replacement")
+                return parsed
         except json.JSONDecodeError:
             pass
 
@@ -263,7 +315,7 @@ class ToolCallProcessor:
                 else raw_args
             )
             logger.warning(
-                "Tool arguments JSON parse failed: raw_args_snippet=%s error=invalid_tool_arguments_json",
+                "Tool arguments JSON parse failed: raw_args_snippet={} error=invalid_tool_arguments_json",
                 repr(raw_snippet)[:600],
             )
             return None, "invalid_tool_arguments_json"
