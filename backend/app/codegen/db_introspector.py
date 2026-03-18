@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from sqlalchemy import inspect
+from sqlalchemy import String, Text, inspect
 from sqlalchemy.engine import Engine
 
 from app.core.database import sync_engine
@@ -167,7 +167,7 @@ class DbIntrospector:
             suggested: dict[str, Any] = {
                 "type": yaml_type,
                 "filterable": True,
-                "filter_op": "ilike" if "char" in str(type(sa_type)).lower() or "text" in str(type(sa_type)).lower() else "eq",
+                "filter_op": "ilike" if isinstance(sa_type, (String, Text)) else "eq",
             }
             if fk_list:
                 ref_table = (fk_list[0].get("referred_table") or "").strip()

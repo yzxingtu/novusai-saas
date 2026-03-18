@@ -16,8 +16,10 @@ Provides per-module independent log files and unified log format (Loguru adapter
 Each log automatically includes trace_id from TraceIdMiddleware's ContextVar.
 """
 
+import atexit
 import logging
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -71,6 +73,18 @@ class InterceptHandler(logging.Handler):
         bound.opt(depth=depth, exception=record.exc_info).log(
             level, record.getMessage()
         )
+
+
+def _ignore_sigint_on_shutdown() -> None:
+    """
+    atexit 中第一个执行：屏蔽后续 Ctrl+C，避免 Loguru 文件 sink 清理被中断。
+    First atexit callback: ignore SIGINT during shutdown to prevent Loguru
+    file sink cleanup from being interrupted by KeyboardInterrupt.
+    """
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except (ValueError, OSError):
+        pass  # 主线程外或不可用 / not in main thread or unavailable
 
 
 def _patch_trace_id(record: dict) -> None:
@@ -207,6 +221,10 @@ class LogManager:
         sa_logger.setLevel(logging.DEBUG if settings.DEBUG else logging.WARNING)
         sa_logger.handlers = [InterceptHandler(category=LogCategoryEnum.DB.value)]
         sa_logger.propagate = False
+
+        # 防止 Ctrl+C 退出时 Loguru 文件 sink 清理被 KeyboardInterrupt 中断
+        # Prevent KeyboardInterrupt during Loguru file sink cleanup on Ctrl+C shutdown
+        atexit.register(_ignore_sigint_on_shutdown)
 
         cls._initialized = True
 

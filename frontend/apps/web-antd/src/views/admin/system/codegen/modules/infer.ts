@@ -395,6 +395,24 @@ export function pluralize(word: string): string {
   return word + 's';
 }
 
+/** 单数化（与后端 generator _singularize 一致）/ Singularize (aligned with backend) */
+export function singularize(word: string): string {
+  if (!word) return word;
+  const w = word.trim();
+  const irregularsRev: Record<string, string> = {
+    categories: 'category',
+    people: 'person',
+    children: 'child',
+    addresses: 'address',
+  };
+  const lower = w.toLowerCase();
+  if (irregularsRev[lower]) return irregularsRev[lower];
+  if (w.endsWith('ies') && !/[aeiou]ies$/i.test(w)) return w.slice(0, -3) + 'y';
+  if (/(?:s|ch|sh|x)es$/i.test(w)) return w.slice(0, -2);
+  if (w.endsWith('s') && !/(?:us|as|is|os|ss)$/i.test(w)) return w.slice(0, -1);
+  return w;
+}
+
 /** 解析数据库列注释为枚举值（借鉴 BuildAdmin），与 EnumValuesEditor 格式统一用 label_zh */
 export interface ParsedEnumItem {
   value: string | number;

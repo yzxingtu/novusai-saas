@@ -36,8 +36,6 @@ class Tenant(BaseModel):
                     label_field="username", i18n_key="tenant_admin"),
         DeletionDep("TenantDomain", "tenant_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="domain", i18n_key="tenant_domain"),
-        DeletionDep("TenantPlugin", "tenant_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="tenant_plugin"),
         DeletionDep("SystemAgentAssignment", "tenant_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="system_agent_assignment"),
     ]

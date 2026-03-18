@@ -38,6 +38,8 @@ class SkillPackage(TenantModel):
     }
 
     __delete_deps__ = [
+        DeletionDep("AgentSkillBinding", "package_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_skill_binding"),
         DeletionDep("Skill", "package_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="skill"),
     ]

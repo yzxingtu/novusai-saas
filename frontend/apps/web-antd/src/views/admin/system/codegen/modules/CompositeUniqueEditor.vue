@@ -34,10 +34,11 @@ const constraints = computed(() => {
 function addConstraint() {
   const model = (store.configJson.model as Record<string, unknown>) || {};
   const ut = (model.unique_together as Array<Record<string, unknown>>) || [];
+  const firstTwo = fieldOptions.value.slice(0, 2).map((o) => o.value);
   store.updateConfig({
     model: {
       ...model,
-      unique_together: [...ut, { fields: [], name: `uq_${Date.now()}` }],
+      unique_together: [...ut, { fields: firstTwo, name: `uq_${Date.now()}` }],
     },
   });
 }
@@ -53,7 +54,12 @@ function updateConstraint(idx: number, patch: Record<string, unknown>) {
   const model = (store.configJson.model as Record<string, unknown>) || {};
   const ut = [...((model.unique_together as Array<Record<string, unknown>>) || [])];
   if (idx < 0 || idx >= ut.length) return;
-  ut[idx] = { ...ut[idx], ...patch };
+  const next = { ...ut[idx], ...patch };
+  const fields = (next.fields as string[]) || [];
+  if (patch.fields !== undefined && fields.length < 2) {
+    return;
+  }
+  ut[idx] = next;
   store.updateConfig({ model: { ...model, unique_together: ut } });
 }
 </script>

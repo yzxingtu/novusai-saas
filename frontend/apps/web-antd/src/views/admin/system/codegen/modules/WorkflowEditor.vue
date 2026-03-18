@@ -102,15 +102,15 @@ function updateWorkflow(patch: Record<string, unknown>) {
 function addTransition() {
   const vals = currentStatusValues.value;
   if (!vals.length) return;
+  const from = vals[0]?.value ?? '';
+  const to = vals[1]?.value ?? vals[0]?.value ?? '';
   const list = [...transitions.value];
-  list.push({
-    from: vals[0]?.value ?? '',
-    to: vals[0]?.value ?? '',
-    action: '',
-    permission: '',
-    requires_comment: false,
-    label_zh: '',
-  });
+  const newT = { from, to, action: '', permission: '', requires_comment: false, label_zh: '' };
+  const isDup = list.some(
+    (t) => String(t.from ?? '') === from && String(t.to ?? '') === to && String((t.action as string) ?? '').trim() === '',
+  );
+  if (isDup) return;
+  list.push(newT);
   updateWorkflow({ transitions: list });
 }
 
@@ -123,7 +123,15 @@ function updateTransition(index: number, patch: Record<string, unknown>) {
   const list = transitions.value;
   if (index < 0 || index >= list.length) return;
   const next = [...list];
-  next[index] = { ...next[index], ...patch };
+  const merged = { ...next[index], ...patch } as Record<string, unknown>;
+  const from = String(merged.from ?? '');
+  const to = String(merged.to ?? '');
+  const action = String(merged.action ?? '').trim();
+  const isDup = next.some(
+    (t, i) => i !== index && String(t.from ?? '') === from && String(t.to ?? '') === to && String((t.action as string) ?? '').trim() === action,
+  );
+  if (isDup) return;
+  next[index] = merged;
   updateWorkflow({ transitions: next });
 }
 

@@ -9,7 +9,7 @@ DEBUG 模式下可用 / Available in DEBUG mode only.
 
 from pathlib import Path
 
-from fastapi import Body, HTTPException, Request, status
+from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 
 from app.core.config import settings
@@ -28,6 +28,7 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.schemas.codegen import (
+    CodegenGenerateBodySchema,
     CodegenConfigCreate,
     CodegenConfigResponse,
     CodegenConfigUpdate,
@@ -64,7 +65,7 @@ from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
         icon="lucide:code-2",
         path="/system/codegen",
         component="system/codegen/index",
-        parent="system_mgmt",
+        parent="system_maintenance",
         sort_order=90,
     ),
 )
@@ -98,8 +99,8 @@ class AdminCodegenController(GlobalController):
             return paginated(
                 items=[CodegenConfigResponse.from_model(x) for x in items],
                 total=total,
-                page=getattr(spec, "page", 1) or 1,
-                page_size=getattr(spec, "size", None) or getattr(spec, "page_size", None) or 20,
+                page=spec.page or 1,
+                page_size=spec.size or 20,
             )
 
         @router.get("/configs/{id}", summary=_("codegen.api.configs.detail"))
@@ -184,7 +185,7 @@ class AdminCodegenController(GlobalController):
             id: int,
             db: DbSession,
             current_admin: ActiveAdmin,
-            limit: int = 50,
+            limit: int = Query(50, ge=1, le=200),
         ):
             _require_debug()
             service = CodegenService(db)
@@ -480,20 +481,17 @@ class AdminCodegenController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            config_id: int | None = Body(None, embed=True),
-            config_json: dict | None = Body(None, embed=True),
-            force: bool = Body(False, embed=True),
+            body: CodegenGenerateBodySchema,
         ):
             _require_debug()
             service = CodegenService(db)
-            if config_id is not None:
-                inp = config_id
-            elif config_json:
-                inp = config_json
+            if body.config_id is not None:
+                inp = body.config_id
+            elif body.config_json is not None:
+                inp = body.config_json
             else:
-                from fastapi import HTTPException
                 raise HTTPException(400, _("codegen.need_config_id_or_json"))
-            result = await service.generate(inp, force=force, project_root=_PROJECT_ROOT)
+            result = await service.generate(inp, force=body.force, project_root=_PROJECT_ROOT)
             data = {
                 "success": result.success,
                 "files_created": result.files_created,

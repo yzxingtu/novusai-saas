@@ -564,6 +564,9 @@ class AdminPluginController(GlobalController):
         ):
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
+            if plugin is None:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=f"Plugin #{plugin_id} not found")
 
             data = plugin.to_dict()
 

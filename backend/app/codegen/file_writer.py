@@ -65,7 +65,7 @@ class SmartAppender:
         if not file_path.exists():
             return False
         text = file_path.read_text(encoding="utf-8", errors="replace")
-        if import_line.strip() in text:
+        if import_line.strip() in [ln.strip() for ln in text.splitlines()]:
             return False
         # 在最后一个 import 之后插入，或文件开头 / Insert after last import or at file start
         lines = text.splitlines()
@@ -256,6 +256,7 @@ class FileWriter:
                             shutil.copy2(dest, backup_path)
                             modified.append(str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path)
                     tmp_file.write_text(f.content, encoding="utf-8")
+                    dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(tmp_file, dest)
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                     if rel_str not in modified:
@@ -273,7 +274,14 @@ class FileWriter:
                         created.append(rel_str)
                 elif f.action == "merge_json" and f.merged_keys:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
-                    data = {k: {} for k in f.merged_keys}
+                    try:
+                        data = json.loads(f.content) if f.content else {}
+                    except (json.JSONDecodeError, TypeError):
+                        data = {}
+                    # Ensure all merged_keys present; fill missing with {}
+                    for k in f.merged_keys:
+                        if k not in data:
+                            data[k] = {}
                     SmartAppender.merge_json(dest, data)
                     modified.append(rel_str)
 

@@ -7,7 +7,7 @@ Defines codegen config API request and response data structures.
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -222,12 +222,34 @@ class CodegenPreviewBodySchema(BaseModel):
         default_factory=dict,
         description="完整配置 JSON / Full config JSON",
     )
-    step: str | None = Field(None, description="model | controller | frontend | None")
+    step: Literal["model", "controller", "frontend"] | None = Field(
+        None, description="model | controller | frontend | None"
+    )
 
     @field_validator("config_json")
     @classmethod
     def validate_config_json_size(cls, v: dict[str, Any]) -> dict[str, Any]:
         return _validate_config_json_size(v)
+
+
+class CodegenGenerateBodySchema(BaseModel):
+    """Generate 请求体 / Request body for generate."""
+
+    config_id: int | None = Field(None, description="配置 ID / Config ID")
+    config_json: dict[str, Any] | None = Field(
+        None,
+        description="完整配置 JSON（与 config_id 二选一）/ Full config JSON (alternative to config_id)",
+    )
+    force: bool = Field(False, description="强制覆盖已存在文件 / Force overwrite")
+
+    @field_validator("config_json")
+    @classmethod
+    def validate_config_json_size_when_present(
+        cls, v: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if v is not None:
+            return _validate_config_json_size(v)
+        return v
 
 
 class ValidationErrorSchema(BaseModel):

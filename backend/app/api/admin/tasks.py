@@ -118,6 +118,10 @@ class AdminTaskController(GlobalController):
         ):
             service = self.get_service(db)
             task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
             return success(
                 data=TaskLogDetailResponse.model_validate(task_log, from_attributes=True).model_dump()
             )
@@ -133,6 +137,10 @@ class AdminTaskController(GlobalController):
         ):
             service = self.get_service(db)
             task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
             new_task_id = TaskManagerService.retry_task(
                 task_name=task_log.task_name,
                 args=task_log.args if isinstance(task_log.args, list) else list(task_log.args.values()) if isinstance(task_log.args, dict) else None,
@@ -151,6 +159,10 @@ class AdminTaskController(GlobalController):
         ):
             service = self.get_service(db)
             task_log = await service.get_by_id(task_log_id)
+            if task_log is None:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("task_log.error.not_found"))
+
             TaskManagerService.cancel_task(task_log.task_id)
             return success(message=_("common.operation_success"))
 

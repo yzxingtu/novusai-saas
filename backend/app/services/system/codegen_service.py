@@ -46,6 +46,17 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
     model = CodegenConfig
     repository_class = CodegenConfigRepository
 
+    @classmethod
+    def create_standalone(cls) -> "CodegenService":
+        """
+        创建无数据库依赖的轻量实例，仅用于 preview/validate。
+        Create minimal instance for preview/validate without DB.
+        """
+        instance = cls.__new__(cls)
+        instance.db = None  # type: ignore[assignment]
+        instance.repo = None  # type: ignore[assignment]
+        return instance
+
     async def get_by_resource(self, resource: str) -> CodegenConfig | None:
         """
         根据资源名获取配置 / Get config by resource name.
@@ -129,11 +140,11 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         return version.config_json
 
     async def restore_version(self, config_id: int, version_id: int) -> CodegenConfig | None:
-        """恢复配置到指定版本（直接更新，不创建新版本）/ Restore config to version."""
+        """恢复配置到指定版本（经 service 钩子更新 hash 并创建版本快照）/ Restore config to version."""
         config_json = await self.get_version_config(config_id, version_id)
         if config_json is None:
             return None
-        return await self.repo.update(config_id, {"config_json": config_json})
+        return await self.update(config_id, {"config_json": config_json})
 
     async def duplicate(self, id: int) -> CodegenConfig:
         """
@@ -157,7 +168,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
 
         copy_data: dict[str, Any] = {
             "name": f"{source.name}{_('codegen.duplicate_suffix')}",
-            "resource": source.resource,
+            "resource": f"{source.resource}_copy",
             "module": source.module,
             "display_name": source.display_name,
             "display_name_en": source.display_name_en,
@@ -384,7 +395,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 update_data["last_error"] = None
                 update_data["config_hash"] = hashlib.sha256(
                     json.dumps(config_json, sort_keys=True).encode()
-                ).hexdigest()
+                ).hexdigest()[:16]
             else:
                 update_data["last_error"] = "; ".join(result.errors) if result.errors else None
             await self.update(config_id, update_data)

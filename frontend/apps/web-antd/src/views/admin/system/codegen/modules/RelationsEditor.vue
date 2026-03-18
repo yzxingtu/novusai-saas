@@ -9,6 +9,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Button, Form, Input, Select } from 'ant-design-vue';
 
 import { getCodegenParentResourcesApi } from '#/api/admin/codegen';
+import { singularize } from './infer';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
@@ -75,7 +76,7 @@ const typeOptions = computed(() => [
 
 function inferFkForManyToOne(target: string): string {
   const table = target.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
-  const singular = table.endsWith('s') ? table.slice(0, -1) : table;
+  const singular = singularize(table);
   return `${singular}_id`;
 }
 

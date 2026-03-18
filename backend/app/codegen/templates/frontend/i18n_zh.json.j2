@@ -68,7 +68,8 @@
     ,
     "status": {
 {% for s in _ws %}
-      "{{ s.name }}": "{{ s.label | default(s.name) }}",
+      "{{ s.name }}": "{{ s.label | default(s.name) }}"{% if not loop.last %},{% endif %}
+
 {% endfor %}
     }
 {% endif %}

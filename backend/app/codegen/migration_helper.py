@@ -26,12 +26,12 @@ def inject_migration_metadata(
     Returns:
         注入元数据后的内容
     """
-    meta = f'''
+    meta = f"""
 # Codegen metadata / 代码生成器元数据
-codegen_source = "{source}"
-codegen_resource = "{resource}"
-codegen_version = "{version}"
-'''
+codegen_source = {repr(source)}
+codegen_resource = {repr(resource)}
+codegen_version = {repr(version)}
+"""
     # 在 revision 变量之后插入
     if "revision" in content and "codegen_source" not in content:
         lines = content.split("\n")

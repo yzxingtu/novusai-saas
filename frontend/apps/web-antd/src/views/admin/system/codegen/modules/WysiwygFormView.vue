@@ -128,6 +128,7 @@ watch(
       const resolvedDefault = resolveDefaultValue(f, comp);
 
       if (!(fn in formValues)) {
+        // 仅对新增字段初始化默认值，已存在字段保留用户输入 / Only init default for new fields, preserve user input for existing
         if (resolvedDefault !== undefined) {
           formValues[fn] = resolvedDefault;
         } else if (comp === 'switch') formValues[fn] = false;
@@ -143,9 +144,8 @@ watch(
         else if (comp === 'CodeEditor' || String(f.type || '').trim() === 'JSON')
           formValues[fn] = '{}';
         else formValues[fn] = undefined;
-      } else if (resolvedDefault !== undefined) {
-        formValues[fn] = resolvedDefault;
       }
+      // 不覆盖已存在字段：字段配置变更时保留用户输入 / Do not overwrite existing: preserve user input when field config changes
     }
   },
   { immediate: true },
@@ -213,15 +213,15 @@ function getEnumOptions(f: Recordable): Array<{ label: string; value: string; di
 function getDictMockOptions(f: Recordable): Array<{ label: string; value: string }> {
   const code = String(f.dict_code || 'dict').replace(/_/g, ' ');
   return [
-    { label: `${code} 选项 A`, value: 'a' },
-    { label: `${code} 选项 B`, value: 'b' },
-    { label: `${code} 选项 C`, value: 'c' },
+    { label: `${code} ${$t('admin.system.codegen.preview.mockOptionA')}`, value: 'a' },
+    { label: `${code} ${$t('admin.system.codegen.preview.mockOptionB')}`, value: 'b' },
+    { label: `${code} ${$t('admin.system.codegen.preview.mockOptionC')}`, value: 'c' },
   ];
 }
 
 /** 关联字段 mock options（ForeignKey/ApiSelect/UserSelect/DeptSelect） */
 function getMockRelationOptions(f: Recordable): Array<{ label: string; value: number }> {
-  const table = String(f.relation_table || '关联').replace(/_/g, ' ');
+  const table = String(f.relation_table || $t('admin.system.codegen.preview.mockRelation')).replace(/_/g, ' ');
   const cached = relationColumnsCache.value[String(f.relation_table || '')];
   const display = String(
     f.relation_display || f.relation_display_field || cached?.displayField || 'name',
@@ -264,18 +264,42 @@ function getFieldPlaceholder(f: Recordable, fallbackKey: string): string {
 
 /** 树形选择 mock 树数据（TreeSelect treeData 格式：label, value, children） */
 function getMockTreeOptions(f: Recordable): Array<{ label: string; value: number; children?: Array<{ label: string; value: number }> }> {
-  const table = String(f.relation_table || '树').replace(/_/g, ' ');
+  const table = String(f.relation_table || $t('admin.system.codegen.preview.mockTree')).replace(/_/g, ' ');
+  const pre = 'admin.system.codegen.preview';
   return [
-    { label: `${table} 父级 A`, value: 1, children: [{ label: `${table} 子 A1`, value: 11 }, { label: `${table} 子 A2`, value: 12 }] },
-    { label: `${table} 父级 B`, value: 2, children: [{ label: `${table} 子 B1`, value: 21 }] },
+    {
+      label: `${table} ${$t(pre + '.mockParentA')}`,
+      value: 1,
+      children: [
+        { label: `${table} ${$t(pre + '.mockChildA1')}`, value: 11 },
+        { label: `${table} ${$t(pre + '.mockChildA2')}`, value: 12 },
+      ],
+    },
+    {
+      label: `${table} ${$t(pre + '.mockParentB')}`,
+      value: 2,
+      children: [{ label: `${table} ${$t(pre + '.mockChildB1')}`, value: 21 }],
+    },
   ];
 }
 
 /** 级联 mock 数据 */
 function getMockCascaderOptions(f: Recordable): Array<{ label: string; value: string; children?: Array<{ label: string; value: string }> }> {
+  const pre = 'admin.system.codegen.preview';
   return [
-    { label: '省 A', value: 'a', children: [{ label: '市 A1', value: 'a1' }, { label: '市 A2', value: 'a2' }] },
-    { label: '省 B', value: 'b', children: [{ label: '市 B1', value: 'b1' }] },
+    {
+      label: $t(pre + '.mockProvinceA'),
+      value: 'a',
+      children: [
+        { label: $t(pre + '.mockCityA1'), value: 'a1' },
+        { label: $t(pre + '.mockCityA2'), value: 'a2' },
+      ],
+    },
+    {
+      label: $t(pre + '.mockProvinceB'),
+      value: 'b',
+      children: [{ label: $t(pre + '.mockCityB1'), value: 'b1' }],
+    },
   ];
 }
 
@@ -302,7 +326,7 @@ function handleSubmit() {
 
 function handleCancel() {
   Object.keys(formValues).forEach((k) => {
-    formValues[k] = undefined;
+    delete formValues[k];
   });
 }
 </script>

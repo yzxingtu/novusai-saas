@@ -10,7 +10,7 @@ import type { useCodegenBuilderStore } from '#/store';
 export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStore>) {
   const ep0 = computed(() => (store.configJson.endpoints as Record<string, unknown>[])?.[0] || {});
   const fe = computed(() => (ep0.value?.frontend as Record<string, unknown>) || {});
-  const batch = computed(() => (ep0.value?.batch as Record<string, unknown>) || {});
+  const batch = computed(() => (store.configJson.batch as Record<string, unknown>) || {});
   const clone = computed(() => (store.configJson as Record<string, unknown>).clone as Record<string, unknown> | undefined);
   const detail = computed(() => (store.configJson as Record<string, unknown>).detail as Record<string, unknown> | undefined);
   const actions = computed(() => ((store.configJson as Record<string, unknown>).actions as Record<string, unknown>[]) || []);
@@ -93,7 +93,6 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
   const detailFields = computed(() =>
     allFields.value.filter(
       (f) =>
-        (f as Record<string, unknown>).list_visible !== false &&
         (f as Record<string, unknown>).type !== '__divider__' &&
         !(f as Record<string, unknown>).divider,
     ),

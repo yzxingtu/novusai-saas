@@ -162,6 +162,66 @@ def test_validation_errors_field_no_name() -> None:
     assert any(e.code == "field_no_name" for e in errors)
 
 
+def test_validation_errors_invalid_base_class() -> None:
+    """base_class 非法值报错."""
+    config = {
+        "module": "x",
+        "resource": "r",
+        "display_name": "D",
+        "model": {"base_class": "InvalidModel"},
+        "fields": [{"name": "f1", "type": "String"}],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "invalid_base_class" for e in errors)
+
+
+def test_validation_errors_invalid_scope() -> None:
+    """endpoint scope 非法值报错."""
+    config = {
+        "module": "x",
+        "resource": "r",
+        "display_name": "D",
+        "fields": [{"name": "f1", "type": "String"}],
+        "endpoints": [{"scope": "invalid_scope"}],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "invalid_scope" for e in errors)
+
+
+def test_validation_errors_invalid_data_mode() -> None:
+    """endpoint data_mode 非法值报错."""
+    config = {
+        "module": "x",
+        "resource": "r",
+        "display_name": "D",
+        "fields": [{"name": "f1", "type": "String"}],
+        "endpoints": [{"scope": "admin", "data_mode": "invalid_mode"}],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "invalid_data_mode" for e in errors)
+
+
+def test_validation_errors_invalid_sub_table_mode() -> None:
+    """sub_table mode 非法值报错."""
+    config = {
+        "module": "x",
+        "resource": "r",
+        "display_name": "D",
+        "fields": [{"name": "f1", "type": "String"}],
+        "sub_tables": [{"resource": "line", "mode": "invalid_mode", "fields": [{"name": "x", "type": "String"}]}],
+    }
+    parser = ConfigParser()
+    errors = parser.validate(config)
+
+    assert any(e.code == "invalid_sub_table_mode" for e in errors)
+
+
 # ============================================================
 # test_enum_values_parsing
 # ============================================================

@@ -367,32 +367,36 @@ def _validate_relation_cycles(
     stack: list[str] = []
     stack_set: set[str] = set()
 
-    def dfs(node: str) -> bool:
+    seen_cycles: set[tuple[str, ...]] = set()
+
+    def dfs(node: str) -> None:
         visited.add(node)
         stack.append(node)
         stack_set.add(node)
         for neighbor in graph[node]:
             if neighbor not in visited:
-                if dfs(neighbor):
-                    return True
+                dfs(neighbor)
             elif neighbor in stack_set:
                 cycle_start = stack.index(neighbor)
-                cycle_nodes = stack[cycle_start:] + [neighbor]
-                issues.append(
-                    {
-                        "code": "cycle_detected",
-                        "message": f"Cycle detected: {' -> '.join(cycle_nodes)}",
-                        "related_nodes": cycle_nodes[:-1],
-                    }
+                cycle_nodes = tuple(stack[cycle_start:] + [neighbor])
+                cycle_normalized = tuple(
+                    min(cycle_nodes[i:] + cycle_nodes[:i] for i in range(len(cycle_nodes)))
                 )
-                return True
+                if cycle_normalized not in seen_cycles:
+                    seen_cycles.add(cycle_normalized)
+                    issues.append(
+                        {
+                            "code": "cycle_detected",
+                            "message": f"Cycle detected: {' -> '.join(cycle_nodes)}",
+                            "related_nodes": list(cycle_nodes[:-1]),
+                        }
+                    )
         stack.pop()
         stack_set.remove(node)
-        return False
 
     for module in graph:
-        if module not in visited and dfs(module):
-            break
+        if module not in visited:
+            dfs(module)
 
 
 def _merge_entities(

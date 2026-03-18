@@ -154,11 +154,14 @@ function getTypeIcon(type: string): string {
     ai_model: 'lucide:brain',
     ai_provider: 'lucide:server',
     agent: 'lucide:bot',
+    agent_access: 'lucide:shield-check',
     agent_conversation: 'lucide:message-square',
+    agent_version: 'lucide:git-commit',
     admin: 'lucide:user-cog',
     admin_role: 'lucide:shield',
     batch_run: 'lucide:play-circle',
     knowledge_base: 'lucide:book-open',
+    knowledge_base_tenant_access: 'lucide:building-2',
     knowledge_document: 'lucide:file-text',
     provider_api_key: 'lucide:key',
     skill: 'lucide:wrench',
@@ -174,6 +177,7 @@ function getTypeIcon(type: string): string {
     tenant_quota: 'lucide:gauge',
     tenant_rate_limit: 'lucide:timer',
     system_agent_assignment: 'lucide:link',
+    codegen_config_version: 'lucide:history',
   };
   return iconMap[type] || 'lucide:box';
 }

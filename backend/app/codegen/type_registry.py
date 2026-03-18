@@ -363,6 +363,11 @@ class TypeRegistry:
         """
         return _TYPE_MAP
 
+    def is_type_registered(self, yaml_type: str) -> bool:
+        """检查类型是否已注册 / Check if type is registered (base in _TYPE_MAP)."""
+        base, _ = _parse_type(str(yaml_type or ""))
+        return base in _TYPE_MAP
+
     def get_type_info(self, yaml_type: str) -> dict[str, Any]:
         """
         获取类型完整信息 / Get full type info.
@@ -434,7 +439,7 @@ class TypeRegistry:
         sa_type = info["sqlalchemy_type"]
 
         parts = [sa_type]
-        nullable = field_config.get("nullable", field_config.get("required", True) is False)
+        nullable = field_config.get("nullable", not field_config.get("required", True))
         parts.append(f"nullable={nullable}")
 
         if field_config.get("unique"):

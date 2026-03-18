@@ -28,7 +28,7 @@ def export_zip(files: list[GeneratedFile]) -> bytes:
     buf = io.BytesIO()
     with ZipFile(buf, "w", ZIP_DEFLATED) as zf:
         for f in files:
-            if f.content:
+            if f.content is not None:
                 zf.writestr(f.path.replace("\\", "/"), f.content)
     return buf.getvalue()
 

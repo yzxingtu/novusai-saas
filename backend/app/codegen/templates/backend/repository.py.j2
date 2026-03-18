@@ -24,10 +24,6 @@ from app.models.{{ module }}.{{ resource }} import {{ resource | pascal }}
 {% set fk_relations = relations | selectattr('type', 'equalto', 'many_to_one') | list %}
 {% set m2m_relations = relations | selectattr('type', 'equalto', 'many_to_many') | list %}
 {% set need_selectinload = (fk_relations | length) > 0 or (m2m_relations | length) > 0 %}
-{% set load_rels = [] %}
-{% for r in fk_relations %}
-{% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
-{% endfor %}
 
 {% if is_scenario_d %}
 {# 场景 D: Admin 端用 BaseRepository #}

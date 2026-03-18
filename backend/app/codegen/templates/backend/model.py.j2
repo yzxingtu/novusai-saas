@@ -3,6 +3,7 @@
 条件: __filterable__/__sortable__/__selectable__/__delete_deps__/__table_args__/__hierarchy__/__data_permission__
 #}
 {% set _m2m = relations | selectattr('type', 'equalto', 'many_to_many') | list %}
+{% set has_delete_deps = model.delete_deps is defined and model.delete_deps and model.delete_deps | length > 0 %}
 """
 {{ display_name }}模型 / {{ display_name_en }} Model
 """
@@ -29,7 +30,9 @@ from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import Base, {{ model.base_class | default('TenantModel') }}
+{% if has_delete_deps %}
 from app.core.deletion import DeletionDep, DeletionStrategy
+{% endif %}
 
 
 {% set base_class = model.base_class | default('TenantModel') %}
@@ -37,7 +40,6 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 {% set has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
 {% set has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
 {% set has_data_permission = model.data_permission %}
-{% set has_delete_deps = model.delete_deps is defined and model.delete_deps and model.delete_deps | length > 0 %}
 {% set has_selectable = model.selectable is defined and model.selectable and model.selectable is mapping %}
 {% set has_drag_sort = model.drag_sort | default(false) %}
 {% for rel in _m2m %}
@@ -102,7 +104,7 @@ class {{ resource | pascal }}({{ base_class }}):
 {% if has_delete_deps %}
     __delete_deps__ = [
 {% for dep in model.delete_deps %}
-        DeletionDep("{{ dep.model }}", "{{ dep.fk_field }}", DeletionStrategy.{{ dep.strategy | default('BLOCK') | upper }},
+        DeletionDep("{{ dep.model }}", "{{ dep.fk_field }}", DeletionStrategy.{{ (dep.get('strategy') or 'BLOCK') | upper }},
                     label_field="{{ dep.label_field | default('name') }}", i18n_key="{{ dep.i18n_key | default('') }}"),
 {% endfor %}
     ]
@@ -110,7 +112,7 @@ class {{ resource | pascal }}({{ base_class }}):
 {% endif %}
 {% if has_unique_together %}
     __table_args__ = (
-        UniqueConstraint({{ model.unique_together | map('string') | join(', ') }}, name="uq_{{ resource }}_{{ model.unique_together | join('_') }}"),
+        UniqueConstraint({{ model.unique_together | map('tojson') | join(', ') }}, name="uq_{{ resource }}_{{ model.unique_together | join('_') }}"),
     )
 
 {% endif %}

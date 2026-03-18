@@ -11,9 +11,12 @@ For sub-form preset, sub table with FK to main table.
 from __future__ import annotations
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+{% if sub_fields | selectattr('type', 'equalto', 'JSON') | list %}
+from sqlalchemy.dialects.postgresql import JSON
+{% endif %}
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.base_model import Base, {{ model.base_class | default('TenantModel') }}
+from app.core.base_model import {{ model.base_class | default('TenantModel') }}
 
 
 {% set main_table = main_resource_plural %}

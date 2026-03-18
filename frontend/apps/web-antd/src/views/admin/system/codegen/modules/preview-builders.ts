@@ -90,6 +90,7 @@ export function buildGridColumns(
     hasDragSort?: boolean;
     hasDetail?: boolean;
     hasClone?: boolean;
+    nameField?: string;
     onFieldClick?: (f: FieldRecord) => void;
   } = {},
 ): NonNullable<VxeTableGridOptions['columns']> {
@@ -98,6 +99,7 @@ export function buildGridColumns(
     hasDragSort = false,
     hasDetail = false,
     hasClone = false,
+    nameField: nameFieldOpt,
   } = opts;
 
   let listFields = fields.filter(
@@ -112,6 +114,10 @@ export function buildGridColumns(
       (f) => f.type !== '__divider__' && !f.divider && !shouldHideInList(f),
     );
   }
+
+  const nameField =
+    nameFieldOpt ||
+    (listFields[0] ? String(listFields[0].name || 'name') : 'name');
 
   const cols: NonNullable<VxeTableGridOptions['columns']> = [];
 
@@ -171,7 +177,7 @@ export function buildGridColumns(
     cellRender: {
       name: 'CellOperation',
       attrs: {
-        nameField: 'name',
+        nameField,
         nameTitle: $t('common.name'),
         onClick: () => {},
       },

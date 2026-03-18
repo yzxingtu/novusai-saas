@@ -1039,39 +1039,39 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <!-- Input row -->
+        <!-- Input row: 字数统计移出 TextArea，避免导致图标与输入框对齐失调 -->
         <div
-          class="flex items-end gap-2 rounded-xl border border-border/40 bg-muted/20 px-3 py-2 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm focus-within:shadow-primary/5"
+          class="overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm focus-within:shadow-primary/5"
         >
-          <Tooltip :title="$t('common.globalAiChat.addAttachment')">
-            <button
-              class="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+          <div class="flex min-h-[2.75rem] items-end gap-2 px-3 py-2">
+            <Tooltip :title="$t('common.globalAiChat.addAttachment')">
+              <button
+                class="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                :disabled="agents.length === 0 || sending"
+                @click="fileInput?.click()"
+              >
+                <IconifyIcon icon="lucide:paperclip" class="size-4" />
+              </button>
+            </Tooltip>
+            <input
+              ref="fileInput"
+              type="file"
+              multiple
+              :accept="chatAcceptAttribute"
+              class="hidden"
+              @change="handleFileSelect"
+            />
+            <Input.TextArea
+              v-model:value="inputMessage"
+              :placeholder="$t('user.aiChat.inputPlaceholder')"
+              :auto-size="{ minRows: 2, maxRows: 6 }"
+              :maxlength="32000"
               :disabled="agents.length === 0 || sending"
-              @click="fileInput?.click()"
-            >
-              <IconifyIcon icon="lucide:paperclip" class="size-4" />
-            </button>
-          </Tooltip>
-          <input
-            ref="fileInput"
-            type="file"
-            multiple
-            :accept="chatAcceptAttribute"
-            class="hidden"
-            @change="handleFileSelect"
-          />
-          <Input.TextArea
-            v-model:value="inputMessage"
-            :placeholder="$t('user.aiChat.inputPlaceholder')"
-            :auto-size="{ minRows: 1, maxRows: 4 }"
-            :maxlength="32000"
-            :show-count="true"
-            :disabled="agents.length === 0 || sending"
-            class="flex-1 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
-            @keydown="handleKeyDown"
-            @paste="handlePaste"
-          />
-          <button
+              class="ai-chat-textarea flex-1 min-w-0 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
+              @keydown="handleKeyDown"
+              @paste="handlePaste"
+            />
+            <button
             :class="[
               'flex size-8 shrink-0 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100',
               streaming
@@ -1094,6 +1094,13 @@ onUnmounted(() => {
               class="size-4"
             />
           </button>
+          </div>
+          <!-- 字数统计单独一行，不影响输入框与图标的垂直对齐 -->
+          <div class="flex justify-end px-2 pb-1">
+            <span class="text-[10px] text-muted-foreground/60">
+              {{ inputMessage.length }} / 32000
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -1291,6 +1298,11 @@ onUnmounted(() => {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* 输入框多行文本域：保证与图标垂直对齐 */
+.ai-chat-textarea :deep(.ant-input) {
+  resize: none;
 }
 
 /* Streaming progress bar / 流式进度条 */

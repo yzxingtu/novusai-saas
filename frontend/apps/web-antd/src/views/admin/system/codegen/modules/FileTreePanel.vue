@@ -66,12 +66,16 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
         };
         curr[p] = {
           node,
-          children: isLeaf ? {} : {},
+          children: {},
         };
       }
       if (!isLeaf) {
-        const childRoot = curr[p].children as Record<string, { node: TreeNode; children: Record<string, unknown> }>;
-        curr = childRoot;
+        const entry = curr[p] as { node: TreeNode; children: Record<string, unknown> };
+        if (entry.node.isLeaf) {
+          entry.node.isLeaf = false;
+          entry.node.type = undefined;
+        }
+        curr = entry.children as Record<string, { node: TreeNode; children: Record<string, unknown> }>;
       }
     }
   }

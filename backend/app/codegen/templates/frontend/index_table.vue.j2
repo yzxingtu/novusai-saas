@@ -10,6 +10,7 @@
 {% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
 {% set perm_resource = resource | replace('-', '_') %}
+{% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
 {% set _recycle_bin = _fe.get('recycle_bin', False) %}
 {% set _export = _fe.get('export', False) %}
 {% set _import = _fe.get('import', False) %}
@@ -32,7 +33,7 @@ import { useAutoTableDragSort } from '#/adapter/vxe-table';
 {% for f in (fields or []) if not f.get('divider') %}
 {% if type_registry.get_cell_render(f) == 'CellImage' %}{% set ns.has_cell_image = true %}{% endif %}
 {% endfor %}
-import { {% if ns.has_cell_image %}Image, {% endif %}message, Modal } from 'ant-design-vue';
+import { {% if ns.has_cell_image %}Image, {% endif %}{% if _import %}Button, {% endif %}message, Modal } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 import {
@@ -81,7 +82,7 @@ const {
   formComponent: Form,
   formDefaults: getFormDefaults,
   i18nPrefix: '{{ i18n_pre }}',
-  nameField: 'name',
+  nameField: '{{ name_field | camel }}',
   recycleBin: {{ _recycle_bin | lower }},
   searchSchema: useGridFormSchema(),
   toolbar: { custom: true, export: {{ _export | lower }}, refresh: true, search: true, zoom: true },
@@ -109,8 +110,8 @@ async function onImportChange(e: Event) {
       message.warning(data.errors.slice(0, 3).join('; '));
     }
     onRefresh();
-  } catch (err: any) {
-    message.error(err?.message || $t('shared.common.importFailed'));
+  } catch (err: unknown) {
+    message.error((err instanceof Error ? err.message : null) || $t('shared.common.importFailed'));
   } finally {
     el.value = '';
   }

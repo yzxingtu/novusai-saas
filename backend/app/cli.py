@@ -530,7 +530,7 @@ def license_verify(plugin: str, license_key: str) -> None:
 
 @license_cmd.command("keygen")
 def license_keygen() -> None:
-    """Generate Ed25519 keypair / 生成 Ed25519 密钥对"""
+    """Generate Ed25519 keypair. Private key is printed to stdout. For dev only; use secure storage in production. / 生成 Ed25519 密钥对，私钥输出到 stdout，仅用于开发环境"""
     priv, pub = _generate_keypair()
     key_dir = _get_key_dir()
     (key_dir / "private.key").write_text(priv)
@@ -596,11 +596,11 @@ def codegen_cmd() -> None:
 @click.option("--config", "-c", "config_path", type=click.Path(exists=True), help="YAML config file path")
 @click.option("--id", "config_id", type=int, default=None, help="Config ID (from database)")
 @click.option("--resource", "-r", default=None, help="Resource name (resolve config from DB)")
+@click.option("--stdin", is_flag=True, help="Read config from stdin (priority: stdin > config > id/resource)")
 @click.option("--template-type", "-t", type=click.Choice(["single", "tree", "master-sub"]), default=None, help="Template: single|tree|master-sub")
 @click.option("--force", "-f", is_flag=True, help="Force overwrite existing files")
 @click.option("--auto-migrate", is_flag=True, help="Run alembic autogenerate after generate")
 @click.option("--dry-run", is_flag=True, help="Preview only, do not write files")
-@click.option("--stdin", is_flag=True, help="Read config from stdin")
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def codegen_generate(
     config_path: str | None,
@@ -613,7 +613,7 @@ def codegen_generate(
     stdin: bool,
     output_json: bool,
 ) -> None:
-    """Generate CRUD code / 生成 CRUD 代码"""
+    """Generate CRUD code. Config source priority: --stdin > --config > --id/--resource. / 生成 CRUD 代码。配置来源优先级：stdin > config > id/resource"""
     os.chdir(_BACKEND_DIR)
 
     config_json = None
@@ -663,7 +663,7 @@ def codegen_generate(
     if dry_run:
         from app.services.system.codegen_service import CodegenService
 
-        svc = CodegenService.__new__(CodegenService)
+        svc = CodegenService.create_standalone()
         result = svc.preview(config_json, project_root=_CODEGEN_PROJECT_ROOT)
         if output_json:
             import json
@@ -706,6 +706,8 @@ def codegen_generate(
                 "files_modified": result.files_modified,
                 "errors": result.errors,
             }, ensure_ascii=False, indent=2))
+            if not result.success:
+                sys.exit(1)
         elif result.success:
             click.echo("[{}] Generated successfully".format(_STATUS_OK))
             for p in result.files_created:
@@ -793,7 +795,7 @@ def codegen_preview(
 
     from app.services.system.codegen_service import CodegenService
 
-    svc = CodegenService.__new__(CodegenService)
+    svc = CodegenService.create_standalone()
     result = svc.preview(config_json, step=step, project_root=_CODEGEN_PROJECT_ROOT)
 
     if output_json:
@@ -839,7 +841,7 @@ def codegen_validate(config_path: str | None, stdin: bool, output_json: bool) ->
         sys.exit(1)
     from app.services.system.codegen_service import CodegenService
 
-    svc = CodegenService.__new__(CodegenService)
+    svc = CodegenService.create_standalone()
     result = svc.validate(config_json)
 
     if output_json:
@@ -872,6 +874,9 @@ def codegen_rollback(
 
     if not resource and config_id is None:
         click.echo("Error: Provide --resource or --id", err=True)
+        sys.exit(1)
+    if resource and config_id is not None:
+        click.echo("Error: Use --resource OR --id, not both", err=True)
         sys.exit(1)
 
     from app.codegen.rollback import CodegenRollback
@@ -928,7 +933,7 @@ def codegen_versions(config_id: int, limit: int, output_json: bool) -> None:
         click.echo(json.dumps({"versions": items}, ensure_ascii=False, indent=2))
     else:
         for v in items:
-            click.echo("  {:>5}  {}  {}".format(v.get("id", ""), v.get("created_at", "")[:19], v.get("note", "")))
+            click.echo("  {:>5}  {}  {}".format(v.get("id", ""), (v.get("created_at") or "")[:19], v.get("note", "")))
 
 
 @codegen_cmd.command("restore")
@@ -1043,7 +1048,8 @@ def codegen_show(config_id: int, output_json: bool) -> None:
 
 @codegen_cmd.command("import")
 @click.option("--config", "-c", "config_path", required=True, type=click.Path(exists=True))
-def codegen_import_cmd(config_path: str) -> None:
+@click.option("--json", "output_json", is_flag=True, help="Output JSON only (id)")
+def codegen_import_cmd(config_path: str, output_json: bool) -> None:
     """Import YAML config to database / 导入 YAML 配置到数据库"""
     os.chdir(_BACKEND_DIR)
 
@@ -1071,7 +1077,11 @@ def codegen_import_cmd(config_path: str) -> None:
             return cfg.id
 
     cid = _run_async(_do())
-    click.echo("Imported as config id={}".format(cid))
+    if output_json:
+        import json
+        click.echo(json.dumps({"id": cid}, ensure_ascii=False))
+    else:
+        click.echo("Imported as config id={}".format(cid))
 
 
 @codegen_cmd.command("export")
@@ -1117,8 +1127,12 @@ def codegen_export(config_id: int | None, resource: str | None, output: str | No
 
 @codegen_cmd.command("delete")
 @click.option("--id", "config_id", required=True, type=int)
-def codegen_delete(config_id: int) -> None:
+@click.option("--yes", "-y", "skip_confirm", is_flag=True, help="Skip confirmation prompt")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON only")
+def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> None:
     """Delete config / 删除配置"""
+    if not skip_confirm and not click.confirm("Delete codegen config id={}?".format(config_id)):
+        return
     os.chdir(_BACKEND_DIR)
 
     from app.core.database import get_db_context
@@ -1130,12 +1144,17 @@ def codegen_delete(config_id: int) -> None:
             await svc.delete(config_id)
 
     _run_async(_do())
-    click.echo("Deleted config id={}".format(config_id))
+    if output_json:
+        import json
+        click.echo(json.dumps({"success": True, "deleted_id": config_id}, ensure_ascii=False))
+    else:
+        click.echo("Deleted config id={}".format(config_id))
 
 
 @codegen_cmd.command("duplicate")
 @click.option("--id", "config_id", required=True, type=int)
-def codegen_duplicate(config_id: int) -> None:
+@click.option("--json", "output_json", is_flag=True, help="Output JSON only (id)")
+def codegen_duplicate(config_id: int, output_json: bool) -> None:
     """Duplicate config / 复制配置"""
     os.chdir(_BACKEND_DIR)
 
@@ -1149,7 +1168,11 @@ def codegen_duplicate(config_id: int) -> None:
             return cfg.id
 
     new_id = _run_async(_do())
-    click.echo("Duplicated as config id={}".format(new_id))
+    if output_json:
+        import json
+        click.echo(json.dumps({"id": new_id}, ensure_ascii=False))
+    else:
+        click.echo("Duplicated as config id={}".format(new_id))
 
 
 # ----- DB 反射 -----
@@ -1168,7 +1191,7 @@ def codegen_db_tables(output_json: bool) -> None:
 
     from app.services.system.codegen_service import CodegenService
 
-    svc = CodegenService.__new__(CodegenService)
+    svc = CodegenService.create_standalone()
     items = svc.introspect_tables()
 
     if output_json:
@@ -1188,7 +1211,7 @@ def codegen_db_columns(table: str, output_json: bool) -> None:
 
     from app.services.system.codegen_service import CodegenService
 
-    svc = CodegenService.__new__(CodegenService)
+    svc = CodegenService.create_standalone()
     items = svc.introspect_columns(table)
 
     if output_json:
@@ -1208,7 +1231,7 @@ def codegen_db_import(table: str, output: str | None) -> None:
 
     from app.services.system.codegen_service import CodegenService
 
-    svc = CodegenService.__new__(CodegenService)
+    svc = CodegenService.create_standalone()
     data = svc.import_from_table(table)
 
     import yaml
@@ -1292,7 +1315,7 @@ def codegen_download(config_id: int | None, config_path: str | None, output: str
         config_json = _load_config_from_file(config_path)
         from app.services.system.codegen_service import CodegenService
 
-        svc = CodegenService.__new__(CodegenService)
+        svc = CodegenService.create_standalone()
         zip_bytes = svc.preview_zip(config_json)
     else:
         click.echo("Error: Provide --id or --config", err=True)

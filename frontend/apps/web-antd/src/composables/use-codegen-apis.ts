@@ -1,32 +1,78 @@
 /**
- * 代码生成器用占位 API / Placeholder APIs for codegen
+ * 代码生成器用 API / Codegen APIs
  *
  * UserSelect、DeptSelect 等组件使用的 API。
- * 待项目实现 /users/select、/departments/tree 等接口后可替换。
+ * 根据当前 URL（admin/tenant）自动选择对应端点。
  *
- * APIs for UserSelect, DeptSelect etc. Replace when /users/select, /departments/tree are implemented.
+ * APIs for UserSelect, DeptSelect etc. Auto-selects endpoint by current URL (admin/tenant).
  */
+import { getAdminListApi } from '#/api/admin/admin-user';
+import { getOrganizationRootNodesApi as getAdminOrgRootsApi } from '#/api/admin/organization';
+import { getTenantUserListApi } from '#/api/tenant/tenant-users';
+import { getOrganizationRootNodesApi as getTenantOrgRootsApi } from '#/api/tenant/organization';
 
-/**
- * 用户下拉 API（占位）/ User select API (placeholder)
- *
- * TODO: 对接 GET /admin/users/select 或 GET /tenant/users/select
- */
-export async function getUserSelectApi() {
-  if (import.meta.env.DEV) {
-    console.warn('[getUserSelectApi] Placeholder: /users/select not implemented, returning empty');
-  }
-  return { items: [] };
+function getApiPrefix(): 'admin' | 'tenant' {
+  if (typeof window === 'undefined') return 'admin';
+  const path = window.location?.pathname || '';
+  return path.includes('/tenant') ? 'tenant' : 'admin';
 }
 
 /**
- * 部门树 API（占位）/ Dept tree API (placeholder)
+ * 用户下拉 API / User select API
  *
- * TODO: 对接 GET /admin/departments/tree 或 GET /tenant/departments/tree
+ * Admin: GET /admin/admins (平台管理员)
+ * Tenant: GET /tenant/users (企业用户)
+ */
+export async function getUserSelectApi(params?: { search?: string }) {
+  const prefix = getApiPrefix();
+  try {
+    if (prefix === 'admin') {
+      const res = await getAdminListApi({ page: 1, page_size: 500, ...params } as Record<string, unknown>);
+      return {
+        items: (res.items || []).map((u: { id: number; username?: string; nickname?: string }) => ({
+          id: u.id,
+          value: u.id,
+          label: (u as { nickname?: string }).nickname || (u as { username?: string }).username || String(u.id),
+        })),
+      };
+    }
+    const res = await getTenantUserListApi({ page: 1, page_size: 500, ...params } as Record<string, unknown>);
+    return {
+      items: (res.items || []).map((u: { id: number; username?: string; nickname?: string }) => ({
+        id: u.id,
+        value: u.id,
+        label: (u as { nickname?: string }).nickname || (u as { username?: string }).username || String(u.id),
+      })),
+    };
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[getUserSelectApi]', e);
+    }
+    return { items: [] };
+  }
+}
+
+/**
+ * 部门/组织树 API / Dept/Org tree API
+ *
+ * Admin: GET /admin/roles/organization (平台组织架构根节点)
+ * Tenant: GET /tenant/roles/organization (企业组织架构根节点)
  */
 export async function getDeptTreeApi() {
-  if (import.meta.env.DEV) {
-    console.warn('[getDeptTreeApi] Placeholder: /departments/tree not implemented, returning empty');
+  const prefix = getApiPrefix();
+  try {
+    const roots = prefix === 'admin' ? await getAdminOrgRootsApi() : await getTenantOrgRootsApi();
+    return {
+      items: (roots || []).map((n: { id: number; name?: string }) => ({
+        id: n.id,
+        value: n.id,
+        label: (n as { name?: string }).name || String(n.id),
+      })),
+    };
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[getDeptTreeApi]', e);
+    }
+    return { items: [] };
   }
-  return { items: [] };
 }

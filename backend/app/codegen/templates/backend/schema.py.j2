@@ -9,7 +9,18 @@ Response/Create/Update, from_model, FK computed, DetailResponse, dual mode (Admi
 Defines request and response data structures.
 """
 
+{% set _need_date = fields is defined and fields and (fields | selectattr('type', 'equalto', 'Date') | list | length > 0) %}
+{% set _types_joined = (fields | rejectattr('divider') | map(attribute='type', default='') | join(' ')) if fields else '' %}
+{% set _need_decimal = 'Decimal' in _types_joined %}
+{% if _need_date %}
+from datetime import date, datetime
+{% else %}
 from datetime import datetime
+{% endif %}
+{% if _need_decimal %}
+
+from decimal import Decimal
+{% endif %}
 
 from pydantic import Field
 
@@ -27,11 +38,6 @@ from app.core.i18n import _
 {% set has_detail = detail and detail.get('enabled') %}
 {% set response_base = 'TenantResponseSchema' if base_class == 'TenantModel' and not is_dual else 'BaseResponseSchema' %}
 {% set fk_relations = relations | selectattr('type', 'equalto', 'many_to_one') | list %}
-{% set fk_field_names = [] %}
-{% for r in fk_relations %}
-{% set fk_col = r.foreign_key | default(r.target | model_to_fk) %}
-{# collect fk column names for FK display #}
-{% endfor %}
 
 class {{ resource | pascal }}Create(BaseCreateSchema):
     """创建{{ display_name }}请求 / Create {{ display_name_en | lower }} request."""
@@ -56,7 +62,8 @@ class {{ resource | pascal }}Create(BaseCreateSchema):
 class {{ resource | pascal }}Update(BaseUpdateSchema):
     """更新{{ display_name }}请求 / Update {{ display_name_en | lower }} request."""
 
-{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% set _exc_update = ['created_by', 'dept_id'] if _has_tree else ['parent_id', 'created_by', 'dept_id'] %}
+{% for f in fields if not f.get('divider') and f.name not in _exc_update %}
 {% set py_type = type_registry.get_type_info(f.type | default('String')).python_type %}
     {{ f.name }}: {{ py_type }} | None = Field(None, description=_("{{ module }}.{{ resource }}.field.{{ f.name }}"))
 {% endfor %}
@@ -100,7 +107,10 @@ class Admin{{ resource | pascal }}Response(TenantResponseSchema):
 {% endfor %}
 {% for r in fk_relations %}
 {% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
-            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "name", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
 {% endfor %}
             created_at=obj.created_at,
             updated_at=obj.updated_at,
@@ -141,7 +151,10 @@ class Tenant{{ resource | pascal }}Response(TenantResponseSchema):
 {% endfor %}
 {% for r in fk_relations %}
 {% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
-            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "name", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
 {% endfor %}
             created_at=obj.created_at,
             updated_at=obj.updated_at,
@@ -185,7 +198,10 @@ class {{ resource | pascal }}Response({{ response_base }}):
 {% endfor %}
 {% for r in fk_relations %}
 {% set rel_name = r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', '')) %}
-            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "name", None) if getattr(obj, "{{ rel_name }}", None) else None,
+{% set _fk_field = (fields | selectattr('name', 'equalto', r.foreign_key | default(r.target | model_to_fk)) | list | first) %}
+{% set _disp_field = (_fk_field.get('relation_display_field') or _fk_field.get('relation_display') or r.get('relation_display_field') or r.get('relation_display')) if _fk_field else (r.get('relation_display_field') or r.get('relation_display')) %}
+{% set _disp_attr = _disp_field or 'name' %}
+            {{ rel_name }}_name=getattr(getattr(obj, "{{ rel_name }}", None), "{{ _disp_attr }}", None) if getattr(obj, "{{ rel_name }}", None) else None,
 {% endfor %}
             created_at=obj.created_at,
             updated_at=obj.updated_at,

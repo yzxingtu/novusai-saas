@@ -32,12 +32,17 @@
       "base_model_cross_tenant": "BaseModel cannot use cross_tenant data mode",
       "tree_requires_base": "tree config requires base_class TenantModel or BaseModel",
       "invalid_field_type": "Invalid field type: {type}",
+      "unknown_field_type": "Unknown field type (not registered in type_registry): {type}",
       "duplicate_field_name": "Duplicate field names: {names}",
       "invalid_module_format": "module must be lowercase letters, digits, underscore, e.g. foo_bar",
       "invalid_resource_format": "resource must be lowercase letters, digits, underscore, e.g. foo_bar",
       "reserved_field_name": "Field name {name} is reserved",
       "invalid_field_name": "Field name {name} is invalid, must be snake_case starting with lowercase",
-      "parse_error": "Config parse failed, please check format"
+      "parse_error": "Config parse failed, please check format",
+      "invalid_base_class": "Invalid base_class: {value}, allowed: {allowed}",
+      "invalid_scope": "Invalid scope: {value}, allowed: {allowed}",
+      "invalid_data_mode": "Invalid data_mode: {value}, allowed: {allowed}",
+      "invalid_sub_table_mode": "Invalid sub_table mode: {value}, allowed: {allowed}"
     },
     "status": {
       "draft": "Draft",
@@ -2934,9 +2939,12 @@
       "ai_model": "AI Model",
       "provider_api_key": "API Key",
       "agent": "Agent",
+      "agent_access": "Agent Access",
       "agent_conversation": "Conversation",
       "agent_kb_binding": "Knowledge Base Binding",
       "agent_skill_binding": "Skill Binding",
+      "agent_version": "Agent Version",
+      "knowledge_base_tenant_access": "KB Tenant Access",
       "batch_run": "Batch Run",
       "skill_package": "Skill Package",
       "skill": "Skill",
@@ -2954,15 +2962,22 @@
       "tenant": "Tenant",
       "tenant_domain": "Domain",
       "system_agent_assignment": "System Agent Assignment",
-      "periodic_task": "Periodic Task"
+      "periodic_task": "Periodic Task",
+      "codegen_config_version": "Config Version"
     }
   },
   "periodic_task": {
     "error": {
+      "not_found": "Periodic task not found",
       "name_exists": "Periodic task with name '{name}' already exists",
       "scope_requires_tenant_id": "tenant_id is required when scope is all_tenants",
       "edit_locked": "This task is protected and only supports toggling active status",
       "delete_locked": "Task '{name}' is protected and cannot be deleted"
+    }
+  },
+  "task_log": {
+    "error": {
+      "not_found": "Task log not found"
     }
   },
   "quota": {

@@ -15,7 +15,8 @@ defineOptions({ name: '{{ resource | pascal }}Detail' });
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
 {% set _detail = detail or {} %}
 {% set _detail_groups = _detail.get('groups') or [] %}
-{% set _name_field = _detail.get('name_field') or (model.get('selectable', {}).get('label')) or 'name' %}
+{% set _sel = model.get('selectable') %}
+{% set _name_field = _detail.get('name_field') or (_sel.get('label') if _sel is mapping else None) or 'name' %}
 
 const props = defineProps<{
   id: number | null;

@@ -110,6 +110,10 @@ class AdminPeriodicTaskController(GlobalController):
         ):
             service = self.get_service(db)
             task = await service.get_by_id(task_id)
+            if task is None:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("periodic_task.error.not_found"))
+
             return success(
                 data=PeriodicTaskResponse.model_validate(task, from_attributes=True).model_dump()
             )

@@ -72,7 +72,7 @@ const menu = computed(
   () => (permission.value?.menu as Record<string, unknown>) || {},
 );
 const batch = computed(
-  () => (currentEndpoint.value?.batch as Record<string, unknown>) || {},
+  () => (store.configJson.batch as Record<string, unknown>) || {},
 );
 const clone = computed(
   () => (store.configJson.clone as Record<string, unknown>) || {},
@@ -354,7 +354,7 @@ watch(
             <div class="flex items-center gap-2">
               <Switch
                 :checked="!!batch?.delete"
-                @update:checked="(v: boolean) => updateEndpoints({ batch: { ...(batch || {}), delete: v } })"
+                @update:checked="(v: boolean) => store.updateConfig({ batch: { ...(batch || {}), delete: v } })"
               />
               <span>{{ $t('admin.system.codegen.expert.batchDelete') }}</span>
             </div>

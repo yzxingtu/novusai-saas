@@ -4,11 +4,12 @@
  *
  * 5 张卡片: 空白/基础CRUD/双端CRUD/树形/工作流
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import { Modal } from 'ant-design-vue';
+import { Modal, Spin } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { getCodegenPresetsApi } from '#/api/admin/codegen';
+import { message } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'PresetSelectModal' });
@@ -74,13 +75,21 @@ const PRESET_CARDS: PresetCard[] = [
 ];
 
 const availablePresets = ref<Set<string>>(new Set());
+const loading = ref(false);
+const loadError = ref<string | null>(null);
 
 async function loadPresets() {
+  loading.value = true;
+  loadError.value = null;
   try {
     const names = (await getCodegenPresetsApi()) as string[];
     availablePresets.value = new Set(names || []);
-  } catch {
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : $t('common.failed');
+    message.error(loadError.value);
     availablePresets.value = new Set();
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -96,7 +105,8 @@ function onSelect(presetId: string | null) {
   emit('select', presetId);
 }
 
-onMounted(loadPresets);
+watch(() => props.open, (open) => { if (open) loadPresets(); });
+onMounted(() => { if (props.open) loadPresets(); });
 </script>
 
 <template>
@@ -107,6 +117,13 @@ onMounted(loadPresets);
     destroy-on-close
     :footer="null"
   >
+    <Spin :spinning="loading">
+      <div
+        v-if="loadError"
+        class="mb-3 rounded bg-red-50 p-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+      >
+        {{ loadError }}
+      </div>
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
       <div
         v-for="card in displayCards"
@@ -126,5 +143,6 @@ onMounted(loadPresets);
         </span>
       </div>
     </div>
+    </Spin>
   </Modal>
 </template>

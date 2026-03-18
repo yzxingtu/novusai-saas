@@ -36,7 +36,8 @@ from app.schemas.{{ module }}.{{ resource }} import (
 from app.services.{{ module }}.{{ resource }}_service import {{ resource | pascal }}Service
 
 
-{% set tenant_ep = endpoints | selectattr('scope', 'equalto', 'tenant') | first | default({}) %}
+{% set tenant_ep = tenant_ep | default({}) %}
+{% set _fe = (tenant_ep.get('frontend') or {}) %}
 {% set perm = tenant_ep.get('permission') or {} %}
 {% set menu = perm.get('menu') or {} %}
 {% set route_prefix = tenant_ep.get('route_prefix') or '/' + resource_plural %}
@@ -45,6 +46,8 @@ from app.services.{{ module }}.{{ resource }}_service import {{ resource | pasca
 {% set has_drag_sort = model.drag_sort | default(false) %}
 {% set has_batch_delete = batch and batch.get('delete') %}
 {% set has_batch_import = batch and batch.get('import') %}
+{% set has_workflow = workflow and workflow.get('transitions') %}
+{% set has_clone = clone and clone.get('enabled') %}
 {% set res_name = resource.replace('_', '-') %}
 {% set ResponseCls = 'Tenant' + resource | pascal + 'Response' if scenario == 'D' else resource | pascal + 'Response' %}
 
@@ -71,12 +74,14 @@ class Tenant{{ resource | pascal }}Controller(TenantController):
     def _register_routes(self) -> None:
         router = self.router
 
+{% if _fe.get('recycle_bin') %}
         register_tenant_recycle_bin_routes(
             router=router,
             service_class={{ resource | pascal }}Service,
             resource_name="{{ res_name }}",
         )
 
+{% endif %}
 {% if has_selectable %}
         @router.get("/select", summary=_("action.{{ res_name }}.select"))
         @action_read("action.{{ res_name }}.select")
@@ -229,6 +234,37 @@ class Tenant{{ resource | pascal }}Controller(TenantController):
             await db.commit()
             return success(message=_("common.deleted"))
 
+{% if has_workflow %}
+        @router.put("/{id}/transition", summary=_("action.{{ res_name }}.transition"))
+        @action_update("action.{{ res_name }}.transition")
+        async def transition_item(
+            request: Request,
+            db: DbSession,
+            id: int,
+            data: dict,
+            current_admin: ActiveTenantAdmin,
+        ):
+            service = {{ resource | pascal }}Service(db, current_admin.tenant_id)
+            item = await service.transition_status(id, data.get("action", ""), data.get("comment"))
+            await db.commit()
+            return success(data={{ ResponseCls }}.from_model(item), message=_("common.success"))
+
+{% endif %}
+{% if has_clone %}
+        @router.post("/{id}/clone", summary=_("action.{{ res_name }}.clone"))
+        @action_create("action.{{ res_name }}.clone")
+        async def clone_item(
+            request: Request,
+            db: DbSession,
+            id: int,
+            current_admin: ActiveTenantAdmin,
+        ):
+            service = {{ resource | pascal }}Service(db, current_admin.tenant_id)
+            item = await service.clone(id)
+            await db.commit()
+            return success(data={{ ResponseCls }}.from_model(item), message=_("common.success"))
+
+{% endif %}
 {% if has_batch_import %}
         @router.post("/import", summary=_("action.{{ res_name }}.import"))
         @action_create("action.{{ res_name }}.import")

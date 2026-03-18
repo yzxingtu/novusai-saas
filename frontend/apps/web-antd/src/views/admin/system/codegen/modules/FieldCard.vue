@@ -33,6 +33,8 @@ const ICON_MAP: Record<string, string> = {
   IconPicker: 'lucide:sparkles',
   CodeEditor: 'lucide:code-2',
   ColorPicker: 'lucide:palette',
+  Rate: 'lucide:star',
+  Slider: 'lucide:sliders-horizontal',
   password: 'lucide:lock',
   divider: 'lucide:minus',
   TimePicker: 'lucide:clock',

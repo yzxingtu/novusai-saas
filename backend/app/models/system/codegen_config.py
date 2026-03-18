@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.codegen import CodegenConfigStatusEnum
 
 
@@ -38,6 +39,16 @@ class CodegenConfig(BaseModel):
         "last_generated_at": "last_generated_at",
     }
 
+    __delete_deps__ = [
+        DeletionDep(
+            "CodegenConfigVersion",
+            "config_id",
+            DeletionStrategy.CASCADE_DELETE,
+            label_field="id",
+            i18n_key="codegen_config_version",
+        ),
+    ]
+
     # 可排序字段 / Sortable fields
     __sortable__ = [
         "id",
@@ -58,7 +69,7 @@ class CodegenConfig(BaseModel):
     )
     # 资源名 snake_case / Resource name (snake_case)
     resource: Mapped[str] = mapped_column(
-        String(100), index=True, comment="资源名 / Resource name (snake_case)"
+        String(100), index=True, unique=True, comment="资源名 / Resource name (snake_case)"
     )
     # 模块归属 / Module affiliation
     module: Mapped[str] = mapped_column(

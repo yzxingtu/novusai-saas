@@ -6,13 +6,20 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
 
+{% set _fk_ns = namespace(rels=[]) %}
 {% for f in fields if ('ForeignKey' in (f.type | default('')) or f.type == 'TreeSelect') and not f.get('divider') %}
 {% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
 {% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+{% if _rel not in _fk_ns.rels %}
+{% set _fk_ns.rels = _fk_ns.rels + [_rel] %}
 import { get{{ _rel | pascal }}ListApi } from '#/api/{{ api_scope | default("admin") }}/{{ _rel }}';
+{% endif %}
 {% endfor %}
-{% if fields | selectattr('type', 'equalto', 'UserSelect') | list | length > 0 or fields | selectattr('type', 'equalto', 'DeptSelect') | list | length > 0 %}
-import { getDeptTreeApi, getUserSelectApi } from '#/composables/use-codegen-apis';
+{% if fields | selectattr('type', 'equalto', 'UserSelect') | list | length > 0 %}
+import { getUserSelectApi } from '#/composables/use-codegen-apis';
+{% endif %}
+{% if fields | selectattr('type', 'equalto', 'DeptSelect') | list | length > 0 %}
+import { getDeptTreeApi } from '#/composables/use-codegen-apis';
 {% endif %}
 
 import {
@@ -39,6 +46,7 @@ import { seqColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
 {% set res_name = resource | replace('_', '-') %}
 {% set _ep = (admin_ep if (api_scope | default('admin')) == 'admin' else tenant_ep) or {} %}
 {% set _fe = _ep.get('frontend') or {} %}
@@ -68,7 +76,8 @@ export function useColumns<T = {{ resource | pascal }}Info>(
 {% if col_vis is mapping %}
 {% set vis = col_vis.get('visible', f.get('list_visible', true)) %}
 {% else %}
-{% set vis = col_vis if col_vis is not none else (f.get('list_visible', f.get('filterable') or f.get('sortable') or true)) %}
+{% set _vis_default = (f.get('filterable') or f.get('sortable')) %}
+{% set vis = col_vis if col_vis is not none else f.get('list_visible', _vis_default) %}
 {% endif %}
 {% if vis != false and f.name not in ['parent_id'] %}
 {% set cell_render = type_registry.get_cell_render(f) if type_registry else None %}
@@ -109,7 +118,7 @@ export function useColumns<T = {{ resource | pascal }}Info>(
       cellRender: {
         attrs: {
           resource: '{{ res_name }}',
-          nameField: 'name',
+          nameField: '{{ name_field | camel }}',
           nameTitle: $t('{{ i18n_pre }}.name'),
           onClick: onActionClick,
         },
@@ -315,6 +324,7 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
       fieldName: '{{ f.name }}',
       label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
       componentProps: { showTime: true, format: 'YYYY-MM-DD HH:mm:ss' },
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
       {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
     },
 {% elif 'Date' in ftype and 'DateTime' not in ftype %}
@@ -348,7 +358,8 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
       required: {{ f.get('required', true) | lower }},
     }),
 {% else %}
-    inputField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { required: {{ f.get('required', true) | lower }}{% if f.get('max_length') %}, maxLength: {{ f.get('max_length') }}{% elif 'String' in ftype and ('(100)' in (ftype | default('')) or '(50)' in (ftype | default(''))) %}, maxLength: 100{% endif %} }),
+{% set _ml = f.get('max_length') or (ftype | string_max_length) %}
+    inputField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { required: {{ f.get('required', true) | lower }}{% if _ml %}, maxLength: {{ _ml }}{% endif %} }),
 {% endif %}
 {% endif %}
 {% endfor %}

@@ -19,7 +19,7 @@ import {
 import { $t } from '#/locales';
 import { message } from 'ant-design-vue';
 
-import { SYSTEM_FIELDS, inferFieldConfigForMerge, parseCommentEnum } from './infer';
+import { SYSTEM_FIELDS, inferFieldConfigForMerge, parseCommentEnum, singularize } from './infer';
 
 defineOptions({ name: 'DbTableImportModal' });
 
@@ -176,7 +176,7 @@ async function doImport() {
     fields = fields.filter((f) => selectedColumns.value.has((f.name as string) || ''));
     const colMap = new Map(columns.value.map((c) => [c.name, c]));
     const tableName = selectedTable.value;
-    const resource = (patch.resource as string) || tableName.replace(/^t_/, '').replace(/s$/, '');
+    const resource = (patch.resource as string) || singularize(tableName.replace(/^t_/, ''));
     const tableComment = tables.value.find((t) => t.name === tableName)?.comment;
     const enhanced = fields.map((f) => enhanceFieldFromColumn(f, colMap.get((f.name as string) || '')));
     const seen = new Set<string>();

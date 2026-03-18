@@ -6,10 +6,14 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 
+{% set _card_fk_ns = namespace(rels=[]) %}
 {% for f in fields if ('ForeignKey' in (f.type | default('')) or f.type == 'TreeSelect') and not f.get('divider') %}
 {% set _raw = f.get('relation_table') or (f.name | replace('_ids', '') | replace('_id', '')) %}
 {% set _rel = f.get('relation_table') or (_raw | pluralize) %}
+{% if _rel not in _card_fk_ns.rels %}
+{% set _card_fk_ns.rels = _card_fk_ns.rels + [_rel] %}
 import { get{{ _rel | pascal }}ListApi } from '#/api/{{ api_scope | default("admin") }}/{{ _rel }}';
+{% endif %}
 {% endfor %}
 {% if fields | selectattr('type', 'equalto', 'UserSelect') | list | length > 0 or fields | selectattr('type', 'equalto', 'DeptSelect') | list | length > 0 %}
 import { getDeptTreeApi, getUserSelectApi } from '#/composables/use-codegen-apis';
@@ -105,7 +109,18 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
         placeholder: $t('{{ i18n_pre }}.placeholder.select'),
       },
     },
-{% elif comp == 'ImageUpload' or comp == 'RichText' or comp == 'FilePicker' or comp == 'CronPicker' or comp == 'IconPicker' or comp == 'CodeEditor' %}
+{% elif comp == 'ImageUpload' or comp == 'FilePicker' %}
+    {
+      component: '{{ comp }}' as const,
+      fieldName: '{{ f.name }}',
+      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
+      {% if f.get('required', true) %}rules: 'required',{% endif %}
+      componentProps: {
+        {% if f.get('multiple') %}multiple: true,{% endif %}
+        {% if f.get('max_count') is defined %}maxCount: {{ f.get('max_count') }},{% endif %}
+      },
+    },
+{% elif comp == 'RichText' or comp == 'CronPicker' or comp == 'IconPicker' or comp == 'CodeEditor' %}
     {
       component: '{{ comp }}' as const,
       fieldName: '{{ f.name }}',
@@ -117,7 +132,7 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
     switchField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { defaultValue: {{ (f.get('default', false) and 'true') or 'false' }} }),
 {% elif 'Text' in ftype or comp == 'textarea' %}
     textareaField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { rows: 3{% if f.get('required', true) %}, required: true{% endif %} }),
-{% elif 'Integer' in ftype or 'Float' in ftype or comp == 'number' %}
+{% elif 'Integer' in ftype or 'Float' in ftype or 'Decimal' in ftype or comp == 'number' %}
     numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { min: 0{% if f.get('default') is defined %}, defaultValue: {{ f.get('default') }}{% endif %} }),
 {% elif 'DateTime' in ftype %}
     {

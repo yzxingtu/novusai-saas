@@ -1,4 +1,7 @@
 {# Shared API type definitions - include in api_admin / api_tenant #}
+{% set _has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+{% set _exc_create = ['created_by', 'dept_id'] if _has_tree else ['parent_id', 'created_by', 'dept_id'] %}
+{% set _exc_update = ['created_by', 'dept_id'] if _has_tree else ['parent_id', 'created_by', 'dept_id'] %}
 /** {{ display_name }} info (backend raw snake_case) / 原始格式 */
 export interface {{ resource | pascal }}InfoRaw {
   id: number;
@@ -32,13 +35,13 @@ export interface {{ resource | pascal }}Info {
 {% endif %}
 {% for r in relations if r.type == 'many_to_one' %}
 {% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) %}
-  {{ rel_name }}Name?: null | string;
+  {{ rel_name | camel }}Name?: null | string;
 {% endfor %}
 }
 
 /** Create request / 创建请求 */
 export interface {{ resource | pascal }}CreateRequest {
-{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% for f in fields if not f.get('divider') and f.name not in _exc_create %}
 {% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
   {{ f.name }}{% if not f.get('required', true) %}?{% endif %}: {{ ts_type }}{% if not f.get('required', true) %} | null{% endif %};
 {% endfor %}
@@ -46,7 +49,7 @@ export interface {{ resource | pascal }}CreateRequest {
 
 /** Update request / 更新请求 */
 export interface {{ resource | pascal }}UpdateRequest {
-{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% for f in fields if not f.get('divider') and f.name not in _exc_update %}
 {% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
   {{ f.name }}?: {{ ts_type }} | null;
 {% endfor %}
@@ -104,7 +107,7 @@ export function transform{{ resource | pascal }}(raw: {{ resource | pascal }}Inf
 {% endif %}
 {% for r in relations if r.type == 'many_to_one' %}
 {% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) %}
-    {{ rel_name }}Name: raw.{{ rel_name }}_name,
+    {{ rel_name | camel }}Name: raw.{{ rel_name }}_name,
 {% endfor %}
   };
 }

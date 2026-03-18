@@ -1345,7 +1345,22 @@
       "maxCountHint": "Up to {count}",
       "datePlaceholder": "Select date",
       "timePlaceholder": "Select time",
-      "rangePlaceholder": "Select date range"
+      "rangePlaceholder": "Select date range",
+      "mockRelation": "Relation",
+      "mockTree": "Tree",
+      "mockOptionA": "Option A",
+      "mockOptionB": "Option B",
+      "mockOptionC": "Option C",
+      "mockParentA": "Parent A",
+      "mockParentB": "Parent B",
+      "mockChildA1": "Child A1",
+      "mockChildA2": "Child A2",
+      "mockChildB1": "Child B1",
+      "mockProvinceA": "Province A",
+      "mockProvinceB": "Province B",
+      "mockCityA1": "City A1",
+      "mockCityA2": "City A2",
+      "mockCityB1": "City B1"
     },
     "dbImport": {
       "title": "Import from DB Table",

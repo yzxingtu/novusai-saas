@@ -1345,7 +1345,22 @@
       "maxCountHint": "最多 {count} 个",
       "datePlaceholder": "请选择日期",
       "timePlaceholder": "请选择时间",
-      "rangePlaceholder": "请选择日期范围"
+      "rangePlaceholder": "请选择日期范围",
+      "mockRelation": "关联",
+      "mockTree": "树",
+      "mockOptionA": "选项 A",
+      "mockOptionB": "选项 B",
+      "mockOptionC": "选项 C",
+      "mockParentA": "父级 A",
+      "mockParentB": "父级 B",
+      "mockChildA1": "子 A1",
+      "mockChildA2": "子 A2",
+      "mockChildB1": "子 B1",
+      "mockProvinceA": "省 A",
+      "mockProvinceB": "省 B",
+      "mockCityA1": "市 A1",
+      "mockCityA2": "市 A2",
+      "mockCityB1": "市 B1"
     },
     "dbImport": {
       "title": "从数据库表导入",

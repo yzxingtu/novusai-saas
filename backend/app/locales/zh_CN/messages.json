@@ -32,12 +32,17 @@
       "base_model_cross_tenant": "BaseModel 不能使用 cross_tenant 数据模式",
       "tree_requires_base": "tree 配置需要 base_class 为 TenantModel 或 BaseModel",
       "invalid_field_type": "无效的字段类型: {type}",
+      "unknown_field_type": "未知的字段类型（未在 type_registry 中注册）: {type}",
       "duplicate_field_name": "存在重复字段名: {names}",
       "invalid_module_format": "module 需为小写字母、数字、下划线，如 foo_bar",
       "invalid_resource_format": "resource 需为小写字母、数字、下划线，如 foo_bar",
       "reserved_field_name": "字段名 {name} 为保留字",
       "invalid_field_name": "字段名 {name} 格式无效，需为小写字母开头的 snake_case",
-      "parse_error": "配置解析失败，请检查格式"
+      "parse_error": "配置解析失败，请检查格式",
+      "invalid_base_class": "无效的 base_class: {value}，允许: {allowed}",
+      "invalid_scope": "无效的 scope: {value}，允许: {allowed}",
+      "invalid_data_mode": "无效的 data_mode: {value}，允许: {allowed}",
+      "invalid_sub_table_mode": "无效的子表 mode: {value}，允许: {allowed}"
     },
     "status": {
       "draft": "草稿",
@@ -2952,9 +2957,12 @@
       "ai_model": "AI 模型",
       "provider_api_key": "API 密钥",
       "agent": "智能体",
+      "agent_access": "智能体访问",
       "agent_conversation": "对话记录",
       "agent_kb_binding": "知识库绑定",
       "agent_skill_binding": "技能绑定",
+      "agent_version": "智能体版本",
+      "knowledge_base_tenant_access": "知识库企业访问",
       "batch_run": "批量运行",
       "skill_package": "技能包",
       "skill": "技能",
@@ -2972,15 +2980,22 @@
       "tenant": "企业",
       "tenant_domain": "域名",
       "system_agent_assignment": "系统智能体绑定",
-      "periodic_task": "定时任务"
+      "periodic_task": "定时任务",
+      "codegen_config_version": "配置版本"
     }
   },
   "periodic_task": {
     "error": {
+      "not_found": "定时任务不存在",
       "name_exists": "名为 '{name}' 的定时任务已存在",
       "scope_requires_tenant_id": "scope 为 all_tenants 时必须指定 tenant_id",
       "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
       "delete_locked": "任务 '{name}' 已被保护，禁止删除"
+    }
+  },
+  "task_log": {
+    "error": {
+      "not_found": "任务日志不存在"
     }
   },
   "quota": {

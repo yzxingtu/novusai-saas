@@ -110,7 +110,8 @@ class CodegenRollback:
                     result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
                     continue
                 content = dest.read_text(encoding="utf-8", errors="replace")
-                if appended.strip() not in content:
+                appended_stripped = appended.strip()
+                if appended_stripped not in content:
                     result.files_skipped.append({"path": path_str, "reason": "appended_content_modified"})
                     continue
                 if dry_run:
@@ -119,7 +120,8 @@ class CodegenRollback:
                 backup_path = backup_dir / path_str
                 backup_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(dest, backup_path)
-                new_content = content.replace(appended, "", 1).replace("\n\n\n", "\n\n")
+                # 使用与检查相同的字符串进行替换 / Use same string for replace as for check
+                new_content = content.replace(appended_stripped, "", 1).replace("\n\n\n", "\n\n")
                 dest.write_text(new_content.strip() + "\n", encoding="utf-8")
                 result.files_modified.append(path_str)
 

@@ -191,13 +191,12 @@ export const useCodegenBuilderStore = defineStore(
     /** 更新配置 JSON（深合并嵌套对象）/ Update config JSON (deep merge) */
     function updateConfig(patch: Record<string, unknown>) {
       if (!patch || Object.keys(patch).length === 0) return;
+      const next = deepMerge({ ...configJson.value }, patch) as Record<string, unknown>;
+      if (JSON.stringify(configJson.value) === JSON.stringify(next)) return;
       pushHistory(configJson.value);
       redoStack.value = [];
       previewCache.value = null;
-      configJson.value = deepMerge(
-        { ...configJson.value },
-        patch,
-      ) as Record<string, unknown>;
+      configJson.value = next;
       isDirty.value = true;
     }
 

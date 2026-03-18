@@ -39,6 +39,10 @@ class KnowledgeBase(TenantModel):
     }
 
     __delete_deps__ = [
+        DeletionDep("KnowledgeBaseTenantAccess", "knowledge_base_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="knowledge_base_tenant_access"),
+        DeletionDep("AgentKnowledgeBaseBinding", "knowledge_base_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_kb_binding"),
         DeletionDep("KnowledgeDocument", "knowledge_base_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="knowledge_document"),
     ]

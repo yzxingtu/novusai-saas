@@ -160,7 +160,7 @@ function createDefaultEndpoint(scope: 'admin' | 'tenant'): Record<string, unknow
   const plural = r.endsWith('s') ? r : `${r}s`;
   return {
     scope,
-    data_mode: scope === 'admin' ? 'independent' : 'independent',
+    data_mode: scope === 'admin' ? 'independent' : 'tenant_isolated',
     route_prefix: `/${plural}`,
     frontend: {
       mode: 'table',
@@ -679,7 +679,24 @@ onUnmounted(() => {
 
 watch(
   () => route.params.id,
-  () => loadConfigIfEdit(),
+  async () => {
+    if (store.isDirty) {
+      return new Promise<void>((resolve) => {
+        Modal.confirm({
+          title: $t('admin.system.codegen.toolbar.unsavedTitle'),
+          content: $t('admin.system.codegen.toolbar.unsavedContent'),
+          okText: $t('common.discard'),
+          cancelText: $t('common.cancel'),
+          onOk: () => {
+            loadConfigIfEdit();
+            resolve();
+          },
+          onCancel: () => resolve(),
+        });
+      });
+    }
+    loadConfigIfEdit();
+  },
 );
 </script>
 

@@ -33,6 +33,13 @@ const modalOpen = computed({
 
 const selectedFilePath = ref('');
 const isLoading = ref(false);
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) selectedFilePath.value = '';
+  },
+);
 const isDownloading = ref(false);
 let fetchId = 0;
 

@@ -103,6 +103,16 @@ export function useColumns<T = Record<string, unknown>>(
       field: 'last_generated_at',
       title: $t('admin.system.codegen.lastGeneratedAt'),
       width: 170,
+      formatter: ({ cellValue }) =>
+        cellValue
+          ? new Date(cellValue).toLocaleString(undefined, {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '—',
     },
     {
       field: 'last_error',

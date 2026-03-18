@@ -503,8 +503,11 @@
       "ai_model": "AI 模型",
       "provider_api_key": "API 密钥",
       "agent": "智能体",
+      "agent_access": "智能体访问",
       "agent_conversation": "对话记录",
       "agent_skill_binding": "技能绑定",
+      "agent_version": "智能体版本",
+      "knowledge_base_tenant_access": "知识库企业访问",
       "batch_run": "批量运行",
       "skill_package": "技能包",
       "skill": "技能",
@@ -525,7 +528,8 @@
       "tenant_domain": "域名",
       "tenant_plugin": "企业插件",
       "system_agent_assignment": "系统智能体绑定",
-      "periodic_task": "定时任务"
+      "periodic_task": "定时任务",
+      "codegen_config_version": "配置版本"
     }
   },
   "maintenance": {

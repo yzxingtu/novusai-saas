@@ -46,11 +46,13 @@ FIELD_TEMPLATES: dict[str, list[dict[str, Any]]] = {
         {"name": "status", "type": "String(20)", "default": "active", "comment": "状态"},
         {"name": "is_active", "type": "Boolean", "default": True, "comment": "启用"},
     ],
+    # sort_order: 仅当 base_class 未定义该字段时使用 / use only when base_class lacks it
     "sort_order": [{"name": "sort_order", "type": "Integer", "default": 0, "comment": "排序"}],
     "name_code_desc_remark": [
         {"name": "name", "type": "String(100)", "required": True, "comment": "名称"},
         {"name": "code", "type": "String(50)", "required": True, "unique": True, "comment": "编码"},
         {"name": "description", "type": "Text", "nullable": True, "comment": "描述"},
+        # remark: 仅当 base_class 未定义该字段时使用 / use only when base_class lacks it
         {"name": "remark", "type": "Text", "nullable": True, "comment": "备注"},
     ],
     "file_fields": [

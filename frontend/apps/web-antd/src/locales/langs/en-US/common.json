@@ -503,8 +503,11 @@
       "ai_model": "AI Model",
       "provider_api_key": "API Key",
       "agent": "Agent",
+      "agent_access": "Agent Access",
       "agent_conversation": "Conversation",
       "agent_skill_binding": "Skill Binding",
+      "agent_version": "Agent Version",
+      "knowledge_base_tenant_access": "KB Tenant Access",
       "batch_run": "Batch Run",
       "skill_package": "Skill Package",
       "skill": "Skill",
@@ -525,7 +528,8 @@
       "tenant_domain": "Domain",
       "tenant_plugin": "Tenant Plugin",
       "system_agent_assignment": "System Agent Assignment",
-      "periodic_task": "Periodic Task"
+      "periodic_task": "Periodic Task",
+      "codegen_config_version": "Config Version"
     }
   },
   "maintenance": {

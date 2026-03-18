@@ -68,6 +68,9 @@ def _detect_scenario(parsed: ParsedConfig) -> str:
         return "B"
     if has_tenant and not has_admin:
         return "C"
+    # has_admin and has_tenant but not cross_tenant -> dual tenant-isolated
+    if has_admin and has_tenant:
+        return "D"
     return "A"
 
 
@@ -98,7 +101,29 @@ class CodeGenerator:
         self.env.filters["model_to_fk"] = self._model_to_fk
         self.env.filters["camel"] = self._camel
         self.env.filters["pluralize"] = self._pluralize
+        self.env.filters["to_python_literal"] = self._to_python_literal
+        self.env.filters["string_max_length"] = self._string_max_length
         self.env.globals["get_column_args"] = self._get_column_args
+
+    @staticmethod
+    def _string_max_length(yaml_type: str) -> int | None:
+        """Extract max length from String(N) type, e.g. String(50) -> 50."""
+        if not yaml_type or "String" not in str(yaml_type):
+            return None
+        m = re.search(r"String\s*\(\s*(\d+)\s*\)", str(yaml_type), re.I)
+        return int(m.group(1)) if m else None
+
+    @staticmethod
+    def _to_python_literal(val: str) -> str:
+        """Convert JSON-style true/false/null in string to Python literals (for embedding in Python source)."""
+        if not val:
+            return val
+        s = str(val)
+        # Replace JSON tokens (not inside strings) - use regex word boundaries
+        s = re.sub(r"\btrue\b", "True", s)
+        s = re.sub(r"\bfalse\b", "False", s)
+        s = re.sub(r"\bnull\b", "None", s)
+        return s
 
     @staticmethod
     def _camel(s: str) -> str:
@@ -153,12 +178,19 @@ class CodeGenerator:
 
     @staticmethod
     def _pluralize(word: str) -> str:
-        """单数->复数: category->categories, tag->tags / Singular to plural."""
+        """单数->复数: category->categories, tag->tags, bus->buses / Singular to plural."""
         if not word:
             return word
         w = str(word)
-        if w.endswith("ies") or w.endswith("es") or (w.endswith("s") and not w.endswith("ss")):
-            return w  # 已是复数 / already plural
+        # 已是复数：-ies, -es；不以 -us/-as/-is/-os 结尾的 -s 不视为复数，避免 bus/status 误判
+        if w.endswith("ies") or w.endswith("es"):
+            return w
+        if w.endswith("s") and not w.endswith("ss"):
+            # -us/-as/-is/-os 结尾多为单数：bus, status, canvas, focus
+            if w.endswith(("us", "as", "is", "os")) and len(w) > 2:
+                return w + "es"
+            # 其他 -s 视为已复数（如 tags, items）
+            return w
         if w.endswith("y") and len(w) > 1 and w[-2] not in "aeiou":
             return w[:-1] + "ies"
         if w.endswith(("s", "x", "ch", "sh")):
@@ -166,13 +198,30 @@ class CodeGenerator:
         return w + "s"
 
     @staticmethod
+    def _singularize(table_name: str) -> str:
+        """复数表名->单数: categories->category, addresses->address / Plural table name to singular."""
+        if not table_name or len(table_name) < 2:
+            return table_name
+        t = str(table_name)
+        if t.endswith("ies") and len(t) > 3 and t[-4] not in "aeiou":
+            return t[:-3] + "y"  # categories -> category
+        if t.endswith("es") and len(t) > 2:
+            # addresses -> address, boxes -> box
+            if t.endswith("ses") or t.endswith("xes") or t.endswith("ches") or t.endswith("shes"):
+                return t[:-2]  # boxes -> box, addresses -> address
+            if t.endswith("ies"):  # already handled
+                pass
+        if t.endswith("s") and not t.endswith("ss"):
+            return t[:-1]  # tags -> tag, permissions -> permission
+        return t
+
+    @staticmethod
     def _model_to_fk(model_name: str) -> str:
-        """Permission -> permission_id, TenantUser -> tenant_user_id / Model to FK column name."""
+        """Permission -> permission_id, Category -> category_id / Model to FK column name."""
         if not model_name:
             return "_id"
         t = CodeGenerator._model_to_table(model_name)
-        # permissions -> permission_id（复数去 s 得单数）/ plural to singular
-        singular = t[:-1] if t.endswith("s") and len(t) > 1 else t
+        singular = CodeGenerator._singularize(t)
         return singular + "_id"
 
     @staticmethod
@@ -205,6 +254,11 @@ class CodeGenerator:
             模板上下文 dict
         """
         scenario = _detect_scenario(parsed)
+        if scenario == "invalid":
+            from app.exceptions import ValidationException
+            raise ValidationException(
+                message="Invalid scenario: BaseModel cannot have tenant scope. Use TenantModel."
+            )
         admin_eps = [e for e in (parsed.endpoints or []) if (e or {}).get("scope") in ("admin", "admin_only")]
         tenant_eps = [e for e in (parsed.endpoints or []) if (e or {}).get("scope") in ("tenant", "tenant_only")]
         admin_only_eps = [e for e in admin_eps if (e or {}).get("scope") == "admin_only"]
@@ -441,11 +495,10 @@ class CodeGenerator:
             mode = (admin_ep.get("frontend") or {}).get("mode") or (tenant_ep.get("frontend") or {}).get("mode") or "table"
 
             if admin_ep:
-                ctx["api_scope"] = "admin"
-                ctx["i18n_prefix"] = f"admin.{module}.{resource}"
+                render_ctx = {**ctx, "api_scope": "admin", "i18n_prefix": f"admin.{module}.{resource}"}
                 try:
                     tpl = self.env.get_template("frontend/api_admin.ts.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/api/admin/{resource}.ts",
@@ -461,7 +514,7 @@ class CodeGenerator:
                     tpl = self.env.get_template(
                         "frontend/data_table.ts.j2" if mode == "table" else "frontend/data_card.ts.j2"
                     )
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/admin/{module}/{resource}/data.ts",
@@ -477,7 +530,7 @@ class CodeGenerator:
                     tpl = self.env.get_template(
                         "frontend/index_table.vue.j2" if mode == "table" else "frontend/index_card.vue.j2"
                     )
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/admin/{module}/{resource}/index.vue",
@@ -491,7 +544,7 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/form.vue.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/admin/{module}/{resource}/modules/form.vue",
@@ -506,7 +559,7 @@ class CodeGenerator:
                 if (ctx.get("detail") or {}).get("enabled"):
                     try:
                         tpl = self.env.get_template("frontend/detail.vue.j2")
-                        content = tpl.render(**ctx)
+                        content = tpl.render(**render_ctx)
                         files.append(
                             GeneratedFile(
                                 path=f"{frontend_root}/views/admin/{module}/{resource}/modules/detail.vue",
@@ -520,7 +573,7 @@ class CodeGenerator:
                         errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/i18n_zh.json.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/locales/langs/zh-CN/admin/{module}/{resource}.json",
@@ -534,7 +587,7 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/i18n_en.json.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/locales/langs/en-US/admin/{module}/{resource}.json",
@@ -548,11 +601,10 @@ class CodeGenerator:
                     errors.append(err_msg)
 
             if tenant_ep:
-                ctx["api_scope"] = "tenant"
-                ctx["i18n_prefix"] = f"tenant.{module}.{resource}"
+                render_ctx = {**ctx, "api_scope": "tenant", "i18n_prefix": f"tenant.{module}.{resource}"}
                 try:
                     tpl = self.env.get_template("frontend/api_tenant.ts.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/api/tenant/{resource}.ts",
@@ -568,7 +620,7 @@ class CodeGenerator:
                     tpl = self.env.get_template(
                         "frontend/data_table.ts.j2" if mode == "table" else "frontend/data_card.ts.j2"
                     )
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/tenant/{module}/{resource}/data.ts",
@@ -584,7 +636,7 @@ class CodeGenerator:
                     tpl = self.env.get_template(
                         "frontend/index_table.vue.j2" if mode == "table" else "frontend/index_card.vue.j2"
                     )
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/tenant/{module}/{resource}/index.vue",
@@ -598,7 +650,7 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/form.vue.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/views/tenant/{module}/{resource}/modules/form.vue",
@@ -613,7 +665,7 @@ class CodeGenerator:
                 if (ctx.get("detail") or {}).get("enabled"):
                     try:
                         tpl = self.env.get_template("frontend/detail.vue.j2")
-                        content = tpl.render(**ctx)
+                        content = tpl.render(**render_ctx)
                         files.append(
                             GeneratedFile(
                                 path=f"{frontend_root}/views/tenant/{module}/{resource}/modules/detail.vue",
@@ -627,7 +679,7 @@ class CodeGenerator:
                         errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/i18n_zh.json.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/locales/langs/zh-CN/tenant/{module}/{resource}.json",
@@ -641,7 +693,7 @@ class CodeGenerator:
                     errors.append(err_msg)
                 try:
                     tpl = self.env.get_template("frontend/i18n_en.json.j2")
-                    content = tpl.render(**ctx)
+                    content = tpl.render(**render_ctx)
                     files.append(
                         GeneratedFile(
                             path=f"{frontend_root}/locales/langs/en-US/tenant/{module}/{resource}.json",

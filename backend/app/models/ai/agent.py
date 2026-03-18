@@ -44,6 +44,10 @@ class Agent(TenantModel):
     }
 
     __delete_deps__ = [
+        DeletionDep("AgentAccess", "agent_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_access"),
+        DeletionDep("AgentVersion", "agent_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_version"),
         DeletionDep("AgentSkillBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_skill_binding"),
         DeletionDep("AgentKnowledgeBaseBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,

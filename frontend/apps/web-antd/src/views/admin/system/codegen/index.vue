@@ -146,11 +146,12 @@ function onPresetSelect(presetId: string | null) {
 
 async function onDbImportApplied(patch: Record<string, unknown>) {
   try {
-    const resource = (patch.resource as string) || 'unnamed';
-    const moduleVal = (patch.module as string) || 'system';
-    const displayName = (patch.display_name as string) || resource;
-    const displayNameEn = (patch.display_name_en as string) || resource;
-    const name = (patch.name as string) || displayName || $t('admin.system.codegen.unnamed');
+    const { _importMode: _m, ...configJson } = patch;
+    const resource = (configJson.resource as string) || 'unnamed';
+    const moduleVal = (configJson.module as string) || 'system';
+    const displayName = (configJson.display_name as string) || resource;
+    const displayNameEn = (configJson.display_name_en as string) || resource;
+    const name = (configJson.name as string) || displayName || $t('admin.system.codegen.unnamed');
 
     const res = await createCodegenConfigApi({
       name,
@@ -158,7 +159,7 @@ async function onDbImportApplied(patch: Record<string, unknown>) {
       module: moduleVal,
       display_name: displayName,
       display_name_en: displayNameEn,
-      config_json: patch,
+      config_json: configJson,
     });
     dbImportVisible.value = false;
     message.success($t('shared.common.success'));

@@ -14,6 +14,7 @@ import { requestClient } from '#/utils/request';
 // ============================================================
 // API functions / API 接口
 // ============================================================
+{% set tenant_ep = tenant_ep | default({}) %}
 {% set api_path = tenant_ep.get('route_prefix') | default(resource_plural) | replace('/','') %}
 const API_PREFIX = '/tenant/{{ api_path or resource_plural }}';
 

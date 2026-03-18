@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock
+
 from app.codegen.generator import GeneratedFile
 
 MANIFEST_FILENAME = "codegen_manifest.json"
@@ -50,10 +52,12 @@ class ManifestManager:
         except json.JSONDecodeError:
             return {"entries": [], "version": 1}
 
-    def _save(self, data: dict[str, Any]) -> None:
-        """保存清单 / Save manifest."""
+    def _save_unlocked(self, data: dict[str, Any]) -> None:
+        """保存清单(内部) / Save manifest (internal, caller holds lock)."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
     def add_entry(
         self,
@@ -69,10 +73,6 @@ class ManifestManager:
         覆盖同 resource 的旧条目
         Overwrites existing entry for same resource.
         """
-        data = self._load()
-        entries = data.get("entries", [])
-        entries = [e for e in entries if e.get("resource") != resource]
-
         file_list: list[dict[str, Any]] = []
         for f in files:
             item: dict[str, Any] = {"path": f.path, "action": f.action}
@@ -82,18 +82,23 @@ class ManifestManager:
                 item["merged_keys"] = f.merged_keys
             file_list.append(item)
 
-        entries.append(
-            {
-                "resource": resource,
-                "module": module,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "config_id": config_id,
-                "config_hash": config_hash,
-                "files": file_list,
-            }
-        )
-        data["entries"] = entries
-        self._save(data)
+        lock_path = Path(str(self.path) + ".lock")
+        with FileLock(lock_path):
+            data = self._load()
+            entries = data.get("entries", [])
+            entries = [e for e in entries if e.get("resource") != resource]
+            entries.append(
+                {
+                    "resource": resource,
+                    "module": module,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "config_id": config_id,
+                    "config_hash": config_hash,
+                    "files": file_list,
+                }
+            )
+            data["entries"] = entries
+            self._save_unlocked(data)
 
     def get_entry(self, resource: str) -> ManifestEntry | None:
         """获取资源对应条目 / Get entry by resource."""
@@ -112,9 +117,11 @@ class ManifestManager:
 
     def remove_entry(self, resource: str) -> None:
         """移除条目 / Remove entry."""
-        data = self._load()
-        data["entries"] = [e for e in data.get("entries", []) if e.get("resource") != resource]
-        self._save(data)
+        lock_path = Path(str(self.path) + ".lock")
+        with FileLock(lock_path):
+            data = self._load()
+            data["entries"] = [e for e in data.get("entries", []) if e.get("resource") != resource]
+            self._save_unlocked(data)
 
     def list_entries(self) -> list[ManifestEntry]:
         """列出所有条目 / List all entries."""

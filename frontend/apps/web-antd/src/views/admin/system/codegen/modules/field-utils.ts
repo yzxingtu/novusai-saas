@@ -176,7 +176,7 @@ export function getSampleCellValue(f: FieldRecord, rowIdx: number): string {
   if (name === 'id') return String(rowIdx + 1);
   if (t.includes('boolean')) return rowIdx === 0 ? '✓' : '—';
   if (t.includes('int') || t.includes('float') || t.includes('decimal')) return String(100 + rowIdx);
-  if (t.includes('date') || t.includes('datetime')) return `2024-01-0${rowIdx + 1}`;
+  if (t.includes('date') || t.includes('datetime')) return rowIdx < 9 ? `2024-01-0${rowIdx + 1}` : `2024-01-${rowIdx + 1}`;
   if (t.includes('image') || t.includes('file')) return `file_${rowIdx}.pdf`;
   if (t.includes('richtext')) return '...';
   return rowIdx === 0 ? $t('admin.system.codegen.preview.sampleA') : rowIdx === 1 ? $t('admin.system.codegen.preview.sampleB') : $t('admin.system.codegen.preview.sampleC');

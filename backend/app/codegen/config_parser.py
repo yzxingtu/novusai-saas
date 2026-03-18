@@ -7,12 +7,20 @@ YAML/JSON config parsing, shorthand expansion, validation.
 
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 import yaml
 
+from app.codegen.constants import (
+    BASE_CLASS_VALUES,
+    DATA_MODE_VALUES,
+    SCOPE_VALUES,
+    SUB_TABLE_MODE_VALUES,
+)
+from app.codegen.type_registry import type_registry
 from app.core.i18n import _
 
 # 字段名保留字（Python/SQL/JS 冲突 + 系统/DB 字段）/ Reserved names (Python/SQL/JS + system/DB)
@@ -68,9 +76,16 @@ class ParsedConfig:
 
 
 def _infer_plural(resource: str) -> str:
-    """推断复数形式 / Infer plural form."""
+    """推断复数形式 / Infer plural form. 与 generator._pluralize 逻辑一致."""
     if not resource:
         return ""
+    # 已是复数（与 generator 一致）
+    if resource.endswith("ies") or resource.endswith("es"):
+        return resource
+    if resource.endswith("s") and not resource.endswith("ss"):
+        if resource.endswith(("us", "as", "is", "os")) and len(resource) > 2:
+            return resource + "es"
+        return resource
     if resource.endswith("y") and len(resource) > 1 and resource[-2] not in "aeiou":
         return resource[:-1] + "ies"
     if resource.endswith(("s", "x", "ch", "sh")):
@@ -126,7 +141,7 @@ def _expand_shorthand_field(field_def: dict[str, Any]) -> dict[str, Any]:
 
 def _expand_shorthand(config: dict[str, Any]) -> dict[str, Any]:
     """展开配置中所有简写（含 fields 与 sub_tables[].fields）/ Expand all shorthand (fields + sub_tables[].fields)."""
-    out = dict(config)
+    out = copy.deepcopy(config)
     if "fields" in out and isinstance(out["fields"], list):
         out["fields"] = [_expand_shorthand_field(f) for f in out["fields"]]
     if "sub_tables" in out and isinstance(out["sub_tables"], list):
@@ -297,11 +312,42 @@ class ConfigParser:
         if require_fields and not parsed.fields:
             errors.append(ValidationError("missing_fields", _("codegen.validation.fields_required"), path="fields"))
 
-        # 合法性: BaseModel + tenant_only 非法 / BaseModel + tenant_only invalid
+        # scope / data_mode / base_class 合法值校验 / Validate scope, data_mode, base_class
         base_class = (parsed.model or {}).get("base_class", "TenantModel")
+        if base_class not in BASE_CLASS_VALUES:
+            errors.append(
+                ValidationError(
+                    "invalid_base_class",
+                    _("codegen.validation.invalid_base_class").format(
+                        value=base_class, allowed=", ".join(sorted(BASE_CLASS_VALUES))
+                    ),
+                    path="model.base_class",
+                )
+            )
         for i, ep in enumerate(parsed.endpoints):
             scope = (ep or {}).get("scope")
             data_mode = (ep or {}).get("data_mode")
+            if scope is not None and scope not in SCOPE_VALUES:
+                errors.append(
+                    ValidationError(
+                        "invalid_scope",
+                        _("codegen.validation.invalid_scope").format(
+                            value=scope, allowed=", ".join(sorted(SCOPE_VALUES))
+                        ),
+                        path=f"endpoints[{i}].scope",
+                    )
+                )
+            if data_mode is not None and data_mode not in DATA_MODE_VALUES:
+                errors.append(
+                    ValidationError(
+                        "invalid_data_mode",
+                        _("codegen.validation.invalid_data_mode").format(
+                            value=data_mode, allowed=", ".join(sorted(DATA_MODE_VALUES))
+                        ),
+                        path=f"endpoints[{i}].data_mode",
+                    )
+                )
+            # BaseModel + tenant_only 非法 / BaseModel + tenant_only invalid
             if base_class == "BaseModel":
                 if scope == "tenant_only":
                     errors.append(
@@ -319,6 +365,19 @@ class ConfigParser:
                             path=f"endpoints[{i}]",
                         )
                     )
+
+        # sub_tables mode 合法值校验 / Validate sub_table mode
+        for i, st in enumerate(parsed.sub_tables or []):
+            if isinstance(st, dict) and (mode := st.get("mode")) is not None and mode not in SUB_TABLE_MODE_VALUES:
+                errors.append(
+                    ValidationError(
+                        "invalid_sub_table_mode",
+                        _("codegen.validation.invalid_sub_table_mode").format(
+                            value=mode, allowed=", ".join(sorted(SUB_TABLE_MODE_VALUES))
+                        ),
+                        path=f"sub_tables[{i}].mode",
+                    )
+                )
 
         # tree 需要 TenantModel 或 BaseModel
         model = parsed.model or {}
@@ -372,6 +431,15 @@ class ConfigParser:
                     ValidationError(
                         "invalid_field_type",
                         _("codegen.validation.invalid_field_type").format(type=ftype),
+                        path=f"fields[{i}]",
+                        field="type",
+                    )
+                )
+            elif ftype and not type_registry.is_type_registered(ftype):
+                errors.append(
+                    ValidationError(
+                        "unknown_field_type",
+                        _("codegen.validation.unknown_field_type").format(type=ftype),
                         path=f"fields[{i}]",
                         field="type",
                     )

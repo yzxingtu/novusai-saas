@@ -17,10 +17,6 @@ from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.models.{{ module }}.{{ resource }} import {{ resource | pascal }}
 from app.repositories.{{ module }}.{{ resource }}_repository import {{ resource | pascal }}Repository
-from app.schemas.{{ module }}.{{ resource }} import (
-    {{ resource | pascal }}Create,
-    {{ resource | pascal }}Update,
-)
 
 
 {% set base_class = model.base_class | default('TenantModel') %}
@@ -144,7 +140,7 @@ class {{ resource | pascal }}Service({{ 'TenantService' if use_tenant_svc else '
             raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
         status_field = "{{ workflow.status_field | default('status') }}"
         current = getattr(instance, status_field, None)
-        transitions = {{ workflow.transitions | default([]) | tojson }}
+        transitions = {{ workflow.transitions | default([]) | tojson | to_python_literal }}
         trans = next((t for t in transitions if t.get("action") == action), None)
         if not trans or str(trans.get("from")) != str(current):
             raise BusinessException(
