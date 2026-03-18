@@ -67,13 +67,25 @@ class SmartAppender:
         text = file_path.read_text(encoding="utf-8", errors="replace")
         if import_line.strip() in [ln.strip() for ln in text.splitlines()]:
             return False
-        # 在最后一个 import 之后插入，或文件开头 / Insert after last import or at file start
+        # 在最后一个 import 之后插入，跳过多行 import 块 / Insert after last import, skip multiline blocks
         lines = text.splitlines()
         last_import_idx = -1
-        for i, line in enumerate(lines):
-            s = line.strip()
-            if s.startswith("import ") or s.startswith("from "):
-                last_import_idx = i
+        i = 0
+        while i < len(lines):
+            s = line = lines[i]
+            stripped = s.strip()
+            if stripped.startswith("import ") or stripped.startswith("from "):
+                if "(" in stripped and stripped.rstrip().endswith("("):
+                    # 多行 import 块，找到闭合 ) 再继续 / Multiline block, find closing )
+                    i += 1
+                    while i < len(lines):
+                        if lines[i].strip().startswith(")"):
+                            last_import_idx = i
+                            break
+                        i += 1
+                else:
+                    last_import_idx = i
+            i += 1
         insert_at = last_import_idx + 1 if last_import_idx >= 0 else 0
         new_line = import_line if import_line.endswith("\n") else import_line + "\n"
         lines.insert(insert_at, new_line.strip())

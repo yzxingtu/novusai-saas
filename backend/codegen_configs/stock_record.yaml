@@ -1,0 +1,58 @@
+# 库存记录 CRUD / Stock Record CRUD
+# 管理端+租户端双端隔离：管理端 tenant_id=0，租户端 tenant_id=当前企业
+# Admin + Tenant dual scope, isolated: admin uses tenant_id=0, tenant uses own tenant_id
+module: business
+resource: stock_record
+display_name: 库存记录
+display_name_en: Stock Record
+
+model:
+  base_class: TenantModel
+  selectable:
+    label: product_name
+    value: id
+    search: [product_name]
+
+fields:
+  - name: product_name
+    type: String(100)
+    required: true
+    filterable: true
+    sortable: true
+    comment: 产品名称 / Product name
+  - name: quantity
+    type: Integer
+    default: 0
+    filterable: true
+    sortable: true
+    comment: 数量 / Quantity
+  - name: remark
+    type: Text
+    nullable: true
+    comment: 备注 / Remark
+
+endpoints:
+  - scope: admin
+    data_mode: independent
+    route_prefix: /stock-records
+    permission:
+      scope: admin_only
+      parent_resource: system_mgmt
+      menu:
+        icon: lucide:package
+        path: /business/stock-records
+        component: business/stock_record/index
+        parent: system_mgmt
+        sort_order: 55
+  - scope: tenant
+    data_mode: independent
+    route_prefix: /stock-records
+    permission:
+      scope: all_tenants
+      parent_resource: system
+      menu:
+        icon: lucide:package
+        path: /business/stock-records
+        component: tenant/business/stock_record/index
+        parent: system_mgmt
+        sort_order: 25

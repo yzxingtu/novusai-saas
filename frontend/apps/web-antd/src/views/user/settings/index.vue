@@ -53,7 +53,7 @@ function navigateTo(item: SettingsNavItem) {
     <!-- Page Header -->
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-foreground">
-        {{ $t('menu.user.settings') }}
+        {{ $t('user.settings.title') }}
       </h1>
       <p class="mt-1 text-sm text-muted-foreground">
         {{ $t('user.settings.description') }}

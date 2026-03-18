@@ -37,7 +37,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:bot',
         ignoreAccess: true,
-        title: $t('menu.user.ai_chat'),
+        title: $t('user.aiChat.title'),
       },
     },
     {
@@ -48,7 +48,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:settings',
         ignoreAccess: true,
-        title: $t('menu.user.settings'),
+        title: $t('user.settings.title'),
       },
       children: [
         {

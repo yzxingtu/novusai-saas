@@ -83,6 +83,7 @@ const canEdit = row.scope === 'all_tenants';
 - JSON 内不重复嵌套路径名
 - 避免同一 JSON 中重复 key
 - zh-CN 和 en-US 的 key 必须完全对齐，新增 key 必须同时添加两种语言
+- **菜单多语言禁止在前端维护**：侧边栏菜单（admin/tenant/user 动态菜单）的标题由后端权限系统翻译，通过 `backend/app/locales/{en|zh_CN}/menu.json` 维护，API 返回时已带翻译后的 `name`。禁止在 `frontend/.../locales/.../menu.json` 中重复维护菜单翻译；用户端静态路由（如 ai-chat、settings）的页面标题用 `user.aiChat.title`、`user.settings.title` 等，不放 menu 命名空间
 
 ### 图标
 

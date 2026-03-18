@@ -3127,5 +3127,6 @@
   "api.param.img_format": "格式 (jpg/png/webp/gif)",
   "api.param.img_mode": "模式 (fit/fill/crop/pad)",
   "api.param.img_preset": "预设 (thumb/avatar/preview/banner/small/medium/large)",
-  "api.param.categories": "分类统计"
+  "api.param.categories": "分类统计",
+  "business": {}
 }

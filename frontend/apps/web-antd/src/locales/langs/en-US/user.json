@@ -90,6 +90,7 @@
     }
   },
   "settings": {
+    "title": "Settings",
     "description": "Manage your account information and security settings"
   },
   "aiChat": {

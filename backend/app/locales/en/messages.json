@@ -3122,5 +3122,6 @@
   "api.param.img_format": "Format (jpg/png/webp/gif)",
   "api.param.img_mode": "Mode (fit/fill/crop/pad)",
   "api.param.img_preset": "Preset (thumb/avatar/preview/banner/small/medium/large)",
-  "api.param.categories": "Category statistics"
+  "api.param.categories": "Category statistics",
+  "business": {}
 }
