@@ -12,6 +12,8 @@ from pathlib import Path
 from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 
+from app.codegen.manifest import ManifestManager
+from app.codegen.migration_helper import run_rollback_migration_cleanup
 from app.codegen.rollback import CodegenRollback
 from app.core.config import settings
 from app.core.base_controller import GlobalController
@@ -571,9 +573,26 @@ class AdminCodegenController(GlobalController):
         ):
             _require_debug()
             service = CodegenService(db)
+            config = await service.get_by_id(id)
+            resource = config.resource if config else None
+            migration_file = None
+            if resource:
+                manifest = ManifestManager(_PROJECT_ROOT)
+                entry = manifest.get_entry(resource)
+                migration_file = entry.migration_file if entry else None
+
             result = await service.rollback_async(
                 id, force=force, dry_run=dry_run, project_root=_PROJECT_ROOT
             )
+
+            migration_cleaned = False
+            if (result.success or resource) and not dry_run:
+                migration_cleaned = run_rollback_migration_cleanup(
+                    resource=resource or "",
+                    migration_file=migration_file,
+                    project_root=_PROJECT_ROOT,
+                )
+
             data = {
                 "success": result.success,
                 "files_deleted": result.files_deleted,
@@ -581,6 +600,7 @@ class AdminCodegenController(GlobalController):
                 "files_skipped": result.files_skipped,
                 "manual_steps": result.manual_steps,
                 "errors": result.errors,
+                "migration_cleaned": migration_cleaned,
             }
             validated = RollbackResultSchema.model_validate(data)
             return success(data=validated.model_dump())
@@ -599,8 +619,21 @@ class AdminCodegenController(GlobalController):
         ):
             """按 resource 回滚 / Rollback by resource name."""
             _require_debug()
+            manifest = ManifestManager(_PROJECT_ROOT)
+            entry = manifest.get_entry(resource)
+            migration_file = entry.migration_file if entry else None
+
             rb = CodegenRollback(_PROJECT_ROOT)
             result = rb.rollback(resource=resource, force=force, dry_run=dry_run)
+
+            migration_cleaned = False
+            if (result.success or resource) and not dry_run:
+                migration_cleaned = run_rollback_migration_cleanup(
+                    resource=resource,
+                    migration_file=migration_file,
+                    project_root=_PROJECT_ROOT,
+                )
+
             data = {
                 "success": result.success,
                 "files_deleted": result.files_deleted,
@@ -608,6 +641,7 @@ class AdminCodegenController(GlobalController):
                 "files_skipped": result.files_skipped,
                 "manual_steps": result.manual_steps,
                 "errors": result.errors,
+                "migration_cleaned": migration_cleaned,
             }
             validated = RollbackResultSchema.model_validate(data)
             return success(data=validated.model_dump())

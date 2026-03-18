@@ -317,8 +317,14 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
         return True
 
     db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
-    engine = create_engine(db_url)
+    # 临时抑制 SQLAlchemy SQL 日志，避免 codegen rollback/generate 时控制台刷屏
+    import logging as _log
+    _sa_log = _log.getLogger("sqlalchemy.engine")
+    _old_level = _sa_log.level
+    _sa_log.setLevel(_log.WARNING)
+    engine = None
     try:
+        engine = create_engine(db_url, echo=False)
         with engine.connect() as conn:
             rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
             for (stamp,) in rows:
@@ -327,7 +333,9 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
                     conn.execute(text("DELETE FROM alembic_version WHERE version_num = :v"), {"v": stamp})
             conn.commit()
     finally:
-        engine.dispose()
+        _sa_log.setLevel(_old_level)
+        if engine is not None:
+            engine.dispose()
     return True
 
 

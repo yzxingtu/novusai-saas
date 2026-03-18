@@ -1014,7 +1014,6 @@ def codegen_rollback(
         else:
             _downgrade = None
 
-        _migration_cleaned = False
         if _downgrade is not None:
             if _downgrade.returncode != 0:
                 click.echo(f"[auto-migrate] downgrade failed:\n{_downgrade.stderr}", err=True)

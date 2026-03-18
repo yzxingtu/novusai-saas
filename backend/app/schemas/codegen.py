@@ -200,6 +200,9 @@ class RollbackResultSchema(BaseModel):
     files_skipped: list[dict] = Field(default_factory=list)
     manual_steps: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    migration_cleaned: bool = Field(
+        False, description="是否已执行迁移回退并删除迁移文件 / Migration downgrade + file delete done"
+    )
 
 
 class CodegenValidateBodySchema(BaseModel):

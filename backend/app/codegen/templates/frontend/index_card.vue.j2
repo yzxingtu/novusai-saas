@@ -23,7 +23,8 @@ import Form from './modules/form.vue';
 {% set resource_path = route_prefix | replace('/', '') or resource_plural %}
 {% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
-{% set perm_resource = resource | replace('-', '_') %}
+{% set res_name = resource | replace('_', '-') %}
+{% set perm_resource = res_name %}
 {% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
 {% set search_field = (fields | selectattr('filterable', 'equalto', true) | selectattr('name') | map(attribute='name') | first) or name_field %}
 {% set _recycle_bin = _fe.get('recycle_bin', False) %}
