@@ -31,6 +31,12 @@ class SkillPackage(TenantModel):
 
     __tablename__ = "skill_packages"
 
+    __ai_policy__ = {
+        "label": "技能包",
+        "keywords": ["技能包", "package"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("Skill", "package_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="skill"),

@@ -22,6 +22,8 @@ from app.core.base_model import Base
 from app.models import (
     # 平台级模型
     Admin,
+    CodegenConfig,
+    CodegenConfigVersion,
     SystemConfigGroup,
     SystemConfig,
     SystemConfigValue,

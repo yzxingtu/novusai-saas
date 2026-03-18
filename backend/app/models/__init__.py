@@ -63,6 +63,8 @@ from app.models.common.notification_template import NotificationTemplate
 from app.models.common.user_preference import UserPreference
 from app.models.system import (
     Admin,
+    CodegenConfig,
+    CodegenConfigVersion,
     OperationLog,
     PeriodicTask,
     Plugin,
@@ -156,6 +158,8 @@ __all__ = [
     "AIQueryLog",
     # 系统智能体绑定 / System agent assignments
     "SystemAgentAssignment",
+    "CodegenConfig",
+    "CodegenConfigVersion",
     # 邮件日志 / Email logs
     "EmailLog",
     # 插件 / Plugins

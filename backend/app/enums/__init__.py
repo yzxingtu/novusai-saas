@@ -24,6 +24,7 @@ from app.enums.attachment import (
 )
 from app.enums.base import BaseEnum, IntEnum, StrEnum
 from app.enums.billing import BillingCycle
+from app.enums.codegen import CodegenConfigStatusEnum
 from app.enums.cache import CacheCategoryEnum
 from app.enums.common import (
     ApprovalStatusEnum,
@@ -97,6 +98,8 @@ __all__ = [
     "ConfigValueType",
     # 计费 / Billing
     "BillingCycle",
+    # 代码生成器 / Codegen
+    "CodegenConfigStatusEnum",
     # 日志 / Logging
     "UserTypeEnum",
     "LogModuleEnum",

@@ -4,6 +4,7 @@
  */
 export * from './ai';
 export * from './attachment';
+export * from './codegen';
 export * from './auth';
 export * from './configs';
 export * from './menu';

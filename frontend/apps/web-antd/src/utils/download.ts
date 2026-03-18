@@ -16,6 +16,8 @@ const MIME_TYPES: Record<string, string> = {
   xml: 'application/xml',
   html: 'text/html',
   md: 'text/markdown',
+  yaml: 'text/x-yaml',
+  yml: 'text/x-yaml',
 
   // Spreadsheet types / 表格类型
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

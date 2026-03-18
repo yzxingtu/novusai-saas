@@ -26,6 +26,12 @@ class BatchRun(TenantModel):
 
     __tablename__ = "batch_runs"
 
+    __ai_policy__ = {
+        "label": "批量任务",
+        "keywords": ["batch", "批量"],
+        "allow_read": True,
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

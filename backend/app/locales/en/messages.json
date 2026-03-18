@@ -1,4 +1,61 @@
 {
+  "codegen": {
+    "api": {
+      "preview": "Preview generation",
+      "preview_download": "Preview ZIP download",
+      "options": "Get codegen options",
+      "configs": {
+        "versions": "Config version list",
+        "version_get": "Get config version",
+        "restore_version": "Restore to version"
+      },
+      "db": {
+        "tables": "DB table list",
+        "columns": "Table column info",
+        "rows": "Table rows (relation dropdown)",
+        "import": "Import from table"
+      }
+    },
+    "config_not_found": "Config not found",
+    "config_invalid_yaml": "Invalid YAML config format",
+    "debug_only": "Codegen is only available in DEBUG mode",
+    "need_config_id_or_json": "Provide config_id or config_json",
+    "preset_not_found": "Preset not found",
+    "preview_download_error_sanitized": "Preview download failed",
+    "validation": {
+      "module_required": "module is required",
+      "resource_required": "resource is required",
+      "display_name_required": "display_name is required",
+      "fields_required": "fields cannot be empty",
+      "field_name_required": "Field must have name",
+      "base_model_tenant_only": "BaseModel cannot have tenant_only endpoint",
+      "base_model_cross_tenant": "BaseModel cannot use cross_tenant data mode",
+      "tree_requires_base": "tree config requires base_class TenantModel or BaseModel",
+      "invalid_field_type": "Invalid field type: {type}",
+      "duplicate_field_name": "Duplicate field names: {names}",
+      "invalid_module_format": "module must be lowercase letters, digits, underscore, e.g. foo_bar",
+      "invalid_resource_format": "resource must be lowercase letters, digits, underscore, e.g. foo_bar",
+      "reserved_field_name": "Field name {name} is reserved",
+      "invalid_field_name": "Field name {name} is invalid, must be snake_case starting with lowercase",
+      "parse_error": "Config parse failed, please check format"
+    },
+    "status": {
+      "draft": "Draft",
+      "generated": "Generated",
+      "applied": "Applied",
+      "rolled_back": "Rolled Back"
+    },
+    "rollback": {
+      "no_manifest_entry": "No manifest entry found for the given resource or config_id"
+    },
+    "db": {
+      "table_not_found": "Table not found: {name}"
+    },
+    "duplicate_suffix": " (copy)",
+    "version_initial": "Initial creation",
+    "workflow_invalid_transition": "Invalid status transition",
+    "workflow_comment_required": "Comment is required for this transition"
+  },
   "common": {
     "success": "Operation successful",
     "failed": "Operation failed",
@@ -1256,6 +1313,27 @@
       "summary": "View Cache Summary",
       "clear": "Clear Cache"
     },
+    "codegen": {
+      "list": "Config List",
+      "detail": "Config Detail",
+      "create": "Create Config",
+      "update": "Edit Config",
+      "delete": "Delete Config",
+      "duplicate": "Duplicate Config",
+      "types": "Type Options",
+      "components": "Component Options",
+      "models": "Model Options",
+      "presets": "Preset Templates",
+      "parent_resources": "Parent Resources",
+      "options": "Generate Options",
+      "db": "Database Tables",
+      "validate": "Validate Config",
+      "preview": "Preview Code",
+      "generate": "Generate Code",
+      "download": "Download ZIP",
+      "history": "Version History",
+      "rollback": "Rollback Generate"
+    },
     "email_log": {
       "list": "View Email Log List",
       "send": "Send Email",
@@ -1807,11 +1885,15 @@
         "delete": "Delete"
       },
       "status": {
+        "draft": "Draft",
+        "generated": "Generated",
+        "applied": "Applied",
         "success": "Success",
         "partial_failure": "Partial Failure",
         "failed": "Failed",
         "rolled_back": "Rolled Back"
       },
+      "config_not_found": "Config not found",
       "error": {
         "invalid_template_name": "Name must only contain letters, digits, hyphens, and underscores",
         "template_not_found": "Template not found",

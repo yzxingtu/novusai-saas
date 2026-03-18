@@ -303,8 +303,10 @@
     }
   },
   "quota": {
+    "name": "Quota",
     "title": "Quota Management",
     "pageDesc": "Set token usage quotas for tenants. Soft limits warn only; hard limits reject requests when reached.",
+    "entityDescription": "AI quota and rate limit management",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
     "modelId": "Model",
@@ -636,9 +638,6 @@
   "agentAssignments": {
     "entityDescription": "System agent assignment management"
   },
-  "quota": {
-    "entityDescription": "AI quota and rate limit management"
-  },
   "health": {
     "title": "Health Status",
     "pageDesc": "Real-time monitoring of AI provider connectivity, response times, and failure counts.",
@@ -710,6 +709,8 @@
       "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants",
       "assignedTenants": "Select tenants that are allowed to use this skill package"
     },
+    "tablePolicyFilterHint": "Filtering skills using table policy {id}",
+    "clearTablePolicyFilter": "Clear filter",
     "sourcePlugin": "Plugin",
     "uploadZip": "Upload Skill Package",
     "uploadDragText": "Click or drag a ZIP file here to upload",
@@ -924,7 +925,7 @@
       "title": "Data Intelligence Config",
       "tablePolicies": "Table Policies",
       "tablePoliciesPlaceholder": "Select accessible table policies",
-      "tablePoliciesHelp": "Select data table policies this skill can access, leave empty to use all available",
+      "tablePoliciesHelp": "Select tables this skill can access. Only tables with __ai_policy__ declaration are shown. Leave empty to use all available.",
       "maxRowsOverride": "Max Rows",
       "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
       "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",
@@ -977,9 +978,10 @@
     }
   },
   "tablePolicy": {
+    "name": "Table Policy",
     "title": "AI Table Policy Management",
     "create": "New Table Policy",
-    "pageDesc": "Manage tables accessible to AI data queries, including CRUD permissions, row limits, and column blocking. Policies are auto-discovered and created by the system; admins can edit and adjust. The admin side has full access to all tables, while tenants can only access tenant-scoped tables.",
+    "pageDesc": "Manage database tables accessible to AI. After configuration, create a data intelligence skill in a skill package and associate these table policies, then bind the skill package to an agent for AI data query capabilities. Only tables with __ai_policy__ declaration are supported.",
     "tableName": "Table Name",
     "label": "Display Name",
     "description": "Description",
@@ -997,22 +999,33 @@
     "isActive": "Active",
     "crud": "CRUD Permissions",
     "sync": "Sync Tables",
-    "syncSuccess": "Sync complete: {new} new, {existing} existing",
-    "syncConfirm": "Scan database and sync table policies? Existing policies will not be overwritten.",
+    "syncSuccess": "Synced {synced} table policies",
+    "syncConfirm": "Sync table policies from code declarations? All existing policies will be deleted and rebuilt from __ai_policy__. Admin customizations (max_rows, column_descriptions, etc.) will be preserved.",
+    "keywordsHelp": "Aliases and keywords for AI to match tables, e.g. customer, client",
     "placeholder": {
       "searchTableName": "Search table name",
       "searchLabel": "Search display name",
       "inputLabel": "Enter display name",
       "inputDescription": "Enter table description",
+      "inputKeywords": "Enter keywords, press Enter to add",
+      "inputColumnDesc": "Enter column description to help AI understand the field",
       "inputMaxRows": "Enter max rows",
       "inputPermissionCode": "Enter permission code",
       "selectBlockedColumns": "Select columns to block",
       "selectReadonlyColumns": "Select readonly columns"
     },
+    "columnDescHelp": "Add descriptions for each column to help AI understand field meanings",
+    "expandBlockedColumns": "Blocked Columns",
+    "expandReadonlyColumns": "Readonly Columns",
+    "expandDescribedColumns": "With Description",
+    "expandDescribedList": "View {count} column descriptions",
+    "expandNoData": "None",
+    "notDeclaredWarning": "This table's model has no __ai_policy__ declaration; it may be a legacy policy. Consider adding the declaration in model code or deleting this policy.",
     "messages": {
       "deleteSuccess": "Table policy deleted",
       "toggleStatusTitle": "Toggle Status",
-      "toggleStatusConfirm": "Are you sure to {action} {name}?"
+      "toggleStatusConfirm": "Are you sure to {action} {name}?",
+      "columnLoadFailed": "Failed to load column info"
     }
   },
   "agentAssignment": {

@@ -263,10 +263,20 @@ export async function getAITablePolicyColumnsApi(
 /** Trigger table policy sync / 触发表策略同步 */
 export async function syncAITablePoliciesApi(
   options?: ApiRequestOptions,
-): Promise<Record<string, number>> {
-  return requestClient.post<Record<string, number>>(
+): Promise<Record<string, number> & { declared_tables?: string[] }> {
+  return requestClient.post<Record<string, number> & { declared_tables?: string[] }>(
     `${TABLE_POLICY_PREFIX}/sync`,
     {},
+    options,
+  );
+}
+
+/** Get declared table names (models with __ai_policy__) / 获取声明了 __ai_policy__ 的表名列表 */
+export async function getAITablePolicyDeclaredTablesApi(
+  options?: ApiRequestOptions,
+): Promise<string[]> {
+  return requestClient.get<string[]>(
+    `${TABLE_POLICY_PREFIX}/declared-tables`,
     options,
   );
 }

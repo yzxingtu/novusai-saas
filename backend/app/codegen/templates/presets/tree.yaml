@@ -1,0 +1,63 @@
+# 树形数据预设 / Tree Data Preset
+# department 示例，parent_id + __hierarchy__
+module: system
+resource: department
+display_name: 部门管理
+display_name_en: Department Management
+
+model:
+  base_class: TenantModel
+  tree:
+    enabled: true
+  drag_sort: true
+  selectable:
+    label: name
+    value: id
+    search: [name, code]
+
+fields:
+  - name: name
+    type: String(100)
+    required: true
+    filterable: true
+    sortable: true
+    comment: 部门名称
+  - name: code
+    type: String(50)
+    required: true
+    unique: true
+    filterable: true
+    comment: 部门编码
+  - name: description
+    type: Text
+    nullable: true
+    comment: 描述
+  - name: is_active
+    type: Boolean
+    default: true
+    filterable: true
+    toggle_api: true
+  - name: sort_order
+    type: Integer
+    default: 0
+    sortable: true
+  - name: parent_id
+    type: Integer
+    nullable: true
+    comment: 父部门ID
+
+endpoints:
+  - scope: admin
+    data_mode: cross_tenant
+    route_prefix: /departments
+    permission:
+      scope: admin_only
+      parent_resource: platform_mgmt
+      menu:
+        icon: lucide:building-2
+        path: /system/departments
+        component: system/department/index
+        parent: system_mgmt
+        sort_order: 30
+    frontend:
+      mode: table

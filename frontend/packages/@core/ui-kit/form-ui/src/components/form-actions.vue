@@ -8,6 +8,10 @@ import { cn, isFunction, triggerWindowResize } from '@vben-core/shared/utils';
 import { COMPONENT_MAP } from '../config';
 import { injectFormProps } from '../use-form-context';
 
+const props = defineProps<{
+  shouldShowCollapseButton?: boolean;
+}>();
+
 const { $t } = useSimpleLocale();
 
 const [rootProps, form] = injectFormProps();
@@ -176,7 +180,7 @@ defineExpose({
 
     <VbenExpandableArrow
       class="ml-[-0.3em]"
-      v-if="rootProps.showCollapseButton"
+      v-if="props.shouldShowCollapseButton ?? rootProps.showCollapseButton"
       v-model:model-value="collapsed"
     >
       <span>{{ collapsed ? $t('expand') : $t('collapse') }}</span>

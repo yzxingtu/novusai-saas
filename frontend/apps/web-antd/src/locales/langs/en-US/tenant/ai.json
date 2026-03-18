@@ -854,7 +854,7 @@
       "title": "Data Intelligence Config",
       "tablePolicies": "Table Policies",
       "tablePoliciesPlaceholder": "Select accessible table policies",
-      "tablePoliciesHelp": "Select data table policies this skill can access, leave empty to use all available",
+      "tablePoliciesHelp": "Select tables this skill can access. Only tables with __ai_policy__ declaration are shown. Leave empty to use all available.",
       "maxRowsOverride": "Max Rows",
       "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
       "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",

@@ -45,6 +45,7 @@
     "@vben/types": "workspace:*",
     "@vben/utils": "workspace:*",
     "@vueuse/core": "catalog:",
+    "dompurify": "^3.2.7",
     "vue": "catalog:",
     "vue-router": "catalog:"
   }

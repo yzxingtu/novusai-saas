@@ -303,8 +303,10 @@
     }
   },
   "quota": {
+    "name": "配额",
     "title": "配额管理",
     "pageDesc": "为企业设置 Token 用量配额。软限制仅告警，硬限制达额后拒绝请求。",
+    "entityDescription": "AI 配额与速率限制管理",
     "tenantId": "企业",
     "tenantName": "企业名称",
     "modelId": "模型",
@@ -637,9 +639,6 @@
   "agentAssignments": {
     "entityDescription": "系统智能体分配管理"
   },
-  "quota": {
-    "entityDescription": "AI 配额与速率限制管理"
-  },
   "health": {
     "title": "健康状态",
     "pageDesc": "实时监控各 AI 供应商的连接状态、响应时间和故障次数。",
@@ -711,6 +710,8 @@
       "scope": "仅管理端：仅管理端可见；指定企业：仅该企业可见；全局共享：管理端和所有企业都可见",
       "assignedTenants": "选择允许使用此技能包的企业"
     },
+    "tablePolicyFilterHint": "筛选使用表策略 {id} 的技能",
+    "clearTablePolicyFilter": "清除筛选",
     "sourcePlugin": "插件",
     "uploadZip": "上传技能包",
     "uploadDragText": "点击或拖拽 ZIP 文件到此处上传",
@@ -925,7 +926,7 @@
       "title": "数据智能配置",
       "tablePolicies": "表策略",
       "tablePoliciesPlaceholder": "请选择可访问的表策略",
-      "tablePoliciesHelp": "选择该技能可访问的数据表策略，留空则使用所有可用策略",
+      "tablePoliciesHelp": "选择此技能可操作的表。仅显示声明了 __ai_policy__ 的表，未声明的表不会出现在此列表中。留空则使用所有可用策略。",
       "maxRowsOverride": "最大返回行数",
       "maxRowsOverrideHelp": "覆盖默认查询返回行数限制，0 表示使用默认值",
       "systemHint": "此为系统全局共享技能，自动使用所有已配置的表策略，无需手动选择。",
@@ -978,9 +979,10 @@
     }
   },
   "tablePolicy": {
+    "name": "表策略",
     "title": "AI 表策略管理",
     "create": "新建表策略",
-    "pageDesc": "管理 AI 数据查询可访问的表及其 CRUD 权限、行数限制、列屏蔽等策略配置。策略由系统自动发现并创建，管理员可编辑调整。管理端拥有所有表的完整操作权限，企业端仅可访问企业作用域的表。",
+    "pageDesc": "管理 AI 可访问的数据库表及其权限。配置完成后，在技能包中创建「数据智能」类型的技能并关联这些表策略，再将技能包绑定到智能体，AI 对话即可使用数据查询能力。仅对声明了 __ai_policy__ 的表生效。",
     "tableName": "表名",
     "label": "显示名称",
     "description": "描述",
@@ -998,22 +1000,33 @@
     "isActive": "启用状态",
     "crud": "CRUD 权限",
     "sync": "同步表",
-    "syncSuccess": "同步完成：新增 {new} 个，已存在 {existing} 个",
-    "syncConfirm": "确认扫描数据库并同步表策略？已存在的策略不会被覆盖。",
+    "syncSuccess": "已同步 {synced} 条表策略",
+    "syncConfirm": "确认从代码声明同步表策略？将先删除全部旧记录，再从 __ai_policy__ 声明重建，管理员对 max_rows、column_descriptions 等的自定义会保留。",
+    "keywordsHelp": "AI 匹配表时的别名和关键词，例如：客户、顾客、customer",
     "placeholder": {
       "searchTableName": "搜索表名",
       "searchLabel": "搜索显示名称",
       "inputLabel": "请输入显示名称",
       "inputDescription": "请输入表描述",
+      "inputKeywords": "输入关键词，按回车添加",
+      "inputColumnDesc": "输入列的中文描述，帮助 AI 理解字段含义",
       "inputMaxRows": "请输入最大行数",
       "inputPermissionCode": "请输入权限码",
       "selectBlockedColumns": "选择要屏蔽的列",
       "selectReadonlyColumns": "选择只读列"
     },
+    "columnDescHelp": "为每列添加中文描述，AI 将据此理解字段含义和用途",
+    "expandBlockedColumns": "屏蔽列",
+    "expandReadonlyColumns": "只读列",
+    "expandDescribedColumns": "已配置描述",
+    "expandDescribedList": "查看 {count} 个列描述",
+    "expandNoData": "无",
+    "notDeclaredWarning": "此表的 Model 未声明 __ai_policy__，可能是历史遗留策略。建议在 Model 代码中添加声明或删除此策略。",
     "messages": {
       "deleteSuccess": "表策略已删除",
       "toggleStatusTitle": "切换状态",
-      "toggleStatusConfirm": "确认{action} {name} 吗？"
+      "toggleStatusConfirm": "确认{action} {name} 吗？",
+      "columnLoadFailed": "列信息加载失败"
     }
   },
   "agentAssignment": {

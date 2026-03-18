@@ -854,7 +854,7 @@
       "title": "数据智能配置",
       "tablePolicies": "表策略",
       "tablePoliciesPlaceholder": "请选择可访问的表策略",
-      "tablePoliciesHelp": "选择该技能可访问的数据表策略，留空则使用所有可用策略",
+      "tablePoliciesHelp": "选择此技能可操作的表。仅显示声明了 __ai_policy__ 的表。留空则使用所有可用策略。",
       "maxRowsOverride": "最大返回行数",
       "maxRowsOverrideHelp": "覆盖默认查询返回行数限制，0 表示使用默认值",
       "systemHint": "此为系统全局共享技能，自动使用所有已配置的表策略，无需手动选择。",

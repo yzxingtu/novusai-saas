@@ -1,10 +1,4 @@
 <script lang="ts" setup>
-/**
- * AI 表策略管理列表页面
- * AI table policy management list page
- *
- * CRUD 权限可直接在表格中点击切换，无需打开编辑抽屉 / Toggle CRUD permissions in table, no edit drawer.
- */
 import type { AITablePolicyInfo } from '#/api/admin/ai';
 
 import { onUnmounted, ref } from 'vue';
@@ -15,10 +9,20 @@ import { registerPageOperations } from '#/components/business/ai-slide-panel/pag
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, message, Modal, Switch, Tooltip } from 'ant-design-vue';
+import {
+  Card,
+  Collapse,
+  CollapsePanel,
+  message,
+  Modal,
+  Switch,
+  Tag,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
+  getAITablePolicyDeclaredTablesApi,
   getAITablePolicyListApi,
   syncAITablePoliciesApi,
   updateAITablePolicyApi,
@@ -30,9 +34,23 @@ import Form from './modules/form.vue';
 
 defineOptions({ name: 'AITablePolicyList' });
 
-/**
- * 切换策略启用状态 / Toggle policy active status
- */
+const syncing = ref(false);
+const declaredTables = ref<Set<string>>(new Set());
+
+async function loadDeclaredTables() {
+  try {
+    const res = await getAITablePolicyDeclaredTablesApi();
+    const list = Array.isArray(res)
+      ? res
+      : ((res as { data?: string[] })?.data ?? []);
+    declaredTables.value = new Set(list);
+  } catch {
+    declaredTables.value = new Set();
+  }
+}
+
+loadDeclaredTables();
+
 function onToggleActive(row: AITablePolicyInfo) {
   Modal.confirm({
     title: row.is_active
@@ -44,35 +62,24 @@ function onToggleActive(row: AITablePolicyInfo) {
         message.success($t('common.success'));
         onRefresh();
       } catch {
-        // handled by interceptor / 错误由请求拦截器处理
+        // handled by interceptor
       }
     },
   });
 }
 
-/**
- * 直接切换单个 CRUD 权限（无需确认弹窗，即点即改）
- * Toggle single CRUD permission inline (no confirm).
- * 使用本地更新避免 onRefresh 导致的行引用偏移
- */
 async function onToggleCrud(
   row: AITablePolicyInfo,
   field: 'allow_create' | 'allow_delete' | 'allow_read' | 'allow_update',
 ) {
-  const id = row.id;
   const newValue = !row[field];
   try {
-    await updateAITablePolicyApi(id, { [field]: newValue });
+    await updateAITablePolicyApi(row.id, { [field]: newValue });
     row[field] = newValue;
   } catch {
-    // handled by interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   }
 }
-
-/**
- * 同步表策略 / Sync table policies
- */
-const syncing = ref(false);
 
 async function onSync() {
   Modal.confirm({
@@ -83,13 +90,17 @@ async function onSync() {
         const result = await syncAITablePoliciesApi();
         message.success(
           $t('admin.ai.tablePolicy.syncSuccess', {
-            new: result.new_count ?? 0,
-            existing: result.existing_count ?? 0,
+            synced: result.synced ?? 0,
           }),
         );
+        if (Array.isArray(result.declared_tables)) {
+          declaredTables.value = new Set(result.declared_tables);
+        } else {
+          await loadDeclaredTables();
+        }
         onRefresh();
       } catch {
-        // handled by interceptor / 错误由请求拦截器处理
+        // handled by interceptor
       } finally {
         syncing.value = false;
       }
@@ -109,16 +120,25 @@ const { Grid, FormDrawer, onRefresh, gridApi, formAiOperations } =
     i18nPrefix: 'admin.ai.tablePolicy',
     nameField: 'table_name',
     defaultSort: 'sort_order',
+    gridOptions: {
+      expandConfig: {
+        accordion: true,
+        trigger: 'row',
+        iconOpen: 'vxe-icon-square-minus',
+        iconClose: 'vxe-icon-square-plus',
+      },
+    },
     ai: { pageKey: 'admin.ai.table-policies', formSchema: useFormSchema },
   });
 
-const cleanupPageContext = registerPageContext('admin/ai/table-policies', () => ({
-  page_key: 'admin.ai.table-policies',
-  page_title: $t('admin.ai.tablePolicy.name'),
-  page_data: {
-    resource: '/admin/ai/table-policies',
-  },
-}));
+const cleanupPageContext = registerPageContext(
+  'admin/ai/table-policies',
+  () => ({
+    page_key: 'admin.ai.table-policies',
+    page_title: $t('admin.ai.tablePolicy.name'),
+    page_data: { resource: '/admin/ai/table-policies' },
+  }),
+);
 
 const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
   {
@@ -175,7 +195,116 @@ onUnmounted(() => {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 表名列：图标 + 表名 + 显示名称 + 描述(tooltip) -->
+        <!-- 展开行 -->
+        <template #expand_content="{ row }">
+          <div class="grid grid-cols-1 gap-4 px-4 py-3 md:grid-cols-3">
+            <!-- 屏蔽列 -->
+            <div
+              class="rounded-lg border border-red-200/60 bg-red-50/30 p-3 dark:border-red-900/40 dark:bg-red-950/20"
+            >
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-500"
+              >
+                {{ $t('admin.ai.tablePolicy.expandBlockedColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{ (row.blocked_columns || []).length }})
+                </span>
+              </div>
+              <div v-if="(row.blocked_columns?.length ?? 0) > 0" class="flex flex-wrap gap-1.5">
+                <Tag
+                  v-for="col in (row.blocked_columns || [])"
+                  :key="col"
+                  color="red"
+                  class="m-0"
+                >
+                  {{ col }}
+                </Tag>
+              </div>
+              <div
+                v-else
+                class="text-xs text-muted-foreground"
+              >
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
+            </div>
+            <!-- 只读列 -->
+            <div
+              class="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"
+            >
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-500"
+              >
+                {{ $t('admin.ai.tablePolicy.expandReadonlyColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{ (row.readonly_columns || []).length }})
+                </span>
+              </div>
+              <div v-if="(row.readonly_columns?.length ?? 0) > 0" class="flex flex-wrap gap-1.5">
+                <Tag
+                  v-for="col in (row.readonly_columns || [])"
+                  :key="col"
+                  color="orange"
+                  class="m-0"
+                >
+                  {{ col }}
+                </Tag>
+              </div>
+              <div
+                v-else
+                class="text-xs text-muted-foreground"
+              >
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
+            </div>
+            <!-- 已配置列描述 -->
+            <div
+              class="rounded-lg border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+            >
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-500"
+              >
+                {{ $t('admin.ai.tablePolicy.expandDescribedColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{ row.column_descriptions ? Object.keys(row.column_descriptions).length : 0 }})
+                </span>
+              </div>
+              <div
+                v-if="row.column_descriptions && Object.keys(row.column_descriptions).length > 0"
+                class="space-y-1"
+              >
+                <Collapse :bordered="false" ghost>
+                  <CollapsePanel
+                    :key="1"
+                    :header="
+                      $t('admin.ai.tablePolicy.expandDescribedList', {
+                        count: Object.keys(row.column_descriptions).length,
+                      })
+                    "
+                  >
+                    <div class="max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                      <div
+                        v-for="[colName, desc] in Object.entries(row.column_descriptions)"
+                        :key="colName"
+                        class="flex gap-2 border-b border-border/50 pb-1.5 last:border-0 last:pb-0"
+                      >
+                        <code class="shrink-0 text-xs text-foreground">{{ colName }}</code>
+                        <span class="min-w-0 flex-1 break-words text-xs text-muted-foreground">{{ desc }}</span>
+                      </div>
+                    </div>
+                  </CollapsePanel>
+                </Collapse>
+              </div>
+              <div
+                v-else
+                class="text-xs text-muted-foreground"
+              >
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 表名列 -->
         <template #tableName_cell="{ row }">
           <div class="flex items-center gap-2.5">
             <div
@@ -193,16 +322,28 @@ onUnmounted(() => {
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5">
                 <Tooltip :title="row.description || undefined">
-                  <code class="text-sm font-semibold text-foreground">{{
-                    row.table_name
-                  }}</code>
+                  <code class="text-sm font-semibold text-foreground">
+                    {{ row.table_name }}
+                  </code>
+                </Tooltip>
+                <Tooltip
+                  v-if="!declaredTables.has(row.table_name)"
+                  :title="$t('admin.ai.tablePolicy.notDeclaredWarning')"
+                >
+                  <IconifyIcon
+                    icon="lucide:alert-triangle"
+                    class="ml-1 size-3.5 text-amber-500"
+                  />
                 </Tooltip>
               </div>
               <div
                 class="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
                 <span>{{ row.label }}</span>
-                <span v-if="row.permission_code" class="text-[10px] opacity-60">
+                <span
+                  v-if="row.permission_code"
+                  class="text-[10px] opacity-60"
+                >
                   · {{ row.permission_code }}
                 </span>
               </div>
@@ -210,14 +351,18 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- CRUD 权限列：可点击切换 -->
+        <!-- CRUD 权限列 -->
         <template #crud_cell="{ row }">
           <div class="flex items-center justify-center gap-1.5">
             <Tooltip :title="$t('admin.ai.tablePolicy.allowRead')">
               <button
                 v-access:code="['ai_table_policy:update']"
-                class="crud-btn"
-                :class="row.allow_read ? 'crud-btn--read-on' : 'crud-btn--off'"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
+                :class="
+                  row.allow_read
+                    ? 'border border-green-500/30 bg-green-500/15 text-green-600'
+                    : 'border border-border bg-muted text-muted-foreground'
+                "
                 @click="onToggleCrud(row, 'allow_read')"
               >
                 R
@@ -226,9 +371,11 @@ onUnmounted(() => {
             <Tooltip :title="$t('admin.ai.tablePolicy.allowCreate')">
               <button
                 v-access:code="['ai_table_policy:update']"
-                class="crud-btn"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
                 :class="
-                  row.allow_create ? 'crud-btn--create-on' : 'crud-btn--off'
+                  row.allow_create
+                    ? 'border border-blue-500/30 bg-blue-500/15 text-blue-600'
+                    : 'border border-border bg-muted text-muted-foreground'
                 "
                 @click="onToggleCrud(row, 'allow_create')"
               >
@@ -238,9 +385,11 @@ onUnmounted(() => {
             <Tooltip :title="$t('admin.ai.tablePolicy.allowUpdate')">
               <button
                 v-access:code="['ai_table_policy:update']"
-                class="crud-btn"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
                 :class="
-                  row.allow_update ? 'crud-btn--update-on' : 'crud-btn--off'
+                  row.allow_update
+                    ? 'border border-orange-500/30 bg-orange-500/15 text-orange-600'
+                    : 'border border-border bg-muted text-muted-foreground'
                 "
                 @click="onToggleCrud(row, 'allow_update')"
               >
@@ -250,9 +399,11 @@ onUnmounted(() => {
             <Tooltip :title="$t('admin.ai.tablePolicy.allowDelete')">
               <button
                 v-access:code="['ai_table_policy:update']"
-                class="crud-btn"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
                 :class="
-                  row.allow_delete ? 'crud-btn--delete-on' : 'crud-btn--off'
+                  row.allow_delete
+                    ? 'border border-red-500/30 bg-red-500/15 text-red-600'
+                    : 'border border-border bg-muted text-muted-foreground'
                 "
                 @click="onToggleCrud(row, 'allow_delete')"
               >
@@ -272,76 +423,24 @@ onUnmounted(() => {
           />
         </template>
 
-        <!-- 左侧工具栏：同步 -->
-        <template #toolbar-actions>
-          <Button
-            v-access:code="['ai_table_policy:update']"
-            type="primary"
-            :loading="syncing"
-            @click="onSync"
-          >
-            <template v-if="!syncing" #icon>
-              <IconifyIcon icon="lucide:refresh-cw" class="size-4" />
-            </template>
-            {{ $t('admin.ai.tablePolicy.sync') }}
-          </Button>
+        <!-- 右侧工具栏：同步按钮 -->
+        <template #toolbar-tools>
+          <Tooltip :title="$t('admin.ai.tablePolicy.sync')">
+            <button
+              v-access:code="['ai_table_policy:update']"
+              class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
+              :disabled="syncing"
+              @click="onSync"
+            >
+              <IconifyIcon
+                icon="lucide:refresh-cw"
+                class="size-3.5"
+                :class="syncing && 'animate-spin'"
+              />
+            </button>
+          </Tooltip>
         </template>
       </Grid>
     </Card>
   </Page>
 </template>
-
-<style scoped>
-.crud-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 26px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  transition: all 0.15s ease;
-}
-
-.crud-btn:hover {
-  transform: scale(1.08);
-}
-
-.crud-btn--off {
-  color: hsl(var(--muted-foreground));
-  background: hsl(var(--muted));
-  border-color: hsl(var(--border));
-}
-
-.crud-btn--off:hover {
-  background: hsl(var(--accent));
-}
-
-.crud-btn--read-on {
-  color: rgb(22 163 74);
-  background: rgb(34 197 94 / 15%);
-  border-color: rgb(34 197 94 / 30%);
-}
-
-.crud-btn--create-on {
-  color: rgb(37 99 235);
-  background: rgb(59 130 246 / 15%);
-  border-color: rgb(59 130 246 / 30%);
-}
-
-.crud-btn--update-on {
-  color: rgb(234 88 12);
-  background: rgb(249 115 22 / 15%);
-  border-color: rgb(249 115 22 / 30%);
-}
-
-.crud-btn--delete-on {
-  color: rgb(220 38 38);
-  background: rgb(239 68 68 / 15%);
-  border-color: rgb(239 68 68 / 30%);
-}
-</style>

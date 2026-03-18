@@ -172,10 +172,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 async with async_session_factory() as db:
                     policy_sync_result = await sync_table_policies(db)
                     logger.info(
-                        f"Table policies synced: "
-                        f"new={policy_sync_result['new']}, "
-                        f"existing={policy_sync_result['existing']}, "
-                        f"blocked={policy_sync_result['blocked']}"
+                        "Table policies synced: {} policies",
+                        policy_sync_result.get("synced", 0),
                     )
             finally:
                 if _tp_redis and _tp_locked is True:

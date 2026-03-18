@@ -80,6 +80,7 @@
     "email_log": "Email Logs",
     "task_log": "Task Logs",
     "periodic_task": "Scheduled Tasks",
-    "recycle_bin": "Recycle Bin"
+    "recycle_bin": "Recycle Bin",
+    "codegen": "Code Generator"
   }
 }

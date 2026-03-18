@@ -35,6 +35,7 @@ from app.schemas.ai.agent_chat import (
     UpdateConversationTitleRequest,
 )
 from app.schemas.common.query import FilterRule
+from app.rbac.services.permission_service import PermissionService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
@@ -108,6 +109,8 @@ class UserAgentChatController(BaseController):
             """
             await _check_agent_access(db, current_user.tenant_id, agent_id, current_user.id)
 
+            perm_service = PermissionService(db)
+            user_perms = await perm_service.get_tenant_user_permissions(current_user)
             service = AgentChatService(db, current_user.tenant_id)
             result = await service.chat(
                 agent_id=agent_id,
@@ -118,7 +121,7 @@ class UserAgentChatController(BaseController):
                 user_id=current_user.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_USER.value,
-                permissions=[],
+                permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
@@ -150,6 +153,8 @@ class UserAgentChatController(BaseController):
             """
             await _check_agent_access(db, current_user.tenant_id, agent_id, current_user.id)
 
+            perm_service = PermissionService(db)
+            user_perms = await perm_service.get_tenant_user_permissions(current_user)
             service = AgentChatService(db, current_user.tenant_id)
 
             return await service.stream_chat(
@@ -162,7 +167,7 @@ class UserAgentChatController(BaseController):
                 user_id=current_user.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_USER.value,
-                permissions=[],
+                permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
                 image_params=data.image_params.model_dump() if data.image_params else None,

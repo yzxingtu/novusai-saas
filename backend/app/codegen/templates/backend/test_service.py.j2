@@ -1,0 +1,98 @@
+{#
+{{ resource | pascal }} Service Tests - pytest fixture, test_create/list/update/delete, workflow, unique_together
+#}
+"""
+{{ display_name }}服务测试 / {{ display_name_en }} Service Tests
+"""
+
+import pytest
+
+from app.models.{{ module }}.{{ resource }} import {{ resource | pascal }}
+from app.services.{{ module }}.{{ resource }}_service import {{ resource | pascal }}Service
+
+
+{% set has_workflow = workflow and workflow.get('transitions') %}
+{% set has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
+{% set use_tenant = (model.base_class | default('TenantModel')) == 'TenantModel' and scenario in ['C', 'D'] %}
+class Test{{ resource | pascal }}Service:
+    """{{ display_name }}服务测试类 / {{ display_name_en }} service test class."""
+
+    @pytest.fixture
+    def service(self, db_session{% if use_tenant %}, tenant_id=1{% endif %}):
+        """创建服务实例 / Create service instance."""
+{% if use_tenant %}
+        return {{ resource | pascal }}Service(db_session, tenant_id)
+{% else %}
+        return {{ resource | pascal }}Service(db_session)
+{% endif %}
+
+    @pytest.fixture
+    def create_data(self):
+        """创建请求数据 / Create request data."""
+        return {
+{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% if f.get('default') is defined %}
+            "{{ f.name }}": {{ f.default | tojson if f.default is string else f.default }},
+{% elif f.type == 'Boolean' %}
+            "{{ f.name }}": True,
+{% elif f.type == 'Integer' or 'Integer' in (f.type or '') %}
+            "{{ f.name }}": 0,
+{% else %}
+            "{{ f.name }}": "test_{{ f.name }}",
+{% endif %}
+{% endfor %}
+        }
+
+    @pytest.mark.asyncio
+    async def test_create(self, service, create_data):
+        """测试创建 / Test create."""
+        result = await service.create(create_data)
+        assert result is not None
+        assert result.id is not None
+{% for f in fields[:3] if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+        assert result.{{ f.name }} == create_data.get("{{ f.name }}")
+{% endfor %}
+
+    @pytest.mark.asyncio
+    async def test_list(self, service):
+        """测试列表 / Test list."""
+        items = await service.get_list(limit=10)
+        assert isinstance(items, list)
+
+    @pytest.mark.asyncio
+    async def test_update(self, service, create_data):
+        """测试更新 / Test update."""
+        created = await service.create(create_data)
+{% set first_field = (fields | selectattr('name', 'defined') | rejectattr('divider', 'equalto', true) | list | first) %}
+        update_data = {"{{ first_field.name if first_field else 'name' }}": "updated_value"}
+        result = await service.update(created.id, update_data)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_delete(self, service, create_data):
+        """测试删除 / Test delete."""
+        created = await service.create(create_data)
+        ok = await service.delete(created.id)
+        assert ok is True
+
+{% if has_workflow %}
+    @pytest.mark.asyncio
+    async def test_workflow_transition(self, service, create_data):
+        """测试工作流状态转换 / Test workflow transition."""
+        created = await service.create(create_data)
+        transition = {{ workflow.transitions | default([]) | tojson }}
+        if transition:
+            action = transition[0].get("action", "submit")
+            result = await service.transition_status(created.id, action)
+            assert result is not None
+
+{% endif %}
+{% if has_unique_together %}
+    @pytest.mark.asyncio
+    async def test_unique_together_violation(self, service, create_data):
+        """测试复合唯一约束冲突 / Test unique_together violation."""
+        await service.create(create_data)
+        with pytest.raises(Exception):
+            await service.create(create_data)
+
+{% endif %}

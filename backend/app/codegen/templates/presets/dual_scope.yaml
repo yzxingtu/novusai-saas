@@ -1,0 +1,60 @@
+# 双端预设 / Dual Scope Preset
+# Admin + Tenant 双端，同资源不同权限
+module: tenant
+resource: notice
+display_name: 公告管理
+display_name_en: Notice Management
+
+model:
+  base_class: TenantModel
+  selectable:
+    label: title
+    value: id
+    search: [title]
+
+fields:
+  - name: title
+    type: String(200)
+    required: true
+    filterable: true
+    sortable: true
+    comment: 公告标题
+  - name: content
+    type: Text
+    nullable: true
+    comment: 公告内容
+  - name: is_active
+    type: Boolean
+    default: true
+    filterable: true
+    toggle_api: true
+  - name: sort_order
+    type: Integer
+    default: 0
+    sortable: true
+
+endpoints:
+  - scope: admin
+    data_mode: cross_tenant
+    route_prefix: /notices
+    permission:
+      scope: admin_only
+      parent_resource: tenant_mgmt
+      menu:
+        icon: lucide:bell
+        path: /tenant/notices
+        component: tenant/notice/index
+        parent: tenant_mgmt
+        sort_order: 50
+  - scope: tenant
+    data_mode: independent
+    route_prefix: /notices
+    permission:
+      scope: all_tenants
+      parent_resource: system
+      menu:
+        icon: lucide:bell
+        path: /system/notices
+        component: tenant/system/notice/index
+        parent: system
+        sort_order: 20

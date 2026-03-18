@@ -26,6 +26,12 @@ class AIActionLog(TenantModel):
 
     __tablename__ = "ai_action_logs"
 
+    __ai_policy__ = {
+        "label": "AI 操作日志",
+        "keywords": ["操作", "action"],
+        "allow_read": True,
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

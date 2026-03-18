@@ -26,6 +26,12 @@ class AgentConversation(TenantModel):
 
     __tablename__ = "agent_conversations"
 
+    __ai_policy__ = {
+        "label": "对话记录",
+        "keywords": ["对话", "conversation", "chat", "聊天"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("ConversationMessage", "conversation_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="conversation_message"),

@@ -26,6 +26,13 @@ class ConversationMessage(TenantModel):
 
     __tablename__ = "conversation_messages"
 
+    __ai_policy__ = {
+        "label": "对话消息",
+        "keywords": ["消息", "message", "chat"],
+        "allow_read": True,
+        "blocked_columns": ["content", "tool_calls", "metadata"],
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

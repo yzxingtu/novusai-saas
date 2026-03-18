@@ -51,6 +51,8 @@
   "sortFailed": "排序更新失败",
   "exportSuccess": "导出成功",
   "exportFailed": "导出失败",
+  "importSuccess": "导入成功，共 {count} 条",
+  "importFailed": "导入失败",
   "exportModal": {
     "title": "导出数据",
     "filename": "文件名",

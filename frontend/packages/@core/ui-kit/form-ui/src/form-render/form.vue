@@ -9,7 +9,7 @@ import type {
   FormShape,
 } from '../types';
 
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { Form } from '@vben-core/shadcn-ui';
 import {
@@ -53,8 +53,8 @@ const wrapperClass = computed(() => {
 
 provideFormRenderProps(props);
 
-const { isCalculated, keepFormItemIndex, wrapperRef } = useExpandable(props);
-void wrapperRef; // Used in template ref
+const { isCalculated, keepFormItemIndex, shouldShowCollapseButton, wrapperRef } =
+  useExpandable(props);
 
 const shapes = computed(() => {
   const resultShapes: FormShape[] = [];
@@ -94,6 +94,65 @@ const formComponentProps = computed(() => {
 const formCollapsed = computed(() => {
   return props.collapsed && isCalculated.value;
 });
+
+const HEIGHT_TRANSITION_MS = 300;
+const heightBeforeTransition = ref<number | null>(null);
+let activeCleanup: (() => void) | null = null;
+
+watch(
+  () => formCollapsed.value,
+  () => {
+    if (!props.showCollapseButton || !wrapperRef.value) return;
+    if (activeCleanup) {
+      activeCleanup();
+      activeCleanup = null;
+    }
+    heightBeforeTransition.value = wrapperRef.value.offsetHeight;
+  },
+  { flush: 'sync' },
+);
+
+watch(
+  () => formCollapsed.value,
+  () => {
+    if (!props.showCollapseButton || !wrapperRef.value) return;
+    const el = wrapperRef.value;
+    const fromHeight = heightBeforeTransition.value;
+    heightBeforeTransition.value = null;
+
+    if (fromHeight == null) return;
+
+    const cleanup = () => {
+      el.removeEventListener('transitionend', onEnd);
+      clearTimeout(tid);
+      el.style.height = '';
+      el.style.overflow = '';
+      el.style.transition = '';
+      activeCleanup = null;
+    };
+
+    const onEnd = (e: TransitionEvent) => {
+      if (e.propertyName === 'height') cleanup();
+    };
+
+    el.style.transition = 'none';
+    el.style.overflow = 'hidden';
+
+    el.style.height = 'auto';
+    const toHeight = el.offsetHeight;
+
+    el.style.height = `${fromHeight}px`;
+    void el.offsetHeight;
+
+    el.style.transition = `height ${HEIGHT_TRANSITION_MS}ms ease-in-out`;
+    el.style.height = `${toHeight}px`;
+
+    el.addEventListener('transitionend', onEnd);
+    const tid = setTimeout(cleanup, HEIGHT_TRANSITION_MS + 50);
+    activeCleanup = cleanup;
+  },
+  { flush: 'post' },
+);
 
 const computedSchema = computed(
   (): (Omit<FormSchema, 'formFieldProps'> & {
@@ -186,7 +245,7 @@ const computedSchema = computed(
           </template>
         </FormField>
       </template>
-      <slot :shapes="shapes"></slot>
+      <slot :shapes="shapes" :should-show-collapse-button="shouldShowCollapseButton"></slot>
     </div>
   </component>
 </template>

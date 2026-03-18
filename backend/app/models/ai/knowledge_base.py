@@ -32,6 +32,12 @@ class KnowledgeBase(TenantModel):
 
     __tablename__ = "knowledge_bases"
 
+    __ai_policy__ = {
+        "label": "知识库",
+        "keywords": ["知识库", "knowledge", "知识"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("KnowledgeDocument", "knowledge_base_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="knowledge_document"),

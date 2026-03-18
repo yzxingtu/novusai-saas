@@ -1,4 +1,61 @@
 {
+  "codegen": {
+    "api": {
+      "preview": "预览生成",
+      "preview_download": "预览 ZIP 下载",
+      "options": "获取代码生成器选项",
+      "configs": {
+        "versions": "配置版本列表",
+        "version_get": "获取配置版本",
+        "restore_version": "恢复到指定版本"
+      },
+      "db": {
+        "tables": "数据库表列表",
+        "columns": "表列信息",
+        "rows": "表行数据(关联下拉)",
+        "import": "从表导入"
+      }
+    },
+    "config_not_found": "配置不存在",
+    "config_invalid_yaml": "YAML 配置格式无效",
+    "debug_only": "代码生成器仅在 DEBUG 模式下可用",
+    "need_config_id_or_json": "请提供 config_id 或 config_json",
+    "preset_not_found": "预设模板不存在",
+    "preview_download_error_sanitized": "预览下载失败",
+    "validation": {
+      "module_required": "module 为必填项",
+      "resource_required": "resource 为必填项",
+      "display_name_required": "display_name 为必填项",
+      "fields_required": "fields 不能为空",
+      "field_name_required": "字段必须包含 name",
+      "base_model_tenant_only": "BaseModel 不能配置 tenant_only 端点",
+      "base_model_cross_tenant": "BaseModel 不能使用 cross_tenant 数据模式",
+      "tree_requires_base": "tree 配置需要 base_class 为 TenantModel 或 BaseModel",
+      "invalid_field_type": "无效的字段类型: {type}",
+      "duplicate_field_name": "存在重复字段名: {names}",
+      "invalid_module_format": "module 需为小写字母、数字、下划线，如 foo_bar",
+      "invalid_resource_format": "resource 需为小写字母、数字、下划线，如 foo_bar",
+      "reserved_field_name": "字段名 {name} 为保留字",
+      "invalid_field_name": "字段名 {name} 格式无效，需为小写字母开头的 snake_case",
+      "parse_error": "配置解析失败，请检查格式"
+    },
+    "status": {
+      "draft": "草稿",
+      "generated": "已生成",
+      "applied": "已应用",
+      "rolled_back": "已回滚"
+    },
+    "rollback": {
+      "no_manifest_entry": "未找到对应的 manifest 条目"
+    },
+    "db": {
+      "table_not_found": "表不存在: {name}"
+    },
+    "duplicate_suffix": " (副本)",
+    "version_initial": "初始创建",
+    "workflow_invalid_transition": "无效的状态流转",
+    "workflow_comment_required": "请填写流转备注"
+  },
   "common": {
     "success": "操作成功",
     "failed": "操作失败",
@@ -1256,6 +1313,27 @@
       "summary": "查看缓存概览",
       "clear": "清除缓存"
     },
+    "codegen": {
+      "list": "配置列表",
+      "detail": "配置详情",
+      "create": "新建配置",
+      "update": "编辑配置",
+      "delete": "删除配置",
+      "duplicate": "复制配置",
+      "types": "类型选项",
+      "components": "组件选项",
+      "models": "模型选项",
+      "presets": "预设模板",
+      "parent_resources": "父级资源",
+      "options": "生成选项",
+      "db": "数据库表",
+      "validate": "校验配置",
+      "preview": "预览代码",
+      "generate": "生成代码",
+      "download": "下载 ZIP",
+      "history": "版本历史",
+      "rollback": "回滚生成"
+    },
     "email_log": {
       "list": "查看邮件日志列表",
       "send": "发送邮件",
@@ -1816,11 +1894,15 @@
         "delete": "删除"
       },
       "status": {
+        "draft": "草稿",
+        "generated": "已生成",
+        "applied": "已应用",
         "success": "成功",
         "partial_failure": "部分失败",
         "failed": "失败",
         "rolled_back": "已回滚"
       },
+      "config_not_found": "配置不存在",
       "error": {
         "invalid_template_name": "名称只能包含字母、数字、连字符和下划线",
         "template_not_found": "模板不存在",

@@ -80,6 +80,7 @@
     "email_log": "邮件日志",
     "task_log": "任务日志",
     "periodic_task": "定时任务",
-    "recycle_bin": "回收站"
+    "recycle_bin": "回收站",
+    "codegen": "代码生成器"
   }
 }

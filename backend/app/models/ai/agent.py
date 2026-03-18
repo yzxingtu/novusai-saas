@@ -37,6 +37,12 @@ class Agent(TenantModel):
 
     __tablename__ = "agents"
 
+    __ai_policy__ = {
+        "label": "智能体",
+        "keywords": ["智能体", "agent", "机器人", "bot", "助手"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("AgentSkillBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_skill_binding"),

@@ -25,6 +25,12 @@ class AIModel(BaseModel):
 
     __tablename__ = "ai_models"
 
+    __ai_policy__ = {
+        "label": "AI 模型",
+        "keywords": ["模型", "model", "AI模型"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("Agent", "model_id", DeletionStrategy.BLOCK,
                     label_field="name", i18n_key="agent"),

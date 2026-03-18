@@ -1,0 +1,186 @@
+{#
+{{ display_name }} Service / {{ display_name_en }} Service
+GlobalService / TenantService, _before_create/update (唯一+复合唯一), toggle_status, batch_*, reorder, transition_status
+#}
+"""
+{{ display_name }}服务 / {{ display_name_en }} Service
+
+提供业务逻辑
+Provides business logic.
+"""
+
+from typing import Any
+
+from app.core.base_service import GlobalService, TenantService
+from app.core.i18n import _
+from app.enums import ErrorCode
+from app.exceptions import BusinessException, NotFoundException
+from app.models.{{ module }}.{{ resource }} import {{ resource | pascal }}
+from app.repositories.{{ module }}.{{ resource }}_repository import {{ resource | pascal }}Repository
+from app.schemas.{{ module }}.{{ resource }} import (
+    {{ resource | pascal }}Create,
+    {{ resource | pascal }}Update,
+)
+
+
+{% set base_class = model.base_class | default('TenantModel') %}
+{% set use_tenant_svc = base_class == 'TenantModel' and scenario in ['C', 'D'] %}
+{% set unique_fields = fields | selectattr('unique', 'equalto', true) | list %}
+{% set has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
+{% set has_batch_delete = batch and batch.get('delete') %}
+{% set has_batch_toggle = batch and batch.get('toggle_fields') %}
+{% set has_drag_sort = model.drag_sort | default(false) %}
+{% set has_workflow = workflow and workflow.get('transitions') %}
+{% set has_clone = clone and clone.get('enabled') %}
+
+
+class {{ resource | pascal }}Service({{ 'TenantService' if use_tenant_svc else 'GlobalService' }}[{{ resource | pascal }}, {{ resource | pascal }}Repository]):
+    """
+    {{ display_name }}服务 / {{ display_name_en }} service.
+    """
+
+    model = {{ resource | pascal }}
+    repository_class = {{ resource | pascal }}Repository
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        """创建前校验：唯一约束 + 复合唯一 / Pre-create validation: unique + unique_together"""
+        await super()._before_create(data)
+{% for f in unique_fields %}
+        if await self.repo.{{ f.name }}_exists(data.get("{{ f.name }}")):
+            raise BusinessException(
+                message=_("{{ module }}.{{ resource }}.{{ f.name }}_exists"),
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+{% endfor %}
+{% if has_unique_together %}
+        await self._check_unique_together(data, exclude_id=None)
+{% endif %}
+
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        """更新前校验：唯一约束排除自身 + 复合唯一 / Pre-update validation: unique exclude self + unique_together"""
+        await super()._before_update(id, data)
+{% for f in unique_fields %}
+        if "{{ f.name }}" in data and await self.repo.{{ f.name }}_exists(data["{{ f.name }}"], exclude_id=id):
+            raise BusinessException(
+                message=_("{{ module }}.{{ resource }}.{{ f.name }}_exists"),
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+{% endfor %}
+{% if has_unique_together %}
+        await self._check_unique_together(data, exclude_id=id)
+{% endif %}
+
+{% if has_unique_together %}
+    async def _check_unique_together(self, data: dict[str, Any], exclude_id: int | None = None) -> None:
+        """复合唯一约束校验 / Check unique_together constraint"""
+        # 构建查询条件，检查是否已存在相同组合
+        # Build query to check if same combination exists
+        filters = {k: data.get(k) for k in {{ model.unique_together | tojson }} if k in data and data.get(k) is not None}
+        if len(filters) < {{ model.unique_together | length }}:
+            return
+{% if use_tenant_svc %}
+        filters["tenant_id"] = self.tenant_id
+{% endif %}
+        existing = await self.repo.get_one_by(**filters, include_deleted=False)
+        if existing and (exclude_id is None or existing.id != exclude_id):
+            raise BusinessException(
+                message=_("{{ module }}.{{ resource }}.unique_together_violation"),
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+
+{% endif %}
+{% if has_toggle and toggle_field %}
+    async def toggle_status(self, id: int, {{ toggle_field }}: bool):
+        """
+        切换{{ toggle_field }}状态 / Toggle {{ toggle_field }} status.
+
+        Args:
+            id: 记录 ID / Record ID
+            {{ toggle_field }}: 目标值 / Target value
+
+        Returns:
+            更新后的实例 / Updated instance
+        """
+        instance = await self.get_by_id(id)
+        if not instance:
+            raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
+        result = await self.update(id, {"{{ toggle_field }}": {{ toggle_field }}})
+        if not result:
+            raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
+        return result
+
+{% endif %}
+{% if has_batch_delete %}
+    async def batch_delete(self, ids: list[int]) -> int:
+        """批量删除 / Batch delete"""
+        count = 0
+        for item_id in ids:
+            if await self.delete(item_id):
+                count += 1
+        return count
+
+{% endif %}
+{% if has_batch_toggle and (batch.toggle_fields | default([]) | length > 0) %}
+    async def batch_toggle(self, ids: list[int], field: str, value: bool) -> int:
+        """批量切换状态 / Batch toggle status"""
+        return await self.repo.update_many(ids, {field: value})
+
+{% endif %}
+{% if has_workflow %}
+    async def transition_status(self, id: int, action: str, comment: str | None = None):
+        """
+        工作流状态转换 / Workflow status transition.
+
+        Args:
+            id: 记录 ID / Record ID
+            action: 动作名 / Action name
+            comment: 备注（requires_comment 时必填）/ Comment (required when requires_comment)
+
+        Returns:
+            更新后的实例 / Updated instance
+        """
+        instance = await self.get_by_id(id)
+        if not instance:
+            raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
+        status_field = "{{ workflow.status_field | default('status') }}"
+        current = getattr(instance, status_field, None)
+        transitions = {{ workflow.transitions | default([]) | tojson }}
+        trans = next((t for t in transitions if t.get("action") == action), None)
+        if not trans or str(trans.get("from")) != str(current):
+            raise BusinessException(
+                message=_("codegen.workflow_invalid_transition"),
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+        if trans.get("requires_comment") and not comment:
+            raise BusinessException(
+                message=_("codegen.workflow_comment_required"),
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+        return await self.update(id, {status_field: trans.get("to")})
+
+{% endif %}
+{% if has_clone %}
+    async def clone(self, id: int) -> {{ resource | pascal }}:
+        """
+        克隆记录 / Clone record.
+
+        工作流状态回初始值 / Workflow status resets to initial.
+        """
+        instance = await self.get_by_id(id)
+        if not instance:
+            raise NotFoundException(message=_("{{ module }}.{{ resource }}.not_found"))
+        data = {
+{% for f in fields if not f.get('divider') and f.get('name') and f.name not in ['id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'tenant_id'] %}
+            "{{ f.name }}": getattr(instance, "{{ f.name }}"),
+{% endfor %}
+        }
+        data.pop("id", None)
+        data.pop("tenant_id", None)
+{% if workflow and workflow.status_field %}
+        data["{{ workflow.status_field }}"] = "{{ workflow.initial_status | default((workflow.transitions[0]['from'] | default('draft')) if (workflow.transitions | default([]) | length > 0) else 'draft') }}"
+{% endif %}
+        return await self.create(data)
+
+{% endif %}
+
+__all__ = ["{{ resource | pascal }}Service"]

@@ -24,6 +24,11 @@ export function useColumns<T = AITablePolicyInfo>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      type: 'expand',
+      width: 40,
+      slots: { content: 'expand_content' },
+    },
+    {
       field: 'table_name',
       title: $t('admin.ai.tablePolicy.tableName'),
       minWidth: 260,
@@ -99,6 +104,29 @@ export function useFormSchema(_policyId?: number): VbenFormSchema[] {
     textareaField('description', $t('admin.ai.tablePolicy.description'), {
       placeholder: $t('admin.ai.tablePolicy.placeholder.inputDescription'),
     }),
+    {
+      component: 'Select',
+      componentProps: {
+        mode: 'tags',
+        tokenSeparators: [',', ' '],
+        placeholder: $t('admin.ai.tablePolicy.placeholder.inputKeywords'),
+      },
+      fieldName: 'keywords',
+      label: $t('admin.ai.tablePolicy.keywords'),
+      help: $t('admin.ai.tablePolicy.keywordsHelp'),
+    },
+    {
+      component: 'Divider',
+      fieldName: 'column_desc_divider',
+      label: '',
+      componentProps: {
+        orientation: 'left',
+        plain: true,
+      },
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.tablePolicy.columnDescriptions'),
+      }),
+    },
     inputField('permission_code', $t('admin.ai.tablePolicy.permissionCode'), {
       placeholder: $t('admin.ai.tablePolicy.placeholder.inputPermissionCode'),
     }),

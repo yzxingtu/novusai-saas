@@ -73,9 +73,10 @@ class TenantAITablePolicyController(TenantController):
 
             # 清除 Redis 缓存 / Clear Redis cache
             from app.ai.constants import schema_cache_key
-            from app.core.cache import redis_manager
+            from app.core.redis import get_redis
+            redis = await get_redis()
             cache_key = schema_cache_key(tenant_admin.tenant_id)
-            await redis_manager.delete(cache_key)
+            await redis.delete(cache_key)
 
             return success(data={"id": override.id})
 
@@ -94,9 +95,10 @@ class TenantAITablePolicyController(TenantController):
 
             # 清除 Redis 缓存 / Clear Redis cache
             from app.ai.constants import schema_cache_key
-            from app.core.cache import redis_manager
+            from app.core.redis import get_redis
+            redis = await get_redis()
             cache_key = schema_cache_key(tenant_admin.tenant_id)
-            await redis_manager.delete(cache_key)
+            await redis.delete(cache_key)
 
             return deleted()
 

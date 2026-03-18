@@ -6,6 +6,8 @@ Platform-level model definitions.
 """
 
 from app.models.system.admin import Admin
+from app.models.system.codegen_config import CodegenConfig
+from app.models.system.codegen_config_version import CodegenConfigVersion
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.models.system.config import (
     SystemConfig,
@@ -23,6 +25,8 @@ from app.models.system.task_log import TaskLog
 
 __all__ = [
     "Admin",
+    "CodegenConfig",
+    "CodegenConfigVersion",
     "SystemConfigGroup",
     "SystemConfig",
     "SystemConfigValue",

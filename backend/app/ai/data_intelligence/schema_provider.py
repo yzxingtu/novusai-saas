@@ -22,7 +22,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.constants import SCHEMA_CACHE_TTL, schema_cache_key
+from app.ai.constants import SCHEMA_CACHE_KEY_PREFIX, SCHEMA_CACHE_TTL, schema_cache_key
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
@@ -585,9 +585,31 @@ class SchemaProvider:
             logger.warning("Failed to invalidate schema cache: {}", str(exc))
 
     @staticmethod
+    async def invalidate_all_schema_caches() -> None:
+        """
+        Clear all tenant schema caches (ai:schema:*).
+
+        Use when platform-level table policies change; all tenants must reload schema.
+        平台级表策略变更时调用，清除所有企业的 schema 缓存。
+        """
+        try:
+            from app.core.redis import get_redis
+            redis = await get_redis()
+            pattern = f"{SCHEMA_CACHE_KEY_PREFIX}*"
+            count = 0
+            async for key in redis.scan_iter(match=pattern, count=200):
+                await redis.delete(key)
+                count += 1
+            if count > 0:
+                logger.info("Invalidated {} schema cache(s) for pattern {}", count, pattern)
+        except Exception as exc:
+            logger.warning("Failed to invalidate all schema caches: {}", str(exc))
+
+    @staticmethod
     async def get_table_descriptions(
         db: AsyncSession,
         table_policy_ids: list[int] | None = None,
+        tenant_id: int | None = None,
     ) -> list[tuple[str, str]]:
         """Get (table_name, label) list for enabled tables, for tool description registration.
         获取启用表的 (table_name, label) 列表，用于工具描述注册。
@@ -596,8 +618,16 @@ class SchemaProvider:
             db: Database session / 数据库会话
             table_policy_ids: Restricted table policy ID list (from Skill.config).
                               When None, loads all active policies (backward compatible).
-                              限定的表策略 ID 列表，为 None 时加载所有 active 策略。
+            tenant_id: When set, applies ai_table_policy_overrides for that tenant.
         """
+        if tenant_id is not None and tenant_id > 0:
+            policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
+            filtered = [
+                p for p in policies
+                if (table_policy_ids is None or p["id"] in table_policy_ids)
+                and p.get("allow_read", True)
+            ]
+            return [(p["table_name"], p["label"]) for p in filtered]
         stmt = select(
             AITablePolicy.table_name,
             AITablePolicy.label,
@@ -613,9 +643,43 @@ class SchemaProvider:
         return [(row[0], row[1]) for row in result.all()]
 
     @staticmethod
+    async def _load_active_policies_with_ids(
+        db: AsyncSession,
+        tenant_id: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Load policies with id included for filtering by table_policy_ids."""
+        stmt = select(AITablePolicy).where(
+            AITablePolicy.is_active == True,  # noqa: E712
+            AITablePolicy.is_deleted == False,  # noqa: E712
+        ).order_by(AITablePolicy.sort_order, AITablePolicy.table_name)
+        result = await db.execute(stmt)
+        global_policies = result.scalars().all()
+
+        overrides_map: dict[int, AITablePolicyOverride] = {}
+        if tenant_id and tenant_id > 0:
+            ov_stmt = select(AITablePolicyOverride).where(
+                AITablePolicyOverride.tenant_id == tenant_id,
+                AITablePolicyOverride.is_deleted == False,  # noqa: E712
+            )
+            ov_result = await db.execute(ov_stmt)
+            for ov in ov_result.scalars().all():
+                overrides_map[ov.policy_id] = ov
+
+        policies: list[dict[str, Any]] = []
+        for gp in global_policies:
+            ov = overrides_map.get(gp.id)
+            policy = _merge_policy_with_override(gp, ov)
+            if not policy["is_active"]:
+                continue
+            policy["id"] = gp.id
+            policies.append(policy)
+        return policies
+
+    @staticmethod
     async def get_crud_allowed_tables(
         db: AsyncSession,
         table_policy_ids: list[int] | None = None,
+        tenant_id: int | None = None,
     ) -> dict[str, list[tuple[str, str]]]:
         """Get tables allowed for each CRUD operation.
         获取各 CRUD 操作允许的表列表。
@@ -623,12 +687,29 @@ class SchemaProvider:
         Args:
             db: Database session / 数据库会话
             table_policy_ids: Restricted table policy ID list (from Skill.config).
-                              When None, loads all active policies (backward compatible).
-                              限定的表策略 ID 列表，为 None 时加载所有 active 策略。
+            tenant_id: When set, applies ai_table_policy_overrides for that tenant.
 
         Returns:
             {"create": [(name, label), ...], "update": [...], "delete": [...]}
         """
+        if tenant_id is not None and tenant_id > 0:
+            policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
+            filtered = [
+                p for p in policies
+                if table_policy_ids is None or p["id"] in table_policy_ids
+            ]
+            crud_tables: dict[str, list[tuple[str, str]]] = {
+                "create": [], "update": [], "delete": [],
+            }
+            for p in filtered:
+                tname, label = p["table_name"], p["label"]
+                if p.get("allow_create"):
+                    crud_tables["create"].append((tname, label))
+                if p.get("allow_update"):
+                    crud_tables["update"].append((tname, label))
+                if p.get("allow_delete"):
+                    crud_tables["delete"].append((tname, label))
+            return crud_tables
         stmt = select(
             AITablePolicy.table_name,
             AITablePolicy.label,
@@ -649,11 +730,11 @@ class SchemaProvider:
         }
         for row in result.all():
             tname, label = row[0], row[1]
-            if row[2]:  # allow_create
+            if row[2]:
                 crud_tables["create"].append((tname, label))
-            if row[3]:  # allow_update
+            if row[3]:
                 crud_tables["update"].append((tname, label))
-            if row[4]:  # allow_delete
+            if row[4]:
                 crud_tables["delete"].append((tname, label))
         return crud_tables
 

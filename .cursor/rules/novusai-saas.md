@@ -192,6 +192,12 @@ error(message, code, status_code)         # 自定义错误
 | 平台级资源（无企业隔离） | `GlobalService` |
 | 跨企业共享 | `BaseService` |
 
+### Codegen 代码生成器
+
+- **codegen 管理页面**：仅 DEBUG 模式可用（通过路由或权限控制）
+- **生成代码命名**：resource 用 snake_case（category、notice）；module 用单数（system、tenant、business）
+- **生成后必须审查**：生成的代码需人工 review，尤其权限、数据隔离、软删除等
+
 ### Service 钩子方法（写操作保护必用）
 
 ```python

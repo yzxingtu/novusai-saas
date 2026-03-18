@@ -45,6 +45,8 @@ from app.api.admin.attachments import router as attachments_router
 from app.api.admin.auth import router as auth_router
 from app.api.admin.cache import AdminCacheController
 from app.api.admin.cache import router as cache_router
+from app.api.admin.codegen import AdminCodegenController
+from app.api.admin.codegen import router as codegen_router
 from app.api.admin.configs import AdminConfigController
 from app.api.admin.configs import router as configs_router
 from app.api.admin.dashboard import router as dashboard_router
@@ -159,6 +161,8 @@ admin_router.include_router(plugins_router)
 admin_router.include_router(ai_writing_router)
 # 缓存管理 / Cache management
 admin_router.include_router(cache_router)
+# 代码生成器 / Codegen (DEBUG only)
+admin_router.include_router(codegen_router)
 
 
 __all__ = [
@@ -212,4 +216,6 @@ __all__ = [
     "AdminPluginController",
     # 缓存管理 / Cache management
     "AdminCacheController",
+    # 代码生成器 / Codegen
+    "AdminCodegenController",
 ]

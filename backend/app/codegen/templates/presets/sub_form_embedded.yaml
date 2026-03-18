@@ -1,0 +1,61 @@
+# 主子表预设 - 内嵌模式 / Sub-form Preset - Embedded Mode
+# 列表页内嵌展示子表数据（可展开行）
+# Sub table data embedded in list (expandable rows)
+module: business
+resource: order
+display_name: 订单
+display_name_en: Order
+
+model:
+  base_class: TenantModel
+
+fields:
+  - name: order_no
+    type: String(50)
+    required: true
+    unique: true
+    filterable: true
+    comment: 订单编号
+  - name: customer_name
+    type: String(100)
+    filterable: true
+    comment: 客户名称
+  - name: total_amount
+    type: Decimal
+    comment: 总金额
+
+sub_tables:
+  - resource: order_item
+    foreign_key: order_id
+    relation_type: one_to_many
+    mode: embedded
+    fields:
+      - name: product_name
+        type: String(200)
+        required: true
+        comment: 商品名称
+      - name: quantity
+        type: Integer
+        required: true
+        default: 1
+        comment: 数量
+      - name: price
+        type: Decimal
+        required: true
+        comment: 单价
+
+endpoints:
+  - scope: tenant
+    data_mode: independent
+    route_prefix: /orders
+    permission:
+      scope: all_tenants
+      parent_resource: business
+      menu:
+        icon: lucide:shopping-cart
+        path: /business/orders
+        component: business/order/index
+        parent: business_mgmt
+        sort_order: 10
+    frontend:
+      mode: table

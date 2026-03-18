@@ -3,4 +3,5 @@
  */
 
 export * from './auth';
+export * from './codegen-builder';
 export * from './plugin-install-progress';

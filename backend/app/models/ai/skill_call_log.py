@@ -21,6 +21,12 @@ class SkillCallLog(TenantModel):
 
     __tablename__ = "skill_call_logs"
 
+    __ai_policy__ = {
+        "label": "技能调用日志",
+        "keywords": ["调用", "call"],
+        "allow_read": True,
+    }
+
     __filterable__ = {
         "skill_id": "skill_id",
         "agent_id": "agent_id",

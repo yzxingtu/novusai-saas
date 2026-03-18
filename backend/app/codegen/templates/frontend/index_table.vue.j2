@@ -1,0 +1,160 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 列表页 (Table 模式)
+ * {{ display_name_en }} List Page (Table mode)
+ */
+{% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
+{% set _fe = _ep.get('frontend') or {} %}
+{% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
+{% set resource_path = route_prefix | replace('/', '') or resource_plural %}
+{% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set perm_resource = resource | replace('-', '_') %}
+{% set _recycle_bin = _fe.get('recycle_bin', False) %}
+{% set _export = _fe.get('export', False) %}
+{% set _import = _fe.get('import', False) %}
+{% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import {
+  get{{ resource | pascal }}ListApi,
+  {% if toggle_field %}toggle{{ resource | pascal }}StatusApi,{% endif %}
+  {% if model.drag_sort | default(false) %}reorder{{ resource | pascal }}sApi,{% endif %}
+  {% if batch and batch.get('delete') %}batchDelete{{ resource | pascal }}sApi,{% endif %}
+  {% if _import %}import{{ resource | pascal }}Api,{% endif %}
+} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _import %}import { ref } from 'vue';
+{% endif %}
+import { useCrudPage } from '#/composables';
+{% if model.drag_sort | default(false) %}
+import { useAutoTableDragSort } from '#/adapter/vxe-table';
+{% endif %}
+{% set ns = namespace(has_cell_image=false) %}
+{% for f in (fields or []) if not f.get('divider') %}
+{% if type_registry.get_cell_render(f) == 'CellImage' %}{% set ns.has_cell_image = true %}{% endif %}
+{% endfor %}
+import { {% if ns.has_cell_image %}Image, {% endif %}message, Modal } from 'ant-design-vue';
+import { $t } from '#/locales';
+
+import {
+  getFormDefaults,
+  useColumns,
+  useFormSchema,
+  useGridFormSchema,
+} from './data';
+import Form from './modules/form.vue';
+
+defineOptions({ name: '{{ resource | pascal }}List' });
+
+{% if toggle_field %}
+function onToggleStatus(row: {{ resource | pascal }}Info) {
+  const isDisabling = row.{{ toggle_field | camel }};
+  Modal.confirm({
+    title: isDisabling
+      ? $t('{{ i18n_pre }}.messages.confirmDisable')
+      : $t('{{ i18n_pre }}.messages.confirmEnable'),
+    onOk: async () => {
+      await toggle{{ resource | pascal }}StatusApi(row.id, { {{ toggle_field }}: !isDisabling });
+      message.success($t('{{ i18n_pre }}.messages.toggleSuccess'));
+      onRefresh();
+    },
+  });
+}
+{% endif %}
+
+const {
+  FormDrawer,
+  Grid,
+  ExportModal,
+  gridApi,
+  onCreate,
+  onRefresh,
+  openExportModal,
+} = useCrudPage<{{ resource | pascal }}Info>({
+  api: {
+    list: get{{ resource | pascal }}ListApi,
+    resource: '{{ full_path }}',
+    {% if toggle_field %}toggles: { {{ toggle_field }}: toggle{{ resource | pascal }}StatusApi },{% endif %}
+  },
+  columns: useColumns,
+  createPermission: '{{ perm_resource }}:create',
+  defaultSort: '{{ _default_sort }}',
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: '{{ i18n_pre }}',
+  nameField: 'name',
+  recycleBin: {{ _recycle_bin | lower }},
+  searchSchema: useGridFormSchema(),
+  toolbar: { custom: true, export: {{ _export | lower }}, refresh: true, search: true, zoom: true },
+  ai: { pageKey: '{{ i18n_pre }}', formSchema: useFormSchema },
+});
+
+function onFormSuccess() {
+  onRefresh();
+}
+
+{% if _import %}
+const inputImportRef = ref<HTMLInputElement | null>(null);
+function onImportClick() {
+  inputImportRef.value?.click();
+}
+async function onImportChange(e: Event) {
+  const el = e.target as HTMLInputElement;
+  const file = el.files?.[0];
+  if (!file) return;
+  try {
+    const res = await import{{ resource | pascal }}Api(file);
+    const data = res?.data as { imported?: number; errors?: string[] } | undefined;
+    message.success($t('shared.common.importSuccess', { count: data?.imported ?? 0 }));
+    if (data?.errors?.length) {
+      message.warning(data.errors.slice(0, 3).join('; '));
+    }
+    onRefresh();
+  } catch (err: any) {
+    message.error(err?.message || $t('shared.common.importFailed'));
+  } finally {
+    el.value = '';
+  }
+}
+{% endif %}
+{% if model.drag_sort | default(false) %}
+useAutoTableDragSort(() => gridApi.grid, {
+  keyField: 'id',
+  onBatchUpdate: (ids) => reorder{{ resource | pascal }}sApi(ids as number[]),
+});
+{% endif %}
+</script>
+
+<template>
+  <Grid>
+    <template #toolbar-tools>
+      {% if _import %}
+      <Button
+        v-if="!createPermission || $auth.has((createPermission || '').replace(/:\w+$/, ':import'))"
+        type="default"
+        size="small"
+        class="ml-2"
+        @click="onImportClick"
+      >
+        {{ "{{ $t('common.import') }}" }}
+      </Button>
+      {% endif %}
+    </template>
+{% for f in (fields or []) if not f.get('divider') and type_registry.get_cell_render(f) == 'CellImage' %}
+    <template #{{ f.name }}_cell="{ row }">
+      <Image v-if="row.{{ f.name | camel }}" :src="Array.isArray(row.{{ f.name | camel }}) ? row.{{ f.name | camel }}[0] : row.{{ f.name | camel }}" :preview="true" style="max-height: 40px; max-width: 40px; object-fit: cover;" />
+      <span v-else>-</span>
+    </template>
+{% endfor %}
+  </Grid>
+  <FormDrawer @success="onFormSuccess" />
+  <ExportModal />
+  {% if _import %}
+  <input
+    ref="inputImportRef"
+    type="file"
+    accept=".xlsx,.xls"
+    class="hidden"
+    @change="onImportChange"
+  />
+  {% endif %}
+</template>

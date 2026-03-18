@@ -1,0 +1,61 @@
+# 状态工作流预设 / Workflow Preset
+# 参考 V2 第九章 L789-840
+module: business
+resource: approval
+display_name: 审批单
+display_name_en: Approval
+
+model:
+  base_class: TenantModel
+  data_permission: true
+
+fields:
+  - name: title
+    type: String(200)
+    required: true
+    filterable: true
+    comment: 标题
+  - name: content
+    type: Text
+    form:
+      component: RichText
+    comment: 内容
+  - name: status
+    type: Enum
+    enum_values:
+      - { value: draft, label_zh: 草稿, label_en: Draft, color: default }
+      - { value: submitted, label_zh: 已提交, label_en: Submitted, color: processing }
+      - { value: approved, label_zh: 已通过, label_en: Approved, color: success }
+      - { value: rejected, label_zh: 已驳回, label_en: Rejected, color: error }
+    column:
+      cell_render: CellTag
+
+workflow:
+  status_field: status
+  transitions:
+    - { from: draft, to: submitted, action: submit, label_zh: 提交 }
+    - { from: submitted, to: approved, action: approve, label_zh: 通过 }
+    - { from: submitted, to: rejected, action: reject, label_zh: 驳回, requires_comment: true }
+    - { from: rejected, to: draft, action: revise, label_zh: 修订 }
+
+detail:
+  enabled: true
+  groups:
+    - { title_zh: 基本信息, fields: [title, content, status] }
+    - { title_zh: 系统信息, fields: [created_at, created_by] }
+
+endpoints:
+  - scope: tenant
+    data_mode: independent
+    route_prefix: /approvals
+    permission:
+      scope: all_tenants
+      parent_resource: business
+      menu:
+        icon: lucide:clipboard-check
+        path: /business/approvals
+        component: business/approval/index
+        parent: business_mgmt
+        sort_order: 10
+    frontend:
+      mode: table

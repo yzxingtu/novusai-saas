@@ -37,6 +37,12 @@ class UsageStat(TenantModel):
 
     __tablename__ = "ai_usage_stats"
 
+    __ai_policy__ = {
+        "label": "AI 用量统计",
+        "keywords": ["用量", "usage", "统计"],
+        "allow_read": True,
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

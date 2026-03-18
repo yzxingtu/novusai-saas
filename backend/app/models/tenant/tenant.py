@@ -25,6 +25,12 @@ class Tenant(BaseModel):
 
     __tablename__ = "tenants"
 
+    __ai_policy__ = {
+        "label": "企业",
+        "keywords": ["企业", "tenant", "组织", "商户", "客户"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("TenantAdmin", "tenant_id", DeletionStrategy.BLOCK,
                     label_field="username", i18n_key="tenant_admin"),

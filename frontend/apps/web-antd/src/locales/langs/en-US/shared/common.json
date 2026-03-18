@@ -49,6 +49,8 @@
   "sortFailed": "Sort update failed",
   "exportSuccess": "Export successful",
   "exportFailed": "Export failed",
+  "importSuccess": "Import successful, {count} items",
+  "importFailed": "Import failed",
   "exportModal": {
     "title": "Export Data",
     "filename": "Filename",

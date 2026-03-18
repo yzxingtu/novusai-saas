@@ -422,37 +422,41 @@ const displayCount = computed(() => {
         </div>
       </template>
 
-      <!-- Trigger / 触发器 -->
-      <Input
-        :value="value"
-        :placeholder="placeholder"
-        readonly
-        class="cursor-pointer"
+      <!-- Trigger / 触发器：自定义 flex 布局，保证图标按钮与 input 高度一致 -->
+      <div
+        class="flex h-9 w-full cursor-pointer items-stretch overflow-hidden rounded-lg border border-input bg-background text-sm transition-colors hover:border-primary/50 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
       >
-        <template #addonBefore>
-          <div
+        <!-- 图标选择区：与 input 等高 -->
+        <div
+          class="flex min-w-[36px] shrink-0 items-center justify-center border-r border-border bg-muted/30"
+        >
+          <IconifyIcon
             v-if="value"
-            class="flex size-8 cursor-pointer items-center justify-center text-primary"
-          >
-            <IconifyIcon :icon="value" class="size-5" />
-          </div>
-          <div
+            :icon="value"
+            class="size-5 text-primary"
+          />
+          <IconifyIcon
             v-else
-            class="flex size-8 cursor-pointer items-center justify-center text-muted-foreground hover:text-primary"
-          >
-            <IconifyIcon icon="lucide:plus" class="size-5" />
-          </div>
-        </template>
-        <template #suffix>
-          <div
-            v-if="value"
-            class="flex cursor-pointer items-center hover:text-primary"
-            @click.stop="onClear"
-          >
-            <IconifyIcon icon="lucide:x" class="size-4" />
-          </div>
-        </template>
-      </Input>
+            icon="lucide:plus"
+            class="size-5 text-muted-foreground transition-colors hover:text-primary"
+          />
+        </div>
+        <!-- 输入框：重写为原生 input，与左侧图标区等高 -->
+        <input
+          :value="value"
+          :placeholder="placeholder"
+          readonly
+          class="min-w-0 flex-1 cursor-pointer bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+        />
+        <!-- 清空按钮 -->
+        <div
+          v-if="value"
+          class="flex shrink-0 cursor-pointer items-center px-2 text-muted-foreground transition-colors hover:text-primary"
+          @click.stop="onClear"
+        >
+          <IconifyIcon icon="lucide:x" class="size-4" />
+        </div>
+      </div>
     </Popover>
   </div>
 </template>

@@ -89,6 +89,26 @@ class AdminAITablePolicyController(GlobalController):
                 message=_("common.success"),
             )
 
+        @router.get("/declared-tables", summary="获取声明了 __ai_policy__ 的表名列表")
+        @action_read("action.ai_table_policy.list")
+        async def get_declared_tables(
+            request: Request,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取声明了 __ai_policy__ 的表名列表 / Get table names with __ai_policy__ declaration
+
+            用于前端标记未声明的历史策略 / For frontend to mark undeclared legacy policies
+
+            权限 / Permission: ai_table_policy:list
+            """
+            from app.services.ai.table_policy_sync_service import get_declared_table_names
+            names = list(get_declared_table_names())
+            return success(
+                data=names,
+                message=_("common.success"),
+            )
+
         @router.get("/{policy_id}", summary="获取 AI 表策略详情")
         @action_read("action.ai_table_policy.detail")
         async def get_policy(
@@ -134,9 +154,9 @@ class AdminAITablePolicyController(GlobalController):
             await db.commit()
             await db.refresh(policy)
 
-            # 清除 Redis schema 缓存（所有企业） / Clear Redis schema cache (all tenants)
+            # 清除所有企业 schema 缓存（平台策略变更影响全租户）/ Clear all tenant schema caches
             from app.ai.data_intelligence.schema_provider import SchemaProvider
-            await SchemaProvider.invalidate_cache(0)
+            await SchemaProvider.invalidate_all_schema_caches()
 
             return success(
                 data=AITablePolicyResponse.model_validate(policy, from_attributes=True),
@@ -181,9 +201,9 @@ class AdminAITablePolicyController(GlobalController):
             from app.services.ai.table_policy_sync_service import sync_table_policies
             result = await sync_table_policies(db)
 
-            # 清除 Redis schema 缓存 / Clear Redis schema cache
+            # 清除所有企业 schema 缓存（同步后影响全租户）/ Clear all tenant schema caches
             from app.ai.data_intelligence.schema_provider import SchemaProvider
-            await SchemaProvider.invalidate_cache(0)
+            await SchemaProvider.invalidate_all_schema_caches()
 
             return success(
                 data=result,

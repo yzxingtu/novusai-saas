@@ -44,6 +44,12 @@ class TenantPlan(BaseModel):
 
     __tablename__ = "tenant_plans"
 
+    __ai_policy__ = {
+        "label": "企业套餐",
+        "keywords": ["套餐", "plan", "计划", "订阅"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("Tenant", "plan_id", DeletionStrategy.BLOCK,
                     label_field="name", i18n_key="tenant"),

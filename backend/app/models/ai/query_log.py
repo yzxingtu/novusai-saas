@@ -26,6 +26,13 @@ class AIQueryLog(TenantModel):
 
     __tablename__ = "ai_query_logs"
 
+    __ai_policy__ = {
+        "label": "数据查询日志",
+        "keywords": ["SQL", "query", "查询"],
+        "allow_read": True,
+        "blocked_columns": ["generated_sql", "final_sql"],
+    }
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",

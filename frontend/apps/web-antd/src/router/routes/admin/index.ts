@@ -99,6 +99,39 @@ const mainRoutes: RouteRecordRaw = {
       },
     },
     // 插件详情改为抽屉形式，不再需要独立路由
+    // 代码生成器：DEBUG 模式，静态注册 / Codegen: DEBUG only, static routes
+    {
+      name: 'AdminSystemCodegen',
+      path: 'system/codegen',
+      component: () => import('#/views/admin/system/codegen/index.vue'),
+      meta: {
+        hideInProduction: true,
+        title: $t('admin.system.codegen.name'),
+        activePath: '/admin/system/codegen',
+      },
+    },
+    {
+      name: 'AdminSystemCodegenNew',
+      path: 'system/codegen/new',
+      component: () => import('#/views/admin/system/codegen/builder.vue'),
+      meta: {
+        hideInMenu: true,
+        hideInProduction: true,
+        title: $t('admin.system.codegen.builderNew'),
+        activePath: '/admin/system/codegen',
+      },
+    },
+    {
+      name: 'AdminSystemCodegenEdit',
+      path: 'system/codegen/:id/edit',
+      component: () => import('#/views/admin/system/codegen/builder.vue'),
+      meta: {
+        hideInMenu: true,
+        hideInProduction: true,
+        title: $t('admin.system.codegen.builderEdit'),
+        activePath: '/admin/system/codegen',
+      },
+    },
     // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu
     {
       name: 'AdminProfile',

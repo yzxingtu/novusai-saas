@@ -24,6 +24,13 @@ class TaskLog(BaseModel):
 
     __tablename__ = "task_logs"
 
+    __ai_policy__ = {
+        "label": "任务执行日志",
+        "keywords": ["任务", "task"],
+        "allow_read": True,
+        "blocked_columns": ["args", "kwargs"],
+    }
+
     __filterable__ = {
         "id": "id",
         "task_id": "task_id",

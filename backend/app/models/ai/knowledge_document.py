@@ -41,6 +41,12 @@ class KnowledgeDocument(TenantModel):
 
     __tablename__ = "knowledge_documents"
 
+    __ai_policy__ = {
+        "label": "知识库文档",
+        "keywords": ["文档", "document"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("DocumentChunk", "document_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="document_chunk"),

@@ -47,7 +47,8 @@
       "email_log": "Email Logs",
       "recycle_bin": "Recycle Bin",
       "notification_template": "Notification Templates",
-      "cache_management": "Cache Management"
+      "cache_management": "Cache Management",
+      "codegen": "Code Generator"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",

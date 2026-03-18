@@ -1,0 +1,199 @@
+{#
+{{ display_name }} 模型 / {{ display_name_en }} Model
+条件: __filterable__/__sortable__/__selectable__/__delete_deps__/__table_args__/__hierarchy__/__data_permission__
+#}
+{% set _m2m = relations | selectattr('type', 'equalto', 'many_to_many') | list %}
+"""
+{{ display_name }}模型 / {{ display_name_en }} Model
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+{% if _m2m %}    Table,
+{% endif %}
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.base_model import Base, {{ model.base_class | default('TenantModel') }}
+from app.core.deletion import DeletionDep, DeletionStrategy
+
+
+{% set base_class = model.base_class | default('TenantModel') %}
+{% set table_name = model.table_name | default(resource_plural) %}
+{% set has_tree = model.tree is defined and model.tree is mapping and model.tree.get('enabled') %}
+{% set has_unique_together = model.unique_together is defined and model.unique_together and model.unique_together | length > 0 %}
+{% set has_data_permission = model.data_permission %}
+{% set has_delete_deps = model.delete_deps is defined and model.delete_deps and model.delete_deps | length > 0 %}
+{% set has_selectable = model.selectable is defined and model.selectable and model.selectable is mapping %}
+{% set has_drag_sort = model.drag_sort | default(false) %}
+{% for rel in _m2m %}
+{% set target_table = rel.target | model_to_table %}
+{% set target_fk_col = rel.target | model_to_fk %}
+{% set junc_table_name = rel.junction_table | default(resource + '_' + target_table) %}
+{% set junc_var_name = junc_table_name | replace('-', '_') %}
+{# M2M 中间表 / M2M junction table #}
+{{ junc_var_name }} = Table(
+    "{{ junc_table_name }}",
+    Base.metadata,
+    Column("{{ rel.my_fk | default(resource + '_id') }}", Integer, ForeignKey("{{ table_name }}.id", ondelete="CASCADE"), primary_key=True),
+    Column("{{ rel.target_fk | default(target_fk_col) }}", Integer, ForeignKey("{{ target_table }}.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+{% endfor %}
+class {{ resource | pascal }}({{ base_class }}):
+    """
+    {{ display_name }}模型 / {{ display_name_en }} model.
+    """
+
+    __tablename__ = "{{ table_name }}"
+
+    # 可过滤字段 / Filterable fields
+    __filterable__ = {
+{% for f in fields if not f.get('divider') and f.get('filterable') %}
+        "{{ f.name }}": "{{ f.name }}",
+{% endfor %}
+{% if base_class == 'TenantModel' %}
+        "tenant_id": "tenant_id",
+{% endif %}
+    }
+
+    # 可排序字段 / Sortable fields
+    __sortable_fields__ = {
+{% for f in fields if not f.get('divider') and f.get('sortable') %}
+        "{{ f.name }}": "{{ f.name }}",
+{% endfor %}
+{% if base_class == 'TenantModel' %}
+        "tenant_id": "tenant_id",
+{% endif %}
+    }
+
+{% if (fields | selectattr('name', 'equalto', 'sort_order') | list | length > 0) and has_drag_sort %}
+    # 拖拽排序配置 / Drag sort config
+    __sortable__ = {
+        "field": "sort_order",
+        "step": 1000,
+        "scope_fields": {{ (["tenant_id"] if base_class == 'TenantModel' else []) | tojson }},
+    }
+
+{% endif %}
+{% if has_selectable %}
+    __selectable__ = {
+        "label": "{{ model.selectable.label | default('name') }}",
+        "value": "{{ model.selectable.value | default('id') }}",
+        "search": {{ model.selectable.search | default(['name']) | tojson }},
+    }
+
+{% endif %}
+{% if has_delete_deps %}
+    __delete_deps__ = [
+{% for dep in model.delete_deps %}
+        DeletionDep("{{ dep.model }}", "{{ dep.fk_field }}", DeletionStrategy.{{ dep.strategy | default('BLOCK') | upper }},
+                    label_field="{{ dep.label_field | default('name') }}", i18n_key="{{ dep.i18n_key | default('') }}"),
+{% endfor %}
+    ]
+
+{% endif %}
+{% if has_unique_together %}
+    __table_args__ = (
+        UniqueConstraint({{ model.unique_together | map('string') | join(', ') }}, name="uq_{{ resource }}_{{ model.unique_together | join('_') }}"),
+    )
+
+{% endif %}
+{% if has_tree %}
+    __hierarchy__ = {"parent_field": "parent_id", "children_field": "children"}
+
+{% endif %}
+{% if has_data_permission %}
+    __data_permission__ = True
+
+{% endif %}
+    # ==================== 字段定义 / Field definitions ====================
+
+{% for f in fields %}
+{% if f.get('divider') %}
+    # --- {{ f.name }} ---
+
+{% elif f.name == 'parent_id' and has_tree %}
+    # 树形父节点 / Tree parent
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("{{ table_name }}.id"), nullable=True, index=True, comment="父节点ID / Parent ID"
+    )
+
+{% elif not f.get('divider') and f.name != 'parent_id' and not (has_data_permission and f.name in ['created_by', 'dept_id']) %}
+{% set nullable = f.get('nullable', not f.get('required', true)) %}
+    {{ f.name }}: {{ type_registry.get_mapped_annotation(f.type | default('String'), nullable) }} = mapped_column(
+        {{ get_column_args(f, type_registry) }}
+    )
+
+{% endif %}
+{% endfor %}
+{% if has_data_permission %}
+    # 数据权限字段 / Data permission fields
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="创建人ID / Created by ID")
+    dept_id: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="所属部门ID / Department ID")
+
+{% endif %}
+    # ==================== 关系定义 / Relationships ====================
+
+{% for rel in relations %}
+{% if rel.type == 'many_to_one' %}
+{% set fk_field = rel.foreign_key | default(rel.target | model_to_fk) %}
+    {{ rel.name | default(fk_field | replace('_id', '')) }}: Mapped["{{ rel.target }} | None"] = relationship(
+        "{{ rel.target }}",
+        back_populates="{{ rel.back_populates | default(resource_plural) }}",
+        lazy="{{ rel.lazy | default('selectin') }}",
+        foreign_keys=[{{ fk_field }}],
+    )
+
+{% elif rel.type == 'one_to_many' %}
+{% set fk = rel.foreign_key | default(resource + '_id') %}
+    {{ rel.name }}: Mapped[list["{{ rel.target }}"]] = relationship(
+        "{{ rel.target }}",
+        back_populates="{{ rel.back_populates | default(resource) }}",
+        lazy="{{ rel.lazy | default('selectin') }}",
+        foreign_keys="[{{ rel.target }}.{{ fk }}]",
+    )
+
+{% elif rel.type == 'many_to_many' %}
+{% set target_table2 = rel.target | model_to_table %}
+{% set junc_t = rel.junction_table | default(resource + '_' + target_table2) %}
+{% set junc_var = junc_t | replace('-', '_') %}
+    {{ rel.name }}: Mapped[list["{{ rel.target }}"]] = relationship(
+        "{{ rel.target }}",
+        secondary={{ junc_var }},
+        lazy="{{ rel.lazy | default('selectin') }}",
+    )
+
+{% endif %}
+{% endfor %}
+{% if has_tree %}
+    parent: Mapped["{{ resource | pascal }} | None"] = relationship(
+        "{{ resource | pascal }}",
+        remote_side="[{{ resource | pascal }}.id]",
+        back_populates="children",
+        lazy="selectin",
+    )
+    children: Mapped[list["{{ resource | pascal }}"]] = relationship(
+        "{{ resource | pascal }}",
+        back_populates="parent",
+        lazy="selectin",
+    )
+
+{% endif %}
+
+__all__ = ["{{ resource | pascal }}"]

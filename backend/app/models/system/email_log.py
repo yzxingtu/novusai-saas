@@ -22,6 +22,12 @@ class EmailLog(BaseModel):
 
     __tablename__ = "email_logs"
 
+    __ai_policy__ = {
+        "label": "邮件日志",
+        "keywords": ["邮件", "email"],
+        "allow_read": True,
+    }
+
     __filterable__ = {
         "id": "id",
         "to_address": "to_address",

@@ -12,6 +12,8 @@ import type { AdminSkillInfo } from '#/api/admin/skills';
 
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useRoute } from 'vue-router';
+
 import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
@@ -111,6 +113,31 @@ async function loadPackages() {
 }
 
 const router = useRouter();
+const route = useRoute();
+
+/** 从表策略跳转时的 table_policy_id 筛选 */
+const tablePolicyIdFilter = computed(() => {
+  const q = route.query.table_policy_id;
+  if (!q) return null;
+  const n = Number(q);
+  return Number.isFinite(n) ? n : null;
+});
+
+/** 按 table_policy_id 筛选后的技能列表（null/空表策略 = 使用全部，应包含） */
+const displayedSkills = computed(() => {
+  const policyId = tablePolicyIdFilter.value;
+  if (policyId == null) return skills.value;
+  return skills.value.filter((s) => {
+    const ids = s.config?.table_policy_ids as number[] | null | undefined;
+    if (ids == null || (Array.isArray(ids) && ids.length === 0)) return true;
+    return Array.isArray(ids) && ids.includes(policyId);
+  });
+});
+
+function clearTablePolicyFilter() {
+  const { table_policy_id: _, ...rest } = route.query;
+  router.replace({ path: route.path, query: rest });
+}
 
 function onSelectPackage(pkg: AdminSkillPackageInfo) {
   selectedPackageId.value = pkg.id;
@@ -1010,11 +1037,25 @@ onUnmounted(() => {
         </Space>
       </div>
 
+      <!-- 表策略筛选横幅 -->
+      <div
+        v-if="selectedPackage && tablePolicyIdFilter"
+        class="mb-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
+      >
+        <span class="text-primary">
+          {{ $t('admin.ai.skillPackage.tablePolicyFilterHint', { id: tablePolicyIdFilter }) }}
+          ({{ displayedSkills.length }}/{{ skills.length }})
+        </span>
+        <Button type="link" size="small" class="!h-auto !p-0" @click="clearTablePolicyFilter">
+          {{ $t('admin.ai.skillPackage.clearTablePolicyFilter') }}
+        </Button>
+      </div>
+
       <!-- 技能表格 -->
       <div v-if="selectedPackage" class="min-h-0 flex-1 overflow-auto">
         <Table
           :columns="skillColumns"
-          :data-source="skills"
+          :data-source="displayedSkills"
           :loading="skillsLoading"
           :pagination="false"
           row-key="id"

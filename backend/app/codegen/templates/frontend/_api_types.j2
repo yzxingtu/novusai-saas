@@ -1,0 +1,110 @@
+{# Shared API type definitions - include in api_admin / api_tenant #}
+/** {{ display_name }} info (backend raw snake_case) / 原始格式 */
+export interface {{ resource | pascal }}InfoRaw {
+  id: number;
+  created_at: string;
+  updated_at: string;
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
+  {{ f.name }}{% if f.get('nullable') or not f.get('required', true) %}?: {{ ts_type }} | null{% else %}: {{ ts_type }}{% endif %};
+{% endfor %}
+{% if model.base_class | default('TenantModel') == 'TenantModel' %}
+  tenant_id?: number;
+{% endif %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) %}
+  {{ rel_name }}_name?: null | string;
+{% endfor %}
+}
+
+/** {{ display_name }} info (frontend camelCase) / 前端格式 */
+export interface {{ resource | pascal }}Info {
+  id: number;
+  createdAt: string;
+  updatedAt: string;
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
+{% set camel_name = f.name | camel %}
+  {{ camel_name }}{% if f.get('nullable') or not f.get('required', true) %}?: {{ ts_type }} | null{% else %}: {{ ts_type }}{% endif %};
+{% endfor %}
+{% if model.base_class | default('TenantModel') == 'TenantModel' %}
+  tenantId?: number;
+{% endif %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) %}
+  {{ rel_name }}Name?: null | string;
+{% endfor %}
+}
+
+/** Create request / 创建请求 */
+export interface {{ resource | pascal }}CreateRequest {
+{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
+  {{ f.name }}{% if not f.get('required', true) %}?{% endif %}: {{ ts_type }}{% if not f.get('required', true) %} | null{% endif %};
+{% endfor %}
+}
+
+/** Update request / 更新请求 */
+export interface {{ resource | pascal }}UpdateRequest {
+{% for f in fields if not f.get('divider') and f.name not in ['parent_id', 'created_by', 'dept_id'] %}
+{% set ts_type = type_registry.get_ts_type(f.type | default('String')) %}
+  {{ f.name }}?: {{ ts_type }} | null;
+{% endfor %}
+}
+
+{% if toggle_field %}
+/** Toggle status request / 切换状态请求 */
+export interface {{ resource | pascal }}ToggleRequest {
+  {{ toggle_field }}: boolean;
+}
+{% endif %}
+
+/** List params / 列表查询参数 */
+export type {{ resource | pascal }}ListParams = Record<string, unknown>;
+
+/** List response / 分页响应 */
+export interface {{ resource | pascal }}ListResponse {
+  items: {{ resource | pascal }}Info[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+/** Select option / 下拉选项 */
+export interface {{ resource | pascal }}SelectOption {
+  label: string;
+  value: number;
+  extra?: Record<string, unknown> | null;
+  disabled?: boolean;
+  children?: null;
+  is_leaf?: boolean | null;
+}
+
+/** Select response / 下拉选项响应 */
+export interface {{ resource | pascal }}SelectResponse {
+  items: {{ resource | pascal }}SelectOption[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  has_more?: boolean;
+}
+
+/** Transform snake_case -> camelCase / 转为前端格式 */
+export function transform{{ resource | pascal }}(raw: {{ resource | pascal }}InfoRaw): {{ resource | pascal }}Info {
+  return {
+    id: raw.id,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+{% for f in fields if not f.get('divider') and f.name not in ['created_by', 'dept_id'] %}
+{% set camel_name = f.name | camel %}
+    {{ camel_name }}: raw.{{ f.name }},
+{% endfor %}
+{% if model.base_class | default('TenantModel') == 'TenantModel' %}
+    tenantId: raw.tenant_id,
+{% endif %}
+{% for r in relations if r.type == 'many_to_one' %}
+{% set rel_name = (r.name | default((r.foreign_key | default(r.target | model_to_fk)) | replace('_id', ''))) %}
+    {{ rel_name }}Name: raw.{{ rel_name }}_name,
+{% endfor %}
+  };
+}

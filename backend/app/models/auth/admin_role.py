@@ -35,6 +35,13 @@ class AdminRole(BaseModel):
 
     __tablename__ = "admin_roles"
 
+    __ai_policy__ = {
+        "label": "平台角色",
+        "keywords": ["角色", "role"],
+        "allow_read": True,
+        "blocked_columns": ["custom_dept_ids"],
+    }
+
     __delete_deps__ = [
         DeletionDep("Admin", "role_id", DeletionStrategy.BLOCK,
                     label_field="username", i18n_key="admin"),

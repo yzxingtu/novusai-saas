@@ -1,0 +1,165 @@
+"""
+回滚引擎测试 / Rollback tests.
+
+测试 rollback_created、rollback_appended、rollback_merged、
+modified_file_warning、dry_run
+Tests rollback_created, rollback_appended, rollback_merged,
+modified_file_warning, dry_run.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from app.codegen.generator import GeneratedFile
+from app.codegen.manifest import ManifestManager
+from app.codegen.rollback import CodegenRollback, RollbackResult
+
+
+def _setup_manifest(tmp_path: Path, resource: str, files: list[dict]) -> None:
+    """写入 manifest 条目."""
+    manifest_path = tmp_path / "codegen_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "entries": [
+            {
+                "resource": resource,
+                "module": "system",
+                "generated_at": "2026-01-01T00:00:00Z",
+                "config_id": 1,
+                "config_hash": "abc",
+                "files": files,
+            }
+        ],
+        "version": 1,
+    }
+    manifest_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_rollback_created_deletes_file(tmp_path: Path) -> None:
+    """rollback create 操作删除生成的文件."""
+    created_file = tmp_path / "backend" / "app" / "models" / "system" / "category.py"
+    created_file.parent.mkdir(parents=True, exist_ok=True)
+    created_file.write_text("# generated\n")
+
+    _setup_manifest(tmp_path, "category", [{"path": "backend/app/models/system/category.py", "action": "create"}])
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="category")
+
+    assert result.success is True
+    assert "backend/app/models/system/category.py" in result.files_deleted
+    assert not created_file.exists()
+
+
+def test_rollback_appended_removes_content(tmp_path: Path) -> None:
+    """rollback append 操作移除追加的内容."""
+    target = tmp_path / "backend" / "app" / "api" / "admin" / "__init__.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    appended = "router.include_router(category_router, prefix='/categories')"
+    target.write_text("from fastapi import APIRouter\n\nrouter = APIRouter()\n" + appended + "\n")
+
+    _setup_manifest(
+        tmp_path,
+        "category",
+        [
+            {
+                "path": "backend/app/api/admin/__init__.py",
+                "action": "append",
+                "appended_content": appended,
+            }
+        ],
+    )
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="category")
+
+    assert result.success is True
+    assert "backend/app/api/admin/__init__.py" in result.files_modified
+    content = target.read_text()
+    assert appended not in content
+    assert "APIRouter" in content
+
+
+def test_rollback_merged_removes_keys(tmp_path: Path) -> None:
+    """rollback merge_json 操作移除合并的 key."""
+    target = tmp_path / "frontend" / "locales" / "zh-CN" / "codegen.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        '{"common": {"ok": "确定"}, "category": {"title": "分类"}}\n',
+        encoding="utf-8",
+    )
+
+    _setup_manifest(
+        tmp_path,
+        "category",
+        [
+            {
+                "path": "frontend/locales/zh-CN/codegen.json",
+                "action": "merge_json",
+                "merged_keys": ["category"],
+            }
+        ],
+    )
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="category")
+
+    assert result.success is True
+    assert "frontend/locales/zh-CN/codegen.json" in result.files_modified
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert "category" not in data
+    assert data["common"]["ok"] == "确定"
+
+
+def test_rollback_modified_file_warning_skips_append(tmp_path: Path) -> None:
+    """当 append 内容已被修改时，跳过并记录 files_skipped."""
+    target = tmp_path / "routers.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    original_append = "router.include_router(x)"
+    target.write_text("router = APIRouter()\n# user edited this\n")  # 无 appended 内容
+
+    _setup_manifest(
+        tmp_path,
+        "category",
+        [
+            {"path": "routers.py", "action": "append", "appended_content": original_append}
+        ],
+    )
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="category")
+
+    assert result.success is True
+    skipped = [s for s in result.files_skipped if s.get("path") == "routers.py"]
+    assert len(skipped) == 1
+    assert skipped[0].get("reason") == "appended_content_modified"
+
+
+def test_rollback_dry_run_no_changes(tmp_path: Path) -> None:
+    """dry_run 仅列出操作，不实际修改文件."""
+    created_file = tmp_path / "generated.py"
+    created_file.write_text("content")
+
+    _setup_manifest(tmp_path, "category", [{"path": "generated.py", "action": "create"}])
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="category", dry_run=True)
+
+    assert result.success is True
+    assert "generated.py" in result.files_deleted
+    assert created_file.exists()
+    assert created_file.read_text() == "content"
+
+
+def test_rollback_no_entry_returns_error(tmp_path: Path) -> None:
+    """无 manifest 条目时返回错误."""
+    _setup_manifest(tmp_path, "other", [])
+
+    rollback = CodegenRollback(project_root=tmp_path)
+    result = rollback.rollback(resource="nonexistent")
+
+    assert result.success is False
+    assert len(result.errors) > 0
+    assert "manifest" in " ".join(result.errors).lower()

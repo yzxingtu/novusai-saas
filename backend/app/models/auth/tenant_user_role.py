@@ -38,6 +38,12 @@ class TenantUserRole(TenantModel):
 
     __tablename__ = "tenant_user_roles"
 
+    __ai_policy__ = {
+        "label": "企业用户角色",
+        "keywords": ["角色", "role"],
+        "allow_read": True,
+    }
+
     __delete_deps__ = [
         DeletionDep("TenantUser", "role_id", DeletionStrategy.BLOCK,
                     label_field="username", i18n_key="tenant_user"),

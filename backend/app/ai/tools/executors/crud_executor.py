@@ -209,12 +209,19 @@ def _check_rbac(
     if context.is_platform_admin:
         return None
 
+    # Super/wildcard: "*" in permissions means all permissions (consistent with PermissionService.check_permission)
+    # 超级权限：permissions 含 "*" 表示拥有所有权限（与 PermissionService.check_permission 一致）
+    if "*" in (context.permissions or set()):
+        return None
+
     # Derive required permission code and check / 推导所需权限码并检查
+    # permissions 为空/None 时拒绝（防止越权）
     required = _derive_permission(perm_code, action)
-    if required and context.permissions and required not in context.permissions:
-        return _("data_intelligence.crud.permission_denied").format(
-            action=action, table=policy.table_name,
-        )
+    if required:
+        if not context.permissions or required not in context.permissions:
+            return _("data_intelligence.crud.permission_denied").format(
+                action=action, table=policy.table_name,
+            )
 
     return None
 

@@ -28,6 +28,12 @@ class TenantUser(TenantModel):
 
     __tablename__ = "tenant_users"
 
+    __ai_policy__ = {
+        "label": "终端用户",
+        "keywords": ["用户", "user", "终端用户"],
+        "allow_read": True,
+    }
+
     __table_args__ = (
         UniqueConstraint("tenant_id", "username", name="uq_tenant_user_tenant_username"),
         UniqueConstraint("tenant_id", "email", name="uq_tenant_user_tenant_email"),

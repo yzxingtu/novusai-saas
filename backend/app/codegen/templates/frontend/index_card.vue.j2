@@ -1,0 +1,110 @@
+<script setup lang="ts">
+/**
+ * {{ display_name }} 列表页 (Card 模式)
+ * {{ display_name_en }} List Page (Card mode)
+ */
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import {
+  get{{ resource | pascal }}ListApi,
+} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+import { useCrudList } from '#/composables';
+import { Input, Pagination } from 'ant-design-vue';
+import { Page } from '@vben/common-ui';
+import { MoreOutlined } from '@ant-design/icons-vue';
+import { Dropdown, Card, Menu, Button } from 'ant-design-vue';
+import { $t } from '#/locales';
+
+import { getFormDefaults, useFormSchema } from './data';
+import Form from './modules/form.vue';
+
+{% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
+{% set _fe = _ep.get('frontend') or {} %}
+{% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
+{% set resource_path = route_prefix | replace('/', '') or resource_plural %}
+{% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
+{% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
+{% set perm_resource = resource | replace('-', '_') %}
+{% set name_field = 'name' %}
+{% set _recycle_bin = _fe.get('recycle_bin', False) %}
+{% set _page_size = _fe.get('page_size') or 12 %}
+{% set _default_sort = _fe.get('default_sort') or '-created_at' %}
+
+defineOptions({ name: '{{ resource | pascal }}CardList' });
+
+const {
+  FormDrawer,
+  currentPage,
+  handleMenuAction,
+  loadList,
+  onCreate,
+  onPageChange,
+  onSearch,
+  pageSize,
+  searchKeyword,
+  total,
+  list,
+  loading,
+} = useCrudList<{{ resource | pascal }}Info>({
+  api: {
+    list: get{{ resource | pascal }}ListApi,
+    resource: '{{ full_path }}',
+  },
+  createPermission: '{{ perm_resource }}:create',
+  defaultSort: '{{ _default_sort }}',
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: '{{ i18n_pre }}',
+  nameField: '{{ name_field }}',
+  pageSize: {{ _page_size }},
+  recycleBin: {{ _recycle_bin | lower }},
+  ai: { formSchema: useFormSchema },
+});
+</script>
+
+<template>
+  <Page>
+    <div class="mb-4 flex items-center justify-between">
+      <Input.Search
+        v-model:value="searchKeyword"
+        allow-clear
+        :placeholder="$t('{{ i18n_pre }}.placeholder.search')"
+        class="max-w-md"
+        @search="(val) => onSearch(val ? { 'filter[name][ilike]': val } : {})"
+      />
+      <Button type="primary" @click="onCreate">
+        {{ "{{ $t('shared.common.create') }}" }}
+      </Button>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <Card v-for="item in list" :key="item.id" hoverable>
+        <template #title>{{ "{{ item." + (name_field | camel) + " }}" }}</template>
+        <template #extra>
+          <Dropdown :trigger="['click']">
+            <MoreOutlined class="cursor-pointer" />
+            <template #overlay>
+              <Menu @click="({ key }) => handleMenuAction(key, item)">
+                <Menu.Item key="edit">{{ "{{ $t('shared.common.edit') }}" }}</Menu.Item>
+                <Menu.Item key="delete" danger>{{ "{{ $t('shared.common.delete') }}" }}</Menu.Item>
+              </Menu>
+            </template>
+          </Dropdown>
+        </template>
+        {% if fields | selectattr('name', 'equalto', 'description') | list | length > 0 %}
+        <p class="line-clamp-2">{{ "{{ item.description }}" }}</p>
+        {% else %}
+        <p class="text-gray-500">{{ "{{ $t('" + i18n_pre + ".id') }}" }}: {{ "{{ item.id }}" }}</p>
+        {% endif %}
+      </Card>
+    </div>
+    <Pagination
+      v-if="total > 0"
+      :current="currentPage"
+      :page-size="pageSize"
+      :total="total"
+      class="mt-4"
+      show-size-changer
+      @change="onPageChange"
+    />
+    <FormDrawer @success="loadList" />
+  </Page>
+</template>

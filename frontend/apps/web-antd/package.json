@@ -91,9 +91,11 @@
     "ant-design-vue": "catalog:",
     "axios": "catalog:",
     "dayjs": "catalog:",
+    "dompurify": "^3.2.7",
     "echarts": "^5.6.0",
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
+    "js-yaml": "^4.1.1",
     "katex": "^0.16.11",
     "lowlight": "^3.3.0",
     "markdown-it": "^14.1.0",
@@ -112,6 +114,8 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.85",
+    "@types/dompurify": "^3.0.5",
+    "@types/js-yaml": "^4.0.9",
     "@types/markdown-it": "^14.1.2",
     "@types/qs": "catalog:"
   }
