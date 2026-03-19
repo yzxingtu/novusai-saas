@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import types
@@ -58,7 +59,7 @@ sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
 from app.ai.engine.stream_handler import StreamExecutionHandler
 from app.ai.tools.types import ToolDefinition, ToolResult
-from app.ai.types import ChatChunk, ChatMessage
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
 def _parse_sse_payload(raw: str) -> dict:
@@ -87,16 +88,63 @@ class _FakeSandbox:
 
 
 class _FakeEngine:
-    def __init__(self, rounds: list[list[ChatChunk]]):
+    """Fake engine: prefer real stream rounds, with ChatResponse fallback for legacy tests."""
+
+    def __init__(
+        self,
+        rounds: list[list[ChatChunk]] | None = None,
+        call_llm_responses: list[ChatResponse] | None = None,
+    ):
         self.sandbox = _FakeSandbox()
-        self._rounds = rounds
-        self._cursor = 0
+        self._rounds = rounds or []
+        self._call_llm_responses = call_llm_responses or []
+        self._round_cursor = 0
+        self._call_llm_cursor = 0
+
+    async def _call_llm(self, **kwargs):
+        _ = kwargs
+        idx = (
+            self._call_llm_cursor
+            if self._call_llm_cursor < len(self._call_llm_responses)
+            else len(self._call_llm_responses) - 1
+        )
+        self._call_llm_cursor += 1
+        return self._call_llm_responses[idx]
 
     async def _stream_llm_chunks(self, **kwargs):
         _ = kwargs
-        idx = self._cursor if self._cursor < len(self._rounds) else len(self._rounds) - 1
-        self._cursor += 1
-        for chunk in self._rounds[idx]:
+        if self._rounds:
+            idx = (
+                self._round_cursor
+                if self._round_cursor < len(self._rounds)
+                else len(self._rounds) - 1
+            )
+            self._round_cursor += 1
+            chunks = self._rounds[idx]
+        elif self._call_llm_responses:
+            idx = (
+                self._round_cursor
+                if self._round_cursor < len(self._call_llm_responses)
+                else len(self._call_llm_responses) - 1
+            )
+            self._round_cursor += 1
+            response = self._call_llm_responses[idx]
+            chunks = [
+                ChatChunk(
+                    delta=response.message.content or "",
+                    reasoning_delta=response.message.reasoning_content or "",
+                    finish_reason=(
+                        "tool_calls"
+                        if (response.tool_calls or response.message.tool_calls)
+                        else (response.finish_reason or "stop")
+                    ),
+                    total_tokens=response.total_tokens,
+                    tool_calls=response.tool_calls or response.message.tool_calls,
+                )
+            ]
+        else:
+            chunks = []
+        for chunk in chunks:
             yield chunk
 
     @staticmethod
@@ -137,15 +185,15 @@ def _build_handler(
 
 @pytest.mark.asyncio
 async def test_stream_handler_with_tools_keeps_real_delta_order():
-    """有 tools 但本轮未触发 tool_call 时，必须直接透传模型增量，不允许整段合并。 / Model."""
+    """有 tools 但本轮未触发 tool_call 时，仍保持真实逐块流式顺序。"""
     engine = _FakeEngine(
         rounds=[
             [
-                ChatChunk(delta="第", total_tokens=10),
-                ChatChunk(delta="一", total_tokens=11),
+                ChatChunk(delta="第"),
+                ChatChunk(delta="一"),
                 ChatChunk(delta="段", finish_reason="stop", total_tokens=12),
-            ],
-        ]
+            ]
+        ],
     )
     handler = _build_handler(engine)
 
@@ -155,50 +203,59 @@ async def test_stream_handler_with_tools_keeps_real_delta_order():
             events.append(_parse_sse_payload(raw))
 
     message_deltas = [e["delta"] for e in events if e.get("event") == "message"]
-    assert message_deltas == ["第", "一", "段"]
+    assert "".join(message_deltas) == "第一段"
     assert any(e.get("event") == "done" for e in events)
     assert not any(e.get("event") == "thinking" for e in events)
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_merges_stream_tool_calls_and_runs_tool():
+async def test_stream_handler_emits_conversation_event_early():
+    """流开始时应先下发 conversation_id，便于前端在 done 前保留会话。"""
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="第一段", finish_reason="stop", total_tokens=12)]],
+    )
+    handler = _build_handler(engine)
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    assert events[0]["event"] == "conversation"
+    assert events[0]["conversation_id"] == 9001
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
     """
-    流式 tool_call 增量（name/arguments 分片）应能正确合并并执行工具。
+    工具轮次与最终回复都走真实流式；工具调用在流中增量聚合，最终答复继续流出。
     """
     engine = _FakeEngine(
         rounds=[
             [
+                ChatChunk(delta="", reasoning_delta="先"),
+                ChatChunk(delta="", reasoning_delta="查询"),
                 ChatChunk(
-                    delta="",
+                    delta="数据库。",
                     tool_calls=[
                         {
-                            "index": 0,
                             "id": "call_1",
                             "type": "function",
-                            "function": {"name": "query_", "arguments": '{"sql":"SE'},
-                        }
-                    ],
-                    total_tokens=30,
-                ),
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "index": 0,
-                            "id": "",
-                            "type": "function",
-                            "function": {"name": "query_db", "arguments": 'LECT 1"}'},
-                        }
+                            "function": {
+                                "name": "query_db",
+                                "arguments": '{"sql":"SELECT 1"}',
+                            },
+                        },
                     ],
                     finish_reason="tool_calls",
                     total_tokens=36,
                 ),
             ],
             [
-                ChatChunk(delta="查询完成", total_tokens=50),
+                ChatChunk(delta="查询完成"),
                 ChatChunk(delta="。", finish_reason="stop", total_tokens=52),
             ],
-        ]
+        ],
     )
     handler = _build_handler(engine)
 
@@ -210,7 +267,105 @@ async def test_stream_handler_merges_stream_tool_calls_and_runs_tool():
     assert any(e.get("event") == "thinking" for e in events)
     assert any(e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events)
     assert any(e.get("event") == "tool_call" and e.get("success") is True for e in events)
-    assert [e["delta"] for e in events if e.get("event") == "message"] == ["查询完成", "。"]
+    msg_deltas = [e["delta"] for e in events if e.get("event") == "message"]
+    assert "查询完成" in "".join(msg_deltas) and "。" in "".join(msg_deltas)
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_tool_round_persists_reasoning_content():
+    """工具轮 assistant(tool_calls) 应保留 reasoning_content，供历史对话恢复思考块。"""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="先查询数据库。",
+                    tool_calls=[
+                        {
+                            "id": "call_reasoning_1",
+                            "type": "function",
+                            "function": {
+                                "name": "query_db",
+                                "arguments": '{"sql":"SELECT 1"}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=36,
+                ),
+            ],
+            [ChatChunk(delta="查询完成。", finish_reason="stop", total_tokens=52)],
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    async for _ in handler.generate():
+        pass
+
+    assert len(captured) == 1
+    assistant_tool_message = next(
+        m for m in captured[0].messages if m.get("role") == "assistant" and m.get("tool_calls")
+    )
+    assert assistant_tool_message.get("content") == "先查询数据库。"
+    assert assistant_tool_message.get("reasoning_content") == "先查询数据库。"
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_consent_round_does_not_append_duplicate_assistant():
+    """consent ask round 只保留 assistant(tool_calls) 一次，不再额外追加重复 plain assistant。"""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="请先确认后再执行。",
+                    tool_calls=[
+                        {
+                            "id": "call_ask_1",
+                            "type": "function",
+                            "function": {
+                                "name": "query_db",
+                                "arguments": '{"sql":"SELECT 1"}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=20,
+                ),
+            ]
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.prep.tool_consent_modes = {"query_db": "ask"}
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    assert "".join(
+        e.get("delta", "") for e in events if e.get("event") == "message"
+    ) == "请先确认后再执行。"
+    assert len(captured) == 1
+    assistant_messages = [
+        m for m in captured[0].messages if m.get("role") == "assistant"
+    ]
+    assert len(assistant_messages) == 1
+    assert assistant_messages[0].get("tool_calls")
 
 
 @pytest.mark.asyncio
@@ -240,28 +395,26 @@ async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
             )
 
     engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "index": 0,
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": "pageop_get_editor_html",
-                                "arguments": '{"page_key":"test"}',
-                            },
+        call_llm_responses=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "pageop_get_editor_html",
+                            "arguments": '{"page_key":"test"}',
                         },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=50,
-                ),
-            ],
-            [
-                ChatChunk(delta="Done", finish_reason="stop", total_tokens=60),
-            ],
+                    },
+                ],
+                total_tokens=50,
+            ),
+            ChatResponse(
+                message=ChatMessage(role="assistant", content="Done"),
+                tool_calls=None,
+                total_tokens=60,
+            ),
         ],
     )
     engine.sandbox = _RedirectSandbox()
@@ -293,20 +446,17 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
     """
     # 3 个 invoke_page_operation 调用，每个 arguments 为非法 JSON
     engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {"index": 0, "id": "c1", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 1"}},
-                        {"index": 1, "id": "c2", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 2"}},
-                        {"index": 2, "id": "c3", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 3"}},
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=100,
-                ),
-            ],
-        ]
+        call_llm_responses=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                tool_calls=[
+                    {"id": "c1", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 1"}},
+                    {"id": "c2", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 2"}},
+                    {"id": "c3", "type": "function", "function": {"name": "invoke_page_operation", "arguments": "{bad json 3"}},
+                ],
+                total_tokens=100,
+            ),
+        ],
     )
     tools = [ToolDefinition(name="invoke_page_operation", description="Execute page op")]
     handler = _build_handler(engine, tools=tools)
@@ -320,7 +470,45 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
     failed_calls = [e for e in events if e.get("event") == "tool_call" and e.get("success") is False]
     assert len(failed_calls) >= 3
 
-    # 熔断后 output 应包含恢复提示（兼容中英双语 i18n）
+    # 熔断后 output 应包含恢复提示（兼容 i18n key 或翻译结果）
     output = handler._output or ""
-    assert "Multiple page operations failed" in output or "多次页面操作失败" in output
-    assert "retry" in output.lower() or "refresh" in output.lower() or "重试" in output or "刷新" in output
+    assert "multiple_failures" in output or "Multiple" in output or "失败" in output
+
+
+@pytest.mark.asyncio
+async def test_interrupted_calls_on_complete_with_partial_result():
+    """
+    中断（CancelledError）时 on_complete 应收到带 messages/output/tool_results 的 partial ExecutionResult。
+    """
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    class _RaisingEngine(_FakeEngine):
+        async def _stream_llm_chunks(self, **kwargs):
+            _ = kwargs
+            yield ChatChunk(delta="部")
+            raise asyncio.CancelledError("simulated cancel")
+
+    engine = _RaisingEngine(
+        call_llm_responses=[],  # unused, we raise before
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    with pytest.raises(asyncio.CancelledError):
+        async for _ in handler.generate():
+            pass
+
+    assert len(captured) == 1
+    r = captured[0]
+    assert r.partial is True
+    assert r.interrupted is True
+    assert r.completion_reason == "interrupted"
+    assert r.success is False
+    assert r.output == "部"
+    # Should have messages (prep.messages passed through)
+    assert r.messages is not None

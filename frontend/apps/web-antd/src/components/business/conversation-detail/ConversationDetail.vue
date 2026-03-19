@@ -30,9 +30,15 @@ import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 export interface ConversationMessageItem {
+  agent_avatar?: null | string;
+  agent_id?: null | number;
+  agent_name?: null | string;
   id: number;
   role: string;
   content: null | string;
+  metadata?: null | {
+    route_source?: string;
+  };
   sequence: number;
   token_count: null | number;
   tool_calls: null | unknown[];
@@ -151,6 +157,10 @@ function getRoleIcon(role: string): string {
   }
 }
 
+function isMentionRoute(msg: ConversationMessageItem): boolean {
+  return msg.metadata?.route_source === 'mention';
+}
+
 defineExpose({ detail });
 </script>
 
@@ -247,17 +257,20 @@ defineExpose({ detail });
                 </template>
                 <!-- assistant message: show agent avatar + name -->
                 <template
-                  v-else-if="msg.role === 'assistant' && detail?.agent_name"
+                  v-else-if="msg.role === 'assistant' && (msg.agent_name || detail?.agent_name)"
                 >
+                  <Tag v-if="isMentionRoute(msg)" color="blue">
+                    @ {{ msg.agent_name || detail?.agent_name }}
+                  </Tag>
                   <AgentProfilePopover
-                    :agent-id="detail.agent_id"
-                    :agent-avatar="detail.agent_avatar"
-                    :agent-name="detail.agent_name"
+                    :agent-id="msg.agent_id ?? detail?.agent_id"
+                    :agent-avatar="msg.agent_avatar ?? detail?.agent_avatar"
+                    :agent-name="msg.agent_name ?? detail?.agent_name"
                     :api-prefix="props.apiPrefix"
                     size="sm"
                   />
                   <span class="text-sm font-medium text-foreground">
-                    {{ detail.agent_name }}
+                    {{ msg.agent_name || detail?.agent_name }}
                   </span>
                 </template>
                 <!-- other roles: fallback to tag -->

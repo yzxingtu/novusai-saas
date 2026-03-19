@@ -25,6 +25,7 @@ export interface ApplicationConfig {
   auth: AuthConfig;
 }
 
+/// <reference path="./shims-modules.d.ts" />
 declare global {
   interface Window {
     _VBEN_ADMIN_PRO_APP_CONF_: VbenAdminProAppConfigRaw;

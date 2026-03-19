@@ -60,6 +60,8 @@ export interface PageOperationResultEvent {
 
 /** Currently joined page_session room (per composable instance) / 当前已加入的 page_session room */
 let currentJoinedRoom = '';
+/** Retry rejoin after reconnect/hot-reload races / 连接恢复后补发重入，覆盖热更新竞态 */
+const REJOIN_RETRY_DELAYS_MS = [0, 400, 1200] as const;
 
 /**
  * Agent Loop: track recently confirmed mutation operations per page key / 按页面 key 跟踪最近确认的变更操作
@@ -224,13 +226,24 @@ export function usePageOperationChannel(): void {
         return;
       }
 
+      // Backend explicit requires_confirmation → always show confirmation (overrides readonly/chain) / 后端强制确认语义优先
+      if (event.requires_confirmation) {
+        let desc = operation.description || '';
+        if (event.operation_name === 'replace_content') {
+          const contentLen = String(event.params?.content ?? '').length;
+          desc = $t('shared.pageOperation.replaceContentConfirm', { count: contentLen });
+        }
+        await confirmAndExecute(event, operation.label, desc);
+        return;
+      }
+
       // readonly=true → execute directly (no confirmation needed) / 直接执行（无需确认）
       if (operation.readonly) {
         await executeAndEmit(event);
         return;
       }
 
-      // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record)
+      // Agent Loop: auto-approve chain-follow operations (e.g. fill_form after create_record) / 链式自动确认仅作附加优化
       if (
         CHAIN_AUTO_OPS.has(event.operation_name) &&
         isChainConfirmed(event.page_key)
@@ -272,12 +285,14 @@ export function usePageOperationChannel(): void {
   }
 
   // Join page_session room / 加入 page_session 房间
-  function joinPageSessionRoom() {
+  function joinPageSessionRoom(force = false) {
     const pageSessionId = getActivePageSessionId();
     if (!pageSessionId || !socketIOStore.isConnected) return;
-    if (currentJoinedRoom === pageSessionId) return;
+    if (!force && currentJoinedRoom === pageSessionId) return;
 
-    leavePageSessionRoom();
+    if (currentJoinedRoom && currentJoinedRoom !== pageSessionId) {
+      leavePageSessionRoom();
+    }
 
     // Join new room / 加入新 room
     const pageKey = normalizePageKey(window.location.pathname);
@@ -288,7 +303,42 @@ export function usePageOperationChannel(): void {
     currentJoinedRoom = pageSessionId;
   }
 
+  let rejoinRetryTimers: Array<ReturnType<typeof setTimeout>> = [];
+
+  function clearRejoinRetryTimers() {
+    for (const timerId of rejoinRetryTimers) {
+      window.clearTimeout(timerId);
+    }
+    rejoinRetryTimers = [];
+  }
+
+  function scheduleJoinRetries() {
+    clearRejoinRetryTimers();
+    if (!socketIOStore.isConnected || !getActivePageSessionId()) return;
+    rejoinRetryTimers = REJOIN_RETRY_DELAYS_MS.map((delay) =>
+      setTimeout(() => {
+        joinPageSessionRoom(true);
+      }, delay),
+    );
+  }
+
+  function handleWindowFocus() {
+    joinPageSessionRoom(true);
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      joinPageSessionRoom(true);
+    }
+  }
+
+  window.addEventListener('focus', handleWindowFocus);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
   onScopeDispose(() => {
+    clearRejoinRetryTimers();
+    window.removeEventListener('focus', handleWindowFocus);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     leavePageSessionRoom();
     socketIOStore.unregisterHandler(
       'page_operation_invoke',
@@ -302,8 +352,9 @@ export function usePageOperationChannel(): void {
     (connected) => {
       if (connected) {
         currentJoinedRoom = '';
-        joinPageSessionRoom();
+        scheduleJoinRetries();
       } else {
+        clearRejoinRetryTimers();
         currentJoinedRoom = '';
       }
     },
@@ -313,9 +364,13 @@ export function usePageOperationChannel(): void {
   // Switch room when page_session_id changes (more reliable than watch route.path + setTimeout) / page_session_id 变化时切换房间
   watch(
     () => getActivePageSessionId(),
-    (newId) => {
+    (newId, oldId) => {
+      clearRejoinRetryTimers();
+      if (oldId && newId !== oldId && currentJoinedRoom === oldId) {
+        leavePageSessionRoom();
+      }
       if (newId) {
-        joinPageSessionRoom();
+        scheduleJoinRetries();
       }
     },
   );

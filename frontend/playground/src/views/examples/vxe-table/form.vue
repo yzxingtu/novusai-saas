@@ -114,10 +114,7 @@ const gridOptions: VxeTableGridOptions<RowType> = {
   },
 };
 
-const [Grid] = useVbenVxeGrid({
-  formOptions,
-  gridOptions,
-});
+const [Grid] = useVbenVxeGrid({ formOptions, gridOptions } as any);
 </script>
 
 <template>

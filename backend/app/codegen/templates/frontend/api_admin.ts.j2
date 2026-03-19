@@ -15,7 +15,7 @@ import { requestClient } from '#/utils/request';
 // API functions / API 接口
 // ============================================================
 
-{% set api_path = admin_ep.get('route_prefix') | default('/' + resource_plural) | replace('/','') %}
+{% set api_path = admin_ep.get('route_prefix') | default('/' + resource_plural) | path_no_leading_slash %}
 const API_PREFIX = '/admin/{{ api_path or resource_plural }}';
 
 /** Get list / 获取列表 */

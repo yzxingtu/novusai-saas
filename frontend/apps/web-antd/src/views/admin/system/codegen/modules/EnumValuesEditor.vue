@@ -26,7 +26,14 @@ function genEnumItemId() {
   return `ev_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-type ItemWithId = { value: string; label_zh?: string; label_en?: string; color?: string; __id: string };
+type EnumItem = {
+  color?: string;
+  label_en?: string;
+  label_zh?: string;
+  value: string;
+};
+
+type ItemWithId = EnumItem & { __id: string };
 
 const items = ref<ItemWithId[]>([]);
 
@@ -67,7 +74,8 @@ function initSortable() {
       const to = evt.newIndex;
       if (from == null || to == null || from === to) return;
       const arr = [...items.value];
-      const [removed] = arr.splice(from, 1);
+      const removed = arr.splice(from, 1)[0];
+      if (!removed) return;
       arr.splice(to, 0, removed);
       items.value = arr;
       stripAndEmit(arr);
@@ -105,11 +113,16 @@ function removeItem(idx: number) {
   stripAndEmit(next);
 }
 
-function updateItem(idx: number, patch: Record<string, string>) {
+function updateItem(idx: number, patch: Partial<EnumItem>) {
   const next = [...items.value];
-  const updated = { ...next[idx], ...patch } as ItemWithId;
-  if (patch.value && patch.value.trim()) {
-    const exists = next.some((it, i) => i !== idx && (it.value === patch.value || String(it.value).trim() === patch.value.trim()));
+  const current = next[idx];
+  if (!current) return;
+  const updated = { ...current, ...patch };
+  const patchValue = patch.value?.trim();
+  if (patchValue) {
+    const exists = next.some(
+      (it, i) => i !== idx && (it.value === patchValue || it.value.trim() === patchValue),
+    );
     if (exists) {
       message.warning($t('admin.system.codegen.property.duplicateEnumValue'));
       return;
@@ -118,6 +131,12 @@ function updateItem(idx: number, patch: Record<string, string>) {
   next[idx] = updated;
   items.value = next;
   stripAndEmit(next);
+}
+
+function onColorChange(idx: number, value: unknown) {
+  if (typeof value === 'string') {
+    updateItem(idx, { color: value });
+  }
 }
 </script>
 
@@ -158,7 +177,7 @@ function updateItem(idx: number, patch: Record<string, string>) {
         :options="colorOptions"
         size="small"
         class="min-w-16 flex-1 max-w-32"
-        @change="(v: string) => updateItem(idx, { color: v })"
+        @change="(value) => onColorChange(idx, value)"
       />
         <Button type="text" danger size="small" @click="removeItem(idx)">
           {{ $t('common.delete') }}

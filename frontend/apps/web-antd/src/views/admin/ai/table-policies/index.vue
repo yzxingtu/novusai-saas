@@ -128,7 +128,10 @@ const { Grid, FormDrawer, onRefresh, gridApi, formAiOperations } =
         iconClose: 'vxe-icon-square-plus',
       },
     },
-    ai: { pageKey: 'admin.ai.table-policies', formSchema: useFormSchema },
+    ai: {
+      pageKey: 'admin.ai.table-policies',
+      formSchema: () => useFormSchema(),
+    },
   });
 
 const cleanupPageContext = registerPageContext(

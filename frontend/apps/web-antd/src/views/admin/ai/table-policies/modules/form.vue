@@ -79,6 +79,13 @@ const { Drawer, recordId } = useCrudDrawer<AITablePolicyInfo>({
 
 const title = computed(() => $t('admin.common.edit'));
 
+function updateColumnDesc(name: string, value: string) {
+  columnDescs.value = {
+    ...columnDescs.value,
+    [name]: value,
+  };
+}
+
 /**
  * 当记录 ID 变化时，加载列选项并更新 blocked_columns / readonly_columns / 列描述
  * On record ID change: load column options and update form schema options
@@ -160,7 +167,7 @@ watch(recordId, async (newId) => {
               col.comment || $t('admin.ai.tablePolicy.placeholder.inputColumnDesc')
             "
             class="flex-1"
-            @update:value="(v: string) => { columnDescs.value = { ...columnDescs.value, [col.name]: v } }"
+            @update:value="(v: string) => updateColumnDesc(col.name, v)"
           />
         </div>
       </div>

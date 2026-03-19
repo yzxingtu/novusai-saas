@@ -7,6 +7,8 @@
 
 export interface ModelCapabilities {
   supports_vision: boolean;
+  supports_audio?: boolean;
+  supports_video?: boolean;
   max_image_count: null | number;
   max_image_size_mb: null | number;
 }
@@ -31,6 +33,12 @@ export interface AgentItem {
   welcome_message?: null | string;
   suggested_questions?: null | string[];
   input_variables?: InputVariable[] | null;
+}
+
+export function getAgentInputVariables(
+  agent?: null | Pick<AgentItem, 'input_variables'>,
+): InputVariable[] {
+  return Array.isArray(agent?.input_variables) ? agent.input_variables : [];
 }
 
 export interface ConversationItem {
@@ -128,6 +136,8 @@ export interface ImageResult {
 export interface ChatMessage {
   role: 'assistant' | 'user';
   content: string;
+  /** Streaming thinking/reasoning content shown separately from final answer / 与最终答复分开展示的思考内容 */
+  thinkingContent?: string;
   streaming?: boolean;
   tokenUsage?: number;
   durationMs?: number;
@@ -141,6 +151,8 @@ export interface ChatMessage {
   agent_description?: null | string;
   /** LLM model name used by the agent / 智能体使用的模型名 */
   model_name?: null | string;
+  /** Route source marker for UI badges (e.g. one-time @ mention) / 路由来源标记 */
+  routeSource?: null | string;
   ragSources?: RagSource[];
   attachments?: ChatAttachment[];
   toolCalls?: ToolCallEvent[];
@@ -160,6 +172,12 @@ export interface ChatMessage {
   memoryUpdated?: boolean;
   /** Message creation timestamp (ISO string) / 消息创建时间 */
   created_at?: string;
+  /** Persisted partial response marker / 持久化的未完成回复标记 */
+  partial?: boolean;
+  /** Persisted interrupted response marker / 持久化的中断回复标记 */
+  interrupted?: boolean;
+  /** Completion reason persisted from backend / 后端持久化的结束原因 */
+  completionReason?: string;
   /** Set when user clicked stop during streaming; show "（生成已停止）" / 用户停止生成 */
   stoppedByUser?: boolean;
   /** Set when SSE onError (non-Abort); show retry button / 请求失败需重试 */

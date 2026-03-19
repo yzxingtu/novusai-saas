@@ -118,7 +118,9 @@ const TEXT_LIKE_COMPONENTS = new Set([
 /** 获取表单组件名 / Get form component name */
 export function getComponent(f: FieldRecord): string {
   const form = (f.form as Record<string, unknown>) || {};
-  const comp = (form.component as string) || f.form_component;
+  const comp =
+    (typeof form.component === 'string' ? form.component : '') ||
+    (typeof f.form_component === 'string' ? f.form_component : '');
   const ev = (f.enum_values as Array<unknown>) || [];
   const enumRender = (form.enumRender as string) || (f.enum_render as string) || 'select';
 

@@ -24,7 +24,7 @@ const [FormDrawer, formDrawerApi] = useVbenDrawer({
   destroyOnClose: true,
 });
 
-const [Grid, gridApi] = useVbenVxeGrid({
+const gridConfig = {
   formOptions: {
     fieldMappingTime: [['createTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
@@ -57,7 +57,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions<SystemRoleApi.SystemRole>,
-});
+};
+const [Grid, gridApi] = useVbenVxeGrid(gridConfig as any);
 
 function onActionClick(e: OnActionClickParams<SystemRoleApi.SystemRole>) {
   switch (e.code) {

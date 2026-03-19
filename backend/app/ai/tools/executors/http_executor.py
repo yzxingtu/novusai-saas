@@ -13,6 +13,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
+from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
 
@@ -23,15 +24,6 @@ logger = LogManager.get_logger("ai.tool.http")
 
 # Security limits / 安全限制
 _MAX_RESPONSE_SIZE = 50_000  # 50KB
-_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
-# Private IP range prefixes (SSRF protection) / 内网 IP 段前缀（SSRF 防护）
-_PRIVATE_IP_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                        "172.20.", "172.21.", "172.22.", "172.23.",
-                        "172.24.", "172.25.", "172.26.", "172.27.",
-                        "172.28.", "172.29.", "172.30.", "172.31.",
-                        "192.168.", "fd", "fc")
-# Additional blocked hostnames / 额外阻止的主机名
-_EXTRA_BLOCKED_HOSTS = {"::1", "metadata.google", "100.100.100.200"}
 
 
 def _substitute_template(template: str, variables: dict[str, Any]) -> str:
@@ -101,28 +93,16 @@ class HttpToolExecutor(BaseToolExecutor):
         auth_config = cfg.get("_http_auth_config", {})
         response_path = cfg.get("_http_response_path", "")
 
-        # SSRF protection: block intranet/cloud metadata requests
-        # SSRF 防护：阻止内网/云元数据请求
+        # SSRF protection: reuse shared UrlValidator (redirect/DNS/内网/metadata 统一策略)
         try:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            host = (parsed.hostname or "").lower()
-            if host in _BLOCKED_HOSTS or host in _EXTRA_BLOCKED_HOSTS:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=False,
-                    error=f"Blocked: requests to {host} are not allowed",
-                )
-            if host.startswith(_PRIVATE_IP_PREFIXES):
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=False,
-                    error=f"Blocked: requests to private network ({host}) are not allowed",
-                )
-        except Exception:
-            pass
+            await UrlValidator.validate(url)
+        except SSRFBlockedError as e:
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=str(e),
+            )
 
         # Substitute template variables in query params / 替换查询参数中的模板变量
         for k, v in query_params.items():
@@ -148,7 +128,10 @@ class HttpToolExecutor(BaseToolExecutor):
             import httpx
 
             timeout = definition.timeout or 30
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            # Redirects are disabled here so every outbound target must pass the
+            # shared UrlValidator check explicitly instead of silently hopping
+            # to another host after the first validated URL.
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
                 resp = await client.request(
                     method=method,
                     url=url,
@@ -171,6 +154,16 @@ class HttpToolExecutor(BaseToolExecutor):
                         resp_text = json.dumps(extracted, ensure_ascii=False, default=str)
                 except Exception:
                     pass
+
+            if 300 <= resp.status_code < 400:
+                location = resp.headers.get("location", "")
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=False,
+                    error=f"HTTP redirect blocked: {location or 'no location header'}",
+                    duration_ms=duration_ms,
+                )
 
             if resp.status_code >= 400:
                 return ToolResult(

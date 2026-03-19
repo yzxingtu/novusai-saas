@@ -14,7 +14,7 @@
  */
 
 import type { Component } from 'vue';
-import type { Router } from 'vue-router';
+import type { RouteRecordRaw, Router } from 'vue-router';
 
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -158,7 +158,7 @@ function _registerStandalonePageRoutes(
     if (registeredPluginRouteNames.has(routeName) || router.hasRoute(routeName))
       continue;
 
-    const routeMeta: Record<string, unknown> = {
+    const routeMeta: NonNullable<RouteRecordRaw['meta']> = {
       title: item.title ?? item.name,
       icon: item.icon,
       hideInMenu: true,

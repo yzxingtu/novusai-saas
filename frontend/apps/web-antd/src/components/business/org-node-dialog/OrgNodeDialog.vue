@@ -100,7 +100,12 @@ const submitting = ref(false);
 const permissionLoading = ref(false);
 const permissionTree = ref<PermissionNode[]>([]);
 const deptTreeLoading = ref(false);
-const deptTreeData = ref<{ title: string; value: number; children?: { title: string; value: number; children?: unknown[] }[] }[]>([]);
+type DeptTreeOption = {
+  title: string;
+  value: number;
+  children?: DeptTreeOption[];
+};
+const deptTreeData = ref<DeptTreeOption[]>([]);
 
 // Data scope options / 数据范围选项
 const DATA_SCOPE_OPTIONS: {
@@ -159,7 +164,7 @@ async function loadDeptTree() {
     // Build tree for TreeSelect: only department nodes (title, value) / 构建 TreeSelect 所需树结构
     const buildTree = (
       items: { id: number; name: string; type?: string; children?: unknown[] }[],
-    ): { title: string; value: number; children?: ReturnType<typeof buildTree> }[] => {
+    ): DeptTreeOption[] => {
       return items
         .filter((n) => n.type === 'department')
         .map((n) => ({

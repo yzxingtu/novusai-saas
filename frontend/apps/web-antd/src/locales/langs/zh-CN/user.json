@@ -99,7 +99,7 @@
     "noAgents": "暂无可用智能体",
     "welcomeTitle": "开始 AI 对话",
     "welcomeDesc": "选择一个智能体，开始您的 AI 对话之旅",
-    "inputPlaceholder": "输入消息...",
+    "inputPlaceholder": "输入消息，输入 @ 搜索智能体...",
     "varsModal": {
       "title": "填写对话变量 — {name}",
       "desc": "请填写以下信息，用于个性化本次对话。",

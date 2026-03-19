@@ -9,6 +9,7 @@ Includes real-time tool call push, confirmation interception, DSML tag cleanup, 
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import re
@@ -83,8 +84,19 @@ class StreamExecutionHandler:
         total_tokens = 0
         all_tool_results: list[ToolResult] = []
         output = ""
+        self._output = ""  # Used for partial persist on interrupt
+        self._reasoning_output = ""  # For chain-of-thought models, used in partial persist
+        self._total_tokens = 0
 
         try:
+            if self.request.conversation_id:
+                # Publish conversation id early so frontend keeps the session
+                # even when the stream is interrupted before the final done event.
+                yield SSEChunkEncoder.encode({
+                    "event": "conversation",
+                    "conversation_id": self.request.conversation_id,
+                })
+
             processor = ToolCallProcessor(
                 sandbox=self.engine.sandbox,
                 tools=tools,
@@ -114,12 +126,20 @@ class StreamExecutionHandler:
                 total_tokens = self._total_tokens
             else:
                 # ---- Without tools: real streaming push ---- / 无工具：真实流式推送
+                self._reasoning_output = ""
                 async for chunk in self.engine._stream_llm_chunks(
                     agent=self.agent,
                     messages=messages,
                     tenant_id=self.request.tenant_id,
                     route_result=self.prep.route_result,
                 ):
+                    if chunk.reasoning_delta:
+                        self._reasoning_output += chunk.reasoning_delta
+                        yield SSEChunkEncoder.encode({
+                            "event": "thinking",
+                            "delta": chunk.reasoning_delta,
+                        })
+
                     if chunk.delta:
                         output += chunk.delta
                         yield SSEChunkEncoder.encode({
@@ -133,7 +153,11 @@ class StreamExecutionHandler:
                     if chunk.finish_reason is not None:
                         break
 
-                messages.append(ChatMessage(role="assistant", content=output))
+                messages.append(ChatMessage(
+                    role="assistant",
+                    content=output,
+                    reasoning_content=(self._reasoning_output or "").strip() or None,
+                ))
 
             # ---- Parse and send Action Buttons ---- / 解析并发送 Action Buttons
             cleaned_output, action_buttons = self._extract_action_buttons(output)
@@ -194,22 +218,42 @@ class StreamExecutionHandler:
                 yield SSEChunkEncoder.encode({
                     "error": True,
                     "message": str(exc),
+                    "conversation_id": self.request.conversation_id,
                 })
                 yield SSEChunkEncoder.done()
             except Exception:
                 pass  # Ignore yield error when connection is broken / 连接已断开时忽略 yield 错误
 
-            # Trigger callback on error path too / 异常路径也触发回调
+            # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
             if self.on_complete:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
+                partial_output = getattr(self, "_output", None) or output
+                partial_tokens = getattr(self, "_total_tokens", None)
+                if partial_tokens is None:
+                    partial_tokens = total_tokens
+                # Append partial assistant message when we have output but did not finish normally
+                if partial_output:
+                    reasoning = (getattr(self, "_reasoning_output", None) or "").strip() or None
+                    messages.append(ChatMessage(
+                        role="assistant",
+                        content=partial_output,
+                        reasoning_content=reasoning,
+                    ))
                 failed_result = ExecutionResult(
                     success=False,
-                    error=str(exc),
+                    output=partial_output,
+                    messages=self.engine._messages_to_dicts(messages),
+                    tool_results=all_tool_results,
+                    total_tokens=partial_tokens,
                     duration_ms=duration_ms,
                     conversation_id=self.request.conversation_id,
+                    error=str(exc),
+                    partial=True,
+                    interrupted=False,
+                    completion_reason="error",
                 )
                 try:
-                    await self.on_complete(failed_result)
+                    await asyncio.shield(self.on_complete(failed_result))
                 except Exception as cb_exc:
                     logger.error(
                         "on_complete callback error: {}",
@@ -225,14 +269,42 @@ class StreamExecutionHandler:
             )
             if self.on_complete:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                with contextlib.suppress(Exception):
-                    await self.on_complete(ExecutionResult(
-                        success=False,
-                        error=f"{type(exc).__name__}: {exc}",
-                        duration_ms=duration_ms,
-                        conversation_id=self.request.conversation_id,
+                partial_output = getattr(self, "_output", None) or output
+                partial_tokens = getattr(self, "_total_tokens", None)
+                if partial_tokens is None:
+                    partial_tokens = total_tokens
+                if partial_output:
+                    reasoning = (getattr(self, "_reasoning_output", None) or "").strip() or None
+                    messages.append(ChatMessage(
+                        role="assistant",
+                        content=partial_output,
+                        reasoning_content=reasoning,
                     ))
+                interrupted_result = ExecutionResult(
+                    success=False,
+                    output=partial_output,
+                    messages=self.engine._messages_to_dicts(messages),
+                    tool_results=all_tool_results,
+                    total_tokens=partial_tokens,
+                    duration_ms=duration_ms,
+                    conversation_id=self.request.conversation_id,
+                    error=f"{type(exc).__name__}: {exc}",
+                    partial=True,
+                    interrupted=True,
+                    completion_reason="interrupted",
+                )
+                with contextlib.suppress(Exception):
+                    await asyncio.shield(self.on_complete(interrupted_result))
             raise  # Must re-raise BaseException / 必须重新抛出 BaseException
+
+    def _chunk_text_for_streaming(self, text: str, chunk_size: int = 32) -> list[str]:
+        """Split text into chunks for simulated streaming (typing effect)."""
+        if not text:
+            return []
+        chunks: list[str] = []
+        for i in range(0, len(text), chunk_size):
+            chunks.append(text[i : i + chunk_size])
+        return chunks
 
     async def _generate_with_tools(
         self,
@@ -243,18 +315,16 @@ class StreamExecutionHandler:
         strip_fc_tokens: Callable[[str], str],
     ) -> AsyncIterator[str]:
         """
-        Real streaming execution with tools:
-        有工具场景的真实流式执行：
-
-        1. Each round uses model native stream_chat (with tools) / 每轮先走模型原生 stream_chat
-        2. Forward streaming delta as message events in real-time / 流式增量实时转发 message 事件
-        3. If tool_calls detected, execute tools and enter next round / 若检测到 tool_calls，执行工具并进入下一轮
-        4. If no tool_calls, this round is the final reply / 若无 tool_calls，则该轮即最终回复
+        Tool rounds use real streaming and incremental tool_call aggregation.
+        工具轮次使用真实流式，并增量聚合 tool_call。
         """
         self._total_tokens = 0
         self._output = ""
+        self._reasoning_output = ""
+        _ = strip_fc_tokens  # unused in real streaming path
+        append_final_assistant = True
 
-        # ---- Confirmation interception: detect user confirm/reject text ---- / 确认拦截：检测用户确认/拒绝文本
+        # ---- Confirmation interception ---- / 确认拦截
         _last_user_text = ""
         if self.request.messages:
             _last = self.request.messages[-1]
@@ -266,11 +336,9 @@ class StreamExecutionHandler:
             _pending = processor.find_pending_confirmation(messages)
 
         if _pending:
-            # Directly execute confirmed tool call, bypassing LLM / 直接执行已确认的工具调用，不经过 LLM
             _tc_id = _pending["tool_call_id"]
             _func_name = _pending["name"]
             _arguments = _pending["arguments"]
-
             _conf_skill = processor.get_skill_info(_func_name)
             yield SSEChunkEncoder.encode(
                 processor.build_tool_start_event(
@@ -278,21 +346,17 @@ class StreamExecutionHandler:
                     tool_call_id=_tc_id,
                 )
             )
-
             _result, _tc_dur = await processor.execute_tool(
                 _tc_id, _func_name, _arguments,
                 conversation_id=self.request.conversation_id or 0,
             )
             all_tool_results.append(_result)
-
             yield SSEChunkEncoder.encode(
                 processor.build_tool_call_event(
                     _result, _tc_dur, _conf_skill,
                     name_override=_func_name,
                 )
             )
-
-            # Append confirmed tool call to messages / 将确认后的工具调用追加到消息中
             messages.append(processor.build_assistant_tool_call_message(
                 content="",
                 tool_calls=[{
@@ -300,17 +364,12 @@ class StreamExecutionHandler:
                     "type": "function",
                     "function": {
                         "name": _func_name,
-                        "arguments": json.dumps(
-                            _arguments, ensure_ascii=False,
-                        ),
+                        "arguments": json.dumps(_arguments, ensure_ascii=False),
                     },
                 }],
             ))
-            messages.append(
-                processor.build_tool_message(_result, _tc_id)
-            )
+            messages.append(processor.build_tool_message(_result, _tc_id))
 
-        # Track consecutive page operation failures to abort apology loops / 追踪连续页面操作失败以中止道歉循环
         _consecutive_page_op_failures = 0
         _consecutive_data_op_failures = 0
         _page_op_aborted = False
@@ -318,10 +377,13 @@ class StreamExecutionHandler:
 
         for _round in range(MAX_TOOL_CALL_ROUNDS):
             round_output = ""
-            round_tokens = 0
-            streamed_tool_calls: list[dict[str, Any]] = []
+            round_reasoning_output = ""
+            round_visible_thinking = ""
+            round_tool_calls: list[dict[str, Any]] = []
+            round_total_tokens = 0
+            self._output = ""
+            self._reasoning_output = ""
 
-            # Real streaming call (with tools), forward delta to frontend immediately / 真实流式调用（携带 tools），增量立即透传给前端
             async for chunk in self.engine._stream_llm_chunks(
                 agent=self.agent,
                 messages=messages,
@@ -329,42 +391,46 @@ class StreamExecutionHandler:
                 route_result=self.prep.route_result,
                 tools=tools,
             ):
+                if chunk.reasoning_delta:
+                    round_reasoning_output += chunk.reasoning_delta
+                    round_visible_thinking += chunk.reasoning_delta
+                    self._reasoning_output = round_reasoning_output
+                    yield SSEChunkEncoder.encode({
+                        "event": "thinking",
+                        "delta": chunk.reasoning_delta,
+                    })
+
                 if chunk.delta:
-                    cleaned = strip_fc_tokens(chunk.delta)
-                    if cleaned:
-                        round_output += cleaned
-                        yield SSEChunkEncoder.encode({
-                            "event": "message",
-                            "delta": cleaned,
-                        })
+                    round_output += chunk.delta
+                    round_visible_thinking += chunk.delta
+                    self._output = round_output
+                    yield SSEChunkEncoder.encode({
+                        "event": "message",
+                        "delta": chunk.delta,
+                    })
 
                 if chunk.tool_calls:
-                    streamed_tool_calls = self._merge_stream_tool_calls(
-                        streamed_tool_calls,
+                    round_tool_calls = self._merge_stream_tool_calls(
+                        round_tool_calls,
                         chunk.tool_calls,
                     )
 
                 if chunk.total_tokens is not None:
-                    round_tokens = chunk.total_tokens
+                    round_total_tokens = chunk.total_tokens
 
-                if chunk.finish_reason is not None:
-                    break
+            self._total_tokens += round_total_tokens
+            tc_list = self._finalize_stream_tool_calls(round_tool_calls)
 
-            self._total_tokens += round_tokens
-
-            # No tool calls this round => final text reply obtained / 本轮无工具调用 => 已拿到最终文本回复
-            tc_list = self._finalize_stream_tool_calls(streamed_tool_calls)
             if not tc_list:
-                self._output = round_output.strip()
+                self._output = round_output
+                self._reasoning_output = round_reasoning_output
                 break
-
-            # Tool calls this round => execute tools then enter next round / 本轮出现工具调用 => 执行工具后进入下一轮
-            yield SSEChunkEncoder.encode({"event": "thinking"})
 
             messages.append(
                 processor.build_assistant_tool_call_message(
                     content=round_output,
                     tool_calls=tc_list,
+                    reasoning_content=round_visible_thinking or None,
                 )
             )
 
@@ -532,6 +598,10 @@ class StreamExecutionHandler:
             if round_has_confirmation or _page_op_aborted:
                 if round_has_confirmation:
                     self._output = round_output.strip()
+                    self._reasoning_output = round_reasoning_output.strip()
+                    # The current round already has assistant(tool_calls) content;
+                    # do not append a second plain assistant copy into history.
+                    append_final_assistant = False
                 break
         else:
             logger.warning(
@@ -540,7 +610,12 @@ class StreamExecutionHandler:
                 MAX_TOOL_CALL_ROUNDS,
             )
 
-        messages.append(ChatMessage(role="assistant", content=self._output))
+        if append_final_assistant:
+            messages.append(ChatMessage(
+                role="assistant",
+                content=self._output,
+                reasoning_content=(self._reasoning_output or "").strip() or None,
+            ))
 
     # ========================================
     # Tool Call Incremental Aggregation / 工具调用增量聚合

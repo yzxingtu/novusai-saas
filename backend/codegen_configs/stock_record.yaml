@@ -1,7 +1,7 @@
 # 库存记录 CRUD / Stock Record CRUD
 # 管理端+租户端双端隔离：管理端 tenant_id=0，租户端 tenant_id=当前企业
 # Admin + Tenant dual scope, isolated: admin uses tenant_id=0, tenant uses own tenant_id
-module: business
+module: warehouse
 resource: stock_record
 display_name: 库存记录
 display_name_en: Stock Record
@@ -52,8 +52,8 @@ endpoints:
       parent_resource: system_mgmt
       menu:
         icon: lucide:package
-        path: /business/stock-records
-        component: business/stock_record/index
+        path: /warehouse/stock-records
+        component: warehouse/stock_record/index
         parent: system_mgmt
         sort_order: 55
   - scope: tenant
@@ -64,7 +64,7 @@ endpoints:
       parent_resource: system
       menu:
         icon: lucide:package
-        path: /business/stock-records
-        component: tenant/business/stock_record/index
+        path: /warehouse/stock-records
+        component: tenant/warehouse/stock_record/index
         parent: system_mgmt
         sort_order: 25

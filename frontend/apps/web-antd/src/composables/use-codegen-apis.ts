@@ -9,7 +9,7 @@
 import { getAdminListApi } from '#/api/admin/admin-user';
 import { getOrganizationRootNodesApi as getAdminOrgRootsApi } from '#/api/admin/organization';
 import { getTenantUserListApi } from '#/api/tenant/tenant-users';
-import { getOrganizationRootNodesApi as getTenantOrgRootsApi } from '#/api/tenant/organization';
+import { getTenantOrganizationRootNodesApi as getTenantOrgRootsApi } from '#/api/tenant/organization';
 
 function getApiPrefix(): 'admin' | 'tenant' {
   if (typeof window === 'undefined') return 'admin';

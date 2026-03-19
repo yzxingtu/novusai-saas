@@ -33,15 +33,48 @@ const Background = defineAsyncComponent({
 });
 
 const NODE_WIDTH = 100;
-const NODE_HEIGHT = 36;
 const GAP = 80;
 
 const store = useCodegenBuilderStore();
 
-const workflow = computed({
-  get: () => (store.configJson.workflow as Record<string, unknown>) || {},
-  set: (v) => store.updateConfig({ workflow: v }),
-});
+type WorkflowColor = 'default' | 'error' | 'processing' | 'success' | 'warning';
+
+interface WorkflowStatusValue {
+  color?: WorkflowColor;
+  label_zh?: string;
+  value: string;
+}
+
+interface WorkflowTransition {
+  action: string;
+  from: string;
+  label_zh: string;
+  permission: string;
+  requires_comment: boolean;
+  to: string;
+}
+
+interface WorkflowConfig {
+  status_field?: string;
+  transitions?: WorkflowTransition[];
+}
+
+function normalizeTransition(
+  transition?: Partial<WorkflowTransition>,
+): WorkflowTransition {
+  return {
+    action: transition?.action ?? '',
+    from: transition?.from ?? '',
+    label_zh: transition?.label_zh ?? '',
+    permission: transition?.permission ?? '',
+    requires_comment: Boolean(transition?.requires_comment),
+    to: transition?.to ?? '',
+  };
+}
+
+const workflow = computed<WorkflowConfig>(
+  () => (store.configJson.workflow as WorkflowConfig) || {},
+);
 
 const fields = computed(
   () => (store.configJson.fields as Array<Record<string, unknown>>) || [],
@@ -56,7 +89,7 @@ const statusFieldOptions = computed(() =>
 );
 
 const statusValuesMap = computed(() => {
-  const m = new Map<string, Array<{ value: string; label_zh?: string; color?: string }>>();
+  const m = new Map<string, WorkflowStatusValue[]>();
   for (const f of enumFields.value) {
     const vals = (f.enum_values as Array<Record<string, unknown>>) || [];
     m.set(
@@ -64,17 +97,18 @@ const statusValuesMap = computed(() => {
       vals.map((v) => ({
         value: String(v.value ?? v),
         label_zh: v.label_zh as string,
-        color: (v.color as string) || 'default',
+        color: ((v.color as WorkflowColor | undefined) || 'default') as WorkflowColor,
       })),
     );
   }
   return m;
 });
 
-const transitions = computed(() => {
-  const t = (workflow.value.transitions as Array<Record<string, unknown>>) || [];
-  return t;
-});
+const transitions = computed<WorkflowTransition[]>(() =>
+  Array.isArray(workflow.value.transitions)
+    ? workflow.value.transitions.map((transition) => normalizeTransition(transition))
+    : [],
+);
 
 const statusField = computed(() => (workflow.value.status_field as string) || '');
 
@@ -87,15 +121,7 @@ const statusSelectOptions = computed(() =>
   currentStatusValues.value.map((v) => ({ label: v.label_zh || v.value, value: v.value })),
 );
 
-const colorOptions = computed(() => [
-  { label: $t('admin.system.codegen.enum.colorOptions.default'), value: 'default' },
-  { label: $t('admin.system.codegen.enum.colorOptions.success'), value: 'success' },
-  { label: $t('admin.system.codegen.enum.colorOptions.warning'), value: 'warning' },
-  { label: $t('admin.system.codegen.enum.colorOptions.error'), value: 'error' },
-  { label: $t('admin.system.codegen.enum.colorOptions.processing'), value: 'processing' },
-]);
-
-function updateWorkflow(patch: Record<string, unknown>) {
+function updateWorkflow(patch: Partial<WorkflowConfig>) {
   store.updateConfig({ workflow: { ...workflow.value, ...patch } });
 }
 
@@ -119,20 +145,48 @@ function removeTransition(index: number) {
   updateWorkflow({ transitions: list });
 }
 
-function updateTransition(index: number, patch: Record<string, unknown>) {
+function updateTransition(index: number, patch: Partial<WorkflowTransition>) {
   const list = transitions.value;
   if (index < 0 || index >= list.length) return;
   const next = [...list];
-  const merged = { ...next[index], ...patch } as Record<string, unknown>;
-  const from = String(merged.from ?? '');
-  const to = String(merged.to ?? '');
-  const action = String(merged.action ?? '').trim();
+  const current = next[index];
+  if (!current) return;
+  const merged = normalizeTransition({ ...current, ...patch });
+  const from = merged.from;
+  const to = merged.to;
+  const action = merged.action.trim();
   const isDup = next.some(
-    (t, i) => i !== index && String(t.from ?? '') === from && String(t.to ?? '') === to && String((t.action as string) ?? '').trim() === action,
+    (transition, i) =>
+      i !== index &&
+      transition.from === from &&
+      transition.to === to &&
+      transition.action.trim() === action,
   );
   if (isDup) return;
   next[index] = merged;
   updateWorkflow({ transitions: next });
+}
+
+function onStatusFieldChange(value: unknown) {
+  updateWorkflow({
+    status_field: typeof value === 'string' && value ? value : undefined,
+  });
+}
+
+function onTransitionSelectChange(
+  index: number,
+  field: 'from' | 'to',
+  value: unknown,
+) {
+  if (field === 'from') {
+    updateTransition(index, { from: typeof value === 'string' ? value : '' });
+    return;
+  }
+  updateTransition(index, { to: typeof value === 'string' ? value : '' });
+}
+
+function onRequiresCommentChange(index: number, value: unknown) {
+  updateTransition(index, { requires_comment: Boolean(value) });
 }
 
 /** VueFlow 节点：每个状态一个节点，水平排列 / VueFlow nodes: one per status, horizontal layout */
@@ -167,7 +221,7 @@ const flowEdges = computed<Edge[]>(() =>
           :placeholder="$t('admin.system.codegen.enum.selectStatusField')"
           allow-clear
           class="w-full"
-          @change="(v: string) => updateWorkflow({ status_field: v || undefined })"
+          @change="onStatusFieldChange"
         />
       </Form.Item>
     </Form>
@@ -196,7 +250,7 @@ const flowEdges = computed<Edge[]>(() =>
             class="w-24"
             size="small"
             :placeholder="$t('admin.system.codegen.enum.from')"
-            @change="(v: string) => updateTransition(idx, { from: v })"
+            @change="(value) => onTransitionSelectChange(idx, 'from', value)"
           />
           <span class="text-muted-foreground">→</span>
           <Select
@@ -205,7 +259,7 @@ const flowEdges = computed<Edge[]>(() =>
             class="w-24"
             size="small"
             :placeholder="$t('admin.system.codegen.enum.to')"
-            @change="(v: string) => updateTransition(idx, { to: v })"
+            @change="(value) => onTransitionSelectChange(idx, 'to', value)"
           />
           <Input
             :value="t.action"
@@ -224,7 +278,7 @@ const flowEdges = computed<Edge[]>(() =>
           <Switch
             :checked="!!t.requires_comment"
             size="small"
-            @change="(v: boolean) => updateTransition(idx, { requires_comment: v })"
+            @change="(value) => onRequiresCommentChange(idx, value)"
           />
           <span class="text-muted-foreground text-xs">{{ $t('admin.system.codegen.enum.requiresComment') }}</span>
           <Button

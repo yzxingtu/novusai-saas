@@ -634,6 +634,7 @@
       "router_model_not_configured": "路由智能体未配置模型，请联系管理员配置",
       "router_timeout": "路由智能体响应超时，已使用默认智能体",
       "default_agent_not_configured": "请管理员配置默认 AI 助手",
+      "default_agent_not_accessible": "默认智能体对当前角色或企业不可用",
       "agent_not_accessible": "该智能体不可访问"
     },
     "conversation_deleted": "对话已删除",
@@ -2855,7 +2856,9 @@
       "json_parse_guidance_tip": "提示：请简化长文本字段（如 system_prompt）——先用简短占位符创建记录，再使用 data_update 更新完整内容。",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
-      "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表"
+      "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表",
+      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}",
+      "agent_invalid_audience": "智能体 target_audience '{audience}' 无效。有效值：{valid}"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },

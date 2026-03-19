@@ -1,5 +1,8 @@
 """Tests for _try_repair_json enhancements."""
+import json
+
 from app.ai.engine.tool_processor import _try_repair_json, ToolCallProcessor
+from app.ai.types import ChatMessage
 
 
 def test_trailing_comma() -> None:
@@ -65,3 +68,75 @@ def test_brute_force_fallback() -> None:
     r = _try_repair_json(raw)
     assert r is not None
     assert "a" in r
+
+
+def test_find_pending_confirmation_injects_confirmed_for_preview_flow() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[{
+                "id": "tc_preview",
+                "type": "function",
+                "function": {
+                    "name": "data_update",
+                    "arguments": '{"table_name":"agents","confirmed":false}',
+                },
+            }],
+        ),
+        ChatMessage(
+            role="tool",
+            content=json.dumps({"requires_confirmation": True, "preview": {}}),
+            tool_call_id="tc_preview",
+        ),
+    ]
+
+    pending = ToolCallProcessor.find_pending_confirmation(messages)
+
+    assert pending is not None
+    assert pending["name"] == "data_update"
+    assert pending["arguments"]["confirmed"] is True
+
+
+def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[{
+                "id": "tc_consent",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"OpenAI 最新新闻","max_results":1}',
+                },
+            }],
+        ),
+        ChatMessage(
+            role="tool",
+            content=json.dumps(
+                {
+                    "requires_confirmation": True,
+                    "consent_required": True,
+                    "action": "tool_consent",
+                    "tool_name": "web_search",
+                    "arguments": {
+                        "query": "OpenAI 最新新闻",
+                        "max_results": 1,
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            tool_call_id="tc_consent",
+        ),
+    ]
+
+    pending = ToolCallProcessor.find_pending_confirmation(messages)
+
+    assert pending is not None
+    assert pending["name"] == "web_search"
+    assert pending["arguments"] == {
+        "query": "OpenAI 最新新闻",
+        "max_results": 1,
+    }
+    assert "confirmed" not in pending["arguments"]

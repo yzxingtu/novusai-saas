@@ -39,6 +39,39 @@ def _file_hash(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+_MISSING = object()
+
+
+def _get_nested_value(data: dict, dotted_path: str):
+    """读取嵌套 JSON 路径 / Read nested JSON value by dotted path."""
+    target = data
+    for part in dotted_path.split("."):
+        if not isinstance(target, dict) or part not in target:
+            return _MISSING
+        target = target[part]
+    return target
+
+
+def _delete_nested_value(data: dict, dotted_path: str) -> None:
+    """删除嵌套 JSON 路径，并清理空父节点 / Delete nested JSON key and prune empty parents."""
+    parts = dotted_path.split(".")
+    target = data
+    parents: list[tuple[dict, str]] = []
+    for part in parts[:-1]:
+        if not isinstance(target, dict) or part not in target:
+            return
+        parents.append((target, part))
+        target = target[part]
+    if isinstance(target, dict):
+        target.pop(parts[-1], None)
+    for parent, key in reversed(parents):
+        child = parent.get(key)
+        if isinstance(child, dict) and not child:
+            parent.pop(key, None)
+        else:
+            break
+
+
 class CodegenRollback:
     """
     回滚引擎 / Rollback engine.
@@ -84,25 +117,51 @@ class CodegenRollback:
             result.errors.append(_("codegen.rollback.no_manifest_entry"))
             return result
 
+        if entry.file_rollback_completed and not dry_run:
+            result.success = True
+            return result
+
         ts = int(time.time() * 1000)
         backup_dir = self.project_root / ".novus_codegen_backup" / f"rollback_{ts}"
         if not dry_run:
             backup_dir.mkdir(parents=True, exist_ok=True)
 
-        for f in entry.files:
+        ordered_files = sorted(
+            entry.files,
+            key=lambda item: 1 if item.get("action", "create") == "create" else 0,
+        )
+
+        for f in ordered_files:
             path_str = f.get("path", "")
             action = f.get("action", "create")
             dest = self.project_root / path_str
+
+            if action == "create" and result.files_skipped and not dry_run:
+                result.files_skipped.append(
+                    {"path": path_str, "reason": "blocked_by_earlier_skip"}
+                )
+                result.manual_steps.append(
+                    f"{path_str}: skipped delete because shared file rollback was incomplete"
+                )
+                continue
 
             if action == "create":
                 if dry_run:
                     result.files_deleted.append(path_str)
                     continue
-                if dest.exists():
-                    dest.unlink()
-                    result.files_deleted.append(path_str)
-                else:
+                if not dest.exists():
                     result.files_skipped.append({"path": path_str, "reason": "file_not_found"})
+                    continue
+                stored_hash = f.get("content_hash")
+                if stored_hash and not force:
+                    current_hash = _file_hash(dest)
+                    if current_hash != stored_hash:
+                        result.files_skipped.append(
+                            {"path": path_str, "reason": "content_modified"}
+                        )
+                        continue
+                dest.unlink()
+                result.files_deleted.append(path_str)
 
             elif action == "append":
                 appended = f.get("appended_content", "")
@@ -114,7 +173,9 @@ class CodegenRollback:
                 content = dest.read_text(encoding="utf-8", errors="replace")
                 appended_stripped = appended.strip()
                 if appended_stripped not in content:
-                    result.files_skipped.append({"path": path_str, "reason": "appended_content_modified"})
+                    result.files_skipped.append(
+                        {"path": path_str, "reason": "appended_content_modified"}
+                    )
                     continue
                 if dry_run:
                     result.files_modified.append(path_str)
@@ -139,14 +200,33 @@ class CodegenRollback:
                     continue
                 try:
                     data = json.loads(dest.read_text(encoding="utf-8", errors="replace"))
+                    merged_data = f.get("merged_data") or {}
+                    if not force and isinstance(merged_data, dict):
+                        modified_keys: list[str] = []
+                        for key_path in merged_keys:
+                            expected_value = _get_nested_value(merged_data, key_path)
+                            current_value = _get_nested_value(data, key_path)
+                            if (
+                                expected_value is not _MISSING
+                                and current_value is not _MISSING
+                                and current_value != expected_value
+                            ):
+                                modified_keys.append(key_path)
+                        if modified_keys:
+                            result.files_skipped.append(
+                                {
+                                    "path": path_str,
+                                    "reason": "content_modified",
+                                    "keys": modified_keys,
+                                }
+                            )
+                            result.manual_steps.append(
+                                f"{path_str}: merged keys were modified ({', '.join(modified_keys)})"
+                            )
+                            continue
                     for k in merged_keys:
                         if "." in k:
-                            parts = k.split(".")
-                            target = data
-                            for p in parts[:-1]:
-                                target = target.get(p, {})
-                            if isinstance(target, dict):
-                                target.pop(parts[-1], None)
+                            _delete_nested_value(data, k)
                         else:
                             data.pop(k, None)
                     backup_path = backup_dir / path_str
@@ -269,7 +349,21 @@ class CodegenRollback:
                 result.files_modified.append(path_str)
 
         if not dry_run:
-            self.manifest.remove_entry(entry.resource)
+            if result.files_skipped:
+                result.errors.append(
+                    "Partial rollback: {} file(s) skipped. "
+                    "Manifest entry preserved for retry. Use --force for create-only overrides.".format(
+                        len(result.files_skipped)
+                    )
+                )
+                if result.manual_steps:
+                    result.errors.append(
+                        "Manual steps required: " + "; ".join(result.manual_steps[:3])
+                        + (" ..." if len(result.manual_steps) > 3 else "")
+                    )
+            else:
+                self.manifest.mark_file_rollback_completed(entry.resource, True)
+
             # 清理空目录 / Clean up empty directories
             deleted_paths = {self.project_root / f.get("path", "") for f in entry.files if f.get("action") == "create"}
             for p in deleted_paths:
@@ -284,7 +378,8 @@ class CodegenRollback:
                     except OSError:
                         break
 
-        result.success = True
+        # 有残留未处理时绝不报 success；force 仅影响 create 的 hash 校验跳过
+        result.success = len(result.files_skipped) == 0
         return result
 
 

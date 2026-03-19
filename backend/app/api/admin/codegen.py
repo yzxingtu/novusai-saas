@@ -12,6 +12,8 @@ from pathlib import Path
 from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 
+from filelock import FileLock, Timeout
+
 from app.codegen.manifest import ManifestManager
 from app.codegen.migration_helper import run_rollback_migration_cleanup
 from app.codegen.rollback import CodegenRollback
@@ -20,6 +22,7 @@ from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
+from app.enums.codegen import CodegenConfigStatusEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -57,6 +60,16 @@ def _require_debug() -> None:
 
 
 from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
+
+_LOCK_DIR = _PROJECT_ROOT / ".codegen_locks"
+
+_GLOBAL_LOCK_FILE = "_codegen_global.lock"
+
+
+def _codegen_global_lock(timeout: int = 60) -> FileLock:
+    """Global codegen lock to prevent concurrent generate/rollback (shared files like models/__init__.py)."""
+    _LOCK_DIR.mkdir(parents=True, exist_ok=True)
+    return FileLock(_LOCK_DIR / _GLOBAL_LOCK_FILE, timeout=timeout)
 
 
 @permission_resource(
@@ -494,28 +507,72 @@ class AdminCodegenController(GlobalController):
                 inp = body.config_json
             else:
                 raise HTTPException(400, _("codegen.need_config_id_or_json"))
-            result = await service.generate(inp, force=body.force, project_root=_PROJECT_ROOT)
-            data = {
-                "success": result.success,
-                "files_created": result.files_created,
-                "files_modified": result.files_modified,
-                "conflicts": result.conflicts,
-                "errors": result.errors,
-                "backup_dir": result.backup_dir,
-            }
-            if body.auto_migrate and result.success:
-                if body.config_id is not None:
-                    cfg = await service.get_by_id(body.config_id)
-                    resource = cfg.resource if cfg else None
-                else:
-                    from app.codegen.config_parser import ConfigParser
-                    parsed = ConfigParser().parse(body.config_json or {})
-                    resource = parsed.resource
-                if resource:
-                    migrate_result = CodegenService.run_auto_migrate(resource, _PROJECT_ROOT)
+
+            resource = None
+            if body.config_id is not None:
+                cfg = await service.get_by_id(body.config_id)
+                resource = cfg.resource if cfg else None
+            elif body.config_json:
+                from app.codegen.config_parser import ConfigParser
+                parsed = ConfigParser().parse(body.config_json)
+                resource = parsed.resource
+
+            try:
+                lock = _codegen_global_lock()
+                lock.acquire(timeout=60)
+            except Timeout:
+                raise HTTPException(409, _("codegen.concurrent_operation"))
+
+            try:
+                output = await service.generate(inp, force=body.force, project_root=_PROJECT_ROOT)
+                result = output.result
+                data = {
+                    "success": result.success,
+                    "files_created": result.files_created,
+                    "files_modified": result.files_modified,
+                    "conflicts": result.conflicts,
+                    "errors": result.errors,
+                    "backup_dir": result.backup_dir,
+                    "config_id": output.config_id,
+                    "resource": output.resource,
+                    "module": output.module,
+                    "table_name": output.table_name,
+                }
+                if body.auto_migrate and result.success and output.resource:
+                    migrate_result = CodegenService.run_auto_migrate(output.resource, _PROJECT_ROOT)
                     data["migration"] = migrate_result
-            validated = GenerateResultSchema.model_validate(data)
-            return success(data=validated.model_dump())
+                    if migrate_result.get("success"):
+                        if migrate_result.get("migration_path"):
+                            manifest = ManifestManager(_PROJECT_ROOT)
+                            manifest.update_migration_file(output.resource, migrate_result["migration_path"])
+                        if output.config_id is not None:
+                            await service.update(
+                                output.config_id,
+                                {
+                                    "status": CodegenConfigStatusEnum.APPLIED.value,
+                                    "last_error": None,
+                                },
+                            )
+                    else:
+                        err_msg = (
+                            f"auto_migrate failed at {migrate_result.get('phase', 'unknown')}: "
+                            f"{migrate_result.get('error', 'unknown error')}"
+                        )
+                        data["success"] = False
+                        data["errors"] = list(data.get("errors") or [])
+                        data["errors"].append(err_msg)
+                        if output.config_id is not None:
+                            await service.update(
+                                output.config_id,
+                                {
+                                    "status": CodegenConfigStatusEnum.GENERATED.value,
+                                    "last_error": err_msg,
+                                },
+                            )
+                validated = GenerateResultSchema.model_validate(data)
+                return success(data=validated.model_dump())
+            finally:
+                lock.release()
 
         @router.get("/download/{config_id}", summary=_("codegen.api.download"))
         @action_read("action.codegen.download")
@@ -575,35 +632,75 @@ class AdminCodegenController(GlobalController):
             service = CodegenService(db)
             config = await service.get_by_id(id)
             resource = config.resource if config else None
-            migration_file = None
-            if resource:
-                manifest = ManifestManager(_PROJECT_ROOT)
-                entry = manifest.get_entry(resource)
-                migration_file = entry.migration_file if entry else None
+            manifest = ManifestManager(_PROJECT_ROOT)
+            entry = manifest.get_entry(resource) if resource else None
+            if not entry:
+                entry = next((e for e in manifest.list_entries() if e.config_id == id), None)
+            if not entry:
+                raise HTTPException(
+                    400,
+                    _("codegen.rollback.no_manifest_entry"),
+                )
+            resource = entry.resource
+            migration_file = entry.migration_file
 
-            result = await service.rollback_async(
-                id, force=force, dry_run=dry_run, project_root=_PROJECT_ROOT
-            )
+            try:
+                lock = _codegen_global_lock()
+                lock.acquire(timeout=60)
+            except Timeout:
+                raise HTTPException(409, _("codegen.concurrent_operation"))
 
-            migration_cleaned = False
-            if (result.success or resource) and not dry_run:
-                migration_cleaned = run_rollback_migration_cleanup(
-                    resource=resource or "",
-                    migration_file=migration_file,
-                    project_root=_PROJECT_ROOT,
+            try:
+                result = await service.rollback_async(
+                    id, force=force, dry_run=dry_run, project_root=_PROJECT_ROOT
                 )
 
-            data = {
-                "success": result.success,
-                "files_deleted": result.files_deleted,
-                "files_modified": result.files_modified,
-                "files_skipped": result.files_skipped,
-                "manual_steps": result.manual_steps,
-                "errors": result.errors,
-                "migration_cleaned": migration_cleaned,
-            }
-            validated = RollbackResultSchema.model_validate(data)
-            return success(data=validated.model_dump())
+                migration_cleaned = False
+                if not dry_run and resource and result.success:
+                    migration_cleaned = run_rollback_migration_cleanup(
+                        resource=resource,
+                        migration_file=migration_file,
+                        project_root=_PROJECT_ROOT,
+                        force_drop=force,
+                    )
+
+                overall_success = result.success
+                errors = list(result.errors)
+                if not dry_run and resource and result.success:
+                    if migration_cleaned:
+                        manifest.remove_entry(resource)
+                        if config:
+                            await service.update(
+                                id,
+                                {
+                                    "status": CodegenConfigStatusEnum.ROLLED_BACK.value,
+                                    "generated_files": None,
+                                    "last_error": None,
+                                },
+                            )
+                    else:
+                        overall_success = False
+                        rollback_err = (
+                            "File rollback completed but migration cleanup failed. "
+                            "Manifest entry preserved for retry."
+                        )
+                        errors.append(rollback_err)
+                        if config:
+                            await service.update(id, {"last_error": rollback_err})
+
+                data = {
+                    "success": overall_success,
+                    "files_deleted": result.files_deleted,
+                    "files_modified": result.files_modified,
+                    "files_skipped": result.files_skipped,
+                    "manual_steps": result.manual_steps,
+                    "errors": errors,
+                    "migration_cleaned": migration_cleaned,
+                }
+                validated = RollbackResultSchema.model_validate(data)
+                return success(data=validated.model_dump())
+            finally:
+                lock.release()
 
         @router.delete(
             "/rollback/{resource}",
@@ -613,6 +710,7 @@ class AdminCodegenController(GlobalController):
         async def rollback_by_resource(
             request: Request,
             resource: str,
+            db: DbSession,
             current_admin: ActiveAdmin,
             force: bool = False,
             dry_run: bool = False,
@@ -621,30 +719,71 @@ class AdminCodegenController(GlobalController):
             _require_debug()
             manifest = ManifestManager(_PROJECT_ROOT)
             entry = manifest.get_entry(resource)
+            if not entry:
+                raise HTTPException(
+                    400,
+                    _("codegen.rollback.no_manifest_entry"),
+                )
             migration_file = entry.migration_file if entry else None
 
-            rb = CodegenRollback(_PROJECT_ROOT)
-            result = rb.rollback(resource=resource, force=force, dry_run=dry_run)
+            try:
+                lock = _codegen_global_lock()
+                lock.acquire(timeout=60)
+            except Timeout:
+                raise HTTPException(409, _("codegen.concurrent_operation"))
 
-            migration_cleaned = False
-            if (result.success or resource) and not dry_run:
-                migration_cleaned = run_rollback_migration_cleanup(
-                    resource=resource,
-                    migration_file=migration_file,
-                    project_root=_PROJECT_ROOT,
-                )
+            try:
+                rb = CodegenRollback(_PROJECT_ROOT)
+                result = rb.rollback(resource=resource, force=force, dry_run=dry_run)
 
-            data = {
-                "success": result.success,
-                "files_deleted": result.files_deleted,
-                "files_modified": result.files_modified,
-                "files_skipped": result.files_skipped,
-                "manual_steps": result.manual_steps,
-                "errors": result.errors,
-                "migration_cleaned": migration_cleaned,
-            }
-            validated = RollbackResultSchema.model_validate(data)
-            return success(data=validated.model_dump())
+                migration_cleaned = False
+                if not dry_run and result.success:
+                    migration_cleaned = run_rollback_migration_cleanup(
+                        resource=resource,
+                        migration_file=migration_file,
+                        project_root=_PROJECT_ROOT,
+                        force_drop=force,
+                    )
+
+                svc = CodegenService(db)
+                cfg = await svc.get_by_resource(resource) if not dry_run else None
+                overall_success = result.success
+                errors = list(result.errors)
+                if not dry_run and result.success:
+                    if migration_cleaned:
+                        manifest.remove_entry(resource)
+                        if cfg:
+                            await svc.update(
+                                cfg.id,
+                                {
+                                    "status": CodegenConfigStatusEnum.ROLLED_BACK.value,
+                                    "generated_files": None,
+                                    "last_error": None,
+                                },
+                            )
+                    else:
+                        overall_success = False
+                        rollback_err = (
+                            "File rollback completed but migration cleanup failed. "
+                            "Manifest entry preserved for retry."
+                        )
+                        errors.append(rollback_err)
+                        if cfg:
+                            await svc.update(cfg.id, {"last_error": rollback_err})
+
+                data = {
+                    "success": overall_success,
+                    "files_deleted": result.files_deleted,
+                    "files_modified": result.files_modified,
+                    "files_skipped": result.files_skipped,
+                    "manual_steps": result.manual_steps,
+                    "errors": errors,
+                    "migration_cleaned": migration_cleaned,
+                }
+                validated = RollbackResultSchema.model_validate(data)
+                return success(data=validated.model_dump())
+            finally:
+                lock.release()
 
 
 router = AdminCodegenController.get_router()

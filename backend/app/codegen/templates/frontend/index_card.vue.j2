@@ -20,7 +20,7 @@ import Form from './modules/form.vue';
 {% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
 {% set _fe = _ep.get('frontend') or {} %}
 {% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
-{% set resource_path = route_prefix | replace('/', '') or resource_plural %}
+{% set resource_path = route_prefix | path_no_leading_slash or resource_plural %}
 {% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
 {% set res_name = resource | replace('_', '-') %}

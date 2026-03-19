@@ -548,6 +548,7 @@ class BaseEngine(ABC):
         request: ExecutionRequest,
         skip_final_call: bool = False,
         route_result: Any | None = None,
+        tool_consent_modes: dict[str, str] | None = None,
     ) -> tuple[ChatResponse | None, list[ToolResult], int]:
         """
         Handle tool call loop.
@@ -577,6 +578,7 @@ class BaseEngine(ABC):
         processor = ToolCallProcessor(
             sandbox=self.sandbox,
             tools=tools,
+            consent_modes=tool_consent_modes or {},
         )
 
         all_tool_results: list[ToolResult] = []
@@ -592,10 +594,43 @@ class BaseEngine(ABC):
             messages.append(processor.build_assistant_tool_call_message(
                 content=current_response.message.content or "",
                 tool_calls=tool_calls,
+                reasoning_content=(current_response.message.content or "").strip() or None,
             ))
 
             # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
+            # consent_mode pre-check: same semantic as stream path / consent_mode 前置检查：与流式路径语义一致
             for tc in tool_calls:
+                tc_id = tc.get("id", "")
+                func = tc.get("function", {})
+                func_name = func.get("name", "")
+                raw_args = func.get("arguments", "{}")
+                arguments, parse_error = processor.parse_arguments(raw_args)
+
+                # consent_mode check only when args parse ok (else process_single handles parse error)
+                if not parse_error:
+                    _consent = processor.check_consent(func_name)
+                    if _consent == "reject":
+                        messages.append(processor.build_consent_reject_message(tc_id))
+                        continue
+                    if _consent == "ask":
+                        messages.append(
+                            processor.build_consent_ask_message(
+                                tc_id, func_name, arguments,
+                            )
+                        )
+                        return (
+                            ChatResponse(
+                                message=ChatMessage(
+                                    role="assistant",
+                                    content=current_response.message.content or "",
+                                    tool_calls=tool_calls,
+                                ),
+                                metadata={"skip_final_assistant": True},
+                            ),
+                            all_tool_results,
+                            total_tokens,
+                        )
+
                 single = await processor.process_single(
                     tc, conversation_id=request.conversation_id or 0,
                 )

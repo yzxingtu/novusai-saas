@@ -49,7 +49,12 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       provider_id: data.provider_id,
       is_active: data.is_active,
       usage_limit: data.usage_limit,
-      ...extractScopeFormValues(data),
+      ...extractScopeFormValues(data as unknown as {
+        [k: string]: unknown;
+        assigned_tenant_ids?: number[];
+        scope?: string;
+        tenant_id?: null | number;
+      }),
     };
   },
   onSuccess: () => {

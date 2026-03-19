@@ -15,15 +15,37 @@ defineOptions({ name: 'DetailGroupEditor' });
 
 const store = useCodegenBuilderStore();
 
-const detail = computed({
-  get: () => (store.configJson.detail as Record<string, unknown>) || {},
-  set: (v) => store.updateConfig({ detail: v }),
-});
+interface DetailGroup {
+  fields: string[];
+  title_en: string;
+  title_zh: string;
+}
 
-const groups = computed(() => (detail.value.groups as Array<Record<string, unknown>>) || []);
+function normalizeGroup(group?: Partial<DetailGroup>): DetailGroup {
+  return {
+    fields: Array.isArray(group?.fields)
+      ? group.fields.filter((item): item is string => typeof item === 'string')
+      : [],
+    title_en: group?.title_en ?? '',
+    title_zh: group?.title_zh ?? '',
+  };
+}
 
-function getGroupKey(g: Record<string, unknown>, idx: number) {
-  return (g.title_zh as string) || (g.title_en as string) || `group-${idx}`;
+const detail = computed<Record<string, unknown>>(
+  () => (store.configJson.detail as Record<string, unknown>) || {},
+);
+
+const groups = computed<DetailGroup[]>(
+  () =>
+    Array.isArray(detail.value.groups)
+      ? (detail.value.groups as Partial<DetailGroup>[]).map((group) =>
+          normalizeGroup(group),
+        )
+      : [],
+);
+
+function getGroupKey(group: DetailGroup, idx: number) {
+  return group.title_zh || group.title_en || `group-${idx}`;
 }
 
 const fields = computed(
@@ -51,12 +73,19 @@ function removeGroup(index: number) {
   updateDetail({ groups: list });
 }
 
-function updateGroup(index: number, patch: Record<string, unknown>) {
+function updateGroup(index: number, patch: Partial<DetailGroup>) {
   const list = groups.value;
   if (index < 0 || index >= list.length) return;
   const next = [...list];
-  next[index] = { ...next[index], ...patch };
+  next[index] = normalizeGroup({ ...next[index], ...patch });
   updateDetail({ groups: next });
+}
+
+function onFieldsChange(index: number, value: unknown) {
+  const nextFields = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+  updateGroup(index, { fields: nextFields });
 }
 </script>
 
@@ -91,12 +120,12 @@ function updateGroup(index: number, patch: Record<string, unknown>) {
       <Form layout="vertical" class="min-w-48 flex-1">
         <Form.Item :label="$t('admin.system.codegen.frontend.groupFields')">
           <Select
-            :value="(g.fields || []) as string[]"
+            :value="g.fields"
             :options="fieldOptions"
             mode="multiple"
             class="w-full"
             :placeholder="$t('admin.system.codegen.frontend.selectFieldsPlaceholder')"
-            @change="(v: string[]) => updateGroup(idx, { fields: v })"
+            @change="(value) => onFieldsChange(idx, value)"
           />
         </Form.Item>
       </Form>

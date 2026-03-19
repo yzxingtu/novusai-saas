@@ -5,8 +5,6 @@
  * 3 Tab 分区：模型与数据、界面与功能、高级特性
  * 3-Tab layout: Model & Data, UI & Features, Advanced Features
  */
-import type { Recordable } from '@vben/types';
-
 import { computed, ref, watch } from 'vue';
 
 import {
@@ -39,55 +37,128 @@ const emit = defineEmits<{ 'update:open': [boolean] }>();
 
 const store = useCodegenBuilderStore();
 
-const modalOpen = computed({
+type BuilderField = Record<string, unknown>;
+
+interface TreeConfig {
+  enabled?: boolean;
+  max_depth?: number;
+  parent_field?: string;
+}
+
+interface ModelConfig extends Record<string, unknown> {
+  __delete_deps__?: string[];
+  base_class?: string;
+  data_permission?: boolean;
+  soft_delete?: boolean;
+  table_name?: string;
+  tree?: TreeConfig;
+}
+
+interface EndpointFrontend extends Record<string, unknown> {
+  default_sort?: string;
+  drag_sort?: boolean;
+  export?: boolean;
+  form_columns?: number;
+  mode?: 'card' | 'table';
+  operation_options?: string[];
+  recycle_bin?: boolean;
+}
+
+interface EndpointMenuConfig extends Record<string, unknown> {
+  icon?: string;
+  title?: string;
+}
+
+interface EndpointPermissionConfig extends Record<string, unknown> {
+  menu?: EndpointMenuConfig;
+}
+
+interface EndpointConfig extends Record<string, unknown> {
+  data_mode?: string;
+  frontend?: EndpointFrontend;
+  permission?: EndpointPermissionConfig;
+  route_prefix?: string;
+  scope?: string;
+}
+
+interface BatchConfig extends Record<string, unknown> {
+  delete?: boolean;
+}
+
+interface CloneConfig extends Record<string, unknown> {
+  enabled?: boolean;
+  exclude_fields?: string[];
+}
+
+interface DetailConfig extends Record<string, unknown> {
+  enabled?: boolean;
+  mode?: 'drawer' | 'page';
+  name_field?: string;
+}
+
+function asBoolean(value: unknown): boolean {
+  return Boolean(value);
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function asNumberOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+const modalOpen = computed<boolean>({
   get: () => props.open,
   set: (v) => emit('update:open', v),
 });
 
-const model = computed(
-  () => (store.configJson.model as Record<string, unknown>) || {},
+const model = computed<ModelConfig>(
+  () => (store.configJson.model as ModelConfig) || {},
 );
-const treeConfig = computed(
-  () => (model.value.tree as Record<string, unknown>) || {},
+const treeConfig = computed<TreeConfig>(
+  () => (model.value.tree as TreeConfig) || {},
 );
-const endpoints = computed(
-  () => (store.configJson.endpoints as Array<Record<string, unknown>>) || [],
+const endpoints = computed<EndpointConfig[]>(
+  () => (store.configJson.endpoints as EndpointConfig[]) || [],
 );
 
 const activeEndpointIdx = ref(0);
 const hasDualScope = computed(() => endpoints.value.length > 1);
 
 const currentEndpoint = computed(() =>
-  endpoints.value[activeEndpointIdx.value] || {},
+  endpoints.value[activeEndpointIdx.value] || ({} as EndpointConfig),
 );
-const firstEndpoint = computed(() => endpoints.value[0] || {});
-const frontend = computed(
-  () => (currentEndpoint.value?.frontend as Record<string, unknown>) || {},
+const frontend = computed<EndpointFrontend>(
+  () => (currentEndpoint.value.frontend as EndpointFrontend) || {},
 );
-const permission = computed(
-  () =>
-    (currentEndpoint.value?.permission as Record<string, unknown>) || {},
+const permission = computed<EndpointPermissionConfig>(
+  () => (currentEndpoint.value.permission as EndpointPermissionConfig) || {},
 );
-const menu = computed(
-  () => (permission.value?.menu as Record<string, unknown>) || {},
+const menu = computed<EndpointMenuConfig>(
+  () => (permission.value.menu as EndpointMenuConfig) || {},
 );
-const batch = computed(
-  () => (store.configJson.batch as Record<string, unknown>) || {},
+const batch = computed<BatchConfig>(
+  () => (store.configJson.batch as BatchConfig) || {},
 );
-const clone = computed(
-  () => (store.configJson.clone as Record<string, unknown>) || {},
+const clone = computed<CloneConfig>(
+  () => (store.configJson.clone as CloneConfig) || {},
 );
-const detail = computed(
-  () => (store.configJson.detail as Record<string, unknown>) || {},
+const detail = computed<DetailConfig>(
+  () => (store.configJson.detail as DetailConfig) || {},
 );
-const workflow = computed(
-  () => (store.configJson.workflow as Record<string, unknown>) || {},
-);
-const actions = computed(
-  () => (store.configJson.actions as Array<Record<string, unknown>>) || [],
-);
-const fields = computed(
-  () => (store.configJson.fields as Array<Record<string, unknown>>) || [],
+const fields = computed<BuilderField[]>(
+  () => (store.configJson.fields as BuilderField[]) || [],
 );
 const deleteDeps = computed({
   get: () => (model.value.__delete_deps__ as string[]) || [],
@@ -99,8 +170,14 @@ const deleteDeps = computed({
 
 const fieldOptions = computed(() =>
   fields.value
-    .filter((f) => (f.type as string) !== 'divider' && f.type !== '__divider__' && !f.divider && (f.name || '').toString().trim())
-    .map((f) => ({ label: ((f.name as string) || '').trim(), value: (f.name as string)?.trim() || '' })),
+    .filter(
+      (f) =>
+        f.type !== 'divider' &&
+        f.type !== '__divider__' &&
+        !f.divider &&
+        asString(f.name).trim(),
+    )
+    .map((f) => ({ label: asString(f.name).trim(), value: asString(f.name).trim() })),
 );
 
 const parentResourceOptions = ref<Array<{ label: string; value: string }>>([]);
@@ -136,9 +213,7 @@ const sortOrderOptions = computed(() => [
 async function loadParentResources() {
   try {
     const arr = await getCodegenParentResourcesApi();
-    parentResourceOptions.value = (arr || []).map((item) =>
-      typeof item === 'string' ? { label: item, value: item } : item,
-    );
+    parentResourceOptions.value = arr.map((item) => ({ label: item, value: item }));
   } catch {
     parentResourceOptions.value = [];
   }
@@ -167,11 +242,11 @@ function parseDefaultSortOrder(s: string | undefined): 'asc' | 'desc' {
   return order === 'asc' ? 'asc' : 'desc';
 }
 
-function updateModel(patch: Record<string, unknown>) {
+function updateModel(patch: Partial<ModelConfig>) {
   store.updateConfig({ model: { ...model.value, ...patch } });
 }
 
-function updateTree(patch: Record<string, unknown>) {
+function updateTree(patch: Partial<TreeConfig>) {
   updateModel({ tree: { ...treeConfig.value, ...patch } });
 }
 
@@ -179,52 +254,82 @@ function setActiveEndpointIdx(v: number) {
   activeEndpointIdx.value = v;
 }
 
-function updateEndpoints(patch: Record<string, unknown>, idx?: number) {
+function updateEndpoints(patch: Partial<EndpointConfig>, idx?: number) {
   const i = idx ?? activeEndpointIdx.value;
   const list = [...endpoints.value];
   if (list.length <= i) {
     while (list.length <= i) list.push({});
   }
-  list[i] = { ...list[i], ...patch };
+  list[i] = { ...(list[i] || {}), ...patch };
   store.updateConfig({ endpoints: list });
 }
 
 /** 更新当前 endpoint 的 frontend；mode 变更时联动所有 endpoint */
-function updateFrontend(patch: Record<string, unknown>) {
+function updateFrontend(patch: Partial<EndpointFrontend>) {
   const list = [...endpoints.value];
   if (list.length === 0) return;
   const modePatch = patch.mode !== undefined;
   if (modePatch && list.length > 1) {
     const next = list.map((ep) => ({
       ...ep,
-      frontend: { ...((ep.frontend as Record<string, unknown>) || {}), ...patch },
+        frontend: { ...((ep.frontend as EndpointFrontend) || {}), ...patch },
     }));
     store.updateConfig({ endpoints: next });
   } else {
     const i = activeEndpointIdx.value;
+    const current = list[i];
+    if (!current) return;
     list[i] = {
-      ...list[i],
+      ...current,
       frontend: { ...frontend.value, ...patch },
     };
     store.updateConfig({ endpoints: list });
   }
 }
 
-function updatePermission(patch: Record<string, unknown>) {
+function updatePermission(patch: Partial<EndpointPermissionConfig>) {
   const list = [...endpoints.value];
   const i = activeEndpointIdx.value;
-  if (list.length > i) {
-    const perm = (list[i]?.permission as Record<string, unknown>) || {};
+  const current = list[i];
+  if (current) {
+    const perm = (current.permission as EndpointPermissionConfig) || {};
     list[i] = {
-      ...list[i],
+      ...current,
       permission: { ...perm, ...patch },
     };
     store.updateConfig({ endpoints: list });
   }
 }
 
-function updateMenu(patch: Record<string, unknown>) {
+function updateMenu(patch: Partial<EndpointMenuConfig>) {
   updatePermission({ menu: { ...menu.value, ...patch } });
+}
+
+/** 更新 detail.enabled 并同步 operation_options */
+function updateDetailEnabled(enabled: boolean) {
+  store.updateConfig({ detail: { ...detail.value, enabled } });
+  const list = [...endpoints.value];
+  for (let i = 0; i < list.length; i++) {
+    const ep = list[i];
+    if (!ep) continue;
+    const fe = (ep.frontend as Record<string, unknown>) || {};
+    const opts = (fe.operation_options as string[]) || ['edit', 'delete'];
+    const hasDetail = opts.includes('detail');
+    if (enabled && !hasDetail) {
+      list[i] = {
+        ...ep,
+        frontend: { ...fe, operation_options: [...opts, 'detail'] },
+      };
+    } else if (!enabled && hasDetail) {
+      list[i] = {
+        ...ep,
+        frontend: { ...fe, operation_options: opts.filter((x) => x !== 'detail') },
+      };
+    }
+  }
+  if (list.some((ep, i) => ep !== endpoints.value[i])) {
+    store.updateConfig({ endpoints: list });
+  }
 }
 
 const modalWidth = computed(() =>
@@ -253,7 +358,7 @@ watch(
       <Segmented
         :value="activeEndpointIdx"
         :options="endpoints.map((ep, i) => ({ label: $t(`admin.system.codegen.enum.${ep.scope || 'admin'}`), value: i }))"
-        @change="(v) => setActiveEndpointIdx(Number(v))"
+        @change="(value) => setActiveEndpointIdx(asNumber(value))"
       />
     </Form.Item>
     <Tabs v-model:active-key="activeTab" class="max-h-[70vh] overflow-y-auto">
@@ -268,7 +373,7 @@ watch(
               :value="model.base_class"
               :options="baseClassOptions"
               class="w-full"
-              @change="(v: string) => updateModel({ base_class: v })"
+              @change="(value) => updateModel({ base_class: asString(value) })"
             />
           </Form.Item>
           <Form.Item :label="$t('admin.system.codegen.model.tableName')">
@@ -282,14 +387,14 @@ watch(
             <div class="flex items-center gap-2">
               <Switch
                 :checked="model.soft_delete !== false"
-                @update:checked="(v: boolean) => updateModel({ soft_delete: v })"
+                @update:checked="(value) => updateModel({ soft_delete: asBoolean(value) })"
               />
               <span>{{ $t('admin.system.codegen.model.softDelete') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="!!model.data_permission"
-                @update:checked="(v: boolean) => updateModel({ data_permission: v })"
+                @update:checked="(value) => updateModel({ data_permission: asBoolean(value) })"
               />
               <span>{{ $t('admin.system.codegen.model.dataPermission') }}</span>
             </div>
@@ -310,7 +415,7 @@ watch(
               :value="currentEndpoint.data_mode"
               :options="dataModeOptions"
               class="w-full"
-              @change="(v: string) => updateEndpoints({ data_mode: v })"
+              @change="(value) => updateEndpoints({ data_mode: asString(value) })"
             />
           </Form.Item>
 
@@ -340,42 +445,42 @@ watch(
             <div class="flex items-center gap-2">
               <Switch
                 :checked="!!frontend.recycle_bin"
-                @update:checked="(v: boolean) => updateFrontend({ recycle_bin: v })"
+                @update:checked="(value) => updateFrontend({ recycle_bin: asBoolean(value) })"
               />
               <span>{{ $t('admin.system.codegen.expert.recycleBin') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="!!frontend.export"
-                @update:checked="(v: boolean) => updateFrontend({ export: v })"
+                @update:checked="(value) => updateFrontend({ export: asBoolean(value) })"
               />
               <span>{{ $t('admin.system.codegen.expert.export') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="!!batch?.delete"
-                @update:checked="(v: boolean) => store.updateConfig({ batch: { ...(batch || {}), delete: v } })"
+                @update:checked="(value) => store.updateConfig({ batch: { ...(batch || {}), delete: asBoolean(value) } })"
               />
               <span>{{ $t('admin.system.codegen.expert.batchDelete') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="frontend.drag_sort"
-                @update:checked="(v: boolean) => updateFrontend({ drag_sort: v })"
+                @update:checked="(value) => updateFrontend({ drag_sort: asBoolean(value) })"
               />
               <span>{{ $t('admin.system.codegen.frontend.dragSort') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="clone.enabled"
-                @update:checked="(v: boolean) => updateConfig({ clone: { ...clone, enabled: v } })"
+                @update:checked="(value) => updateConfig({ clone: { ...clone, enabled: asBoolean(value) } })"
               />
               <span>{{ $t('admin.system.codegen.advanced.cloneEnabled') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Switch
                 :checked="frontend.mode === 'card'"
-                @update:checked="(v: boolean) => updateFrontend({ mode: v ? 'card' : 'table' })"
+                @update:checked="(value) => updateFrontend({ mode: asBoolean(value) ? 'card' : 'table' })"
               />
               <span>{{ $t('admin.system.codegen.advanced.cardMode') }}</span>
             </div>
@@ -384,7 +489,7 @@ watch(
             <Radio.Group
               :value="frontend.form_columns ?? 1"
               :options="formColumnsOptions"
-              @update:value="(v: number) => updateFrontend({ form_columns: v })"
+              @update:value="(value) => updateFrontend({ form_columns: asNumber(value, 1) })"
             />
           </Form.Item>
           <Form.Item v-if="clone.enabled" :label="$t('admin.system.codegen.advanced.cloneExcludeFields')">
@@ -394,7 +499,7 @@ watch(
               mode="multiple"
               allow-clear
               class="w-full"
-              @change="(v: string[]) => updateConfig({ clone: { ...clone, exclude_fields: v } })"
+              @change="(value) => updateConfig({ clone: { ...clone, exclude_fields: asStringArray(value) } })"
             />
           </Form.Item>
 
@@ -408,9 +513,10 @@ watch(
               allow-clear
               :placeholder="$t('admin.system.codegen.advanced.defaultSortFieldPlaceholder')"
               class="w-full"
-              @change="(v: string) => {
+              @change="(value) => {
+                const fieldValue = asString(value);
                 const order = parseDefaultSortOrder(frontend.default_sort as string);
-                updateFrontend({ default_sort: v ? (order === 'desc' ? `-${v}` : v) : undefined });
+                updateFrontend({ default_sort: fieldValue ? (order === 'desc' ? `-${fieldValue}` : fieldValue) : undefined });
               }"
             />
           </Form.Item>
@@ -442,6 +548,38 @@ watch(
           </Form.Item>
 
           <p class="text-muted-foreground pt-2 text-xs">
+            {{ $t('admin.system.codegen.expert.desc.detail') }}
+          </p>
+          <div class="flex items-center gap-2">
+            <Switch
+              :checked="!!detail.enabled"
+              @update:checked="(value) => updateDetailEnabled(asBoolean(value))"
+            />
+            <span>{{ $t('admin.system.codegen.frontend.detailEnabled') }}</span>
+          </div>
+          <template v-if="detail.enabled">
+            <Form.Item :label="$t('admin.system.codegen.detail.mode')">
+              <Radio.Group
+                :value="detail.mode || 'drawer'"
+                :options="[
+                  { label: $t('admin.system.codegen.detail.modeDrawer'), value: 'drawer' },
+                  { label: $t('admin.system.codegen.detail.modePage'), value: 'page' },
+                ]"
+                @update:value="(value) => updateConfig({ detail: { ...detail, mode: asString(value) } })"
+              />
+            </Form.Item>
+            <Form.Item :label="$t('admin.system.codegen.detail.nameField')">
+              <Select
+                :value="detail.name_field"
+                :options="fieldOptions"
+                allow-clear
+                class="w-full"
+                :placeholder="$t('admin.system.codegen.detail.nameFieldPlaceholder')"
+                @change="(value) => updateConfig({ detail: { ...detail, name_field: asString(value) || undefined } })"
+              />
+            </Form.Item>
+          </template>
+          <p class="text-muted-foreground pt-2 text-xs">
             {{ $t('admin.system.codegen.expert.desc.detailGroups') }}
           </p>
           <DetailGroupEditor />
@@ -457,7 +595,7 @@ watch(
           <div class="flex items-center gap-2">
             <Switch
               :checked="treeConfig.enabled"
-              @update:checked="(v: boolean) => updateTree({ enabled: v })"
+              @update:checked="(value) => updateTree({ enabled: asBoolean(value) })"
             />
             <span>{{ $t('admin.system.codegen.advanced.treeEnabled') }}</span>
           </div>
@@ -474,7 +612,7 @@ watch(
                 :min="1"
                 :max="20"
                 class="!w-24"
-                @update:value="(v: number) => updateTree({ max_depth: v })"
+                @update:value="(value) => updateTree({ max_depth: asNumberOrUndefined(value) })"
               />
             </Form.Item>
           </template>

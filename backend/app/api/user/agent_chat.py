@@ -73,6 +73,7 @@ class UserAgentChatController(BaseController):
             tenant_id: int,
             agent_id: int,
             user_id: int,
+            role_id: int | None,
         ) -> None:
             """检查用户是否有权访问该智能体 / Check if user has access to the agent"""
             agent_service = AgentService(db, tenant_id)
@@ -80,6 +81,7 @@ class UserAgentChatController(BaseController):
                 agent_id=agent_id,
                 user_id=user_id,
                 user_role=UserRoleEnum.TENANT_USER.value,
+                user_role_id=role_id,
             )
             if not has_access:
                 from app.exceptions import AuthorizationException
@@ -107,7 +109,9 @@ class UserAgentChatController(BaseController):
             - 新对话：不传 conversation_id / New conversation: omit conversation_id
             - 续接对话：传 conversation_id / Continue conversation: pass conversation_id
             """
-            await _check_agent_access(db, current_user.tenant_id, agent_id, current_user.id)
+            await _check_agent_access(
+                db, current_user.tenant_id, agent_id, current_user.id, current_user.role_id
+            )
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_user_permissions(current_user)
@@ -128,6 +132,7 @@ class UserAgentChatController(BaseController):
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
+                route_source=data.route_source,
             )
 
             return success(data=result.model_dump())
@@ -151,7 +156,9 @@ class UserAgentChatController(BaseController):
             - done: 完成（含 conversation_id、total_tokens） / complete (includes conversation_id, total_tokens)
             - [DONE]: SSE 结束标记 / SSE end marker
             """
-            await _check_agent_access(db, current_user.tenant_id, agent_id, current_user.id)
+            await _check_agent_access(
+                db, current_user.tenant_id, agent_id, current_user.id, current_user.role_id
+            )
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_user_permissions(current_user)
@@ -175,6 +182,7 @@ class UserAgentChatController(BaseController):
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
+                route_source=data.route_source,
             )
 
         # ========================================

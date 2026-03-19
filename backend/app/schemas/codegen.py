@@ -51,7 +51,10 @@ class CodegenConfigResponse(BaseResponseSchema):
     module: str = Field(..., description="模块归属 / Module affiliation")
     display_name: str = Field(..., description="中文显示名 / Display name (Chinese)")
     display_name_en: str = Field(..., description="英文显示名 / Display name (English)")
-    status: str = Field(..., description="状态 / Status")
+    status: str = Field(
+        ...,
+        description="状态: draft=未生成, generated=文件已生成, applied=迁移已执行, rolled_back=已回滚 / Status lifecycle",
+    )
     config_json: dict[str, Any] = Field(
         default_factory=dict,
         description="完整配置 JSON / Full config JSON",
@@ -61,7 +64,8 @@ class CodegenConfigResponse(BaseResponseSchema):
     )
     generation_count: int = Field(0, description="生成次数 / Generation count")
     generated_files: dict[str, Any] | None = Field(
-        None, description="上次生成文件清单 / Last generated files"
+        None,
+        description="最近一次成功生成的文件摘要；成功回滚后清空 / Last successful generation file summary; cleared after rollback",
     )
     config_hash: str | None = Field(None, description="配置哈希 / Config hash")
     last_error: str | None = Field(None, description="上次生成错误 / Last error")
@@ -189,6 +193,10 @@ class GenerateResultSchema(BaseModel):
     errors: list[str] = Field(default_factory=list)
     backup_dir: str | None = Field(None)
     migration: dict[str, Any] | None = Field(None, description="auto_migrate 执行结果 / auto_migrate result")
+    config_id: int | None = Field(None, description="配置 ID（未保存直接生成时新创建的）/ Config ID when created from unsaved config")
+    resource: str | None = Field(None, description="资源名 / Resource name")
+    module: str | None = Field(None, description="模块 / Module")
+    table_name: str | None = Field(None, description="表名 / Table name")
 
 
 class RollbackResultSchema(BaseModel):

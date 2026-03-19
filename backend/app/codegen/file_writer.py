@@ -322,6 +322,26 @@ class SmartAppender:
         file_path.write_text(text.rstrip() + "\n" + export_line + "\n", encoding="utf-8")
         return True
 
+    @staticmethod
+    def insert_before_last(file_path: Path, marker: str, content: str) -> bool:
+        """
+        在最后一次出现 marker 之前插入 content / Insert content before last occurrence of marker.
+
+        幂等：若 content.strip() 已存在则跳过
+        Idempotent: skip if content.strip() already present.
+        """
+        if not file_path.exists():
+            return False
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        if content.strip() in text:
+            return False
+        last_idx = text.rfind(marker)
+        if last_idx < 0:
+            return False
+        new_text = text[:last_idx] + content.rstrip() + "\n" + text[last_idx:]
+        file_path.write_text(new_text, encoding="utf-8")
+        return True
+
 
 def _deep_merge(base: dict, override: dict) -> dict:
     """深度合并字典 / Deep merge dict."""
@@ -370,6 +390,30 @@ class FileWriter:
         tmp_dir = root / ".novus_codegen_tmp" / str(ts)
         backup_dir = root / ".novus_codegen_backup" / str(ts)
         result = WriteResult(success=False)
+        original_backups: dict[Path, Path] = {}
+        created_paths: set[Path] = set()
+
+        def _remember_backup(dest: Path, rel_for_backup: Path | str) -> None:
+            if not dest.exists() or dest in original_backups or not dest.is_file():
+                return
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_rel = rel_for_backup if isinstance(rel_for_backup, Path) else Path(rel_for_backup)
+            backup_path = backup_dir / backup_rel
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dest, backup_path)
+            original_backups[dest] = backup_path
+
+        def _rollback_changes() -> None:
+            for dest, backup_path in original_backups.items():
+                if backup_path.exists():
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(backup_path, dest)
+            for created_path in sorted(created_paths, key=lambda p: len(p.parts), reverse=True):
+                try:
+                    if created_path.exists():
+                        created_path.unlink()
+                except OSError:
+                    pass
 
         try:
             tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -385,28 +429,30 @@ class FileWriter:
                 tmp_file = tmp_dir / rel
                 tmp_file.parent.mkdir(parents=True, exist_ok=True)
 
-                if f.action == "create":
+                if f.action == "create_if_missing":
+                    if not dest.exists():
+                        tmp_file.write_text(f.content or "# Codegen module init\n", encoding="utf-8")
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(tmp_file, dest)
+                        created_paths.add(dest)
+                        rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
+                        created.append(rel_str)
+                elif f.action == "create":
+                    existed_before = dest.exists()
                     if dest.exists():
                         rel_path = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                         result.conflicts.append({"path": rel_path, "reason": "file_exists"})
                         if not force:
                             continue
-                        if dest.is_file():
-                            backup_dir.mkdir(parents=True, exist_ok=True)
-                            try:
-                                backup_rel = dest.relative_to(root)
-                            except ValueError:
-                                backup_rel = Path(f.path)
-                            backup_path = backup_dir / backup_rel
-                            backup_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(dest, backup_path)
-                            modified.append(str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path)
+                        _remember_backup(dest, rel)
+                        modified.append(str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path)
                     tmp_file.write_text(f.content, encoding="utf-8")
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(tmp_file, dest)
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
-                    if rel_str not in modified:
+                    if not existed_before:
                         created.append(rel_str)
+                        created_paths.add(dest)
                 elif f.action == "register_model" and f.model_meta:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                     meta = f.model_meta
@@ -415,11 +461,18 @@ class FileWriter:
                     pascal = meta.get("pascal", "")
                     target = meta.get("target", "module")
                     if module and resource and pascal:
-                        if target == "module":
+                        if not dest.exists():
+                            result.errors.append(
+                                f"register_model failed: target file does not exist: {rel_str}. "
+                                "Ensure models/{module}/__init__.py exists for new modules."
+                            )
+                        elif target == "module":
+                            _remember_backup(dest, rel)
                             import_line = f"from app.models.{module}.{resource} import {pascal}"
                             if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
                                 modified.append(rel_str)
                         elif target == "root":
+                            _remember_backup(dest, rel)
                             if module == "tenant":
                                 if SmartAppender.append_to_tenant_import_block(dest, pascal, all_export=pascal):
                                     modified.append(rel_str)
@@ -428,6 +481,7 @@ class FileWriter:
                                 if SmartAppender.append_python_import(dest, import_line, all_export=pascal):
                                     modified.append(rel_str)
                         elif target == "env":
+                            _remember_backup(dest, rel)
                             if SmartAppender.append_to_import_block(dest, "from app.models import", pascal):
                                 modified.append(rel_str)
                 elif f.action == "register_route" and f.route_meta:
@@ -435,32 +489,47 @@ class FileWriter:
                     scope = f.route_meta.get("scope", "")
                     resource = f.route_meta.get("resource", "")
                     if scope and resource:
-                        pascal = "".join(
-                            w.capitalize() for w in str(resource).replace("-", "_").split("_")
-                        )
-                        prefix = "Admin" if scope == "admin" else "Tenant"
-                        controller_name = f"{prefix}{pascal}Controller"
-                        router_var = f"{scope}_router"
-                        import_line = (
-                            f"from app.api.{scope}.{resource} import {controller_name}\n"
-                            f"from app.api.{scope}.{resource} import router as {resource}_router"
-                        )
-                        include_line = f"{router_var}.include_router({resource}_router)"
-                        comment = f"# Codegen auto-registered: {resource}"
-                        if SmartAppender.append_router_registration(
-                            dest, import_line, include_line, controller_name, comment
-                        ):
-                            modified.append(rel_str)
+                        if not dest.exists():
+                            result.errors.append(
+                                f"register_route failed: target file does not exist: {rel_str}. "
+                                f"Ensure api/{scope}/__init__.py exists."
+                            )
+                        else:
+                            pascal = "".join(
+                                w.capitalize() for w in str(resource).replace("-", "_").split("_")
+                            )
+                            prefix = "Admin" if scope == "admin" else "Tenant"
+                            controller_name = f"{prefix}{pascal}Controller"
+                            router_var = f"{scope}_router"
+                            import_line = (
+                                f"from app.api.{scope}.{resource} import {controller_name}\n"
+                                f"from app.api.{scope}.{resource} import router as {resource}_router"
+                            )
+                            include_line = f"{router_var}.include_router({resource}_router)"
+                            comment = f"# Codegen auto-registered: {resource}"
+                            _remember_backup(dest, rel)
+                            if SmartAppender.append_router_registration(
+                                dest, import_line, include_line, controller_name, comment
+                            ):
+                                modified.append(rel_str)
                 elif f.action == "append" and f.appended_content:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
                     if dest.exists():
                         content = dest.read_text(encoding="utf-8", errors="replace")
                         if f.appended_content.strip() not in content:
-                            dest.write_text(content.rstrip() + "\n" + f.appended_content + "\n", encoding="utf-8")
-                            modified.append(rel_str)
+                            _remember_backup(dest, rel)
+                            if f.insert_before_last_marker:
+                                if SmartAppender.insert_before_last(
+                                    dest, f.insert_before_last_marker, f.appended_content
+                                ):
+                                    modified.append(rel_str)
+                            else:
+                                dest.write_text(content.rstrip() + "\n" + f.appended_content + "\n", encoding="utf-8")
+                                modified.append(rel_str)
                     else:
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         dest.write_text(f.appended_content + "\n", encoding="utf-8")
+                        created_paths.add(dest)
                         created.append(rel_str)
                 elif f.action == "merge_json" and f.merged_keys:
                     rel_str = str(rel).replace("\\", "/") if isinstance(rel, Path) else f.path
@@ -472,19 +541,35 @@ class FileWriter:
                     for k in f.merged_keys:
                         if "." not in k and k not in data:
                             data[k] = {}
+                    existed_before = dest.exists()
+                    if existed_before:
+                        _remember_backup(dest, rel)
                     SmartAppender.merge_json(dest, data)
-                    modified.append(rel_str)
+                    if not existed_before:
+                        created_paths.add(dest)
+                        created.append(rel_str)
+                    else:
+                        modified.append(rel_str)
 
             result.files_created = list(dict.fromkeys(created))
             result.files_modified = list(dict.fromkeys(modified))
             if not force and result.conflicts:
-                result.success = False
                 result.errors.append("Files exist and force=False, skipped overwrite")
+            result.success = not ((not force and result.conflicts) or result.errors)
+            if not result.success:
+                _rollback_changes()
+                result.files_created = []
+                result.files_modified = []
+                if backup_dir.exists():
+                    shutil.rmtree(backup_dir, ignore_errors=True)
+                result.backup_dir = None
             else:
-                result.success = True
-            result.backup_dir = str(backup_dir) if backup_dir.exists() else None
+                result.backup_dir = str(backup_dir) if backup_dir.exists() else None
         except Exception as e:
             result.errors.append(str(e))
+            _rollback_changes()
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
         finally:
             if tmp_dir.exists():
                 shutil.rmtree(tmp_dir, ignore_errors=True)

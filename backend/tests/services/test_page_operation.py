@@ -124,6 +124,54 @@ class TestPageOperationExecutor:
         assert result.duration_ms >= 0
 
     @pytest.mark.asyncio
+    async def test_success_writes_action_audit_log(self, executor, definition):
+        """成功页面操作应写入 AI 操作审计日志。"""
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            skill_id=88,
+            page_session_id="ps-123",
+            db=MagicMock(),
+        )
+        mock_result = {
+            "invoke_id": "inv-log",
+            "success": True,
+            "message": "Title updated",
+            "data": {"title": "新标题"},
+        }
+        audit_mock = AsyncMock()
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ), patch(
+            "app.ai.tools.executors.page_operation_executor.write_ai_action_log",
+            new=audit_mock,
+        ):
+            result = await executor.execute(
+                definition,
+                "call_audit",
+                {
+                    "page_key": "admin.ai.conversations",
+                    "operation_name": "update_title",
+                    "params": {"id": 1, "title": "新标题"},
+                },
+                context,
+            )
+
+        assert result.success is True
+        audit_mock.assert_awaited_once()
+        _, kwargs = audit_mock.await_args
+        assert kwargs["tenant_id"] == 1
+        assert kwargs["agent_id"] == 2
+        assert kwargs["operator_id"] == 9
+        assert kwargs["skill_id"] == 88
+        assert kwargs["action_name"] == "update_title"
+        assert kwargs["status"] == "success"
+        assert kwargs["request_data"]["page_key"] == "admin.ai.conversations"
+
+    @pytest.mark.asyncio
     async def test_no_page_session_id(self, executor, definition):
         """无 page_session_id → 立即失败 / page_session_id →"""
         context = ExecutionContext(tenant_id=1, agent_id=2)

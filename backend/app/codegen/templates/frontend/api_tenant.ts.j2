@@ -15,7 +15,7 @@ import { requestClient } from '#/utils/request';
 // API functions / API 接口
 // ============================================================
 {% set tenant_ep = tenant_ep | default({}) %}
-{% set api_path = tenant_ep.get('route_prefix') | default(resource_plural) | replace('/','') %}
+{% set api_path = tenant_ep.get('route_prefix') | default('/' + resource_plural) | path_no_leading_slash %}
 const API_PREFIX = '/tenant/{{ api_path or resource_plural }}';
 
 /** Get list / 获取列表 */

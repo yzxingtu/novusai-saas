@@ -74,6 +74,7 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: $t('admin.ai.skillPackage.detail.title'),
         activePath: '/admin/ai/skill-packages',
+        ai: { pageContextKey: 'admin.ai.skill-packages.detail' },
       },
     },
     // 智能体详情页
@@ -85,6 +86,7 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: $t('admin.ai.agent.detail.title'),
         activePath: '/admin/ai/agents',
+        ai: { pageContextKey: 'admin.ai.agents.detail' },
       },
     },
     // 插件市场页：后端不注册此路由
@@ -108,6 +110,7 @@ const mainRoutes: RouteRecordRaw = {
         hideInProduction: true,
         title: $t('admin.system.codegen.name'),
         activePath: '/admin/system/codegen',
+        accessCodes: ['action.codegen.list'],
       },
     },
     {
@@ -119,6 +122,8 @@ const mainRoutes: RouteRecordRaw = {
         hideInProduction: true,
         title: $t('admin.system.codegen.builderNew'),
         activePath: '/admin/system/codegen',
+        accessCodes: ['action.codegen.create', 'action.codegen.options'],
+        accessCodesMode: 'all',
       },
     },
     {
@@ -130,6 +135,12 @@ const mainRoutes: RouteRecordRaw = {
         hideInProduction: true,
         title: $t('admin.system.codegen.builderEdit'),
         activePath: '/admin/system/codegen',
+        accessCodes: [
+          'action.codegen.detail',
+          'action.codegen.options',
+          'action.codegen.update',
+        ],
+        accessCodesMode: 'all',
       },
     },
     // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu

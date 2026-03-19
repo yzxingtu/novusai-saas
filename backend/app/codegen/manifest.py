@@ -7,6 +7,7 @@ Records generated files for rollback.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ class ManifestEntry:
     config_hash: str | None
     files: list[dict[str, Any]] = field(default_factory=list)
     migration_file: str | None = None
+    file_rollback_completed: bool = False
 
 
 class ManifestManager:
@@ -60,6 +62,12 @@ class ManifestManager:
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
+    def _file_hash(self, path: Path) -> str | None:
+        """计算文件 hash 用于回滚校验 / Compute file hash for rollback verification."""
+        if not path.exists() or not path.is_file():
+            return None
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     def add_entry(
         self,
         resource: str,
@@ -71,16 +79,24 @@ class ManifestManager:
         """
         添加清单条目 / Add manifest entry.
 
-        覆盖同 resource 的旧条目
-        Overwrites existing entry for same resource.
+        覆盖同 resource 的旧条目；仅对 create 记录文件 hash，
+        对共享文件动作记录片段级快照，避免其他资源变更后整文件 hash 误伤回滚。
+        Overwrites existing entry for same resource. Records create hashes and fragment snapshots
+        for shared-file rollback.
         """
         file_list: list[dict[str, Any]] = []
         for f in files:
             item: dict[str, Any] = {"path": f.path, "action": f.action}
-            if f.action == "append" and f.appended_content:
+            if f.action == "create" and f.content:
+                item["content_hash"] = hashlib.sha256(f.content.encode("utf-8")).hexdigest()
+            elif f.action == "append" and f.appended_content:
                 item["appended_content"] = f.appended_content
             elif f.action == "merge_json" and f.merged_keys:
                 item["merged_keys"] = f.merged_keys
+                try:
+                    item["merged_data"] = json.loads(f.content) if f.content else {}
+                except json.JSONDecodeError:
+                    item["merged_data"] = {}
             elif f.action == "register_route" and f.route_meta:
                 item["route_meta"] = f.route_meta
             elif f.action == "register_model" and f.model_meta:
@@ -101,6 +117,7 @@ class ManifestManager:
                     "config_hash": config_hash,
                     "files": file_list,
                     "migration_file": None,
+                    "file_rollback_completed": False,
                 }
             )
             data["entries"] = entries
@@ -128,6 +145,17 @@ class ManifestManager:
                     break
             self._save_unlocked(data)
 
+    def mark_file_rollback_completed(self, resource: str, completed: bool = True) -> None:
+        """标记文件回滚阶段是否已完成 / Mark whether file rollback stage completed."""
+        lock_path = Path(str(self.path) + ".lock")
+        with FileLock(lock_path):
+            data = self._load()
+            for e in data.get("entries", []):
+                if e.get("resource") == resource:
+                    e["file_rollback_completed"] = completed
+                    break
+            self._save_unlocked(data)
+
     def get_entry(self, resource: str) -> ManifestEntry | None:
         """获取资源对应条目 / Get entry by resource."""
         data = self._load()
@@ -141,6 +169,7 @@ class ManifestManager:
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
                     migration_file=e.get("migration_file"),
+                    file_rollback_completed=bool(e.get("file_rollback_completed", False)),
                 )
         return None
 
@@ -166,6 +195,7 @@ class ManifestManager:
                     config_hash=e.get("config_hash"),
                     files=list(e.get("files", [])),
                     migration_file=e.get("migration_file"),
+                    file_rollback_completed=bool(e.get("file_rollback_completed", False)),
                 )
             )
         return result

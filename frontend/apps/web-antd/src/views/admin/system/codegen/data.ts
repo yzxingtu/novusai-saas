@@ -103,16 +103,7 @@ export function useColumns<T = Record<string, unknown>>(
       field: 'last_generated_at',
       title: $t('admin.system.codegen.lastGeneratedAt'),
       width: 170,
-      formatter: ({ cellValue }) =>
-        cellValue
-          ? new Date(cellValue).toLocaleString(undefined, {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : '—',
+      slots: { default: 'last_generated_at_cell' },
     },
     {
       field: 'last_error',
@@ -134,31 +125,37 @@ export function useColumns<T = Record<string, unknown>>(
             code: 'edit',
             text: $t('common.edit'),
             icon: 'lucide:pencil',
+            accessCodes: ['action.codegen.update'],
           },
           {
             code: 'generate',
             text: $t('admin.system.codegen.actions.generate'),
             icon: 'lucide:wand-2',
+            accessCodes: ['action.codegen.generate'],
           },
           {
             code: 'download',
             text: $t('admin.system.codegen.actions.download'),
             icon: 'lucide:download',
+            accessCodes: ['action.codegen.download'],
           },
           {
             code: 'duplicate',
             text: $t('admin.system.codegen.actions.duplicate'),
             icon: 'lucide:copy',
+            accessCodes: ['action.codegen.duplicate'],
           },
           {
             code: 'rollback',
             text: $t('admin.system.codegen.actions.rollback'),
             icon: 'lucide:undo-2',
+            accessCodes: ['action.codegen.rollback'],
           },
           {
             code: 'delete',
             text: $t('common.delete'),
             icon: 'lucide:trash-2',
+            accessCodes: ['action.codegen.delete'],
           },
         ],
       },
@@ -173,8 +170,8 @@ export function useColumns<T = Record<string, unknown>>(
 /** 搜索 Schema / Search schema */
 export function useGridFormSchema() {
   return [
-    searchInput('filter[name][ilike]', $t('admin.system.codegen.placeholder.searchName')),
-    searchInput('filter[resource][ilike]', $t('admin.system.codegen.placeholder.searchResource')),
+    searchInput('name', $t('admin.system.codegen.placeholder.searchName')),
+    searchInput('resource', $t('admin.system.codegen.placeholder.searchResource')),
     select('filter[status][eq]', $t('admin.system.codegen.status'), {
       options: getStatusOptions(),
       placeholder: $t('admin.system.codegen.placeholder.allStatus'),

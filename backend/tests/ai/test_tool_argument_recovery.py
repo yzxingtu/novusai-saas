@@ -133,6 +133,94 @@ class TestInvokePageOperationTopLevelWhitelist:
         assert "Invalid top-level fields" in result.error or "无效的顶层字段" in result.error
         assert "content" in result.error
 
+    @pytest.mark.asyncio
+    async def test_get_form_options_field_alias_is_normalized(self) -> None:
+        """params.field 会被归一化为 params.field_name。"""
+        from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
+        from app.ai.tools.types import ToolDefinition, ToolResult
+
+        captured_arguments: dict | None = None
+
+        class _CaptureExecutor:
+            async def validate(self, definition, arguments):  # noqa: ANN001
+                return True
+
+            async def execute(self, definition, tool_call_id, arguments, context=None):  # noqa: ANN001
+                nonlocal captured_arguments
+                captured_arguments = arguments
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=True,
+                    output="ok",
+                )
+
+        sandbox = ToolSandbox(tenant_id=1, agent_id=1, config=SandboxConfig())
+        sandbox._named_executors["invoke_page_operation"] = _CaptureExecutor()
+        definition = ToolDefinition(
+            name="invoke_page_operation",
+            description="invoke",
+        )
+
+        result = await sandbox.execute(
+            tool_call_id="tc-field-alias",
+            name="invoke_page_operation",
+            arguments={
+                "page_key": "admin.ai.agents",
+                "operation_name": "get_form_options",
+                "params": {"field": "tenant_ids"},
+            },
+            definitions=[definition],
+        )
+
+        assert result.success is True
+        assert captured_arguments is not None
+        assert captured_arguments["params"]["field_name"] == "tenant_ids"
+
+    @pytest.mark.asyncio
+    async def test_get_form_options_field_alias_can_infer_operation_name(self) -> None:
+        """params.fieldName 可推断 get_form_options 并完成归一化。"""
+        from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
+        from app.ai.tools.types import ToolDefinition, ToolResult
+
+        captured_arguments: dict | None = None
+
+        class _CaptureExecutor:
+            async def validate(self, definition, arguments):  # noqa: ANN001
+                return True
+
+            async def execute(self, definition, tool_call_id, arguments, context=None):  # noqa: ANN001
+                nonlocal captured_arguments
+                captured_arguments = arguments
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=True,
+                    output="ok",
+                )
+
+        sandbox = ToolSandbox(tenant_id=1, agent_id=1, config=SandboxConfig())
+        sandbox._named_executors["invoke_page_operation"] = _CaptureExecutor()
+        definition = ToolDefinition(
+            name="invoke_page_operation",
+            description="invoke",
+        )
+
+        result = await sandbox.execute(
+            tool_call_id="tc-fieldName-alias",
+            name="invoke_page_operation",
+            arguments={
+                "page_key": "admin.ai.agents",
+                "params": {"fieldName": "model_id"},
+            },
+            definitions=[definition],
+        )
+
+        assert result.success is True
+        assert captured_arguments is not None
+        assert captured_arguments["operation_name"] == "get_form_options"
+        assert captured_arguments["params"]["field_name"] == "model_id"
+
 
 class TestPageToolExpander:
     """PageToolExpander 富文本专用 tools 展开测试"""

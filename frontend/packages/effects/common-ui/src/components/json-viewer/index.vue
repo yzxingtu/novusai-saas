@@ -11,14 +11,12 @@ import type {
 } from './types';
 
 import { computed, useAttrs } from 'vue';
-// @ts-ignore
 import VueJsonViewer from 'vue-json-viewer';
 
 import { $t } from '@vben/locales';
 
 import { isBoolean } from '@vben-core/shared/utils';
 
-// @ts-ignore
 import JsonBigint from 'json-bigint';
 
 defineOptions({ name: 'JsonViewer' });

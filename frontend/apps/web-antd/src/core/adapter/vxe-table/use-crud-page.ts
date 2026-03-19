@@ -235,7 +235,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         if (hasAnyDeps) {
           const displayName = String(row[nameField] || row.id);
           const confirmed = await depBlockRef.value?.openPreview(
-            preview as Parameters<
+            preview as unknown as Parameters<
               InstanceType<typeof DependencyBlockModal>['openPreview']
             >[0],
             displayName,

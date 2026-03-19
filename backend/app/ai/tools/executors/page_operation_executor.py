@@ -16,6 +16,8 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
+from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -105,16 +107,66 @@ class PageOperationExecutor(BaseToolExecutor):
         success = bool(result.get("success", False))
         message = result.get("message", "")
         error_type = result.get("error_type", "")
+        result_data = result.get("data")
+
+        async def audit_page_operation(
+            status: str,
+            *,
+            error_message: str | None = None,
+        ) -> None:
+            if not context or not context.db:
+                return
+            try:
+                await write_ai_action_log(
+                    context.db,
+                    tenant_id=context.tenant_id,
+                    agent_id=context.agent_id,
+                    operator_id=context.user_id,
+                    skill_id=context.skill_id,
+                    action_name=operation_name,
+                    action_type=(
+                        ActionTypeEnum.CONFIRM.value
+                        if error_type in {"pending_confirmation", "user_cancelled"}
+                        else ActionTypeEnum.ACTION.value
+                    ),
+                    action_level=resolve_action_level(
+                        operation_name,
+                        default=(
+                            ActionLevelEnum.SAFE_WRITE.value
+                            if requires_confirmation
+                            else ActionLevelEnum.READ.value
+                        ),
+                    ),
+                    request_data={
+                        "page_key": page_key,
+                        "operation_name": operation_name,
+                        "params": params,
+                        "requires_confirmation": requires_confirmation,
+                    },
+                    response_data={
+                        "message": message,
+                        "error_type": error_type or None,
+                        "data": result_data,
+                    },
+                    status=status,
+                    error_message=error_message,
+                    duration_ms=duration_ms,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to write page operation audit log: {}",
+                    str(exc),
+                )
 
         if success:
             logger.info(
                 "Page operation succeeded: page_key={} op={} duration={}ms",
                 page_key, operation_name, duration_ms,
             )
+            await audit_page_operation(ActionStatusEnum.SUCCESS.value)
             output = f"Operation '{operation_name}' executed successfully on page '{page_key}'."
             if message:
                 output += f" Result: {message}"
-            result_data = result.get("data")
             if result_data and isinstance(result_data, dict):
                 import json
                 data_str = json.dumps(result_data, ensure_ascii=False, default=str)
@@ -169,6 +221,16 @@ class PageOperationExecutor(BaseToolExecutor):
         elif message:
             error_msg += _("page_operation.error.reason_suffix", message=message)
         error_msg += "\n\n" + _("page_operation.error.no_echo")
+
+        audit_status = ActionStatusEnum.FAILED.value
+        if error_type == "pending_confirmation":
+            audit_status = ActionStatusEnum.PENDING_CONFIRM.value
+        elif error_type == "user_cancelled":
+            audit_status = ActionStatusEnum.REJECTED.value
+        await audit_page_operation(
+            audit_status,
+            error_message=message or error_msg,
+        )
 
         return ToolResult(
             tool_call_id=tool_call_id,

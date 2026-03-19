@@ -4,7 +4,7 @@
  */
 import type { AIQuotaInfo, AIRateLimitInfo } from '#/api/admin/ai';
 
-import { ref } from 'vue';
+import { ref, watchEffect } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -50,6 +50,8 @@ interface RateLimitFormExposed {
   openEdit: (row: AIRateLimitInfo) => void;
 }
 
+const quotaSummary = ref({ total_quotas: 0 });
+
 // ========== 配额 Tab — useCrudList ==========
 const {
   list: quotas,
@@ -81,7 +83,7 @@ const {
     entityName: $t('admin.ai.quota.name'),
     entityDescription: $t('admin.ai.quota.entityDescription'),
     contextExtras: () => ({
-      total_quotas: quotaTotal.value,
+      total_quotas: quotaSummary.value.total_quotas,
     }),
     extra: [
       {
@@ -107,6 +109,12 @@ const {
       },
     ],
   },
+});
+
+watchEffect(() => {
+  quotaSummary.value = {
+    total_quotas: quotaTotal.value,
+  };
 });
 
 // ========== 速率限制 Tab — useCrudList + ref 模式 ==========

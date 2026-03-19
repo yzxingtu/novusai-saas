@@ -24,7 +24,10 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import {
+  getAgentInputVariables,
+  type InputVariable,
+} from '#/components/business/ai-chat-panel/types';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
@@ -131,14 +134,17 @@ const chat = useAIChat({
   pageSessionIdGetter: getActivePageSessionId,
   onVariablesMissing: () => {
     const agent = selectedAgent.value;
-    if (agent?.input_variables?.length) {
-      openVarsModal(agent.input_variables as InputVariable[], agent.id, agent.name);
+    if (!agent) return;
+    const inputVariables = getAgentInputVariables(agent);
+    if (inputVariables.length > 0) {
+      openVarsModal(inputVariables, agent.id, agent.name);
     }
   },
 });
 
 const {
   agents,
+  agentsLoading,
   selectedAgentId,
   selectedAgent,
   loadAgents,
@@ -152,6 +158,10 @@ const {
   loadConversationMessages,
   chatMessages,
   inputMessage,
+  mentionedAgent,
+  mentionOpen,
+  mentionCandidates,
+  mentionActiveIndex,
   sending,
   streaming,
   messagesContainer,
@@ -164,6 +174,8 @@ const {
   scrollToTop,
   copyMessage,
   handleInputKeyDown,
+  selectMentionAgent,
+  clearMentionedAgent,
   cleanup,
   pendingAttachments,
   uploading,
@@ -219,14 +231,16 @@ function getPendingOpsForMessage(msg: { toolCalls?: { id?: string }[] }) {
     if (tc.id) ids.add(tc.id);
   }
   return aiPanelStore.pendingPageOps.filter(
-    (op) => op.toolCallId && ids.has(op.toolCallId),
+    (op) => !op.resolved && op.toolCallId && ids.has(op.toolCallId),
   );
 }
 
 /** Pending ops with no toolCallId or not matched to any message (fallback bottom render) / 未关联到消息的待确认操作（底部兜底） */
 const unassociatedPendingOps = computed(() =>
   aiPanelStore.pendingPageOps.filter(
-    (op) => !op.toolCallId || !allToolCallIds.value.has(op.toolCallId),
+    (op) =>
+      !op.resolved &&
+      (!op.toolCallId || !allToolCallIds.value.has(op.toolCallId)),
   ),
 );
 
@@ -238,7 +252,15 @@ const varsFormValues = reactive<Record<string, string>>({});
 const varsModalAgent = ref<null | { id: number; name: string; vars: InputVariable[] }>(null);
 const varsPersist = ref(false);
 /** Pending send context: deferred until vars are filled / 待发送上下文（变量填写后发送） */
-const pendingSendContext = ref<null | { agentId: number; pageContext: ReturnType<typeof resolvePageContext> }>(null);
+const pendingSendContext = ref<
+  | null
+  | {
+      agentId: number;
+      consumeMention?: boolean;
+      pageContext: ReturnType<typeof resolvePageContext>;
+      routeSource?: string;
+    }
+>(null);
 
 function openVarsModal(vars: InputVariable[], agentId: number, agentName: string) {
   varsModalAgent.value = { id: agentId, name: agentName, vars };
@@ -266,9 +288,17 @@ function onVarsConfirm() {
   varsModalVisible.value = false;
   // Execute deferred send if this modal was triggered by missing vars / 若弹窗由缺失变量触发则执行延迟发送
   if (pendingSendContext.value) {
-    const { agentId: pendingAgentId, pageContext } = pendingSendContext.value;
+    const {
+      agentId: pendingAgentId,
+      consumeMention,
+      pageContext,
+      routeSource,
+    } = pendingSendContext.value;
     pendingSendContext.value = null;
-    sendMessage({ agentId: pendingAgentId, pageContext });
+    if (consumeMention) {
+      clearMentionedAgent();
+    }
+    sendMessage({ agentId: pendingAgentId, pageContext, routeSource });
   }
 }
 
@@ -511,6 +541,44 @@ async function handleSendMessage() {
     resolvePageContext(props.pageContextKey),
   );
 
+  const mentionTarget = mentionedAgent.value;
+  if (mentionTarget) {
+    const mentionRequired = getAgentInputVariables(mentionTarget).filter(
+      (variable) => variable.required,
+    );
+    if (mentionRequired.length > 0) {
+      ensureAgentVarsLoaded(mentionTarget.id);
+      const mentionVars = allAgentsVariables.value[mentionTarget.id] ?? {};
+      const mentionMissing = mentionRequired.filter(
+        (variable) => !mentionVars[variable.name]?.trim(),
+      );
+      if (mentionMissing.length > 0) {
+        pendingSendContext.value = {
+          agentId: mentionTarget.id,
+          consumeMention: true,
+          pageContext,
+          routeSource: 'mention',
+        };
+        openVarsModal(
+          getAgentInputVariables(mentionTarget),
+          mentionTarget.id,
+          mentionTarget.name,
+        );
+        return;
+      }
+    }
+    showRouteNotice(
+      $t('common.aiPanel.routedTo', { agent: mentionTarget.name }),
+    );
+    clearMentionedAgent();
+    sendMessage({
+      agentId: mentionTarget.id,
+      pageContext,
+      routeSource: 'mention',
+    });
+    return;
+  }
+
   // P0: Agent is pinned → skip routing, send directly / 已固定智能体 → 跳过路由，直接发送
   if (isPinned.value && aiPanelStore.pinnedAgentId) {
     const pinnedId = aiPanelStore.pinnedAgentId;
@@ -518,14 +586,15 @@ async function handleSendMessage() {
       selectedAgentId.value = pinnedId;
     }
     const pinnedAgent = agents.value.find((a) => a.id === pinnedId);
-    const pinnedRequired = pinnedAgent?.input_variables?.filter((v) => v.required) ?? [];
+    const pinnedInputVariables = getAgentInputVariables(pinnedAgent);
+    const pinnedRequired = pinnedInputVariables.filter((v) => v.required);
     if (pinnedRequired.length > 0) {
       ensureAgentVarsLoaded(pinnedId);
       const pinnedVars = allAgentsVariables.value[pinnedId] ?? {};
       const pinnedMissing = pinnedRequired.filter((v) => !pinnedVars[v.name]?.trim());
       if (pinnedMissing.length > 0) {
         pendingSendContext.value = { agentId: pinnedId, pageContext };
-        openVarsModal(pinnedAgent!.input_variables!, pinnedId, pinnedAgent!.name);
+        openVarsModal(pinnedInputVariables, pinnedId, pinnedAgent!.name);
         return;
       }
     }
@@ -559,23 +628,33 @@ async function handleSendMessage() {
 
     // Check if routed agent has required vars not yet filled / 检查路由到的 agent 是否有必填变量未填
     const routedAgent = agents.value.find((a) => a.id === result.agentId);
-    const requiredVars = routedAgent?.input_variables?.filter((v) => v.required) ?? [];
+    const routedInputVariables = getAgentInputVariables(routedAgent);
+    const requiredVars = routedInputVariables.filter((v) => v.required);
     if (requiredVars.length > 0) {
       ensureAgentVarsLoaded(result.agentId);
       const agentVars = allAgentsVariables.value[result.agentId] ?? {};
       const missing = requiredVars.filter((v) => !agentVars[v.name]?.trim());
       if (missing.length > 0) {
         // Defer send: open modal and wait for vars to be filled / 延迟发送：打开弹窗等待变量填写
-        pendingSendContext.value = { agentId: result.agentId, pageContext };
-        openVarsModal(routedAgent!.input_variables!, result.agentId, routedAgent!.name);
+        pendingSendContext.value = {
+          agentId: result.agentId,
+          pageContext,
+          ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
+        };
+        openVarsModal(routedInputVariables, result.agentId, routedAgent!.name);
         return;
       }
     }
 
     // Send message (using routed agent ID) / 发送消息（使用路由后的智能体 ID）
-    sendMessage({ agentId: result.agentId, pageContext });
+    sendMessage({
+      agentId: result.agentId,
+      pageContext,
+      ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
+    });
   } catch (error: unknown) {
     if (selectedAgentId.value) {
+      message.warning($t('common.globalAiChat.routeFailedFallback'));
       sendMessage({ pageContext });
       return;
     }
@@ -621,12 +700,14 @@ const exportMenuItems = computed(() => [
 // ============ Input keyboard handling / 输入键盘处理 ============
 
 function handleKeyDown(e: KeyboardEvent) {
+  if (handleInputKeyDown(e)) {
+    return;
+  }
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     handleSendMessage();
     return;
   }
-  handleInputKeyDown(e);
 }
 
 // ============ History panel / 历史面板 ============
@@ -691,6 +772,7 @@ const groupedConversations = computed<ConversationGroup[]>(() => {
 });
 
 function onSelectConversation(convId: number) {
+  aiPanelStore.clearResolvedPageOps?.();
   loadConversationMessages(convId);
   showHistory.value = false;
   showMemoryPanel.value = false;
@@ -727,6 +809,7 @@ function cancelEditTitle() {
 }
 
 function onStartNewChat() {
+  aiPanelStore.clearResolvedPageOps?.();
   startNewConversation();
   showHistory.value = false;
   showMemoryPanel.value = false;
@@ -737,6 +820,7 @@ function onStartNewChat() {
 const panelRef = ref<HTMLElement | null>(null);
 
 function handleClose() {
+  aiPanelStore.clearResolvedPageOps?.();
   aiPanelStore.close();
 }
 
@@ -962,6 +1046,7 @@ watch(
   () => aiPanelStore.visible,
   async (visible) => {
     if (visible) {
+      aiPanelStore.clearResolvedPageOps?.();
       const pendingId = aiPanelStore.consumePendingAgentId();
       // On panel open: reset messages/conversation but KEEP session vars
       // (vars only clear when user explicitly clicks "+" new chat)
@@ -983,6 +1068,20 @@ watch(selectedAgentId, (agentId) => {
     ensureAgentVarsLoaded(agentId);
   }
 });
+
+watch(
+  [() => aiPanelStore.pinnedAgentId, agents],
+  ([pinnedAgentId, availableAgents]) => {
+    if (
+      pinnedAgentId &&
+      availableAgents.some((agent) => agent.id === pinnedAgentId) &&
+      selectedAgentId.value !== pinnedAgentId
+    ) {
+      selectedAgentId.value = pinnedAgentId;
+    }
+  },
+  { immediate: true },
+);
 
 // ============ Sync conversation state to store / 同步对话状态到 store ============
 
@@ -1009,6 +1108,7 @@ watchEffect(() => {
 onMounted(() => {
   loadSavedWidth();
   if (aiPanelStore.visible) {
+    aiPanelStore.clearResolvedPageOps?.();
     loadAgents();
     loadConversations();
   }
@@ -1242,12 +1342,12 @@ onUnmounted(() => {
             <!-- Group 1: Chat actions -->
             <div class="flex items-center gap-0.5">
               <Tooltip
-                v-if="agentsWithVarsInConversation.length > 0 || selectedAgent?.input_variables?.length"
+                v-if="agentsWithVarsInConversation.length > 0 || getAgentInputVariables(selectedAgent).length"
                 :title="$t('user.aiChat.varsModal.editVars')"
               >
                 <button
                   class="flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
-                  @click="agentsWithVarsInConversation.length > 0 ? openMultiVarsEditor() : openVarsModal(selectedAgent!.input_variables as InputVariable[], selectedAgent!.id, selectedAgent!.name)"
+                  @click="agentsWithVarsInConversation.length > 0 ? openMultiVarsEditor() : openVarsModal(getAgentInputVariables(selectedAgent), selectedAgent!.id, selectedAgent!.name)"
                 >
                   <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
                   <span
@@ -1848,11 +1948,27 @@ onUnmounted(() => {
 
             <!-- Pending attachments -->
             <TransitionGroup
-              v-if="showAttachments && pendingAttachments.length > 0"
+              v-if="mentionedAgent || (showAttachments && pendingAttachments.length > 0)"
               name="att-pop"
               tag="div"
               class="mb-1.5 flex flex-wrap gap-1.5"
             >
+              <div
+                v-if="mentionedAgent"
+                :key="`mention-${mentionedAgent.id}`"
+                class="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-2 py-1 text-[11px] text-primary"
+              >
+                <span class="font-semibold">@</span>
+                <span class="max-w-[140px] truncate font-medium">
+                  {{ mentionedAgent.name }}
+                </span>
+                <button
+                  class="flex size-4 items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/12 hover:text-primary"
+                  @click="clearMentionedAgent"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-2.5" />
+                </button>
+              </div>
               <div
                 v-for="(att, ai) in pendingAttachments"
                 :key="att.url || ai"
@@ -1951,6 +2067,68 @@ onUnmounted(() => {
             <div
               class="overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm focus-within:shadow-primary/5"
             >
+              <Transition name="mention-panel">
+                <div
+                  v-if="mentionOpen"
+                  class="border-b border-border/30 bg-background/70 px-2 py-1.5"
+                >
+                  <div
+                    class="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                  >
+                    <IconifyIcon icon="lucide:at-sign" class="size-3" />
+                    <span>{{ $t('common.globalAiChat.mentionAgentHint') }}</span>
+                  </div>
+                  <div v-if="agentsLoading" class="flex items-center gap-2 px-1 py-2">
+                    <Spin size="small" />
+                    <span class="text-[11px] text-muted-foreground">
+                      {{ $t('common.globalAiChat.mentionAgentLoading') }}
+                    </span>
+                  </div>
+                  <div
+                    v-else-if="mentionCandidates.length === 0"
+                    class="px-1 py-2 text-[11px] text-muted-foreground"
+                  >
+                    {{ $t('common.globalAiChat.mentionAgentEmpty') }}
+                  </div>
+                  <div v-else class="max-h-48 space-y-1 overflow-y-auto">
+                    <button
+                      v-for="(agent, candidateIndex) in mentionCandidates"
+                      :key="agent.id"
+                      class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                      :class="
+                        candidateIndex === mentionActiveIndex
+                          ? 'bg-primary/10 text-foreground'
+                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      "
+                      @mousedown.prevent
+                      @click="selectMentionAgent(agent)"
+                    >
+                      <div
+                        class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary"
+                      >
+                        <img
+                          v-if="agent.avatar"
+                          :src="agent.avatar"
+                          :alt="agent.name"
+                          class="size-7 rounded-lg object-cover"
+                        />
+                        <span v-else>{{ agent.name.charAt(0).toUpperCase() }}</span>
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-[12px] font-medium">
+                          {{ agent.name }}
+                        </div>
+                        <div
+                          v-if="agent.description"
+                          class="truncate text-[10px] text-muted-foreground/70"
+                        >
+                          {{ agent.description }}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </Transition>
               <div class="flex min-h-[2.5rem] items-end gap-1.5 px-2 py-2">
                 <Tooltip
                   v-if="showAttachments"
@@ -2103,6 +2281,30 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Mention dropdown transition / @ 智能体下拉过渡 */
+.mention-panel-enter-active,
+.mention-panel-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    max-height 0.24s ease,
+    transform 0.24s ease;
+}
+
+.mention-panel-enter-from,
+.mention-panel-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-6px);
+}
+
+.mention-panel-enter-to,
+.mention-panel-leave-from {
+  opacity: 1;
+  max-height: 240px;
+  transform: translateY(0);
 }
 
 /* Bubble transition / 气泡过渡 */

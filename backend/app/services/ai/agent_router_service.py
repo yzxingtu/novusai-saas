@@ -471,6 +471,15 @@ class AgentRouterService:
                 message=_("agent_chat.error.default_agent_not_configured"),
             )
 
+        if not await self._is_agent_visible(agent, tenant_id, user_role):
+            logger.warning(
+                "Default agent {} not visible for tenant={} user_role={}",
+                agent.id, tenant_id, user_role,
+            )
+            raise BusinessException(
+                message=_("agent_chat.error.default_agent_not_accessible"),
+            )
+
         return RouteResult(
             agent_id=agent.id,
             agent_name=agent.name,

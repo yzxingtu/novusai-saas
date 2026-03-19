@@ -315,8 +315,8 @@ async function init() {
       '[Vben Vxe Table]: The formConfig in the grid is not supported, please use the `formOptions` props',
     );
   }
-  // @ts-expect-error Type instantiation is excessively deep
-  props.api?.setState?.({ gridOptions: defaultGridOptions });
+  // VXE setState 泛型层级过深，使用断言绕过
+  props.api?.setState?.({ gridOptions: defaultGridOptions } as any);
   // form 由 vben-form 代替，所以需要保证query相关事件可以拿到参数
   extendProxyOptions(props.api, defaultGridOptions, () =>
     formApi.getLatestSubmissionValues(),

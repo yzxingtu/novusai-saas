@@ -6,7 +6,7 @@
  */
 import { computed } from 'vue';
 
-import { Button, Form, Select } from 'ant-design-vue';
+import { Button, Select } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
@@ -14,6 +14,11 @@ import { useCodegenBuilderStore } from '#/store';
 defineOptions({ name: 'CompositeUniqueEditor' });
 
 const store = useCodegenBuilderStore();
+
+interface UniqueConstraintItem {
+  fields: string[];
+  name?: string;
+}
 
 const fields = computed(
   () => (store.configJson.fields as Array<Record<string, unknown>>) || [],
@@ -27,7 +32,7 @@ const fieldOptions = computed(() =>
 
 const constraints = computed(() => {
   const model = (store.configJson.model as Record<string, unknown>) || {};
-  const ut = model.unique_together as Array<{ fields?: string[]; name?: string }> | undefined;
+  const ut = model.unique_together as UniqueConstraintItem[] | undefined;
   return ut && Array.isArray(ut) ? [...ut] : [];
 });
 
@@ -50,7 +55,7 @@ function removeConstraint(idx: number) {
   store.updateConfig({ model: { ...model, unique_together: ut } });
 }
 
-function updateConstraint(idx: number, patch: Record<string, unknown>) {
+function updateConstraint(idx: number, patch: Partial<UniqueConstraintItem>) {
   const model = (store.configJson.model as Record<string, unknown>) || {};
   const ut = [...((model.unique_together as Array<Record<string, unknown>>) || [])];
   if (idx < 0 || idx >= ut.length) return;
@@ -62,6 +67,13 @@ function updateConstraint(idx: number, patch: Record<string, unknown>) {
   ut[idx] = next;
   store.updateConfig({ model: { ...model, unique_together: ut } });
 }
+
+function onConstraintFieldsChange(idx: number, value: unknown) {
+  const fields = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+  updateConstraint(idx, { fields });
+}
 </script>
 
 <template>
@@ -72,12 +84,12 @@ function updateConstraint(idx: number, patch: Record<string, unknown>) {
       class="flex items-center gap-2 rounded border border-border p-2"
     >
       <Select
-        :value="(c.fields || [])"
+        :value="c.fields"
         :options="fieldOptions"
         mode="multiple"
         :placeholder="$t('admin.system.codegen.model.uniquePlaceholder')"
         class="flex-1"
-        @change="(v: string[]) => updateConstraint(idx, { fields: v })"
+        @change="(value) => onConstraintFieldsChange(idx, value)"
       />
       <Button
         type="text"

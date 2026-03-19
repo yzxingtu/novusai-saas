@@ -61,6 +61,8 @@ _PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
     (frozenset({"rows"}), "insert_table"),
     (frozenset({"cols"}), "insert_table"),
     (frozenset({"field_name"}), "get_form_options"),
+    (frozenset({"fieldName"}), "get_form_options"),
+    (frozenset({"field"}), "get_form_options"),
     (frozenset({"format"}), "export_document"),
     (frozenset({"status"}), "toggle_status"),
 ]
@@ -93,6 +95,30 @@ def _infer_operation_name(params: dict[str, Any]) -> str:
         if sig <= keys:
             return op
     return ""
+
+
+def _normalize_page_operation_params(arguments: dict[str, Any]) -> None:
+    """
+    Normalize invoke_page_operation params for operation-specific aliases.
+    归一化 invoke_page_operation 的操作参数别名。
+    """
+    operation_name = (arguments.get("operation_name") or "").strip()
+    params = arguments.get("params")
+    if not isinstance(params, dict):
+        return
+
+    if operation_name == "get_form_options":
+        field_name = params.get("field_name")
+        if isinstance(field_name, str) and field_name.strip():
+            return
+        alias_value = params.get("fieldName")
+        if not isinstance(alias_value, str) or not alias_value.strip():
+            alias_value = params.get("field")
+        if isinstance(alias_value, str) and alias_value.strip():
+            arguments["params"] = {
+                **params,
+                "field_name": alias_value.strip(),
+            }
 
 
 @dataclass
@@ -409,6 +435,8 @@ class ToolSandbox:
                         ),
                         error_type="invalid_input",
                     )
+
+            _normalize_page_operation_params(arguments)
 
         # 1.5 Security check: input validation + call count limit / 安全检查
         try:

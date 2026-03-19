@@ -3,13 +3,15 @@
 Covers:
 - _validate_column_names: rejects SQL injection payloads, special chars
 - _validate_table_name: rejects unsafe table names
-- _SAFE_COLUMN_NAME_RE / _SAFE_TABLE_NAME_RE: regex correctness"""
+- _SAFE_COLUMN_NAME_RE / _SAFE_TABLE_NAME_RE: regex correctness
+- _normalize_agent_data: scope normalization, invalid scope/audience raises"""
 
 from __future__ import annotations
 
 import pytest
 
 from app.ai.tools.executors.crud_executor import (
+    _normalize_agent_data,
     _SAFE_COLUMN_NAME_RE,
     _validate_column_names,
     _validate_table_name,
@@ -139,3 +141,51 @@ class TestValidateTableName:
     def test_invalid_table_names(self, name: str) -> None:
         result = _validate_table_name(name)
         assert result is not None
+
+
+# ============================================
+# _normalize_agent_data tests (agents service path)
+# ============================================
+
+class TestNormalizeAgentData:
+    """Test agent data normalization for CRUD executor agents path."""
+
+    def test_scope_platform_normalizes_to_admin_and_all(self) -> None:
+        data = {"name": "Test", "scope": "platform", "model_id": 1}
+        payload, tenant_ids, want_publish = _normalize_agent_data(data)
+        assert payload["scope"] == "admin_and_all"
+        assert tenant_ids is None
+        assert want_publish is False
+
+    def test_scope_all_normalizes_to_admin_and_all(self) -> None:
+        data = {"name": "Test", "scope": "all", "model_id": 1}
+        payload, _, _ = _normalize_agent_data(data)
+        assert payload["scope"] == "admin_and_all"
+
+    def test_scope_global_normalizes_to_admin_and_all(self) -> None:
+        data = {"name": "Test", "scope": "global", "model_id": 1}
+        payload, _, _ = _normalize_agent_data(data)
+        assert payload["scope"] == "admin_and_all"
+
+    def test_invalid_scope_raises(self) -> None:
+        data = {"name": "Test", "scope": "invalid_scope_value", "model_id": 1}
+        with pytest.raises(ValueError, match="invalid_scope_value"):
+            _normalize_agent_data(data)
+
+    def test_status_published_sets_want_publish(self) -> None:
+        data = {"name": "Test", "model_id": 1, "status": "published"}
+        _, _, want_publish = _normalize_agent_data(data)
+        assert want_publish is True
+
+    def test_strips_system_fields(self) -> None:
+        data = {
+            "name": "Test",
+            "model_id": 1,
+            "published_version": 99,
+            "delete_level": "tenant",
+            "id": 999,
+        }
+        payload, _, _ = _normalize_agent_data(data)
+        assert "published_version" not in payload
+        assert "delete_level" not in payload
+        assert "id" not in payload

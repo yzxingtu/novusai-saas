@@ -68,7 +68,10 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
     customActions: {
       trigger: onTriggerTask,
     },
-    ai: { pageKey: 'tenant.system.periodic-tasks', formSchema: useFormSchema },
+    ai: {
+      pageKey: 'tenant.system.periodic-tasks',
+      formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
+    },
   });
 
 const cleanupPageContext = registerPageContext('tenant/system/periodic-tasks', () => ({

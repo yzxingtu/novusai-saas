@@ -89,6 +89,17 @@ export interface GenerateResult {
   conflicts: Array<Record<string, string>>;
   errors: string[];
   backup_dir: null | string;
+  config_id?: number | null;
+  resource?: string | null;
+  module?: string | null;
+  table_name?: string | null;
+  migration?: {
+    success?: boolean;
+    message?: string;
+    migration_path?: string;
+    phase?: string;
+    error?: string;
+  } | null;
 }
 
 /** 回滚结果 / Rollback result */
@@ -414,9 +425,17 @@ export async function downloadCodegenPreviewZipApi(
   downloadBlob(blob, { filename: 'codegen_preview.zip' });
 }
 
+/** 执行生成请求体 / Generate request body */
+export interface CodegenGenerateInput {
+  config_id?: number;
+  config_json?: Record<string, unknown>;
+  force?: boolean;
+  auto_migrate?: boolean;
+}
+
 /** 执行生成 / Execute generation */
 export async function postCodegenGenerateApi(
-  body: { config_id?: number; config_json?: Record<string, unknown>; force?: boolean },
+  body: CodegenGenerateInput,
   options?: ApiRequestOptions,
 ): Promise<GenerateResult> {
   return requestClient.post(PREFIX + '/generate', body, options);

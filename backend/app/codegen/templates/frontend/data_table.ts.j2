@@ -126,10 +126,12 @@ export function useColumns<T = {{ resource | pascal }}Info>(
         name: 'CellOperation',
         options: [
 {% for op in (_fe.get('operation_options') or (['detail'] + _base_ops if _has_detail else _base_ops)) %}
-{% if op is string and op == 'detail' and _has_detail %}
-          { code: 'detail', text: $t('common.detail'), icon: 'lucide:eye', accessCodes: ['{{ res_name }}:detail'] },
+{% if not (op is string and op == 'detail' and not _has_detail) %}
+{% if op is string %}
+          '{{ op }}',
 {% else %}
           {{ op | tojson }},
+{% endif %}
 {% endif %}
 {% endfor %}
         ],

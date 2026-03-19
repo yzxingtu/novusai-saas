@@ -4,6 +4,7 @@
  * Tenant AI available models list (read-only)
  */
 import type { TenantAIModelInfo } from '#/api/tenant/ai';
+import type { TableColumnsType } from 'ant-design-vue';
 
 import { onMounted, ref } from 'vue';
 
@@ -51,7 +52,7 @@ function getModelTypeText(type: string): string {
   return map[type] ?? type;
 }
 
-const columns = [
+const columns: TableColumnsType<TenantAIModelInfo> = [
   { title: $t('tenant.ai.model.name'), dataIndex: 'name', key: 'name', width: 200 },
   { title: $t('tenant.ai.model.code'), dataIndex: 'code', key: 'code', width: 140 },
   { title: $t('tenant.ai.model.type'), dataIndex: 'type', key: 'type', width: 90 },
@@ -59,7 +60,7 @@ const columns = [
   { title: $t('tenant.ai.model.contextWindow'), dataIndex: 'context_window', key: 'context_window', width: 100 },
   { title: $t('tenant.ai.model.inputPrice'), dataIndex: 'input_price_per_1k', key: 'input_price_per_1k', width: 100 },
   { title: $t('tenant.ai.model.outputPrice'), dataIndex: 'output_price_per_1k', key: 'output_price_per_1k', width: 100 },
-  { title: $t('tenant.ai.model.isActive'), dataIndex: 'is_active', key: 'is_active', width: 80, align: 'center' },
+  { title: $t('tenant.ai.model.isActive'), dataIndex: 'is_active', key: 'is_active', width: 80, align: 'center' as const },
 ];
 
 onMounted(loadModels);

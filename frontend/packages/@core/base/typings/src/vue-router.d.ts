@@ -47,6 +47,16 @@ interface RouteMeta {
    */
   authority?: string[];
   /**
+   * 需要具备的权限码（静态路由守卫使用）
+   * @default []
+   */
+  accessCodes?: string[];
+  /**
+   * 权限码判定模式：`any` 任意一项满足，`all` 需要全部满足
+   * @default 'any'
+   */
+  accessCodesMode?: 'all' | 'any';
+  /**
    * 徽标
    */
   badge?: string;

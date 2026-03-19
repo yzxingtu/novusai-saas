@@ -87,6 +87,19 @@ function setupAccessGuard(router: Router) {
     const userStore = useUserStore();
     const multiAuthStore = useMultiAuthStore();
     const publicConfigStore = usePublicConfigStore();
+    const requiredAccessCodes = Array.isArray(to.meta.accessCodes)
+      ? to.meta.accessCodes.filter(Boolean)
+      : [];
+    const hasRouteAccess = () => {
+      if (requiredAccessCodes.length === 0) {
+        return true;
+      }
+      const codeSet = new Set(accessStore.accessCodes);
+      const mode = to.meta.accessCodesMode === 'all' ? 'all' : 'any';
+      return mode === 'all'
+        ? requiredAccessCodes.every((code) => codeSet.has(code))
+        : requiredAccessCodes.some((code) => codeSet.has(code));
+    };
 
     // 获取当前路由对应的端类型、登录路径和首页路径
     const currentEndpoint: ApiEndpoint = getApiEndpoint(to.path);
@@ -258,6 +271,9 @@ function setupAccessGuard(router: Router) {
           return { ...resolved, replace: true };
         }
       }
+      if (!hasRouteAccess()) {
+        return { path: currentHomePath, replace: true };
+      }
       return true;
     }
 
@@ -316,6 +332,9 @@ function setupAccessGuard(router: Router) {
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
+    if (!hasRouteAccess()) {
+      return { path: currentHomePath, replace: true };
+    }
 
     let redirectPath = (from.query.redirect ??
       (to.path === currentHomePath

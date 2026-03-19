@@ -10,6 +10,17 @@ from __future__ import annotations
 from typing import Any
 
 
+def _normalize_input_variables(value: Any) -> list[Any]:
+    """
+    Normalize persisted input_variables to a list shape.
+    将持久化的 input_variables 统一归一化为 list 形态。
+
+    Old/bad historical records may contain `{}` instead of `[]`.
+    历史脏数据里可能出现 `{}`，前端按数组消费时会直接报错。
+    """
+    return value if isinstance(value, list) else []
+
+
 def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
     """
     从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skill_packages。
@@ -73,7 +84,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "published_version": agent.published_version,
         "welcome_message": agent.welcome_message,
         "suggested_questions": agent.suggested_questions,
-        "input_variables": agent.input_variables,
+        "input_variables": _normalize_input_variables(agent.input_variables),
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }

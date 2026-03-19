@@ -676,16 +676,33 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
             # 从 metadata 恢复附件（用于多模态历史消息）
             msg_attachments = None
+            msg_reasoning_content = None
             if msg.metadata_ and isinstance(msg.metadata_, dict):
                 msg_attachments = msg.metadata_.get("attachments")
+                raw_thinking = msg.metadata_.get("thinking_content")
+                if isinstance(raw_thinking, str) and raw_thinking.strip():
+                    msg_reasoning_content = raw_thinking.strip()
+
+            msg_content = msg.content or ""
+            if (
+                msg.role == MessageRoleEnum.ASSISTANT.value
+                and msg.tool_calls
+                and msg_reasoning_content
+                and msg_content.strip() == msg_reasoning_content
+            ):
+                # Tool-round thinking is persisted separately in metadata; do not
+                # feed the same text back as assistant content in future rounds.
+                # 工具轮思考已单独存入 metadata，后续续聊时不要再把同文案当成 assistant 正文回灌给模型。
+                msg_content = ""
 
             chat_messages.append(
                 ChatMessage(
                     role=msg.role,
-                    content=msg.content or "",
+                    content=msg_content,
                     tool_calls=msg.tool_calls,
                     tool_call_id=msg.tool_call_id,
                     attachments=msg_attachments,
+                    reasoning_content=msg_reasoning_content,
                 ),
             )
 
@@ -705,51 +722,52 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
     def sanitize_tool_messages(
         messages: list[ChatMessage],
     ) -> list[ChatMessage]:
-        """清理孤立的 tool/tool_calls 消息，防止 LLM API 400 错误 / Clean orphan tool/tool_calls to avoid LLM API 400.
+        """按 assistant-tool round 原子保留/丢弃，禁止半截 tool_calls 混入历史。
 
-        规则：
-        - role=tool 的消息前面必须有一条带 tool_calls 的 assistant 消息
-        - 如果截断导致 assistant(tool_calls) 丢失，相关的 tool 消息也要移除
-        - 如果 tool 消息被移除，对应的 assistant(tool_calls) 也要移除
+        Atomic round rule: keep assistant(tool_calls) only if ALL its tool_call_ids
+        have matching tool replies; otherwise drop the entire round (assistant + associated tools).
+        Orphan tool messages (no preceding assistant round) are dropped.
         """
         if not messages:
             return messages
 
-        # 收集所有 assistant 消息中声明的 tool_call id
-        declared_tc_ids: set[str] = set()
-        for msg in messages:
-            if msg.role == "assistant" and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tc_id = tc.get("id", "")
-                    if tc_id:
-                        declared_tc_ids.add(tc_id)
-
-        # 第一遍：移除 tool_call_id 不在声明集合中的 tool 消息
-        cleaned: list[ChatMessage] = []
-        for msg in messages:
-            if msg.role == "tool":
-                if msg.tool_call_id and msg.tool_call_id in declared_tc_ids:
-                    cleaned.append(msg)
-                # else: 孤立的 tool 消息，跳过
-            else:
-                cleaned.append(msg)
-
-        # 第二遍：收集实际保留的 tool 回复的 id
-        answered_tc_ids: set[str] = set()
-        for msg in cleaned:
-            if msg.role == "tool" and msg.tool_call_id:
-                answered_tc_ids.add(msg.tool_call_id)
-
-        # 第三遍：移除 tool_calls 中所有 id 都没有对应 tool 回复的 assistant 消息
         result: list[ChatMessage] = []
-        for msg in cleaned:
-            if msg.role == "assistant" and msg.tool_calls:
-                tc_ids_in_msg = {tc.get("id", "") for tc in msg.tool_calls}
-                if tc_ids_in_msg & answered_tc_ids:
-                    result.append(msg)
-                # else: assistant 的 tool_calls 全部没有 tool 回复，跳过
-            else:
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+            if msg.role == "tool":
+                # Orphan tool: drop (no matching assistant round)
+                i += 1
+                continue
+            if msg.role != "assistant" or not msg.tool_calls:
                 result.append(msg)
+                i += 1
+                continue
+
+            tc_ids_expected = {tc.get("id", "") for tc in msg.tool_calls if tc.get("id")}
+            if not tc_ids_expected:
+                result.append(msg)
+                i += 1
+                continue
+
+            collected_tool_ids: set[str] = set()
+            round_msgs: list[ChatMessage] = [msg]
+            j = i + 1
+            while j < len(messages):
+                next_msg = messages[j]
+                if next_msg.role == "tool" and next_msg.tool_call_id:
+                    if next_msg.tool_call_id in tc_ids_expected:
+                        collected_tool_ids.add(next_msg.tool_call_id)
+                        round_msgs.append(next_msg)
+                    j += 1
+                    continue
+                if next_msg.role in ("assistant", "user", "system"):
+                    break
+                j += 1
+
+            if collected_tool_ids == tc_ids_expected:
+                result.extend(round_msgs)
+            i = j
 
         return result
 
@@ -759,6 +777,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         result: ExecutionResult,
         history_count: int,
         agent_id: int | None = None,
+        route_source: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         将执行过程中产生的新消息持久化为 ConversationMessage / Persist new messages from execution as ConversationMessage.
@@ -773,6 +792,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             result: 执行结果
             history_count: 历史消息数量（用于计算新消息起始位置）
             agent_id: 智能体 ID（写入 assistant/tool 消息，支持多智能体对话追溯）
+            route_source: 前端路由来源标记（如 mention）
 
         Returns:
             收集到的 tool_calls（用于响应）
@@ -785,10 +805,36 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             else:
                 break
         new_start = system_count + history_count
-        new_messages = result.messages[new_start:]
+        new_messages_raw = result.messages[new_start:]
 
-        if not new_messages:
+        if not new_messages_raw:
             return []
+
+        # Sanitize: only persist complete tool rounds and plain assistant; drop orphan tool_calls
+        # 仅持久化完整 tool round 与普通 assistant，避免半截 tool skeleton
+        chat_msgs = [
+            ChatMessage(
+                role=m.get("role", ""),
+                content=m.get("content", "") or "",
+                tool_calls=m.get("tool_calls"),
+                tool_call_id=m.get("tool_call_id"),
+                attachments=m.get("attachments"),
+                reasoning_content=m.get("reasoning_content"),
+            )
+            for m in new_messages_raw
+        ]
+        chat_msgs = self.sanitize_tool_messages(chat_msgs)
+        new_messages = [
+            {
+                "role": m.role,
+                "content": m.content or "",
+                "tool_calls": m.tool_calls,
+                "tool_call_id": m.tool_call_id,
+                "attachments": m.attachments,
+                "reasoning_content": m.reasoning_content,
+            }
+            for m in chat_msgs
+        ]
 
         # 构建 tool_call_id → ToolResult 的查找表
         tool_result_map: dict[str, ToolResult] = {}
@@ -800,6 +846,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         # 获取下一个 sequence
         next_seq = await self.message_repo.get_next_sequence(conversation.id)
         tool_calls_collected: list[dict[str, Any]] = []
+        route_source_marked = False
 
         for i, msg_dict in enumerate(new_messages):
             role = msg_dict.get("role", "")
@@ -807,6 +854,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             tool_calls = msg_dict.get("tool_calls")
             tool_call_id = msg_dict.get("tool_call_id")
             attachments = msg_dict.get("attachments")
+            reasoning_content = msg_dict.get("reasoning_content")
 
             # 收集 tool_calls 用于响应
             if tool_calls:
@@ -819,6 +867,10 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             metadata = None
             if attachments:
                 metadata = {"attachments": attachments}
+            # assistant 消息的思考内容（chain-of-thought 模型）存入 metadata / Store reasoning for history display
+            if role == "assistant" and reasoning_content and reasoning_content.strip():
+                metadata = metadata or {}
+                metadata["thinking_content"] = reasoning_content.strip()
 
             # tool 角色消息：存储工具执行状态
             if role == "tool" and tool_call_id and tool_call_id in tool_result_map:
@@ -827,6 +879,29 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 metadata["tool_success"] = tr.success
                 if not tr.success and tr.error:
                     metadata["tool_error"] = tr.error
+
+            # partial/interrupted: mark last plain assistant message / 中断时标记最后一条普通 assistant
+            is_last_assistant = (
+                role == "assistant"
+                and not tool_calls
+                and (getattr(result, "partial", False) or getattr(result, "interrupted", False))
+                and i == len(new_messages) - 1
+            )
+            if is_last_assistant:
+                metadata = metadata or {}
+                metadata["partial"] = getattr(result, "partial", False)
+                metadata["interrupted"] = getattr(result, "interrupted", False)
+                if getattr(result, "completion_reason", ""):
+                    metadata["completion_reason"] = result.completion_reason
+
+            if (
+                route_source
+                and role == "assistant"
+                and not route_source_marked
+            ):
+                metadata = metadata or {}
+                metadata["route_source"] = route_source
+                route_source_marked = True
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None

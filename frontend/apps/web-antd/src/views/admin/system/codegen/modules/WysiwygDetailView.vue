@@ -4,8 +4,7 @@
  *
  * 模拟 Detail Drawer，支持 groups 分组
  */
-
-import { computed, unref } from 'vue';
+import { computed } from 'vue';
 import { Button, Descriptions, Empty } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '#/locales';
@@ -19,33 +18,67 @@ defineOptions({ name: 'WysiwygDetailView' });
 
 const store = useCodegenBuilderStore();
 const features = useConfigFeatures(store);
-const displayNameStr = computed(() => String(unref(features.displayName) ?? ''));
 
-function getFieldsForGroup(groupFields: string[] | undefined): Record<string, unknown>[] {
+type BuilderField = Record<string, unknown>;
+
+interface DetailGroup {
+  fields?: string[];
+  title_en?: string;
+  title_zh?: string;
+}
+
+const displayNameStr = computed(() => String(features.displayName.value ?? ''));
+
+function normalizeDetailGroup(group: unknown): DetailGroup | null {
+  if (typeof group !== 'object' || group === null) return null;
+  const raw = group as Record<string, unknown>;
+  return {
+    fields: Array.isArray(raw.fields)
+      ? raw.fields.filter((field): field is string => typeof field === 'string')
+      : [],
+    title_en: typeof raw.title_en === 'string' ? raw.title_en : undefined,
+    title_zh: typeof raw.title_zh === 'string' ? raw.title_zh : undefined,
+  };
+}
+
+const detailGroups = computed<DetailGroup[]>(() => {
+  const rawGroups = features.detailGroups.value;
+  return Array.isArray(rawGroups)
+    ? rawGroups
+        .map((group) => normalizeDetailGroup(group))
+        .filter((group): group is DetailGroup => Boolean(group))
+    : [];
+});
+const detailFields = computed<BuilderField[]>(() => features.detailFields.value ?? []);
+
+function getFieldsForGroup(groupFields: string[] | undefined): BuilderField[] {
   if (!groupFields?.length) return [];
-  const all = (store.configJson.fields as Record<string, unknown>[]) || [];
-  return groupFields.map((name) => all.find((f) => f.name === name)).filter(Boolean) as Record<string, unknown>[];
+  const all = (store.configJson.fields as BuilderField[]) || [];
+  return groupFields
+    .map((name) => all.find((field) => field.name === name))
+    .filter((field): field is BuilderField => Boolean(field));
 }
 
-function onFieldClick(f: Record<string, unknown>) {
-  store.selectedFieldKey = (f.__key as string) || (f.name as string);
+function onFieldClick(field: BuilderField) {
+  const key = (field.__key as string) || (field.name as string);
+  if (!key) return;
+  store.selectedFieldKey = key;
 }
 
-function isFieldSelected(f: Record<string, unknown>): boolean {
-  const key = (f.__key as string) || (f.name as string);
-  return store.selectedFieldKey === key;
+function isFieldSelected(field: BuilderField): boolean {
+  const key = (field.__key as string) || (field.name as string);
+  return key ? store.selectedFieldKey === key : false;
 }
 
 function onCloseDetail() {
   store.wysiwygViewMode = 'list';
 }
 
-const displayFields = computed(() => {
-  const groups = unref(features.detailGroups);
-  if (groups?.length) {
-    return groups.flatMap((g) => getFieldsForGroup(g.fields));
+const displayFields = computed<BuilderField[]>(() => {
+  if (detailGroups.value.length > 0) {
+    return detailGroups.value.flatMap((group) => getFieldsForGroup(group.fields));
   }
-  return unref(features.detailFields);
+  return detailFields.value;
 });
 </script>
 
@@ -62,8 +95,8 @@ const displayFields = computed(() => {
     </div>
 
     <!-- D41 详情内容：分组使用 Descriptions -->
-    <div v-if="features.detailGroups?.length" class="p-4">
-      <div v-for="(g, idx) in features.detailGroups" :key="g.title_zh || g.title_en || `group-${idx}`" class="mb-4">
+    <div v-if="detailGroups.length > 0" class="p-4">
+      <div v-for="(g, idx) in detailGroups" :key="g.title_zh || g.title_en || `group-${idx}`" class="mb-4">
         <template v-if="getFieldsForGroup(g.fields).length > 0">
           <div class="text-muted-foreground mb-2 text-xs font-medium">
             {{ g.title_zh || g.title_en || $t('admin.system.codegen.preview.groupTitle', { idx: idx + 1 }) }}
@@ -71,13 +104,13 @@ const displayFields = computed(() => {
           <Descriptions :column="1" bordered size="small" class="mb-0">
             <Descriptions.Item
               v-for="(f, fi) in getFieldsForGroup(g.fields)"
-              :key="(f as Record<string, unknown>).__key || (f as Record<string, unknown>).name || `group-${idx}-${fi}`"
-              :label="getFieldLabel(f as Record<string, unknown>)"
+              :key="(f.__key as string) || (f.name as string) || `group-${idx}-${fi}`"
+              :label="getFieldLabel(f)"
             >
               <DetailFieldValue
-                :field="f as Record<string, unknown>"
-                :class="[isFieldSelected(f as Record<string, unknown>) && 'ring-2 ring-primary']"
-                @click="onFieldClick(f as Record<string, unknown>)"
+                :field="f"
+                :class="[isFieldSelected(f) && 'ring-2 ring-primary']"
+                @click="onFieldClick(f)"
               />
             </Descriptions.Item>
           </Descriptions>
@@ -90,13 +123,13 @@ const displayFields = computed(() => {
       <Descriptions :column="1" bordered size="small" class="mb-0">
         <Descriptions.Item
           v-for="(f, fieldIdx) in displayFields"
-          :key="(f as Record<string, unknown>).__key || (f as Record<string, unknown>).name || `field-${fieldIdx}`"
-          :label="getFieldLabel(f as Record<string, unknown>)"
+          :key="(f.__key as string) || (f.name as string) || `field-${fieldIdx}`"
+          :label="getFieldLabel(f)"
         >
           <DetailFieldValue
-            :field="f as Record<string, unknown>"
-            :class="[isFieldSelected(f as Record<string, unknown>) && 'ring-2 ring-primary']"
-            @click="onFieldClick(f as Record<string, unknown>)"
+            :field="f"
+            :class="[isFieldSelected(f) && 'ring-2 ring-primary']"
+            @click="onFieldClick(f)"
           />
         </Descriptions.Item>
       </Descriptions>

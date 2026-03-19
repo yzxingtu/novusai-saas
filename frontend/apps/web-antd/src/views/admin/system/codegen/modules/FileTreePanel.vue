@@ -5,6 +5,8 @@
  * 树形展示生成文件列表，文件状态标记，点击 emit 选中
  */
 import type { PreviewFile } from '#/api/admin/codegen';
+import type { TreeProps as AntTreeProps } from 'ant-design-vue';
+import type { Key } from 'ant-design-vue/es/_util/type';
 
 import { computed } from 'vue';
 
@@ -36,6 +38,13 @@ interface TreeNode {
   type?: string;
 }
 
+interface TreeEntry {
+  children: TreeBranch;
+  node: TreeNode;
+}
+
+type TreeBranch = Record<string, TreeEntry>;
+
 function normalizePath(p: string): string {
   return (p || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, '');
 }
@@ -46,7 +55,7 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
     const np = normalizePath(f.path);
     if (np) fileMap.set(np, f);
   }
-  const root: Record<string, { node: TreeNode; children: Record<string, unknown> }> = {};
+  const root: TreeBranch = {};
   for (const f of files) {
     const normalizedPath = normalizePath(f.path);
     if (!normalizedPath) continue;
@@ -54,6 +63,7 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
     let curr = root;
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
+      if (!p) continue;
       const fullPath = parts.slice(0, i + 1).join('/');
       const isLeaf = i === parts.length - 1;
       if (!curr[p]) {
@@ -70,20 +80,21 @@ function buildTree(files: PreviewFile[]): TreeNode[] {
         };
       }
       if (!isLeaf) {
-        const entry = curr[p] as { node: TreeNode; children: Record<string, unknown> };
+        const entry = curr[p];
+        if (!entry) continue;
         if (entry.node.isLeaf) {
           entry.node.isLeaf = false;
           entry.node.type = undefined;
         }
-        curr = entry.children as Record<string, { node: TreeNode; children: Record<string, unknown> }>;
+        curr = entry.children;
       }
     }
   }
-  function toArray(obj: Record<string, { node: TreeNode; children: Record<string, unknown> }>): TreeNode[] {
+  function toArray(obj: TreeBranch): TreeNode[] {
     return Object.entries(obj)
       .map(([, v]) => {
         const n = v.node;
-        const children = v.children as Record<string, { node: TreeNode; children: Record<string, unknown> }>;
+        const children = v.children;
         if (Object.keys(children).length > 0) {
           n.children = toArray(children);
         }
@@ -107,10 +118,10 @@ const modifyCount = computed(
 );
 
 function onSelect(
-  _keys: string[],
-  info: { node: { key?: string; path?: string; isLeaf?: boolean; type?: string } },
+  _keys: Key[],
+  info: Parameters<NonNullable<AntTreeProps['onSelect']>>[1],
 ) {
-  const node = info?.node;
+  const node = info?.node as Partial<TreeNode>;
   if (node?.isLeaf && (node.path ?? node.key)) {
     emit('select', node.path ?? node.key ?? '');
   }
@@ -134,7 +145,7 @@ function onSelect(
       show-line
       @select="onSelect"
     >
-      <template #title="{ title, path, isLeaf, type }">
+      <template #title="{ title, isLeaf, type }">
         <span
           class="inline-flex items-center gap-1.5 cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1"
         >

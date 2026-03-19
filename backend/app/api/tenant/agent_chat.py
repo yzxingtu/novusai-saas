@@ -79,6 +79,7 @@ class TenantAgentChatController(TenantController):
             tenant_id: int,
             agent_id: int,
             user_id: int,
+            role_id: int | None,
         ) -> None:
             """检查用户是否有权访问该智能体 / Check if user has access to this agent"""
             agent_service = AgentService(db, tenant_id)
@@ -86,6 +87,7 @@ class TenantAgentChatController(TenantController):
                 agent_id=agent_id,
                 user_id=user_id,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
+                user_role_id=role_id,
             )
             if not has_access:
                 from app.exceptions import AuthorizationException
@@ -110,7 +112,9 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:chat
             """
-            await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
+            await _check_agent_access(
+                db, tenant_admin.tenant_id, agent_id, tenant_admin.id, tenant_admin.role_id
+            )
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
@@ -131,6 +135,7 @@ class TenantAgentChatController(TenantController):
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
+                route_source=data.route_source,
             )
 
             return success(data=result.model_dump())
@@ -155,7 +160,9 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:stream
             """
-            await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
+            await _check_agent_access(
+                db, tenant_admin.tenant_id, agent_id, tenant_admin.id, tenant_admin.role_id
+            )
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
@@ -179,6 +186,7 @@ class TenantAgentChatController(TenantController):
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 page_session_id=data.page_session_id,
+                route_source=data.route_source,
             )
 
         # ========================================

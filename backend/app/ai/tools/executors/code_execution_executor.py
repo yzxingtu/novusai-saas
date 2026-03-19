@@ -40,6 +40,14 @@ _BLOCKED_MODULES = frozenset({
 })
 
 
+# Dangerous builtins to exclude from user code namespace (escape surface)
+# 用户代码命名空间中必须排除的危险 builtins（exec/eval/compile/open 逃逸面收口）
+_DANGEROUS_BUILTINS = frozenset({
+    "exec", "eval", "compile", "open", "__import__",
+    "globals", "locals", "vars", "breakpoint", "input",
+})
+
+
 def _build_sandbox_script(
     user_code: str,
     allowed_modules: list[str],
@@ -48,24 +56,28 @@ def _build_sandbox_script(
     Build sandbox execution script.
     构建沙箱执行脚本。
 
-    1. Clear dangerous builtins (exec, eval, __import__, compile, open)
-       清除危险 builtins（exec, eval, __import__, compile, open）
+    1. Create restricted __builtins__ dict (exclude exec/eval/compile/open etc.)
+       创建受限 __builtins__ 字典，排除 exec/eval/compile/open 等
     2. Only allow whitelisted module imports / 仅允许白名单模块 import
     3. Capture stdout output / 捕获 stdout 输出
     4. Catch exceptions and return as JSON / 捕获异常并以 JSON 返回
     """
     allowed_set = json.dumps(allowed_modules)
     escaped_code = user_code.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    dangerous_set = ", ".join(repr(b) for b in _DANGEROUS_BUILTINS)
+    blocked_set = ", ".join(repr(m) for m in _BLOCKED_MODULES)
 
     return textwrap.dedent(f"""\
 import sys
 import io
 import json
 
-# 1. Restrict import to whitelist / 限制 import 到白名单
+# 1. Restricted builtins for user code (no exec/eval/compile/open) / 用户代码受限 builtins
+_orig_builtins = __builtins__ if isinstance(__builtins__, dict) else vars(__builtins__)
+_restricted_builtins = {{k: v for k, v in _orig_builtins.items() if k not in ({dangerous_set})}}
+
 _ALLOWED = set({allowed_set})
-_BLOCKED = {{{", ".join(repr(m) for m in _BLOCKED_MODULES)}}}
-_original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+_BLOCKED = {{{blocked_set}}}
 
 def _safe_import(name, *args, **kwargs):
     top = name.split(".")[0]
@@ -73,28 +85,20 @@ def _safe_import(name, *args, **kwargs):
         raise ImportError(f"Module '{{top}}' is not allowed in sandbox")
     if _ALLOWED and top not in _ALLOWED:
         raise ImportError(f"Module '{{top}}' is not in the allowed list")
-    return _original_import(name, *args, **kwargs)
+    return __import__(name, *args, **kwargs)
 
-if isinstance(__builtins__, dict):
-    __builtins__["__import__"] = _safe_import
-    __builtins__.pop("exec", None)
-    __builtins__.pop("eval", None)
-    __builtins__.pop("compile", None)
-    __builtins__.pop("open", None)
-    __builtins__.pop("globals", None)
-else:
-    __builtins__.__import__ = _safe_import
+_restricted_builtins["__import__"] = _safe_import
 
 # 2. Capture stdout / 捕获 stdout
 _stdout_capture = io.StringIO()
 sys.stdout = _stdout_capture
 
-# 3. Execute user code / 执行用户代码
+# 3. Execute user code with restricted builtins / 使用受限 builtins 执行用户代码
 try:
     _user_code = '{escaped_code}'
-    _code_obj = _original_import("builtins").compile(_user_code, "<sandbox>", "exec")
-    _ns = {{}}
-    _original_import("builtins").exec(_code_obj, _ns)
+    _code_obj = compile(_user_code, "<sandbox>", "exec")
+    _ns = {{"__builtins__": _restricted_builtins}}
+    exec(_code_obj, _ns)
     _output = _stdout_capture.getvalue()
     sys.stdout = sys.__stdout__
     print(json.dumps({{"success": True, "output": _output}}))

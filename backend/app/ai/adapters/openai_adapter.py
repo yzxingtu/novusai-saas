@@ -467,12 +467,10 @@ class OpenAIAdapter(BaseAdapter):
         choice = chunk.choices[0]
         delta = choice.delta
 
-        # Extract delta content (compatible with reasoning_content used by some relay models) / 提取增量内容（兼容 reasoning_content）
+        # Keep reasoning delta separate so frontend can render "thinking" independently
+        # from the final answer / 将 reasoning 增量与最终答复分离，便于前端单独展示“思考内容”
         delta_content = delta.content or ""
-        if not delta_content:
-            reasoning = getattr(delta, "reasoning_content", None)
-            if reasoning:
-                delta_content = reasoning
+        reasoning_delta = getattr(delta, "reasoning_content", None) or ""
 
         # Extract token usage (included in the last chunk) / 提取 Token 使用量（最后一个块包含）
         usage = chunk.usage
@@ -500,6 +498,7 @@ class OpenAIAdapter(BaseAdapter):
 
         return ChatChunk(
             delta=delta_content,
+            reasoning_delta=reasoning_delta,
             role=delta.role,
             finish_reason=choice.finish_reason,
             input_tokens=input_tokens,

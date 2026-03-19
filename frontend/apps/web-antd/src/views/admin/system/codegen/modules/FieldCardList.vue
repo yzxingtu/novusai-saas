@@ -35,7 +35,14 @@ const viewMode = ref<'card' | 'table'>('card');
 const sortableInstance = shallowRef<ReturnType<typeof Sortable.create> | null>(null);
 const tableSortableInstance = shallowRef<ReturnType<typeof Sortable.create> | null>(null);
 
-const fields = computed({
+type BatchToggleField =
+  | 'editable'
+  | 'filterable'
+  | 'insertable'
+  | 'list_visible'
+  | 'required';
+
+const fields = computed<Recordable[]>({
   get: () => {
     const arr = (store.configJson.fields as Recordable[]) || [];
     return ensureFieldKeys(arr);
@@ -51,44 +58,35 @@ const dataFields = computed(() =>
 
 const fieldCount = computed(() => dataFields.value.length);
 
-function updateField(key: string, patch: Record<string, unknown>) {
+function updateField(key: string, patch: Partial<Recordable>) {
   const arr = fields.value.map((f) => (f.__key === key ? { ...f, ...patch } : f));
   fields.value = arr;
 }
 
-function toggleBatch(col: 'required' | 'insertable' | 'editable' | 'list_visible' | 'filterable') {
+function toggleBatch(col: BatchToggleField) {
   const arr = [...fields.value];
   const dataOnly = arr.filter((f) => f.type !== '__divider__' && !f.divider);
   if (dataOnly.length === 0) return;
-  const keyMap: Record<string, string> = {
-    required: 'required',
-    insertable: 'insertable',
-    editable: 'editable',
-    list_visible: 'list_visible',
-    filterable: 'filterable',
-  };
-  const k = keyMap[col];
-  const count = dataOnly.filter((f) => !!f[k]).length;
+  const count = dataOnly.filter((f) => Boolean(f[col])).length;
   const nextVal = count < dataOnly.length;
   for (let i = 0; i < arr.length; i++) {
-    if (arr[i].type === '__divider__' || arr[i].divider) continue;
-    arr[i] = { ...arr[i], [k]: nextVal };
+    const current = arr[i];
+    if (!current || current.type === '__divider__' || current.divider) continue;
+    arr[i] = { ...current, [col]: nextVal };
   }
   fields.value = arr;
 }
 
-function isBatchAll(col: string): boolean {
+function isBatchAll(col: BatchToggleField): boolean {
   const dataOnly = dataFields.value;
   if (dataOnly.length === 0) return false;
-  const k = col as keyof Recordable;
-  return dataOnly.every((f) => !!f[k]);
+  return dataOnly.every((f) => Boolean(f[col]));
 }
 
-function isBatchSome(col: string): boolean {
+function isBatchSome(col: BatchToggleField): boolean {
   const dataOnly = dataFields.value;
   if (dataOnly.length === 0) return false;
-  const k = col as keyof Recordable;
-  const count = dataOnly.filter((f) => !!f[k]).length;
+  const count = dataOnly.filter((f) => Boolean(f[col])).length;
   return count > 0 && count < dataOnly.length;
 }
 
@@ -184,7 +182,8 @@ function initSortable() {
       onEnd(evt) {
         if (evt.oldIndex == null || evt.newIndex == null || evt.oldIndex === evt.newIndex) return;
         const arr = [...fields.value];
-        const [removed] = arr.splice(evt.oldIndex, 1);
+        const removed = arr.splice(evt.oldIndex, 1)[0];
+        if (!removed) return;
         arr.splice(evt.newIndex, 0, removed);
         fields.value = arr.map((f, i) => ({ ...f, sort_order: i }));
       },
@@ -198,7 +197,8 @@ function initSortable() {
       onEnd(evt) {
         if (evt.oldIndex == null || evt.newIndex == null || evt.oldIndex === evt.newIndex) return;
         const arr = [...fields.value];
-        const [removed] = arr.splice(evt.oldIndex, 1);
+        const removed = arr.splice(evt.oldIndex, 1)[0];
+        if (!removed) return;
         arr.splice(evt.newIndex, 0, removed);
         fields.value = arr.map((f, i) => ({ ...f, sort_order: i }));
       },

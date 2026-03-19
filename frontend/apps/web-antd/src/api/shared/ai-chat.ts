@@ -25,7 +25,15 @@ export interface RawMessageItem {
   }> | null;
   tool_call_id?: null | string;
   tool_name?: null | string;
-  metadata?: null | { attachments?: ChatAttachment[] };
+  metadata?: null | {
+    attachments?: ChatAttachment[];
+    completion_reason?: string;
+    interrupted?: boolean;
+    memory_updated?: boolean;
+    partial?: boolean;
+    tool_error?: string;
+    tool_success?: boolean;
+  };
 }
 
 export interface ConversationDetailResponse {
@@ -213,6 +221,7 @@ export interface AgentChatRequestBody {
   messages?: string[];
   page_context?: null | PageContext;
   page_session_id?: null | string;
+  route_source?: null | string;
   variables?: Record<string, string>;
 }
 

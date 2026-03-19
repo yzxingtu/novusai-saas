@@ -3,6 +3,7 @@
  * 平台端 AI 对话管理列表页面
  */
 import type { AIConversationInfo } from '#/api/admin/ai';
+import type { ApiRequestOptions } from '#/utils/request';
 
 import { onUnmounted, ref } from 'vue';
 
@@ -35,6 +36,10 @@ defineOptions({ name: 'AdminAIConversations' });
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
+const conversationDetailApi = (
+  id: number,
+  ...args: unknown[]
+) => getAIConversationDetailApi(id, args[0] as ApiRequestOptions | undefined);
 
 function onViewDetail(row: AIConversationInfo) {
   detailId.value = row.id;
@@ -124,7 +129,7 @@ onUnmounted(() => {
       :conversation-id="detailId"
       api-prefix="/admin"
       i18n-prefix="admin.ai.conversation"
-      :get-detail-api="getAIConversationDetailApi"
+      :get-detail-api="conversationDetailApi"
       :format-tokens="formatTokens"
       :format-cost="formatCost"
       :get-status-text="getStatusText"

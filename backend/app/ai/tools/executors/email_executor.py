@@ -123,50 +123,46 @@ class EmailToolExecutor(BaseToolExecutor):
             subject = f"{prefix} {subject}"
 
         try:
-            if not context or not context.db:
+            tenant_id = (context.tenant_id if context else None) or 0
+
+            # Rate limiting (per tenant per hour) / 频控（按企业/小时）
+            from app.ai.tools.security import EmailRateLimitError, EmailRateLimiter
+            try:
+                await EmailRateLimiter.check_rate(tenant_id=tenant_id)
+            except EmailRateLimitError as e:
                 return ToolResult(
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error="Database session not available for email sending",
+                    error=str(e),
                 )
 
-            from app.services.common.email_service import EmailMessage, EmailService
-            service = EmailService(context.db)
-            message = EmailMessage(
+            from app.tasks.email import send_email_task
+            send_email_task.delay(
                 to=to_list,
                 subject=subject,
-                html_body=body,
-                cc=cc_list,
+                html_body=body or None,
+                cc=cc_list if cc_list else None,
+                triggered_by="ai_tool",
+                tenant_id=tenant_id if tenant_id else None,
             )
-            result = await service.send(message)
 
             duration_ms = int((time.perf_counter() - start) * 1000)
-
-            if result.success:
-                output = (
-                    f"Email sent successfully to {', '.join(to_list)}"
-                    + (f" (cc: {', '.join(cc_list)})" if cc_list else "")
-                )
-                logger.info(
-                    "Email tool sent: to={} subject={} skill={}",
-                    ", ".join(to_list), subject, definition.source_skill_name,
-                )
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=True,
-                    output=output,
-                    duration_ms=duration_ms,
-                )
-            else:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=False,
-                    error=f"Email send failed: {result.error or result.message}",
-                    duration_ms=duration_ms,
-                )
+            output = (
+                f"Email queued for sending to {', '.join(to_list)}"
+                + (f" (cc: {', '.join(cc_list)})" if cc_list else "")
+            )
+            logger.info(
+                "Email tool queued: to={} subject={} skill={}",
+                ", ".join(to_list), subject, definition.source_skill_name,
+            )
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=True,
+                output=output,
+                duration_ms=duration_ms,
+            )
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)

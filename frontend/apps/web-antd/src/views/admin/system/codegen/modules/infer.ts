@@ -441,15 +441,26 @@ export function parseCommentEnum(comment: string | null | undefined): ParsedEnum
     if (!trimmed) continue;
     const m = trimmed.match(/^(\d+)=(.+)$/);
     if (m) {
-      const num = parseInt(m[1], 10);
-      items.push({ value: num, label_zh: m[2].trim() });
+      const numText = m[1];
+      const label = m[2];
+      if (!numText || !label) continue;
+      const num = parseInt(numText, 10);
+      items.push({ value: num, label_zh: label.trim() });
     } else {
       const m2 = trimmed.match(/^(["'])(.+)\1=(.+)$/);
       if (m2) {
-        items.push({ value: m2[2], label_zh: m2[3].trim() });
+        const value = m2[2];
+        const label = m2[3];
+        if (!value || !label) continue;
+        items.push({ value, label_zh: label.trim() });
       } else {
         const m3 = trimmed.match(/^([^=]+)=(.+)$/);
-        if (m3) items.push({ value: m3[1].trim(), label_zh: m3[2].trim() });
+        if (m3) {
+          const value = m3[1];
+          const label = m3[2];
+          if (!value || !label) continue;
+          items.push({ value: value.trim(), label_zh: label.trim() });
+        }
       }
     }
   }
@@ -464,5 +475,6 @@ export function parseCommentEnum(comment: string | null | undefined): ParsedEnum
 export function inferRelationTable(fieldName: string): string | undefined {
   const m = fieldName.match(/^(.+?)_ids?$/);
   if (!m) return undefined;
-  return pluralize(m[1]);
+  const stem = m[1];
+  return stem ? pluralize(stem) : undefined;
 }

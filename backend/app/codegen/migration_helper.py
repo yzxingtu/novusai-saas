@@ -10,11 +10,13 @@ Run alembic downgrade, delete migration file, and auto DROP table on web/CLI rol
 
 from __future__ import annotations
 
-import os
+import logging
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _get_table_name(resource: str) -> str:
@@ -23,10 +25,63 @@ def _get_table_name(resource: str) -> str:
     return _infer_plural(resource.replace("-", "_")) if resource else ""
 
 
-def _drop_table_if_exists(resource: str) -> bool:
+def _extract_revision(path: Path) -> str | None:
+    """从迁移文件中提取 revision ID。Extract revision ID from migration file."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"^revision[^=]*=\s*['\"]([^'\"]+)['\"]", text, re.MULTILINE)
+        return m.group(1).strip() if m else None
+    except Exception:
+        return None
+
+
+def _get_current_heads(backend_dir: Path) -> tuple[list[str], str | None]:
     """
-    回滚时强制删除数据表。无论 downgrade 是否成功，均执行 DROP TABLE。
-    Force drop table on rollback. Runs DROP TABLE regardless of downgrade result.
+    获取当前 alembic head 列表。
+    Get list of current alembic head revisions.
+    Returns (heads, error_message). heads 非空且 len==1 时表示单 head 安全。
+    """
+    proc = subprocess.run(
+        [sys.executable, "-m", "alembic", "current"],
+        cwd=str(backend_dir), capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return [], proc.stderr or "alembic current failed"
+    heads = re.findall(r"([a-zA-Z0-9_-]+)\s+\(head\)", proc.stdout or "")
+    heads = [h.strip() for h in heads if h.strip()]
+    return heads, None
+
+
+def _has_fk_references(table: str) -> list[tuple[str, str]]:
+    """
+    检查是否有其他表的 FK 引用目标表。
+    Check if other tables have FK constraints referencing target table.
+    Returns list of (table_name, constraint_name).
+    """
+    try:
+        from sqlalchemy import text
+        from app.core.database import sync_session_factory
+        with sync_session_factory() as session:
+            result = session.execute(text("""
+                SELECT tc.table_name, tc.constraint_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.constraint_column_usage ccu
+                    ON tc.constraint_name = ccu.constraint_name
+                    AND tc.table_schema = ccu.table_schema
+                WHERE ccu.table_name = :tbl
+                    AND tc.constraint_type = 'FOREIGN KEY'
+                    AND tc.table_name != :tbl
+            """), {"tbl": table})
+            return [(r[0], r[1]) for r in result.fetchall()]
+    except Exception as e:
+        logger.warning("Cannot check FK references for table %s: %s", table, e)
+        return []
+
+
+def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
+    """
+    回滚时删除数据表。
+    Drop table on rollback. Checks for FK references before using CASCADE.
     """
     table = _get_table_name(resource)
     if not table:
@@ -34,11 +89,25 @@ def _drop_table_if_exists(resource: str) -> bool:
     try:
         from sqlalchemy import text
         from app.core.database import sync_session_factory
+
+        fk_refs = _has_fk_references(table)
+        if fk_refs and not force_cascade:
+            ref_info = ", ".join(f"{t}.{c}" for t, c in fk_refs)
+            logger.warning(
+                "Table %s is referenced by FK constraints: %s. "
+                "Dropping without CASCADE to preserve referential integrity. "
+                "You may need to manually clean up FK constraints.",
+                table, ref_info,
+            )
+
+        cascade = " CASCADE" if (force_cascade or not fk_refs) else ""
         with sync_session_factory() as session:
-            session.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+            session.execute(text(f'DROP TABLE IF EXISTS "{table}"{cascade}'))
             session.commit()
+        logger.info("Dropped table %s%s", table, cascade)
         return True
-    except Exception:
+    except Exception as e:
+        logger.error("Failed to drop table %s: %s", table, e)
         return False
 
 
@@ -47,10 +116,15 @@ def run_rollback_migration_cleanup(
     migration_file: str | None,
     project_root: Path,
     backend_dir: Path | None = None,
+    *,
+    force_drop: bool = False,
 ) -> bool:
     """
     回滚后清理迁移：purge 孤立 stamp、downgrade、删除迁移文件。
     After rollback: purge orphaned stamps, downgrade, delete migration file.
+
+    Safety: only downgrades if the codegen migration is the current head.
+    If later migrations exist on top, refuses to downgrade to prevent chain breakage.
 
     Returns:
         True 若成功执行 downgrade 并删除迁移文件
@@ -60,39 +134,68 @@ def run_rollback_migration_cleanup(
     if not _backend.exists():
         return False
 
-    _mp = None
-    if migration_file:
-        _mp = Path(migration_file)
-        if not _mp.is_absolute():
-            _mp = _backend / migration_file.replace("backend/", "").replace("backend\\", "")
-        if not _mp.exists():
-            _mp = _backend / "migrations" / "versions" / Path(migration_file).name
-    if not _mp or not _mp.exists():
-        _table = _get_table_name(resource)
-        if _table:
-            _vers = _backend / "migrations" / "versions"
-            if _vers.exists():
-                for _f in _vers.glob("*.py"):
-                    if _f.name.startswith(".") or _f.name == "__init__.py":
-                        continue
-                    try:
-                        _t = _f.read_text(encoding="utf-8", errors="replace")
-                        if f"'{_table}'" in _t or f'"{_table}"' in _t:
-                            _mp = _f
-                            break
-                    except Exception:
-                        pass
+    _mp = _locate_migration_file(migration_file, resource, _backend)
 
     from app.core.database import purge_orphaned_alembic_stamps
-
     purge_orphaned_alembic_stamps(_backend)
 
+    if not _mp or not _mp.exists():
+        logger.warning(
+            "Migration file not found for resource %s, skipping downgrade. "
+            "Refusing DROP TABLE without migration file (use force_drop to override).",
+            resource,
+        )
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+
+    target_rev = _extract_revision(_mp)
+    if not target_rev:
+        logger.warning("Cannot extract revision from %s, skipping downgrade.", _mp)
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+
+    heads, head_err = _get_current_heads(_backend)
+    if head_err:
+        logger.error("Cannot get alembic current: %s — refusing downgrade.", head_err)
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+    if len(heads) == 0:
+        logger.error(
+            "No alembic head found — cannot safely determine if %s is current. "
+            "Refusing downgrade. Run 'alembic current' to inspect.",
+            target_rev,
+        )
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+    if len(heads) > 1:
+        logger.error(
+            "Multiple heads detected: %s. Refusing downgrade to prevent chain breakage. "
+            "Run 'alembic merge' or 'novusai db merge' first.",
+            heads,
+        )
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+    if heads[0] != target_rev:
+        logger.error(
+            "Codegen migration %s is NOT the current head (head=%s). "
+            "Later migrations depend on it — refusing to downgrade. "
+            "Please manually roll back later migrations first.",
+            target_rev, heads[0],
+        )
+        if force_drop and resource:
+            _drop_table_if_exists(resource)
+        return False
+
     _down_rev = None
-    if _mp and _mp.exists():
-        _txt = _mp.read_text(encoding="utf-8", errors="replace")
-        _m = re.search(r"down_revision[^=]*=\s*['\"]([^'\"]+)['\"]", _txt)
-        if _m:
-            _down_rev = _m.group(1).strip()
+    _txt = _mp.read_text(encoding="utf-8", errors="replace")
+    _m = re.search(r"down_revision[^=]*=\s*['\"]([^'\"]+)['\"]", _txt)
+    if _m:
+        _down_rev = _m.group(1).strip()
 
     _proc = None
     if _down_rev:
@@ -100,7 +203,7 @@ def run_rollback_migration_cleanup(
             [sys.executable, "-m", "alembic", "downgrade", _down_rev],
             cwd=str(_backend), capture_output=True, text=True,
         )
-    elif _mp and _mp.exists():
+    else:
         _proc = subprocess.run(
             [sys.executable, "-m", "alembic", "downgrade", "-1"],
             cwd=str(_backend), capture_output=True, text=True,
@@ -108,15 +211,60 @@ def run_rollback_migration_cleanup(
 
     migration_cleaned = False
     if _proc is not None and _proc.returncode == 0:
-        if _mp and _mp.exists():
+        if _mp.exists():
             _mp.unlink()
             migration_cleaned = True
+            logger.info("Downgraded and removed migration %s", _mp.name)
+        if resource:
+            _drop_table_if_exists(resource)
+    else:
+        stderr = _proc.stderr if _proc else "no process"
+        logger.error("Downgrade failed for %s: %s", target_rev, stderr)
 
-    # 无论 downgrade 是否成功，均执行 DROP TABLE 确保数据表被删除
-    # Always run DROP TABLE to ensure table is removed, regardless of downgrade result
-    table_dropped = _drop_table_if_exists(resource) if resource else False
+    return migration_cleaned
 
-    return migration_cleaned or table_dropped
+
+def _locate_migration_file(
+    migration_file: str | None,
+    resource: str,
+    backend_dir: Path,
+) -> Path | None:
+    """Locate the migration file from manifest path, fallback to scan by table/codegen_resource."""
+    _mp = None
+    if migration_file:
+        _mp = Path(migration_file)
+        if not _mp.is_absolute():
+            _mp = backend_dir / migration_file.replace("backend/", "").replace("backend\\", "")
+        if not _mp.exists():
+            _mp = backend_dir / "migrations" / "versions" / Path(migration_file).name
+
+    _table = _get_table_name(resource)
+    _vers = backend_dir / "migrations" / "versions" if _table else None
+
+    if (not _mp or not _mp.exists()) and _vers and _vers.exists():
+        for _f in _vers.glob("*.py"):
+            if _f.name.startswith(".") or _f.name == "__init__.py":
+                continue
+            try:
+                _t = _f.read_text(encoding="utf-8", errors="replace")
+                if (f"'{_table}'" in _t or f'"{_table}"' in _t) and "codegen_resource" in _t:
+                    _mp = _f
+                    break
+            except Exception:
+                pass
+        if not _mp or not _mp.exists():
+            for _f in _vers.glob("*.py"):
+                if _f.name.startswith(".") or _f.name == "__init__.py":
+                    continue
+                try:
+                    _t = _f.read_text(encoding="utf-8", errors="replace")
+                    if (f"'{_table}'" in _t or f'"{_table}"' in _t):
+                        _mp = _f
+                        logger.info("Located legacy codegen migration (no metadata) for %s: %s", resource, _f.name)
+                        break
+                except Exception:
+                    pass
+    return _mp
 
 
 def inject_migration_metadata(
@@ -143,7 +291,6 @@ codegen_source = {repr(source)}
 codegen_resource = {repr(resource)}
 codegen_version = {repr(version)}
 """
-    # 在 revision 变量之后插入
     if "revision" in content and "codegen_source" not in content:
         lines = content.split("\n")
         insert_at = 0

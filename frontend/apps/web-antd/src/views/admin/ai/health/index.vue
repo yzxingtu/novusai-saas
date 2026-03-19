@@ -4,7 +4,7 @@ import type { AIHealthStatus } from '#/api/admin/ai';
 /**
  * AI 供应商健康状态监控页面 — useCrudList + autoRefresh
  */
-import { computed } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -20,6 +20,8 @@ import { getProcessedImageUrl } from '#/utils/image';
 defineOptions({ name: 'AIHealthMonitor' });
 
 // ========== 声明式列表管理 + 30秒自动刷新 ==========
+const healthSummary = ref({ degraded: 0, healthy: 0, unavailable: 0 });
+
 const {
   list: statuses,
   loading,
@@ -41,14 +43,23 @@ const {
     entityName: $t('admin.ai.health.name'),
     entityDescription: $t('admin.ai.health.entityDescription'),
     contextExtras: () => ({
-      healthy: healthyCount.value,
-      degraded: degradedCount.value,
-      unavailable: unavailableCount.value,
+      healthy: healthSummary.value.healthy,
+      degraded: healthSummary.value.degraded,
+      unavailable: healthSummary.value.unavailable,
     }),
   },
 });
 
 // ========== 概览计数 ==========
+watchEffect(() => {
+  const all = statuses.value;
+  healthSummary.value = {
+    healthy: all.filter((s) => s.is_healthy && s.is_available).length,
+    degraded: all.filter((s) => !s.is_healthy && s.is_available).length,
+    unavailable: all.filter((s) => !s.is_available).length,
+  };
+});
+
 const healthyCount = computed(
   () => statuses.value.filter((s) => s.is_healthy && s.is_available).length,
 );

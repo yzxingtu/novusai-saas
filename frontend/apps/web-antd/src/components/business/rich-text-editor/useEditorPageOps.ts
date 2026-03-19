@@ -25,8 +25,6 @@ import { validateReplaceContentParams } from './replaceContentValidator';
 
 const md = new MarkdownIt({ html: true, breaks: true });
 
-const MD_PATTERNS = /^#{1,6}\s|^\*\*|^\- |\*\*.*\*\*|^\d+\.\s|^>\s|```/m;
-
 /**
  * Normalize HTML for reliable string matching (e.g. replace_section old_html from LLM may have different escaping).
  * 规范化 HTML 以便可靠字符串匹配（如 replace_section 的 old_html 来自 LLM 时转义可能不同）。

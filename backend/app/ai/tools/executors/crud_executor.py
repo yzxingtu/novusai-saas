@@ -21,6 +21,7 @@ Security policies / 安全策略：
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from typing import TYPE_CHECKING, Any
@@ -28,15 +29,40 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import text
 
 from app.ai.tools.executors.base import BaseToolExecutor
-from app.ai.tools.types import ToolDefinition, ToolResult
+from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum, AgentStatusEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum
 from app.models.ai.table_policy import AITablePolicy
+from app.repositories.system.resource_tenant_assignment_repository import (
+    ResourceTenantAssignmentRepository,
+)
+from app.services.ai.action_log_service import write_ai_action_log
+from app.services.ai.agent_service import AdminAgentService, AgentService
 
 if TYPE_CHECKING:
-    from app.ai.tools.types import ExecutionContext
+    pass  # ExecutionContext already imported above
 
 logger = LogManager.get_logger("ai.tool.crud")
+
+# Scope mapping: old AI/LLM values -> current ResourceScopeEnum
+_SCOPE_NORMALIZE: dict[str, str] = {
+    "platform": ResourceScopeEnum.ADMIN_AND_ALL.value,
+    "global": ResourceScopeEnum.ADMIN_AND_ALL.value,
+    "all": ResourceScopeEnum.ADMIN_AND_ALL.value,
+    "tenant": ResourceScopeEnum.TENANT_USER.value,
+}
+_VALID_SCOPES: frozenset[str] = frozenset(
+    e.value for e in ResourceScopeEnum.__members__.values()
+)
+_VALID_AUDIENCES: frozenset[str] = frozenset(
+    e.value for e in AudienceEnum.__members__.values()
+)
+_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset({
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+})
 
 # Table name whitelist regex: only lowercase letters, digits, underscores (prevent SQL injection)
 # 表名白名单正则：仅允许小写字母、数字、下划线（防 SQL 注入）
@@ -226,6 +252,105 @@ def _check_rbac(
     return None
 
 
+def _normalize_agent_data(data: dict[str, Any]) -> tuple[dict[str, Any], list[int] | None, bool]:
+    """Normalize agent create data: scope/target_audience, strip system fields, extract tenant_ids and publish flag."""
+    data = copy.deepcopy(data)
+
+    tenant_ids = data.pop("tenant_ids", None)
+    if isinstance(tenant_ids, list):
+        tenant_ids = [int(x) for x in tenant_ids if isinstance(x, (int, float))]
+    else:
+        tenant_ids = None
+
+    want_publish = False
+    if data.get("status") == AgentStatusEnum.PUBLISHED.value:
+        want_publish = True
+    data.pop("status", None)
+    data.pop("published_version", None)
+    data.pop("delete_level", None)
+    data.pop("id", None)
+    data.pop("created_at", None)
+    data.pop("updated_at", None)
+    data.pop("is_deleted", None)
+    data.pop("deleted_at", None)
+    data.pop("is_system", None)
+
+    scope = data.get("scope")
+    if scope:
+        data["scope"] = _SCOPE_NORMALIZE.get(scope, scope)
+        if data["scope"] not in _VALID_SCOPES:
+            raise ValueError(
+                _("data_intelligence.crud.agent_invalid_scope").format(
+                    scope=data["scope"],
+                    valid=", ".join(sorted(_VALID_SCOPES)),
+                )
+            )
+
+    audience = data.get("target_audience")
+    if audience and audience not in _VALID_AUDIENCES:
+        raise ValueError(
+            _("data_intelligence.crud.agent_invalid_audience").format(
+                audience=audience,
+                valid=", ".join(sorted(_VALID_AUDIENCES)),
+            )
+        )
+
+    return data, tenant_ids, want_publish
+
+
+async def _execute_agent_create_via_service(
+    context: ExecutionContext,
+    data: dict[str, Any],
+    tool_call_id: str,
+    tool_name: str,
+) -> ToolResult:
+    """Create agent via AgentService/AdminAgentService instead of raw SQL."""
+    try:
+        payload, tenant_ids, want_publish = _normalize_agent_data(data)
+    except ValueError as e:
+        return ToolResult.error_result(tool_call_id, str(e), name=tool_name)
+
+    if context.is_platform_admin:
+        payload.pop("tenant_id", None)
+        service = AdminAgentService(context.db)
+        agent = await service.create(payload)
+        if agent.scope in _SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            repo = ResourceTenantAssignmentRepository(context.db)
+            await repo.sync_assignments("agent", agent.id, tenant_ids)
+        if want_publish:
+            pub_svc = AgentService(context.db, agent.tenant_id)
+            await pub_svc.publish_agent(
+                agent.id,
+                change_log="Published by AI data create",
+                created_by=context.user_id,
+            )
+    else:
+        service = AgentService(context.db, context.tenant_id)
+        payload.pop("scope", None)
+        payload.pop("target_audience", None)
+        payload.pop("tenant_ids", None)
+        agent = await service.create(payload)
+        if want_publish:
+            await service.publish_agent(
+                agent.id,
+                change_log="Published by AI data create",
+                created_by=context.user_id,
+            )
+
+    await _audit_log(context, "create", "agents", agent.id, payload, success=True)
+    return ToolResult(
+        tool_call_id=tool_call_id,
+        name=tool_name,
+        success=True,
+        output=json.dumps({
+            "action": "create",
+            "table": "agents",
+            "id": agent.id,
+            "success": True,
+        }, ensure_ascii=False, default=str),
+    )
+
+
 async def _check_tenant_column(
     context: ExecutionContext,
     table_name: str,
@@ -342,21 +467,36 @@ async def _audit_log(
     if not context.db:
         return
     try:
-        from app.models.ai.action_log import AIActionLog
-        log = AIActionLog(
+        action_level = (
+            ActionLevelEnum.DANGEROUS.value
+            if action == "delete"
+            else ActionLevelEnum.SAFE_WRITE.value
+        )
+        await write_ai_action_log(
+            context.db,
             tenant_id=context.tenant_id,
             agent_id=context.agent_id,
-            user_id=context.user_id,
+            operator_id=context.user_id,
             skill_id=context.skill_id,
             action_name=f"data_{action}",
-            action_type=action,
-            target_table=table_name,
-            target_id=record_id,
-            input_data=data or {},
-            status="success" if success else "failed",
+            action_type=ActionTypeEnum.ACTION.value,
+            action_level=action_level,
+            request_data={
+                "table_name": table_name,
+                "record_id": record_id,
+                "data": data or {},
+            },
+            response_data={
+                "table_name": table_name,
+                "record_id": record_id,
+            },
+            status=(
+                ActionStatusEnum.SUCCESS.value
+                if success
+                else ActionStatusEnum.FAILED.value
+            ),
             error_message=error,
         )
-        context.db.add(log)
     except Exception as exc:
         logger.warning("Failed to write audit log: {}", str(exc))
 
@@ -481,6 +621,22 @@ class CreateRecordExecutor(BaseToolExecutor):
                 success=True,
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
+
+        # Agents table: use service layer instead of raw SQL
+        if table_name == "agents":
+            try:
+                async with context.db.begin_nested():
+                    return await _execute_agent_create_via_service(
+                        context, data, tool_call_id, definition.name,
+                    )
+            except Exception as exc:
+                await _audit_log(
+                    context, "create", table_name, None, data,
+                    success=False, error=str(exc),
+                )
+                return ToolResult.error_result(
+                    tool_call_id, str(exc), name=definition.name,
+                )
 
         # Serialize JSON values (dict/list -> JSON strings, for asyncpg binding)
         # 序列化 JSON 值（dict/list → JSON 字符串，供 asyncpg 绑定）

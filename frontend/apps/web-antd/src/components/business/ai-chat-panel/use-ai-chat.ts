@@ -16,6 +16,12 @@ import type {
   ConversationItem,
   ToolCallEvent,
 } from './types';
+import { getAgentInputVariables } from './types';
+import {
+  extractLeadingAgentMentionDraft,
+  filterAgentsByMentionQuery,
+  moveStreamingContentToThinking,
+} from './chat-input-utils';
 
 import { computed, nextTick, ref, unref, watch } from 'vue';
 
@@ -40,10 +46,13 @@ import {
   sendChatStreamApi,
   uploadChatFileApi,
 } from '#/api/shared/ai-chat';
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { useFileUpload } from '#/composables/use-file-upload';
 import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
+import { useSocketIOStore } from '#/store';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 export interface UseAIChatOptions {
   /** API prefix: '/admin' or '/tenant' / API 前缀 */
@@ -66,8 +75,18 @@ export interface UseAIChatOptions {
 
 export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
+  const socketIOStore = useSocketIOStore();
 
   const trustSession = ref(false);
+
+  function refreshPageSessionRoom(): void {
+    const pageSessionId = options.pageSessionIdGetter?.();
+    if (!pageSessionId || !socketIOStore.isConnected) return;
+    socketIOStore.emit('page_session_join', {
+      page_session_id: pageSessionId,
+      page_key: normalizePageKey(window.location.pathname),
+    });
+  }
 
   // ============ Agents ============
 
@@ -88,7 +107,13 @@ export function useAIChat(options: UseAIChatOptions) {
     try {
       const prefix = unref(options.apiPrefix) as string;
       const res = await getChatAgentsApi<AgentItem>(prefix);
-      agents.value = res.items;
+      agents.value = res.items.map((agent) => {
+        const avatar = toAvatarDisplayUrl(agent.avatar ?? undefined);
+        return {
+          ...agent,
+          avatar: avatar || null,
+        };
+      });
       if (res.items.length > 0 && !selectedAgentId.value) {
         const initId = overrideAgentId ?? unref(options.initialAgentId);
         selectedAgentId.value =
@@ -105,12 +130,14 @@ export function useAIChat(options: UseAIChatOptions) {
 
   function selectAgent(agentId: number) {
     if (selectedAgentId.value === agentId) return;
+    abortActiveStream();
     selectedAgentId.value = agentId;
     conversationsRequestSeq += 1;
     messagesRequestSeq += 1;
     activeConversationId.value = null;
     chatMessages.value = [];
     clearPendingAttachments();
+    clearMentionedAgent();
     // Clear cached variables when switching agents
     // (they'll be re-initialized via watch + openVarsModal in the page component)
   }
@@ -165,6 +192,7 @@ export function useAIChat(options: UseAIChatOptions) {
    *                   When false (explicit "+" new chat), session vars are cleared.
    */
   function startNewConversation(keepVars = false) {
+    abortActiveStream();
     messagesRequestSeq += 1;
     if (debounceTimerId) {
       clearTimeout(debounceTimerId);
@@ -173,6 +201,7 @@ export function useAIChat(options: UseAIChatOptions) {
     pendingMessages.value = [];
     activeConversationId.value = null;
     chatMessages.value = [];
+    clearMentionedAgent();
     memoryState.value = null;
     lastMemoryUpdated.value = false;
     if (!keepVars) {
@@ -207,6 +236,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   async function loadConversationMessages(convId: number) {
+    abortActiveStream();
     const reqSeq = ++messagesRequestSeq;
     if (debounceTimerId) {
       clearTimeout(debounceTimerId);
@@ -214,6 +244,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     pendingMessages.value = [];
     activeConversationId.value = convId;
+    clearMentionedAgent();
     const currentConversation = conversations.value.find((c) => c.id === convId);
     if (currentConversation?.agent_id) {
       selectedAgentId.value = currentConversation.agent_id;
@@ -328,7 +359,15 @@ export function useAIChat(options: UseAIChatOptions) {
       agent_name?: null | string;
       content: null | string;
       created_at?: null | string;
-      metadata?: null | { attachments?: ChatAttachment[]; memory_updated?: boolean };
+      metadata?: null | {
+        attachments?: ChatAttachment[];
+        completion_reason?: string;
+        interrupted?: boolean;
+        memory_updated?: boolean;
+        route_source?: string;
+        partial?: boolean;
+        thinking_content?: string;
+      };
       role: string;
       tool_call_id?: null | string;
       tool_calls?: Array<{
@@ -381,12 +420,17 @@ export function useAIChat(options: UseAIChatOptions) {
       // Collect all consecutive non-user messages as one assistant turn
       const toolCalls: ToolCallEvent[] = [];
       const contentParts: string[] = [];
+      const thinkingContentParts: string[] = [];
       let hasMemoryUpdated = false;
+      let hasPartial = false;
+      let hasInterrupted = false;
+      let turnCompletionReason: string | undefined;
       let turnAgentId: null | number = null;
       let turnAgentName: null | string = null;
       let turnAgentAvatar: null | string = null;
       let turnAgentDescription: null | string = null;
       let turnModelName: null | string = null;
+      let turnRouteSource: null | string = null;
       let turnCreatedAt: null | string = null;
       const startIdx = i;
 
@@ -409,6 +453,9 @@ export function useAIChat(options: UseAIChatOptions) {
                 turnAgentAvatar = agentInfo.avatar;
               }
             }
+          }
+          if (turnRouteSource === null && typeof cur.metadata?.route_source === 'string') {
+            turnRouteSource = cur.metadata.route_source;
           }
           // Extract tool calls from this assistant message
           if (cur.tool_calls && cur.tool_calls.length > 0) {
@@ -450,11 +497,37 @@ export function useAIChat(options: UseAIChatOptions) {
           if (cur.metadata?.memory_updated) {
             hasMemoryUpdated = true;
           }
+          if (cur.metadata?.partial) {
+            hasPartial = true;
+          }
+          if (cur.metadata?.interrupted) {
+            hasInterrupted = true;
+          }
+          if (cur.metadata?.completion_reason) {
+            turnCompletionReason = cur.metadata.completion_reason;
+          }
+          const persistedThinking =
+            typeof cur.metadata?.thinking_content === 'string'
+              ? cur.metadata.thinking_content
+              : '';
+          if (persistedThinking.trim()) {
+            thinkingContentParts.push(persistedThinking.trim());
+          }
 
           // Accumulate content from all assistant messages in this turn
           // (matches streaming behavior where all deltas are concatenated)
           if (cur.content && cur.content.trim()) {
-            contentParts.push(cur.content);
+            // Backward compatibility: older tool rounds persisted "thinking" into
+            // assistant.content instead of metadata.thinking_content. Recover them
+            // into the thinking block so historical conversations render correctly.
+            // 向后兼容：旧工具轮把“思考”写进了 assistant.content，这里恢复为思考块展示。
+            if (cur.tool_calls?.length) {
+              if (!persistedThinking.trim()) {
+                thinkingContentParts.push(cur.content);
+              }
+            } else {
+              contentParts.push(cur.content);
+            }
           }
         }
         // tool messages are already handled via toolResponseMap
@@ -472,10 +545,23 @@ export function useAIChat(options: UseAIChatOptions) {
           agent_avatar: turnAgentAvatar,
           agent_description: turnAgentDescription,
           model_name: turnModelName,
+          routeSource: turnRouteSource,
         };
         if (turnCreatedAt) assistantMsg.created_at = turnCreatedAt;
         if (hasMemoryUpdated) {
           assistantMsg.memoryUpdated = true;
+        }
+        if (hasPartial) {
+          assistantMsg.partial = true;
+        }
+        if (hasInterrupted) {
+          assistantMsg.interrupted = true;
+        }
+        if (turnCompletionReason) {
+          assistantMsg.completionReason = turnCompletionReason;
+        }
+        if (thinkingContentParts.length > 0) {
+          assistantMsg.thinkingContent = thinkingContentParts.join('\n\n');
         }
         result.push(assistantMsg);
       }
@@ -491,14 +577,66 @@ export function useAIChat(options: UseAIChatOptions) {
 
   const chatMessages = ref<ChatMessage[]>([]);
   const inputMessage = ref('');
+  const mentionedAgentId = ref<null | number>(null);
+  const mentionQuery = ref('');
+  const mentionActiveIndex = ref(0);
+  const mentionedAgent = computed(
+    () => agents.value.find((agent) => agent.id === mentionedAgentId.value) ?? null,
+  );
+  const mentionCandidates = computed(() => {
+    const draft = extractLeadingAgentMentionDraft(inputMessage.value);
+    if (draft === null) {
+      return [];
+    }
+    return filterAgentsByMentionQuery(agents.value, draft);
+  });
+  const mentionOpen = computed(
+    () => extractLeadingAgentMentionDraft(inputMessage.value) !== null,
+  );
   /**
-   * Auxiliary feature: user-manually selected additional knowledge base IDs (@ mentions).
+   * Auxiliary feature: user-manually selected additional knowledge base IDs.
    * Primary KB bindings have been migrated to Agent-level junction tables; this field serves as a supplement.
-   * 辅助功能：用户手动选择的额外知识库 ID（@ 提及）。
+   * 辅助功能：用户手动选择的额外知识库 ID。
    * 主要 KB 绑定已迁移至 Agent 级别中间表，此字段仅作为补充。
    */
   const selectedKBIds = ref<number[]>([]);
   const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
+
+  watch(inputMessage, (value) => {
+    const draft = extractLeadingAgentMentionDraft(value);
+    if (draft === null) {
+      mentionQuery.value = '';
+      mentionActiveIndex.value = 0;
+      return;
+    }
+    if (mentionedAgentId.value !== null) {
+      mentionedAgentId.value = null;
+    }
+    mentionQuery.value = draft;
+  });
+
+  watch(mentionCandidates, (candidates) => {
+    if (candidates.length === 0) {
+      mentionActiveIndex.value = 0;
+      return;
+    }
+    if (mentionActiveIndex.value >= candidates.length) {
+      mentionActiveIndex.value = candidates.length - 1;
+    }
+  });
+
+  function selectMentionAgent(agent: AgentItem) {
+    mentionedAgentId.value = agent.id;
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+    inputMessage.value = '';
+  }
+
+  function clearMentionedAgent() {
+    mentionedAgentId.value = null;
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+  }
 
   // ============ Input Variables ============
 
@@ -564,8 +702,7 @@ export function useAIChat(options: UseAIChatOptions) {
     return agents.value.filter(
       (a) =>
         agentIdsInChat.has(a.id) &&
-        a.input_variables &&
-        a.input_variables.length > 0,
+        getAgentInputVariables(a).length > 0,
     );
   });
 
@@ -588,6 +725,27 @@ export function useAIChat(options: UseAIChatOptions) {
   const messagesContainer = ref<HTMLElement | null>(null);
 
   let streamAbortController: AbortController | null = null;
+
+  /**
+   * Abort active SSE stream; call before switching agent/conversation or closing panel.
+   * 终止当前 SSE 流；在切换 agent/对话或关闭面板前调用。
+   */
+  function abortActiveStream(markStoppedByUser = false): void {
+    if (streamAbortController) {
+      streamAbortController.abort();
+      streamAbortController = null;
+    }
+    sending.value = false;
+    streaming.value = false;
+    userScrolledUp.value = false;
+    const last = chatMessages.value.at(-1);
+    if (last?.streaming) {
+      last.streaming = false;
+      if (last.role === 'assistant' && markStoppedByUser) {
+        last.stoppedByUser = true;
+      }
+    }
+  }
 
   /** Deferred auto-confirm flag: set when trustSession auto-approves during active stream / 延迟自动确认标志 */
   let _deferredAutoConfirm = false;
@@ -644,25 +802,48 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  function handleInputKeyDown(e: KeyboardEvent) {
+  function handleInputKeyDown(e: KeyboardEvent): boolean {
+    if (!mentionOpen.value) {
+      return false;
+    }
+    const candidates = mentionCandidates.value;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (candidates.length > 0) {
+        mentionActiveIndex.value =
+          (mentionActiveIndex.value + 1) % candidates.length;
+      }
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (candidates.length > 0) {
+        mentionActiveIndex.value =
+          (mentionActiveIndex.value - 1 + candidates.length) %
+          candidates.length;
+      }
+      return true;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      inputMessage.value = '';
+      return true;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      sendMessage();
+      const target = candidates[mentionActiveIndex.value] ?? candidates[0];
+      if (target) {
+        selectMentionAgent(target);
+      }
+      return true;
     }
+    return false;
   }
 
   // ============ Model Capabilities ============
 
   const supportsVision = computed(
     () => selectedAgent.value?.model_capabilities?.supports_vision ?? false,
-  );
-
-  const supportsAudio = computed(
-    () => selectedAgent.value?.model_capabilities?.supports_audio ?? false,
-  );
-
-  const supportsVideo = computed(
-    () => selectedAgent.value?.model_capabilities?.supports_video ?? false,
   );
 
   const totalTokensUsed = computed(() =>
@@ -906,10 +1087,12 @@ export function useAIChat(options: UseAIChatOptions) {
   async function sendMessage(opts?: {
     agentId?: number;
     pageContext?: null | PageContext;
+    routeSource?: null | string;
     silent?: boolean;
   }) {
     const silent = opts?.silent ?? false;
     const targetAgentId = opts?.agentId ?? selectedAgentId.value;
+    const routeSource = opts?.routeSource ?? null;
     const pageContext =
       opts?.pageContext === undefined
         ? (options.pageContextResolver?.() ?? null)
@@ -925,7 +1108,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
     // Block sending if required input variables are not filled
     const agent = agents.value.find((a) => a.id === targetAgentId);
-    const requiredVars = agent?.input_variables?.filter((v) => v.required) ?? [];
+    const requiredVars = getAgentInputVariables(agent).filter((v) => v.required);
     if (requiredVars.length > 0) {
       ensureAgentVarsLoaded(targetAgentId);
       const agentVars = allAgentsVariables.value[targetAgentId] ?? {};
@@ -948,7 +1131,8 @@ export function useAIChat(options: UseAIChatOptions) {
       !silent &&
       !hasAttachments &&
       msgAttachments.length === 0 &&
-      userMsg.length > 0;
+      userMsg.length > 0 &&
+      !routeSource;
 
     if (useDebounce) {
       if (!silent) {
@@ -993,6 +1177,7 @@ export function useAIChat(options: UseAIChatOptions) {
       agent_avatar: targetAgent?.avatar ?? null,
       agent_description: targetAgent?.description ?? null,
       model_name: targetAgent?.model_name ?? null,
+      routeSource,
       created_at: new Date().toISOString(),
     });
     userScrolledUp.value = false;
@@ -1015,6 +1200,7 @@ export function useAIChat(options: UseAIChatOptions) {
           : undefined,
       targetAgentId: targetAgentId!,
       pageContext,
+      routeSource,
     });
   }
 
@@ -1055,12 +1241,13 @@ export function useAIChat(options: UseAIChatOptions) {
   async function doStreamRequest(params: {
     texts: string[];
     apiAttachments?:
-      | { type: string; url: string; name?: string; mime_type?: string }[]
+      | Pick<ChatAttachment, 'mime_type' | 'name' | 'type' | 'url'>[]
       | undefined;
     targetAgentId: number;
     pageContext: null | PageContext;
+    routeSource?: null | string;
   }) {
-    const { texts, apiAttachments, targetAgentId, pageContext } = params;
+    const { texts, apiAttachments, targetAgentId, pageContext, routeSource } = params;
     sending.value = true;
     streaming.value = true;
     const sseBuffer = { value: '' };
@@ -1088,8 +1275,19 @@ export function useAIChat(options: UseAIChatOptions) {
       }
     }
 
+    function promoteToolRoundContent() {
+      const msg = chatMessages.value[assistantIdx];
+      if (!msg || msg.role !== 'assistant') {
+        return;
+      }
+      moveStreamingContentToThinking(msg);
+    }
+
     try {
       const prefix = unref(options.apiPrefix) as string;
+      // Refresh room binding before each request so page operations still work
+      // after backend reloads or transient Socket.IO room loss.
+      refreshPageSessionRoom();
       const requestBody: AgentChatRequestBody = {
         ...(texts.length === 1
           ? { message: texts[0]! || ' ' }
@@ -1110,6 +1308,7 @@ export function useAIChat(options: UseAIChatOptions) {
           ? { image_params: imageParams.value }
           : {}),
         ...(pageContext ? { page_context: pageContext } : {}),
+        ...(routeSource ? { route_source: routeSource } : {}),
         ...(options.pageSessionIdGetter
           ? { page_session_id: options.pageSessionIdGetter() || null }
           : {}),
@@ -1139,11 +1338,15 @@ export function useAIChat(options: UseAIChatOptions) {
                     break;
                   }
                   case 'thinking': {
-                    // frontend already shows loading via streaming + !content
+                    if (event.delta) {
+                      msg.thinkingContent = `${msg.thinkingContent || ''}${event.delta}`;
+                      scrollToBottom();
+                    }
 
                     break;
                   }
                   case 'tool_call': {
+                    promoteToolRoundContent();
                     if (!msg.toolCalls) msg.toolCalls = [];
                     // Find matching running tool by name first / 优先按 name 匹配
                     let existing = msg.toolCalls.findLast(
@@ -1193,6 +1396,7 @@ export function useAIChat(options: UseAIChatOptions) {
                     break;
                   }
                   case 'tool_start': {
+                    promoteToolRoundContent();
                     if (!msg.toolCalls) msg.toolCalls = [];
                     msg.toolCalls.push({
                       id: event.id,
@@ -1214,12 +1418,14 @@ export function useAIChat(options: UseAIChatOptions) {
                     ) {
                       addConsent(event.consent_key);
                     } else if (event.event === 'confirmation_request') {
+                      promoteToolRoundContent();
                       msg.pendingConfirmation = {
                         action: event.action || '',
                         table: event.table || '',
                         preview: event.preview,
                       };
                     } else if (event.event === 'tool_consent_request') {
+                      promoteToolRoundContent();
                       if (trustSession.value) {
                         msg.pendingConsent = {
                           toolName: event.name || '',
@@ -1242,6 +1448,11 @@ export function useAIChat(options: UseAIChatOptions) {
                         };
                       }
                       scrollToBottom();
+                    } else if (
+                      event.event === 'conversation' &&
+                      event.conversation_id
+                    ) {
+                      activeConversationId.value = event.conversation_id as number;
                     } else if (
                       event.event === 'action_buttons' &&
                       event.buttons
@@ -1275,9 +1486,13 @@ export function useAIChat(options: UseAIChatOptions) {
                         options.onStreamComplete();
                       }
                     } else if (event.error) {
+                      if (event.conversation_id) {
+                        activeConversationId.value = event.conversation_id as number;
+                      }
                       msg.content = `\u26A0\uFE0F ${
                         event.message || $t('common.requestFailed')
                       }`;
+                      msg.requestFailedRetry = true;
                     }
                   }
                 }
@@ -1302,8 +1517,20 @@ export function useAIChat(options: UseAIChatOptions) {
           },
         },
       );
-    } catch {
-      // postSSE handles errors internally via onError
+    } catch (err: unknown) {
+      // sendChatStreamApi throws on non-2xx; sse.ts does not call onError for HTTP errors
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : $t('common.requestFailed');
+      const msg = chatMessages.value[assistantIdx];
+      if (msg) {
+        msg.content = `\u26A0\uFE0F ${errorMsg}`;
+        msg.requestFailedRetry = true;
+      }
+      finalizeMessage();
     } finally {
       sending.value = false;
       streaming.value = false;
@@ -1371,6 +1598,10 @@ export function useAIChat(options: UseAIChatOptions) {
 
     // Remove this message and all subsequent messages
     chatMessages.value.splice(msgIndex);
+
+    // Fork to new conversation: edited message will create new conv, not append to old / 分叉新会话
+    activeConversationId.value = null;
+    messagesRequestSeq += 1;
   }
 
   function exportAsMarkdown() {
@@ -1462,6 +1693,10 @@ export function useAIChat(options: UseAIChatOptions) {
     // Remove the assistant message (and any messages after it)
     chatMessages.value.splice(msgIndex);
 
+    // Fork to new conversation: regenerate creates new branch, not overwrite in same conv / 分叉新会话
+    activeConversationId.value = null;
+    messagesRequestSeq += 1;
+
     // Re-send the user message
     inputMessage.value = userContent;
     clearPendingAttachments();
@@ -1472,20 +1707,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   function stopGeneration() {
-    if (streamAbortController) {
-      streamAbortController.abort();
-      streamAbortController = null;
-    }
-    sending.value = false;
-    streaming.value = false;
-    userScrolledUp.value = false;
-    const last = chatMessages.value.at(-1);
-    if (last?.streaming) {
-      last.streaming = false;
-      if (last.role === 'assistant') {
-        last.stoppedByUser = true;
-      }
-    }
+    abortActiveStream(true);
   }
 
   /**
@@ -1493,6 +1715,7 @@ export function useAIChat(options: UseAIChatOptions) {
    * (silent = do not push user message again).
    */
   function retryLastMessage() {
+    abortActiveStream();
     const messages = chatMessages.value;
     if (messages.length < 2) return;
     const last = messages.at(-1);
@@ -1508,9 +1731,7 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   function cleanup() {
-    if (streamAbortController) {
-      streamAbortController.abort();
-    }
+    abortActiveStream();
   }
 
   // ============ Helpers ============
@@ -1543,6 +1764,12 @@ export function useAIChat(options: UseAIChatOptions) {
     // Chat
     chatMessages,
     inputMessage,
+    mentionedAgentId,
+    mentionedAgent,
+    mentionOpen,
+    mentionQuery,
+    mentionCandidates,
+    mentionActiveIndex,
     selectedKBIds,
     agentKBBindings,
     loadAgentKBBindings,
@@ -1564,6 +1791,8 @@ export function useAIChat(options: UseAIChatOptions) {
     showScrollToTop: userNotAtTop,
     copyMessage,
     handleInputKeyDown,
+    selectMentionAgent,
+    clearMentionedAgent,
     confirmAction,
     rejectAction,
     confirmConsent,

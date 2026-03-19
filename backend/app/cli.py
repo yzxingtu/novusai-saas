@@ -297,14 +297,23 @@ def db_stamp(revision: str) -> None:
 
 
 @db_cmd.command("merge")
-@click.option("-m", "--message", default="merge")
-def db_merge(message: str) -> None:
-    """Merge multiple heads into one / 合并多个 head 为单一版本"""
+@click.option("-m", "--message", default="merge", help="Message for merge revision")
+@click.option(
+    "-r",
+    "--revisions",
+    default="heads",
+    help="Revisions to merge (default: heads). Use 'heads' to merge all current heads, or comma-separated IDs",
+)
+def db_merge(message: str, revisions: str) -> None:
+    """Merge multiple heads into one / 合并多个 head 为单一版本."""
     os.chdir(_BACKEND_DIR)
     from alembic import command
 
     cfg = _get_alembic_config()
-    command.merge(cfg, message=message)
+    revs = [r.strip() for r in revisions.replace(",", " ").split() if r.strip()]
+    if not revs:
+        revs = ["heads"]
+    command.merge(cfg, revisions=revs, message=message)
 
 
 @db_cmd.command("autogenerate")
@@ -679,8 +688,20 @@ def codegen_generate(
                 click.echo("Conflicts: {}".format([c.get("path") for c in result["conflicts"]]))
         return
 
+    from filelock import FileLock, Timeout
+
     from app.core.database import get_db_context
+    from app.enums.codegen import CodegenConfigStatusEnum
     from app.services.system.codegen_service import CodegenService
+
+    _lock_dir = _CODEGEN_PROJECT_ROOT / ".codegen_locks"
+    _lock_dir.mkdir(parents=True, exist_ok=True)
+    _codegen_lock = FileLock(_lock_dir / "_codegen_global.lock", timeout=60)
+    try:
+        _codegen_lock.acquire()
+    except Timeout:
+        click.echo("Error: Another codegen operation is in progress (lock timeout).", err=True)
+        sys.exit(1)
 
     use_config_id = config_id is not None or resource is not None
 
@@ -697,101 +718,102 @@ def codegen_generate(
                     inp = cfg.id
             else:
                 inp = config_json
-            result = await svc.generate(inp, force=force, project_root=_CODEGEN_PROJECT_ROOT)
-            return result
+            output = await svc.generate(inp, force=force, project_root=_CODEGEN_PROJECT_ROOT)
+            return output
 
     try:
-        result = _run_async(_do())
-        if output_json:
-            import json
-            click.echo(json.dumps({
-                "success": result.success,
-                "files_created": result.files_created,
-                "files_modified": result.files_modified,
-                "errors": result.errors,
-            }, ensure_ascii=False, indent=2))
-            if not result.success:
-                sys.exit(1)
-        elif result.success:
-            click.echo("[{}] Generated successfully".format(_STATUS_OK))
-            for p in result.files_created:
-                click.echo("  + {}".format(p))
-            for p in result.files_modified:
-                click.echo("  ~ {}".format(p))
-        else:
+        try:
+            output = _run_async(_do())
+            result = output.result
             if output_json:
                 import json
                 click.echo(json.dumps({
-                    "success": False,
-                    "error": "; ".join(result.errors) if result.errors else "Generation failed",
-                    "errors": result.errors,
+                    "success": result.success,
                     "files_created": result.files_created,
                     "files_modified": result.files_modified,
+                    "errors": result.errors,
                 }, ensure_ascii=False, indent=2))
+                if not result.success:
+                    sys.exit(1)
+            elif result.success:
+                click.echo("[{}] Generated successfully".format(_STATUS_OK))
+                for p in result.files_created:
+                    click.echo("  + {}".format(p))
+                for p in result.files_modified:
+                    click.echo("  ~ {}".format(p))
             else:
-                for e in result.errors:
-                    click.echo("Error: {}".format(e), err=True)
+                if output_json:
+                    import json
+                    click.echo(json.dumps({
+                        "success": False,
+                        "error": "; ".join(result.errors) if result.errors else "Generation failed",
+                        "errors": result.errors,
+                        "files_created": result.files_created,
+                        "files_modified": result.files_modified,
+                    }, ensure_ascii=False, indent=2))
+                else:
+                    for e in result.errors:
+                        click.echo("Error: {}".format(e), err=True)
+                sys.exit(1)
+        except SystemExit:
+            raise
+        except Exception as e:
+            if output_json:
+                import json
+                click.echo(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False, indent=2))
+            else:
+                click.echo("Error: {}".format(e), err=True)
             sys.exit(1)
-    except SystemExit:
-        raise
-    except Exception as e:
-        if output_json:
-            import json
-            click.echo(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False, indent=2))
-        else:
-            click.echo("Error: {}".format(e), err=True)
-        sys.exit(1)
 
-    if auto_migrate and result.success:
-        import re as _re
+        if auto_migrate and result.success and output.resource:
+            from app.codegen.manifest import ManifestManager
 
-        import subprocess as _sp
-
-        from app.core.database import purge_orphaned_alembic_stamps
-        from app.codegen.config_parser import ConfigParser
-        from app.codegen.manifest import ManifestManager
-
-        _backend_dir = Path(__file__).parent.parent
-        _resource = ConfigParser().parse(config_json).resource if config_json else None
-
-        click.echo("[auto-migrate] Purging orphaned alembic stamps ...")
-        purge_orphaned_alembic_stamps(_backend_dir)
-
-        click.echo("[auto-migrate] Ensuring DB is up to date (alembic upgrade head) ...")
-        _up_pre = _sp.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(_backend_dir), capture_output=True, text=True,
-        )
-        if _up_pre.returncode != 0:
-            click.echo(f"[auto-migrate] upgrade (pre) failed, DB must be up to date before autogenerate:\n{_up_pre.stderr}", err=True)
-        else:
-            click.echo("[auto-migrate] DB up to date")
-
-        click.echo("[auto-migrate] Running alembic autogenerate in subprocess ...")
-        _rev = _sp.run(
-            [sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", "codegen_auto"],
-            cwd=str(_backend_dir), capture_output=True, text=True,
-        )
-        if _rev.returncode != 0:
-            click.echo(f"[auto-migrate] revision failed:\n{_rev.stderr}", err=True)
-        else:
-            click.echo("[auto-migrate] revision OK")
-            _migration_path = None
-            _out = (_rev.stdout or "") + (_rev.stderr or "")
-            _m = _re.search(r"Generating\s+(.+\.py)", _out)
-            if _m:
-                _migration_path = _m.group(1).strip()
-            _up = _sp.run(
-                [sys.executable, "-m", "alembic", "upgrade", "head"],
-                cwd=str(_backend_dir), capture_output=True, text=True,
-            )
-            if _up.returncode != 0:
-                click.echo(f"[auto-migrate] upgrade failed:\n{_up.stderr}", err=True)
+            _resource = output.resource
+            mig_result = CodegenService.run_auto_migrate(_resource, _CODEGEN_PROJECT_ROOT)
+            if mig_result.get("success"):
+                click.echo("[auto-migrate] " + str(mig_result.get("message", "OK")))
+                if _resource and mig_result.get("migration_path"):
+                    manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
+                    manifest.update_migration_file(_resource, mig_result["migration_path"])
+                if output.config_id is not None:
+                    async def _mark_applied():
+                        async with get_db_context() as db:
+                            svc = CodegenService(db)
+                            await svc.update(
+                                output.config_id,
+                                {
+                                    "status": CodegenConfigStatusEnum.APPLIED.value,
+                                    "last_error": None,
+                                },
+                            )
+                    _run_async(_mark_applied())
             else:
-                click.echo("[auto-migrate] upgrade OK")
-            if _resource and _migration_path:
-                manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
-                manifest.update_migration_file(_resource, _migration_path)
+                err_msg = "[auto-migrate] Failed (phase={}): {}".format(
+                    mig_result.get("phase", "unknown"),
+                    mig_result.get("error", "unknown error"),
+                )
+                if output.config_id is not None:
+                    async def _mark_generate_failed():
+                        async with get_db_context() as db:
+                            svc = CodegenService(db)
+                            await svc.update(
+                                output.config_id,
+                                {
+                                    "status": CodegenConfigStatusEnum.GENERATED.value,
+                                    "last_error": (
+                                        f"auto_migrate failed at {mig_result.get('phase', 'unknown')}: "
+                                        f"{mig_result.get('error', 'unknown error')}"
+                                    ),
+                                },
+                            )
+                    _run_async(_mark_generate_failed())
+                click.echo(
+                    err_msg,
+                    err=True,
+                )
+                sys.exit(1)
+    finally:
+        _codegen_lock.release()
 
 
 @codegen_cmd.command("preview")
@@ -800,7 +822,6 @@ def codegen_generate(
 @click.option("--resource", "-r", default=None, help="Load config by resource name from DB")
 @click.option("--step", "-s", type=click.Choice(["model", "controller", "frontend"]), default=None, help="Partial preview: model | controller | frontend")
 @click.option("--verbose", "-v", is_flag=True, help="Output full file content")
-@click.option("--output-dir", type=click.Path(), default=None, help="Write to temp dir")
 @click.option("--json", "output_json", is_flag=True)
 def codegen_preview(
     config_path: str | None,
@@ -808,7 +829,6 @@ def codegen_preview(
     resource: str | None,
     step: str | None,
     verbose: bool,
-    output_dir: str | None,
     output_json: bool,
 ) -> None:
     """Preview generation (no write) / 预览生成（不写入）"""
@@ -935,58 +955,114 @@ def codegen_rollback(
         click.echo("Error: Use --resource OR --id, not both", err=True)
         sys.exit(1)
 
+    from filelock import FileLock, Timeout
+
     from app.codegen.rollback import CodegenRollback
     from app.codegen.manifest import ManifestManager
     from app.codegen.migration_helper import run_rollback_migration_cleanup
+    from app.core.database import get_db_context
+    from app.enums.codegen import CodegenConfigStatusEnum
+    from app.services.system.codegen_service import CodegenService
 
-    manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
-    entry = None
-    if resource:
-        entry = manifest.get_entry(resource)
-    elif config_id is not None:
-        for e in manifest.list_entries():
-            if e.config_id == config_id:
-                entry = e
-                break
-    migration_file = entry.migration_file if entry else None
-    _resource = resource or (entry.resource if entry else None)
-
-    rb = CodegenRollback(_CODEGEN_PROJECT_ROOT)
-    result = rb.rollback(
-        resource=resource,
-        config_id=config_id,
-        force=force,
-        dry_run=dry_run,
-    )
-    _migration_cleaned = False
-
-    if auto_migrate and not dry_run and (result.success or _resource):
-        click.echo("[auto-migrate] Running downgrade and dropping table ...")
-        _migration_cleaned = run_rollback_migration_cleanup(
-            resource=_resource or "",
-            migration_file=migration_file,
-            project_root=_CODEGEN_PROJECT_ROOT,
-            backend_dir=Path(__file__).parent.parent,
-        )
-        if _migration_cleaned:
-            click.echo("[auto-migrate] Migration cleaned and table dropped")
-
-    if output_json:
-        import json
-        _out = {"success": result.success, "files_deleted": result.files_deleted, "files_modified": result.files_modified, "errors": result.errors}
-        if auto_migrate and not dry_run:
-            _out["migration_cleaned"] = _migration_cleaned
-        click.echo(json.dumps(_out, ensure_ascii=False, indent=2))
-    elif result.success:
-        click.echo("[{}] Rollback completed".format(_STATUS_OK))
-        for p in result.files_deleted:
-            click.echo("  - {}".format(p))
-    elif _migration_cleaned:
-        click.echo("[{}] Migration cleanup completed (no manifest entry for file rollback)".format(_STATUS_OK))
-    else:
-        for e in result.errors:
-            click.echo("Error: {}".format(e), err=True)
+    _lock_dir = _CODEGEN_PROJECT_ROOT / ".codegen_locks"
+    _lock_dir.mkdir(parents=True, exist_ok=True)
+    _rb_lock = FileLock(_lock_dir / "_codegen_global.lock", timeout=60)
+    try:
+        _rb_lock.acquire()
+    except Timeout:
+        click.echo("Error: Another codegen operation is in progress (lock timeout).", err=True)
         sys.exit(1)
+
+    try:
+        manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
+        entry = None
+        if resource:
+            entry = manifest.get_entry(resource)
+        elif config_id is not None:
+            for e in manifest.list_entries():
+                if e.config_id == config_id:
+                    entry = e
+                    break
+        migration_file = entry.migration_file if entry else None
+        _resource = resource or (entry.resource if entry else None)
+
+        rb = CodegenRollback(_CODEGEN_PROJECT_ROOT)
+        result = rb.rollback(
+            resource=resource,
+            config_id=config_id,
+            force=force,
+            dry_run=dry_run,
+        )
+        _migration_cleaned = False
+
+        if auto_migrate and not dry_run and result.success and _resource:
+            click.echo("[auto-migrate] Running downgrade and dropping table ...")
+            _migration_cleaned = run_rollback_migration_cleanup(
+                resource=_resource or "",
+                migration_file=migration_file,
+                project_root=_CODEGEN_PROJECT_ROOT,
+                backend_dir=Path(__file__).parent.parent,
+                force_drop=force,
+            )
+            if _migration_cleaned:
+                click.echo("[auto-migrate] Migration cleaned and table dropped")
+
+        overall_success = result.success
+        errors = list(result.errors)
+        if auto_migrate and not dry_run and result.success and _resource:
+            if _migration_cleaned:
+                manifest.remove_entry(_resource)
+
+                async def _mark_rolled_back():
+                    async with get_db_context() as db:
+                        svc = CodegenService(db)
+                        cfg = await svc.get_by_resource(_resource)
+                        if cfg:
+                            await svc.update(
+                                cfg.id,
+                                {
+                                    "status": CodegenConfigStatusEnum.ROLLED_BACK.value,
+                                    "generated_files": None,
+                                    "last_error": None,
+                                },
+                            )
+
+                _run_async(_mark_rolled_back())
+            else:
+                overall_success = False
+                rollback_err = (
+                    "File rollback completed but migration cleanup failed. "
+                    "Manifest entry preserved for retry."
+                )
+                errors.append(rollback_err)
+
+                async def _mark_rollback_failed():
+                    async with get_db_context() as db:
+                        svc = CodegenService(db)
+                        cfg = await svc.get_by_resource(_resource)
+                        if cfg:
+                            await svc.update(cfg.id, {"last_error": rollback_err})
+
+                _run_async(_mark_rollback_failed())
+
+        if output_json:
+            import json
+            _out = {"success": overall_success, "files_deleted": result.files_deleted, "files_modified": result.files_modified, "errors": errors}
+            if auto_migrate and not dry_run:
+                _out["migration_cleaned"] = _migration_cleaned
+            click.echo(json.dumps(_out, ensure_ascii=False, indent=2))
+        elif overall_success:
+            click.echo("[{}] Rollback completed".format(_STATUS_OK))
+            for p in result.files_deleted:
+                click.echo("  - {}".format(p))
+        elif _migration_cleaned:
+            click.echo("[{}] Migration cleanup completed (no manifest entry for file rollback)".format(_STATUS_OK))
+        else:
+            for e in errors:
+                click.echo("Error: {}".format(e), err=True)
+            sys.exit(1)
+    finally:
+        _rb_lock.release()
 
 
 # ----- 配置管理 -----

@@ -358,12 +358,14 @@ class ToolCallProcessor:
     def build_assistant_tool_call_message(
         content: str,
         tool_calls: list[dict[str, Any]],
+        reasoning_content: str | None = None,
     ) -> ChatMessage:
         """Build assistant message containing tool_calls / 构建包含 tool_calls 的 assistant 消息"""
         return ChatMessage(
             role="assistant",
             content=content,
             tool_calls=tool_calls,
+            reasoning_content=reasoning_content,
         )
 
     # ========================================
@@ -444,12 +446,17 @@ class ToolCallProcessor:
             {"name", "arguments", "tool_call_id"} or None
         """
         pending_tc_id: str | None = None
+        inject_confirmed = False
         for msg in reversed(messages):
             if msg.role == "tool" and msg.content:
                 try:
                     parsed = json.loads(msg.content)
                     if isinstance(parsed, dict) and parsed.get("requires_confirmation"):
                         pending_tc_id = msg.tool_call_id
+                        inject_confirmed = not bool(
+                            parsed.get("consent_required")
+                            or parsed.get("action") == "tool_consent"
+                        )
                         break
                 except (ValueError, TypeError):
                     continue
@@ -472,8 +479,10 @@ class ToolCallProcessor:
                             )
                         except json.JSONDecodeError:
                             arguments = {}
-                        # Inject confirmed=True / 注入 confirmed=True
-                        arguments["confirmed"] = True
+                        # Only mutation-preview confirmations require confirmed=True.
+                        # consent_mode=ask should replay the original arguments unchanged.
+                        if inject_confirmed:
+                            arguments["confirmed"] = True
                         return {
                             "name": func.get("name", ""),
                             "arguments": arguments,

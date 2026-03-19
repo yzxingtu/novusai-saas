@@ -198,6 +198,14 @@
 }
 
 /* ============================================================
+ * Ant Drawer offset for docked AI panel
+ * ============================================================ */
+.ant-drawer-right > .ant-drawer-content-wrapper {
+  right: var(--ai-panel-right-offset, 0px) !important;
+  max-width: calc(100vw - var(--ai-panel-right-offset, 0px));
+}
+
+/* ============================================================
  * CrudGrid 包装层
  * ============================================================ */
 .crud-page-grid {

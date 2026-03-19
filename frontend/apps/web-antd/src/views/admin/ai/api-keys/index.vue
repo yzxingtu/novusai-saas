@@ -68,7 +68,10 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = use
   defaultSort: '-created_at',
   createPermission: 'ai_api_key:create',
   recycleBin: true,
-  ai: { pageKey: 'admin.ai.api-keys', formSchema: useFormSchema },
+  ai: {
+    pageKey: 'admin.ai.api-keys',
+    formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
+  },
 });
 
 const cleanupPageContext = registerPageContext('admin/ai/api-keys', () => ({

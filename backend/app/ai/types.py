@@ -22,6 +22,10 @@ class ChatMessage:
     content + attachments to OpenAI content array format (text + image_url).
     多模态：当 attachments 不为空时，adapter 层会将 content + attachments
     转换为 OpenAI 的 content 数组格式。
+
+    reasoning_content: For chain-of-thought models (e.g. DeepSeek R1), kept
+    separate from content for display. Persisted in message metadata.
+    思考/推理内容（链式思考模型如 DeepSeek R1），与最终答复分离，存入 metadata。
     """
     role: Literal["system", "user", "assistant", "tool"]
     content: str
@@ -29,6 +33,7 @@ class ChatMessage:
     tool_calls: list[dict] | None = None
     tool_call_id: str | None = None
     attachments: list[dict] | None = None
+    reasoning_content: str | None = None
 
 
 @dataclass
@@ -76,6 +81,9 @@ class ChatChunk:
     """
     # Delta content / 增量内容
     delta: str
+
+    # Reasoning/thinking delta kept separate from final answer / 与最终答复分离的思考增量
+    reasoning_delta: str = ""
 
     # Role / 角色
     role: str | None = None

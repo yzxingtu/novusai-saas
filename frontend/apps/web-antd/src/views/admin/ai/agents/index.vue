@@ -10,7 +10,7 @@
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -67,6 +67,8 @@ defineOptions({ name: 'AIAgentList' });
 // Declarative CRUD (list/pagination/search/delete/recycle bin) / 声明式 CRUD（列表/分页/搜索/删除/回收站）
 // ============================================================
 
+const agentSummary = ref({ published: 0, system: 0 });
+
 const {
   list,
   total,
@@ -99,8 +101,8 @@ const {
     entityDescription: $t('admin.ai.agent.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     contextExtras: () => ({
-      published: stats.value.published,
-      system: stats.value.system,
+      published: agentSummary.value.published,
+      system: agentSummary.value.system,
     }),
     extra: [
       {
@@ -312,6 +314,14 @@ function getExecutionModeIcon(mode: string): string {
     }
   }
 }
+
+watchEffect(() => {
+  const all = list.value;
+  agentSummary.value = {
+    published: all.filter((a) => a.status === 'published').length,
+    system: all.filter((a) => a.is_system).length,
+  };
+});
 
 const stats = computed(() => {
   const all = list.value;

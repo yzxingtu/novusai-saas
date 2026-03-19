@@ -82,6 +82,7 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: $t('tenant.ai.agent.detail.title'),
         activePath: '/tenant/ai/agents',
+        ai: { pageContextKey: 'tenant.ai.agents.detail' },
       },
     },
     // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu

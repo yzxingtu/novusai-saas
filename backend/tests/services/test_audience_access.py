@@ -234,3 +234,47 @@ class TestCheckUserAccess:
         )
         # all_users access_type → True
         assert result is True
+
+    @pytest.mark.asyncio
+    async def test_tenant_role_ids_with_user_role_id_none_denies(
+        self, mock_db, mock_agent, mock_access,
+    ):
+        """tenant_role_ids=[5] but user_role_id=None → deny (chat must pass role_id)."""
+        service = self._make_service(mock_db)
+        service.repo.get_by_id = AsyncMock(return_value=mock_agent)
+        mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
+        mock_access.tenant_role_ids = [5, 10]
+
+        access_repo = MagicMock()
+        access_repo.get_by_agent_id = AsyncMock(return_value=mock_access)
+        service._get_access_repo = MagicMock(return_value=access_repo)
+
+        result = await service.check_user_access(
+            agent_id=1,
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            user_role_id=None,
+        )
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_tenant_role_ids_with_matching_user_role_id_allows(
+        self, mock_db, mock_agent, mock_access,
+    ):
+        """tenant_role_ids=[5,10] and user_role_id=5 → allow."""
+        service = self._make_service(mock_db)
+        service.repo.get_by_id = AsyncMock(return_value=mock_agent)
+        mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
+        mock_access.tenant_role_ids = [5, 10]
+
+        access_repo = MagicMock()
+        access_repo.get_by_agent_id = AsyncMock(return_value=mock_access)
+        service._get_access_repo = MagicMock(return_value=access_repo)
+
+        result = await service.check_user_access(
+            agent_id=1,
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            user_role_id=5,
+        )
+        assert result is True

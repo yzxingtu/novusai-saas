@@ -5,7 +5,6 @@
  * 三栏布局: 组件面板 | 字段卡片列表 | 属性面板 + 表单预览
  */
 import type { CodegenVersionItem } from '#/api/admin/codegen';
-import type { Recordable } from '@vben/types';
 
 import { Page } from '@vben/common-ui';
 import yaml from 'js-yaml';
@@ -46,6 +45,7 @@ import {
 } from '#/api/admin/codegen';
 import { message } from 'ant-design-vue';
 import { $t } from '#/locales';
+import { formatDate } from '#/utils/common';
 import { useCodegenBuilderStore } from '#/store';
 import { downloadText } from '#/utils/download';
 
@@ -93,6 +93,11 @@ const lastResult = ref<{
   files_modified: string[];
   conflicts: Array<Record<string, string>>;
   errors: string[];
+  config_id?: number | null;
+  resource?: string | null;
+  module?: string | null;
+  table_name?: string | null;
+  migration?: { success?: boolean; message?: string; migration_path?: string; phase?: string; error?: string } | null;
 } | null>(null);
 
 const moduleOptions = ref<Array<{ label: string; value: string }>>([]);
@@ -132,14 +137,6 @@ const frontend = computed(() => (firstEndpoint.value?.frontend as Record<string,
 
 const hasAdmin = computed(() => endpoints.value.some((e) => e.scope === 'admin'));
 const hasTenant = computed(() => endpoints.value.some((e) => e.scope === 'tenant'));
-const softDelete = computed({
-  get: () => (model.value.soft_delete as boolean) ?? true,
-  set: (v) => store.updateConfig({ model: { ...model.value, soft_delete: v } }),
-});
-const dataPermission = computed({
-  get: () => (model.value.data_permission as boolean) ?? false,
-  set: (v) => store.updateConfig({ model: { ...model.value, data_permission: v } }),
-});
 const feMode = computed({
   get: () => (frontend.value.mode as string) || 'table',
   set: (v) => {
@@ -237,7 +234,7 @@ function onPaletteAdd(item: PaletteItem) {
   if (wysiwygRef.value) {
     wysiwygRef.value.addFromPalette(item);
   } else {
-    const arr = (store.configJson.fields as Recordable[]) || [];
+    const arr = (store.configJson.fields as Record<string, unknown>[]) || [];
     const current = ensureFieldKeys(arr);
     const newField = createFieldFromPalette(item, current);
     const next = [...current, newField];
@@ -324,11 +321,15 @@ async function doGenerate() {
     }
     const payload =
       store.configId != null
-        ? { config_id: store.configId, force: false }
-        : { config_json: store.configJson, force: false };
+        ? { config_id: store.configId, force: false, auto_migrate: true }
+        : { config_json: store.configJson, force: false, auto_migrate: true };
     const result = await postCodegenGenerateApi(payload);
     lastResult.value = result;
     resultModalVisible.value = true;
+    if (store.configId == null && result.config_id != null) {
+      store.loadConfig(result.config_id, store.configJson);
+      router.replace(`/admin/system/codegen/${result.config_id}/edit`);
+    }
     if (result.success) {
       message.success($t('admin.system.codegen.messages.generateSuccess'));
     } else if (result.errors?.length) {
@@ -465,12 +466,7 @@ async function onRestoreVersion(v: CodegenVersionItem) {
 }
 
 function formatVersionTime(iso: string | null) {
-  if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  return formatDate(iso) ?? '-';
 }
 
 async function onPreviewVersion(v: CodegenVersionItem) {
@@ -512,7 +508,7 @@ async function onDownloadZip() {
 }
 
 function onDbImported(patch: Record<string, unknown>) {
-  const incoming = (patch.fields as Recordable[]) || [];
+  const incoming = (patch.fields as Record<string, unknown>[]) || [];
   const withInferred = incoming.map((f) => {
     const name = (f.name as string) || '';
     if (!name) return f;
@@ -520,8 +516,8 @@ function onDbImported(patch: Record<string, unknown>) {
     return { ...inferred, ...f, __key: f.__key || `f_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` };
   });
   const mode = (patch._importMode as 'merge' | 'replace') || 'replace';
-  const currentFields = (store.configJson.fields as Recordable[]) || [];
-  let finalFields: Recordable[];
+  const currentFields = (store.configJson.fields as Record<string, unknown>[]) || [];
+  let finalFields: Record<string, unknown>[];
   if (mode === 'merge') {
     const incomingByName = new Map(withInferred.map((f) => [(f.name as string) || '', f]));
     const currentNames = new Set(currentFields.map((f) => (f.name as string) || '').filter(Boolean));
@@ -575,7 +571,7 @@ async function loadConfigIfEdit() {
   store.resetWizard();
 }
 
-const fields = computed(() => (store.configJson.fields as Recordable[]) || []);
+const fields = computed(() => (store.configJson.fields as Record<string, unknown>[]) || []);
 
 function removeSelectedField() {
   const key = store.selectedFieldKey;
@@ -589,16 +585,18 @@ function selectPrevField() {
   const key = store.selectedFieldKey;
   if (!key) return;
   const idx = fields.value.findIndex((f) => f.__key === key);
-  if (idx > 0) store.selectedFieldKey = fields.value[idx - 1].__key as string;
+  const prevField = idx > 0 ? fields.value[idx - 1] : undefined;
+  if (prevField) store.selectedFieldKey = prevField.__key as string;
 }
 
 function selectNextField() {
   const key = store.selectedFieldKey;
   if (!key) return;
   const idx = fields.value.findIndex((f) => f.__key === key);
-  if (idx >= 0 && idx < fields.value.length - 1) {
-    store.selectedFieldKey = fields.value[idx + 1].__key as string;
-  }
+  const nextField = idx >= 0 && idx < fields.value.length - 1
+    ? fields.value[idx + 1]
+    : undefined;
+  if (nextField) store.selectedFieldKey = nextField.__key as string;
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -760,7 +758,7 @@ watch(
         </Button>
       </Tooltip>
       <Tooltip :title="$t('admin.system.codegen.toolbar.preview')">
-        <Button type="text" size="small" @click="codePreviewOpen = true">
+        <Button v-access:code="['action.codegen.preview']" type="text" size="small" @click="codePreviewOpen = true">
           <IconifyIcon icon="lucide:code-2" class="size-4" />
         </Button>
       </Tooltip>
@@ -780,23 +778,23 @@ watch(
               <IconifyIcon icon="lucide:download" class="mr-1 size-4" />
               {{ $t('admin.system.codegen.toolbar.exportYaml') }}
             </MenuItem>
-            <MenuItem v-if="configId" @click="onOpenVersionHistory">
+            <MenuItem v-if="configId" v-access:code="['action.codegen.update']" @click="onOpenVersionHistory">
               <IconifyIcon icon="lucide:history" class="mr-1 size-4" />
               {{ $t('admin.system.codegen.toolbar.versionHistory') }}
             </MenuItem>
-            <MenuItem @click="onDownloadZip">
+            <MenuItem v-access:code="['action.codegen.preview']" @click="onDownloadZip">
               <IconifyIcon icon="lucide:archive" class="mr-1 size-4" />
               {{ $t('admin.system.codegen.toolbar.downloadZip') }}
             </MenuItem>
           </Menu>
         </template>
       </Dropdown>
-      <Button :loading="isSaving" @click="onSave">
+      <Button v-access:code="['action.codegen.update']" :loading="isSaving" @click="onSave">
         <IconifyIcon icon="lucide:save" class="mr-1 size-4" />
         {{ $t('admin.system.codegen.toolbar.saveDraft') }}
       </Button>
       <Badge :count="validationErrors.length" :offset="[4, -4]" :show-zero="false">
-        <Button type="primary" :loading="isGenerating" @click="onGenerate">
+        <Button v-access:code="['action.codegen.generate']" type="primary" :loading="isGenerating" @click="onGenerate">
           <IconifyIcon icon="lucide:wand-2" class="mr-1 size-4" />
           {{ $t('admin.system.codegen.toolbar.generate') }}
         </Button>
@@ -840,7 +838,7 @@ watch(
         <IconifyIcon icon="lucide:keyboard" class="size-4 text-muted-foreground" />
       </Tooltip>
       <div class="flex-1" />
-      <Button @click="dbImportOpen = true">
+      <Button v-access:code="['action.codegen.db']" @click="dbImportOpen = true">
         <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
         {{ $t('admin.system.codegen.builder.dbImportBtn') }}
       </Button>
@@ -854,7 +852,7 @@ watch(
           class="ml-1"
         />
       </Button>
-      <Button @click="codePreviewOpen = true">
+      <Button v-access:code="['action.codegen.preview']" @click="codePreviewOpen = true">
         <IconifyIcon icon="lucide:eye" class="mr-1 size-4" />
         {{ $t('admin.system.codegen.toolbar.preview') }}
       </Button>
@@ -964,6 +962,20 @@ watch(
         </div>
         <div v-if="lastResult.errors?.length" class="mb-4">
           <Alert type="error" :message="lastResult.errors.join(', ')" />
+        </div>
+        <div v-if="lastResult.migration" class="mb-4">
+          <Alert
+            :type="lastResult.migration.success ? 'success' : 'error'"
+            :message="
+              lastResult.migration.success
+                ? (lastResult.migration.message || $t('admin.system.codegen.generate.migrationSuccess'))
+                : (lastResult.migration.error || $t('admin.system.codegen.generate.migrationFailed'))
+            "
+            show-icon
+          />
+          <p v-if="lastResult.migration.migration_path" class="mt-1 text-xs text-muted-foreground">
+            {{ lastResult.migration.migration_path }}
+          </p>
         </div>
         <Collapse
           v-if="

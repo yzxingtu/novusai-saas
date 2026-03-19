@@ -50,7 +50,7 @@ const gridOptions: VxeGridProps<RowType> = {
   showOverflow: true,
 };
 
-const [Grid, gridApi] = useVbenVxeGrid({ gridOptions });
+const [Grid, gridApi] = useVbenVxeGrid({ gridOptions } as any);
 
 function hasEditStatus(row: RowType) {
   return gridApi.grid?.isEditByRow(row);
@@ -81,12 +81,12 @@ const cancelRowEvent = (_row: RowType) => {
   <Page auto-content-height>
     <Grid>
       <template #action="{ row }">
-        <template v-if="hasEditStatus(row)">
-          <Button type="link" @click="saveRowEvent(row)">保存</Button>
-          <Button type="link" @click="cancelRowEvent(row)">取消</Button>
+        <template v-if="hasEditStatus(row as RowType)">
+          <Button type="link" @click="saveRowEvent(row as RowType)">保存</Button>
+          <Button type="link" @click="cancelRowEvent(row as RowType)">取消</Button>
         </template>
         <template v-else>
-          <Button type="link" @click="editRowEvent(row)">编辑</Button>
+          <Button type="link" @click="editRowEvent(row as RowType)">编辑</Button>
         </template>
       </template>
     </Grid>

@@ -940,6 +940,13 @@
       "detailGroupsEmpty": "（暂无）",
       "detailGroupsEmptyHint": "暂无详情分组，点击上方按钮添加"
     },
+    "detail": {
+      "mode": "展示模式",
+      "modeDrawer": "抽屉",
+      "modePage": "整页",
+      "nameField": "标题字段",
+      "nameFieldPlaceholder": "用于详情标题显示的字段名"
+    },
     "generate": {
       "fileCount": "共 {total} 个文件（{create} 新建 / {modify} 修改）",
       "summaryCreate": "新建",
@@ -964,6 +971,8 @@
       "noPreview": "暂无预览，请完成前几步配置",
       "previewError": "预览失败",
       "fileCountHeader": "{create} 新建 / {modify} 修改",
+      "migrationSuccess": "迁移已执行",
+      "migrationFailed": "迁移执行失败",
       "partialWriteTitle": "部分文件因冲突未覆盖",
       "partialWriteDesc": "以下文件已存在且 force 未开启，未覆盖；其余文件已成功生成。"
     },
@@ -1192,6 +1201,7 @@
         "unique": "数据库组合唯一约束",
         "workflow": "状态流转（如：草稿→已发布）",
         "customActions": "自定义 API 与按钮",
+        "detail": "详情页开关、展示模式（抽屉/整页）、标题字段",
         "detailGroups": "详情页字段分组展示",
         "clone": "新建时是否允许从已有记录克隆",
         "deleteDeps": "删除前需级联检查的关联资源"

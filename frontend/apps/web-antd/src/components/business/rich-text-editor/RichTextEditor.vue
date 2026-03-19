@@ -118,7 +118,7 @@ function toggleSourceMode() {
     sourceCode.value = editor.value.getHTML();
     sourceMode.value = true;
   } else {
-    editor.value.commands.setContent(sourceCode.value, false);
+    editor.value.commands.setContent(sourceCode.value, { emitUpdate: false });
     sourceMode.value = false;
   }
 }

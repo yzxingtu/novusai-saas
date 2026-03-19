@@ -97,7 +97,7 @@ class ConversationEngine(BaseEngine):
 
             total_tokens = response.total_tokens or 0
 
-            # 4. Tool call loop (pass route_result to maintain model consistency) / 工具调用循环（传入 route_result 保持模型一致）
+            # 4. Tool call loop (pass route_result + tool_consent_modes for unified consent semantic) / 工具调用循环（传入 route_result + tool_consent_modes 统一授权语义）
             tool_results = []
             if response.tool_calls and tools:
                 response, tool_results, total_tokens = await self._handle_tool_calls(
@@ -107,11 +107,17 @@ class ConversationEngine(BaseEngine):
                     tools=tools,
                     request=request,
                     route_result=prep.route_result,
+                    tool_consent_modes=prep.tool_consent_modes,
                 )
 
             # 5. Append final assistant message / 追加最终 assistant 消息
+            skip_final_assistant = bool(
+                getattr(response, "metadata", None)
+                and response.metadata.get("skip_final_assistant")
+            )
             output = response.message.content or ""
-            messages.append(ChatMessage(role="assistant", content=output))
+            if not skip_final_assistant:
+                messages.append(ChatMessage(role="assistant", content=output))
 
             duration_ms = int((time.perf_counter() - start) * 1000)
 

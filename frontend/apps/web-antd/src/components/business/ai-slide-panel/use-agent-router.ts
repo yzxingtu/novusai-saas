@@ -1,5 +1,14 @@
-/** Route cache TTL: 5 minutes / 路由缓存 TTL 5 分钟 */
-const ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
+/** Route cache TTL: 2 minutes (shorter to avoid wrong agent reuse) / 路由缓存 TTL 2 分钟 */
+const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
+
+/** Simple string hash for cache key (djb2) / 简单字符串哈希用于缓存 key */
+function _simpleHash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+  }
+  return (h >>> 0).toString(36);
+}
 
 /**
  * Agent Router Composable
@@ -187,7 +196,8 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
   /**
    * P3+P4: Call backend /route API (with cache)
    * Backend handles Router agent invocation and default_chat fallback.
-   * 同对话/同页面后续消息复用缓存，跳过 API 以减少 500ms-3s 延迟。
+   * Cache key includes message hash + page context to avoid wrong agent reuse.
+   * 缓存 key 纳入消息哈希和页面上下文，避免不同问题错误复用同一 agent。
    */
   async function _callRouteApi(
     message: string,
@@ -201,7 +211,11 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       pageContextKey ??
       pageContext?.page_key ??
       'global';
-    const cacheKey = `${pageKey}-${convId ?? 'new'}`;
+    const pageDataHash = pageContext?.page_data
+      ? _simpleHash(JSON.stringify(pageContext.page_data))
+      : '';
+    const msgHash = _simpleHash(message.trim().slice(0, 200));
+    const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}`;
 
     const now = Date.now();
     const cached = routeCache.get(cacheKey);

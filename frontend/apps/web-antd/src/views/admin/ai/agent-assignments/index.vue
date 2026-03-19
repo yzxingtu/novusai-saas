@@ -7,7 +7,7 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
  *
  * useCrudList(keyField='feature_code') 管理列表数据，自定义 inline 编辑。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watchEffect } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -34,6 +34,8 @@ import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 
 // ========== 声明式列表管理 ==========
+const assignmentSummary = ref({ active: 0, assigned: 0 });
+
 const {
   list: assignments,
   loading,
@@ -51,8 +53,8 @@ const {
     entityName: $t('admin.ai.agentAssignment.title'),
     entityDescription: $t('admin.ai.agentAssignments.entityDescription'),
     contextExtras: () => ({
-      active: stats.value.active,
-      assigned: stats.value.assigned,
+      active: assignmentSummary.value.active,
+      assigned: assignmentSummary.value.assigned,
     }),
   },
 });
@@ -192,6 +194,14 @@ function getFeatureIcon(featureCode: string): FeatureIconConfig {
 }
 
 // ========== 统计 ==========
+watchEffect(() => {
+  const all = assignments.value;
+  assignmentSummary.value = {
+    active: all.filter((a) => a.is_active).length,
+    assigned: all.filter((a) => a.agent_id !== null).length,
+  };
+});
+
 const stats = computed(() => ({
   total: assignments.value.length,
   active: assignments.value.filter((a) => a.is_active).length,

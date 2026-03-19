@@ -181,6 +181,31 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   }
 
   const pendingPageOps = ref<PendingPageOp[]>([]);
+  const RESOLVED_PAGE_OP_TTL_MS = 1500;
+  const pageOpCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  function clearPageOpCleanupTimer(invokeId: string) {
+    const timerId = pageOpCleanupTimers.get(invokeId);
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
+      pageOpCleanupTimers.delete(invokeId);
+    }
+  }
+
+  function removePageOp(invokeId: string) {
+    clearPageOpCleanupTimer(invokeId);
+    pendingPageOps.value = pendingPageOps.value.filter(
+      (op) => op.invokeId !== invokeId,
+    );
+  }
+
+  function scheduleResolvedPageOpCleanup(invokeId: string) {
+    clearPageOpCleanupTimer(invokeId);
+    const timerId = setTimeout(() => {
+      removePageOp(invokeId);
+    }, RESOLVED_PAGE_OP_TTL_MS);
+    pageOpCleanupTimers.set(invokeId, timerId);
+  }
 
   function requestPageOpConfirmation(op: {
     invokeId: string;
@@ -191,6 +216,16 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     params: Record<string, unknown>;
     toolCallId?: string;
   }): Promise<boolean> {
+    clearResolvedPageOps();
+    const existing = pendingPageOps.value.find(
+      (item) => item.invokeId === op.invokeId,
+    );
+    if (existing && !existing.resolved) {
+      existing.resolved = true;
+      existing.allowed = false;
+      existing.resolve(false);
+    }
+    removePageOp(op.invokeId);
     return new Promise<boolean>((resolvePromise) => {
       pendingPageOps.value.push({
         ...op,
@@ -207,9 +242,15 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     op.resolved = true;
     op.allowed = allowed;
     op.resolve(allowed);
+    scheduleResolvedPageOpCleanup(invokeId);
   }
 
   function clearResolvedPageOps() {
+    for (const op of pendingPageOps.value) {
+      if (op.resolved) {
+        clearPageOpCleanupTimer(op.invokeId);
+      }
+    }
     pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
   }
 
@@ -251,6 +292,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pinnedAgentName.value = null;
     pendingAgentId.value = undefined;
     hasUnread.value = false;
+    for (const invokeId of pageOpCleanupTimers.keys()) {
+      clearPageOpCleanupTimer(invokeId);
+    }
     pendingPageOps.value = [];
     toolCallHandlers.clear();
   }

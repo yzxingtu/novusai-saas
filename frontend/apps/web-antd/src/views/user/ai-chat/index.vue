@@ -23,7 +23,10 @@ import {
   message,
 } from 'ant-design-vue';
 
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import {
+  getAgentInputVariables,
+  type InputVariable,
+} from '#/components/business/ai-chat-panel/types';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
@@ -42,9 +45,15 @@ const chat = useAIChat({
   uploadUrl: UPLOAD_URL,
   onVariablesMissing: () => {
     const agent = selectedAgent.value;
-    if (agent?.input_variables?.length) {
-      pendingVarsSend.value = true;
-      openVarsModal(agent.input_variables, agent.id, agent.name);
+    if (!agent) return;
+    const inputVariables = getAgentInputVariables(agent);
+    if (inputVariables.length > 0) {
+      pendingSendState.value = {
+        agentId: agent.id,
+        consumeMention: false,
+        routeSource: null,
+      };
+      openVarsModal(inputVariables, agent.id, agent.name);
     }
   },
 });
@@ -66,6 +75,10 @@ const {
   loadConversationMessages,
   chatMessages,
   inputMessage,
+  mentionedAgent,
+  mentionOpen,
+  mentionCandidates,
+  mentionActiveIndex,
   sending,
   streaming,
   messagesContainer,
@@ -78,6 +91,8 @@ const {
   scrollToTop,
   copyMessage,
   handleInputKeyDown,
+  selectMentionAgent,
+  clearMentionedAgent,
   cleanup,
   pendingAttachments,
   uploading,
@@ -296,16 +311,47 @@ async function onCopyMessage(content: string) {
 // ============ Send (no routing for user side) ============
 
 function handleSendClick() {
+  const mentionTarget = mentionedAgent.value;
+  if (mentionTarget) {
+    const mentionRequired = getAgentInputVariables(mentionTarget).filter(
+      (variable) => variable.required,
+    );
+    if (mentionRequired.length > 0) {
+      ensureAgentVarsLoaded(mentionTarget.id);
+      const mentionVars = allAgentsVariables.value[mentionTarget.id] ?? {};
+      const mentionMissing = mentionRequired.filter(
+        (variable) => !mentionVars[variable.name]?.trim(),
+      );
+      if (mentionMissing.length > 0) {
+        pendingSendState.value = {
+          agentId: mentionTarget.id,
+          consumeMention: true,
+          routeSource: 'mention',
+        };
+        openVarsModal(
+          getAgentInputVariables(mentionTarget),
+          mentionTarget.id,
+          mentionTarget.name,
+        );
+        return;
+      }
+    }
+    clearMentionedAgent();
+    sendMessage({ agentId: mentionTarget.id, routeSource: 'mention' });
+    return;
+  }
   sendMessage();
 }
 
 function handleKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-    e.preventDefault();
-    sendMessage();
+  if (handleInputKeyDown(e)) {
     return;
   }
-  handleInputKeyDown(e);
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    handleSendClick();
+    return;
+  }
 }
 
 // ============ Agent Switch Detection ============
@@ -328,7 +374,11 @@ const varsModalVisible = ref(false);
 const varsFormValues = reactive<Record<string, string>>({});
 const varsModalAgent = ref<null | { id: number; name: string; vars: InputVariable[] }>(null);
 const varsPersist = ref(false);
-const pendingVarsSend = ref(false);
+const pendingSendState = ref<
+  null | { agentId: number; consumeMention: boolean; routeSource: null | string }
+>(
+  null,
+);
 
 function openVarsModal(vars: InputVariable[], agentId: number, agentName: string) {
   varsModalAgent.value = { id: agentId, name: agentName, vars };
@@ -354,15 +404,23 @@ function onVarsConfirm() {
   }
   applyVariables(varsModalAgent.value!.id, { ...varsFormValues }, varsPersist.value);
   varsModalVisible.value = false;
-  if (pendingVarsSend.value) {
-    pendingVarsSend.value = false;
-    sendMessage();
+  if (pendingSendState.value) {
+    const {
+      agentId: targetAgentId,
+      consumeMention,
+      routeSource,
+    } = pendingSendState.value;
+    pendingSendState.value = null;
+    if (consumeMention) {
+      clearMentionedAgent();
+    }
+    sendMessage({ agentId: targetAgentId, routeSource });
   }
 }
 
 function onVarsCancel() {
   varsModalVisible.value = false;
-  pendingVarsSend.value = false;
+  pendingSendState.value = null;
 }
 
 // ============ Watchers ============
@@ -668,12 +726,12 @@ onUnmounted(() => {
         <div class="flex items-center gap-0.5">
           <!-- Edit variables button (shown when agent has input_variables) -->
           <Tooltip
-            v-if="selectedAgent?.input_variables?.length"
+            v-if="getAgentInputVariables(selectedAgent).length"
             :title="$t('user.aiChat.varsModal.editVars')"
           >
             <button
               class="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
-              @click="openVarsModal(selectedAgent!.input_variables!, selectedAgent!.id, selectedAgent!.name)"
+              @click="openVarsModal(getAgentInputVariables(selectedAgent), selectedAgent!.id, selectedAgent!.name)"
             >
               <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
               <span class="hidden sm:inline">{{ $t('user.aiChat.varsModal.editVars') }}</span>
@@ -942,11 +1000,27 @@ onUnmounted(() => {
       >
         <!-- Pending attachments -->
         <TransitionGroup
-          v-if="pendingAttachments.length > 0"
+          v-if="pendingAttachments.length > 0 || mentionedAgent"
           name="att-pop"
           tag="div"
           class="mb-2 flex flex-wrap gap-1.5"
         >
+          <div
+            v-if="mentionedAgent"
+            :key="`mention-${mentionedAgent.id}`"
+            class="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-2 py-1 text-[11px] text-primary"
+          >
+            <span class="font-semibold">@</span>
+            <span class="max-w-[160px] truncate font-medium">
+              {{ mentionedAgent.name }}
+            </span>
+            <button
+              class="flex size-4 items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/12 hover:text-primary"
+              @click="clearMentionedAgent"
+            >
+              <IconifyIcon icon="lucide:x" class="size-2.5" />
+            </button>
+          </div>
           <div
             v-for="(att, ai) in pendingAttachments"
             :key="att.url || ai"
@@ -1043,6 +1117,68 @@ onUnmounted(() => {
         <div
           class="overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm focus-within:shadow-primary/5"
         >
+          <Transition name="mention-panel">
+            <div
+              v-if="mentionOpen"
+              class="border-b border-border/30 bg-background/70 px-2 py-1.5"
+            >
+              <div
+                class="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground/70"
+              >
+                <IconifyIcon icon="lucide:at-sign" class="size-3" />
+                <span>{{ $t('common.globalAiChat.mentionAgentHint') }}</span>
+              </div>
+              <div v-if="agentsLoading" class="flex items-center gap-2 px-1 py-2">
+                <Spin size="small" />
+                <span class="text-[11px] text-muted-foreground">
+                  {{ $t('common.globalAiChat.mentionAgentLoading') }}
+                </span>
+              </div>
+              <div
+                v-else-if="mentionCandidates.length === 0"
+                class="px-1 py-2 text-[11px] text-muted-foreground"
+              >
+                {{ $t('common.globalAiChat.mentionAgentEmpty') }}
+              </div>
+              <div v-else class="max-h-48 space-y-1 overflow-y-auto">
+                <button
+                  v-for="(agent, candidateIndex) in mentionCandidates"
+                  :key="agent.id"
+                  class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                  :class="
+                    candidateIndex === mentionActiveIndex
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                  "
+                  @mousedown.prevent
+                  @click="selectMentionAgent(agent)"
+                >
+                  <div
+                    class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary"
+                  >
+                    <img
+                      v-if="agent.avatar"
+                      :src="agent.avatar"
+                      :alt="agent.name"
+                      class="size-7 rounded-lg object-cover"
+                    />
+                    <span v-else>{{ agent.name.charAt(0).toUpperCase() }}</span>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-[12px] font-medium">
+                      {{ agent.name }}
+                    </div>
+                    <div
+                      v-if="agent.description"
+                      class="truncate text-[10px] text-muted-foreground/70"
+                    >
+                      {{ agent.description }}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </Transition>
           <div class="flex min-h-[2.75rem] items-end gap-2 px-3 py-2">
             <Tooltip :title="$t('common.globalAiChat.addAttachment')">
               <button
@@ -1261,6 +1397,30 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Mention dropdown transition / @ 智能体下拉过渡 */
+.mention-panel-enter-active,
+.mention-panel-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    max-height 0.24s ease,
+    transform 0.24s ease;
+}
+
+.mention-panel-enter-from,
+.mention-panel-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-6px);
+}
+
+.mention-panel-enter-to,
+.mention-panel-leave-from {
+  opacity: 1;
+  max-height: 240px;
+  transform: translateY(0);
 }
 
 /* Float animation for empty state / 空状态浮动动画 */

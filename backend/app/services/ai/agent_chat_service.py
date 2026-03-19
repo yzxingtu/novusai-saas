@@ -436,6 +436,7 @@ class AgentChatService:
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
         page_session_id: str | None = None,
+        route_source: str | None = None,
     ) -> AgentChatResponse:
         """
         非流式对话 / Non-streaming chat.
@@ -550,6 +551,17 @@ class AgentChatService:
             else:
                 request.messages.insert(0, ChatMessage(role="system", content=mem_text))
 
+        # 4.2 会话级配额检查（max_turns_per_conversation / max_tokens_per_conversation）/ Conversation-level quota check
+        quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
+        if quota_config.max_turns_per_conversation > 0 or quota_config.max_tokens_per_conversation > 0:
+            current_turns = sum(1 for m in request.messages if m.role == "assistant")
+            current_tokens = sum(estimate_tokens(m.content or "") for m in request.messages)
+            await AgentQuotaManager.check_conversation_limits(
+                config=quota_config,
+                current_turns=current_turns,
+                current_tokens=current_tokens,
+            )
+
         # 5. 调用分发器（传入已校验的 agent，避免 Dispatcher 内二次 DB 查询）/ Call dispatcher with validated agent
         dispatcher = ExecutionDispatcher(self.db)
         result = await dispatcher.dispatch(request, pre_loaded_agent=agent)
@@ -576,6 +588,7 @@ class AgentChatService:
             result=result,
             history_count=history_count,
             agent_id=agent_id,
+            route_source=route_source,
         )
 
         # 7. 更新对话统计 + 智能体用量统计 / Update conversation stats and agent usage
@@ -650,6 +663,7 @@ class AgentChatService:
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
         page_session_id: str | None = None,
+        route_source: str | None = None,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）/ Streaming chat (returns StreamingResponse).
@@ -771,8 +785,18 @@ class AgentChatService:
             else:
                 request.messages.insert(0, ChatMessage(role="system", content=mem_text))
 
-        # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）/ Quota/concurrency/hook pre-check
+        # 4.2 会话级配额检查（max_turns_per_conversation / max_tokens_per_conversation）/ Conversation-level quota check
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
+        if quota_config.max_turns_per_conversation > 0 or quota_config.max_tokens_per_conversation > 0:
+            current_turns = sum(1 for m in request.messages if m.role == "assistant")
+            current_tokens = sum(estimate_tokens(m.content or "") for m in request.messages)
+            await AgentQuotaManager.check_conversation_limits(
+                config=quota_config,
+                current_turns=current_turns,
+                current_tokens=current_tokens,
+            )
+
+        # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）/ Quota/concurrency/hook pre-check
         lock_token: str = ""
 
         # 预估输入 Token 以启用原子预扣减（与 dispatcher 一致）/ Estimate input tokens for atomic pre-deduction
@@ -920,7 +944,16 @@ class AgentChatService:
             """
             extra: dict[str, Any] = {}
             try:
-                if result.success:
+                # Persist when success OR when we have new messages (partial/interrupted) / 成功时持久化；或中断时如有新消息也持久化
+                system_count = sum(
+                    1 for m in (result.messages or [])
+                    if m.get("role") == "system"
+                )
+                has_new_messages = (
+                    (result.messages or []) and
+                    len(result.messages) > system_count + history_count
+                )
+                if result.success or has_new_messages:
                     # 独立 session：不依赖 DI session 生命周期 / Standalone session for callback
                     async with async_session_factory() as cb_db:
                         try:
@@ -933,6 +966,7 @@ class AgentChatService:
                                 result=result,
                                 history_count=history_count,
                                 agent_id=agent_id,
+                                route_source=route_source,
                             )
                             await cb_conv_svc.update_stats(
                                 cb_conv,

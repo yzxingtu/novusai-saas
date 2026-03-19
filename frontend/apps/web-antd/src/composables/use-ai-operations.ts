@@ -30,6 +30,7 @@ import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+import { resolveFormOptionsFieldName } from './form-option-param-utils';
 import { formStateTracker } from './use-form-state-tracker';
 
 // ============ Types / 类型定义 ============
@@ -1136,17 +1137,17 @@ export function createStandardOperations(
         name: 'get_form_options',
         label: $t('shared.pageOperation.getFormOptions'),
         description:
-          `Get available options for remote select fields. Available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。可用字段：${remoteFields.join(', ')}`,
+          `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
         readonly: true,
         params: {
           field_name: {
             type: 'string',
-            description: `Field name to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的字段名`,
+            description: `Exact field key to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的精确字段名`,
             required: true,
           },
         },
         handler: async (params) => {
-          const fieldName = params.field_name as string;
+          const fieldName = resolveFormOptionsFieldName(params);
           if (!fieldName || !formParamsMap[fieldName]) {
             return {
               success: false,
@@ -1418,17 +1419,17 @@ export function createFormOperations(
       name: 'get_form_options',
       label: $t('shared.pageOperation.getFormOptions'),
       description:
-        `Get available options for remote select fields. Available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。可用字段：${remoteFields.join(', ')}`,
+        `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
       readonly: true,
       params: {
         field_name: {
           type: 'string',
-          description: `Field name to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的字段名`,
+          description: `Exact field key to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的精确字段名`,
           required: true,
         },
       },
       handler: async (params) => {
-        const fieldName = params.field_name as string;
+        const fieldName = resolveFormOptionsFieldName(params);
         if (!fieldName || !formParamsMap[fieldName]) {
           return {
             success: false,

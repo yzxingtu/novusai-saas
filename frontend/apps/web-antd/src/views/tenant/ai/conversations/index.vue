@@ -3,6 +3,7 @@
  * 企业端对话管理列表页面
  */
 import type { ConversationInfo } from '#/api/tenant/conversations';
+import type { ApiRequestOptions } from '#/utils/request';
 
 import { onUnmounted, ref } from 'vue';
 
@@ -36,6 +37,14 @@ defineOptions({ name: 'TenantConversationList' });
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
+const conversationDetailApi = (
+  id: number,
+  ...args: unknown[]
+) => getConversationDetailApi(
+  id,
+  args[0] as Record<string, unknown> | undefined,
+  args[1] as ApiRequestOptions | undefined,
+);
 
 function onViewDetail(row: ConversationInfo) {
   detailId.value = row.id;
@@ -110,7 +119,7 @@ onUnmounted(() => {
       :conversation-id="detailId"
       api-prefix="/tenant"
       i18n-prefix="tenant.ai.conversation"
-      :get-detail-api="getConversationDetailApi"
+      :get-detail-api="conversationDetailApi"
       :format-tokens="formatTokenCount"
       :format-cost="formatCost"
       :get-status-text="getStatusText"

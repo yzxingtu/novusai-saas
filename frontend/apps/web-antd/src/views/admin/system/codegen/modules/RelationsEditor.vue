@@ -6,7 +6,7 @@
  */
 import { computed, onMounted, ref } from 'vue';
 
-import { Button, Form, Input, Select } from 'ant-design-vue';
+import { Button, Input, Select } from 'ant-design-vue';
 
 import { getCodegenParentResourcesApi } from '#/api/admin/codegen';
 import { singularize } from './infer';
@@ -17,24 +17,40 @@ defineOptions({ name: 'RelationsEditor' });
 
 const store = useCodegenBuilderStore();
 const parentResources = ref<string[]>([]);
-
-const fields = computed(
-  () => (store.configJson.fields as Array<Record<string, unknown>>) || [],
-);
 const resource = computed(() => (store.configJson.resource as string) || '');
-const resourcePlural = computed(
-  () => (store.configJson.resource_plural as string) || '',
-);
 
-const fieldOptions = computed(() =>
-  fields.value
-    .filter((f) => f.type !== '__divider__' && !f.divider && (f.name as string))
-    .map((f) => ({ label: f.name as string, value: f.name as string })),
-);
+type RelationType = 'many_to_many' | 'many_to_one' | 'one_to_many';
 
-const relations = computed(() => {
-  const rels = (store.configJson.relations as Array<Record<string, unknown>>) || [];
-  return Array.isArray(rels) ? [...rels] : [];
+interface RelationItem {
+  foreign_key: string;
+  name: string;
+  target: string;
+  type: RelationType;
+}
+
+const RELATION_TYPES = new Set<RelationType>([
+  'many_to_many',
+  'many_to_one',
+  'one_to_many',
+]);
+
+function normalizeRelation(item?: Partial<RelationItem>): RelationItem {
+  const type = item?.type;
+  return {
+    foreign_key: item?.foreign_key ?? '',
+    name: item?.name ?? '',
+    target: item?.target ?? '',
+    type: RELATION_TYPES.has(type as RelationType)
+      ? (type as RelationType)
+      : 'many_to_one',
+  };
+}
+
+const relations = computed<RelationItem[]>(() => {
+  const rels = store.configJson.relations;
+  return Array.isArray(rels)
+    ? (rels as Partial<RelationItem>[]).map((item) => normalizeRelation(item))
+    : [];
 });
 
 function toPascalFromSnake(s: string): string {
@@ -101,18 +117,34 @@ function removeRelation(idx: number) {
   store.updateConfig({ relations: rels });
 }
 
-function updateRelation(idx: number, patch: Record<string, unknown>) {
+function updateRelation(idx: number, patch: Partial<RelationItem>) {
   const rels = [...relations.value];
-  rels[idx] = { ...rels[idx], ...patch };
+  const current = rels[idx];
+  if (!current) return;
+  rels[idx] = normalizeRelation({ ...current, ...patch });
   if (patch.target && !rels[idx].foreign_key) {
-    const t = patch.target as string;
+    const target = patch.target;
     if (rels[idx].type === 'many_to_one') {
-      rels[idx].foreign_key = inferFkForManyToOne(t);
+      rels[idx].foreign_key = inferFkForManyToOne(target);
     } else if (rels[idx].type === 'one_to_many') {
       rels[idx].foreign_key = inferFkForOneToMany();
     }
   }
   store.updateConfig({ relations: rels });
+}
+
+function onRelationTypeChange(idx: number, value: unknown) {
+  if (typeof value === 'string' && RELATION_TYPES.has(value as RelationType)) {
+    updateRelation(idx, { type: value as RelationType });
+  }
+}
+
+function onRelationTargetChange(idx: number, value: unknown) {
+  if (typeof value === 'string') {
+    updateRelation(idx, { target: value });
+    return;
+  }
+  updateRelation(idx, { target: '' });
 }
 </script>
 
@@ -127,7 +159,7 @@ function updateRelation(idx: number, patch: Record<string, unknown>) {
         :value="r.type"
         :options="typeOptions"
         class="w-36"
-        @change="(v: string) => updateRelation(idx, { type: v })"
+        @change="(value) => onRelationTypeChange(idx, value)"
       />
       <Select
         :value="r.target"
@@ -135,7 +167,7 @@ function updateRelation(idx: number, patch: Record<string, unknown>) {
         allow-clear
         :placeholder="$t('admin.system.codegen.expert.relationTarget')"
         class="w-36"
-        @change="(v: string) => updateRelation(idx, { target: v })"
+        @change="(value) => onRelationTargetChange(idx, value)"
       />
       <Input
         :value="r.foreign_key"

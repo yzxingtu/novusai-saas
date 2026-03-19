@@ -35,7 +35,7 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
   });
 
   const hasDetail = computed(() =>
-    (operationOptions.value as string[]).includes('detail'),
+    !!detail.value?.enabled || (operationOptions.value as string[]).includes('detail'),
   );
 
   const model = computed(
@@ -102,6 +102,7 @@ export function useConfigFeatures(store: ReturnType<typeof useCodegenBuilderStor
     ep0,
     fe,
     batch,
+    detail,
     displayName,
     hasDetail,
     hasTree,

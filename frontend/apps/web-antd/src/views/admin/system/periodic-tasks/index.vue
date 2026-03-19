@@ -89,7 +89,10 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
       trigger: onTriggerTask,
       logs: onViewLogs,
     },
-    ai: { pageKey: 'admin.system.periodic-tasks', formSchema: useFormSchema },
+    ai: {
+      pageKey: 'admin.system.periodic-tasks',
+      formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
+    },
   });
 
 const cleanupPageContext = registerPageContext('admin/system/periodic-tasks', () => ({

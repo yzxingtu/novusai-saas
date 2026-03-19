@@ -13,6 +13,8 @@ from typing import Any
 
 from app.codegen.config_parser import ConfigParser
 from app.codegen.db_introspector import DbIntrospector
+from dataclasses import dataclass
+
 from app.codegen.file_writer import FileWriter, WriteResult
 from app.codegen.generator import CodeGenerator, GeneratedFile
 from app.codegen.manifest import ManifestManager
@@ -35,6 +37,17 @@ from app.repositories.system.codegen_config_version_repository import (
 from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 
 
+@dataclass
+class GenerateOutput:
+    """Generate 输出，包含 WriteResult 与配置元数据 / Generate output with result and config metadata."""
+
+    result: WriteResult
+    config_id: int | None = None
+    resource: str | None = None
+    module: str | None = None
+    table_name: str | None = None
+
+
 class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
     """
     CRUD 代码生成服务 / Codegen service.
@@ -45,6 +58,72 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
 
     model = CodegenConfig
     repository_class = CodegenConfigRepository
+
+    @staticmethod
+    def _derive_top_level_fields(config_json: dict[str, Any]) -> dict[str, Any]:
+        """从 config_json 派生顶层字段，统一以 config_json 为事实源 / Derive top-level fields from config_json."""
+        parsed = ConfigParser().parse(config_json)
+        display_name = parsed.display_name or parsed.resource
+        display_name_en = parsed.display_name_en or parsed.resource.replace("_", " ").title()
+        return {
+            "name": config_json.get("name") or display_name,
+            "resource": parsed.resource,
+            "module": parsed.module,
+            "display_name": display_name,
+            "display_name_en": display_name_en,
+        }
+
+    @classmethod
+    def _sync_data_from_config_json(cls, data: dict[str, Any]) -> None:
+        """若包含 config_json，则同步顶层字段 / Sync top-level fields from config_json when present."""
+        config_json = data.get("config_json")
+        if isinstance(config_json, dict):
+            data.update(cls._derive_top_level_fields(config_json))
+
+    @staticmethod
+    def _sync_config_json_from_top_level(
+        base_config_json: dict[str, Any] | None,
+        data: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """当仅更新顶层字段时，回写到 config_json / Push top-level field updates back into config_json."""
+        tracked_fields = ("name", "resource", "module", "display_name", "display_name_en")
+        if not any(field in data and data[field] is not None for field in tracked_fields):
+            return None
+        config_json = dict(base_config_json or {})
+        for field in tracked_fields:
+            if field in data and data[field] is not None:
+                config_json[field] = data[field]
+        return config_json
+
+    @staticmethod
+    def _build_generated_files_payload(
+        result: WriteResult,
+        *,
+        resource: str,
+        module: str,
+        table_name: str,
+    ) -> dict[str, Any]:
+        """生成持久化 generated_files 载荷 / Build generated_files payload."""
+        return {
+            "resource": resource,
+            "module": module,
+            "table_name": table_name,
+            "files_created": list(result.files_created),
+            "files_modified": list(result.files_modified),
+            "conflicts": list(result.conflicts),
+        }
+
+    @staticmethod
+    def _table_exists(table_name: str) -> bool:
+        """检查表是否已存在 / Check whether table exists."""
+        if not table_name:
+            return False
+        from sqlalchemy import text
+        from app.core.database import sync_session_factory
+
+        with sync_session_factory() as session:
+            result = session.execute(text("SELECT to_regclass(:tbl)"), {"tbl": table_name})
+            return result.scalar_one_or_none() is not None
 
     @classmethod
     def create_standalone(cls) -> "CodegenService":
@@ -96,6 +175,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前计算 config_hash / Compute config_hash before create."""
         await super()._before_create(data)
+        self._sync_data_from_config_json(data)
         if config_json := data.get("config_json"):
             data["config_hash"] = hashlib.sha256(
                 json.dumps(config_json, sort_keys=True).encode()
@@ -104,6 +184,15 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前计算 config_hash（当 config_json 变更时）/ Compute config_hash when config_json changes."""
         await super()._before_update(id, data)
+        if "config_json" in data and isinstance(data.get("config_json"), dict):
+            self._sync_data_from_config_json(data)
+        else:
+            current = await self.get_by_id(id)
+            if current:
+                synced_config = self._sync_config_json_from_top_level(current.config_json, data)
+                if synced_config is not None:
+                    data["config_json"] = synced_config
+                    self._sync_data_from_config_json(data)
         if config_json := data.get("config_json"):
             data["config_hash"] = hashlib.sha256(
                 json.dumps(config_json, sort_keys=True).encode()
@@ -140,18 +229,32 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         return version.config_json
 
     async def restore_version(self, config_id: int, version_id: int) -> CodegenConfig | None:
-        """恢复配置到指定版本（经 service 钩子更新 hash 并创建版本快照）/ Restore config to version."""
+        """恢复配置到指定版本；同步顶层 name/resource/module/display_name 与 config_json。"""
         config_json = await self.get_version_config(config_id, version_id)
         if config_json is None:
             return None
-        return await self.update(config_id, {"config_json": config_json})
+        update_data: dict[str, Any] = {"config_json": config_json}
+        if isinstance(config_json, dict):
+            if "display_name" in config_json:
+                update_data["display_name"] = config_json["display_name"]
+            if "display_name_en" in config_json:
+                update_data["display_name_en"] = config_json["display_name_en"]
+            if "resource" in config_json:
+                update_data["resource"] = config_json["resource"]
+            if "module" in config_json:
+                update_data["module"] = config_json["module"]
+            if "name" in config_json:
+                update_data["name"] = config_json["name"]
+        return await self.update(config_id, update_data)
 
     async def duplicate(self, id: int) -> CodegenConfig:
         """
         复制配置 / Duplicate config.
 
-        创建一份配置的副本，名称追加 " (副本)"，状态重置为 draft
+        创建一份配置的副本，名称追加 " (副本)"，状态重置为 draft。
+        同步 config_json 中的 resource/module/display_name 与顶层字段一致。
         Creates a copy with name suffixed " (副本)", status reset to draft.
+        Syncs config_json.resource/module/display_name to match top-level fields.
 
         Args:
             id: 源配置 ID
@@ -166,14 +269,21 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if not source:
             raise NotFoundException(message=_("codegen.config_not_found"))
 
+        new_resource = f"{source.resource}_copy"
+        config_json = dict(source.config_json) if source.config_json else {}
+        config_json["resource"] = new_resource
+        config_json["module"] = source.module
+        config_json["display_name"] = source.display_name
+        config_json["display_name_en"] = source.display_name_en
+
         copy_data: dict[str, Any] = {
             "name": f"{source.name}{_('codegen.duplicate_suffix')}",
-            "resource": f"{source.resource}_copy",
+            "resource": new_resource,
             "module": source.module,
             "display_name": source.display_name,
             "display_name_en": source.display_name_en,
             "status": CodegenConfigStatusEnum.DRAFT.value,
-            "config_json": dict(source.config_json) if source.config_json else {},
+            "config_json": config_json,
             "generation_count": 0,
         }
         return await self.create(copy_data)
@@ -325,7 +435,7 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         config_id_or_json: int | dict[str, Any],
         force: bool = False,
         project_root: Path | None = None,
-    ) -> WriteResult:
+    ) -> GenerateOutput:
         """
         执行生成 / Execute generation.
 
@@ -344,31 +454,46 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 raise NotFoundException(message=_("codegen.config_not_found"))
             config_json = config.config_json or {}
             config_id = config.id
-            resource = config.resource
-            module = config.module
+            config = config
         else:
             config_json = config_id_or_json
             config_id = None
             config = None
-            parsed = ConfigParser().parse(config_json)
-            resource = parsed.resource
-            module = parsed.module
+
+        parsed = ConfigParser().parse(config_json)
+        resource = parsed.resource
+        module = parsed.module
 
         gen = CodeGenerator()
-        gen_result = gen.generate(ConfigParser().parse(config_json), step=None)
+        parsed = ConfigParser().parse(config_json)
+        gen_result = gen.generate(parsed, step=None)
         files = gen_result.files
+        table_name = CodeGenerator._pluralize(parsed.resource.replace("-", "_"))
         if not files:
-            return WriteResult(success=False, errors=gen_result.errors or ["No files to generate"])
+            return GenerateOutput(
+                result=WriteResult(success=False, errors=gen_result.errors or ["No files to generate"]),
+                config_id=config_id,
+                resource=parsed.resource,
+                module=parsed.module,
+                table_name=table_name,
+            )
+
+        # 模板渲染有错误时禁止落盘，杜绝无 manifest 半成品
+        if gen_result.errors:
+            return GenerateOutput(
+                result=WriteResult(
+                    success=False,
+                    errors=gen_result.errors,
+                    conflicts=[],  # 可预计算 conflicts 但不写盘
+                ),
+                config_id=config_id,
+                resource=parsed.resource,
+                module=parsed.module,
+                table_name=table_name,
+            )
 
         writer = FileWriter(root)
         result = writer.write_atomic(files, root, force=force)
-
-        # 合并模板渲染异常到写入结果 / Merge template render errors into write result
-        if gen_result.errors:
-            result = WriteResult(
-                success=False,
-                errors=(result.errors or []) + gen_result.errors,
-            )
 
         if result.success and resource and module:
             manifest = ManifestManager(root)
@@ -390,7 +515,10 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
         if result.success and config_id is None and resource and module and self.db is not None:
             existing = await self.get_by_resource(resource)
             if existing:
-                await self.update(existing.id, {"config_json": config_json})
+                update_data: dict[str, Any] = {"config_json": config_json}
+                if isinstance(config_json, dict):
+                    update_data.update(self._derive_top_level_fields(config_json))
+                await self.update(existing.id, update_data)
                 config_id = existing.id
                 config = existing
             else:
@@ -416,48 +544,142 @@ class CodegenService(GlobalService[CodegenConfig, CodegenConfigRepository]):
                 "generation_count": (config.generation_count or 0) + 1,
             }
             if result.success:
+                if isinstance(config_json, dict):
+                    update_data.update(self._derive_top_level_fields(config_json))
                 update_data["status"] = CodegenConfigStatusEnum.GENERATED.value
                 update_data["last_error"] = None
                 update_data["config_hash"] = hashlib.sha256(
                     json.dumps(config_json, sort_keys=True).encode()
                 ).hexdigest()[:16]
+                update_data["generated_files"] = self._build_generated_files_payload(
+                    result,
+                    resource=resource,
+                    module=module,
+                    table_name=table_name,
+                )
             else:
                 update_data["last_error"] = "; ".join(result.errors) if result.errors else None
             await self.update(config_id, update_data)
 
-        return result
+        return GenerateOutput(
+            result=result,
+            config_id=config_id,
+            resource=resource,
+            module=module,
+            table_name=table_name,
+        )
 
     @staticmethod
     def run_auto_migrate(resource: str, project_root: Path) -> dict[str, Any]:
-        """执行 alembic autogenerate / Run alembic autogenerate."""
-        import os
+        """
+        Full auto-migrate cycle: purge orphaned stamps → pre-upgrade → autogenerate → inject metadata → post-upgrade.
+        完整自动迁移周期：清理孤立 stamp → 预升级 → 自动生成 → 注入元数据 → 后升级。
+        """
+        import re as _re
+        import subprocess
+        import sys
 
         backend_dir = project_root / "backend"
         if not backend_dir.exists():
             return {"success": False, "error": "backend dir not found"}
-        orig_cwd = os.getcwd()
-        try:
-            os.chdir(str(backend_dir))
-            from alembic import command
-            from alembic.config import Config
 
-            cfg = Config(str(backend_dir / "alembic.ini"))
-            plugin_paths: list[str] = []
-            plugins_dir = backend_dir.parent / "plugins"
-            if plugins_dir.exists():
-                for d in sorted(plugins_dir.iterdir()):
-                    versions = d / "backend" / "migrations" / "versions"
-                    if versions.is_dir():
-                        plugin_paths.append(str(versions))
-            if plugin_paths:
-                base = cfg.get_main_option("version_locations") or ""
-                cfg.set_main_option("version_locations", f"{base} {' '.join(plugin_paths)}")
-            command.revision(cfg, message=f"codegen_{resource}", autogenerate=True)
-            return {"success": True, "message": f"Migration generated for {resource}"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-        finally:
-            os.chdir(orig_cwd)
+        from app.core.database import purge_orphaned_alembic_stamps
+
+        purge_orphaned_alembic_stamps(backend_dir)
+
+        _up_pre = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=str(backend_dir), capture_output=True, text=True,
+        )
+        if _up_pre.returncode != 0:
+            return {
+                "success": False,
+                "error": f"pre-upgrade failed: {_up_pre.stderr}",
+                "phase": "pre_upgrade",
+            }
+
+        _rev = subprocess.run(
+            [sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", f"codegen_{resource}"],
+            cwd=str(backend_dir), capture_output=True, text=True,
+        )
+        if _rev.returncode != 0:
+            return {
+                "success": False,
+                "error": f"autogenerate failed: {_rev.stderr}",
+                "phase": "autogenerate",
+            }
+
+        migration_path = None
+        _out = (_rev.stdout or "") + (_rev.stderr or "")
+        _m = _re.search(r"Generating\s+(.+\.py)", _out)
+        if _m:
+            migration_path = _m.group(1).strip()
+
+        if migration_path:
+            from app.codegen.migration_helper import inject_migration_metadata
+
+            _mp = Path(migration_path)
+            if not _mp.is_absolute():
+                _mp = backend_dir / _mp
+            if _mp.exists():
+                content = _mp.read_text(encoding="utf-8", errors="replace")
+                patched = inject_migration_metadata(content, resource)
+                if patched != content:
+                    _mp.write_text(patched, encoding="utf-8")
+                # 校验迁移内容：允许 add/alter/drop 等任意 op.* 调用；空迁移仅在表已存在时视为 no-op
+                upgrade_body = ""
+                _upgrade_match = _re.search(
+                    r"def upgrade\([^)]*\)\s*(?:->\s*[^:]+)?\s*:\s*(.*?)(?:\n\s*def downgrade\(|\Z)",
+                    patched,
+                    _re.DOTALL,
+                )
+                if _upgrade_match:
+                    upgrade_body = _upgrade_match.group(1)
+                has_ops = bool(_re.search(r"\bop\.[a-zA-Z_]+\(", upgrade_body))
+                if not has_ops:
+                    expected_table = CodeGenerator._pluralize(resource.replace("-", "_"))
+                    if CodegenService._table_exists(expected_table):
+                        _mp.unlink(missing_ok=True)
+                        return {
+                            "success": True,
+                            "message": f"No schema changes detected for {resource}",
+                            "phase": "noop",
+                            "migration_path": None,
+                        }
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Migration file has no alembic operations; "
+                            f"expected schema changes for table {expected_table!r}."
+                        ),
+                        "phase": "validation",
+                        "migration_path": migration_path,
+                    }
+
+        _up_post = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=str(backend_dir), capture_output=True, text=True,
+        )
+        if _up_post.returncode != 0:
+            return {
+                "success": False,
+                "error": f"post-upgrade failed: {_up_post.stderr}",
+                "phase": "post_upgrade",
+                "migration_path": migration_path,
+            }
+
+        rel_path = migration_path
+        if migration_path:
+            try:
+                rel_path = str(Path(migration_path).relative_to(project_root))
+            except ValueError:
+                rel_path = migration_path
+
+        return {
+            "success": True,
+            "message": f"Migration generated and applied for {resource}",
+            "migration_path": rel_path,
+        }
 
     def rollback(
         self,

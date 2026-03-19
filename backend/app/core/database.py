@@ -290,6 +290,7 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
         return True
 
     known_revs: set[str] = set()
+    _failed_reads: list[str] = []
     rev_pat = re.compile(r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']', re.MULTILINE)
 
     def _collect(d: Path) -> None:
@@ -302,8 +303,9 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
                 m = rev_pat.search(f.read_text(encoding="utf-8", errors="replace"))
                 if m:
                     known_revs.add(m.group(1))
-            except Exception:
-                pass
+            except Exception as e:
+                _failed_reads.append(str(f))
+                logger.warning("Cannot read migration file {}: {}", f, e)
 
     _collect(versions_path)
     plugins_root = backend.parent / "plugins"
@@ -312,6 +314,13 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
             if p.name.startswith("."):
                 continue
             _collect(p / "backend" / "migrations" / "versions")
+
+    if _failed_reads:
+        logger.warning(
+            "Skipping stamp purge: {} migration file(s) unreadable ({})",
+            len(_failed_reads), ", ".join(_failed_reads[:5]),
+        )
+        return True
 
     if not known_revs:
         return True

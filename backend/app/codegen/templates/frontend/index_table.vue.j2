@@ -6,8 +6,11 @@
 {% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
 {% set _fe = _ep.get('frontend') or {} %}
 {% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
-{% set resource_path = route_prefix | replace('/', '') or resource_plural %}
+{% set resource_path = route_prefix | path_no_leading_slash or resource_plural %}
 {% set full_path = ('/admin/' if api_scope | default('admin') == 'admin' else '/tenant/') + resource_path %}
+{% set _detail_mode = (detail or {}).get('mode') or 'drawer' %}
+{% set _fallback_list = (module | replace('_', '-')) + '/' + (resource | replace('_', '-')) + 's' %}
+{% set _list_path = list_path | default(_fallback_list) %}
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
 {% set res_name = resource | replace('_', '-') %}
 {% set perm_resource = res_name %}
@@ -25,6 +28,8 @@ import {
   {% if _import %}import{{ resource | pascal }}Api,{% endif %}
 } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
 {% if _import or (detail and detail.get('enabled')) %}import { ref } from 'vue';
+{% endif %}
+{% if detail and detail.get('enabled') and (detail.get('mode') or 'drawer') == 'page' %}import { useRouter } from 'vue-router';
 {% endif %}
 import { Page } from '@vben/common-ui';
 import { useCrudPage } from '#/composables';
@@ -45,7 +50,7 @@ import {
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
-{% if detail and detail.get('enabled') %}
+{% if detail and detail.get('enabled') and _detail_mode == 'drawer' %}
 import Detail from './modules/detail.vue';
 {% endif %}
 
@@ -53,12 +58,20 @@ import Detail from './modules/detail.vue';
 defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}List' });
 
 {% if detail and detail.get('enabled') %}
+{% if _detail_mode == 'page' %}
+const _router = useRouter();
+const _detailBase = '{{ "/admin/" if api_scope | default("admin") == "admin" else "/tenant/" }}{{ _list_path }}';
+function onViewDetail(row: {{ resource | pascal }}Info) {
+  _router.push(`${_detailBase}/${row.id}`);
+}
+{% else %}
 const detailVisible = ref(false);
 const detailId = ref<number | null>(null);
 function onViewDetail(row: {{ resource | pascal }}Info) {
   detailId.value = row.id;
   detailVisible.value = true;
 }
+{% endif %}
 {% endif %}
 
 {% if toggle_field %}
@@ -165,7 +178,7 @@ useAutoTableDragSort(() => gridApi.grid, {
 {% endfor %}
   </Grid>
   <FormDrawer @success="onFormSuccess" />
-  {% if detail and detail.get('enabled') %}
+  {% if detail and detail.get('enabled') and _detail_mode == 'drawer' %}
   <Detail v-model:visible="detailVisible" :id="detailId" />
   {% endif %}
   <ExportModal />

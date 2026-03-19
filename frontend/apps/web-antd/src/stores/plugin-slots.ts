@@ -24,6 +24,12 @@ export interface PluginSlotAI {
   page_context_key?: string;
 }
 
+const PLUGIN_AI_MODES = new Set<NonNullable<PluginSlotAI['mode']>>([
+  'context_only',
+  'disabled',
+  'operate',
+]);
+
 export interface PluginSlotItem {
   pluginName: string;
   name: string;
@@ -126,6 +132,18 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             }
           }
           registerSlot(storeKey, {
+            ...(slot.ai
+              ? {
+                  ai: {
+                    ...(PLUGIN_AI_MODES.has(slot.ai.mode as NonNullable<PluginSlotAI['mode']>)
+                      ? { mode: slot.ai.mode as NonNullable<PluginSlotAI['mode']> }
+                      : {}),
+                    ...(slot.ai.page_context_key
+                      ? { page_context_key: slot.ai.page_context_key }
+                      : {}),
+                  } satisfies PluginSlotAI,
+                }
+              : {}),
             pluginName: slot.plugin_name,
             name: slot.name,
             component: comp,
@@ -138,7 +156,6 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             grid: slot.grid,
             event: typeof slot.event === 'string' ? slot.event : slot.name,
             hidden: storeKey === 'standalonePages',
-            ...(slot.ai ? { ai: slot.ai } : {}),
           });
         }
       }

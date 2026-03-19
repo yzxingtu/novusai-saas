@@ -30,8 +30,9 @@ class GeneratedFile:
 
     path: str
     content: str
-    action: str  # create | append | merge_json | register_route
+    action: str  # create | create_if_missing | append | merge_json | register_route
     appended_content: str | None = None  # for append
+    insert_before_last_marker: str | None = None  # for append: insert before last occurrence instead of EOF
     merged_keys: list[str] | None = None  # for merge_json
     route_meta: dict | None = None  # for register_route: {scope, resource}
     model_meta: dict | None = None  # for register_model: {module, resource}
@@ -106,7 +107,15 @@ class CodeGenerator:
         self.env.filters["pluralize"] = self._pluralize
         self.env.filters["to_python_literal"] = self._to_python_literal
         self.env.filters["string_max_length"] = self._string_max_length
+        self.env.filters["path_no_leading_slash"] = self._path_no_leading_slash
         self.env.globals["get_column_args"] = self._get_column_args
+
+    @staticmethod
+    def _path_no_leading_slash(s: str) -> str:
+        """Strip leading slashes only; preserve multi-segment paths. /foo/bar -> foo/bar."""
+        if not s:
+            return s or ""
+        return str(s).lstrip("/")
 
     @staticmethod
     def _string_max_length(yaml_type: str) -> int | None:
@@ -363,6 +372,14 @@ class CodeGenerator:
                         action="create",
                     )
                 )
+                # 首次新 module 时补齐 __init__.py / ensure module __init__ exists for new modules
+                files.append(
+                    GeneratedFile(
+                        path=f"backend/app/models/{module}/__init__.py",
+                        content="# Codegen module init\n",
+                        action="create_if_missing",
+                    )
+                )
                 # 自动注册模型，便于 alembic autogenerate 发现 / auto-register model for alembic
                 pascal = "".join(w.capitalize() for w in resource.replace("-", "_").split("_"))
                 files.append(
@@ -461,6 +478,13 @@ class CodeGenerator:
                     err_msg = f"sub_model:{sub_res}: {e!s}"
                     logger.warning("codegen sub model template render failed: %s", e)
                     errors.append(err_msg)
+            files.append(
+                GeneratedFile(
+                    path=f"backend/app/schemas/{module}/__init__.py",
+                    content="# Codegen module init\n",
+                    action="create_if_missing",
+                )
+            )
             try:
                 tpl = self.env.get_template("backend/schema.py.j2")
                 content = tpl.render(**ctx)
@@ -475,6 +499,13 @@ class CodeGenerator:
                 err_msg = f"schema: {e!s}"
                 logger.warning("codegen template render failed: %s", e)
                 errors.append(err_msg)
+            files.append(
+                GeneratedFile(
+                    path=f"backend/app/repositories/{module}/__init__.py",
+                    content="# Codegen module init\n",
+                    action="create_if_missing",
+                )
+            )
             try:
                 tpl = self.env.get_template("backend/repository.py.j2")
                 content = tpl.render(**ctx)
@@ -489,6 +520,13 @@ class CodeGenerator:
                 err_msg = f"repository: {e!s}"
                 logger.warning("codegen template render failed: %s", e)
                 errors.append(err_msg)
+            files.append(
+                GeneratedFile(
+                    path=f"backend/app/services/{module}/__init__.py",
+                    content="# Codegen module init\n",
+                    action="create_if_missing",
+                )
+            )
             try:
                 tpl = self.env.get_template("backend/service.py.j2")
                 content = tpl.render(**ctx)
@@ -634,7 +672,15 @@ class CodeGenerator:
             mode = (admin_ep.get("frontend") or {}).get("mode") or (tenant_ep.get("frontend") or {}).get("mode") or "table"
 
             if admin_ep:
-                render_ctx = {**ctx, "api_scope": "admin", "i18n_prefix": f"admin.{module}.{resource}"}
+                _menu_path = (admin_ep.get("permission") or {}).get("menu") or {}
+                _raw_path = _menu_path.get("path") or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                _list_path = _raw_path.lstrip("/")
+                render_ctx = {
+                    **ctx,
+                    "api_scope": "admin",
+                    "i18n_prefix": f"admin.{module}.{resource}",
+                    "list_path": _list_path,
+                }
                 try:
                     tpl = self.env.get_template("frontend/api_admin.ts.j2")
                     content = tpl.render(**render_ctx)
@@ -696,16 +742,57 @@ class CodeGenerator:
                     logger.warning("codegen template render failed: %s", e)
                     errors.append(err_msg)
                 if (ctx.get("detail") or {}).get("enabled"):
+                    detail_cfg = ctx.get("detail") or {}
+                    detail_mode = detail_cfg.get("mode") or "drawer"
                     try:
-                        tpl = self.env.get_template("frontend/detail.vue.j2")
-                        content = tpl.render(**render_ctx)
-                        files.append(
-                            GeneratedFile(
-                                path=f"{frontend_root}/views/admin/{module}/{resource}/modules/detail.vue",
-                                content=content,
-                                action="create",
+                        if detail_mode == "page":
+                            tpl = self.env.get_template("frontend/detail_page.vue.j2")
+                            content = tpl.render(**render_ctx)
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/views/admin/{module}/{resource}/detail.vue",
+                                    content=content,
+                                    action="create",
+                                )
                             )
-                        )
+                            # 追加前端路由 / Append frontend route
+                            route_block = (
+                                "    // Codegen auto-registered: {resource} detail\n"
+                                "    {{\n"
+                                "      name: 'Admin{resource_pascal}Detail',\n"
+                                "      path: '{list_path}/:id',\n"
+                                "      component: () => import('#/views/admin/{module}/{resource}/detail.vue'),\n"
+                                "      meta: {{\n"
+                                "        hideInMenu: true,\n"
+                                "        title: $t('admin.{module}.{resource}.detail'),\n"
+                                "        activePath: '/admin/{list_path}',\n"
+                                "      }},\n"
+                                "    }},\n"
+                            ).format(
+                                resource=resource,
+                                resource_pascal="".join(w.capitalize() for w in resource.replace("-", "_").split("_")),
+                                list_path=_list_path,
+                                module=module,
+                            )
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/router/routes/admin/index.ts",
+                                    content="",
+                                    action="append",
+                                    appended_content=route_block.strip(),
+                                    insert_before_last_marker="  ],",
+                                )
+                            )
+                        else:
+                            tpl = self.env.get_template("frontend/detail.vue.j2")
+                            content = tpl.render(**render_ctx)
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/views/admin/{module}/{resource}/modules/detail.vue",
+                                    content=content,
+                                    action="create",
+                                )
+                            )
                     except Exception as e:
                         err_msg = f"detail_admin: {e!s}"
                         logger.warning("codegen detail template render failed: %s", e)
@@ -740,7 +827,15 @@ class CodeGenerator:
                     errors.append(err_msg)
 
             if tenant_ep:
-                render_ctx = {**ctx, "api_scope": "tenant", "i18n_prefix": f"tenant.{module}.{resource}"}
+                _menu_path_tenant = (tenant_ep.get("permission") or {}).get("menu") or {}
+                _raw_path_tenant = _menu_path_tenant.get("path") or f"/{module.replace('_', '-')}/{resource.replace('_', '-')}s"
+                _list_path_tenant = _raw_path_tenant.lstrip("/")
+                render_ctx = {
+                    **ctx,
+                    "api_scope": "tenant",
+                    "i18n_prefix": f"tenant.{module}.{resource}",
+                    "list_path": _list_path_tenant,
+                }
                 try:
                     tpl = self.env.get_template("frontend/api_tenant.ts.j2")
                     content = tpl.render(**render_ctx)
@@ -802,16 +897,56 @@ class CodeGenerator:
                     logger.warning("codegen template render failed: %s", e)
                     errors.append(err_msg)
                 if (ctx.get("detail") or {}).get("enabled"):
+                    detail_cfg = ctx.get("detail") or {}
+                    detail_mode = detail_cfg.get("mode") or "drawer"
                     try:
-                        tpl = self.env.get_template("frontend/detail.vue.j2")
-                        content = tpl.render(**render_ctx)
-                        files.append(
-                            GeneratedFile(
-                                path=f"{frontend_root}/views/tenant/{module}/{resource}/modules/detail.vue",
-                                content=content,
-                                action="create",
+                        if detail_mode == "page":
+                            tpl = self.env.get_template("frontend/detail_page.vue.j2")
+                            content = tpl.render(**render_ctx)
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/views/tenant/{module}/{resource}/detail.vue",
+                                    content=content,
+                                    action="create",
+                                )
                             )
-                        )
+                            route_block = (
+                                "    // Codegen auto-registered: {resource} detail\n"
+                                "    {{\n"
+                                "      name: 'Tenant{resource_pascal}Detail',\n"
+                                "      path: '{list_path}/:id',\n"
+                                "      component: () => import('#/views/tenant/{module}/{resource}/detail.vue'),\n"
+                                "      meta: {{\n"
+                                "        hideInMenu: true,\n"
+                                "        title: $t('tenant.{module}.{resource}.detail'),\n"
+                                "        activePath: '/tenant/{list_path}',\n"
+                                "      }},\n"
+                                "    }},\n"
+                            ).format(
+                                resource=resource,
+                                resource_pascal="".join(w.capitalize() for w in resource.replace("-", "_").split("_")),
+                                list_path=_list_path_tenant,
+                                module=module,
+                            )
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/router/routes/tenant/index.ts",
+                                    content="",
+                                    action="append",
+                                    appended_content=route_block.strip(),
+                                    insert_before_last_marker="  ],",
+                                )
+                            )
+                        else:
+                            tpl = self.env.get_template("frontend/detail.vue.j2")
+                            content = tpl.render(**render_ctx)
+                            files.append(
+                                GeneratedFile(
+                                    path=f"{frontend_root}/views/tenant/{module}/{resource}/modules/detail.vue",
+                                    content=content,
+                                    action="create",
+                                )
+                            )
                     except Exception as e:
                         err_msg = f"detail_tenant: {e!s}"
                         logger.warning("codegen detail template render failed: %s", e)

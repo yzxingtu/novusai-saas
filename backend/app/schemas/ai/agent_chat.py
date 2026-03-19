@@ -105,6 +105,11 @@ class AgentChatRequest(BaseModel):
         max_length=64,
         description=_("agent_chat.field.page_session_id"),
     )
+    route_source: str | None = Field(
+        None,
+        max_length=32,
+        description="Frontend route source hint (e.g. mention)",
+    )
 
 
 class UpdateConversationTitleRequest(BaseModel):

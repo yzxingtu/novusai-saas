@@ -53,7 +53,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       transform: false,
     },
   } as VxeTableGridOptions,
-});
+} as any);
 
 function onActionClick({
   code,

@@ -7,7 +7,7 @@
 
 import type { VbenFormSchema } from '#/adapter/form';
 
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, watch } from 'vue';
 import { Empty, Tag, Tooltip } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '#/locales';
@@ -124,19 +124,15 @@ function buildSearchSchema(fields: FieldRecord[]): VbenFormSchema[] {
 }
 
 const showSearchForm = computed(() => searchFields.value.length > 0);
-const formOptionsRef = ref<{ schema: VbenFormSchema[]; submitOnChange?: boolean } | undefined>(undefined);
-watch(
-  searchFields,
-  (fields) => {
-    formOptionsRef.value =
-      fields.length > 0 ? useGridSearchFormOptions(buildSearchSchema(fields)) : undefined;
-  },
-  { immediate: true },
+const searchFormOptions = computed(() =>
+  searchFields.value.length > 0
+    ? useGridSearchFormOptions(buildSearchSchema(searchFields.value))
+    : undefined,
 );
 
 const [Grid, gridApi] = useVbenVxeGrid({
   showSearchForm: showSearchForm.value,
-  formOptions: formOptionsRef,
+  formOptions: searchFormOptions.value,
   gridOptions: {
     columns: columns.value,
     data: mockData.value,
@@ -147,6 +143,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     cellConfig: { height: 56 },
   },
 });
+
+watch(
+  searchFormOptions,
+  (options) => {
+    nextTick(() => {
+      gridApi.formApi?.setState({ schema: options?.schema ?? [] });
+    });
+  },
+  { deep: true, immediate: true },
+);
 
 watch(
   [columns, mockData],

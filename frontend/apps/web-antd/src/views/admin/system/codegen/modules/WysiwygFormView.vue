@@ -5,8 +5,8 @@
  * 使用直接 Ant Design 组件渲染，支持密码掩码、字段点击选中、多列布局。
  * 表单可编辑、可提交，提交后弹窗显示 JSON。
  */
-
-import type { Recordable } from '@vben/types';
+import type { JSONContent } from '@tiptap/core';
+import type { Dayjs } from 'dayjs';
 
 import dayjs from 'dayjs';
 import { computed, reactive, ref, watch } from 'vue';
@@ -51,6 +51,42 @@ import { useConfigFeatures } from './useConfigFeatures';
 
 defineOptions({ name: 'WysiwygFormView' });
 
+type BuilderField = Record<string, unknown>;
+
+interface FormItem extends BuilderField {
+  _comp: string;
+}
+
+type SelectScalarValue = number | string;
+type SelectValue = SelectScalarValue | SelectScalarValue[] | undefined;
+type TreeValue = SelectScalarValue | SelectScalarValue[] | undefined;
+
+function asBoolean(value: unknown): boolean {
+  return Boolean(value);
+}
+
+function asNumberOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function isJsonContent(value: unknown): value is JSONContent {
+  return typeof value === 'object' && value !== null;
+}
+
+function isSelectScalarValue(value: unknown): value is SelectScalarValue {
+  return typeof value === 'number' || typeof value === 'string';
+}
+
 /** 缓存关联表的列信息，用于预览时显示真实列名 */
 const relationColumnsCache = ref<Record<string, { displayField: string }>>({});
 
@@ -72,14 +108,16 @@ const formTitle = computed(
   () => $t('admin.system.codegen.wysiwyg.formTitle', { name: displayNameStr.value }),
 );
 
-const formItemsWithDividers = computed(() => {
-  const fields = (store.configJson.fields as Recordable[]) || [];
+const formItemsWithDividers = computed<FormItem[]>(() => {
+  const fields = (store.configJson.fields as BuilderField[]) || [];
   return fields
     .filter(
       (f) =>
         f.divider ||
         f.type === '__divider__' ||
-        (f.insertable !== false && (f.name || f.display_name) && !!String(f.name || '').trim()),
+        (f.insertable !== false &&
+          (f.name || f.display_name) &&
+          !!asString(f.name).trim()),
     )
     .map((f) => ({ ...f, _comp: getComponent(f) }));
 });
@@ -94,7 +132,7 @@ const submitResultVisible = ref(false);
 const submitResultJson = ref('');
 
 /** 将 default 转为 formValues 可用的值（含 RichText doc 转换） */
-function resolveDefaultValue(f: Recordable, comp: string): unknown {
+function resolveDefaultValue(f: BuilderField, comp: string): unknown {
   const def = f.default;
   const hasDefault = def !== undefined && def !== null && def !== '';
   if (!hasDefault) return undefined;
@@ -106,6 +144,94 @@ function resolveDefaultValue(f: Recordable, comp: string): unknown {
     };
   }
   return def;
+}
+
+function getFieldName(field: BuilderField): string {
+  return asString(field.name).trim();
+}
+
+function getFormValue(field: BuilderField): unknown {
+  const name = getFieldName(field);
+  return name ? formValues[name] : undefined;
+}
+
+function setFormValue(field: BuilderField, value: unknown): void {
+  const name = getFieldName(field);
+  if (!name) return;
+  formValues[name] = value;
+}
+
+function getArraySelectValue(field: BuilderField): SelectScalarValue[] {
+  const value = getFormValue(field);
+  return Array.isArray(value) ? value.filter(isSelectScalarValue) : [];
+}
+
+function getBooleanValue(field: BuilderField): boolean {
+  return asBoolean(getFormValue(field));
+}
+
+function getCascaderValue(field: BuilderField): string[] {
+  const value = getFormValue(field);
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function getDateRangeValue(field: BuilderField): [Dayjs, Dayjs] | undefined {
+  const value = getFormValue(field);
+  return Array.isArray(value) &&
+    value.length === 2 &&
+    dayjs.isDayjs(value[0]) &&
+    dayjs.isDayjs(value[1])
+    ? [value[0], value[1]]
+    : undefined;
+}
+
+function getDateValue(field: BuilderField): Dayjs | undefined {
+  const value = getFormValue(field);
+  return dayjs.isDayjs(value) ? value : undefined;
+}
+
+function getNumberValue(field: BuilderField): number | undefined {
+  return asNumberOrUndefined(getFormValue(field));
+}
+
+function getRichTextValue(field: BuilderField): JSONContent | null {
+  const value = getFormValue(field);
+  return isJsonContent(value) ? value : null;
+}
+
+function getScalarSelectValue(field: BuilderField): number | string | undefined {
+  const value = getFormValue(field);
+  return isSelectScalarValue(value) ? value : undefined;
+}
+
+function getMultipleAwareSelectValue(field: BuilderField): SelectValue {
+  return isMultiple(field)
+    ? getArraySelectValue(field)
+    : getScalarSelectValue(field);
+}
+
+function getSelectValue(field: FormItem): SelectValue {
+  return field._comp === 'checkbox'
+    ? getArraySelectValue(field)
+    : getScalarSelectValue(field);
+}
+
+function getStringValue(field: BuilderField): string {
+  return asString(getFormValue(field));
+}
+
+function getTreeValue(field: BuilderField): TreeValue {
+  const value = getFormValue(field);
+  if (isSelectScalarValue(value)) return value;
+  return Array.isArray(value) ? value.filter(isSelectScalarValue) : undefined;
+}
+
+function onNativeColorInput(field: BuilderField, event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  setFormValue(field, target.value);
 }
 
 watch(
@@ -122,7 +248,7 @@ watch(
     }
     for (const f of items) {
       if (f.divider || f.type === '__divider__') continue;
-      const fn = String(f.name || '').trim();
+      const fn = getFieldName(f);
       if (!fn) continue;
       const comp = getComponent(f);
       const resolvedDefault = resolveDefaultValue(f, comp);
@@ -157,7 +283,7 @@ watch(
   (items) => {
     const tables = new Set<string>();
     for (const f of items) {
-      const t = String((f as Recordable).relation_table || '').trim();
+      const t = asString(f.relation_table).trim();
       if (t && !tables.has(t)) tables.add(t);
     }
     for (const table of tables) {
@@ -182,23 +308,23 @@ function onCloseFormPreview() {
   store.wysiwygViewMode = 'list';
 }
 
-function getRichTextAi(f: Recordable): boolean {
-  const form = (f.form as Record<string, unknown>) || {};
+function getRichTextAi(f: BuilderField): boolean {
+  const form = asRecord(f.form);
   if (form.ai === false) return false;
   return true;
 }
 
-function onFieldClick(f: Record<string, unknown>) {
-  store.selectedFieldKey = (f.__key as string) || (f.name as string);
+function onFieldClick(f: BuilderField) {
+  store.selectedFieldKey = asString(f.__key) || asString(f.name);
 }
 
-function isFieldSelected(f: Record<string, unknown>): boolean {
-  const key = (f.__key as string) || (f.name as string);
+function isFieldSelected(f: BuilderField): boolean {
+  const key = asString(f.__key) || asString(f.name);
   return store.selectedFieldKey === key;
 }
 
 /** 从 enum_values 构造 Select options */
-function getEnumOptions(f: Recordable): Array<{ label: string; value: string; disabled?: boolean }> {
+function getEnumOptions(f: BuilderField): Array<{ label: string; value: string; disabled?: boolean }> {
   const ev = (f.enum_values as Array<{ value: string; label_zh?: string; label_en?: string }>) || [];
   if (ev.length === 0) {
     return [{ label: $t('admin.system.codegen.preview.noEnumHint'), value: '', disabled: true }];
@@ -210,8 +336,8 @@ function getEnumOptions(f: Recordable): Array<{ label: string; value: string; di
 }
 
 /** DictSelect mock options（基于 dict_code） */
-function getDictMockOptions(f: Recordable): Array<{ label: string; value: string }> {
-  const code = String(f.dict_code || 'dict').replace(/_/g, ' ');
+function getDictMockOptions(f: BuilderField): Array<{ label: string; value: string }> {
+  const code = asString(f.dict_code || 'dict').replace(/_/g, ' ');
   return [
     { label: `${code} ${$t('admin.system.codegen.preview.mockOptionA')}`, value: 'a' },
     { label: `${code} ${$t('admin.system.codegen.preview.mockOptionB')}`, value: 'b' },
@@ -220,9 +346,9 @@ function getDictMockOptions(f: Recordable): Array<{ label: string; value: string
 }
 
 /** 关联字段 mock options（ForeignKey/ApiSelect/UserSelect/DeptSelect） */
-function getMockRelationOptions(f: Recordable): Array<{ label: string; value: number }> {
-  const table = String(f.relation_table || $t('admin.system.codegen.preview.mockRelation')).replace(/_/g, ' ');
-  const cached = relationColumnsCache.value[String(f.relation_table || '')];
+function getMockRelationOptions(f: BuilderField): Array<{ label: string; value: number }> {
+  const table = asString(f.relation_table || $t('admin.system.codegen.preview.mockRelation')).replace(/_/g, ' ');
+  const cached = relationColumnsCache.value[asString(f.relation_table)];
   const display = String(
     f.relation_display || f.relation_display_field || cached?.displayField || 'name',
   );
@@ -234,10 +360,10 @@ function getMockRelationOptions(f: Recordable): Array<{ label: string; value: nu
 }
 
 /** 关联表真实数据 API（供 ApiSelect 使用） */
-function getRelationApi(f: Recordable) {
-  const table = String(f.relation_table || '');
-  const valueField = String(f.relation_value_field || f.relation_value || 'id');
-  const displayField = String(
+function getRelationApi(f: BuilderField) {
+  const table = asString(f.relation_table);
+  const valueField = asString(f.relation_value_field || f.relation_value || 'id');
+  const displayField = asString(
     f.relation_display || f.relation_display_field || 'name',
   );
   return (params: Record<string, unknown>) =>
@@ -250,21 +376,21 @@ function getRelationApi(f: Recordable) {
 }
 
 /** 关联字段 placeholder */
-function getRelationPlaceholder(f: Recordable): string {
-  const table = String(f.relation_table || '').replace(/_/g, ' ');
+function getRelationPlaceholder(f: BuilderField): string {
+  const table = asString(f.relation_table).replace(/_/g, ' ');
   return table ? $t('admin.system.codegen.preview.selectRelation') + ` (${table})` : $t('admin.system.codegen.preview.selectRelation');
 }
 
 /** 字段占位符：优先用户配置，否则 fallback */
-function getFieldPlaceholder(f: Recordable, fallbackKey: string): string {
+function getFieldPlaceholder(f: BuilderField, fallbackKey: string): string {
   const p = f.placeholder;
   if (p != null && String(p).trim() !== '') return String(p).trim();
   return $t(fallbackKey);
 }
 
 /** 树形选择 mock 树数据（TreeSelect treeData 格式：label, value, children） */
-function getMockTreeOptions(f: Recordable): Array<{ label: string; value: number; children?: Array<{ label: string; value: number }> }> {
-  const table = String(f.relation_table || $t('admin.system.codegen.preview.mockTree')).replace(/_/g, ' ');
+function getMockTreeOptions(f: BuilderField): Array<{ label: string; value: number; children?: Array<{ label: string; value: number }> }> {
+  const table = asString(f.relation_table || $t('admin.system.codegen.preview.mockTree')).replace(/_/g, ' ');
   const pre = 'admin.system.codegen.preview';
   return [
     {
@@ -284,7 +410,7 @@ function getMockTreeOptions(f: Recordable): Array<{ label: string; value: number
 }
 
 /** 级联 mock 数据 */
-function getMockCascaderOptions(f: Recordable): Array<{ label: string; value: string; children?: Array<{ label: string; value: string }> }> {
+function getMockCascaderOptions(_f: BuilderField): Array<{ label: string; value: string; children?: Array<{ label: string; value: string }> }> {
   const pre = 'admin.system.codegen.preview';
   return [
     {
@@ -381,58 +507,66 @@ function handleCancel() {
           </label>
           <Input
             v-if="(f._comp as string) === 'input'"
-            v-model:value="formValues[f.name as string]"
+            :value="getStringValue(f)"
             :maxlength="(f.max_length as number) ?? undefined"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseInput')"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <Input
             v-else-if="(f._comp as string) === 'password'"
-            v-model:value="formValues[f.name as string]"
+            :value="getStringValue(f)"
             type="password"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseInput')"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <Input.TextArea
             v-else-if="(f._comp as string) === 'textarea'"
-            v-model:value="formValues[f.name as string]"
+            :value="getStringValue(f)"
             :maxlength="(f.max_length as number) ?? undefined"
             :rows="2"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseInput')"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <InputNumber
             v-else-if="(f._comp as string) === 'number'"
-            v-model:value="formValues[f.name as string]"
+            :value="getNumberValue(f)"
             :min="(f.min_value as number) ?? undefined"
             :max="(f.max_value as number) ?? undefined"
             class="w-full"
+            @update:value="(value) => setFormValue(f, asNumberOrUndefined(value))"
           />
           <Select
             v-else-if="['select', 'radio', 'checkbox'].includes((f._comp as string) || '')"
-            v-model:value="formValues[f.name as string]"
+            :value="getSelectValue(f)"
             :options="getEnumOptions(f)"
             :mode="(f._comp as string) === 'checkbox' ? 'multiple' : undefined"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseSelect')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <div
             v-else-if="(f._comp as string) === 'switch'"
             class="flex w-fit items-center"
           >
             <Switch
-              v-model:checked="formValues[f.name as string]"
+              :checked="getBooleanValue(f)"
+              @update:checked="(value) => setFormValue(f, asBoolean(value))"
             />
           </div>
           <DatePicker
             v-else-if="(f._comp as string) === 'date' && isDatetimeType(f)"
-            v-model:value="formValues[f.name as string]"
+            :value="getDateValue(f)"
             show-time
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.datePlaceholder')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <DatePicker
             v-else-if="(f._comp as string) === 'date'"
-            v-model:value="formValues[f.name as string]"
+            :value="getDateValue(f)"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.datePlaceholder')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <div
             v-else-if="(f._comp as string) === 'ImageUpload'"
@@ -499,7 +633,7 @@ function handleCancel() {
             class="w-full"
           >
             <RichTextEditor
-              v-model="formValues[f.name as string]"
+              :model-value="getRichTextValue(f)"
               :default-value="RICH_TEXT_DEFAULT_DOC"
               :placeholder="getFieldPlaceholder(f, 'common.editorPlaceholder')"
               mode="compact"
@@ -509,49 +643,54 @@ function handleCancel() {
               :editable="true"
               :min-height="120"
               class="rounded border border-border"
+              @update:model-value="(value) => setFormValue(f, value)"
             />
           </div>
           <ApiSelect
-            v-else-if="(f._comp as string) === 'ApiSelect' && f.relation_table"
+            v-else-if="(f._comp as string) === 'ApiSelect' && f.relation_table && !isMultiple(f)"
             :key="`rel-${f.relation_table}-${f.relation_display || f.relation_display_field || 'name'}`"
-            v-model:value="formValues[f.name as string]"
+            :value="getScalarSelectValue(f)"
             :api="getRelationApi(f)"
             :placeholder="(f.placeholder && String(f.placeholder).trim()) ? String(f.placeholder).trim() : getRelationPlaceholder(f)"
-            :mode="isMultiple(f) ? 'multiple' : undefined"
             result-field="items"
             label-field="label"
             value-field="value"
             search-param-name="search"
             :page-size="200"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <Select
             v-else-if="(f._comp as string) === 'ApiSelect'"
-            v-model:value="formValues[f.name as string]"
+            :value="getMultipleAwareSelectValue(f)"
             :options="getMockRelationOptions(f)"
             :placeholder="(f.placeholder && String(f.placeholder).trim()) ? String(f.placeholder).trim() : getRelationPlaceholder(f)"
             :mode="isMultiple(f) ? 'multiple' : undefined"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <TreeSelect
             v-else-if="['ApiTreeSelect', 'TreeSelect'].includes((f._comp as string) || '')"
-            v-model:value="formValues[f.name as string]"
+            :value="getTreeValue(f)"
             :tree-data="getMockTreeOptions(f)"
             :placeholder="(f.placeholder && String(f.placeholder).trim()) ? String(f.placeholder).trim() : getRelationPlaceholder(f)"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <Cascader
             v-else-if="(f._comp as string) === 'Cascader'"
-            v-model:value="formValues[f.name as string]"
+            :value="getCascaderValue(f)"
             :options="getMockCascaderOptions(f)"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseSelect')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <TimePicker
             v-else-if="(f._comp as string) === 'TimePicker'"
-            v-model:value="formValues[f.name as string]"
+            :value="getDateValue(f)"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.timePlaceholder')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <div
             v-else-if="(f._comp as string) === 'ColorPicker'"
@@ -559,19 +698,21 @@ function handleCancel() {
           >
             <div class="relative size-8 shrink-0 cursor-pointer overflow-hidden rounded border border-border">
               <input
-                v-model="formValues[f.name as string]"
+                :value="getStringValue(f)"
                 type="color"
                 class="absolute inset-0 size-full cursor-pointer opacity-0"
+                @input="(event) => onNativeColorInput(f, event)"
               >
               <div
                 class="absolute inset-0"
-                :style="{ backgroundColor: (formValues[f.name as string] as string) || '#6366f1' }"
+                :style="{ backgroundColor: getStringValue(f) || '#6366f1' }"
               />
             </div>
             <Input
-              v-model:value="formValues[f.name as string]"
+              :value="getStringValue(f)"
               class="flex-1 font-mono text-xs"
               :placeholder="(f.placeholder && String(f.placeholder).trim()) ? String(f.placeholder).trim() : '#6366f1'"
+              @update:value="(value) => setFormValue(f, value)"
             />
           </div>
           <div
@@ -579,25 +720,28 @@ function handleCancel() {
             class="flex-1 min-w-0"
           >
             <IconPicker
-              :value="(formValues[f.name as string] as string) || ''"
+              :value="getStringValue(f)"
               :placeholder="(f.placeholder && String(f.placeholder).trim()) ? String(f.placeholder).trim() : 'lucide:sparkles'"
-              @update:value="(v: string) => (formValues[f.name as string] = v)"
+              @update:value="(value) => setFormValue(f, value)"
             />
           </div>
           <Rate
             v-else-if="(f._comp as string) === 'Rate'"
-            v-model:value="formValues[f.name as string]"
+            :value="getNumberValue(f)"
+            @update:value="(value) => setFormValue(f, asNumberOrUndefined(value))"
           />
           <Slider
             v-else-if="(f._comp as string) === 'Slider'"
-            v-model:value="formValues[f.name as string]"
+            :value="getNumberValue(f)"
+            @update:value="(value) => setFormValue(f, asNumberOrUndefined(value))"
           />
           <Select
             v-else-if="(f._comp as string) === 'DictSelect'"
-            v-model:value="formValues[f.name as string]"
+            :value="getScalarSelectValue(f)"
             :options="getDictMockOptions(f)"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.dictSelectPlaceholder')"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <div
             v-else-if="(f._comp as string) === 'CodeEditor'"
@@ -605,14 +749,16 @@ function handleCancel() {
           />
           <CronPicker
             v-else-if="(f._comp as string) === 'CronPicker'"
-            v-model:value="formValues[f.name as string]"
+            :value="getStringValue(f)"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.cronPlaceholder')"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <DatePicker.RangePicker
             v-else-if="(f._comp as string) === 'RangePicker'"
-            v-model:value="formValues[f.name as string]"
+            :value="getDateRangeValue(f)"
             :placeholder="[getFieldPlaceholder(f, 'admin.system.codegen.preview.rangePlaceholder'), getFieldPlaceholder(f, 'admin.system.codegen.preview.rangePlaceholder')]"
             class="w-full"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <div
             v-else-if="(f._comp as string) === 'Upload'"
@@ -625,9 +771,10 @@ function handleCancel() {
           </div>
           <Input
             v-else
-            v-model:value="formValues[f.name as string]"
+            :value="getStringValue(f)"
             :maxlength="(f.max_length as number) ?? undefined"
             :placeholder="getFieldPlaceholder(f, 'admin.system.codegen.preview.pleaseInput')"
+            @update:value="(value) => setFormValue(f, value)"
           />
           <span v-if="f.help_text" class="text-muted-foreground mt-0.5 text-xs">{{ f.help_text }}</span>
         </div>

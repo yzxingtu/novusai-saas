@@ -15,7 +15,7 @@
  * const { isAIEnabled, effectiveAIMode, pageContextKey } = useCurrentPageAIPolicy();
  * ```
  */
-import type { AIPageMode } from '@vben-core/typings';
+import type { AIPageMode } from '@vben/types';
 
 import { computed } from 'vue';
 

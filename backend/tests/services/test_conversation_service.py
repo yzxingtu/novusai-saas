@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -363,3 +364,136 @@ class TestDeleteConversationMemoryCleanup:
             await service._after_delete(456)
 
         memory_svc.clear_conversation_memory.assert_awaited_once_with(456)
+
+
+class TestThinkingPersistence:
+
+    @pytest.mark.asyncio
+    async def test_load_chat_history_restores_reasoning_content_and_strips_tool_round_content(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            role="assistant",
+            content="先查询数据库。",
+            tool_calls=[{"id": "tc1"}],
+            tool_call_id=None,
+        )
+        assistant.metadata_ = {"thinking_content": "先查询数据库。"}
+        tool = _make_message(
+            role="tool",
+            content='{"ok": true}',
+            tool_calls=None,
+            tool_call_id="tc1",
+        )
+        tool.metadata_ = {"tool_success": True}
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(
+            return_value=[assistant, tool],
+        )
+
+        history = await service.load_chat_history(1)
+
+        assert len(history) == 2
+        assert history[0].role == "assistant"
+        assert history[0].content == ""
+        assert history[0].reasoning_content == "先查询数据库。"
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_stores_thinking_content_metadata(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=88, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "你好"},
+                {
+                    "role": "assistant",
+                    "content": "最终答复",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": "先分析上下文。",
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        create_calls = service._message_repo.create.await_args_list
+        assistant_payload = create_calls[1].args[0]
+        assert assistant_payload["metadata_"]["thinking_content"] == "先分析上下文。"
+
+
+class TestSanitizeToolMessages:
+    """Test sanitize_tool_messages atomic round logic / 原子 assistant-tool round 保留策略"""
+
+    @staticmethod
+    def _msg(role: str, content: str = "", tool_calls=None, tool_call_id=None):
+        from app.ai.types import ChatMessage
+        return ChatMessage(
+            role=role,
+            content=content,
+            tool_calls=tool_calls,
+            tool_call_id=tool_call_id,
+        )
+
+    def test_complete_round_kept(self):
+        from app.services.ai.conversation_service import ConversationService
+        msgs = [
+            self._msg("user", "hi"),
+            self._msg("assistant", "ok", tool_calls=[{"id": "tc1"}, {"id": "tc2"}]),
+            self._msg("tool", "r1", tool_call_id="tc1"),
+            self._msg("tool", "r2", tool_call_id="tc2"),
+            self._msg("assistant", "done"),
+        ]
+        result = ConversationService.sanitize_tool_messages(msgs)
+        assert len(result) == 5
+        assert [m.role for m in result] == ["user", "assistant", "tool", "tool", "assistant"]
+
+    def test_partial_round_dropped(self):
+        from app.services.ai.conversation_service import ConversationService
+        msgs = [
+            self._msg("user", "hi"),
+            self._msg("assistant", "ok", tool_calls=[{"id": "tc1"}, {"id": "tc2"}]),
+            self._msg("tool", "r1", tool_call_id="tc1"),
+            self._msg("assistant", "done"),
+        ]
+        result = ConversationService.sanitize_tool_messages(msgs)
+        assert len(result) == 2
+        assert [m.role for m in result] == ["user", "assistant"]
+
+    def test_orphan_tool_dropped(self):
+        from app.services.ai.conversation_service import ConversationService
+        msgs = [
+            self._msg("tool", "orphan", tool_call_id="x"),
+            self._msg("user", "hi"),
+        ]
+        result = ConversationService.sanitize_tool_messages(msgs)
+        assert len(result) == 1
+        assert result[0].role == "user"
+
+    def test_empty_preserved(self):
+        from app.services.ai.conversation_service import ConversationService
+        assert ConversationService.sanitize_tool_messages([]) == []

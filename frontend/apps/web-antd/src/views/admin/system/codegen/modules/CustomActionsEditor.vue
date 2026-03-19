@@ -15,8 +15,49 @@ defineOptions({ name: 'CustomActionsEditor' });
 
 const store = useCodegenBuilderStore();
 
-const actions = computed({
-  get: () => (store.configJson.actions as Array<Record<string, unknown>>) || [],
+type ActionMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
+type ActionType = 'danger' | 'default' | 'primary';
+
+interface CustomActionItem {
+  bulk: boolean;
+  confirm: boolean;
+  icon: string;
+  label_en: string;
+  label_zh: string;
+  method: ActionMethod;
+  name: string;
+  path: string;
+  permission: string;
+  type: ActionType;
+}
+
+const ACTION_METHODS = new Set<ActionMethod>(['DELETE', 'GET', 'POST', 'PUT']);
+const ACTION_TYPES = new Set<ActionType>(['danger', 'default', 'primary']);
+
+function normalizeAction(item?: Partial<CustomActionItem>): CustomActionItem {
+  const method = item?.method;
+  const type = item?.type;
+  return {
+    bulk: Boolean(item?.bulk),
+    confirm: Boolean(item?.confirm),
+    icon: item?.icon ?? '',
+    label_en: item?.label_en ?? '',
+    label_zh: item?.label_zh ?? '',
+    method: ACTION_METHODS.has(method as ActionMethod) ? (method as ActionMethod) : 'POST',
+    name: item?.name ?? '',
+    path: item?.path ?? '',
+    permission: item?.permission ?? '',
+    type: ACTION_TYPES.has(type as ActionType) ? (type as ActionType) : 'default',
+  };
+}
+
+const actions = computed<CustomActionItem[]>({
+  get: () =>
+    Array.isArray(store.configJson.actions)
+      ? (store.configJson.actions as Partial<CustomActionItem>[]).map((item) =>
+          normalizeAction(item),
+        )
+      : [],
   set: (v) => store.updateConfig({ actions: v }),
 });
 
@@ -27,6 +68,16 @@ const actionTypeOptions = computed(() => [
   { label: $t('admin.system.codegen.enum.actionTypePrimary'), value: 'primary' },
   { label: $t('admin.system.codegen.enum.actionTypeDanger'), value: 'danger' },
 ]);
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function toStringValue(value: unknown): string {
+  return toStringArray([value])[0] ?? '';
+}
 
 function addAction() {
   const list = [...actions.value];
@@ -50,12 +101,34 @@ function removeAction(index: number) {
   store.updateConfig({ actions: list });
 }
 
-function updateAction(index: number, patch: Record<string, unknown>) {
+function updateAction(index: number, patch: Partial<CustomActionItem>) {
   const list = actions.value;
   if (index < 0 || index >= list.length) return;
   const next = [...list];
-  next[index] = { ...next[index], ...patch };
+  next[index] = normalizeAction({ ...next[index], ...patch });
   store.updateConfig({ actions: next });
+}
+
+function onMethodChange(index: number, value: unknown) {
+  const method = toStringValue(value);
+  if (ACTION_METHODS.has(method as ActionMethod)) {
+    updateAction(index, { method: method as ActionMethod });
+  }
+}
+
+function onTypeChange(index: number, value: unknown) {
+  const type = toStringValue(value);
+  if (ACTION_TYPES.has(type as ActionType)) {
+    updateAction(index, { type: type as ActionType });
+  }
+}
+
+function onSwitchChange(index: number, field: 'bulk' | 'confirm', value: unknown) {
+  if (field === 'bulk') {
+    updateAction(index, { bulk: Boolean(value) });
+    return;
+  }
+  updateAction(index, { confirm: Boolean(value) });
 }
 </script>
 
@@ -104,7 +177,7 @@ function updateAction(index: number, patch: Record<string, unknown>) {
               { label: 'DELETE', value: 'DELETE' },
             ]"
             class="w-full"
-            @change="(v: string) => updateAction(idx, { method: v })"
+            @change="(value) => onMethodChange(idx, value)"
           />
         </Form.Item>
         <Form.Item :label="$t('admin.system.codegen.enum.path')">
@@ -127,19 +200,19 @@ function updateAction(index: number, patch: Record<string, unknown>) {
             :value="item.type"
             :options="actionTypeOptions"
             class="w-full"
-            @change="(v: string) => updateAction(idx, { type: v })"
+            @change="(value) => onTypeChange(idx, value)"
           />
         </Form.Item>
         <Form.Item :label="$t('admin.system.codegen.enum.confirm')">
           <Switch
             :checked="!!item.confirm"
-            @change="(v: boolean) => updateAction(idx, { confirm: v })"
+            @change="(value) => onSwitchChange(idx, 'confirm', value)"
           />
         </Form.Item>
         <Form.Item :label="$t('admin.system.codegen.enum.bulk')">
           <Switch
             :checked="!!item.bulk"
-            @change="(v: boolean) => updateAction(idx, { bulk: v })"
+            @change="(value) => onSwitchChange(idx, 'bulk', value)"
           />
         </Form.Item>
       </Form>

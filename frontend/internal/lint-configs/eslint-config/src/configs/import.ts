@@ -6,8 +6,7 @@ export async function importPluginConfig(): Promise<Linter.Config[]> {
   return [
     {
       plugins: {
-        // @ts-expect-error - This is a dynamic import
-        import: pluginImport,
+        import: pluginImport as Linter.Plugin,
       },
       rules: {
         'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],

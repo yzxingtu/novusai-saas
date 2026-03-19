@@ -336,7 +336,10 @@ const {
     forceLogout: onForceLogout,
     resetPassword: onResetPassword,
   },
-  ai: { pageKey: 'tenant.system.userArchitecture', formSchema: useUserFormSchema },
+  ai: {
+    pageKey: 'tenant.system.userArchitecture',
+    formSchema: (isEdit?: boolean) => useUserFormSchema(Boolean(isEdit)),
+  },
 });
 
 /** Reload member table on role selection change (nextTick waits for Grid mount) / 角色选择变化时重新加载成员表 */

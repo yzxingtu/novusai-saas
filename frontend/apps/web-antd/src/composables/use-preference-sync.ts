@@ -123,7 +123,11 @@ export function usePreferenceSync() {
     serverSnapshot = getVbenSnapshot();
   };
 
-  sioStore.registerHandler('preference:global_updated', onGlobalUpdated);
+  const onGlobalUpdatedRaw = (data: unknown) => {
+    onGlobalUpdated(data as GlobalUpdatedPayload);
+  };
+
+  sioStore.registerHandler('preference:global_updated', onGlobalUpdatedRaw);
 
   /**
    * 设置跳过标志，用于登录后初始加载
@@ -135,7 +139,7 @@ export function usePreferenceSync() {
 
   function cleanup() {
     stopWatcher();
-    sioStore.unregisterHandler('preference:global_updated', onGlobalUpdated);
+    sioStore.unregisterHandler('preference:global_updated', onGlobalUpdatedRaw);
   }
 
   onUnmounted(() => {

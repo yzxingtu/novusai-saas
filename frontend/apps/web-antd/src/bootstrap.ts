@@ -52,7 +52,7 @@ async function bootstrap(namespace: string) {
 
   const app = createApp(App);
 
-  app.config.errorHandler = (err, instance, info) => {
+  app.config.errorHandler = (err, _instance, info) => {
     console.warn(`[Vue Error] ${info}:`, err);
   };
 

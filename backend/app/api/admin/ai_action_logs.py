@@ -16,7 +16,7 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
-from app.services.ai.action_log_service import AIActionLogService
+from app.services.ai.action_log_service import AdminAIActionLogService
 
 
 @permission_resource(
@@ -66,8 +66,7 @@ class AdminAIActionLogController(GlobalController):
 
             权限 / Permission: ai_action_log:list
             """
-            # 使用 tenant_id=0 表示全局查询 / Use tenant_id=0 for global query
-            service = AIActionLogService(db, 0)
+            service = AdminAIActionLogService(db)
             items, total = await service.query_list(spec=spec)
 
             return paginated(
@@ -90,7 +89,7 @@ class AdminAIActionLogController(GlobalController):
 
             权限 / Permission: ai_action_log:detail
             """
-            service = AIActionLogService(db, 0)
+            service = AdminAIActionLogService(db)
             log = await service.get_by_id(log_id)
 
             if not log:

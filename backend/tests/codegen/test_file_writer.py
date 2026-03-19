@@ -167,3 +167,66 @@ def test_atomic_write_merge_json_action(tmp_path: Path) -> None:
     assert result.success is True
     data = json.loads(target.read_text(encoding="utf-8"))
     assert "category" in data
+
+
+def test_atomic_write_rolls_back_created_files_when_later_error(tmp_path: Path) -> None:
+    """后续 register 失败时，先前已创建的文件也应回滚，不留半成品."""
+    files = [
+        GeneratedFile(
+            path="backend/app/models/system/category.py",
+            content="# generated\n",
+            action="create",
+        ),
+        GeneratedFile(
+            path="backend/app/models/business/__init__.py",
+            content="",
+            action="register_model",
+            model_meta={
+                "module": "business",
+                "resource": "category",
+                "pascal": "Category",
+                "target": "module",
+            },
+        ),
+    ]
+
+    writer = FileWriter(project_root=tmp_path)
+    result = writer.write_atomic(files, project_root=tmp_path)
+
+    assert result.success is False
+    assert any("register_model failed" in err for err in result.errors)
+    assert result.files_created == []
+    assert result.files_modified == []
+    assert not (tmp_path / "backend" / "app" / "models" / "system" / "category.py").exists()
+
+
+def test_atomic_write_rolls_back_previous_writes_on_conflict_when_force_false(
+    tmp_path: Path,
+) -> None:
+    """force=False 且后续冲突失败时，之前已写入的新文件也应回滚."""
+    existing = tmp_path / "backend" / "app" / "schemas" / "system" / "category.py"
+    existing.parent.mkdir(parents=True, exist_ok=True)
+    existing.write_text("# existing\n", encoding="utf-8")
+
+    files = [
+        GeneratedFile(
+            path="backend/app/models/system/category.py",
+            content="# generated\n",
+            action="create",
+        ),
+        GeneratedFile(
+            path="backend/app/schemas/system/category.py",
+            content="# overwrite\n",
+            action="create",
+        ),
+    ]
+
+    writer = FileWriter(project_root=tmp_path)
+    result = writer.write_atomic(files, project_root=tmp_path, force=False)
+
+    assert result.success is False
+    assert any(conflict.get("reason") == "file_exists" for conflict in result.conflicts)
+    assert result.files_created == []
+    assert result.files_modified == []
+    assert not (tmp_path / "backend" / "app" / "models" / "system" / "category.py").exists()
+    assert existing.read_text(encoding="utf-8") == "# existing\n"

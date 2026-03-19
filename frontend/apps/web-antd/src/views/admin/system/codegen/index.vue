@@ -12,8 +12,9 @@ import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 
-import { Button, Card, message, Modal } from 'ant-design-vue';
+import { Button, Card, message, Modal, Tooltip } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -95,7 +96,7 @@ async function onActionClick(params: { code: string; row: CodegenConfigInfo }) {
         title: $t('admin.system.codegen.confirm.rollback', { name: row.name }),
         onOk: async () => {
           try {
-            const result = await deleteCodegenRollbackApi(row.id, { force: true });
+            const result = await deleteCodegenRollbackApi(row.id, { force: false });
             if ((result as { success?: boolean }).success !== false) {
               message.success($t('admin.system.codegen.messages.rollbackSuccess'));
               gridReload();
@@ -169,7 +170,7 @@ async function onDbImportApplied(patch: Record<string, unknown>) {
   }
 }
 
-const { Grid, onRefresh: gridReload, gridApi } = useCrudPage<CodegenConfigInfo>({
+const { Grid, onRefresh: gridReload } = useCrudPage<CodegenConfigInfo>({
   api: {
     list: getCodegenConfigListApi,
     resource: '/admin/codegen/configs',
@@ -202,18 +203,26 @@ const { Grid, onRefresh: gridReload, gridApi } = useCrudPage<CodegenConfigInfo>(
         {{ $t('admin.system.codegen.debugHint') }}
       </span>
       <div class="flex gap-2">
-        <Button @click="openDbImport">
+        <Button v-access:code="['action.codegen.db']" @click="openDbImport">
           <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
           {{ $t('admin.system.codegen.importFromDb') }}
         </Button>
-        <Button type="primary" @click="openPresetSelect">
+        <Button v-access:code="['action.codegen.create']" type="primary" @click="openPresetSelect">
           <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
           {{ $t('admin.system.codegen.create') }}
         </Button>
       </div>
     </div>
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid />
+      <Grid>
+        <template #last_generated_at_cell="{ row }">
+          <Tooltip :title="formatDate(row.last_generated_at)">
+            <span class="text-muted-foreground">{{
+              formatRelativeTime(row.last_generated_at) || '—'
+            }}</span>
+          </Tooltip>
+        </template>
+      </Grid>
     </Card>
 
     <DbTableImportModal

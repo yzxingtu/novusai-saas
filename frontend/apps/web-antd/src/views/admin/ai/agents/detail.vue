@@ -337,7 +337,7 @@ function initChatConfig() {
     ? JSON.stringify(sq, null, 2)
     : '';
   chatInputVars.value = Array.isArray(agent.value.input_variables)
-    ? (agent.value.input_variables as InputVariable[])
+    ? (agent.value.input_variables as unknown as InputVariable[])
     : [];
   const cc = (agent.value.context_config ?? {}) as Record<string, number>;
   chatContextMessages.value = cc.max_history_messages ?? 20;

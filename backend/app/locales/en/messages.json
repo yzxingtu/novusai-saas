@@ -634,6 +634,7 @@
       "router_model_not_configured": "Router agent model not configured, please contact administrator",
       "router_timeout": "Router agent timed out, using default agent",
       "default_agent_not_configured": "Please ask administrator to configure default AI assistant",
+      "default_agent_not_accessible": "Default agent is not accessible for your role or tenant",
       "agent_not_accessible": "This agent is not accessible"
     },
     "conversation_deleted": "Conversation deleted",
@@ -2837,7 +2838,9 @@
       "json_parse_guidance_tip": "TIP: Simplify long text fields (e.g. system_prompt) — use a short placeholder, create the record first, then update with the full text.",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
-      "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users"
+      "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users",
+      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}",
+      "agent_invalid_audience": "Invalid agents target_audience '{audience}'. Valid values: {valid}"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },

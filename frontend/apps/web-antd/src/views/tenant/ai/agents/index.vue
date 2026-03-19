@@ -10,7 +10,7 @@
  */
 import type { AgentListItem } from '#/api/tenant/agents';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -63,6 +63,8 @@ defineOptions({ name: 'TenantAgentList' });
 // Declarative CRUD / 声明式 CRUD
 // ============================================================
 
+const agentSummary = ref({ published: 0, system: 0 });
+
 const {
   list,
   total,
@@ -86,7 +88,7 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+    edit: (row) => agentFormRef.value?.openEdit(row),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
@@ -95,8 +97,8 @@ const {
     entityDescription: $t('tenant.ai.agent.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     contextExtras: () => ({
-      published: stats.value.published,
-      system: stats.value.system,
+      published: agentSummary.value.published,
+      system: agentSummary.value.system,
     }),
     extra: [
       {
@@ -105,7 +107,7 @@ const {
         description: 'Open the create agent form / 打开新建智能体表单',
         readonly: false,
         handler: async (): Promise<{ success: boolean; message: string }> => {
-          agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+          agentFormRef.value?.openNew();
           return { success: true, message: 'Create agent form opened / 新建表单已打开' };
         },
       },
@@ -144,11 +146,11 @@ const router = useRouter();
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
 
 function onCreateAgent() {
-  agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+  agentFormRef.value?.openNew();
 }
 
 function onEditAgent(agent: AgentListItem) {
-  agentFormRef.value?.openEdit(agent, { _aiPageKey: AI_PAGE_KEY });
+  agentFormRef.value?.openEdit(agent);
 }
 
 // ============================================================
@@ -262,6 +264,13 @@ function getExecutionModeIcon(mode: string): string {
     }
   }
 }
+
+watchEffect(() => {
+  agentSummary.value = {
+    published: list.value.filter((a) => a.status === 'published').length,
+    system: list.value.filter((a) => a.is_system).length,
+  };
+});
 
 const stats = computed(() => ({
   total: total.value,

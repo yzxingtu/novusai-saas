@@ -101,6 +101,13 @@ const msgModelName = computed(
     props.selectedAgent?.model_name ??
     null,
 );
+const isMentionRoute = computed(() => props.msg.routeSource === 'mention');
+const showRouteBadge = computed(
+  () =>
+    props.msg.role === 'assistant' &&
+    !!msgAgentName.value &&
+    (props.showAgentSwitch || isMentionRoute.value),
+);
 
 const emit = defineEmits<{
   actionClick: [index: number, value: string];
@@ -129,6 +136,12 @@ const canCollapse = computed(
 const expandedMap = ref<Record<number, boolean>>({});
 function toggleExpand(idx: number) {
   expandedMap.value = { ...expandedMap.value, [idx]: !expandedMap.value[idx] };
+}
+
+/** Thinking block: expanded during streaming, collapsed by default when done. User can toggle. */
+const thinkingExpandedMap = ref<Record<number, boolean>>({});
+function toggleThinkingExpand(idx: number) {
+  thinkingExpandedMap.value = { ...thinkingExpandedMap.value, [idx]: !thinkingExpandedMap.value[idx] };
 }
 
 /** Whether this tool call has a pending confirmation (inline) / 该工具调用是否有待确认（内联） */
@@ -175,12 +188,23 @@ watch(hasRunningTool, (running) => {
   else stopTick();
 }, { immediate: true });
 onUnmounted(stopTick);
+
+/** Auto-collapse thinking block when streaming ends. */
+watch(
+  () => [props.msg.streaming, props.index] as const,
+  ([streaming, idx], oldVal) => {
+    const prevStreaming = oldVal?.[0];
+    if (prevStreaming === true && streaming === false && typeof idx === 'number') {
+      thinkingExpandedMap.value = { ...thinkingExpandedMap.value, [idx]: false };
+    }
+  },
+);
 </script>
 
 <template>
   <!-- Agent switch separator -->
   <div
-    v-if="showAgentSwitch && msg.role === 'assistant' && msgAgentName"
+    v-if="showRouteBadge"
     class="flex items-center gap-2 py-1"
     :class="compact ? 'mb-1' : 'mb-2'"
   >
@@ -189,8 +213,11 @@ onUnmounted(stopTick);
       class="flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-0.5 text-muted-foreground"
       :class="compact ? 'text-[10px]' : 'text-xs'"
     >
-      <IconifyIcon icon="lucide:arrow-right" class="size-3" />
-      <span>{{ msgAgentName }}</span>
+      <IconifyIcon
+        :icon="isMentionRoute ? 'lucide:at-sign' : 'lucide:arrow-right'"
+        class="size-3"
+      />
+      <span>{{ isMentionRoute ? `@ ${msgAgentName}` : msgAgentName }}</span>
     </div>
     <div class="h-px flex-1 bg-border/40" />
   </div>
@@ -238,7 +265,12 @@ onUnmounted(stopTick);
 
         <!-- Thinking (no tool calls yet) - skeleton pulse -->
         <div
-          v-if="msg.streaming && !msg.content && !msg.toolCalls?.length"
+          v-if="
+            msg.streaming &&
+            !msg.content &&
+            !msg.toolCalls?.length &&
+            !msg.thinkingContent
+          "
           class="thinking-skeleton space-y-2 rounded-xl border border-border/20 bg-accent/30 px-3 py-3"
         >
           <div class="flex items-center gap-2">
@@ -251,6 +283,59 @@ onUnmounted(stopTick);
             <div class="skeleton-line h-2 w-[90%] rounded-full bg-muted/50"></div>
             <div class="skeleton-line h-2 w-[72%] rounded-full bg-muted/50" style="animation-delay: 0.15s"></div>
             <div class="skeleton-line h-2 w-[55%] rounded-full bg-muted/50" style="animation-delay: 0.3s"></div>
+          </div>
+        </div>
+
+        <!-- Thinking content (streamed separately from final answer). Less prominent; auto-collapse when done; expandable. -->
+        <div
+          v-if="msg.thinkingContent"
+          class="overflow-hidden rounded-lg border border-border/25 bg-accent/15"
+          :class="compact ? 'mb-1' : 'mb-2'"
+        >
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left transition-colors hover:bg-accent/25"
+            :class="compact ? 'py-1' : 'py-2'"
+            @click="toggleThinkingExpand(index)"
+          >
+            <IconifyIcon
+              icon="lucide:brain"
+              class="size-3.5 shrink-0 text-muted-foreground/70"
+              :class="msg.streaming ? 'thinking-glow text-primary/60' : ''"
+            />
+            <span v-if="msg.streaming" class="typing-dots shrink-0"><span /><span /><span /></span>
+            <span class="flex-1 truncate text-xs text-muted-foreground">
+              {{ (msg.streaming && !msg.content) ? $t('common.globalAiChat.thinking') : $t('common.globalAiChat.thinkingCollapsed') }}
+              <span
+                v-if="!msg.streaming && !thinkingExpandedMap[index]"
+                class="ml-1 text-muted-foreground/60"
+              >({{ $t('common.globalAiChat.thinkingExpandHint') }})</span>
+            </span>
+            <IconifyIcon
+              icon="lucide:chevron-down"
+              class="size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150"
+              :class="[(msg.streaming && msg.thinkingContent) || thinkingExpandedMap[index] ? 'rotate-180' : '']"
+            />
+          </button>
+          <div
+            class="grid transition-[grid-template-rows] duration-200 ease-out"
+            :style="{
+              gridTemplateRows: (msg.streaming && msg.thinkingContent) || thinkingExpandedMap[index] ? '1fr' : '0fr',
+            }"
+          >
+            <div class="min-h-0 overflow-hidden border-t border-border/20">
+              <div
+                class="px-2.5 pb-2 pt-0"
+                :class="compact ? 'px-2 py-1' : 'px-3 py-1.5'"
+              >
+                <div class="text-xs leading-5.5 text-muted-foreground/80">
+                  <MarkdownRender
+                    :content="msg.thinkingContent"
+                    :streaming="!!msg.streaming && !msg.content"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -301,6 +386,18 @@ onUnmounted(stopTick);
               class="ml-1 text-muted-foreground/70"
             >
               {{ $t('common.globalAiChat.generationStopped') }}
+            </span>
+            <span
+              v-else-if="msg.interrupted && !msg.streaming"
+              class="ml-1 text-muted-foreground/70"
+            >
+              {{ $t('common.globalAiChat.generationInterrupted') }}
+            </span>
+            <span
+              v-else-if="msg.partial && !msg.streaming"
+              class="ml-1 text-muted-foreground/70"
+            >
+              {{ $t('common.globalAiChat.generationIncomplete') }}
             </span>
             <div
               v-if="canCollapse && !expandedMap[index]"

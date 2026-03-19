@@ -80,9 +80,9 @@ function dedupeFieldsByName(fields: Array<Record<string, unknown>>): Array<Recor
 
 /** 确保 fields 中每项有 __key、display_name、comment，缺失时自动补全；并去重 / Ensure __key, display_name, comment; dedupe */
 function ensureFieldsHaveKey(json: Record<string, unknown>): Record<string, unknown> {
-  let fields = json.fields;
-  if (!fields || !Array.isArray(fields)) return json;
-  fields = fields as Array<Record<string, unknown>>;
+  const rawFields = json.fields;
+  if (!Array.isArray(rawFields)) return json;
+  let fields: Array<Record<string, unknown>> = rawFields as Array<Record<string, unknown>>;
   if (fields.length === 0) return json;
   fields = dedupeFieldsByName(fields);
   fields = ensureFieldsDisplayNames(fields);

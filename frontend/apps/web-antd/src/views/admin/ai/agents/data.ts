@@ -2,7 +2,6 @@
  * 智能体管理（平台端） - 辅助函数、表单 Schema
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { AIModelInfo } from '#/api/admin/ai';
 
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
 import { getAIModelSelectApi } from '#/api/admin/ai';

@@ -23,6 +23,12 @@ import { SYSTEM_FIELDS, inferFieldConfigForMerge, parseCommentEnum, singularize 
 
 defineOptions({ name: 'DbTableImportModal' });
 
+interface ImportPatch extends Record<string, unknown> {
+  display_name?: string;
+  fields?: Record<string, unknown>[];
+  resource?: string;
+}
+
 const props = defineProps<{
   open: boolean;
 }>();
@@ -39,7 +45,7 @@ const openModel = computed({
 
 const tables = ref<TableInfo[]>([]);
 const columns = ref<ColumnInfo[]>([]);
-const selectedTable = ref<string | null>(null);
+const selectedTable = ref<string | undefined>(undefined);
 const selectedColumns = ref<Set<string>>(new Set());
 const columnSearch = ref('');
 const importMode = ref<'replace' | 'merge'>('replace');
@@ -63,6 +69,10 @@ const BASE_FIELDS = new Set([
 ]);
 
 const isBaseField = (name: string) => BASE_FIELDS.has(name);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 const filteredColumns = computed(() => {
   const list = columns.value;
@@ -115,7 +125,7 @@ async function loadColumns(tableName: string) {
   } catch (e) {
     columns.value = [];
     selectedColumns.value = new Set();
-    selectedTable.value = null;
+    selectedTable.value = undefined;
     message.error($t('admin.system.codegen.dbImport.loadColumnsError'));
     console.error(e);
   } finally {
@@ -133,11 +143,14 @@ function toggleColumn(name: string, checked: boolean) {
 function parseTypeLength(typeStr: string): { max_length?: number; precision?: number; scale?: number } {
   const s = (typeStr || '').toUpperCase();
   const mVar = s.match(/VARCHAR\s*\(\s*(\d+)\s*\)/);
-  if (mVar) return { max_length: parseInt(mVar[1], 10) };
+  if (mVar?.[1]) return { max_length: parseInt(mVar[1], 10) };
   const mDec = s.match(/DECIMAL\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)|NUMERIC\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/);
   if (mDec) {
-    const p = parseInt(mDec[1] || mDec[3], 10);
-    const sc = parseInt(mDec[2] || mDec[4], 10);
+    const precisionText = mDec[1] || mDec[3];
+    const scaleText = mDec[2] || mDec[4];
+    if (!precisionText || !scaleText) return {};
+    const p = parseInt(precisionText, 10);
+    const sc = parseInt(scaleText, 10);
     return { precision: p, scale: sc };
   }
   return {};
@@ -152,7 +165,7 @@ function enhanceFieldFromColumn(f: Record<string, unknown>, col: ColumnInfo | un
       if (parsed) {
         merged.enum_values = parsed;
       } else {
-        const simpleLabel = col.comment.split(/[:：(]/)[0].trim();
+        const simpleLabel = col.comment.split(/[:：(]/)[0]?.trim() ?? '';
         if (simpleLabel) merged.display_name = simpleLabel;
       }
     }
@@ -169,14 +182,16 @@ async function doImport() {
   if (!selectedTable.value || selectedColumns.value.size === 0) return;
   importing.value = true;
   try {
-    const full = (await postCodegenDbImportApi({ table_name: selectedTable.value })) as Record<string, unknown>;
-    let patch = (full?.data ?? full) ?? {};
-    if (typeof patch !== 'object' || patch === null) patch = {};
-    let fields = (patch.fields as Record<string, unknown>[]) || [];
+    const full = await postCodegenDbImportApi({ table_name: selectedTable.value });
+    const rawPatch = isRecord(full.data) ? full.data : full;
+    const patch: ImportPatch = isRecord(rawPatch) ? (rawPatch as ImportPatch) : {};
+    let fields = Array.isArray(patch.fields) ? patch.fields : [];
     fields = fields.filter((f) => selectedColumns.value.has((f.name as string) || ''));
     const colMap = new Map(columns.value.map((c) => [c.name, c]));
     const tableName = selectedTable.value;
-    const resource = (patch.resource as string) || singularize(tableName.replace(/^t_/, ''));
+    const resource =
+      (typeof patch.resource === 'string' ? patch.resource : '') ||
+      singularize(tableName.replace(/^t_/, ''));
     const tableComment = tables.value.find((t) => t.name === tableName)?.comment;
     const enhanced = fields.map((f) => enhanceFieldFromColumn(f, colMap.get((f.name as string) || '')));
     const seen = new Set<string>();
@@ -189,7 +204,10 @@ async function doImport() {
     emit('applied', {
       ...patch,
       resource,
-      display_name: tableComment || patch.display_name || resource,
+      display_name:
+        tableComment ||
+        (typeof patch.display_name === 'string' ? patch.display_name : '') ||
+        resource,
       fields: enhancedFields,
       _importMode: importMode.value,
     });
@@ -212,7 +230,7 @@ watch(
   (v) => {
     if (v) {
       loadTables();
-      selectedTable.value = null;
+      selectedTable.value = undefined;
       columns.value = [];
       selectedColumns.value = new Set();
     }

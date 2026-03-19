@@ -940,6 +940,13 @@
       "detailGroupsEmpty": "(none)",
       "detailGroupsEmptyHint": "No detail groups yet, click above to add"
     },
+    "detail": {
+      "mode": "Display Mode",
+      "modeDrawer": "Drawer",
+      "modePage": "Full Page",
+      "nameField": "Title Field",
+      "nameFieldPlaceholder": "Field name for detail title"
+    },
     "generate": {
       "fileCount": "{total} files ({create} new / {modify} modified)",
       "summaryCreate": "Create",
@@ -964,6 +971,8 @@
       "noPreview": "No preview, complete previous steps",
       "previewError": "Preview failed",
       "fileCountHeader": "{create} new / {modify} modified",
+      "migrationSuccess": "Migration executed",
+      "migrationFailed": "Migration failed",
       "partialWriteTitle": "Partial write: some files skipped due to conflicts",
       "partialWriteDesc": "The following files already exist (force disabled) and were not overwritten; other files were generated successfully."
     },
@@ -1192,6 +1201,7 @@
         "unique": "Database composite unique constraints",
         "workflow": "Status transitions (e.g. draft → published)",
         "customActions": "Custom API and buttons",
+        "detail": "Detail toggle, display mode (drawer/page), title field",
         "detailGroups": "Detail page field groups",
         "clone": "Allow clone from existing record when creating",
         "deleteDeps": "Related resources to check before delete"

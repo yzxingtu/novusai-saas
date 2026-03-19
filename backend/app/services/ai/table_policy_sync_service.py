@@ -90,7 +90,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "code": "编码",
     "label": "显示名称",
     "status": "状态",
-    "scope": "作用域（platform/tenant/all）",
+    "scope": "作用域（admin_only/all_tenants/admin_and_all/admin_and_assigned/assigned_tenants/tenant_user），旧值 platform/all 映射为 admin_and_all",
     "type": "类型",
     "icon": "图标",
     "path": "路径",
@@ -101,7 +101,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "component": "组件",
     "hidden": "是否隐藏",
     "is_enabled": "是否启用",
-    "target_audience": "目标受众",
+    "target_audience": "目标受众（all/admin_only/admin_tenant）",
     "visibility": "可见性",
     "avatar": "头像 URL",
     # 用户 / 企业

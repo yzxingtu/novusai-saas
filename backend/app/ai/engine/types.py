@@ -92,6 +92,9 @@ class ExecutionResult:
         duration_ms: Total execution time (ms) / 总执行耗时（毫秒）
         conversation_id: Conversation ID (conversation mode) / 对话 ID
         error: Error message / 错误信息
+        partial: Whether result is partial (interrupted before normal completion) / 是否为 partial（中断导致未正常完成）
+        interrupted: Whether execution was interrupted (cancel/disconnect) / 是否被中断（取消/断开）
+        completion_reason: Why execution ended (stop/cancel/interrupted/error) / 结束原因
     """
 
     success: bool = True
@@ -102,6 +105,9 @@ class ExecutionResult:
     duration_ms: int = 0
     conversation_id: int | None = None
     error: str = ""
+    partial: bool = False
+    interrupted: bool = False
+    completion_reason: str = ""
 
 
 @dataclass

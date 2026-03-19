@@ -9,7 +9,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ChatMessageItem from '../ChatMessageItem.vue';
 import type { ChatMessage } from '../types';
 
-const pendingPageOpsValue = ref<{ resolved: boolean; toolCallId?: string }[]>([]);
+interface PendingPageOpTest {
+  invokeId: string;
+  operationLabel: string;
+  operationDescription: string;
+  params: Record<string, unknown>;
+  resolved: boolean;
+  allowed?: boolean;
+  startedAt: number;
+  toolCallId?: string;
+}
+
+const pendingPageOpsValue = ref<PendingPageOpTest[]>([]);
 const resolvePageOp = vi.fn();
 
 vi.mock('#/store', () => ({
@@ -27,10 +38,23 @@ vi.mock('#/locales', () => ({
 
 function createAssistantMsg(toolCalls: ChatMessage['toolCalls']): ChatMessage {
   return {
-    id: 'msg-1',
     role: 'assistant',
     content: '',
     toolCalls,
+  };
+}
+
+function createPendingOp(
+  overrides: Partial<PendingPageOpTest> = {},
+): PendingPageOpTest {
+  return {
+    invokeId: 'inv-1',
+    operationLabel: 'Op',
+    operationDescription: '',
+    params: {},
+    resolved: false,
+    startedAt: Date.now(),
+    ...overrides,
   };
 }
 
@@ -45,13 +69,13 @@ describe('ChatMessageItem', () => {
   });
 
   it('shows toolWaitingConfirm when invoke_page_operation + pending op (legacy: no toolCallId)', async () => {
-    pendingPageOpsValue.value = [{ resolved: false }];
+    pendingPageOpsValue.value = [createPendingOp()];
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           { name: 'invoke_page_operation', status: 'running' },
         ]),
-        pendingOps: [{ resolved: false, invokeId: 'i1', operationLabel: 'Op', operationDescription: '', params: {}, startedAt: Date.now() }],
+        pendingOps: [createPendingOp({ invokeId: 'i1' })],
         index: 0,
         compact: true,
       },
@@ -179,7 +203,12 @@ describe('ChatMessageItem', () => {
 
   it('shows waiting_confirm when pendingOps has matching toolCallId', async () => {
     pendingPageOpsValue.value = [
-      { resolved: false, toolCallId: 'tc_123', invokeId: 'inv_1', operationLabel: 'Replace content', operationDescription: '...', params: {}, startedAt: Date.now() },
+      createPendingOp({
+        invokeId: 'inv_1',
+        operationLabel: 'Replace content',
+        operationDescription: '...',
+        toolCallId: 'tc_123',
+      }),
     ];
     const wrapper = mount(ChatMessageItem, {
       props: {
@@ -235,7 +264,11 @@ describe('ChatMessageItem', () => {
 
   it('shows toolExecuting when pendingOps has non-matching toolCallId', async () => {
     pendingPageOpsValue.value = [
-      { resolved: false, toolCallId: 'tc_other', invokeId: 'inv_1', operationLabel: 'Replace', operationDescription: '', params: {}, startedAt: Date.now() },
+      createPendingOp({
+        invokeId: 'inv_1',
+        operationLabel: 'Replace',
+        toolCallId: 'tc_other',
+      }),
     ];
     const wrapper = mount(ChatMessageItem, {
       props: {
@@ -284,5 +317,60 @@ describe('ChatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('common.globalAiChat.pageOpExecFailedHint');
+  });
+
+  it('renders streamed thinking content separately', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          role: 'assistant',
+          content: '',
+          thinkingContent: '先检查上下文，再决定下一步。',
+          streaming: true,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template: '<div>{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('common.globalAiChat.thinking');
+    expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
+  });
+
+  it('renders @ route badge for one-time mention messages', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          role: 'assistant',
+          content: '喵~收到',
+          agent_id: 2,
+          agent_name: '猫娘智能体',
+          routeSource: 'mention',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('@ 猫娘智能体');
   });
 });
