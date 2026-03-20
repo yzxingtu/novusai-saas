@@ -23,8 +23,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum, AgentVisibilityEnum
-from app.enums.common import AudienceEnum, ResourceScopeEnum
+from app.enums.agent import (
+    AgentDistributionModeEnum,
+    AgentExecutionModeEnum,
+    AgentOwnerTypeEnum,
+    AgentStatusEnum,
+    AgentVisibilityEnum,
+)
+from app.enums.common import ResourceScopeEnum
 
 
 class Agent(TenantModel):
@@ -46,6 +52,8 @@ class Agent(TenantModel):
     __delete_deps__ = [
         DeletionDep("AgentAccess", "agent_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_access"),
+        DeletionDep("TenantAgentPublication", "agent_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_access"),
         DeletionDep("AgentVersion", "agent_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_version"),
         DeletionDep("AgentSkillBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
@@ -60,12 +68,12 @@ class Agent(TenantModel):
                     label_field="id", i18n_key="system_agent_assignment"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id，改为可选（scope=global/admin 时为 NULL）
+    # 覆盖 TenantModel 的 tenant_id，改为可选（平台级智能体为 NULL，企业自有智能体为所属企业）
     tenant_id = Column(
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（scope=tenant 时必填，global/admin 时为 NULL）"
+        comment="归属企业ID（平台级智能体为 NULL，企业自有智能体为所属企业）"
     )
 
     # 允许前端筛选的字段
@@ -74,7 +82,8 @@ class Agent(TenantModel):
         "name": "name",
         "status": "status",
         "scope": "scope",
-        "target_audience": "target_audience",
+        "owner_type": "owner_type",
+        "distribution_mode": "distribution_mode",
         "visibility": "visibility",
         "execution_mode": "execution_mode",
         "model_id": "model_id",
@@ -92,24 +101,26 @@ class Agent(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # ==================== 作用域 ====================
-
+    owner_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AgentOwnerTypeEnum.TENANT.value,
+        index=True,
+        comment="归属类型 / Owner type",
+    )
+    distribution_mode: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AgentDistributionModeEnum.OWNER_ONLY.value,
+        index=True,
+        comment="分发模式 / Distribution mode",
+    )
     scope: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
-        comment=_("enum.agent_model.scope"),
-    )
-
-    # ==================== 目标受众 ====================
-
-    target_audience: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=AudienceEnum.ADMIN_TENANT.value,
-        index=True,
-        comment=_("enum.agent_model.target_audience"),
+        comment="资源作用域（admin_only / all_tenants / admin_and_all 等）/ Resource scope",
     )
 
     # ==================== 基本信息 ====================

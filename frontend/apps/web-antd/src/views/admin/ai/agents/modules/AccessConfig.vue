@@ -33,7 +33,6 @@ defineOptions({ name: 'AdminAccessConfigDrawer' });
 
 const agentId = ref(0);
 const agentName = ref('');
-const targetAudience = ref<string>('admin_tenant');
 const loading = ref(false);
 const saving = ref(false);
 
@@ -42,10 +41,6 @@ const adminRoleIds = ref<number[]>([]);
 
 const roleTreeData = ref<Record<string, unknown>[]>([]);
 const roleTreeLoading = ref(false);
-
-const showAdminBlock = computed(() =>
-  ['all', 'admin_only', 'admin_tenant'].includes(targetAudience.value),
-);
 
 function roleInfoToTreeData(roles: RoleInfo[]): Record<string, unknown>[] {
   return roles.map((r) => ({
@@ -74,12 +69,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
       const data = drawerApi.getData<{
         id: number;
         name: string;
-        target_audience?: string;
       }>();
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
-        targetAudience.value = data.target_audience ?? 'admin_tenant';
         await loadAccessConfig();
       }
     }
@@ -115,9 +108,7 @@ async function onSave() {
   saving.value = true;
   try {
     await updateAIAgentAccessApi(agentId.value, {
-      admin_role_ids: showAdminBlock.value
-        ? modeToIds(adminRoleMode.value, adminRoleIds.value)
-        : null,
+      admin_role_ids: modeToIds(adminRoleMode.value, adminRoleIds.value),
     });
     message.success($t('admin.ai.agent.messages.accessUpdated'));
     drawerApi.close();
@@ -144,8 +135,8 @@ onMounted(() => {
           class="mb-4"
         />
 
-        <!-- Admin 端角色区块 -->
-        <div v-if="showAdminBlock" class="mb-4 rounded-lg border border-border/60 p-4">
+        <!-- Admin 端角色区块（平台管理端可见性；与分发模式 target_audience 解耦） -->
+        <div class="mb-4 rounded-lg border border-border/60 p-4">
           <div class="mb-3 flex items-center gap-2">
             <IconifyIcon icon="lucide:shield" class="size-4 text-primary" />
             <span class="text-sm font-medium">{{ $t('admin.ai.agent.adminRoleAccess') }}</span>
@@ -166,11 +157,6 @@ onMounted(() => {
             style="width: 100%"
             class="mt-2"
           />
-        </div>
-
-        <div v-if="!showAdminBlock" class="py-8 text-center text-muted-foreground">
-          <IconifyIcon icon="lucide:info" class="mb-2 size-8 opacity-40" />
-          <p class="text-sm">{{ $t('admin.ai.agent.messages.noAdminAccess') }}</p>
         </div>
 
         <FormItem class="mt-4">

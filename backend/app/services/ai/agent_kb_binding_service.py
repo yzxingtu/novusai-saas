@@ -10,6 +10,9 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
 from app.repositories.ai.agent_kb_binding_repository import AgentKBBindingRepository
 from app.repositories.ai.agent_repository import AgentRepository
+from app.services.ai.tenant_platform_kb_suppression_service import (
+    load_suppressed_platform_kb_ids,
+)
 
 logger = LogManager.get_logger("ai")
 
@@ -42,41 +45,79 @@ class AgentKBBindingService:
             return KnowledgeBaseRepository(self.db, tenant_id=self.tenant_id)
         return AdminKnowledgeBaseRepository(self.db)
 
-    async def get_agent_kb_bindings(self, agent_id: int) -> list[dict[str, Any]]:
+    def _binding_to_item(self, binding: AgentKnowledgeBaseBinding) -> dict[str, Any]:
+        """ORM 绑定行 -> API 字典（含 binding_scope）/ Binding row to API dict."""
+        item: dict[str, Any] = {
+            "id": binding.id,
+            "agent_id": binding.agent_id,
+            "knowledge_base_id": binding.knowledge_base_id,
+            "weight": binding.weight,
+            "enabled": binding.enabled,
+            "sort_order": binding.sort_order,
+            "platform_suppressed": False,
+            "binding_scope": (
+                "platform" if binding.tenant_id is None else "tenant"
+            ),
+            "kb_name": None,
+            "kb_description": None,
+            "kb_scope": None,
+            "kb_visibility": None,
+            "kb_document_count": None,
+        }
+        if binding.knowledge_base:
+            kb = binding.knowledge_base
+            item["kb_name"] = kb.name
+            item["kb_description"] = kb.description
+            item["kb_scope"] = getattr(kb, "scope", None)
+            item["kb_visibility"] = getattr(kb, "visibility", None)
+            item["kb_document_count"] = getattr(kb, "document_count", None)
+        return item
+
+    async def get_agent_kb_bindings(
+        self,
+        agent_id: int,
+        *,
+        merge_platform_bindings: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         获取智能体的所有知识库绑定（含 KnowledgeBase 详情）/ Get agent KB bindings with KB details.
 
         Args:
             agent_id: 智能体 ID
+            merge_platform_bindings: 企业上下文下合并「平台全局绑定 + 本企业叠加」/ Merge platform + tenant overlay
 
         Returns:
             绑定列表（含 KnowledgeBase 名称、描述等详情）
         """
-        bindings = await self.binding_repo.get_by_agent_id(agent_id)
-        result: list[dict[str, Any]] = []
-        for binding in bindings:
-            item: dict[str, Any] = {
-                "id": binding.id,
-                "agent_id": binding.agent_id,
-                "knowledge_base_id": binding.knowledge_base_id,
-                "weight": binding.weight,
-                "enabled": binding.enabled,
-                "sort_order": binding.sort_order,
-                "kb_name": None,
-                "kb_description": None,
-                "kb_scope": None,
-                "kb_visibility": None,
-                "kb_document_count": None,
-            }
-            if binding.knowledge_base:
-                kb = binding.knowledge_base
-                item["kb_name"] = kb.name
-                item["kb_description"] = kb.description
-                item["kb_scope"] = getattr(kb, "scope", None)
-                item["kb_visibility"] = getattr(kb, "visibility", None)
-                item["kb_document_count"] = getattr(kb, "document_count", None)
-            result.append(item)
-        return result
+        if merge_platform_bindings and self.tenant_id is not None:
+            bindings = await self.binding_repo.list_merged_platform_and_tenant(
+                agent_id, self.tenant_id
+            )
+            suppressed = await load_suppressed_platform_kb_ids(
+                self.db, self.tenant_id, agent_id
+            )
+        else:
+            bindings = await self.binding_repo.get_by_agent_id(agent_id)
+            suppressed = set()
+
+        items: list[dict[str, Any]] = []
+        for b in bindings:
+            item = self._binding_to_item(b)
+            if merge_platform_bindings and self.tenant_id is not None:
+                item["platform_suppressed"] = (
+                    item["binding_scope"] == "platform"
+                    and item["knowledge_base_id"] in suppressed
+                )
+            else:
+                item["platform_suppressed"] = False
+            items.append(item)
+        return items
+
+    def serialize_binding_public(
+        self, binding: AgentKnowledgeBaseBinding
+    ) -> dict[str, Any]:
+        """单条绑定 API 响应（与列表字段一致）/ Single binding payload for API responses."""
+        return self._binding_to_item(binding)
 
     async def _validate_kb_accessible(self, knowledge_base_id: int) -> None:
         """校验知识库是否可访问（存在 + 权限范围内） / Validate KB accessible (exists + in scope)."""
@@ -116,8 +157,10 @@ class AgentKBBindingService:
 
         await self._validate_kb_accessible(knowledge_base_id)
 
-        existing = await self.binding_repo.get_binding(agent_id, knowledge_base_id)
-        if existing:
+        existing_any = await self.binding_repo.get_binding_any(
+            agent_id, knowledge_base_id
+        )
+        if existing_any:
             raise BusinessException(
                 message=_("agent_kb_binding.error.already_bound")
             )
@@ -180,15 +223,28 @@ class AgentKBBindingService:
                 message=_("agent_kb_binding.error.agent_not_found")
             )
 
+        kb_ids = list(knowledge_base_ids)
+        if (
+            agent.tenant_id is None
+            and self.tenant_id is not None
+        ):
+            filtered: list[int] = []
+            for kb_id in kb_ids:
+                row = await self.binding_repo.get_binding_any(agent_id, kb_id)
+                if row is not None and row.tenant_id is None:
+                    continue
+                filtered.append(kb_id)
+            kb_ids = filtered
+
         # 校验所有 KB 可访问
-        for kb_id in knowledge_base_ids:
+        for kb_id in kb_ids:
             await self._validate_kb_accessible(kb_id)
 
         async with self.db.begin_nested():
             await self.binding_repo.delete_by_agent_id(agent_id)
 
             bindings = []
-            for idx, kb_id in enumerate(knowledge_base_ids):
+            for idx, kb_id in enumerate(kb_ids):
                 binding = await self.binding_repo.create({
                     "agent_id": agent_id,
                     "knowledge_base_id": kb_id,
@@ -201,7 +257,7 @@ class AgentKBBindingService:
 
         logger.info(
             "Batch bound {} knowledge bases to agent {} (tenant={})",
-            len(knowledge_base_ids), agent_id, self.tenant_id,
+            len(kb_ids), agent_id, self.tenant_id,
         )
 
         return bindings

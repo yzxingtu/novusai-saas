@@ -15,6 +15,7 @@ import { Form, Input, InputNumber, Select, Switch } from 'ant-design-vue';
 
 import { $t as t } from '#/locales';
 
+import { ConfigHtmlEditor } from '../config-html-editor';
 import { ConfigImagePicker } from '../config-image-picker';
 
 interface Props {
@@ -88,7 +89,11 @@ function initConfigValue(
   } else {
     // Allow backend to return real value, only show placeholder when value is empty and encrypted / 允许后端返回真实值，只有在值为空且加密时才显示占位符
     // Only show placeholder when backend explicitly returns '******', otherwise use raw (may be null/undefined) / 只有当后端明确返回 '******' 时才显示占位符
-    data[cfg.key] = raw;
+    if (cfg.value_type === 'html') {
+      data[cfg.key] = raw == null || raw === undefined ? '' : String(raw);
+    } else {
+      data[cfg.key] = raw;
+    }
   }
 
   // If there are children, recursively initialize child fields / 如果有 children，递归初始化子字段
@@ -536,6 +541,12 @@ defineExpose({
             :rows="4"
           />
 
+          <!-- html (sanitized on server) -->
+          <ConfigHtmlEditor
+            v-else-if="cfg.value_type === 'html'"
+            v-model="formModel[cfg.key]"
+          />
+
           <!-- password -->
           <div
             v-else-if="cfg.value_type === 'password'"
@@ -660,6 +671,12 @@ defineExpose({
                 v-else-if="child.value_type === 'text'"
                 v-model:value="formModel[child.key]"
                 :rows="4"
+              />
+
+              <!-- html -->
+              <ConfigHtmlEditor
+                v-else-if="child.value_type === 'html'"
+                v-model="formModel[child.key]"
               />
 
               <!-- password -->

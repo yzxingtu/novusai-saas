@@ -3,7 +3,7 @@ import type { CaptchaDifficulty } from '#/api/public/captcha';
 import type { CaptchaAdapterExpose } from '#/components/business/captcha';
 
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -63,6 +63,12 @@ const captchaProvider = computed(() => {
 
 const privacyUrl = computed(() => publicConfigStore.tenantConfig?.privacyPolicyUrl);
 const termsUrl = computed(() => publicConfigStore.tenantConfig?.termsUrl);
+const privacyInternal = computed(
+  () => publicConfigStore.tenantConfig?.privacyPolicyInternal === true,
+);
+const termsInternal = computed(
+  () => publicConfigStore.tenantConfig?.termsInternal === true,
+);
 
 onMounted(async () => {
   await publicConfigStore.loadTenantConfig();
@@ -257,6 +263,7 @@ async function handleSubmit() {
         <Checkbox v-model:checked="formState.agreePolicy">
           <span class="text-sm text-muted-foreground">
             {{ $t('user.auth.agreePrefix') }}
+            <!-- 外链优先；无外链时再走站内富文本 -->
             <a
               v-if="privacyUrl"
               :href="privacyUrl"
@@ -264,7 +271,15 @@ async function handleSubmit() {
               rel="noopener noreferrer"
               class="text-primary hover:text-primary/80"
             >{{ $t('user.auth.privacyPolicy') }}</a>
-            <span v-else class="text-primary">{{ $t('user.auth.privacyPolicy') }}</span>
+            <RouterLink
+              v-else-if="privacyInternal"
+              to="/auth/legal/privacy"
+              class="text-primary hover:text-primary/80"
+            >{{ $t('user.auth.privacyPolicy') }}</RouterLink>
+            <span
+              v-else
+              class="text-muted-foreground"
+            >{{ $t('user.auth.privacyPolicy') }}</span>
             &amp;
             <a
               v-if="termsUrl"
@@ -273,7 +288,15 @@ async function handleSubmit() {
               rel="noopener noreferrer"
               class="text-primary hover:text-primary/80"
             >{{ $t('user.auth.termsOfService') }}</a>
-            <span v-else class="text-primary">{{ $t('user.auth.termsOfService') }}</span>
+            <RouterLink
+              v-else-if="termsInternal"
+              to="/auth/legal/terms"
+              class="text-primary hover:text-primary/80"
+            >{{ $t('user.auth.termsOfService') }}</RouterLink>
+            <span
+              v-else
+              class="text-muted-foreground"
+            >{{ $t('user.auth.termsOfService') }}</span>
           </span>
         </Checkbox>
       </FormItem>

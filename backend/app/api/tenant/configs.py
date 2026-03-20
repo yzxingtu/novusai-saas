@@ -88,8 +88,12 @@ async def _inject_role_options(
     for cfg in configs:
         if cfg["key"] != "user_default_role_id":
             continue
+        from app.services.tenant.tenant_user_role_display import (
+            localized_tenant_user_role_name_and_description,
+        )
+
         result = await db.execute(
-            sa_select(TenantUserRole.id, TenantUserRole.name)
+            sa_select(TenantUserRole.id, TenantUserRole.name, TenantUserRole.code)
             .where(
                 TenantUserRole.tenant_id == tenant_id,
                 TenantUserRole.is_active.is_(True),
@@ -98,8 +102,12 @@ async def _inject_role_options(
             .order_by(TenantUserRole.sort_order, TenantUserRole.id)
         )
         roles = result.all()
-        for role in roles:
-            cfg["options"].append({"value": role.id, "label": role.name})
+        for row in roles:
+            rid, rname, rcode = row[0], row[1], row[2]
+            label, _ = localized_tenant_user_role_name_and_description(
+                rcode, rname, None,
+            )
+            cfg["options"].append({"value": rid, "label": label})
         break
 
 

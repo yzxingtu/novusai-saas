@@ -56,7 +56,7 @@ from app.models import (
     AIModel,
     ProviderApiKey,
     AICallLog,
-    UsageStat,
+    TenantAgentPublication,
     TenantModelRateLimit,
     TenantQuota,
     # 智能体
@@ -89,6 +89,9 @@ from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.skill_call_log import SkillCallLog
+from app.models.ai.tenant_agent_platform_kb_suppression import (
+    TenantAgentPlatformKbSuppression,
+)
 from app.models.system.email_log import EmailLog
 from app.models.common.user_preference import UserPreference
 

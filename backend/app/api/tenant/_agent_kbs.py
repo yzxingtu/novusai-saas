@@ -16,9 +16,13 @@ from app.schemas.ai.agent_kb_binding import (
     AgentKBBatchBindRequest,
     AgentKBBindingUpdate,
     AgentKBBindRequest,
+    AgentPlatformKbSuppressRequest,
 )
 from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AgentService
+from app.services.ai.tenant_platform_kb_suppression_service import (
+    TenantPlatformKbSuppressionService,
+)
 
 router = APIRouter()
 
@@ -40,7 +44,9 @@ async def get_agent_kbs(
         raise NotFoundException(message=_("agent.error.not_found"))
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
-    result = await kb_service.get_agent_kb_bindings(agent_id)
+    result = await kb_service.get_agent_kb_bindings(
+        agent_id, merge_platform_bindings=True
+    )
     return success(data=result)
 
 
@@ -56,8 +62,8 @@ async def bind_kb(
     """
     绑定单个知识库到智能体 / Bind a single knowledge base to agent
     """
-    from app.api.tenant.agents import _ensure_tenant_owned_agent
-    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
     binding = await kb_service.bind_kb(
@@ -68,7 +74,7 @@ async def bind_kb(
         enabled=data.enabled,
     )
     await db.commit()
-    return created(data=binding.to_dict())
+    return created(data=kb_service.serialize_binding_public(binding))
 
 
 @router.put("/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）")
@@ -83,8 +89,8 @@ async def batch_bind_kbs(
     """
     批量绑定知识库（替换模式：先清空再批量插入）/ Batch bind knowledge bases (replace mode).
     """
-    from app.api.tenant.agents import _ensure_tenant_owned_agent
-    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
     bindings = await kb_service.batch_bind(
@@ -92,7 +98,9 @@ async def batch_bind_kbs(
         knowledge_base_ids=data.knowledge_base_ids,
     )
     await db.commit()
-    return success(data=[b.to_dict() for b in bindings])
+    return success(
+        data=[kb_service.serialize_binding_public(b) for b in bindings]
+    )
 
 
 @router.put("/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置")
@@ -109,8 +117,8 @@ async def update_kb_binding(
     更新知识库绑定（weight / enabled / sort_order）
     Update knowledge base binding (weight / enabled / sort_order)
     """
-    from app.api.tenant.agents import _ensure_tenant_owned_agent
-    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
 
@@ -123,7 +131,7 @@ async def update_kb_binding(
         data=data.model_dump(exclude_unset=True),
     )
     await db.commit()
-    return success(data=updated.to_dict())
+    return success(data=kb_service.serialize_binding_public(updated))
 
 
 @router.delete("/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库")
@@ -138,10 +146,56 @@ async def unbind_kb(
     """
     解绑指定知识库 / Unbind specified knowledge base
     """
-    from app.api.tenant.agents import _ensure_tenant_owned_agent
-    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
 
     kb_service = AgentKBBindingService(db, tenant_admin.tenant_id)
     await kb_service.unbind_kb(agent_id=agent_id, knowledge_base_id=knowledge_base_id)
+    await db.commit()
+    return deleted()
+
+
+@router.post(
+    "/{agent_id}/knowledge-bases/platform-suppressions",
+    summary="本企业停用平台全局知识库（不参与 RAG）",
+)
+@action_update("action.agent.update_kb_binding")
+async def suppress_platform_kb(
+    request: Request,
+    db: DbSession,
+    agent_id: int,
+    data: AgentPlatformKbSuppressRequest,
+    tenant_admin: ActiveTenantAdmin,
+):
+    """
+    对管理端配置的平台全局绑定，本企业选择不参与检索 / Opt out of platform KB for RAG.
+    """
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
+    svc = TenantPlatformKbSuppressionService(db, tenant_admin.tenant_id)
+    payload = await svc.suppress(agent_id, data.knowledge_base_id)
+    await db.commit()
+    return success(data=payload)
+
+
+@router.delete(
+    "/{agent_id}/knowledge-bases/platform-suppressions/{knowledge_base_id}",
+    summary="取消本企业对平台全局知识库的停用",
+)
+@action_update("action.agent.update_kb_binding")
+async def unsuppress_platform_kb(
+    request: Request,
+    db: DbSession,
+    agent_id: int,
+    knowledge_base_id: int,
+    tenant_admin: ActiveTenantAdmin,
+):
+    """恢复使用平台全局知识库参与 RAG / Remove tenant opt-out."""
+    from app.api.tenant.agents import _ensure_agent_kb_mutations_allowed
+
+    await _ensure_agent_kb_mutations_allowed(db, tenant_admin.tenant_id, agent_id)
+    svc = TenantPlatformKbSuppressionService(db, tenant_admin.tenant_id)
+    await svc.unsuppress(agent_id, knowledge_base_id)
     await db.commit()
     return deleted()

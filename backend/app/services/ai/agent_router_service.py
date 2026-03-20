@@ -3,8 +3,9 @@
 
 根据用户消息和页面上下文，通过 Router 智能体智能选择最合适的目标智能体。
 Selects the most suitable target agent via Router agent based on user messages and page context.
-支持 scope-aware 候选列表过滤和多层安全校验。
-Supports scope-aware candidate filtering and multi-layer security validation.
+候选过滤遵循平台分发、企业发布和端内访问控制的新语义。
+Candidate filtering follows the new platform distribution, tenant publication,
+and endpoint-internal access semantics.
 """
 
 from __future__ import annotations
@@ -14,28 +15,28 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
-from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
-from app.exceptions import BusinessException
-from app.models.ai.agent import Agent
-from app.models.system.agent_assignment import SystemAgentAssignment
-from app.repositories.system.resource_tenant_assignment_repository import (
-    assigned_resource_ids_subquery,
+from app.enums.agent import (
+    AgentOwnerTypeEnum,
+    AgentExecutionModeEnum,
+    AgentStatusEnum,
 )
+from app.enums.ai import CallAccessChannelEnum
+from app.enums.common import UserRoleEnum
+from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.agent import Agent
+from app.models.ai.agent_skill_binding import AgentSkillBinding
+from app.models.system.agent_assignment import SystemAgentAssignment
+from app.repositories.ai.agent_repository import _tenant_available_condition
+from app.services.ai.agent_service import AgentService
 
 logger = LogManager.get_logger("ai")
-
-# 需要分配表的 scope 值
-_ASSIGNED_SCOPES = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
 
 # 路由方式常量
 ROUTED_BY_PINNED = "pinned"
@@ -65,7 +66,7 @@ class AgentRouterService:
 
     流程:
     1. pinned_agent_id 直通（用户手动选择）
-    2. 构建 scope-aware 候选列表
+    2. 构建当前调用方可见的候选列表
     3. 获取 Router 智能体，TASK 模式调用
     4. 解析 JSON 结果，二次 valid_ids 校验
     5. 降级到 default_chat
@@ -88,7 +89,9 @@ class AgentRouterService:
         page_context: dict[str, Any] | None = None,
         pinned_agent_id: int | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id: int | None = None,
         user_id: int | None = None,
+        has_image_attachments: bool = False,
     ) -> RouteResult:
         """
         执行智能路由 / Execute agent routing.
@@ -98,7 +101,7 @@ class AgentRouterService:
             message: 用户消息
             page_context: 页面上下文信息
             pinned_agent_id: 用户固定选择的智能体 ID
-            user_role: 调用方角色（UserRoleEnum 値），用于候选列表和 target_audience 过滤
+            user_role: 调用方角色（UserRoleEnum 值），用于候选列表过滤
 
         Returns：
             RouteResult 路由结果
@@ -107,9 +110,12 @@ class AgentRouterService:
         if pinned_agent_id:
             agent = await self._get_published_agent(pinned_agent_id)
             if agent:
-                # 校验 scope 可见性 + target_audience
                 if await self._is_agent_visible(
-                    agent, tenant_id, user_role
+                    agent,
+                    tenant_id,
+                    user_role,
+                    user_id=user_id,
+                    user_role_id=user_role_id,
                 ):
                     return RouteResult(
                         agent_id=agent.id,
@@ -124,12 +130,30 @@ class AgentRouterService:
 
         # P2: 构建候选列表
         candidates = await self._list_available_agents(
-            tenant_id, user_role
+            tenant_id,
+            user_role,
+            user_id=user_id,
+            user_role_id=user_role_id,
         )
         if not candidates:
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
+
+        if has_image_attachments:
+            vision_candidates = [
+                a for a in candidates
+                if getattr(getattr(a, "model", None), "supports_vision", False)
+            ]
+            if vision_candidates:
+                candidates = vision_candidates
+                logger.info(
+                    "Agent router: narrowed to {} vision-capable agents (image attachments)",
+                    len(candidates),
+                )
 
         valid_ids = {a.id for a in candidates}
 
@@ -138,13 +162,19 @@ class AgentRouterService:
         if not router_agent:
             logger.warning("Router agent not found, falling back to default")
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         if not router_agent.model_id:
             logger.warning("Router agent model not configured")
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         # P3.5: 调用 Router 智能体（TASK 模式）
@@ -160,17 +190,25 @@ class AgentRouterService:
                     else tenant_id
                 ),
                 execution_user_role=user_role,
+                execution_user_role_id=user_role_id,
                 user_id=user_id,
+                has_image_attachments=has_image_attachments,
             )
         except Exception as exc:
             logger.error("Router call failed: {}", exc, exc_info=True)
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         if not route_result:
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         # P4: 二次校验
@@ -183,7 +221,10 @@ class AgentRouterService:
                 routed_id,
             )
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         if confidence < MIN_CONFIDENCE_THRESHOLD:
@@ -192,7 +233,10 @@ class AgentRouterService:
                 confidence,
             )
             return await self._fallback_to_default(
-                tenant_id, user_role
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
             )
 
         # 查找候选中的名称
@@ -208,32 +252,27 @@ class AgentRouterService:
         )
 
     # ========================================
-    # 候选列表构建（scope-aware）
+    # 候选列表构建
     # ========================================
 
     async def _list_available_agents(
         self,
         tenant_id: int | None,
         user_role: str,
+        *,
+        user_id: int | None = None,
+        user_role_id: int | None = None,
     ) -> list[Agent]:
         """
-        获取 scope-aware + target_audience-aware 候选智能体列表
-
-        管理端: ADMIN_ONLY / ADMIN_AND_ALL / ADMIN_AND_ASSIGNED
-        企业端: ALL_TENANTS / ADMIN_AND_ALL + 同企业 + 已分配
-        最终按 target_audience 过滤
+        获取当前上下文可用的候选智能体列表。
+        Get candidate agents available under the current context.
         """
-        from app.ai.skills.resolver import _audience_allows_role
-
-        from sqlalchemy.orm import selectinload
-
-        from app.models.ai.agent_skill_binding import AgentSkillBinding
-
         query = (
             select(Agent)
             .options(
+                selectinload(Agent.model),
                 selectinload(Agent.skill_bindings)
-                .selectinload(AgentSkillBinding.package)
+                .selectinload(AgentSkillBinding.package),
             )
             .where(
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
@@ -243,46 +282,30 @@ class AgentRouterService:
         )
 
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            # 管理端：只看 admin 可见 scope
-            query = query.where(
-                Agent.scope.in_([
-                    ResourceScopeEnum.ADMIN_ONLY.value,
-                    ResourceScopeEnum.ADMIN_AND_ALL.value,
-                    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-                    ResourceScopeEnum.ALL_TENANTS.value,
-                ])
-            )
+            query = query.where(Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value)
+            agents = list((await self.db.execute(query)).scalars().unique().all())
+            return agents
         elif tenant_id:
-            # 企业端：scope-aware 过滤
-            assigned_subq = assigned_resource_ids_subquery("agent", tenant_id)
-            query = query.where(
-                or_(
-                    Agent.tenant_id == tenant_id,
-                    Agent.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                    and_(
-                        Agent.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                        Agent.tenant_id.is_(None),
-                    ),
-                    and_(
-                        Agent.scope.in_(_ASSIGNED_SCOPES),
-                        Agent.id.in_(assigned_subq),
-                    ),
-                )
-            )
+            query = query.where(_tenant_available_condition(tenant_id))
         else:
-            # 无 tenant_id 也非管理端 → 空
             return []
 
         agents = list((await self.db.execute(query)).scalars().all())
+        if not agents:
+            return []
 
-        # 按 target_audience 过滤
-        return [
-            a for a in agents
-            if _audience_allows_role(
-                getattr(a, "target_audience", AudienceEnum.ADMIN_TENANT.value),
-                user_role,
+        agent_service = AgentService(self.db, tenant_id)
+        visible: list[Agent] = []
+        for agent in agents:
+            allowed = await agent_service.check_user_access(
+                agent_id=agent.id,
+                user_id=user_id or 0,
+                user_role=user_role,
+                user_role_id=user_role_id,
             )
-        ]
+            if allowed:
+                visible.append(agent)
+        return visible
 
     # ========================================
     # Router 智能体查找
@@ -314,7 +337,9 @@ class AgentRouterService:
         *,
         execution_tenant_id: int | None,
         execution_user_role: str,
+        execution_user_role_id: int | None = None,
         user_id: int | None = None,
+        has_image_attachments: bool = False,
     ) -> dict[str, Any] | None:
         """
         TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
@@ -331,11 +356,14 @@ class AgentRouterService:
         # 构建候选列表描述（含能力摘要，帮助 Router 选择合适的 Agent）
         agent_list = []
         for a in candidates:
+            m = getattr(a, "model", None)
             entry: dict[str, Any] = {
                 "id": a.id,
                 "name": a.name,
                 "description": a.description or "",
             }
+            if m is not None:
+                entry["supports_vision"] = bool(getattr(m, "supports_vision", False))
             # 提取已启用技能包名称列表，让 Router 知道 Agent 的工具能力
             # 仅包含 enabled=True 的绑定，排除被禁用的技能包
             skill_bindings = getattr(a, "skill_bindings", None)
@@ -352,7 +380,14 @@ class AgentRouterService:
             agent_list.append(entry)
 
         # 构建路由指令消息
-        routing_prompt = (
+        vision_preamble = ""
+        if has_image_attachments:
+            vision_preamble = (
+                "IMPORTANT: The user message includes image attachment(s). "
+                "You MUST select an agent with supports_vision=true (listed in JSON). "
+                "Do not choose an agent that cannot analyze images.\n\n"
+            )
+        routing_prompt = vision_preamble + (
             "Based on the user's message and context, select the most appropriate agent.\n\n"
             f"Available agents:\n{json.dumps(agent_list, ensure_ascii=False)}\n\n"
         )
@@ -373,6 +408,13 @@ class AgentRouterService:
             execution_mode=AgentExecutionModeEnum.TASK.value,
             stream=False,
             user_role=execution_user_role,
+            user_role_id=execution_user_role_id,
+            billing_context=self._build_router_billing_context(
+                router_agent=router_agent,
+                tenant_id=execution_tenant_id,
+                user_id=user_id,
+                user_role=execution_user_role,
+            ),
         )
 
         dispatcher = ExecutionDispatcher(self.db)
@@ -443,6 +485,9 @@ class AgentRouterService:
         self,
         tenant_id: int | None,
         user_role: str,
+        *,
+        user_id: int | None,
+        user_role_id: int | None,
     ) -> RouteResult:
         """
         降级到 default_chat 绑定的智能体 / Fallback to default_chat bound agent.
@@ -489,7 +534,13 @@ class AgentRouterService:
                 message=_("agent_chat.error.default_agent_not_configured"),
             )
 
-        if not await self._is_agent_visible(agent, tenant_id, user_role):
+        if not await self._is_agent_visible(
+            agent,
+            tenant_id,
+            user_role,
+            user_id=user_id,
+            user_role_id=user_role_id,
+        ):
             logger.warning(
                 "Default agent {} not visible for tenant={} user_role={}",
                 agent.id, tenant_id, user_role,
@@ -525,29 +576,57 @@ class AgentRouterService:
         agent: Agent,
         tenant_id: int | None,
         user_role: str,
+        *,
+        user_id: int | None,
+        user_role_id: int | None,
     ) -> bool:
-        """检查智能体对当前上下文是否可见（scope + target_audience 双重校验） / Check agent visible to context (scope + target_audience)."""
-        from app.ai.skills.resolver import _audience_allows_role
-        from app.core.scope import ScopeChecker
-
-        # target_audience 前置校验
-        agent_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
-        if not _audience_allows_role(agent_audience, user_role):
-            return False
-
+        """检查智能体对当前上下文是否可见 / Check agent visible to current context."""
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            return ScopeChecker.is_visible_to_admin(agent.scope)
+            return getattr(agent, "owner_type", None) == AgentOwnerTypeEnum.PLATFORM.value
 
         if not tenant_id:
             return False
 
-        return await ScopeChecker.is_visible_to_tenant(
-            scope=agent.scope,
-            resource_type="agent",
-            resource_id=agent.id,
-            tenant_id=tenant_id,
-            db=self.db,
+        try:
+            return await AgentService(self.db, tenant_id).check_user_access(
+                agent_id=agent.id,
+                user_id=user_id or 0,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            )
+        except NotFoundException:
+            return False
+
+    @staticmethod
+    def _build_router_billing_context(
+        *,
+        router_agent: Agent,
+        tenant_id: int | None,
+        user_id: int | None,
+        user_role: str,
+    ) -> dict[str, Any]:
+        billing_tenant_id = (
+            tenant_id if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID else None
         )
+        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
+            access_channel = CallAccessChannelEnum.ADMIN_INTERNAL.value
+        elif user_role == UserRoleEnum.TENANT_USER.value:
+            access_channel = CallAccessChannelEnum.TENANT_USER.value
+        else:
+            access_channel = CallAccessChannelEnum.TENANT_ADMIN.value
+
+        return {
+            "billing_tenant_id": billing_tenant_id,
+            "actor_user_id": user_id,
+            "actor_user_type": user_role,
+            "access_channel": access_channel,
+            "agent_owner_type": getattr(router_agent, "owner_type", None),
+            "agent_owner_tenant_id": getattr(router_agent, "tenant_id", None),
+            "agent_distribution_mode": getattr(router_agent, "distribution_mode", None),
+            "tenant_publication_id": None,
+            "publication_enabled_snapshot": None,
+            "publication_access_type_snapshot": None,
+        }
 
 
 __all__ = ["AgentRouterService", "RouteResult"]

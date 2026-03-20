@@ -18,6 +18,10 @@ class AICallLogResponse(TenantResponseSchema):
 
     user_id: int | None = Field(None, description=_("enum.ai_call_log.user_id"))
     user_type: str | None = Field(None, description=_("enum.ai_call_log.user_type"))
+    billing_tenant_id: int | None = Field(None, description="Billing tenant ID")
+    actor_user_id: int | None = Field(None, description="Actor user ID")
+    actor_user_type: str | None = Field(None, description="Actor user type")
+    access_channel: str | None = Field(None, description="Access channel")
     provider_id: int = Field(..., description=_("enum.ai_call_log.provider_id"))
     model_id: int = Field(..., description=_("enum.ai_call_log.model_id"))
     request_type: str = Field(..., description=_("enum.ai_call_log.request_type"))
@@ -32,6 +36,12 @@ class AICallLogResponse(TenantResponseSchema):
     metadata: dict | None = Field(None, description=_("enum.ai_call_log.metadata"))
     provider_name: str | None = Field(None, description=_("enum.ai_call_log.provider_name"))
     model_name: str | None = Field(None, description=_("enum.ai_call_log.model_name"))
+    agent_owner_type: str | None = Field(None, description="Agent owner type")
+    agent_owner_tenant_id: int | None = Field(None, description="Agent owner tenant ID")
+    agent_distribution_mode: str | None = Field(None, description="Agent distribution mode")
+    tenant_publication_id: int | None = Field(None, description="Tenant publication ID")
+    publication_enabled_snapshot: bool | None = Field(None, description="Publication enabled snapshot")
+    publication_access_type_snapshot: str | None = Field(None, description="Publication access type snapshot")
 
 
 class AICallLogSummary(BaseResponseSchema):

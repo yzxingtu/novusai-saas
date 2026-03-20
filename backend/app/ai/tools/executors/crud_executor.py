@@ -32,8 +32,14 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum, AgentStatusEnum
-from app.enums.common import AudienceEnum, ResourceScopeEnum
+from app.enums.agent import (
+    ActionLevelEnum,
+    ActionStatusEnum,
+    ActionTypeEnum,
+    AgentDistributionModeEnum,
+    AgentOwnerTypeEnum,
+    AgentStatusEnum,
+)
 from app.models.ai.table_policy import AITablePolicy
 from app.repositories.system.resource_tenant_assignment_repository import (
     ResourceTenantAssignmentRepository,
@@ -46,22 +52,27 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.crud")
 
-# Scope mapping: old AI/LLM values -> current ResourceScopeEnum
-_SCOPE_NORMALIZE: dict[str, str] = {
-    "platform": ResourceScopeEnum.ADMIN_AND_ALL.value,
-    "global": ResourceScopeEnum.ADMIN_AND_ALL.value,
-    "all": ResourceScopeEnum.ADMIN_AND_ALL.value,
-    "tenant": ResourceScopeEnum.TENANT_USER.value,
+# Distribution mapping: old AI/LLM values -> current distribution mode
+_DISTRIBUTION_MODE_NORMALIZE: dict[str, str] = {
+    "platform": AgentDistributionModeEnum.ALL_TENANTS.value,
+    "global": AgentDistributionModeEnum.ALL_TENANTS.value,
+    "all": AgentDistributionModeEnum.ALL_TENANTS.value,
+    "internal": AgentDistributionModeEnum.INTERNAL.value,
+    "admin_only": AgentDistributionModeEnum.INTERNAL.value,
+    "assigned": AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+    "admin_and_assigned": AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+    "assigned_tenants": AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+    "tenant": AgentDistributionModeEnum.OWNER_ONLY.value,
+    "owner_only": AgentDistributionModeEnum.OWNER_ONLY.value,
 }
-_VALID_SCOPES: frozenset[str] = frozenset(
-    e.value for e in ResourceScopeEnum.__members__.values()
+_VALID_DISTRIBUTION_MODES: frozenset[str] = frozenset(
+    e.value for e in AgentDistributionModeEnum.__members__.values()
 )
-_VALID_AUDIENCES: frozenset[str] = frozenset(
-    e.value for e in AudienceEnum.__members__.values()
+_VALID_OWNER_TYPES: frozenset[str] = frozenset(
+    e.value for e in AgentOwnerTypeEnum.__members__.values()
 )
-_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset({
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+_DISTRIBUTION_MODES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset({
+    AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
 })
 
 # Table name whitelist regex: only lowercase letters, digits, underscores (prevent SQL injection)
@@ -253,7 +264,7 @@ def _check_rbac(
 
 
 def _normalize_agent_data(data: dict[str, Any]) -> tuple[dict[str, Any], list[int] | None, bool]:
-    """Normalize agent create data: scope/target_audience, strip system fields, extract tenant_ids and publish flag."""
+    """Normalize agent create data: distribution semantics, strip system fields, extract tenant_ids and publish flag."""
     data = copy.deepcopy(data)
 
     tenant_ids = data.pop("tenant_ids", None)
@@ -274,26 +285,34 @@ def _normalize_agent_data(data: dict[str, Any]) -> tuple[dict[str, Any], list[in
     data.pop("is_deleted", None)
     data.pop("deleted_at", None)
     data.pop("is_system", None)
+    data.pop("target_audience", None)
 
-    scope = data.get("scope")
-    if scope:
-        data["scope"] = _SCOPE_NORMALIZE.get(scope, scope)
-        if data["scope"] not in _VALID_SCOPES:
+    distribution_mode = data.get("distribution_mode")
+    legacy_scope = data.pop("scope", None)
+    if distribution_mode is None and legacy_scope is not None:
+        distribution_mode = legacy_scope
+    if distribution_mode is not None:
+        distribution_mode = _DISTRIBUTION_MODE_NORMALIZE.get(
+            str(distribution_mode),
+            str(distribution_mode),
+        )
+        if distribution_mode not in _VALID_DISTRIBUTION_MODES:
             raise ValueError(
                 _("data_intelligence.crud.agent_invalid_scope").format(
-                    scope=data["scope"],
-                    valid=", ".join(sorted(_VALID_SCOPES)),
+                    scope=distribution_mode,
+                    valid=", ".join(sorted(_VALID_DISTRIBUTION_MODES)),
                 )
             )
+        data["distribution_mode"] = distribution_mode
 
-    audience = data.get("target_audience")
-    if audience and audience not in _VALID_AUDIENCES:
-        raise ValueError(
-            _("data_intelligence.crud.agent_invalid_audience").format(
-                audience=audience,
-                valid=", ".join(sorted(_VALID_AUDIENCES)),
+    owner_type = data.get("owner_type")
+    if owner_type is not None:
+        owner_type = str(owner_type)
+        if owner_type not in _VALID_OWNER_TYPES:
+            raise ValueError(
+                f"Invalid owner_type '{owner_type}', valid: {', '.join(sorted(_VALID_OWNER_TYPES))}"
             )
-        )
+        data["owner_type"] = owner_type
 
     return data, tenant_ids, want_publish
 
@@ -314,7 +333,10 @@ async def _execute_agent_create_via_service(
         payload.pop("tenant_id", None)
         service = AdminAgentService(context.db)
         agent = await service.create(payload)
-        if agent.scope in _SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+        if (
+            agent.distribution_mode in _DISTRIBUTION_MODES_NEEDING_ASSIGNMENT
+            and tenant_ids is not None
+        ):
             repo = ResourceTenantAssignmentRepository(context.db)
             await repo.sync_assignments("agent", agent.id, tenant_ids)
         if want_publish:
@@ -326,8 +348,8 @@ async def _execute_agent_create_via_service(
             )
     else:
         service = AgentService(context.db, context.tenant_id)
-        payload.pop("scope", None)
-        payload.pop("target_audience", None)
+        payload.pop("distribution_mode", None)
+        payload.pop("owner_type", None)
         payload.pop("tenant_ids", None)
         agent = await service.create(payload)
         if want_publish:

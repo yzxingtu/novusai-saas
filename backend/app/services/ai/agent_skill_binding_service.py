@@ -66,9 +66,24 @@ class AgentSkillBindingService:
         if agent:
             from app.ai.skills.resolver import _load_auto_bind_packages
             try:
+                dm = getattr(agent, "distribution_mode", None)
+                from app.enums.agent import AgentDistributionModeEnum
+                from app.enums.common import ResourceScopeEnum
+                if dm == AgentDistributionModeEnum.INTERNAL.value:
+                    _scope = ResourceScopeEnum.ADMIN_ONLY.value
+                elif dm == AgentDistributionModeEnum.ALL_TENANTS.value:
+                    _scope = ResourceScopeEnum.ALL_TENANTS.value
+                elif dm in (
+                    AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+                    getattr(AgentDistributionModeEnum, "OWNER_ONLY", object()).value
+                    if hasattr(AgentDistributionModeEnum, "OWNER_ONLY") else "__none__",
+                ):
+                    _scope = ResourceScopeEnum.ASSIGNED_TENANTS.value
+                else:
+                    _scope = getattr(agent, "scope", ResourceScopeEnum.ALL_TENANTS.value)
                 auto_packages = await _load_auto_bind_packages(
                     self.db,
-                    agent_scope=agent.scope,
+                    agent_scope=_scope,
                     tenant_id=self.tenant_id,
                 )
                 for pkg in auto_packages:

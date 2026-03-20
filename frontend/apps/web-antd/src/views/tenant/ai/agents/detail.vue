@@ -38,11 +38,14 @@ import {
 
 import {
   batchBindKBsApi,
+  bindSingleAgentKBApi,
   getAgentDetailApi,
   getAgentKBsApi,
   getAgentMemoryConfigApi,
   getAgentSkillsApi,
+  suppressPlatformKbApi,
   unbindKBApi,
+  unsuppressPlatformKbApi,
   updateAgentApi,
   updateAgentKBBindingApi,
   updateAgentMemoryConfigApi,
@@ -57,16 +60,16 @@ import {
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
 import { toAvatarDisplayUrl } from '#/utils/image';
-import {
-  getScopeColor,
-  getScopeIcon,
-  getScopeText,
-} from '#/utils/scope-helpers';
-
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 
-import { getAudienceText, getExecutionModeText, getStatusColor, getStatusText } from './data';
+import {
+  getDistributionModeColor,
+  getDistributionModeText,
+  getExecutionModeText,
+  getStatusColor,
+  getStatusText,
+} from './data';
 import AccessConfigDrawer from './modules/AccessConfigDrawer.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
@@ -82,7 +85,6 @@ function openAccessConfig() {
   accessConfigApi.setData({
     id: agent.value.id,
     name: agent.value.name,
-    target_audience: agent.value.target_audience,
   });
   accessConfigApi.open();
 }
@@ -283,9 +285,17 @@ async function updateTenantMemoryDisabled(disabled: boolean) {
 }
 
 // ==================== Scope Protection ====================
-const isTenantOwned = computed(
-  () => agent.value?.scope === 'all_tenants' && agent.value?.tenant_id !== null,
+const isTenantOwned = computed(() => agent.value?.owner_type === 'tenant');
+/** 平台下发智能体：可追加本企业知识库，不可改平台全局绑定 / Platform agent: tenant KB overlay */
+const isPlatformAssignedAgent = computed(
+  () => agent.value?.owner_type === 'platform',
 );
+const canManageKnowledgeBases = computed(
+  () => isTenantOwned.value || isPlatformAssignedAgent.value,
+);
+function isKbBindingReadonly(binding: AgentKBBindingInfo) {
+  return binding.binding_scope === 'platform';
+}
 
 // ==================== Overview Tab ====================
 const editingPrompt = ref(false);
@@ -431,6 +441,7 @@ const kbBindings = ref<AgentKBBindingInfo[]>([]);
 const kbBindingsLoading = ref(false);
 const kbOptions = ref<{ label: string; value: number }[]>([]);
 const selectedNewKBs = ref<number[]>([]);
+const platformKbSuppressLoadingKbId = ref<number | null>(null);
 
 async function loadKBBindings() {
   kbBindingsLoading.value = true;
@@ -462,12 +473,20 @@ const unboundKBs = computed(() => {
 
 async function bindKB() {
   if (selectedNewKBs.value.length === 0) return;
-  const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
-  for (const kbId of selectedNewKBs.value) {
-    if (!currentIds.includes(kbId)) currentIds.push(kbId);
-  }
   try {
-    await batchBindKBsApi(agentId.value, currentIds);
+    if (isTenantOwned.value) {
+      const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
+      for (const kbId of selectedNewKBs.value) {
+        if (!currentIds.includes(kbId)) currentIds.push(kbId);
+      }
+      await batchBindKBsApi(agentId.value, currentIds);
+    } else {
+      for (const kbId of selectedNewKBs.value) {
+        await bindSingleAgentKBApi(agentId.value, {
+          knowledge_base_id: kbId,
+        });
+      }
+    }
     selectedNewKBs.value = [];
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
@@ -487,6 +506,7 @@ async function unbindKB(knowledgeBaseId: number) {
 }
 
 async function toggleKBEnabled(binding: AgentKBBindingInfo) {
+  if (isKbBindingReadonly(binding)) return;
   try {
     await updateAgentKBBindingApi(agentId.value, binding.id, {
       enabled: !binding.enabled,
@@ -498,12 +518,35 @@ async function toggleKBEnabled(binding: AgentKBBindingInfo) {
 }
 
 async function updateKBWeight(bindingId: number, weight: number) {
+  const row = kbBindings.value.find((x) => x.id === bindingId);
+  if (row && isKbBindingReadonly(row)) return;
   try {
     await updateAgentKBBindingApi(agentId.value, bindingId, { weight });
     await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
   } catch {
     message.error($t('common.saveFailed'));
+  }
+}
+
+async function togglePlatformKbOptOut(
+  binding: AgentKBBindingInfo,
+  optOut: boolean,
+) {
+  if (!isKbBindingReadonly(binding)) return;
+  platformKbSuppressLoadingKbId.value = binding.knowledge_base_id;
+  try {
+    if (optOut) {
+      await suppressPlatformKbApi(agentId.value, binding.knowledge_base_id);
+    } else {
+      await unsuppressPlatformKbApi(agentId.value, binding.knowledge_base_id);
+    }
+    await loadKBBindings();
+    message.success($t('tenant.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  } finally {
+    platformKbSuppressLoadingKbId.value = null;
   }
 }
 
@@ -527,6 +570,7 @@ function initQuota() {
 }
 
 async function saveQuota() {
+  if (!agent.value || !isTenantOwned.value) return;
   await saveFields({
     quota_config: {
       conversations_per_day: quotaConversationsPerDay.value,
@@ -636,7 +680,7 @@ function onTabChange(key: number | string) {
 
 const cleanupPageContext = registerPageContext('tenant/ai/agents/detail', () => ({
   page_key: 'tenant.ai.agents.detail',
-  page_title: agent.value?.name ?? $t('tenant.ai.agent.detail'),
+  page_title: agent.value?.name ?? $t('tenant.ai.agent.detail.title'),
   page_data: {
     resource: '/tenant/ai/agents',
     agent_id: agentId.value,
@@ -800,24 +844,14 @@ onBeforeUnmount(() => {
                     {{ getExecutionModeText(agent.execution_mode) }}
                   </div>
                   <Tag
-                    :color="getScopeColor(agent.scope)"
+                    :color="getDistributionModeColor(agent.distribution_mode)"
                     class="!mr-0 !text-xs"
                   >
                     <div class="flex items-center gap-1">
-                      <IconifyIcon
-                        :icon="getScopeIcon(agent.scope)"
-                        class="size-3"
-                      />
-                      {{ getScopeText(agent.scope) }}
+                      <IconifyIcon icon="lucide:share-2" class="size-3" />
+                      {{ getDistributionModeText(agent.distribution_mode) }}
                     </div>
                   </Tag>
-                  <div
-                    v-if="agent.target_audience"
-                    class="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/8 px-3 py-1 text-xs text-primary"
-                  >
-                    <IconifyIcon icon="lucide:users" class="size-3" />
-                    {{ getAudienceText(agent.target_audience) }}
-                  </div>
                   <!-- Readonly badge for non-owned agents -->
                   <div
                     v-if="!isTenantOwned"
@@ -1505,9 +1539,15 @@ onBeforeUnmount(() => {
               <div class="p-5 pt-3">
                 <Spin :spinning="kbBindingsLoading">
                   <div class="flex flex-col gap-4">
+                    <p
+                      v-if="isPlatformAssignedAgent"
+                      class="text-xs text-muted-foreground"
+                    >
+                      {{ $t('tenant.ai.agent.detail.kbTenantOverlayHint') }}
+                    </p>
                     <!-- Add binding row -->
                     <div
-                      v-if="isTenantOwned"
+                      v-if="canManageKnowledgeBases"
                       class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
                     >
                       <ASelect
@@ -1549,10 +1589,17 @@ onBeforeUnmount(() => {
                             />
                           </div>
                           <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                               <span class="text-sm font-medium">{{
                                 b.kb_name || `#${b.knowledge_base_id}`
                               }}</span>
+                              <Tag
+                                v-if="isKbBindingReadonly(b)"
+                                color="orange"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ $t('tenant.ai.agent.detail.kbPlatformBadge') }}
+                              </Tag>
                               <Tag
                                 v-if="b.kb_document_count != null"
                                 class="!mr-0 !text-[10px]"
@@ -1581,7 +1628,10 @@ onBeforeUnmount(() => {
                               :max="2"
                               :step="0.1"
                               size="small"
-                              :disabled="!isTenantOwned"
+                              :disabled="
+                                !canManageKnowledgeBases ||
+                                isKbBindingReadonly(b)
+                              "
                               class="!w-20"
                               @change="
                                 (val) =>
@@ -1594,12 +1644,42 @@ onBeforeUnmount(() => {
                           <Switch
                             :checked="b.enabled"
                             size="small"
-                            :disabled="!isTenantOwned"
+                            :disabled="
+                              !canManageKnowledgeBases ||
+                              isKbBindingReadonly(b)
+                            "
                             @change="toggleKBEnabled(b)"
                           />
+                          <!-- Platform KB: tenant opt-out from RAG -->
+                          <div
+                            v-if="isKbBindingReadonly(b) && canManageKnowledgeBases"
+                            class="flex max-w-[11rem] flex-col gap-0.5"
+                          >
+                            <span class="text-[10px] text-muted-foreground">{{
+                              $t('tenant.ai.agent.detail.kbPlatformOptOut')
+                            }}</span>
+                            <Switch
+                              :checked="Boolean(b.platform_suppressed)"
+                              size="small"
+                              :loading="
+                                platformKbSuppressLoadingKbId ===
+                                b.knowledge_base_id
+                              "
+                              @change="
+                                (val) =>
+                                  togglePlatformKbOptOut(b, Boolean(val))
+                              "
+                            />
+                            <span class="text-[10px] leading-tight text-muted-foreground">{{
+                              $t('tenant.ai.agent.detail.kbPlatformOptOutHint')
+                            }}</span>
+                          </div>
                           <!-- Unbind -->
                           <Popconfirm
-                            v-if="isTenantOwned"
+                            v-if="
+                              canManageKnowledgeBases &&
+                              !isKbBindingReadonly(b)
+                            "
                             :title="$t('common.confirmDelete')"
                             @confirm="unbindKB(b.knowledge_base_id)"
                           >
@@ -1634,9 +1714,15 @@ onBeforeUnmount(() => {
                 </span>
               </template>
               <div class="p-5 pt-3">
-                <p class="mb-4 text-xs text-muted-foreground">
-                  {{ $t('tenant.ai.agent.detail.noQuotaLimit') }}
-                </p>
+                <div class="mb-4 flex flex-wrap items-center gap-2">
+                  <p class="text-xs text-muted-foreground">
+                    {{ $t('tenant.ai.agent.detail.noQuotaLimit') }}
+                  </p>
+                  <span
+                    v-if="!isTenantOwned"
+                    class="rounded-full bg-warning/15 px-2 py-px text-[10px] font-medium text-warning"
+                  >{{ $t('tenant.ai.agent.readonlyHint') }}</span>
+                </div>
                 <div class="grid max-w-2xl grid-cols-1 gap-3 md:grid-cols-2">
                   <div class="rounded-xl border bg-accent/30 p-4">
                     <label class="mb-2 block text-xs text-muted-foreground">{{
@@ -1645,6 +1731,7 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaConversationsPerDay"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
@@ -1655,6 +1742,7 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaTokensPerDay"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
@@ -1665,6 +1753,7 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaTokensPerMonth"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
@@ -1675,6 +1764,7 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaMaxTurns"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
@@ -1685,6 +1775,7 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaMaxConcurrent"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
@@ -1695,12 +1786,18 @@ onBeforeUnmount(() => {
                     <InputNumber
                       v-model:value="quotaUserConversationsPerDay"
                       :min="0"
+                      :disabled="!isTenantOwned"
                       class="w-full"
                     />
                   </div>
                 </div>
                 <div class="mt-5">
-                  <Button type="primary" :loading="saving" @click="saveQuota">
+                  <Button
+                    type="primary"
+                    :loading="saving"
+                    :disabled="!isTenantOwned"
+                    @click="saveQuota"
+                  >
                     {{ $t('common.save') }}
                   </Button>
                 </div>

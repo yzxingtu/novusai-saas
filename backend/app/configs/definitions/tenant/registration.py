@@ -5,7 +5,7 @@ Includes tenant-level user self-registration configs.
 """
 
 from app.configs.definitions.groups import TENANT_FEATURES_GROUP
-from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule, max_length
 from app.enums.config import ConfigScope, ConfigValueType
 
 
@@ -111,6 +111,40 @@ USER_TERMS_URL = ConfigMeta(
     ],
 )
 
+# Privacy policy body (HTML, shown on user site) / 隐私政策正文（HTML，用户端站内展示）
+USER_PRIVACY_POLICY_HTML = ConfigMeta(
+    key="user_privacy_policy_html",
+    name_key="config.tenant.user_privacy_policy_html.name",
+    description_key="config.tenant.user_privacy_policy_html.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.HTML,
+    default_value="",
+    validation_rules=[
+        max_length(200_000, "validation.max_length"),
+    ],
+    sort_order=151,
+    display_rules=[
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
+    ],
+)
+
+# Terms of service body (HTML) / 服务条款正文（HTML）
+USER_TERMS_HTML = ConfigMeta(
+    key="user_terms_html",
+    name_key="config.tenant.user_terms_html.name",
+    description_key="config.tenant.user_terms_html.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.HTML,
+    default_value="",
+    validation_rules=[
+        max_length(200_000, "validation.max_length"),
+    ],
+    sort_order=161,
+    display_rules=[
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
+    ],
+)
+
 
 # ==========================================
 # Register configs to group / 注册配置到分组
@@ -124,6 +158,8 @@ TENANT_FEATURES_GROUP.configs = TENANT_FEATURES_GROUP.configs + [
     USER_DEFAULT_ROLE_ID,
     USER_PRIVACY_POLICY_URL,
     USER_TERMS_URL,
+    USER_PRIVACY_POLICY_HTML,
+    USER_TERMS_HTML,
 ]
 
 
@@ -135,4 +171,6 @@ __all__ = [
     "USER_DEFAULT_ROLE_ID",
     "USER_PRIVACY_POLICY_URL",
     "USER_TERMS_URL",
+    "USER_PRIVACY_POLICY_HTML",
+    "USER_TERMS_HTML",
 ]

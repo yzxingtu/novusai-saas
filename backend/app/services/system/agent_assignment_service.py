@@ -7,11 +7,17 @@ Provides system agent assignment business logic.
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.agent import (
+    AgentDistributionModeEnum,
+    AgentOwnerTypeEnum,
+    AgentStatusEnum,
+)
 from app.exceptions import (
     AuthorizationException,
     ConflictException,
@@ -47,19 +53,22 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         Args:
             agent_id: 要校验的智能体 ID，None 时跳过（清除绑定）
             tenant_id: 企业 ID，None 表示非企业覆盖场景下的校验
-            for_platform_feature_binding: True 时用于管理端「功能分配」全局绑定：要求平台级、
-                scope 为 admin_and_all / all_tenants，且受众非 admin_only（保证各企业可一致调用）
+            for_platform_feature_binding: True 时用于管理端「功能分配」全局绑定：
+                只允许平台自有且对企业可分发的智能体
         """
         if agent_id is None:
             return
 
-        from sqlalchemy import select
-
-        from app.enums.common import AudienceEnum, ResourceScopeEnum
         from app.models.ai.agent import Agent
 
         result = await self.repo.db.execute(
-            select(Agent.id, Agent.status, Agent.scope, Agent.tenant_id, Agent.target_audience).where(
+            select(
+                Agent.id,
+                Agent.status,
+                Agent.owner_type,
+                Agent.tenant_id,
+                Agent.distribution_mode,
+            ).where(
                 Agent.id == agent_id,
                 Agent.is_deleted.is_(False),
             )
@@ -70,29 +79,22 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 message=_("system_agent_assignment.error.agent_not_found"),
             )
 
-        from app.enums.agent import AgentStatusEnum
-
         if agent.status != AgentStatusEnum.PUBLISHED.value:
             raise ValidationException(
                 message=_("system_agent_assignment.error.agent_not_published"),
             )
 
         if for_platform_feature_binding:
-            if agent.tenant_id is not None:
+            if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
                 raise ValidationException(
                     message=_("system_agent_assignment.error.agent_must_be_platform_global"),
                 )
-            if agent.scope not in (
-                ResourceScopeEnum.ADMIN_AND_ALL.value,
-                ResourceScopeEnum.ALL_TENANTS.value,
+            if agent.distribution_mode not in (
+                AgentDistributionModeEnum.ALL_TENANTS.value,
+                AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
             ):
                 raise ValidationException(
                     message=_("system_agent_assignment.error.agent_must_be_global_shared_scope"),
-                )
-            target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
-            if target_audience == AudienceEnum.ADMIN_ONLY.value:
-                raise ValidationException(
-                    message=_("system_agent_assignment.error.agent_audience_not_for_tenant_consumption"),
                 )
             return
 
@@ -100,33 +102,21 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         if tenant_id is None:
             return
 
-        # 企业端校验 target_audience：企业端不能绑定 admin_only 的智能体
-        target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
-        if target_audience == AudienceEnum.ADMIN_ONLY.value:
-            raise AuthorizationException(
-                message=_("system_agent_assignment.error.agent_not_accessible"),
-            )
-
-        # 企业端校验 scope 可见性
-        scope = agent.scope
-        if scope in (
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
-            ResourceScopeEnum.ALL_TENANTS.value,
+        if (
+            agent.owner_type == AgentOwnerTypeEnum.TENANT.value
+            and agent.tenant_id == tenant_id
         ):
-            return  # 全局可见
+            return
 
-        if scope == ResourceScopeEnum.ADMIN_ONLY.value:
-            raise AuthorizationException(
-                message=_("system_agent_assignment.error.agent_not_accessible"),
-            )
+        if (
+            agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
+            and agent.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value
+        ):
+            return
 
-        if agent.tenant_id == tenant_id:
-            return  # 同企业
-
-        # assigned scope：检查 ResourceTenantAssignment
-        if scope in (
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+        if (
+            agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
+            and agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value
         ):
             from app.repositories.system.resource_tenant_assignment_repository import (
                 ResourceTenantAssignmentRepository,

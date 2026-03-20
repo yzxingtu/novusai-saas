@@ -61,7 +61,12 @@ _TABLE_KEYWORDS: dict[str, list[str]] = {
     "ai_call_logs": ["调用日志", "call_log", "AI调用"],
     "ai_query_logs": ["查询日志", "query_log", "审计"],
     "ai_action_logs": ["操作日志", "action_log"],
-    "ai_usage_stats": ["用量", "usage", "统计"],
+    "tenant_agent_publications": ["智能体用户发布", "publication", "租户智能体发布"],
+    "tenant_agent_platform_kb_suppressions": [
+        "平台知识库本企业停用",
+        "platform_kb_opt_out",
+        "租户停用平台KB",
+    ],
     "operation_logs": ["操作日志", "operation", "日志"],
     "attachments": ["附件", "attachment", "文件"],
     "batch_runs": ["批处理", "batch", "批量运行"],
@@ -101,7 +106,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "component": "组件",
     "hidden": "是否隐藏",
     "is_enabled": "是否启用",
-    "target_audience": "目标受众（all/admin_only/admin_tenant）",
+    "distribution_mode": "分发模式（internal/all_tenants/assigned_tenants/owner_only）",
     "visibility": "可见性",
     "avatar": "头像 URL",
     # 用户 / 企业

@@ -228,6 +228,7 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 → AI 写作专题技能：[../ai-writing/SKILL.md](../ai-writing/SKILL.md)
 → 会话记忆专题技能：[../session-memory/SKILL.md](../session-memory/SKILL.md)
 → 页面感知专题技能：[../ai-page-awareness/SKILL.md](../ai-page-awareness/SKILL.md)
+→ **AI 调用日志与用量账本**（`AICallLog`、Celery `tasks.ai.log_ai_call`、`billing_context`、Worker 版本一致）：[../ai-call-log-usage-ledger/SKILL.md](../ai-call-log-usage-ledger/SKILL.md)
 
 ---
 
@@ -235,7 +236,7 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 
 - 业务任务模块必须用 `@register_task` 装饰器；插件注册器这类框架桥接层可在内部动态注册 Celery task
 - Celery Worker 是同步进程，用 `sync_session_factory()` 获取 DB，`redis.from_url()` 获取 Redis
-- 5 个队列：`default` / `high_priority` / `ai_gateway` / `scheduled` / `notification`
+- 5 个队列：`default` / `high_priority` / **`ai_gateway`**（含 **`tasks.ai.log_ai_call`** AI 调用日志落库） / `scheduled` / `notification`
 - 业务可运维定时任务优先通过 `periodic_tasks` 表管理；系统级兜底任务才静态注册 `beat_schedule`
 
 → 完整规范：[references/async-tasks.md](references/async-tasks.md)
@@ -661,7 +662,7 @@ JWT 含 `jti`，Redis `token_blacklist:{jti}` 记录吊销，`active_tokens:{use
 - [ ] 无 `except Exception: pass`，异常至少 `logger.debug` 记录
 - [ ] 列表/导出查询有 `.limit(N)` 上限（分页用 page[size]；单条/主键/小表豁免）
 - [ ] `open()` 使用 `with` 语句或确保关闭，禁止返回裸文件句柄（或用 `BytesIO`）
-- [ ] `pyproject.toml` 与 `requirements.txt` 依赖对齐
+- [ ] 依赖变更后已运行 `uv lock` 并提交 `uv.lock`
 - [ ] 循环引用类型使用 `from __future__ import annotations` + `TYPE_CHECKING`
 - [ ] 启用数据权限的 Model 声明 `__data_permission__ = True` 且有 created_by / dept_id 字段
 - [ ] 新增 Controller 端点的 force-logout 类操作有 `@action_create` 权限保护

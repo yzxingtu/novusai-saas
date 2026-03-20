@@ -15,11 +15,13 @@ import { Page } from '@vben/common-ui';
 import { Avatar, Card, Descriptions, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
+import { getAICallLogListApi } from '#/api/admin/ai-call-logs';
 import {
   getAIConversationDetailApi,
   getAIConversationListApi,
 } from '#/api/admin/ai';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
+import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -44,6 +46,17 @@ const conversationDetailApi = (
 function onViewDetail(row: AIConversationInfo) {
   detailId.value = row.id;
   detailOpen.value = true;
+}
+
+async function loadConversationCallLogs(
+  conversationId: number,
+): Promise<ConversationCallLogSummary[]> {
+  const res = await getAICallLogListApi({
+    'filter[conversation_id][eq]': conversationId,
+    'page[size]': 100,
+    sort: 'created_at',
+  });
+  return res.items as ConversationCallLogSummary[];
 }
 
 const { Grid, onRefresh, gridApi } = useCrudPage<AIConversationInfo>({
@@ -133,6 +146,7 @@ onUnmounted(() => {
       :format-tokens="formatTokens"
       :format-cost="formatCost"
       :get-status-text="getStatusText"
+      :load-call-logs="loadConversationCallLogs"
     >
       <template #extra-descriptions="{ detail }">
         <Descriptions.Item

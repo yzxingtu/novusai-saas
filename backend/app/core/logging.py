@@ -64,13 +64,13 @@ class InterceptHandler(logging.Handler):
         except ValueError:
             level = record.levelno
 
-        frame, depth = logging.currentframe(), 2
-        while frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back  # type: ignore[assignment]
-            depth += 1
-
-        bound = logger.bind(category=self._category) if self._category else logger
-        bound.opt(depth=depth, exception=record.exc_info).log(
+        # 使用 stdlib 的 logger 名（如 uvicorn.error、websockets.server），勿用 opt(depth=…)，
+        # 否则 Loguru 会把 {name} 解析成 logging/__init__（显示为 logging | callHandlers）。
+        # Use stdlib logger name; avoid opt(depth=…) which misattributes {name} to logging module.
+        bind_kw: dict[str, str] = {"log_logger": record.name}
+        if self._category:
+            bind_kw["category"] = self._category
+        logger.bind(**bind_kw).opt(exception=record.exc_info).log(
             level, record.getMessage()
         )
 
@@ -94,6 +94,8 @@ def _patch_trace_id(record: dict) -> None:
         record["extra"]["trace_id"] = trace_id_var.get() or ""
     except ImportError:
         record["extra"]["trace_id"] = ""
+    # 与 InterceptHandler 的 log_logger 对齐，格式串统一用 {extra[log_logger]} / Align with InterceptHandler
+    record["extra"].setdefault("log_logger", record["name"])
 
 
 class LogManager:
@@ -138,33 +140,46 @@ class LogManager:
         base_fmt = (
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan> | "
+            "<cyan>{extra[log_logger]}</cyan> | "
             "<cyan>[trace_id={extra[trace_id]}]</cyan> | "
             "{message}"
         )
-        detail_fmt = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan> | "
-            "<cyan>[trace_id={extra[trace_id]}]</cyan> | "
-            "{file}:{line} | {function} | {message}"
-        )
         file_fmt = (
-            "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name} | "
+            "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[log_logger]} | "
             "[trace_id={extra[trace_id]}] | {message}"
         )
-        fmt = detail_fmt if settings.DEBUG else base_fmt
 
         # 配置 trace_id 注入 / Configure trace_id patcher
         logger.configure(patcher=_patch_trace_id)
 
-        # 控制台输出 / Console sink
+        # 控制台输出 / Console sink（始终简洁格式；DEBUG 下也不再带 logging/callHandlers 栈帧）
+        # Console always uses compact format; avoids logging/__init__ frame noise when DEBUG=True
         if enable_console:
+
+            def _console_sink_filter(record: dict) -> bool:
+                if not settings.LOG_DB_TO_CONSOLE:
+                    if record["extra"].get("category") == LogCategoryEnum.DB.value:
+                        return False
+                if settings.LOG_QUIET_WEBSOCKET_HANDSHAKE:
+                    msg = record["message"]
+                    lg = record["extra"].get("log_logger") or ""
+                    if lg == "uvicorn.error" and "WebSocket" in msg and "[accepted]" in msg:
+                        return False
+                    # uvicorn 把 WebSocketServerProtocol 的 logger 设成 uvicorn.error，websockets 的
+                    # "connection open" 因此走 uvicorn.error 而非 websockets.server
+                    if msg == "connection open" and lg in (
+                        "uvicorn.error",
+                        "websockets.server",
+                    ):
+                        return False
+                return True
+
             logger.add(
                 sys.stdout,
-                format=fmt,
+                format=base_fmt,
                 level=cls._log_level,
                 colorize=True,
+                filter=_console_sink_filter,
             )
 
         # 文件输出 / File sinks
@@ -215,6 +230,9 @@ class LogManager:
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("httpcore").setLevel(logging.WARNING)
+        # python-socketio / engineio 连接过程 INFO 较吵，开发时默认压低 / Quieter Socket.IO handshake logs
+        logging.getLogger("engineio").setLevel(logging.WARNING)
+        logging.getLogger("socketio").setLevel(logging.WARNING)
 
         # SQLAlchemy engine 重定向到 db 分类 / SQLAlchemy -> db category
         sa_logger = logging.getLogger("sqlalchemy.engine")

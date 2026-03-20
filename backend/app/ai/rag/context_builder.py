@@ -42,6 +42,8 @@ class SourceReference:
     page: int | None = None
     heading: str | None = None
     chunk_index: int = 0
+    knowledge_base_id: int | None = None
+    knowledge_base_name: str | None = None
 
     def to_dict(self) -> dict:
         """Serialize / 序列化"""
@@ -117,6 +119,7 @@ class RAGContextBuilder:
         self,
         chunks: list[ChunkSearchResult],
         token_budget: int,
+        kb_names: dict[int, str] | None = None,
     ) -> RAGContext:
         """
         Build RAG context / 构建 RAG 上下文
@@ -169,12 +172,14 @@ class RAGContextBuilder:
                     if truncated:
                         parts.append(truncated)
                         used_tokens += estimate_tokens(truncated)
-                        sources.append(self._build_source_ref(chunk, ref_index))
+                        sources.append(
+                            self._build_source_ref(chunk, ref_index, kb_names),
+                        )
                 break
 
             parts.append(line)
             used_tokens += line_tokens
-            sources.append(self._build_source_ref(chunk, ref_index))
+            sources.append(self._build_source_ref(chunk, ref_index, kb_names))
             ref_index += 1
 
         if not parts:
@@ -217,6 +222,7 @@ class RAGContextBuilder:
     def _build_source_ref(
         chunk: ChunkSearchResult,
         ref_index: int,
+        kb_names: dict[int, str] | None = None,
     ) -> SourceReference:
         """Build SourceReference from retrieval result / 从检索结果构建 SourceReference"""
         _ = ref_index
@@ -225,6 +231,11 @@ class RAGContextBuilder:
         if chunk.metadata:
             page = chunk.metadata.get("page")
             heading = chunk.metadata.get("heading")
+
+        kb_id = chunk.knowledge_base_id or None
+        kb_name = None
+        if kb_id and kb_names:
+            kb_name = kb_names.get(kb_id)
 
         return SourceReference(
             doc_name=chunk.document_name,
@@ -235,6 +246,8 @@ class RAGContextBuilder:
             page=page,
             heading=heading,
             chunk_index=chunk.chunk_index,
+            knowledge_base_id=kb_id,
+            knowledge_base_name=kb_name,
         )
 
     @staticmethod

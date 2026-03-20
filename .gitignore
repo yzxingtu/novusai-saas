@@ -42,6 +42,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Ruff full report (local artifact; do not commit)
+backend/ruff_full_report.txt
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

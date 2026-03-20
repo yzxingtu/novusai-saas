@@ -5,7 +5,7 @@
  * Differentiates admin/tenant via apiPrefix parameter.
  * 封装 use-ai-chat.ts 中的所有 requestClient 调用。
  */
-import type { ChatAttachment } from '#/components/business/ai-chat-panel/types';
+import type { ChatAttachment, RagSource } from '#/components/business/ai-chat-panel/types';
 
 import { requestClient } from '#/utils/request';
 
@@ -46,6 +46,7 @@ export interface RawMessageItem {
     thinking_content?: string;
     tool_error?: string;
     tool_success?: boolean;
+    rag_sources?: RagSource[];
   };
 }
 
@@ -255,6 +256,8 @@ export async function routeMessageApi(
     message: string;
     page_context?: null | PageContext;
     pinned_agent_id?: null | number;
+    /** 含图片附件时传 true，后端优先路由到支持视觉的智能体 */
+    has_image_attachments?: boolean;
   },
 ): Promise<AgentRouteResponse> {
   return requestClient.post<AgentRouteResponse>(

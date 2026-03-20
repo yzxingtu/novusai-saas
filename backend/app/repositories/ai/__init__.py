@@ -35,6 +35,9 @@ from app.repositories.ai.table_policy_override_repository import (
     AITablePolicyOverrideRepository,
 )
 from app.repositories.ai.table_policy_repository import AITablePolicyRepository
+from app.repositories.ai.tenant_agent_publication_repository import (
+    TenantAgentPublicationRepository,
+)
 from app.repositories.ai.tenant_quota_repository import (
     AdminTenantQuotaRepository,
     TenantQuotaRepository,
@@ -42,14 +45,12 @@ from app.repositories.ai.tenant_quota_repository import (
 from app.repositories.ai.tenant_rate_limit_repository import (
     TenantModelRateLimitRepository,
 )
-from app.repositories.ai.usage_stat_repository import UsageStatRepository
 
 __all__ = [
     "AIProviderRepository",
     "AIModelRepository",
     "ProviderApiKeyRepository",
     "AICallLogRepository",
-    "UsageStatRepository",
     "AgentRepository",
     "AdminAgentRepository",
     "AgentConversationRepository",
@@ -57,6 +58,7 @@ __all__ = [
     "ConversationMessageRepository",
     "BatchRunRepository",
     "AgentAccessRepository",
+    "TenantAgentPublicationRepository",
     "AgentVersionRepository",
     "AgentMemoryOverrideRepository",
     "AIActionLogRepository",

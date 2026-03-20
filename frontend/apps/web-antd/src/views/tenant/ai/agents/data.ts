@@ -16,36 +16,58 @@ import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 
-// ============ 受众辅助 ============
+// ============ 分发模式（平台下发 / 企业自有）============
 
-export function getAudienceOptions() {
+export function getDistributionModeFilterOptions() {
   return [
-    { label: $t('tenant.ai.agent.audience_options.all'), value: 'all' },
     {
-      label: $t('tenant.ai.agent.audience_options.admin_tenant'),
-      value: 'admin_tenant',
+      label: $t('tenant.ai.agent.distribution.internal'),
+      value: 'internal',
+    },
+    {
+      label: $t('tenant.ai.agent.distribution.all_tenants'),
+      value: 'all_tenants',
+    },
+    {
+      label: $t('tenant.ai.agent.distribution.assigned_tenants'),
+      value: 'assigned_tenants',
+    },
+    {
+      label: $t('tenant.ai.agent.distribution.owner_only'),
+      value: 'owner_only',
     },
   ];
 }
 
-export function getAudienceText(audience: string | undefined): string {
-  if (!audience) return '-';
-  const opt = getAudienceOptions().find((o) => o.value === audience);
-  return opt?.label ?? audience;
+export function getDistributionModeText(mode: string | undefined): string {
+  if (!mode) return '-';
+  const opt = getDistributionModeFilterOptions().find((o) => o.value === mode);
+  return opt?.label ?? mode;
 }
 
-export function getAudienceColor(audience: string | undefined): string {
-  switch (audience) {
-    case 'admin_tenant': {
+export function getDistributionModeColor(mode: string | undefined): string {
+  switch (mode) {
+    case 'internal': {
+      return 'orange';
+    }
+    case 'assigned_tenants': {
       return 'blue';
     }
-    case 'all': {
+    case 'all_tenants': {
       return 'green';
+    }
+    case 'owner_only': {
+      return 'purple';
     }
     default: {
       return 'default';
     }
   }
+}
+
+/** 企业自有智能体可编辑/删除 */
+export function isTenantOwnedAgent(row: AgentListItem): boolean {
+  return row.owner_type === 'tenant';
 }
 
 // ============ 状态辅助 ============
@@ -290,11 +312,11 @@ export function useColumns<T = AgentListItem>(
       slots: { default: 'status_cell' },
     },
     {
-      field: 'target_audience',
-      title: $t('tenant.ai.agent.targetAudience'),
-      width: 120,
+      field: 'distribution_mode',
+      title: $t('tenant.ai.agent.distribution.column'),
+      width: 140,
       align: 'center',
-      slots: { default: 'audience_cell' },
+      slots: { default: 'distribution_cell' },
     },
     {
       field: 'execution_mode',
@@ -351,8 +373,7 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.access.title'),
             icon: 'lucide:shield',
             accessCodes: ['agent:update'],
-            show: (row: AgentListItem) =>
-              row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: () => true,
           },
           {
             code: 'test',
@@ -365,8 +386,7 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.publish'),
             icon: 'lucide:rocket',
             accessCodes: ['agent:update'],
-            show: (row: AgentListItem) =>
-              row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: () => true,
           },
           {
             code: 'versions',
@@ -376,15 +396,12 @@ export function useColumns<T = AgentListItem>(
           },
           {
             code: 'edit',
-            show: (row: AgentListItem) =>
-              row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: (row: AgentListItem) => isTenantOwnedAgent(row),
           },
           {
             code: 'delete',
             show: (row: AgentListItem) =>
-              !row.is_system &&
-              row.scope === 'all_tenants' &&
-              row.tenant_id !== null,
+              !row.is_system && isTenantOwnedAgent(row),
           },
         ],
       },
@@ -415,11 +432,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('tenant.ai.agent.placeholder.allModes'),
     }),
     select(
-      'filter[target_audience][eq]',
-      $t('tenant.ai.agent.targetAudience'),
+      'filter[distribution_mode][eq]',
+      $t('tenant.ai.agent.distribution.column'),
       {
-        options: getAudienceOptions(),
-        placeholder: $t('tenant.ai.agent.placeholder.allAudiences'),
+        options: getDistributionModeFilterOptions(),
+        placeholder: $t('tenant.ai.agent.distribution.filterPlaceholder'),
       },
     ),
   ];

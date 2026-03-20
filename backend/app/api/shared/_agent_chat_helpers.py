@@ -52,9 +52,11 @@ async def handle_route(
     tenant_id: int | None,
     message: str,
     user_role: str,
+    user_role_id: int | None,
     page_context: dict[str, Any] | None,
     pinned_agent_id: int | None,
     user_id: int | None = None,
+    has_image_attachments: bool = False,
 ) -> dict[str, Any]:
     """
     智能路由的共享逻辑 / Shared logic for smart routing
@@ -63,7 +65,7 @@ async def handle_route(
     Shared by admin/tenant/user route endpoints.
 
     Args:
-        user_role: 调用方角色（UserRoleEnum 值），用于候选过滤 + target_audience 校验 / Caller role (UserRoleEnum value), used for candidate filtering + target_audience validation
+        user_role: 调用方角色（UserRoleEnum 值），用于候选过滤 / Caller role (UserRoleEnum value), used for candidate filtering
     """
     from app.services.ai.agent_router_service import AgentRouterService
 
@@ -74,7 +76,9 @@ async def handle_route(
         page_context=page_context,
         pinned_agent_id=pinned_agent_id,
         user_role=user_role,
+        user_role_id=user_role_id,
         user_id=user_id,
+        has_image_attachments=has_image_attachments,
     )
     return success(data=AgentRouteResponse(
         agent_id=result.agent_id,

@@ -94,6 +94,7 @@ def log_ai_call_task(
     user_type: str = None,
     agent_id: int = None,
     conversation_id: int = None,
+    billing_context: dict | None = None,
     routed_model_id: int = None,
     route_reason: str = None,
 ):
@@ -150,6 +151,10 @@ def log_ai_call_task(
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            billing_tenant_id=(billing_context or {}).get("billing_tenant_id"),
+            actor_user_id=(billing_context or {}).get("actor_user_id", user_id),
+            actor_user_type=(billing_context or {}).get("actor_user_type", user_type),
+            access_channel=(billing_context or {}).get("access_channel"),
             agent_id=agent_id,
             conversation_id=conversation_id,
             provider_id=provider_id,
@@ -174,6 +179,17 @@ def log_ai_call_task(
             },
             routed_model_id=routed_model_id,
             route_reason=route_reason,
+            agent_owner_type=(billing_context or {}).get("agent_owner_type"),
+            agent_owner_tenant_id=(billing_context or {}).get("agent_owner_tenant_id"),
+            agent_distribution_mode=(billing_context or {}).get("agent_distribution_mode"),
+            tenant_publication_id=(billing_context or {}).get("tenant_publication_id"),
+            publication_enabled_snapshot=(billing_context or {}).get("publication_enabled_snapshot"),
+            publication_access_type_snapshot=(billing_context or {}).get("publication_access_type_snapshot"),
+            agent_id_snapshot=(billing_context or {}).get("agent_id_snapshot", agent_id),
+            agent_name_snapshot=(billing_context or {}).get("agent_name_snapshot"),
+            billing_tenant_name_snapshot=(billing_context or {}).get("billing_tenant_name_snapshot"),
+            model_name_snapshot=(billing_context or {}).get("model_name_snapshot"),
+            provider_name_snapshot=(billing_context or {}).get("provider_name_snapshot"),
         )
 
         db.add(call_log)

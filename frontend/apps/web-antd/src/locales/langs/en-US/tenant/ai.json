@@ -40,12 +40,24 @@
   },
   "usage": {
     "title": "Usage Statistics",
+    "name": "Usage Statistics",
     "pageDesc": "View AI call volume, token consumption, and cost trend charts for your tenant.",
     "summary": {
       "totalTokens": "Total Tokens",
       "totalCost": "Total Cost",
       "totalCalls": "Total Calls",
       "successRate": "Success Rate"
+    },
+    "accessChannel": {
+      "title": "By access channel",
+      "subtitle": "Admin vs end-user entry points (billing facts)",
+      "calls": "Calls",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "admin_internal": "Platform / internal",
+      "tenant_admin": "Tenant admin",
+      "tenant_user": "Tenant user",
+      "unknown": "Unlabeled channel"
     },
     "chart": {
       "dailyTrend": "Daily Usage Trend",
@@ -61,6 +73,7 @@
   },
   "callLog": {
     "title": "Call Logs",
+    "name": "Call Logs",
     "pageDesc": "View all AI call records in your tenant, including status, usage, and error details.",
     "requestType": "Request Type",
     "inputTokens": "Input Tokens",
@@ -95,6 +108,7 @@
   },
   "quota": {
     "title": "Quota Management",
+    "name": "Quota Management",
     "pageDesc": "Set model token usage quotas. Soft limits warn only; hard limits reject excess requests.",
     "modelId": "Model",
     "modelName": "Model Name",
@@ -161,7 +175,12 @@
       "kbEnabled": "Enabled",
       "kbDocCount": "Documents",
       "selectKnowledgeBase": "Select knowledge base",
-      "bindKnowledgeBase": "Bind"
+      "bindKnowledgeBase": "Bind",
+      "kbPlatformManaged": "Platform knowledge base (read-only, managed by admin)",
+      "kbPlatformBadge": "Platform",
+      "kbTenantOverlayHint": "Additional knowledge bases below apply only to your organization.",
+      "kbPlatformOptOut": "Opt out (this tenant)",
+      "kbPlatformOptOutHint": "When on, this tenant's chats will not retrieve from this platform knowledge base. Admin config and other tenants are unaffected."
     },
     "memory": {
       "title": "Session Memory",
@@ -204,6 +223,26 @@
     "status": "Status",
     "executionMode": "Execution Mode",
     "targetAudience": "Target Audience",
+    "distribution": {
+      "column": "Distribution",
+      "internal": "Platform internal",
+      "all_tenants": "All tenants",
+      "assigned_tenants": "Assigned tenants",
+      "owner_only": "Owner tenant only",
+      "filterPlaceholder": "All distribution modes"
+    },
+    "publication": {
+      "title": "Publish to tenant users",
+      "accessType": "User access rule",
+      "accessAllUsers": "All tenant users",
+      "accessByUserRoles": "Restrict by user roles",
+      "accessSpecificUsers": "Specific users",
+      "placeholderUserRoles": "Select user roles",
+      "placeholderSpecificUsers": "Select users",
+      "orgNodeDisabledHint": "Organization-node based publication is not supported yet.",
+      "warnSelectUserRoles": "Publication is on with role-based rule. Select at least one end-user role.",
+      "warnSelectUsers": "Publication is on with specific users. Select at least one user."
+    },
     "audience_options": {
       "all": "All Portals",
       "admin_tenant": "Admin + Tenant"
@@ -430,9 +469,13 @@
         "selectUserRoles": "Select user roles"
       },
       "messages": {
-        "updateSuccess": "Access config updated"
+        "updateSuccess": "Access config updated",
+        "specificRolesRequired": "You chose specific tenant-admin roles. Pick at least one role in the tree, or switch back to \"All allowed\"."
       },
       "hint": {
+        "twoLayers": "Two independent settings: (1) which tenant-admin roles see this agent in the tenant console; (2) whether end users can use it and how. They map to two API calls (access vs publication)—do not mix them up.",
+        "tenantAdminLayer": "PUT …/access → tenant_role_ids: limits which tenant-admin roles can use this agent in the tenant back office. Not related to end users below.",
+        "endUserLayer": "PUT …/publication: controls end-user portal visibility. Roles selected here are tenant_user_role_ids, not tenant_role_ids.",
         "public": "All tenant users can use this agent",
         "private": "Only authorized users can use this agent",
         "roleOnly": "Control which users can use this agent by role. Select 'All Allowed' to not restrict by role.",
@@ -464,6 +507,7 @@
     "conversationTitle": "Conversation Title",
     "pageDesc": "Manage agent conversation records. View details, archive, and perform batch operations.",
     "pageTitle": "Conversations",
+    "name": "Conversations",
     "agentName": "Agent",
     "user": "User",
     "status": "Status",
@@ -472,6 +516,16 @@
     "createdAt": "Created At",
     "messageCount": "Messages",
     "messageList": "Message List",
+    "tabMessages": "Message flow",
+    "tabModelCalls": "Model calls",
+    "modelCallsEmpty": "No related model call records",
+    "thinkingBlock": "Reasoning",
+    "ragRefs": "Knowledge base references",
+    "toolCalls": "Tool calls",
+    "toolOk": "OK",
+    "toolFailed": "Failed",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "Latency",
     "untitled": "Untitled Conversation",
     "viewDetail": "View Detail",
     "detailTitle": "Conversation Detail",
@@ -542,6 +596,7 @@
   },
   "actionLog": {
     "title": "Action Audit",
+    "name": "Action Audit",
     "pageDesc": "View all agent-executed operations including SQL queries and business action audit details.",
     "actionName": "Action Name",
     "actionType": "Action Type",

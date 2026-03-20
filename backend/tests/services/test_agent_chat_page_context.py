@@ -383,6 +383,7 @@ async def test_resolve_for_agent_auto_bind_includes_get_page_context_tool(mock_d
     agent = MagicMock()
     agent.id = 7
     agent.name = "Tenant Agent"
+    agent.distribution_mode = "all_tenants"
     agent.scope = ResourceScopeEnum.ALL_TENANTS.value
     agent.tenant_id = 1
 
@@ -438,6 +439,7 @@ async def test_resolve_for_agent_admin_auto_bind_includes_get_page_context_tool(
     agent = MagicMock()
     agent.id = 8
     agent.name = "Admin Agent"
+    agent.distribution_mode = "internal"
     agent.scope = ResourceScopeEnum.ADMIN_ONLY.value
     agent.tenant_id = None
 

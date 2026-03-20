@@ -859,6 +859,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         tool_calls_collected: list[dict[str, Any]] = []
         route_source_marked = False
 
+        rag_sources = getattr(result, "rag_sources", None)
+        last_plain_assistant_idx: int | None = None
+        for j, m in enumerate(new_messages):
+            if m.get("role") == "assistant" and not m.get("tool_calls"):
+                last_plain_assistant_idx = j
+
         for i, msg_dict in enumerate(new_messages):
             role = msg_dict.get("role", "")
             content = msg_dict.get("content", "")
@@ -924,6 +930,15 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 if result.runtime_provider_name:
                     metadata = metadata or {}
                     metadata["provider_name"] = result.runtime_provider_name
+
+            if (
+                rag_sources
+                and role == "assistant"
+                and not tool_calls
+                and i == last_plain_assistant_idx
+            ):
+                metadata = metadata or {}
+                metadata["rag_sources"] = rag_sources
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None

@@ -49,10 +49,6 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import {
-  displayTenantUserRoleDescription,
-  displayTenantUserRoleName,
-} from './display-role';
 import { useMemberColumns, useMemberSearchSchema, useUserFormSchema } from './data';
 import PermissionDrawer from './modules/PermissionDrawer.vue';
 import UserForm from './modules/UserForm.vue';
@@ -76,23 +72,12 @@ const isAllUsersSelected = computed(() => selectedRole.value?.id === ALL_USERS_I
 const filteredRoles = computed(() => {
   if (!searchKeyword.value) return roles.value;
   const kw = searchKeyword.value.toLowerCase();
-  return roles.value.filter((r) => {
-    const shown = displayTenantUserRoleName(r, $t).toLowerCase();
-    return (
-      shown.includes(kw) ||
+  return roles.value.filter(
+    (r) =>
       r.name.toLowerCase().includes(kw) ||
-      r.code.toLowerCase().includes(kw)
-    );
-  });
+      r.code.toLowerCase().includes(kw),
+  );
 });
-
-function roleDisplayName(role: TenantUserRoleInfo) {
-  return displayTenantUserRoleName(role, $t);
-}
-
-function roleDisplayDescription(role: TenantUserRoleInfo) {
-  return displayTenantUserRoleDescription(role, $t);
-}
 
 async function loadRoles() {
   rolesLoading.value = true;
@@ -656,7 +641,7 @@ onUnmounted(() => {
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <span class="truncate text-sm font-medium text-foreground">
-                        {{ roleDisplayName(role) }}
+                        {{ role.name }}
                       </span>
                       <Tag v-if="role.isSystem" color="orange" class="!text-[10px] !leading-tight !px-1">
                         {{ $t('tenant.system.userRole.isSystem') }}
@@ -767,7 +752,7 @@ onUnmounted(() => {
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <h2 class="truncate text-base font-semibold lg:text-xl">
-                      {{ roleDisplayName(selectedRole) }}
+                      {{ selectedRole.name }}
                     </h2>
                     <Tag
                       :class="
@@ -842,7 +827,7 @@ onUnmounted(() => {
                 <Popconfirm
                   :title="
                     $t('tenant.system.userRole.messages.deleteConfirm', {
-                      name: roleDisplayName(selectedRole),
+                      name: selectedRole.name,
                     })
                   "
                   :ok-text="$t('shared.common.confirm')"
@@ -870,10 +855,10 @@ onUnmounted(() => {
 
             <!-- 第二行：描述（内置角色用 i18n，与库中语言无关） -->
             <div
-              v-if="roleDisplayDescription(selectedRole)"
+              v-if="selectedRole.description"
               class="mt-2 rounded bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
             >
-              {{ roleDisplayDescription(selectedRole) }}
+              {{ selectedRole.description }}
             </div>
           </div>
 

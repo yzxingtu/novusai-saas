@@ -162,14 +162,15 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
     assert chunks[-1].total_tokens == 15
 
 
-def test_convert_messages_to_responses_input_preserves_tool_roundtrip() -> None:
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
         provider_config={"wire_api": "responses"},
     )
 
-    converted = adapter._convert_messages_to_responses_input([
+    converted = await adapter._convert_messages_to_responses_input([
         ChatMessage(
             role="assistant",
             content="",

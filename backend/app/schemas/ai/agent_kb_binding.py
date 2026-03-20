@@ -20,6 +20,14 @@ class AgentKBBindRequest(BaseCreateSchema):
     enabled: bool = Field(True, description=_("agent_kb_binding.field.enabled"))
 
 
+class AgentPlatformKbSuppressRequest(BaseCreateSchema):
+    """本企业停用平台全局知识库 / Opt out of platform KB for this tenant."""
+
+    knowledge_base_id: int = Field(
+        ..., description=_("agent_kb_binding.field.knowledge_base_id")
+    )
+
+
 class AgentKBBatchBindRequest(BaseCreateSchema):
     """批量知识库绑定请求（替换模式） / Batch KB bind request (replace mode)."""
 
@@ -38,4 +46,5 @@ __all__ = [
     "AgentKBBindRequest",
     "AgentKBBatchBindRequest",
     "AgentKBBindingUpdate",
+    "AgentPlatformKbSuppressRequest",
 ]

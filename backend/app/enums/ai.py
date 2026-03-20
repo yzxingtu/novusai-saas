@@ -63,6 +63,14 @@ class UserTypeEnum(LabeledStrEnum):
     TENANT_USER = ("tenant_user", "enum.ai_user.type.tenant_user")
 
 
+class CallAccessChannelEnum(LabeledStrEnum):
+    """AI Call Access Channel Enum / AI 调用访问渠道枚举"""
+
+    ADMIN_INTERNAL = ("admin_internal", "enum.ai_call.access_channel.admin_internal")
+    TENANT_ADMIN = ("tenant_admin", "enum.ai_call.access_channel.tenant_admin")
+    TENANT_USER = ("tenant_user", "enum.ai_call.access_channel.tenant_user")
+
+
 class ModelTierEnum(LabeledStrEnum):
     """AI Model Tier Enum (for multi-model routing) / AI 模型级别枚举（用于多模型路由策略）"""
 
@@ -91,5 +99,6 @@ __all__ = [
     "QuotaTypeEnum",
     "QuotaPeriodEnum",
     "UserTypeEnum",
+    "CallAccessChannelEnum",
     "ToolParameterTypeEnum",
 ]

@@ -2,7 +2,7 @@
 智能体知识库绑定 Repository / Agent KB Binding Repository
 """
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, or_, select
 
 from app.core.base_repository import TenantRepository
 from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
@@ -38,6 +38,64 @@ class AgentKBBindingRepository(TenantRepository[AgentKnowledgeBaseBinding]):
                     AgentKnowledgeBaseBinding.agent_id == agent_id,
                     self._tenant_filter(),
                     AgentKnowledgeBaseBinding.is_deleted.is_(False),
+                )
+            )
+            .order_by(AgentKnowledgeBaseBinding.sort_order)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def has_platform_global_binding(
+        self, agent_id: int, knowledge_base_id: int
+    ) -> bool:
+        """是否存在平台全局绑定（tenant_id IS NULL）/ Platform-global binding exists."""
+        stmt = (
+            select(AgentKnowledgeBaseBinding.id)
+            .where(
+                and_(
+                    AgentKnowledgeBaseBinding.agent_id == agent_id,
+                    AgentKnowledgeBaseBinding.knowledge_base_id == knowledge_base_id,
+                    AgentKnowledgeBaseBinding.tenant_id.is_(None),
+                    AgentKnowledgeBaseBinding.is_deleted.is_(False),
+                )
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def get_binding_any(
+        self, agent_id: int, knowledge_base_id: int
+    ) -> AgentKnowledgeBaseBinding | None:
+        """
+        任意 tenant 范围下是否存在 agent–KB 绑定（用于唯一性校验）/ Any-scope agent–KB binding lookup.
+        """
+        stmt = select(AgentKnowledgeBaseBinding).where(
+            and_(
+                AgentKnowledgeBaseBinding.agent_id == agent_id,
+                AgentKnowledgeBaseBinding.knowledge_base_id == knowledge_base_id,
+                AgentKnowledgeBaseBinding.is_deleted.is_(False),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_merged_platform_and_tenant(
+        self, agent_id: int, tenant_id: int
+    ) -> list[AgentKnowledgeBaseBinding]:
+        """
+        平台全局绑定（tenant_id IS NULL）+ 指定企业的叠加绑定 / Platform + tenant overlay bindings.
+        """
+        stmt = (
+            select(AgentKnowledgeBaseBinding)
+            .where(
+                and_(
+                    AgentKnowledgeBaseBinding.agent_id == agent_id,
+                    AgentKnowledgeBaseBinding.is_deleted.is_(False),
+                    or_(
+                        AgentKnowledgeBaseBinding.tenant_id.is_(None),
+                        AgentKnowledgeBaseBinding.tenant_id == tenant_id,
+                    ),
                 )
             )
             .order_by(AgentKnowledgeBaseBinding.sort_order)

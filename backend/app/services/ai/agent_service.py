@@ -9,12 +9,20 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from app.schemas.common.query import QuerySpec
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.configs.service import ConfigService
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AgentStatusEnum
-from app.enums.common import AudienceEnum, UserRoleEnum
+from app.enums.agent import (
+    AgentDistributionModeEnum,
+    AgentOwnerTypeEnum,
+    AgentPublicationAccessTypeEnum,
+    AgentStatusEnum,
+)
+from app.enums.ai import CallAccessChannelEnum
+from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
@@ -22,6 +30,9 @@ from app.repositories.ai.agent_memory_override_repository import (
     AgentMemoryOverrideRepository,
 )
 from app.repositories.ai.agent_repository import AdminAgentRepository, AgentRepository
+from app.repositories.ai.tenant_agent_publication_repository import (
+    TenantAgentPublicationRepository,
+)
 from app.repositories.ai.agent_version_repository import AgentVersionRepository
 
 logger = LogManager.get_logger("ai.agent_service")
@@ -43,6 +54,17 @@ _VERSION_SNAPSHOT_FIELDS = [
     # NOTE: tool_bindings / knowledge_base_ids / rag_config removed —
     # replaced by AgentSkillBinding architecture (SkillPackage-based)
 ]
+
+
+def _role_ids_allow(role_ids: list[int] | None, user_role_id: int | None) -> bool:
+    """Resolve internal role restriction semantics / 解析端内角色限制语义."""
+    if role_ids is None:
+        return True
+    if not role_ids:
+        return False
+    if user_role_id is None:
+        return False
+    return user_role_id in role_ids
 
 
 class AgentService(TenantService[Agent, AgentRepository]):
@@ -148,6 +170,10 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """获取访问权限 Repository / Get access repository."""
         return AgentAccessRepository(self.db, self.tenant_id)
 
+    def _get_publication_repo(self) -> TenantAgentPublicationRepository:
+        """获取企业智能体用户发布 Repository / Get tenant agent publication repository."""
+        return TenantAgentPublicationRepository(self.db, self.tenant_id)
+
     def _get_memory_override_repo(self) -> AgentMemoryOverrideRepository:
         """获取企业记忆开关覆盖 Repository / Get memory override repository."""
         return AgentMemoryOverrideRepository(self.db, self.tenant_id)
@@ -247,6 +273,10 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
             data.update(ctx.get("agent_data", data))
 
+        data["owner_type"] = AgentOwnerTypeEnum.TENANT.value
+        data["distribution_mode"] = AgentDistributionModeEnum.OWNER_ONLY.value
+        data["tenant_id"] = self.tenant_id
+
         name = data.get("name")
         if name:
             existing = await self.repo.get_by_name(name)
@@ -291,8 +321,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
+        data.pop("owner_type", None)
+        data.pop("distribution_mode", None)
+        data.pop("tenant_id", None)
+
         if agent.is_system:
-            protected = {"is_system", "status", "scope", "execution_mode"}
+            protected = {"is_system", "status", "execution_mode"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -385,6 +419,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         # 构建响应字典
         result = agent.to_dict()
+        result["owner_tenant_id"] = agent.tenant_id
         result["model_name"] = None
         result["model_code"] = None
 
@@ -628,24 +663,23 @@ class AgentService(TenantService[Agent, AgentRepository]):
             "agent_id": agent_id,
             "admin_role_ids": getattr(access, "admin_role_ids", None) if access else None,
             "tenant_role_ids": getattr(access, "tenant_role_ids", None) if access else None,
-            "user_role_ids": getattr(access, "user_role_ids", None) if access else None,
         }
 
     async def update_access_config(
         self,
         agent_id: int,
-        admin_role_ids: list[int] | None = None,
-        tenant_role_ids: list[int] | None = None,
-        user_role_ids: list[int] | None = None,
+        patch: dict[str, Any],
     ) -> dict[str, Any]:
         """
         更新智能体访问权限配置（仅角色 ID 列表）/ Update agent access config (role ID lists only).
 
+        使用 patch 中**显式传入**的字段做部分更新（建议由 Pydantic model_dump(exclude_unset=True) 生成），
+        避免企业端只改 tenant_role_ids 时把 admin_role_ids 误写成 NULL。
+        Partial update: only keys present in patch are applied.
+
         Args:
             agent_id: 智能体 ID
-            admin_role_ids: 管理端角色 ID 列表
-            tenant_role_ids: 企业端角色 ID 列表
-            user_role_ids: 用户端角色 ID 列表
+            patch: 允许 admin_role_ids、tenant_role_ids
 
         Returns:
             更新后的访问权限配置字典
@@ -654,13 +688,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
+        allowed = frozenset({"admin_role_ids", "tenant_role_ids"})
+        data = {k: v for k, v in patch.items() if k in allowed}
+
         # Upsert AgentAccess
         access_repo = self._get_access_repo()
-        access = await access_repo.upsert(agent_id, {
-            "admin_role_ids": admin_role_ids,
-            "tenant_role_ids": tenant_role_ids,
-            "user_role_ids": user_role_ids,
-        })
+        access = await access_repo.upsert(agent_id, data)
 
         logger.info(
             "Agent access updated: agent_id={} tenant_id={}",
@@ -671,8 +704,107 @@ class AgentService(TenantService[Agent, AgentRepository]):
             "agent_id": agent_id,
             "admin_role_ids": getattr(access, "admin_role_ids", None),
             "tenant_role_ids": getattr(access, "tenant_role_ids", None),
-            "user_role_ids": getattr(access, "user_role_ids", None),
         }
+
+    async def get_publication_config(self, agent_id: int) -> dict[str, Any]:
+        """获取企业用户发布配置 / Get tenant-user publication config."""
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        publication_repo = self._get_publication_repo()
+        publication = await publication_repo.get_by_agent_id(agent_id)
+
+        return {
+            "agent_id": agent_id,
+            "publication_id": getattr(publication, "id", None),
+            "enabled_for_users": bool(getattr(publication, "enabled_for_users", False)),
+            "access_type": getattr(
+                publication,
+                "access_type",
+                AgentPublicationAccessTypeEnum.ALL_USERS.value,
+            ),
+            "tenant_user_role_ids": getattr(publication, "tenant_user_role_ids", None),
+            "tenant_user_ids": getattr(publication, "tenant_user_ids", None),
+            "org_node_ids": getattr(publication, "org_node_ids", None),
+            "published_at": (
+                publication.published_at.isoformat()
+                if publication and publication.published_at
+                else None
+            ),
+            "published_by": getattr(publication, "published_by", None),
+        }
+
+    async def update_publication_config(
+        self,
+        agent_id: int,
+        *,
+        enabled_for_users: bool,
+        access_type: str,
+        tenant_user_role_ids: list[int] | None = None,
+        tenant_user_ids: list[int] | None = None,
+        org_node_ids: list[int] | None = None,
+        published_by: int | None = None,
+    ) -> dict[str, Any]:
+        """更新企业用户发布配置 / Update tenant-user publication config."""
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        if (
+            bool(enabled_for_users)
+            and access_type == AgentPublicationAccessTypeEnum.ORG_NODE.value
+        ):
+            raise BusinessException(
+                message=_("agent.error.publication_org_node_not_supported"),
+            )
+
+        publication_repo = self._get_publication_repo()
+        await publication_repo.upsert(
+            agent_id,
+            {
+                "enabled_for_users": bool(enabled_for_users),
+                "access_type": access_type,
+                "tenant_user_role_ids": tenant_user_role_ids,
+                "tenant_user_ids": tenant_user_ids,
+                "org_node_ids": org_node_ids,
+                "published_at": utc_now() if enabled_for_users else None,
+                "published_by": published_by if enabled_for_users else None,
+            },
+        )
+
+        return await self.get_publication_config(agent_id)
+
+    def _publication_allows_user(
+        self,
+        publication: Any | None,
+        *,
+        user_id: int,
+        user_role_id: int | None = None,
+    ) -> bool:
+        """判断企业用户发布规则是否允许当前用户 / Check whether publication allows current tenant user."""
+        if not publication or not getattr(publication, "enabled_for_users", False):
+            return False
+
+        access_type = getattr(
+            publication,
+            "access_type",
+            AgentPublicationAccessTypeEnum.ALL_USERS.value,
+        )
+        if access_type == AgentPublicationAccessTypeEnum.ALL_USERS.value:
+            return True
+        if access_type == AgentPublicationAccessTypeEnum.SPECIFIC_USERS.value:
+            return user_id in (getattr(publication, "tenant_user_ids", None) or [])
+        if access_type == AgentPublicationAccessTypeEnum.TENANT_USER_ROLES.value:
+            return _role_ids_allow(
+                getattr(publication, "tenant_user_role_ids", None),
+                user_role_id,
+            )
+        if access_type == AgentPublicationAccessTypeEnum.ORG_NODE.value:
+            # 当前企业用户模型暂未提供可直接复用的组织节点关联，因此先严格拒绝，
+            # 避免出现“配置了组织节点但实际放行全部用户”的错误语义。
+            return False
+        return False
 
     async def check_user_access(
         self,
@@ -684,9 +816,10 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """
         检查用户是否有权访问指定智能体 / Check if user can access agent.
 
-        两层校验：
-        1. target_audience — 三端隔离（哪些端可访问）
-        2. *_role_ids — 端内角色过滤（null=不限制, []=禁止, [ids]=指定角色）
+        访问语义：
+        1. 平台管理员：仅检查 admin_role_ids
+        2. 企业管理员：仅检查 tenant_role_ids
+        3. 企业用户：必须存在启用中的 TenantAgentPublication，并通过发布规则校验
 
         Args:
             agent_id: 智能体 ID
@@ -697,46 +830,35 @@ class AgentService(TenantService[Agent, AgentRepository]):
         Returns:
             是否有访问权限
         """
-        from app.ai.skills.resolver import _audience_allows_role
-
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # Layer 1: target_audience 三端隔离
-        agent_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
-        if not _audience_allows_role(agent_audience, user_role):
-            return False
-
-        # Layer 2: 端内角色过滤
-        access_repo = self._get_access_repo()
-        access = await access_repo.get_by_agent_id(agent_id)
-        if not access:
-            # 无 access 记录 → 不限制
-            return True
-
-        # 根据调用端选择对应的 role_ids 字段
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            role_ids = getattr(access, "admin_role_ids", None)
-        elif user_role == UserRoleEnum.TENANT_ADMIN.value:
-            role_ids = getattr(access, "tenant_role_ids", None)
-        else:
-            role_ids = getattr(access, "user_role_ids", None)
+            access = await self._get_access_repo().get_by_agent_id(agent_id)
+            return _role_ids_allow(
+                getattr(access, "admin_role_ids", None) if access else None,
+                user_role_id,
+            )
 
-        if role_ids is None:
-            # NULL = 不限制（所有该端用户可访问）
-            return True
-        if not role_ids:
-            # 空列表 = 禁止（无人可访问）
-            return False
-        if user_role_id is None:
-            # 未提供角色 ID 但有限制列表 → 拒绝
-            return False
-        return user_role_id in role_ids
+        if user_role == UserRoleEnum.TENANT_ADMIN.value:
+            access = await self._get_access_repo().get_by_agent_id(agent_id)
+            return _role_ids_allow(
+                getattr(access, "tenant_role_ids", None) if access else None,
+                user_role_id,
+            )
+
+        publication = await self._get_publication_repo().get_by_agent_id(agent_id)
+        return self._publication_allows_user(
+            publication,
+            user_id=user_id,
+            user_role_id=user_role_id,
+        )
 
     async def list_user_accessible_agents(
         self,
         user_id: int,
+        user_role_id: int | None,
         spec: "QuerySpec",
     ) -> tuple[list[Agent], int]:
         """
@@ -755,7 +877,72 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return await self.repo.query_user_accessible_list(
             spec=spec,
             user_id=user_id,
+            user_role_id=user_role_id,
         )
+
+    async def build_usage_attribution_context(
+        self,
+        *,
+        agent: Agent,
+        user_id: int | None,
+        user_role: str,
+        user_role_id: int | None = None,
+    ) -> dict[str, Any]:
+        """构建调用时不可变计费归属上下文 / Build immutable billing attribution context at call time."""
+        publication = None
+        billing_tenant_id = None
+        access_channel = None
+
+        if user_role == UserRoleEnum.TENANT_ADMIN.value:
+            billing_tenant_id = self.tenant_id
+            access_channel = CallAccessChannelEnum.TENANT_ADMIN.value
+        elif user_role == UserRoleEnum.TENANT_USER.value:
+            billing_tenant_id = self.tenant_id
+            access_channel = CallAccessChannelEnum.TENANT_USER.value
+            publication = await self._get_publication_repo().get_by_agent_id(agent.id)
+            if not self._publication_allows_user(
+                publication,
+                user_id=user_id or 0,
+                user_role_id=user_role_id,
+            ):
+                raise BusinessException(message=_("agent.access.error.no_permission"))
+        else:
+            access_channel = CallAccessChannelEnum.ADMIN_INTERNAL.value
+
+        from sqlalchemy import select
+
+        from app.models.tenant.tenant import Tenant
+
+        billing_tenant_name_snapshot = None
+        if billing_tenant_id is not None:
+            row = await self.db.execute(
+                select(Tenant.name).where(Tenant.id == billing_tenant_id).limit(1),
+            )
+            billing_tenant_name_snapshot = row.scalar_one_or_none()
+
+        return {
+            "billing_tenant_id": billing_tenant_id,
+            "actor_user_id": user_id,
+            "actor_user_type": user_role,
+            "access_channel": access_channel,
+            "agent_owner_type": getattr(agent, "owner_type", None),
+            "agent_owner_tenant_id": getattr(agent, "tenant_id", None),
+            "agent_distribution_mode": getattr(agent, "distribution_mode", None),
+            "tenant_publication_id": getattr(publication, "id", None) if publication else None,
+            "publication_enabled_snapshot": (
+                bool(getattr(publication, "enabled_for_users", False))
+                if publication is not None
+                else None
+            ),
+            "publication_access_type_snapshot": (
+                getattr(publication, "access_type", None)
+                if publication is not None
+                else None
+            ),
+            "agent_id_snapshot": agent.id,
+            "agent_name_snapshot": getattr(agent, "name", None),
+            "billing_tenant_name_snapshot": billing_tenant_name_snapshot,
+        }
 
 
 class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
@@ -767,6 +954,18 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
     model = Agent
     repository_class = AdminAgentRepository
+
+    @staticmethod
+    def _validate_distribution_mode(distribution_mode: str | None) -> str:
+        mode = distribution_mode or AgentDistributionModeEnum.ALL_TENANTS.value
+        allowed = {
+            AgentDistributionModeEnum.INTERNAL.value,
+            AgentDistributionModeEnum.ALL_TENANTS.value,
+            AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+        }
+        if mode not in allowed:
+            raise BusinessException(message=_("agent.error.invalid_scope"))
+        return mode
 
     async def _get_platform_default_memory_enabled(self) -> bool:
         """获取平台默认记忆开关（默认 True） / Get platform default memory enabled (default True)."""
@@ -813,50 +1012,59 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.get_memory_config(agent_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：scope + tenant_id 一致性、名称唯一性 / Before create: scope+tenant_id consistency, name uniqueness."""
+        """创建前校验：平台归属 + 分发模式 + 名称唯一性 / Before create: platform ownership, distribution mode, name uniqueness."""
         await super()._before_create(data)
 
-        from app.enums.common import ResourceScopeEnum
-
-        scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
-
-        # all_tenants 现在表示对全部企业可见，无需指定具体企业
+        data["owner_type"] = AgentOwnerTypeEnum.PLATFORM.value
         data["tenant_id"] = None
-
-        # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
+        data["distribution_mode"] = self._validate_distribution_mode(
+            data.get("distribution_mode"),
+        )
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
-            existing = await self.repo.exists_by_name(name, tenant_id=None, scope=scope)
+            existing = await self.repo.exists_by_name(
+                name,
+                tenant_id=None,
+                owner_type=AgentOwnerTypeEnum.PLATFORM.value,
+            )
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：scope 变更时的一致性、名称唯一性、系统智能体保护 / Before update: scope consistency, name uniqueness, system agent protection."""
+        """更新前校验：平台归属 + 分发模式 + 名称唯一性 + 系统保护 / Before update: platform ownership, distribution mode, name uniqueness, system protection."""
         await super()._before_update(id, data)
 
         agent = await self.repo.get_by_id(id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
+        if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
         # 系统智能体不允许修改关键字段
         if agent.is_system:
-            protected = {"is_system", "status", "scope", "execution_mode"}
+            protected = {"is_system", "status", "execution_mode", "owner_type", "tenant_id"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("agent.error.system_protected"))
 
-        scope = data.get("scope", agent.scope)
-
-        # all_tenants 现在表示对全部企业可见，无需指定具体企业
+        data["owner_type"] = AgentOwnerTypeEnum.PLATFORM.value
         data["tenant_id"] = None
-
-        # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
+        if "distribution_mode" in data:
+            data["distribution_mode"] = self._validate_distribution_mode(
+                data.get("distribution_mode"),
+            )
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
-            existing = await self.repo.exists_by_name(name, tenant_id=None, scope=scope, exclude_id=id)
+            existing = await self.repo.exists_by_name(
+                name,
+                tenant_id=None,
+                owner_type=AgentOwnerTypeEnum.PLATFORM.value,
+                exclude_id=id,
+            )
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
@@ -885,16 +1093,77 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
 
         # 清理 resource_tenant_assignments 残留记录
-        from app.enums.common import ResourceScopeEnum
-        if agent.scope in (
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-        ):
+        if agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value:
             from app.repositories.system.resource_tenant_assignment_repository import (
                 ResourceTenantAssignmentRepository,
             )
             rta_repo = ResourceTenantAssignmentRepository(self.db)
             await rta_repo.delete_all_for_resource("agent", id)
+
+    def _get_platform_access_repo(self) -> AgentAccessRepository:
+        """平台侧访问配置 Repository（tenant_id=0）/ Platform access config repository (tenant_id=0)."""
+        return AgentAccessRepository(self.db, PLATFORM_TENANT_ID)
+
+    async def get_access_config(self, agent_id: int) -> dict[str, Any]:
+        """获取平台侧访问配置（仅 admin 角色）/ Get platform-side access config (admin roles only)."""
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        access = await self._get_platform_access_repo().get_by_agent_id(agent_id)
+        return {
+            "agent_id": agent_id,
+            "admin_role_ids": getattr(access, "admin_role_ids", None) if access else None,
+            "tenant_role_ids": None,
+        }
+
+    async def update_access_config(
+        self,
+        agent_id: int,
+        patch: dict[str, Any],
+    ) -> dict[str, Any]:
+        """更新平台侧访问配置（仅 admin 角色）/ Update platform-side access config (admin roles only)."""
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
+        allowed = frozenset({"admin_role_ids", "tenant_role_ids"})
+        body = {"tenant_role_ids": None, **{k: v for k, v in patch.items() if k in allowed}}
+        access = await self._get_platform_access_repo().upsert(agent_id, body)
+        return {
+            "agent_id": agent_id,
+            "admin_role_ids": getattr(access, "admin_role_ids", None),
+            "tenant_role_ids": None,
+        }
+
+    async def build_usage_attribution_context(
+        self,
+        *,
+        agent: Agent,
+        user_id: int | None,
+        user_role: str,
+        user_role_id: int | None = None,
+    ) -> dict[str, Any]:
+        """构建平台管理端调用的计费归属上下文 / Build billing attribution context for platform-admin calls."""
+        _ = user_role_id
+        return {
+            "billing_tenant_id": None,
+            "actor_user_id": user_id,
+            "actor_user_type": user_role,
+            "access_channel": CallAccessChannelEnum.ADMIN_INTERNAL.value,
+            "agent_owner_type": getattr(agent, "owner_type", None),
+            "agent_owner_tenant_id": getattr(agent, "tenant_id", None),
+            "agent_distribution_mode": getattr(agent, "distribution_mode", None),
+            "tenant_publication_id": None,
+            "publication_enabled_snapshot": None,
+            "publication_access_type_snapshot": None,
+            "agent_id_snapshot": agent.id,
+            "agent_name_snapshot": getattr(agent, "name", None),
+            "billing_tenant_name_snapshot": None,
+        }
 
     async def update_status(self, agent_id: int, status: str) -> Agent:
         """

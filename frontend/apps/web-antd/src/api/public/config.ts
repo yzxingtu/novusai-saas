@@ -171,6 +171,10 @@ export interface TenantPublicConfig {
   privacyPolicyUrl?: string;
   /** Registration terms of service URL / 注册页服务条款链接 */
   termsUrl?: string;
+  /** In-site privacy policy HTML is configured / 是否配置了站内隐私政策正文 */
+  privacyPolicyInternal?: boolean;
+  /** In-site terms HTML is configured / 是否配置了站内服务条款正文 */
+  termsInternal?: boolean;
 }
 
 // ============================================================
@@ -266,6 +270,8 @@ interface TenantPublicConfigRaw {
   // Registration links
   privacy_policy_url?: string;
   terms_url?: string;
+  privacy_policy_internal?: boolean;
+  terms_internal?: boolean;
 
   // Storage
   storage?: {
@@ -374,6 +380,8 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
     },
     privacyPolicyUrl: raw.privacy_policy_url || undefined,
     termsUrl: raw.terms_url || undefined,
+    privacyPolicyInternal: raw.privacy_policy_internal === true,
+    termsInternal: raw.terms_internal === true,
     features: pickDefined(raw, [
       'allow_registration',
       'registration_approval',
@@ -435,4 +443,39 @@ export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
   }
 
   return transformTenantConfig(responseData.data);
+}
+
+interface TenantLegalDocumentRaw {
+  html?: string;
+}
+
+/**
+ * Fetch tenant legal document HTML (no auth). Returns null if 404 / empty.
+ * 获取企业法律文档 HTML（无需认证），404 或空则返回 null
+ */
+export async function getTenantLegalDocumentApi(
+  kind: 'privacy' | 'terms',
+): Promise<null | { html: string }> {
+  const path =
+    kind === 'privacy'
+      ? '/api/public/tenant/legal/privacy'
+      : '/api/public/tenant/legal/terms';
+  try {
+    const response = await baseRequestClient.get<
+      HttpResponse<TenantLegalDocumentRaw>
+    >(path);
+    const responseData = extractResponseData<TenantLegalDocumentRaw>(response);
+    if (responseData.code !== 0) {
+      return null;
+    }
+    const html = responseData.data?.html ?? '';
+    return { html };
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response
+      ?.status;
+    if (status === 404) {
+      return null;
+    }
+    throw err;
+  }
 }

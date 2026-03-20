@@ -9,7 +9,6 @@ import { getTenantUserDetailApi } from '#/api/tenant/tenant-users';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { displayTenantUserRoleName } from '../display-role';
 import { getUserFormDefaults, useUserFormSchema } from '../data';
 
 defineOptions({ name: 'UserArchitectureUserForm' });
@@ -46,7 +45,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
         'filter[is_active][eq]': true,
       });
       const roleOptions = res.items.map((r) => ({
-        label: displayTenantUserRoleName(r, $t),
+        label: r.name,
         value: r.id,
       }));
       const currentSchema = useUserFormSchema(isEdit.value);

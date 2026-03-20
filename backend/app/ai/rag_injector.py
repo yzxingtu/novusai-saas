@@ -41,15 +41,19 @@ def merge_kb_ids(
 async def load_agent_kb_bindings(
     db: AsyncSession,
     agent_id: int,
+    tenant_id: int,
 ) -> tuple[list[int] | None, dict[int, float]]:
     """
     Load enabled bindings from AgentKnowledgeBaseBinding junction table.
     从 AgentKnowledgeBaseBinding 中间表加载 enabled=True 的绑定。
 
+    Includes platform-global rows (tenant_id IS NULL) plus this tenant's overlay rows.
+    含平台全局绑定（tenant_id 为空）与本企业的叠加绑定，避免跨企业泄露扩展知识库。
+
     Returns:
         (kb_ids, kb_weights): KB ID list + {kb_id: weight} mapping / 知识库 ID 列表 + {kb_id: weight} 映射
     """
-    from sqlalchemy import select
+    from sqlalchemy import or_, select
 
     from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
 
@@ -59,6 +63,10 @@ async def load_agent_kb_bindings(
             AgentKnowledgeBaseBinding.agent_id == agent_id,
             AgentKnowledgeBaseBinding.enabled.is_(True),
             AgentKnowledgeBaseBinding.is_deleted.is_(False),
+            or_(
+                AgentKnowledgeBaseBinding.tenant_id.is_(None),
+                AgentKnowledgeBaseBinding.tenant_id == tenant_id,
+            ),
         )
         .order_by(AgentKnowledgeBaseBinding.sort_order)
     )
@@ -68,8 +76,23 @@ async def load_agent_kb_bindings(
     if not bindings:
         return None, {}
 
-    kb_ids = [b.knowledge_base_id for b in bindings]
-    kb_weights = {b.knowledge_base_id: b.weight for b in bindings}
+    from app.services.ai.tenant_platform_kb_suppression_service import (
+        load_suppressed_platform_kb_ids,
+    )
+
+    suppressed = await load_suppressed_platform_kb_ids(db, tenant_id, agent_id)
+
+    kb_ids: list[int] = []
+    kb_weights: dict[int, float] = {}
+    for b in bindings:
+        kid = b.knowledge_base_id
+        if b.tenant_id is None and kid in suppressed:
+            continue
+        kb_ids.append(kid)
+        kb_weights[kid] = b.weight
+
+    if not kb_ids:
+        return None, {}
     return kb_ids, kb_weights
 
 
@@ -179,6 +202,13 @@ async def inject_rag_context(
         if not chunks:
             return messages, None
 
+        kb_name_map: dict[int, str] = {}
+        for kid in validated_kb_ids:
+            kb_row = await kb_repo.get_by_id(kid)
+            if kb_row:
+                label = (getattr(kb_row, "name", None) or "").strip() or f"KB#{kid}"
+                kb_name_map[kid] = label
+
         # Calculate token budget / 计算 Token 预算
         builder = RAGContextBuilder(
             context_token_ratio=rag_config.get("context_token_ratio", 0.6),
@@ -199,7 +229,7 @@ async def inject_rag_context(
         )
 
         # Build RAG context / 构建 RAG 上下文
-        rag_context = builder.build_rag_context(chunks, rag_budget)
+        rag_context = builder.build_rag_context(chunks, rag_budget, kb_names=kb_name_map)
 
         if not rag_context.rag_text:
             return messages, None

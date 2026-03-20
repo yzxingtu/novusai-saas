@@ -4,32 +4,46 @@
 企业级智能体数据访问。
 """
 
-
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import selectinload
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.enums.agent import (
-    AccessTypeEnum,
+    AgentDistributionModeEnum,
     AgentExecutionModeEnum,
+    AgentOwnerTypeEnum,
+    AgentPublicationAccessTypeEnum,
     AgentStatusEnum,
-    AgentVisibilityEnum,
 )
+from app.enums.common import DeleteLevelEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
-from app.models.ai.agent_access import AgentAccess
+from app.models.ai.tenant_agent_publication import TenantAgentPublication
 from app.repositories.system.resource_tenant_assignment_repository import (
     assigned_resource_ids_subquery,
 )
 from app.schemas.common.query import FilterRule, QuerySpec
 
-_ASSIGNED_SCOPES = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
+
+def _tenant_available_condition(tenant_id: int):
+    assigned_subq = assigned_resource_ids_subquery("agent", tenant_id)
+    return or_(
+        and_(
+            Agent.owner_type == AgentOwnerTypeEnum.TENANT.value,
+            Agent.tenant_id == tenant_id,
+        ),
+        and_(
+            Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value,
+            Agent.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value,
+        ),
+        and_(
+            Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value,
+            Agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+            Agent.id.in_(assigned_subq),
+        ),
+    )
 
 
 class AgentRepository(TenantRepository[Agent]):
@@ -37,7 +51,7 @@ class AgentRepository(TenantRepository[Agent]):
     企业级智能体 Repository / Tenant-scoped Agent repository.
 
     提供基于企业隔离的智能体数据访问。
-    查询时自动包含 scope=global 的全局智能体。
+    查询时自动包含当前企业可用的平台共享智能体。
     """
 
     model = Agent
@@ -47,27 +61,27 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局 + 全部企业可见 + 已分配的智能体 / Get agent by ID (global + all_tenants + assigned)."""
+        """根据 ID 获取当前企业可访问的智能体 / Get agent by ID accessible to current tenant."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 全局共享（管理端 + 全部企业）
-            if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+            if instance.owner_type == AgentOwnerTypeEnum.TENANT.value:
+                return instance if instance.tenant_id == self.tenant_id else None
+
+            if instance.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+                return None
+
+            if instance.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value:
                 return instance
-            # 全部企业可见（平台创建的全局资源，tenant_id=null）
-            if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
-                return instance
-            # 已分配 scope：检查 resource_tenant_assignments
-            if instance.scope in _ASSIGNED_SCOPES:
+
+            if instance.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value:
                 from app.repositories.system.resource_tenant_assignment_repository import (
                     ResourceTenantAssignmentRepository,
                 )
+
                 repo = ResourceTenantAssignmentRepository(self.db)
                 if await repo.check_assignment("agent", instance.id, self.tenant_id):
                     return instance
                 return None
-            # 同企业
-            if instance.tenant_id == self.tenant_id:
-                return instance
             return None
         return instance
 
@@ -81,7 +95,7 @@ class AgentRepository(TenantRepository[Agent]):
         """
         企业级智能体列表查询 / Tenant-scoped agent list query.
 
-        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
+        自动注入“企业可用”条件：企业自有 + 平台全量分发 + 平台定向分发。
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -91,23 +105,7 @@ class AgentRepository(TenantRepository[Agent]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部企业可见 + 已分配资源
-        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
-        query = query.where(
-            or_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局资源（tenant_id=null，对全部企业可见）
-                and_(
-                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                    self.model.tenant_id.is_(None),
-                ),
-                and_(
-                    self.model.scope.in_(_ASSIGNED_SCOPES),
-                    self.model.id.in_(assigned_subq),
-                ),
-            )
-        )
+        query = query.where(_tenant_available_condition(self.tenant_id))
 
         # 应用额外的强制过滤（排除 tenant_id 强制规则）
         extra_forced = [
@@ -137,74 +135,51 @@ class AgentRepository(TenantRepository[Agent]):
         self,
         spec: QuerySpec,
         user_id: int,
+        user_role_id: int | None = None,
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[Agent], int]:
         """
         查询终端用户可访问的智能体列表 / List agents accessible to end users.
 
-        在 AgentRepository.query_list 的企业可见性规则基础上，增加用户访问控制过滤：
-        - visibility != private → 允许
-        - visibility == private:
-          - 无 AgentAccess 记录 → 允许（默认 all_users）
-          - access_type == all_users → 允许
-          - access_type == specific_users 且 user_id 在 user_ids 中 → 允许
-
-        注意：org_node / api_only 在用户端列表中不展示。
+        在企业可用范围基础上，强制要求存在启用中的 TenantAgentPublication。
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
         query = select(self.model)
         query = query.where(self.model.is_deleted.is_(False))
-
-        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
-        query = query.where(
-            or_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                and_(
-                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                    self.model.tenant_id.is_(None),
-                ),
-                and_(
-                    self.model.scope.in_(_ASSIGNED_SCOPES),
-                    self.model.id.in_(assigned_subq),
-                ),
-            )
+        query = query.where(_tenant_available_condition(self.tenant_id))
+        publication_join_on = and_(
+            TenantAgentPublication.tenant_id == self.tenant_id,
+            TenantAgentPublication.agent_id == self.model.id,
+            TenantAgentPublication.is_deleted.is_(False),
         )
-
-        access_join_on = and_(
-            AgentAccess.tenant_id == self.tenant_id,
-            AgentAccess.agent_id == self.model.id,
-            AgentAccess.is_deleted.is_(False),
-        )
-        query = query.outerjoin(AgentAccess, access_join_on)
-
-        query = query.where(
-            or_(
-                self.model.visibility != AgentVisibilityEnum.PRIVATE.value,
-                AgentAccess.id.is_(None),
-                AgentAccess.access_type == AccessTypeEnum.ALL_USERS.value,
-                and_(
-                    AgentAccess.access_type == AccessTypeEnum.SPECIFIC_USERS.value,
-                    AgentAccess.user_ids.cast(JSONB).contains([user_id]),
-                ),
-            )
-        )
+        query = query.join(TenantAgentPublication, publication_join_on)
         query = query.where(self.model.status == AgentStatusEnum.PUBLISHED.value)
         query = query.where(self.model.execution_mode != AgentExecutionModeEnum.ROUTER.value)
         query = query.where(
             or_(
-                AgentAccess.id.is_(None),
-                AgentAccess.access_type.notin_({
-                    AccessTypeEnum.ORG_NODE.value,
-                    AccessTypeEnum.API_ONLY.value,
-                }),
+                and_(
+                    TenantAgentPublication.enabled_for_users.is_(True),
+                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.ALL_USERS.value,
+                ),
+                and_(
+                    TenantAgentPublication.enabled_for_users.is_(True),
+                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.SPECIFIC_USERS.value,
+                    TenantAgentPublication.tenant_user_ids.cast(JSONB).contains([user_id]),
+                ),
+                and_(
+                    TenantAgentPublication.enabled_for_users.is_(True),
+                    TenantAgentPublication.access_type == AgentPublicationAccessTypeEnum.TENANT_USER_ROLES.value,
+                    (
+                        TenantAgentPublication.tenant_user_role_ids.cast(JSONB).contains([user_role_id])
+                        if user_role_id is not None
+                        else false()
+                    ),
+                ),
             )
         )
-        # 用户端只能看到 target_audience='all' 的智能体（三端隔离）
-        query = query.where(self.model.target_audience == "all")
 
         extra_forced = [
             f for f in (forced_filters or [])
@@ -284,19 +259,11 @@ class AgentRepository(TenantRepository[Agent]):
         Returns:
             Agent 列表
         """
-        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         stmt = (
             select(Agent)
             .where(
                 and_(
-                    or_(
-                        Agent.tenant_id == self.tenant_id,
-                        Agent.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                        and_(
-                            Agent.scope.in_(_ASSIGNED_SCOPES),
-                            Agent.id.in_(assigned_subq),
-                        ),
-                    ),
+                    _tenant_available_condition(self.tenant_id),
                     Agent.status == status,
                     Agent.is_deleted.is_(False),
                 )
@@ -345,6 +312,7 @@ class AgentRepository(TenantRepository[Agent]):
             Agent 实例或 None
         """
         conditions = [
+            Agent.owner_type == AgentOwnerTypeEnum.TENANT.value,
             Agent.tenant_id == self.tenant_id,
             Agent.name == name,
             Agent.is_deleted.is_(False),
@@ -384,13 +352,13 @@ class AdminAgentRepository(BaseRepository[Agent]):
         self,
         name: str,
         tenant_id: int | None,
-        scope: str,
+        owner_type: str,
         exclude_id: int | None = None,
     ) -> Agent | None:
-        """检查同 scope+tenant_id 下名称是否重复 / Check name duplicate under same scope+tenant_id."""
+        """检查同 owner_type+tenant_id 下名称是否重复 / Check name duplicate under same owner_type+tenant_id."""
         conditions = [
             Agent.name == name,
-            Agent.scope == scope,
+            Agent.owner_type == owner_type,
             Agent.is_deleted.is_(False),
         ]
         if tenant_id is not None:

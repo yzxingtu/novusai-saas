@@ -21,6 +21,7 @@ from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
+from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
 from app.ai.constants import OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API
 from app.ai.exceptions import AIGatewayError, convert_openai_error
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
@@ -512,7 +513,7 @@ class OpenAIAdapter(BaseAdapter):
         tools: list[dict] | None = None,
         **kwargs,
     ) -> ChatResponse:
-        request_params = self._build_responses_request(
+        request_params = await self._build_responses_request(
             messages=messages,
             model=model,
             temperature=temperature,
@@ -536,7 +537,7 @@ class OpenAIAdapter(BaseAdapter):
         tools: list[dict] | None = None,
         **kwargs,
     ) -> AsyncIterator[ChatChunk]:
-        request_params = self._build_responses_request(
+        request_params = await self._build_responses_request(
             messages=messages,
             model=model,
             temperature=temperature,
@@ -630,7 +631,7 @@ class OpenAIAdapter(BaseAdapter):
                     raise RuntimeError(str(error_obj))
                 raise RuntimeError(event_type)
 
-    def _build_responses_request(
+    async def _build_responses_request(
         self,
         messages: list[ChatMessage],
         model: str,
@@ -646,7 +647,7 @@ class OpenAIAdapter(BaseAdapter):
         supports_video = kwargs.pop("supports_video", False)
         request_params: dict[str, Any] = {
             "model": model,
-            "input": self._convert_messages_to_responses_input(
+            "input": await self._convert_messages_to_responses_input(
                 messages,
                 supports_vision=supports_vision,
                 supports_audio=supports_audio,
@@ -680,7 +681,7 @@ class OpenAIAdapter(BaseAdapter):
             converted.append(tool)
         return converted
 
-    def _convert_messages_to_responses_input(
+    async def _convert_messages_to_responses_input(
         self,
         messages: list[ChatMessage],
         *,
@@ -714,7 +715,7 @@ class OpenAIAdapter(BaseAdapter):
                 if not (msg.content or "").strip():
                     continue
 
-            content = self._build_responses_message_content(
+            content = await self._build_responses_message_content(
                 msg,
                 supports_vision=supports_vision,
                 supports_audio=supports_audio,
@@ -728,7 +729,7 @@ class OpenAIAdapter(BaseAdapter):
 
         return converted
 
-    def _build_responses_message_content(
+    async def _build_responses_message_content(
         self,
         msg: ChatMessage,
         *,
@@ -747,14 +748,23 @@ class OpenAIAdapter(BaseAdapter):
             att_type = str(att.get("type") or "").lower()
             url = str(att.get("url") or "").strip()
             name = att.get("name") or att.get("filename") or "file"
+            att_mime = str(att.get("mime_type") or "")
 
             if att_type == "image":
                 if supports_vision and url:
-                    parts.append({
-                        "type": "input_image",
-                        "image_url": url,
-                        "detail": "auto",
-                    })
+                    resolved = await self._resolve_image_url_for_llm(url, att_mime)
+                    if resolved:
+                        parts.append({
+                            "type": "input_image",
+                            "image_url": resolved,
+                            "detail": "auto",
+                        })
+                    else:
+                        hint = (
+                            f"[Image: {name or 'uploaded image'} "
+                            "(could not load for model)]"
+                        )
+                        parts.append({"type": "input_text", "text": hint})
                 else:
                     parts.append({"type": "input_text", "text": f"[Image: {name}]"})
                 continue
@@ -901,6 +911,19 @@ class OpenAIAdapter(BaseAdapter):
             logger.warning("Fetch audio URL failed: {}", e)
             return None
 
+    async def _resolve_image_url_for_llm(self, att_url: str, att_mime: str) -> str | None:
+        """
+        Convert attachment / remote image URL to data URL for vendor multimodal APIs.
+        """
+        db = self.config.get("internal_db")
+        tenant_id = self.config.get("internal_tenant_id")
+        return await resolve_image_url_for_llm(
+            att_url,
+            att_mime or None,
+            db=db,
+            tenant_id=tenant_id,
+        )
+
     async def _convert_messages(
         self,
         messages: list[ChatMessage],
@@ -945,10 +968,20 @@ class OpenAIAdapter(BaseAdapter):
                     att_mime = att.get("mime_type", "")
                     if att_type == "image" and att_url:
                         if supports_vision:
-                            content_parts.append({
-                                "type": "image_url",
-                                "image_url": {"url": att_url},
-                            })
+                            resolved = await self._resolve_image_url_for_llm(
+                                att_url, att_mime,
+                            )
+                            if resolved:
+                                content_parts.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": resolved},
+                                })
+                            else:
+                                hint = (
+                                    f"[Image: {att_name or 'uploaded image'} "
+                                    "(could not load for model)]"
+                                )
+                                content_parts.append({"type": "text", "text": hint})
                         else:
                             # Non-vision model: degrade to text hint / 非视觉模型：降级为文字提示
                             hint = f"[Image: {att_name or 'uploaded image'}]"

@@ -234,6 +234,10 @@ class AgentRouteRequest(BaseModel):
         None,
         description=_("agent_chat.field.pinned_agent_id"),
     )
+    has_image_attachments: bool = Field(
+        False,
+        description="Whether the user message includes image attachments / 是否包含图片附件",
+    )
 
 
 class AgentRouteResponse(BaseModel):

@@ -140,6 +140,7 @@ class StreamExecutionHandler:
                     conversation_id=self.request.conversation_id,
                     route_result=self.prep.route_result,
                     user_id=getattr(self.request, "user_id", None),
+                    billing_context=getattr(self.request, "billing_context", None),
                     log_user_type=log_user_type_for_call_log(_req_role),
                 ):
                     if (
@@ -206,6 +207,7 @@ class StreamExecutionHandler:
                 runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
                 runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
                 runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
+                rag_sources=rag_sources,
             )
 
             extra_done_data: dict[str, Any] = {}
@@ -277,6 +279,7 @@ class StreamExecutionHandler:
                     partial=True,
                     interrupted=False,
                     completion_reason="error",
+                    rag_sources=rag_sources,
                 )
                 try:
                     await asyncio.shield(self.on_complete(failed_result))
@@ -323,6 +326,7 @@ class StreamExecutionHandler:
                     partial=True,
                     interrupted=True,
                     completion_reason="interrupted",
+                    rag_sources=rag_sources,
                 )
                 with contextlib.suppress(Exception):
                     await asyncio.shield(self.on_complete(interrupted_result))
@@ -426,6 +430,7 @@ class StreamExecutionHandler:
                 route_result=self.prep.route_result,
                 tools=tools,
                 user_id=getattr(self.request, "user_id", None),
+                billing_context=getattr(self.request, "billing_context", None),
                 log_user_type=log_user_type_for_call_log(_req_role),
             ):
                 if (

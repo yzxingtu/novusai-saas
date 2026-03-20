@@ -73,7 +73,7 @@ class AnalyticsService:
         )
 
         if tenant_id is not None:
-            stmt = stmt.where(AICallLog.tenant_id == tenant_id)
+            stmt = stmt.where(AICallLog.billing_tenant_id == tenant_id)
 
         stmt = stmt.group_by(func.date(AICallLog.created_at)).order_by(func.date(AICallLog.created_at))
 
@@ -117,7 +117,7 @@ class AnalyticsService:
 
         filters = self._date_filters(start_date, end_date)
         if tenant_id is not None:
-            filters.append(AICallLog.tenant_id == tenant_id)
+            filters.append(AICallLog.billing_tenant_id == tenant_id)
 
         stmt = stmt.where(*filters).group_by(AICallLog.model_id).order_by(func.count(AICallLog.id).desc()).limit(20)
 
@@ -215,14 +215,15 @@ class AnalyticsService:
         from app.models.tenant.tenant import Tenant
 
         stmt = select(
-            AICallLog.tenant_id,
+            AICallLog.billing_tenant_id.label("tenant_id"),
             func.count(AICallLog.id).label("calls"),
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("tokens"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
         )
 
         filters = self._date_filters(start_date, end_date)
-        stmt = stmt.where(*filters).group_by(AICallLog.tenant_id).order_by(func.count(AICallLog.id).desc()).limit(top_n)
+        filters.append(AICallLog.billing_tenant_id.is_not(None))
+        stmt = stmt.where(*filters).group_by(AICallLog.billing_tenant_id).order_by(func.count(AICallLog.id).desc()).limit(top_n)
 
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -274,7 +275,7 @@ class AnalyticsService:
 
         filters = self._date_filters(start_date, end_date)
         if tenant_id is not None:
-            filters.append(AICallLog.tenant_id == tenant_id)
+            filters.append(AICallLog.billing_tenant_id == tenant_id)
         filters.append(AICallLog.latency_ms.isnot(None))
 
         columns = []

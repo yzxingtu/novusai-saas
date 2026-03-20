@@ -176,6 +176,9 @@ const {
   copyMessage,
   handleInputKeyDown,
   selectMentionAgent,
+  selectMentionKnowledgeBase,
+  removeSelectedKnowledgeBase,
+  selectedKBIds,
   clearMentionedAgent,
   cleanup,
   pendingAttachments,
@@ -207,7 +210,6 @@ const {
   totalTokensUsed,
   supportsVision,
   agentKBBindings,
-  loadAgentKBBindings,
   allAgentsVariables,
   ensureAgentVarsLoaded,
   agentsWithVarsInConversation,
@@ -538,6 +540,10 @@ async function handleSendMessage() {
   const text = inputMessage.value.trim();
   if (!text && pendingAttachments.value.length === 0) return;
 
+  const hasImageAttachments = pendingAttachments.value.some(
+    (a) => a.type === 'image',
+  );
+
   const pageContext = enrichPageContextWithOperations(
     resolvePageContext(props.pageContextKey),
   );
@@ -604,10 +610,13 @@ async function handleSendMessage() {
   }
 
   try {
+    // /route 要求 message 非空；仅发图时用占位符 / Route API requires non-empty message
+    const routeMessageText = text || (hasImageAttachments ? ' ' : '');
     const result = await routeMessage(
-      text,
+      routeMessageText,
       props.pageContextKey,
       pageContext,
+      hasImageAttachments,
     );
 
     // Update current agent context (don't clear messages/conversations, support multi-agent chat) / 更新当前智能体上下文（不清除消息/对话，支持多智能体对话）
@@ -1054,12 +1063,10 @@ watch(
   },
 );
 
-// ============ Load KB bindings on agent switch / Agent 切换时加载 KB 绑定 ============
+// ============ Pre-load vars on agent switch（KB 绑定由 useAIChat 内 effectiveKbAgentId 加载）===========
 
 watch(selectedAgentId, (agentId) => {
   if (agentId) {
-    loadAgentKBBindings(agentId);
-    // Pre-load vars from localStorage (no modal on switch) / 从 localStorage 预加载变量（切换时无需弹窗）
     ensureAgentVarsLoaded(agentId);
   }
 });
@@ -2040,7 +2047,7 @@ onUnmounted(() => {
               </span>
             </div>
 
-            <!-- Bound KB indicator -->
+            <!-- Bound KB list (available for this agent) / 当前智能体已绑定知识库 -->
             <div
               v-if="agentKBBindings.length > 0"
               class="mb-1 flex flex-wrap items-center gap-1"
@@ -2057,6 +2064,33 @@ onUnmounted(() => {
                 {{ kb.kb_name || `KB#${kb.knowledge_base_id}` }}
               </span>
             </div>
+            <!-- @-selected KBs for this turn (RAG subset) / 本回合 @ 选中的检索范围 -->
+            <div
+              v-if="selectedKBIds.length > 0"
+              class="mb-1 flex flex-wrap items-center gap-1"
+            >
+              <span class="text-[10px] text-muted-foreground/70">{{
+                $t('common.globalAiChat.selectedKbForTurn')
+              }}</span>
+              <span
+                v-for="kid in selectedKBIds"
+                :key="kid"
+                class="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-background px-1.5 py-0.5 text-[10px] text-primary"
+              >
+                {{
+                  agentKBBindings.find((b) => b.knowledge_base_id === kid)?.kb_name
+                    || `KB#${kid}`
+                }}
+                <button
+                  type="button"
+                  class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
+                  :aria-label="$t('common.globalAiChat.removeKbFromTurn')"
+                  @click="removeSelectedKnowledgeBase(kid)"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-2.5" />
+                </button>
+              </span>
+            </div>
 
             <!-- Input row: 字数统计移出 TextArea，避免导致图标与输入框对齐失调 -->
             <div
@@ -2071,7 +2105,7 @@ onUnmounted(() => {
                     class="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground/70"
                   >
                     <IconifyIcon icon="lucide:at-sign" class="size-3" />
-                    <span>{{ $t('common.globalAiChat.mentionAgentHint') }}</span>
+                    <span>{{ $t('common.globalAiChat.mentionMixedHint') }}</span>
                   </div>
                   <div v-if="agentsLoading" class="flex items-center gap-2 px-1 py-2">
                     <Spin size="small" />
@@ -2081,46 +2115,88 @@ onUnmounted(() => {
                   </div>
                   <div
                     v-else-if="mentionCandidates.length === 0"
-                    class="px-1 py-2 text-[11px] text-muted-foreground"
+                    class="space-y-1 px-1 py-2 text-[11px] text-muted-foreground"
                   >
-                    {{ $t('common.globalAiChat.mentionAgentEmpty') }}
-                  </div>
-                  <div v-else class="max-h-48 space-y-1 overflow-y-auto">
-                    <button
-                      v-for="(agent, candidateIndex) in mentionCandidates"
-                      :key="agent.id"
-                      class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
-                      :class="
-                        candidateIndex === mentionActiveIndex
-                          ? 'bg-primary/10 text-foreground'
-                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                      "
-                      @mousedown.prevent
-                      @click="selectMentionAgent(agent)"
+                    <p>{{ $t('common.globalAiChat.mentionAgentEmpty') }}</p>
+                    <p
+                      v-if="agentKBBindings.length === 0 && !agentsLoading"
+                      class="text-[10px] text-muted-foreground/80"
                     >
+                      {{ $t('common.globalAiChat.mentionKbNoneBound') }}
+                    </p>
+                  </div>
+                  <div v-else class="max-h-48 space-y-2 overflow-y-auto">
+                    <template v-for="(c, candidateIndex) in mentionCandidates" :key="c.kind === 'agent' ? `a-${c.agent.id}` : `kb-${c.binding.knowledge_base_id}`">
                       <div
-                        class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary"
+                        v-if="candidateIndex === 0 || mentionCandidates[candidateIndex - 1]!.kind !== c.kind"
+                        class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
                       >
-                        <img
-                          v-if="agent.avatar"
-                          :src="agent.avatar"
-                          :alt="agent.name"
-                          class="size-7 rounded-lg object-cover"
-                        />
-                        <span v-else>{{ agent.name.charAt(0).toUpperCase() }}</span>
+                        {{
+                          c.kind === 'agent'
+                            ? $t('common.globalAiChat.mentionSectionAgents')
+                            : $t('common.globalAiChat.mentionSectionKbs')
+                        }}
                       </div>
-                      <div class="min-w-0 flex-1">
-                        <div class="truncate text-[12px] font-medium">
-                          {{ agent.name }}
-                        </div>
+                      <button
+                        v-if="c.kind === 'agent'"
+                        class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                        :class="
+                          candidateIndex === mentionActiveIndex
+                            ? 'bg-primary/10 text-foreground'
+                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                        "
+                        @mousedown.prevent
+                        @click="selectMentionAgent(c.agent)"
+                      >
                         <div
-                          v-if="agent.description"
-                          class="truncate text-[10px] text-muted-foreground/70"
+                          class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-medium text-primary"
                         >
-                          {{ agent.description }}
+                          <img
+                            v-if="c.agent.avatar"
+                            :src="c.agent.avatar"
+                            :alt="c.agent.name"
+                            class="size-7 rounded-lg object-cover"
+                          />
+                          <span v-else>{{ c.agent.name.charAt(0).toUpperCase() }}</span>
                         </div>
-                      </div>
-                    </button>
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate text-[12px] font-medium">
+                            {{ c.agent.name }}
+                          </div>
+                          <div
+                            v-if="c.agent.description"
+                            class="truncate text-[10px] text-muted-foreground/70"
+                          >
+                            {{ c.agent.description }}
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        v-else
+                        class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+                        :class="
+                          candidateIndex === mentionActiveIndex
+                            ? 'bg-primary/10 text-foreground'
+                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                        "
+                        @mousedown.prevent
+                        @click="selectMentionKnowledgeBase(c.binding)"
+                      >
+                        <div
+                          class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                        >
+                          <IconifyIcon icon="lucide:library" class="size-4" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate text-[12px] font-medium">
+                            {{ c.binding.kb_name || `KB#${c.binding.knowledge_base_id}` }}
+                          </div>
+                          <div class="truncate text-[10px] text-muted-foreground/70">
+                            {{ $t('common.globalAiChat.mentionKbPickHint') }}
+                          </div>
+                        </div>
+                      </button>
+                    </template>
                   </div>
                 </div>
               </Transition>

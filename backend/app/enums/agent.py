@@ -26,6 +26,31 @@ class AgentExecutionModeEnum(LabeledStrEnum):
     ROUTER = ("router", "enum.agent.execution_mode.router")
 
 
+class AgentOwnerTypeEnum(LabeledStrEnum):
+    """Agent Owner Type Enum / 智能体归属类型枚举"""
+
+    PLATFORM = ("platform", "enum.agent.owner_type.platform")
+    TENANT = ("tenant", "enum.agent.owner_type.tenant")
+
+
+class AgentDistributionModeEnum(LabeledStrEnum):
+    """Agent Distribution Mode Enum / 智能体分发模式枚举"""
+
+    INTERNAL = ("internal", "enum.agent.distribution_mode.internal")
+    ALL_TENANTS = ("all_tenants", "enum.agent.distribution_mode.all_tenants")
+    ASSIGNED_TENANTS = ("assigned_tenants", "enum.agent.distribution_mode.assigned_tenants")
+    OWNER_ONLY = ("owner_only", "enum.agent.distribution_mode.owner_only")
+
+
+class AgentPublicationAccessTypeEnum(LabeledStrEnum):
+    """Tenant Agent Publication Access Type Enum / 企业用户发布访问类型枚举"""
+
+    ALL_USERS = ("all_users", "enum.agent.publication_access_type.all_users")
+    TENANT_USER_ROLES = ("tenant_user_roles", "enum.agent.publication_access_type.tenant_user_roles")
+    ORG_NODE = ("org_node", "enum.agent.publication_access_type.org_node")
+    SPECIFIC_USERS = ("specific_users", "enum.agent.publication_access_type.specific_users")
+
+
 class MemorySceneEnum(LabeledStrEnum):
     """Session Memory Scene Enum / 会话记忆场景枚举"""
 
@@ -200,6 +225,9 @@ def get_skill_type_options() -> list[dict[str, str]]:
 __all__ = [
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
+    "AgentOwnerTypeEnum",
+    "AgentDistributionModeEnum",
+    "AgentPublicationAccessTypeEnum",
     "MemorySceneEnum",
     "MemoryChannelEnum",
     "ToolTypeEnum",

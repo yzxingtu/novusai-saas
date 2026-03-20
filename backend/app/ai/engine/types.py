@@ -57,8 +57,13 @@ class ExecutionRequest:
 
     # User role (platform_admin / tenant_admin / tenant_user) / 用户角色
     user_role: str = UserRoleEnum.TENANT_ADMIN.value
+    user_role_id: int | None = None
     # User RBAC permission code set / 用户 RBAC 权限码集合
     permissions: set[str] | None = None
+
+    # Immutable billing / attribution snapshot captured at call time
+    # 调用时捕获的不可变计费归属快照
+    billing_context: dict[str, Any] | None = None
 
     # API mode control flags (set by caller or dispatcher automatically) / API 模式控制标志（由调用方或 dispatcher 自动设置）
     skip_quota: bool = False
@@ -112,6 +117,7 @@ class ExecutionResult:
     partial: bool = False
     interrupted: bool = False
     completion_reason: str = ""
+    rag_sources: list[dict[str, Any]] | None = None
 
 
 @dataclass

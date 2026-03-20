@@ -333,7 +333,14 @@ class ExecutionDispatcher:
         from app.repositories.ai.batch_run_repository import BatchRunRepository
 
         # 1. Validate Agent / 校验 Agent
-        agent_repo = AgentRepository(self.db, request.tenant_id)
+        if request.tenant_id == PLATFORM_TENANT_ID:
+            from app.repositories.ai.agent_repository import (
+                AdminAgentRepository,
+            )
+
+            agent_repo = AdminAgentRepository(self.db)
+        else:
+            agent_repo = AgentRepository(self.db, request.tenant_id)
         agent = await agent_repo.get_by_id(request.agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
@@ -341,16 +348,6 @@ class ExecutionDispatcher:
         if agent.status != AgentStatusEnum.PUBLISHED.value:
             raise BusinessException(
                 message=_("agent.error.not_published"))
-
-        # 1.5 target_audience validation (batch should not bypass tri-endpoint isolation) / target_audience 校验（批处理不应绕过三端隔离）
-        if request.user_role:
-            from app.ai.skills.resolver import _audience_allows_role
-            from app.enums.common import AudienceEnum as _AudienceEnum
-            agent_audience = getattr(agent, "target_audience", _AudienceEnum.ADMIN_TENANT.value)
-            if not _audience_allows_role(agent_audience, request.user_role):
-                raise BusinessException(
-                    message=_("agent.error.audience_not_allowed"),
-                )
 
         # 2. Quota check (checked once at batch submission) / 配额检查（批处理提交时检查一次）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)

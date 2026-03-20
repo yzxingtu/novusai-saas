@@ -24,7 +24,7 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.models.ai.agent import Agent
-from app.services.ai.metering_service import CostCalculator, TokenCounter
+from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 from .base import BaseEngine, log_user_type_for_call_log
 from .stream_handler import StreamExecutionHandler
@@ -95,6 +95,7 @@ class ConversationEngine(BaseEngine):
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
                 route_result=prep.route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
@@ -140,10 +141,8 @@ class ConversationEngine(BaseEngine):
                 runtime_model_name=runtime_info.get("model_name"),
                 runtime_provider_id=runtime_info.get("provider_id"),
                 runtime_provider_name=runtime_info.get("provider_name"),
+                rag_sources=rag_sources,
             )
-            # Attach RAG reference sources / 附加 RAG 引用来源
-            if rag_sources:
-                result.rag_sources = rag_sources  # type: ignore[attr-defined]
 
             return result
 
@@ -234,6 +233,7 @@ class ConversationEngine(BaseEngine):
         tools: list[ToolDefinition] | None = None,
         user_id: int | None = None,
         log_user_type: str | None = None,
+        billing_context: dict[str, Any] | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         Get streaming ChatChunk via adapter (with rate limiting/quota/metering protection).
@@ -329,6 +329,8 @@ class ConversationEngine(BaseEngine):
             api_key=api_key.decrypt_key(),
             base_url=provider.base_url,
             provider_config=provider.config,
+            internal_db=self.db,
+            internal_tenant_id=tenant_id,
         )
         openai_tools = to_openai_tools(tools) if tools else None
 
@@ -464,6 +466,7 @@ class ConversationEngine(BaseEngine):
                     user_type=resolved_log_type,
                     agent_id=getattr(agent, "id", None),
                     conversation_id=conversation_id,
+                    billing_context=billing_context,
                     routed_model_id=(
                         int(getattr(route_result, "model_id", 0) or 0)
                         if route_result is not None and getattr(route_result, "is_overridden", False)

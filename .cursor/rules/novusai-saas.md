@@ -292,7 +292,7 @@ Loguru 使用 `{}` 风格，禁止 `%s`/`%d`：`logger.info("id={}", x)` 而不�
 - CORS 禁止 `allow_origins=["*"]` 且 `allow_credentials=True`
 - 登录、注册、忘记密码等公开认证端点必须使用 `check_login_rate_limit` 进行 IP 限流
 - 非 DEBUG 环境启动时，若 `SECRET_KEY` 仍为默认值，必须输出 SECURITY WARNING 日志
-- 依赖以 `pyproject.toml` 为单一事实来源，与 `requirements.txt` 同步
+- 依赖以 `pyproject.toml` + `uv.lock` 为单一事实来源；安装推荐 `uv sync --extra dev`
 - 列表/导出 API 必须有合理 `.limit()` 上限
 - 文件句柄必须用 `with` 或确保关闭
 

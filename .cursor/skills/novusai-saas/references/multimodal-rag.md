@@ -111,7 +111,7 @@ Vision 描述失败（`description = ""`）时，`ImageParser` 返回空内容 `
 - 内容来源：文字框（`shape.text_frame`）+ 备注（`notes_slide.notes_text_frame`）
 - metadata：`{"slide": N, "source": file_name}`
 - 空幻灯片（无文字）跳过
-- 依赖：`python-pptx`（已加入 `requirements.txt`）
+- 依赖：`python-pptx`（已列入 `pyproject.toml`）
 
 ---
 

@@ -27,17 +27,19 @@ from app.models.ai.query_log import AIQueryLog
 from app.models.ai.skill import Skill
 from app.models.ai.skill_call_log import SkillCallLog
 from app.models.ai.skill_package import SkillPackage
+from app.models.ai.tenant_agent_platform_kb_suppression import (
+    TenantAgentPlatformKbSuppression,
+)
+from app.models.ai.tenant_agent_publication import TenantAgentPublication
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
 from app.models.ai.tenant_quota import TenantQuota
 from app.models.ai.tenant_rate_limit import TenantModelRateLimit
-from app.models.ai.usage_stat import UsageStat
 
 __all__ = [
     "AIProvider",
     "AIModel",
     "ProviderApiKey",
     "AICallLog",
-    "UsageStat",
     "TenantModelRateLimit",
     "TenantQuota",
     "Agent",
@@ -46,6 +48,8 @@ __all__ = [
     "BatchRun",
     "AgentVersion",
     "AgentAccess",
+    "TenantAgentPublication",
+    "TenantAgentPlatformKbSuppression",
     "AgentMemoryOverride",
     "AIActionLog",
     "AIQueryLog",

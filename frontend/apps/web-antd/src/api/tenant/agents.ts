@@ -19,8 +19,12 @@ export interface AgentListItem {
   description: null | string;
   status: string;
   execution_mode: string;
-  scope: string;
-  target_audience: string;
+  /** @deprecated */
+  scope?: string;
+  /** @deprecated */
+  target_audience?: string;
+  owner_type: string;
+  distribution_mode: string;
   is_system: boolean;
   model_name: null | string;
   skill_packages: { id: number; name: string }[];
@@ -36,14 +40,33 @@ export interface AgentAccessConfig {
   agent_id: number;
   admin_role_ids: null | number[];
   tenant_role_ids: null | number[];
-  user_role_ids: null | number[];
 }
 
 /** Update agent access request / 更新智能体访问权限请求 */
 export interface AgentAccessUpdateRequest {
   admin_role_ids?: null | number[];
   tenant_role_ids?: null | number[];
-  user_role_ids?: null | number[];
+}
+
+/** Tenant-user publication config / 企业用户端发布配置 */
+export interface TenantAgentPublicationInfo {
+  agent_id: number;
+  enabled_for_users: boolean;
+  access_type: string;
+  tenant_user_role_ids: null | number[];
+  tenant_user_ids: null | number[];
+  org_node_ids: null | number[];
+  publication_id: null | number;
+  published_at: null | string;
+  published_by: null | number;
+}
+
+export interface TenantAgentPublicationUpdateRequest {
+  enabled_for_users: boolean;
+  access_type: string;
+  tenant_user_role_ids?: null | number[];
+  tenant_user_ids?: null | number[];
+  org_node_ids?: null | number[];
 }
 
 /** Agent detail / 智能体详情 */
@@ -79,7 +102,6 @@ export interface AgentCreateRequest {
   max_tokens?: null | number;
   top_p?: null | number;
   execution_mode?: string;
-  target_audience?: string;
   /** @deprecated replaced by AgentSkillBinding / 已废弃，由 AgentSkillBinding 替代 */
   tool_bindings?: null | unknown[];
   input_variables?: null | unknown[];
@@ -320,6 +342,30 @@ export async function updateAgentAccessApi(
   );
 }
 
+/** Get publication config for tenant users / 获取面向企业用户的发布配置 */
+export async function getAgentPublicationApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<TenantAgentPublicationInfo> {
+  return requestClient.get<TenantAgentPublicationInfo>(
+    `${PREFIX}/${id}/publication`,
+    options,
+  );
+}
+
+/** Update publication for tenant users / 更新企业用户发布配置 */
+export async function updateAgentPublicationApi(
+  id: number,
+  data: TenantAgentPublicationUpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantAgentPublicationInfo> {
+  return requestClient.put<TenantAgentPublicationInfo>(
+    `${PREFIX}/${id}/publication`,
+    data,
+    options,
+  );
+}
+
 /** Get agent memory config / 获取智能体记忆配置 */
 export async function getAgentMemoryConfigApi(
   id: number,
@@ -433,6 +479,10 @@ export interface AgentKBBindingInfo {
   weight: number;
   enabled: boolean;
   sort_order: number;
+  /** platform = 管理端全局绑定；tenant = 本企业叠加 / Admin global vs tenant overlay */
+  binding_scope?: 'platform' | 'tenant';
+  /** 本企业是否停用该平台全局 KB（不参与 RAG）/ Tenant opted out of platform KB */
+  platform_suppressed?: boolean;
   kb_name: string | null;
   kb_description: string | null;
   kb_scope: string | null;
@@ -447,6 +497,24 @@ export async function getAgentKBsApi(
 ): Promise<AgentKBBindingInfo[]> {
   return requestClient.get<AgentKBBindingInfo[]>(
     `${PREFIX}/${agentId}/knowledge-bases`,
+    options,
+  );
+}
+
+/** Bind single knowledge base / 绑定单个知识库（平台智能体叠加） */
+export async function bindSingleAgentKBApi(
+  agentId: number,
+  data: {
+    knowledge_base_id: number;
+    enabled?: boolean;
+    sort_order?: number;
+    weight?: number;
+  },
+  options?: ApiRequestOptions,
+): Promise<AgentKBBindingInfo> {
+  return requestClient.post<AgentKBBindingInfo>(
+    `${PREFIX}/${agentId}/knowledge-bases`,
+    data,
     options,
   );
 }
@@ -490,6 +558,31 @@ export async function unbindKBApi(
 ): Promise<void> {
   await requestClient.delete(
     `${PREFIX}/${agentId}/knowledge-bases/${knowledgeBaseId}`,
+    options,
+  );
+}
+
+/** 本企业停用平台全局知识库（不参与 RAG） */
+export async function suppressPlatformKbApi(
+  agentId: number,
+  knowledgeBaseId: number,
+  options?: ApiRequestOptions,
+): Promise<{ id: number; knowledge_base_id: number }> {
+  return requestClient.post(
+    `${PREFIX}/${agentId}/knowledge-bases/platform-suppressions`,
+    { knowledge_base_id: knowledgeBaseId },
+    options,
+  );
+}
+
+/** 取消停用，恢复参与 RAG */
+export async function unsuppressPlatformKbApi(
+  agentId: number,
+  knowledgeBaseId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${PREFIX}/${agentId}/knowledge-bases/platform-suppressions/${knowledgeBaseId}`,
     options,
   );
 }

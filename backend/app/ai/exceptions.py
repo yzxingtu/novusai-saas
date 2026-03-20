@@ -250,6 +250,29 @@ def convert_openai_error(
                 message=_("ai.error.content_filtered"),
                 **kwargs,
             )
+        # Image URL fetch / parse failures (distinct from model lacking vision)
+        # 图片 URL 拉取或解析失败（与「模型不支持视觉」区分）
+        _inaccessible_markers = (
+            "error while downloading",
+            "unable to download",
+            "could not fetch",
+            "failed to download",
+            "invalid_image_url",
+            "invalid image",
+            "malformed image",
+            "image url",
+        )
+        if any(m in error_lower for m in _inaccessible_markers) and (
+            "url" in error_lower
+            or "download" in error_lower
+            or "fetch" in error_lower
+            or "image" in error_lower
+        ):
+            return ProviderError(
+                message=_("ai.error.image_url_inaccessible"),
+                error_code="image_url_inaccessible",
+                **kwargs,
+            )
         # Check if vision/image_url not supported by model / 检查模型是否不支持图片
         if "image_url" in error_lower or ("image" in error_lower and "unsupported" in error_lower):
             return ProviderError(

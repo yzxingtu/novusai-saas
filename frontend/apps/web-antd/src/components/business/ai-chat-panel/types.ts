@@ -21,6 +21,17 @@ export interface InputVariable {
   default?: string;
 }
 
+/** KB row for @ mention panel (aligns with ChatKBBindingInfo) / @ 面板知识库行 */
+export interface MentionKnowledgeBaseBinding {
+  knowledge_base_id: number;
+  kb_name: null | string;
+}
+
+/** Unified @ candidate: agent or bound knowledge base / 统一 @ 候选 */
+export type MentionCandidate =
+  | { kind: 'agent'; agent: AgentItem }
+  | { kind: 'knowledge_base'; binding: MentionKnowledgeBaseBinding };
+
 export interface AgentItem {
   id: number;
   tenant_id: number;
@@ -60,6 +71,9 @@ export interface RagSource {
   snippet: string;
   page?: number;
   heading?: string;
+  /** Source knowledge base (when provided by RAG) / 片段所属知识库 */
+  knowledge_base_id?: number;
+  knowledge_base_name?: null | string;
 }
 
 export interface ChatAttachment {

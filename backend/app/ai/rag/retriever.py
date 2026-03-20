@@ -44,6 +44,7 @@ class ChunkSearchResult:
     document_id: int = 0
     chunk_index: int = 0
     highlight: str | None = None
+    knowledge_base_id: int = 0
 
     def to_dict(self) -> dict:
         """for serialization / 用于序列化"""
@@ -138,6 +139,7 @@ class VectorSearcher:
                 document_name=doc_name,
                 document_id=chunk.document_id,
                 chunk_index=chunk.chunk_index,
+                knowledge_base_id=int(getattr(chunk, "knowledge_base_id", 0) or 0),
             ))
 
         return results
@@ -184,6 +186,7 @@ class KeywordSearcher:
                 dc.document_id,
                 dc.chunk_index,
                 dc.metadata AS chunk_metadata,
+                dc.knowledge_base_id,
                 kd.file_name AS document_name,
                 ts_rank(dc.content_tsv, plainto_tsquery('simple', :query)) AS rank
             FROM document_chunks dc
@@ -210,11 +213,12 @@ class KeywordSearcher:
             results.append(ChunkSearchResult(
                 chunk_id=row[0],
                 content=row[1],
-                score=round(float(row[6]), 4),
+                score=round(float(row[7]), 4),
                 metadata=row[4],
-                document_name=row[5] or "",
+                document_name=row[6] or "",
                 document_id=row[2],
                 chunk_index=row[3],
+                knowledge_base_id=int(row[5] or 0),
             ))
 
         return results

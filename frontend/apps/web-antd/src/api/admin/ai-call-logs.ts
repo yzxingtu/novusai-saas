@@ -34,6 +34,8 @@ export interface AICallLogInfo {
   provider_name?: null | string;
   provider_icon?: null | string;
   tenant_name?: null | string;
+  /** 列表展示优先使用快照，避免智能体删除后名称丢失 */
+  agent_name?: null | string;
   caller_name?: null | string;
   // Routing fields (multi-model routing) / 路由字段（多模型路由）
   routed_model_id?: null | number;
@@ -48,11 +50,9 @@ export interface AICallLogInfo {
 // Type definitions - AI usage stats / 类型定义 - AI 使用量统计
 // ============================================================
 
-/** Usage stat record / 使用量统计记录 */
+/** Usage stat record / 使用量统计记录（按计费事实聚合，无独立 id） */
 export interface AIUsageStatInfo {
-  id: number;
-  tenant_id: number;
-  user_id: null | number;
+  tenant_id: number | null;
   model_id: number;
   request_type: string;
   stat_date: string;
@@ -68,8 +68,6 @@ export interface AIUsageStatInfo {
   // Related names / 关联名称
   tenant_name?: null | string;
   model_name?: null | string;
-  created_at: string;
-  updated_at: string;
 }
 
 // ============================================================

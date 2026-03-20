@@ -14,12 +14,15 @@ import type {
   ChatAttachment,
   ChatMessage,
   ConversationItem,
+  MentionCandidate,
+  RagSource,
   ToolCallEvent,
 } from './types';
 import { getAgentInputVariables } from './types';
 import {
   extractLeadingAgentMentionDraft,
   filterAgentsByMentionQuery,
+  filterKnowledgeBasesByMentionQuery,
   moveStreamingContentToThinking,
 } from './chat-input-utils';
 
@@ -411,6 +414,7 @@ export function useAIChat(options: UseAIChatOptions) {
       let turnModelName: null | string = null;
       let turnRouteSource: null | string = null;
       let turnCreatedAt: null | string = null;
+      let turnRagSources: RagSource[] | undefined;
       const startIdx = i;
 
       while (i < filtered.length && filtered[i]!.role !== 'user') {
@@ -517,6 +521,10 @@ export function useAIChat(options: UseAIChatOptions) {
               contentParts.push(cur.content);
             }
           }
+          const rs = cur.metadata?.rag_sources;
+          if (Array.isArray(rs) && rs.length > 0) {
+            turnRagSources = rs as RagSource[];
+          }
         }
         // tool messages are already handled via toolResponseMap
         i++;
@@ -551,6 +559,9 @@ export function useAIChat(options: UseAIChatOptions) {
         if (thinkingContentParts.length > 0) {
           assistantMsg.thinkingContent = thinkingContentParts.join('\n\n');
         }
+        if (turnRagSources?.length) {
+          assistantMsg.ragSources = turnRagSources;
+        }
         result.push(assistantMsg);
       }
     }
@@ -571,24 +582,31 @@ export function useAIChat(options: UseAIChatOptions) {
   const mentionedAgent = computed(
     () => agents.value.find((agent) => agent.id === mentionedAgentId.value) ?? null,
   );
-  const mentionCandidates = computed(() => {
+  const selectedKBIds = ref<number[]>([]);
+  const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
+  /** @ 候选：先智能体后知识库（键盘顺序一致）/ Agents first, then KBs for keyboard nav */
+  const mentionCandidates = computed<MentionCandidate[]>(() => {
     const draft = extractLeadingAgentMentionDraft(inputMessage.value);
     if (draft === null) {
       return [];
     }
-    return filterAgentsByMentionQuery(agents.value, draft);
+    const agentMatches = filterAgentsByMentionQuery(agents.value, draft);
+    const kbMatches = filterKnowledgeBasesByMentionQuery(
+      agentKBBindings.value,
+      draft,
+    );
+    const out: MentionCandidate[] = [];
+    for (const agent of agentMatches) {
+      out.push({ kind: 'agent', agent });
+    }
+    for (const binding of kbMatches) {
+      out.push({ kind: 'knowledge_base', binding });
+    }
+    return out;
   });
   const mentionOpen = computed(
     () => extractLeadingAgentMentionDraft(inputMessage.value) !== null,
   );
-  /**
-   * Auxiliary feature: user-manually selected additional knowledge base IDs.
-   * Primary KB bindings have been migrated to Agent-level junction tables; this field serves as a supplement.
-   * 辅助功能：用户手动选择的额外知识库 ID。
-   * 主要 KB 绑定已迁移至 Agent 级别中间表，此字段仅作为补充。
-   */
-  const selectedKBIds = ref<number[]>([]);
-  const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
 
   watch(inputMessage, (value) => {
     const draft = extractLeadingAgentMentionDraft(value);
@@ -618,6 +636,20 @@ export function useAIChat(options: UseAIChatOptions) {
     mentionQuery.value = '';
     mentionActiveIndex.value = 0;
     inputMessage.value = '';
+  }
+
+  function selectMentionKnowledgeBase(binding: ChatKBBindingInfo) {
+    const id = binding.knowledge_base_id;
+    if (!selectedKBIds.value.includes(id)) {
+      selectedKBIds.value = [...selectedKBIds.value, id];
+    }
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+    inputMessage.value = '';
+  }
+
+  function removeSelectedKnowledgeBase(knowledgeBaseId: number) {
+    selectedKBIds.value = selectedKBIds.value.filter((k) => k !== knowledgeBaseId);
   }
 
   function clearMentionedAgent() {
@@ -703,6 +735,32 @@ export function useAIChat(options: UseAIChatOptions) {
       agentKBBindings.value = [];
     }
   }
+
+  /**
+   * KB 绑定随「当前生效智能体」加载：@ 指定的智能体优先于下拉选中。
+   * Bindings follow effective agent: @ mention wins over dropdown selection.
+   */
+  const effectiveKbAgentId = computed(
+    () => mentionedAgentId.value ?? selectedAgentId.value ?? null,
+  );
+
+  watch(
+    effectiveKbAgentId,
+    async (id) => {
+      if (!id) {
+        agentKBBindings.value = [];
+        return;
+      }
+      await loadAgentKBBindings(id);
+      const allowed = new Set(
+        agentKBBindings.value.map((b) => b.knowledge_base_id),
+      );
+      selectedKBIds.value = selectedKBIds.value.filter((kid) =>
+        allowed.has(kid),
+      );
+    },
+    { immediate: true },
+  );
   const sending = ref(false);
   const streaming = ref(false);
 
@@ -821,7 +879,11 @@ export function useAIChat(options: UseAIChatOptions) {
       e.preventDefault();
       const target = candidates[mentionActiveIndex.value] ?? candidates[0];
       if (target) {
-        selectMentionAgent(target);
+        if (target.kind === 'agent') {
+          selectMentionAgent(target.agent);
+        } else {
+          selectMentionKnowledgeBase(target.binding as ChatKBBindingInfo);
+        }
       }
       return true;
     }
@@ -830,8 +892,10 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ Model Capabilities ============
 
+  /** 仅当后端明确 supports_vision=false 时禁止传图；未返回能力时保持兼容允许上传 */
   const supportsVision = computed(
-    () => selectedAgent.value?.model_capabilities?.supports_vision ?? false,
+    () =>
+      selectedAgent.value?.model_capabilities?.supports_vision !== false,
   );
 
   const totalTokensUsed = computed(() =>
@@ -1128,6 +1192,16 @@ export function useAIChat(options: UseAIChatOptions) {
 
     const userMsg = inputMessage.value.trim();
     const msgAttachments = [...pendingAttachments.value];
+    /** 气泡展示用附件：去掉 preview，避免 clearPending 撤销 blob 后仍引用失效 URL */
+    const displayAttachments =
+      msgAttachments.length > 0
+        ? msgAttachments.map(({ type, url, name, mime_type }) => ({
+            type,
+            url,
+            name,
+            mime_type,
+          }))
+        : undefined;
 
     const useDebounce =
       !silent &&
@@ -1165,7 +1239,7 @@ export function useAIChat(options: UseAIChatOptions) {
       chatMessages.value.push({
         role: 'user',
         content: userMsg,
-        attachments: msgAttachments.length > 0 ? msgAttachments : undefined,
+        attachments: displayAttachments,
         created_at: new Date().toISOString(),
       });
     }
@@ -1816,6 +1890,8 @@ export function useAIChat(options: UseAIChatOptions) {
     copyMessage,
     handleInputKeyDown,
     selectMentionAgent,
+    selectMentionKnowledgeBase,
+    removeSelectedKnowledgeBase,
     clearMentionedAgent,
     confirmAction,
     rejectAction,

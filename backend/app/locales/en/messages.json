@@ -157,7 +157,10 @@
     "identification_failed": "Unable to identify tenant",
     "owner_not_found": "Tenant owner not found",
     "owner_password_reset": "Tenant owner password reset successfully",
-    "no_plan": "No plan assigned to this tenant. All features are disabled. Please contact the platform administrator."
+    "no_plan": "No plan assigned to this tenant. All features are disabled. Please contact the platform administrator.",
+    "legal": {
+      "not_found": "Not configured or empty content"
+    }
   },
   "domain": {
     "instructions_header": "Please add the following records at your DNS provider",
@@ -391,7 +394,8 @@
       "tenant_id_required": "tenant_id is required when scope is tenant",
       "system_protected": "System agent cannot be deleted or have key properties modified",
       "system_agent_not_found": "System agent not found, please run database migrations first",
-      "audience_not_allowed": "You are not authorized to access this agent (target audience restriction)"
+      "audience_not_allowed": "You are not authorized to access this agent (target audience restriction)",
+      "publication_org_node_not_supported": "Organization-node publication is not supported yet; choose another access type"
     },
     "batch": {
       "cancelled": "Batch task cancelled"
@@ -584,7 +588,10 @@
       "kb_not_found": "Knowledge base not found",
       "binding_not_found": "This knowledge base is not bound to this agent",
       "agent_not_found": "Agent not found",
-      "kb_not_accessible": "No permission to access this knowledge base"
+      "kb_not_accessible": "No permission to access this knowledge base",
+      "platform_suppress_platform_agent_only": "Only platform-assigned agents support opting out of platform knowledge bases",
+      "platform_suppress_not_global_binding": "You can only opt out of knowledge bases bound globally by the platform admin",
+      "platform_suppression_not_found": "No opt-out record found for this knowledge base"
     }
   },
   "agent_skill_binding": {
@@ -729,6 +736,7 @@
       "context_length_exceeded": "Input exceeds model context length limit",
       "content_filtered": "Content blocked by safety policy",
       "vision_not_supported": "Current model does not support images. Please switch to a vision-capable model.",
+      "image_url_inaccessible": "Could not load image content (invalid or unreachable URL). Try re-uploading or check attachment storage configuration.",
       "quota_not_found": "Quota configuration not found",
       "fallback_self_reference": "Fallback model cannot reference itself",
       "embedding_empty_result": "Embedding returned empty result",
@@ -2894,8 +2902,7 @@
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users",
-      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}",
-      "agent_invalid_audience": "Invalid agents target_audience '{audience}'. Valid values: {valid}"
+      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -3085,10 +3092,14 @@
   "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
   "config.tenant.user_terms_url.name": "Terms of Service URL",
   "config.tenant.user_terms_url.desc": "Link to the terms of service shown on the registration page. Leave empty to hide.",
-  "enum.agent_model.target_audience": "Target Audience",
+  "config.tenant.user_privacy_policy_html.name": "Privacy Policy Content (Rich Text)",
+  "config.tenant.user_privacy_policy_html.desc": "HTML for the in-site legal page. Registration link rule: if the URL above is set, it always opens in a new tab; the in-site page is used only when the URL is empty and this field has real text. Empty editor placeholders (e.g. empty paragraphs) count as not configured.",
+  "config.tenant.user_terms_html.name": "Terms of Service Content (Rich Text)",
+  "config.tenant.user_terms_html.desc": "HTML for the in-site legal page. Registration link rule: if the URL above is set, it always opens in a new tab; the in-site page is used only when the URL is empty and this field has real text. Empty editor placeholders count as not configured.",
+  "enum.config_value_type.html": "HTML",
   "agent_access.admin_role_ids": "Admin Role Access",
   "agent_access.tenant_role_ids": "Tenant Role Access",
-  "agent_access.user_role_ids": "User Role Access",
+  "agent_access.access_type": "Legacy access type (DB NOT NULL); end-user rules use tenant publication",
   "skill_package.system.engine": "System Engine Skills",
   "skill_package.system.data_management": "Platform Data Management",
   "skill_package.system.web_search": "Web Search",

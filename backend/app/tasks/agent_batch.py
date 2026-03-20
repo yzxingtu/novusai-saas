@@ -87,13 +87,23 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 # 4. Resolve skill bindings + read platform security config / 解析技能绑定 + 读取平台安全配置
                 gateway = AIGateway(db)
 
+                # Immutable billing context for batch (tenant admin–initiated) / 批处理计费归属快照
+                from app.enums.common import UserRoleEnum
+                from app.services.ai.agent_service import AgentService
+
+                _batch_user_role = UserRoleEnum.TENANT_ADMIN.value
+                _batch_billing_ctx = await AgentService(
+                    db, tenant_id,
+                ).build_usage_attribution_context(
+                    agent=agent,
+                    user_id=batch_run.created_by,
+                    user_role=_batch_user_role,
+                    user_role_id=None,
+                )
+
                 # Resolve skills bound to Agent / 解析 Agent 绑定的技能
-                # Batch task initiated by tenant admin, default tenant_admin role for target_audience filtering
-                # batch 任务由企业管理员发起，默认 tenant_admin 角色进行 target_audience 过滤
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
-                    from app.enums.common import UserRoleEnum
-                    _batch_user_role = UserRoleEnum.TENANT_ADMIN.value
                     await resolve_for_agent(
                         db, agent, tenant_id=tenant_id,
                         user_role=_batch_user_role,
@@ -159,6 +169,8 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                             stream=False,
                             skip_quota=True,
                             skip_persistence=True,
+                            user_role=_batch_user_role,
+                            billing_context=_batch_billing_ctx,
                         )
 
                         exec_result = await task_engine.execute(

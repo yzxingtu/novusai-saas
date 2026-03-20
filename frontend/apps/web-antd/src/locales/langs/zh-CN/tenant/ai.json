@@ -40,12 +40,24 @@
   },
   "usage": {
     "title": "用量统计",
+    "name": "用量统计",
     "pageDesc": "查看企业的 AI 调用量、Token 消耗和费用趋势图表。",
     "summary": {
       "totalTokens": "总 Tokens",
       "totalCost": "总费用",
       "totalCalls": "调用次数",
       "successRate": "成功率"
+    },
+    "accessChannel": {
+      "title": "按访问渠道",
+      "subtitle": "基于计费事实拆分管理员与终端用户入口",
+      "calls": "调用次数",
+      "tokens": "Tokens",
+      "cost": "费用",
+      "admin_internal": "平台 / 内部",
+      "tenant_admin": "企业管理员",
+      "tenant_user": "企业终端用户",
+      "unknown": "未标注渠道"
     },
     "chart": {
       "dailyTrend": "每日用量趋势",
@@ -61,6 +73,7 @@
   },
   "callLog": {
     "title": "调用日志",
+    "name": "调用日志",
     "pageDesc": "查看企业内所有 AI 调用记录，包括状态、用量和错误详情。",
     "requestType": "请求类型",
     "inputTokens": "输入 Tokens",
@@ -95,6 +108,7 @@
   },
   "quota": {
     "title": "配额管理",
+    "name": "配额管理",
     "pageDesc": "设置模型 Token 用量配额。软限制仅告警，硬限制将拒绝超额请求。",
     "modelId": "模型",
     "modelName": "模型名称",
@@ -161,7 +175,12 @@
       "kbEnabled": "启用",
       "kbDocCount": "文档数",
       "selectKnowledgeBase": "选择知识库",
-      "bindKnowledgeBase": "绑定"
+      "bindKnowledgeBase": "绑定",
+      "kbPlatformManaged": "平台知识库（只读，由管理端维护）",
+      "kbPlatformBadge": "平台",
+      "kbTenantOverlayHint": "以下为仅本企业生效的追加知识库，可绑定或解绑。",
+      "kbPlatformOptOut": "本企业不使用",
+      "kbPlatformOptOutHint": "开启后，本企业对话不再检索该平台知识库；不影响管理端配置与其他企业。"
     },
     "memory": {
       "title": "会话记忆",
@@ -204,6 +223,26 @@
     "status": "状态",
     "executionMode": "执行模式",
     "targetAudience": "目标受众",
+    "distribution": {
+      "column": "分发模式",
+      "internal": "仅平台内部",
+      "all_tenants": "全部企业",
+      "assigned_tenants": "指定企业",
+      "owner_only": "仅本企业",
+      "filterPlaceholder": "全部分发模式"
+    },
+    "publication": {
+      "title": "发布给企业终端用户",
+      "accessType": "用户端访问规则",
+      "accessAllUsers": "全部终端用户",
+      "accessByUserRoles": "按终端用户角色限制",
+      "accessSpecificUsers": "指定终端用户",
+      "placeholderUserRoles": "选择终端用户角色",
+      "placeholderSpecificUsers": "选择终端用户",
+      "orgNodeDisabledHint": "组织节点发布暂未开放，请勿在接口中选择该类型。",
+      "warnSelectUserRoles": "已开启发布且规则为「按终端用户角色」，请至少选择一个终端用户角色。",
+      "warnSelectUsers": "已开启发布且规则为「指定终端用户」，请至少选择一个用户。"
+    },
     "audience_options": {
       "all": "所有端",
       "admin_tenant": "管理端+企业端"
@@ -430,9 +469,13 @@
         "selectUserRoles": "请选择用户角色"
       },
       "messages": {
-        "updateSuccess": "访问权限更新成功"
+        "updateSuccess": "访问权限更新成功",
+        "specificRolesRequired": "已选择「指定企业管理员角色」，请在树形选择中至少勾选一个角色，或改回「全部可用」。"
       },
       "hint": {
+        "twoLayers": "此处分为两层独立配置：① 企业后台（管理员入口）谁能看到该智能体；② 是否向企业终端用户开放及按何种规则开放。网络请求会分别调用「访问权限」与「发布」两个接口，请勿混淆。",
+        "tenantAdminLayer": "对应接口 PUT …/access 的 tenant_role_ids：限制本企业「后台管理员」中哪些角色可在企业端使用此智能体。与下方「终端用户」无关。",
+        "endUserLayer": "对应接口 PUT …/publication：控制登录用户端（非企业后台）的终端用户是否可见、按角色或名单限制。此处选择的「终端用户角色」不会写入 tenant_role_ids。",
         "public": "所有企业用户均可使用此智能体",
         "private": "仅授权用户可使用此智能体",
         "roleOnly": "通过角色控制哪些用户可以使用此智能体。选择「全部可用」则不限制角色。",
@@ -464,6 +507,7 @@
     "conversationTitle": "对话标题",
     "pageDesc": "管理智能体对话记录。支持查看详情、归档和批量操作。",
     "pageTitle": "对话管理",
+    "name": "对话管理",
     "agentName": "智能体",
     "user": "用户",
     "status": "状态",
@@ -472,6 +516,16 @@
     "createdAt": "创建时间",
     "messageCount": "消息数",
     "messageList": "消息列表",
+    "tabMessages": "消息流程",
+    "tabModelCalls": "模型调用",
+    "modelCallsEmpty": "暂无关联的模型调用记录",
+    "thinkingBlock": "思考过程",
+    "ragRefs": "知识库引用",
+    "toolCalls": "工具调用",
+    "toolOk": "成功",
+    "toolFailed": "失败",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "耗时",
     "untitled": "未命名对话",
     "viewDetail": "查看详情",
     "detailTitle": "对话详情",
@@ -542,6 +596,7 @@
   },
   "actionLog": {
     "title": "操作审计",
+    "name": "操作审计",
     "pageDesc": "查看智能体执行的所有操作记录，包括 SQL 查询和业务操作的详细审计。",
     "actionName": "操作名称",
     "actionType": "操作类型",

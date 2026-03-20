@@ -1,4 +1,4 @@
-import type { AgentItem, ChatMessage } from './types';
+import type { AgentItem, ChatMessage, MentionKnowledgeBaseBinding } from './types';
 
 const LEADING_AGENT_MENTION_RE = /^\s*@([^\s]*)$/;
 
@@ -20,6 +20,24 @@ export function filterAgentsByMentionQuery(
       agent.name.toLowerCase().includes(normalized) ||
       (agent.description?.toLowerCase().includes(normalized) ?? false),
   );
+}
+
+/** Filter agent-bound knowledge bases by @ draft query / 按 @ 草稿过滤已绑定知识库 */
+export function filterKnowledgeBasesByMentionQuery(
+  bindings: MentionKnowledgeBaseBinding[],
+  query: string,
+): MentionKnowledgeBaseBinding[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return bindings;
+  }
+  return bindings.filter((b) => {
+    const label = (b.kb_name || `KB#${b.knowledge_base_id}`).toLowerCase();
+    return (
+      label.includes(normalized) ||
+      String(b.knowledge_base_id).includes(normalized)
+    );
+  });
 }
 
 export function moveStreamingContentToThinking(

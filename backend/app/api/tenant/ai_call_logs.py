@@ -76,7 +76,7 @@ class TenantAICallLogController(TenantController):
             # 强制注入 tenant_id 过滤 / Force inject tenant_id filter
             forced = [
                 FilterRule(
-                    field="tenant_id",
+                    field="billing_tenant_id",
                     operator="eq",
                     value=tenant_admin.tenant_id,
                 ),
@@ -122,7 +122,7 @@ class TenantAICallLogController(TenantController):
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))
 
             # 确保只能看自己企业的日志 / Ensure can only view own tenant's logs
-            if log.tenant_id != tenant_admin.tenant_id:
+            if log.billing_tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
             payload = (

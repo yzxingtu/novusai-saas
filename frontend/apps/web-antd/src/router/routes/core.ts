@@ -86,6 +86,27 @@ const coreRoutes: RouteRecordRaw[] = [
           title: $t('page.auth.register'),
         },
       },
+      {
+        name: 'UserLegalPrivacy',
+        path: 'legal/privacy',
+        component: () =>
+          import('#/views/user/authentication/legal-document.vue'),
+        meta: {
+          title: $t('user.auth.privacyPolicy'),
+          /** 使用认证布局的「文档全宽」模式，避免挤在 420px 登录卡片内 */
+          authDocumentPage: true,
+        },
+      },
+      {
+        name: 'UserLegalTerms',
+        path: 'legal/terms',
+        component: () =>
+          import('#/views/user/authentication/legal-document.vue'),
+        meta: {
+          title: $t('user.auth.termsOfService'),
+          authDocumentPage: true,
+        },
+      },
     ],
   },
 ];

@@ -6,6 +6,7 @@
 export type ConfigValueType =
   | 'boolean'
   | 'color'
+  | 'html'
   | 'image'
   | 'json'
   | 'multi_select'

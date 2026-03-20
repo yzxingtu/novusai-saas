@@ -180,13 +180,7 @@
     "offline": "离线",
     "allUsers": "全部用户",
     "allUsersDesc": "查看企业下所有用户，不按角色过滤",
-    "allUsersListTitle": "用户列表",
-    "builtInRoles": {
-      "default_user": {
-        "name": "默认用户",
-        "description": "系统默认用户角色，新注册用户自动分配此角色。"
-      }
-    }
+    "allUsersListTitle": "用户列表"
   },
   "configs": {
     "title": "系统配置",

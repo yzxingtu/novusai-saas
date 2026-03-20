@@ -47,6 +47,9 @@ class Settings(BaseSettings):
 
     # API 配置 / API Configuration
     API_V1_PREFIX: str = "/api/v1"
+    # 后端自访问基础 URL（用于 LLM 多模态拉取本系统相对附件路径；生产填公网或内网网关地址）
+    # Base URL for server-side HTTP fetch of relative attachment paths (LLM vision); set in production
+    APP_INTERNAL_BASE_URL: str = "http://127.0.0.1:8000"
 
     # ========================================
     # 安全配置 / Security Configuration
@@ -152,6 +155,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_DIR: str = "logs"
+    # 是否在终端打印 SQL（category=db）；默认 False，SQL 仅写入 logs/db.log，避免 novusai run / celery 刷屏
+    # Whether to print SQLAlchemy SQL to stdout; default False (writes to logs/db.log only)
+    LOG_DB_TO_CONSOLE: bool = False
+    # 是否在终端隐藏 uvicorn/websockets 的 WebSocket 握手 INFO（仍写入 app.log）；调连接问题时可设 False
+    # Hide WebSocket handshake INFO on stdout (still in app.log); set False when debugging connectivity
+    LOG_QUIET_WEBSOCKET_HANDSHAKE: bool = True
 
     # ========================================
     # 分页配置 / Pagination Configuration

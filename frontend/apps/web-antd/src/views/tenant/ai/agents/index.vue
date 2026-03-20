@@ -46,10 +46,11 @@ import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
-  getAudienceColor,
-  getAudienceText,
+  getDistributionModeColor,
+  getDistributionModeText,
   getExecutionModeText,
   getStatusText,
+  isTenantOwnedAgent,
   useFormSchema,
 } from './data';
 
@@ -483,7 +484,11 @@ const stats = computed(() => ({
                       <span>{{ $t('tenant.ai.agent.detail.title') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem key="edit" @click="onEditAgent(agent)">
+                  <MenuItem
+                    v-if="isTenantOwnedAgent(agent)"
+                    key="edit"
+                    @click="onEditAgent(agent)"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
                       <span>{{ $t('common.edit') }}</span>
@@ -527,7 +532,7 @@ const stats = computed(() => ({
                     </div>
                   </MenuItem>
                   <MenuItem
-                    v-if="!agent.is_system"
+                    v-if="!agent.is_system && isTenantOwnedAgent(agent)"
                     key="delete"
                     class="!text-destructive"
                     @click="handleMenuAction('delete', agent)"
@@ -579,15 +584,17 @@ const stats = computed(() => ({
               </div>
             </Tooltip>
 
-            <!-- Target Audience -->
+            <!-- Distribution mode -->
             <Tag
-              :color="getAudienceColor(agent.target_audience)"
+              :color="getDistributionModeColor(agent.distribution_mode)"
               class="!mr-0 !text-[11px]"
               style="padding: 0 6px; line-height: 20px"
             >
               <div class="flex items-center gap-1">
-                <IconifyIcon icon="lucide:users" class="size-3" />
-                <span>{{ getAudienceText(agent.target_audience) }}</span>
+                <IconifyIcon icon="lucide:share-2" class="size-3" />
+                <span>{{
+                  getDistributionModeText(agent.distribution_mode)
+                }}</span>
               </div>
             </Tag>
 

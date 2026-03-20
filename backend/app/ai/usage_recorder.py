@@ -1,9 +1,9 @@
 """
 AI Usage Recorder. / AI 使用量记录器。
 
-Handles rate/quota checks, usage recording, cost calculation, and call logging.
+Handles rate/quota checks, quota adjustment, and call logging.
 Extracted from AIGateway to reduce God Object complexity.
-负责速率/配额检查、使用量记录、费用计算、调用日志。
+负责速率/配额检查、配额调整、调用日志。
 从 AIGateway 提取，降低 God Object 复杂度。
 """
 
@@ -30,7 +30,6 @@ from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.services.ai.call_log_service import CallLogService
-from app.services.ai.metering_service import MeteringService
 
 logger = LogManager.get_logger("ai")
 
@@ -41,7 +40,7 @@ class UsageRecorder:
 
     Responsibilities / 职责：
     - Rate limit + quota check / 速率限制 + 配额检查
-    - Usage recording + TPM/quota correction / 使用量记录 + TPM/配额校正
+    - TPM/quota correction / TPM/配额校正
     - Call logging (success/failure) / 调用日志（成功/失败）
     - Stream completion callback / 流式完成回调
     - ChatResponse serialization / ChatResponse 序列化
@@ -49,7 +48,6 @@ class UsageRecorder:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self.metering = MeteringService(db)
         self.quota_manager = QuotaManager(db)
         self.call_log_service = CallLogService(db)
 
@@ -141,20 +139,8 @@ class UsageRecorder:
         user_id: int | None = None,
     ) -> None:
         """
-        Record usage + adjust TPM/quota (from estimated to actual). / 记录使用量 + 调整 TPM/配额（从预估调整为实际）。
+        Adjust TPM/quota from estimated to actual. / 将 TPM/配额从预估调整为实际。
         """
-        await self.metering.record_usage(
-            tenant_id=tenant_id,
-            model_id=model_id,
-            request_type=request_type,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost=cost,
-            success=True,
-            user_id=user_id,
-            latency_ms=latency_ms or None,
-        )
-
         if estimated_input > 0:
             await RateLimiter.adjust_tpm_after_response(
                 tenant_id=tenant_id,
@@ -188,6 +174,7 @@ class UsageRecorder:
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
     ) -> None:
@@ -224,6 +211,7 @@ class UsageRecorder:
                 user_type=self._resolve_call_user_type(tenant_id, user_type),
                 agent_id=agent_id,
                 conversation_id=conversation_id,
+                billing_context=billing_context,
                 routed_model_id=routed_model_id,
                 route_reason=route_reason,
             )
@@ -247,6 +235,7 @@ class UsageRecorder:
         latency_ms: int = 0,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
     ) -> None:
@@ -301,6 +290,7 @@ class UsageRecorder:
                     user_type=self._resolve_call_user_type(tenant_id, user_type),
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=billing_context,
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )

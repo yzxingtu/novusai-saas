@@ -62,7 +62,9 @@ class UserAgentController(BaseController):
             获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）/ Get agent bound KB list (for RAG indicator).
             """
             kb_service = AgentKBBindingService(db, current_user.tenant_id)
-            result = await kb_service.get_agent_kb_bindings(agent_id)
+            result = await kb_service.get_agent_kb_bindings(
+                agent_id, merge_platform_bindings=True
+            )
             return success(data=result)
 
         @router.get("", summary="获取可用智能体列表 / Get available agent list")
@@ -84,6 +86,7 @@ class UserAgentController(BaseController):
             service = AgentService(db, current_user.tenant_id)
             items, total = await service.list_user_accessible_agents(
                 user_id=current_user.id,
+                user_role_id=current_user.role_id,
                 spec=query,
             )
             result = [_build_user_agent_item(item) for item in items]

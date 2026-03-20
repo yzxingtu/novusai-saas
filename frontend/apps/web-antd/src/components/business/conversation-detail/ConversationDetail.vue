@@ -22,12 +22,26 @@ import {
   Spin,
   Tag,
   Timeline,
+  Tabs,
 } from 'ant-design-vue';
 
+import type { RagSource } from '#/components/business/ai-chat-panel/types';
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+
+/** Summary row for the model-call trace tab / 「模型调用」Tab 行 */
+export interface ConversationCallLogSummary {
+  id: number;
+  created_at: string;
+  model_name?: null | string;
+  total_tokens: number;
+  latency_ms: null | number;
+  status: string;
+  request_type?: string;
+  error_message?: null | string;
+}
 
 export interface ConversationMessageItem {
   agent_avatar?: null | string;
@@ -37,11 +51,21 @@ export interface ConversationMessageItem {
   role: string;
   content: null | string;
   metadata?: null | {
+    completion_reason?: string;
+    interrupted?: boolean;
+    memory_updated?: boolean;
+    partial?: boolean;
+    rag_sources?: RagSource[];
     route_source?: string;
+    thinking_content?: string;
+    tool_error?: string;
+    tool_success?: boolean;
   };
   sequence: number;
   token_count: null | number;
   tool_calls: null | unknown[];
+  tool_call_id?: null | string;
+  tool_name?: null | string;
   created_at: string;
 }
 
@@ -85,16 +109,22 @@ const props = defineProps<{
   /** i18n prefix, e.g. 'admin.ai.conversation' or 'tenant.ai.conversation' / i18n 前缀 */
   i18nPrefix: string;
   open: boolean;
+  /** Optional: load AI call logs for this conversation (model trace) / 可选：按对话加载模型调用记录 */
+  loadCallLogs?: (conversationId: number) => Promise<ConversationCallLogSummary[]>;
 }>();
 
 const emits = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const loading = ref(false);
 const detail = ref<ConversationDetailData | null>(null);
+const activeDetailTab = ref('messages');
+const callLogs = ref<ConversationCallLogSummary[]>([]);
+const loadingCallLogs = ref(false);
 
 watch(
   () => props.conversationId,
   async (id) => {
+    activeDetailTab.value = 'messages';
     if (id) {
       loading.value = true;
       try {
@@ -104,6 +134,24 @@ watch(
       } finally {
         loading.value = false;
       }
+    }
+  },
+);
+
+watch(
+  () => [props.open, props.conversationId, props.loadCallLogs] as const,
+  async ([isOpen, convId, loader]) => {
+    callLogs.value = [];
+    if (!isOpen || !convId || !loader) {
+      return;
+    }
+    loadingCallLogs.value = true;
+    try {
+      callLogs.value = await loader(convId);
+    } catch {
+      callLogs.value = [];
+    } finally {
+      loadingCallLogs.value = false;
     }
   },
 );
@@ -161,6 +209,18 @@ function isMentionRoute(msg: ConversationMessageItem): boolean {
   return msg.metadata?.route_source === 'mention';
 }
 
+function getToolCallDisplayName(tc: unknown): string {
+  if (!tc || typeof tc !== 'object') {
+    return '?';
+  }
+  const t = tc as Record<string, unknown>;
+  const fn = t.function as Record<string, unknown> | undefined;
+  if (fn?.name) {
+    return String(fn.name);
+  }
+  return String(t.name ?? 'tool');
+}
+
 defineExpose({ detail });
 </script>
 
@@ -212,102 +272,209 @@ defineExpose({ detail });
           </Descriptions.Item>
         </Descriptions>
 
-        <!-- Message timeline / 消息时间线 -->
         <div class="mt-6">
-          <h4 class="mb-3 font-medium text-foreground">
-            <IconifyIcon
-              icon="lucide:messages-square"
-              class="mr-1 inline size-4"
-            />
-            {{ $t(`${i18nPrefix}.messageList`) }}
-          </h4>
-
-          <Empty v-if="messages.length === 0" />
-
-          <Timeline v-else>
-            <Timeline.Item
-              v-for="msg in messages"
-              :key="msg.id"
-              :color="getRoleColor(msg.role)"
+          <Tabs v-model:activeKey="activeDetailTab">
+            <Tabs.TabPane
+              key="messages"
+              :tab="$t(`${i18nPrefix}.tabMessages`)"
             >
-              <div class="mb-1 flex items-center gap-2">
-                <!-- user message: show user avatar + name -->
-                <template v-if="msg.role === 'user' && detail?.user_info">
-                  <Avatar
-                    v-if="detail.user_info.avatar"
-                    :src="toAvatarDisplayUrl(detail.user_info.avatar)"
-                    :size="22"
-                  />
-                  <Avatar
-                    v-else
-                    :size="22"
-                    class="bg-primary/10 text-xs text-primary"
+              <Empty v-if="messages.length === 0" />
+
+              <Timeline v-else>
+                <Timeline.Item
+                  v-for="msg in messages"
+                  :key="msg.id"
+                  :color="getRoleColor(msg.role)"
+                >
+                  <div class="mb-1 flex flex-wrap items-center gap-2">
+                    <template v-if="msg.role === 'user' && detail?.user_info">
+                      <Avatar
+                        v-if="detail.user_info.avatar"
+                        :src="toAvatarDisplayUrl(detail.user_info.avatar)"
+                        :size="22"
+                      />
+                      <Avatar
+                        v-else
+                        :size="22"
+                        class="bg-primary/10 text-xs text-primary"
+                      >
+                        {{
+                          (
+                            detail.user_info.nickname ||
+                            detail.user_info.username ||
+                            '?'
+                          ).charAt(0)
+                        }}
+                      </Avatar>
+                      <span class="text-sm font-medium text-foreground">
+                        {{ detail.user_info.nickname || detail.user_info.username }}
+                      </span>
+                    </template>
+                    <template
+                      v-else-if="msg.role === 'assistant' && (msg.agent_name || detail?.agent_name)"
+                    >
+                      <Tag v-if="isMentionRoute(msg)" color="blue">
+                        @ {{ msg.agent_name || detail?.agent_name }}
+                      </Tag>
+                      <AgentProfilePopover
+                        :agent-id="msg.agent_id ?? detail?.agent_id"
+                        :agent-avatar="msg.agent_avatar ?? detail?.agent_avatar"
+                        :agent-name="msg.agent_name ?? detail?.agent_name"
+                        :api-prefix="props.apiPrefix"
+                        size="sm"
+                      />
+                      <span class="text-sm font-medium text-foreground">
+                        {{ msg.agent_name || detail?.agent_name }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      <Tag :color="getRoleColor(msg.role)" size="small">
+                        <IconifyIcon
+                          :icon="getRoleIcon(msg.role)"
+                          class="mr-0.5 inline size-3"
+                        />
+                        {{ msg.role }}
+                      </Tag>
+                      <span
+                        v-if="msg.role === 'tool' && msg.tool_name"
+                        class="text-xs text-muted-foreground"
+                      >
+                        {{ msg.tool_name }}
+                      </span>
+                    </template>
+                    <span class="text-xs text-muted-foreground">
+                      #{{ msg.sequence }} · {{ formatDate(msg.created_at) }}
+                    </span>
+                    <span
+                      v-if="msg.token_count"
+                      class="text-xs text-muted-foreground"
+                    >
+                      · {{ formatTokens(msg.token_count) }} tokens
+                    </span>
+                    <Tag
+                      v-if="msg.role === 'tool' && msg.metadata && msg.metadata.tool_success === false"
+                      color="error"
+                      class="text-[10px]"
+                    >
+                      {{ $t(`${i18nPrefix}.toolFailed`) }}
+                    </Tag>
+                    <Tag
+                      v-else-if="msg.role === 'tool'"
+                      color="success"
+                      class="text-[10px]"
+                    >
+                      {{ $t(`${i18nPrefix}.toolOk`) }}
+                    </Tag>
+                  </div>
+
+                  <details
+                    v-if="msg.metadata?.thinking_content"
+                    class="mb-2 rounded-md border border-border/40 bg-muted/30 text-xs"
                   >
-                    {{
-                      (
-                        detail.user_info.nickname ||
-                        detail.user_info.username ||
-                        '?'
-                      ).charAt(0)
-                    }}
-                  </Avatar>
-                  <span class="text-sm font-medium text-foreground">
-                    {{ detail.user_info.nickname || detail.user_info.username }}
-                  </span>
-                </template>
-                <!-- assistant message: show agent avatar + name -->
-                <template
-                  v-else-if="msg.role === 'assistant' && (msg.agent_name || detail?.agent_name)"
-                >
-                  <Tag v-if="isMentionRoute(msg)" color="blue">
-                    @ {{ msg.agent_name || detail?.agent_name }}
-                  </Tag>
-                  <AgentProfilePopover
-                    :agent-id="msg.agent_id ?? detail?.agent_id"
-                    :agent-avatar="msg.agent_avatar ?? detail?.agent_avatar"
-                    :agent-name="msg.agent_name ?? detail?.agent_name"
-                    :api-prefix="props.apiPrefix"
-                    size="sm"
-                  />
-                  <span class="text-sm font-medium text-foreground">
-                    {{ msg.agent_name || detail?.agent_name }}
-                  </span>
-                </template>
-                <!-- other roles: fallback to tag -->
-                <template v-else>
-                  <Tag :color="getRoleColor(msg.role)" size="small">
-                    <IconifyIcon
-                      :icon="getRoleIcon(msg.role)"
-                      class="mr-0.5 inline size-3"
-                    />
-                    {{ msg.role }}
-                  </Tag>
-                </template>
-                <span class="text-xs text-muted-foreground">
-                  #{{ msg.sequence }} · {{ formatDate(msg.created_at) }}
-                </span>
-                <span
-                  v-if="msg.token_count"
-                  class="text-xs text-muted-foreground"
-                >
-                  · {{ formatTokens(msg.token_count) }} tokens
-                </span>
-              </div>
-              <div class="whitespace-pre-wrap rounded-lg bg-accent p-3 text-sm">
-                {{ msg.content || '-' }}
-              </div>
-              <!-- tool_calls display / tool_calls 展示 -->
-              <div
-                v-if="msg.tool_calls && msg.tool_calls.length > 0"
-                class="mt-1"
-              >
-                <pre
-                  class="max-h-[150px] overflow-auto rounded bg-accent/50 p-2 text-xs"
-                  >{{ JSON.stringify(msg.tool_calls, null, 2) }}</pre
-                >
-              </div>
-            </Timeline.Item>
-          </Timeline>
+                    <summary class="cursor-pointer px-2 py-1 font-medium text-muted-foreground">
+                      {{ $t(`${i18nPrefix}.thinkingBlock`) }}
+                    </summary>
+                    <pre class="max-h-40 overflow-auto whitespace-pre-wrap p-2 text-[11px]">{{ msg.metadata.thinking_content }}</pre>
+                  </details>
+
+                  <div
+                    v-if="msg.metadata?.rag_sources?.length"
+                    class="mb-2 rounded-md border border-amber-500/25 bg-amber-500/5 p-2 text-xs"
+                  >
+                    <div class="mb-1 font-medium text-amber-800 dark:text-amber-200">
+                      {{ $t(`${i18nPrefix}.ragRefs`) }}
+                    </div>
+                    <ul class="list-inside list-disc space-y-0.5 text-muted-foreground">
+                      <li
+                        v-for="(rs, ri) in msg.metadata.rag_sources"
+                        :key="ri"
+                      >
+                        <span class="font-medium text-foreground">{{
+                          rs.knowledge_base_name || (rs.knowledge_base_id != null ? `KB#${rs.knowledge_base_id}` : '—')
+                        }}</span>
+                        · {{ rs.doc_name }}
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div
+                    v-if="msg.content && msg.content.trim()"
+                    class="whitespace-pre-wrap rounded-lg bg-accent p-3 text-sm"
+                  >
+                    {{ msg.content }}
+                  </div>
+
+                  <div
+                    v-if="msg.tool_calls && msg.tool_calls.length > 0"
+                    class="mt-2 space-y-1"
+                  >
+                    <div class="text-[11px] font-medium text-muted-foreground">
+                      {{ $t(`${i18nPrefix}.toolCalls`) }}
+                    </div>
+                    <details
+                      v-for="(tc, ti) in msg.tool_calls"
+                      :key="ti"
+                      class="rounded border border-border/30 bg-background/80 text-xs"
+                    >
+                      <summary class="cursor-pointer px-2 py-1.5 font-medium text-foreground hover:bg-accent/50">
+                        {{ getToolCallDisplayName(tc) }}
+                      </summary>
+                      <pre class="max-h-36 overflow-auto border-t border-border/20 p-2 text-[11px] text-muted-foreground">{{ JSON.stringify(tc, null, 2) }}</pre>
+                    </details>
+                  </div>
+                </Timeline.Item>
+              </Timeline>
+            </Tabs.TabPane>
+
+            <Tabs.TabPane
+              v-if="loadCallLogs"
+              key="calls"
+              :tab="$t(`${i18nPrefix}.tabModelCalls`)"
+            >
+              <Spin :spinning="loadingCallLogs">
+                <Empty
+                  v-if="!loadingCallLogs && callLogs.length === 0"
+                  :description="$t(`${i18nPrefix}.modelCallsEmpty`)"
+                />
+                <ul v-else class="space-y-2">
+                  <li
+                    v-for="log in callLogs"
+                    :key="log.id"
+                    class="rounded-lg border border-border/40 bg-accent/30 p-3 text-sm"
+                  >
+                    <div class="flex flex-wrap items-center gap-2">
+                      <Tag
+                        :color="log.status === 'success' ? 'success' : 'error'"
+                        class="text-[10px]"
+                      >
+                        {{ log.status }}
+                      </Tag>
+                      <span class="font-medium">{{ log.model_name || '—' }}</span>
+                      <span class="text-xs text-muted-foreground">
+                        {{ formatDate(log.created_at) }}
+                      </span>
+                    </div>
+                    <div class="mt-1 text-xs text-muted-foreground">
+                      {{ $t(`${i18nPrefix}.callLogTokens`) }}:
+                      {{ formatTokens(log.total_tokens) }}
+                      <template v-if="log.latency_ms != null">
+                        · {{ $t(`${i18nPrefix}.callLogLatency`) }}: {{ log.latency_ms }}ms
+                      </template>
+                      <template v-if="log.request_type">
+                        · {{ log.request_type }}
+                      </template>
+                    </div>
+                    <div
+                      v-if="log.error_message"
+                      class="mt-1 text-xs text-destructive"
+                    >
+                      {{ log.error_message }}
+                    </div>
+                  </li>
+                </ul>
+              </Spin>
+            </Tabs.TabPane>
+          </Tabs>
         </div>
       </template>
     </Spin>

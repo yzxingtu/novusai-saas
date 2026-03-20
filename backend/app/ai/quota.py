@@ -281,10 +281,7 @@ class QuotaManager:
         Args:
             db: Database session / 数据库会话
         """
-        from app.services.ai.metering_service import MeteringService
-
         self.db = db
-        self.metering = MeteringService(db)
 
     async def check_quota(
         self,

@@ -17,8 +17,12 @@ export interface AIAgentInfo {
   name: string;
   description: null | string;
   avatar: null | string;
-  scope: string;
-  target_audience: string;
+  /** @deprecated UI 展示请用 distribution_mode */
+  scope?: string;
+  /** @deprecated 技能包受众，与智能体分发无关 */
+  target_audience?: string;
+  owner_type: string;
+  distribution_mode: string;
   status: string;
   execution_mode: string;
   is_system: boolean;
@@ -46,8 +50,7 @@ export interface AIAgentInfo {
 export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
-  scope: string;
-  target_audience?: string;
+  distribution_mode: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id: number;
@@ -63,8 +66,7 @@ export interface AIAgentUpdateRequest {
   name?: string;
   description?: null | string;
   avatar?: null | string;
-  scope?: string;
-  target_audience?: string;
+  distribution_mode?: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id?: number;

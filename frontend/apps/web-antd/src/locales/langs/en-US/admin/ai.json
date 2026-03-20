@@ -401,7 +401,8 @@
       "kbEnabled": "Enabled",
       "kbDocCount": "Documents",
       "selectKnowledgeBase": "Select knowledge base",
-      "bindKnowledgeBase": "Bind"
+      "bindKnowledgeBase": "Bind",
+      "knowledgeBasesGlobalHint": "Bindings here are platform-global: every tenant that can use this agent will include these knowledge bases in chat RAG by default. A tenant may opt out per knowledge base on the tenant console; that only affects that tenant and does not change this configuration."
     },
     "memory": {
       "title": "Session Memory",
@@ -444,6 +445,19 @@
     "description": "Description",
     "status": "Status",
     "scopeLabel": "Scope",
+    "distribution": {
+      "label": "Distribution mode",
+      "help": "Controls how platform agents are exposed to tenants; pick tenants when using \"Assigned tenants\".",
+      "internal": "Platform internal only",
+      "all_tenants": "All tenants",
+      "assigned_tenants": "Assigned tenants",
+      "filterPlaceholder": "Distribution"
+    },
+    "ownerType": {
+      "label": "Owner",
+      "platform": "Platform",
+      "tenant": "Tenant"
+    },
     "targetAudience": "Target Audience",
     "executionMode": "Execution Mode",
     "modelName": "Model",
@@ -584,6 +598,7 @@
     }
   },
   "conversation": {
+    "name": "Conversation Management",
     "title": "Conversation Management",
     "pageDesc": "Monitor all tenant AI conversations with detail view and cost statistics.",
     "agentName": "Agent",
@@ -596,6 +611,16 @@
     "createdAt": "Created At",
     "viewDetail": "View Detail",
     "messageList": "Messages",
+    "tabMessages": "Message flow",
+    "tabModelCalls": "Model calls",
+    "modelCallsEmpty": "No related model call records",
+    "thinkingBlock": "Reasoning",
+    "ragRefs": "Knowledge base references",
+    "toolCalls": "Tool calls",
+    "toolOk": "OK",
+    "toolFailed": "Failed",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "Latency",
     "messageCount": "Message Count",
     "conversationTitle": "Conversation Title",
     "status_options": {

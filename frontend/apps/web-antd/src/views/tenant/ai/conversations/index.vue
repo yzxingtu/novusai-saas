@@ -16,11 +16,13 @@ import { IconifyIcon } from '@vben/icons';
 import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
+import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import {
   getConversationDetailApi,
   getConversationListApi,
 } from '#/api/tenant/conversations';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
+import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -49,6 +51,17 @@ const conversationDetailApi = (
 function onViewDetail(row: ConversationInfo) {
   detailId.value = row.id;
   detailOpen.value = true;
+}
+
+async function loadConversationCallLogs(
+  conversationId: number,
+): Promise<ConversationCallLogSummary[]> {
+  const res = await getTenantAICallLogListApi({
+    'filter[conversation_id][eq]': conversationId,
+    'page[size]': 100,
+    sort: 'created_at',
+  });
+  return res.items as ConversationCallLogSummary[];
 }
 
 const { Grid, onRefresh, gridApi } = useCrudPage<ConversationInfo>({
@@ -123,6 +136,7 @@ onUnmounted(() => {
       :format-tokens="formatTokenCount"
       :format-cost="formatCost"
       :get-status-text="getStatusText"
+      :load-call-logs="loadConversationCallLogs"
     />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">

@@ -44,15 +44,13 @@ import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
-import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
 import {
-  getAudienceColor,
-  getAudienceText,
+  getDistributionModeColor,
+  getDistributionModeOptions,
+  getDistributionModeText,
   getExecutionModeText,
   getFormDefaults,
-  getScopeColor,
-  getScopeOptions,
   getStatusText,
   useFormSchema,
 } from './data';
@@ -249,7 +247,7 @@ async function onToggleStatus(agent: AIAgentInfo) {
 // Search filters / 搜索过滤
 // ============================================================
 
-const filterScope = ref<string>();
+const filterDistributionMode = ref<string>();
 const filterStatus = ref<string>();
 
 function doSearch() {
@@ -257,8 +255,8 @@ function doSearch() {
   if (searchKeyword.value.trim()) {
     params['filter[name][ilike]'] = searchKeyword.value.trim();
   }
-  if (filterScope.value) {
-    params['filter[scope][eq]'] = filterScope.value;
+  if (filterDistributionMode.value) {
+    params['filter[distribution_mode][eq]'] = filterDistributionMode.value;
   }
   if (filterStatus.value) {
     params['filter[status][eq]'] = filterStatus.value;
@@ -268,13 +266,16 @@ function doSearch() {
 
 function onClearFilters() {
   searchKeyword.value = '';
-  filterScope.value = undefined;
+  filterDistributionMode.value = undefined;
   filterStatus.value = undefined;
   onSearch({});
 }
 
 const hasActiveFilters = computed(
-  () => !!searchKeyword.value || !!filterScope.value || !!filterStatus.value,
+  () =>
+    !!searchKeyword.value ||
+    !!filterDistributionMode.value ||
+    !!filterStatus.value,
 );
 
 // ============================================================
@@ -386,16 +387,16 @@ const stats = computed(() => {
         </template>
       </Input>
 
-      <!-- Scope filter -->
+      <!-- Distribution mode filter -->
       <Select
-        v-model:value="filterScope"
-        :placeholder="$t('admin.ai.agent.scopeLabel')"
+        v-model:value="filterDistributionMode"
+        :placeholder="$t('admin.ai.agent.distribution.filterPlaceholder')"
         allow-clear
-        class="!w-32"
+        class="!w-40"
         @change="doSearch"
       >
         <SelectOption
-          v-for="opt in getScopeOptions()"
+          v-for="opt in getDistributionModeOptions()"
           :key="opt.value"
           :value="opt.value"
         >
@@ -693,27 +694,15 @@ const stats = computed(() => {
               </div>
             </Tooltip>
 
-            <!-- Scope -->
+            <!-- Distribution mode -->
             <Tag
-              :color="getScopeColor(agent.scope)"
+              :color="getDistributionModeColor(agent.distribution_mode)"
               class="!mr-0 !text-[11px]"
               style="padding: 0 6px; line-height: 20px"
             >
               <div class="flex items-center gap-1">
-                <IconifyIcon :icon="getScopeIcon(agent.scope)" class="size-3" />
-                <span>{{ getScopeText(agent.scope) }}</span>
-              </div>
-            </Tag>
-
-            <!-- Target Audience -->
-            <Tag
-              :color="getAudienceColor(agent.target_audience)"
-              class="!mr-0 !text-[11px]"
-              style="padding: 0 6px; line-height: 20px"
-            >
-              <div class="flex items-center gap-1">
-                <IconifyIcon icon="lucide:users" class="size-3" />
-                <span>{{ getAudienceText(agent.target_audience) }}</span>
+                <IconifyIcon icon="lucide:share-2" class="size-3" />
+                <span>{{ getDistributionModeText(agent.distribution_mode) }}</span>
               </div>
             </Tag>
 

@@ -23,6 +23,7 @@ class ConfigValueType(StrEnum):
     MULTI_SELECT = ("multi_select", "enum.config_value_type.multi_select")  # Multi-select / 多选
     JSON = ("json", "enum.config_value_type.json")  # JSON object / JSON 对象
     TEXT = ("text", "enum.config_value_type.text")  # Multiline text / 多行文本
+    HTML = ("html", "enum.config_value_type.html")  # Sanitized HTML / 经消毒的 HTML
     PASSWORD = ("password", "enum.config_value_type.password")  # Password (encrypted) / 密码（加密存储）
     COLOR = ("color", "enum.config_value_type.color")  # Color picker / 颜色选择器
     IMAGE = ("image", "enum.config_value_type.image")  # Image upload / 图片上传

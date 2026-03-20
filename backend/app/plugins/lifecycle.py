@@ -2107,20 +2107,37 @@ class PluginLifecycle:
         pkg = re.split(r"[><=!~;@\[]", raw, maxsplit=1)[0].strip()
         return re.sub(r"[-_.]+", "-", pkg).lower()
 
-    def _load_project_requirements(self) -> set[str]:
-        """从主项目 requirements.txt 加载包名 / Load package names from the main project requirements.txt."""
+    def _load_project_pyproject_dependencies(self) -> set[str]:
+        """从主项目 pyproject.toml 加载包名（dependencies + optional-dependencies 各组）。"""
         protected: set[str] = set()
-        req_file = PLUGINS_DIR.parent / "requirements.txt"
-        if not req_file.is_file():
+        pyproject_path = PLUGINS_DIR.parent / "pyproject.toml"
+        if not pyproject_path.is_file():
             return protected
         try:
-            for line in req_file.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or line.startswith("-"):
-                    continue
-                protected.add(self._normalize_pkg_name(line))
+            raw = pyproject_path.read_bytes()
+            if sys.version_info >= (3, 11):
+                import tomllib
+
+                cfg = tomllib.loads(raw.decode(encoding="utf-8"))
+            else:
+                import tomli
+
+                cfg = tomli.loads(raw.decode(encoding="utf-8"))
         except Exception as exc:
-            logger.warning("Failed to read requirements.txt: {}", exc)
+            logger.warning("Failed to parse pyproject.toml: {}", exc)
+            return protected
+
+        project_cfg = cfg.get("project") or {}
+        for item in project_cfg.get("dependencies") or []:
+            if isinstance(item, str):
+                protected.add(self._normalize_pkg_name(item))
+        optional = project_cfg.get("optional-dependencies") or {}
+        for deps in optional.values():
+            if not isinstance(deps, list):
+                continue
+            for item in deps:
+                if isinstance(item, str):
+                    protected.add(self._normalize_pkg_name(item))
         return protected
 
     async def _uninstall_python_deps(
@@ -2131,11 +2148,11 @@ class PluginLifecycle:
 
         Safety policy (keep if any check hits):
         1. Other installed plugins' installed_packages declare the same package
-        2. Main project requirements.txt declares the same package
+        2. Main project pyproject.toml declares the same package
         3. pip show Required-by is non-empty (other packages reverse-depend on it)
         / 安全策略（任一命中则保留不删）：
         1. 其他已安装插件的 installed_packages 中声明了同名包
-        2. 主项目 requirements.txt 中声明了同名包
+        2. 主项目 pyproject.toml（dependencies 与 optional-dependencies）中声明了同名包
         3. pip show 的 Required-by 非空（有其他包反向依赖它）
         """
         from sqlalchemy import select
@@ -2155,8 +2172,8 @@ class PluginLifecycle:
                 for req in row:
                     other_plugin_deps.add(self._normalize_pkg_name(req))
 
-        # Layer 2: Main project requirements.txt protection list / 主项目 requirements.txt 保护名单
-        project_deps = self._load_project_requirements()
+        # Layer 2: Main project pyproject.toml protection list / 主项目 pyproject.toml 保护名单
+        project_deps = self._load_project_pyproject_dependencies()
         pip_python = self._resolve_pip_python_executable()
 
         for req in packages:
@@ -2171,7 +2188,7 @@ class PluginLifecycle:
 
             # Check 2: main project needs it / 检查 2：主项目需要
             if pkg in project_deps:
-                logger.info("Kept {} (declared in project requirements.txt)", pkg)
+                logger.info("Kept {} (declared in project pyproject.toml)", pkg)
                 continue
 
             # Check 3: pip reverse dependency check / 检查 3：pip 反向依赖检查

@@ -100,6 +100,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey?: string,
     pageContext?: null | PageContext,
+    hasImageAttachments?: boolean,
   ): Promise<RouteResult> {
     routing.value = true;
     lastRouteResult.value = null;
@@ -109,6 +110,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
         message,
         pageContextKey,
         pageContext,
+        hasImageAttachments,
       );
       lastRouteResult.value = result;
       return result;
@@ -121,6 +123,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey?: string,
     pageContext?: null | PageContext,
+    hasImageAttachments?: boolean,
   ): Promise<RouteResult> {
     const pinId = unref(options.pinnedAgentId);
     const pinName = unref(options.pinnedAgentName);
@@ -143,7 +146,12 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
 
     // ---- P3+P4: Backend routing (with fallback) / 后端路由（含 fallback） ----
     const pageCtx = pageContext ?? resolvePageContext(pageContextKey);
-    return await _callRouteApi(message, pageContextKey, pageCtx);
+    return await _callRouteApi(
+      message,
+      pageContextKey,
+      pageCtx,
+      hasImageAttachments,
+    );
   }
 
   /**
@@ -203,6 +211,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     message: string,
     pageContextKey: string | undefined,
     pageContext: null | PageContext,
+    hasImageAttachments?: boolean,
   ): Promise<RouteResult> {
     const convId = options.activeConversationId
       ? unref(options.activeConversationId)
@@ -215,7 +224,8 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       ? _simpleHash(JSON.stringify(pageContext.page_data))
       : '';
     const msgHash = _simpleHash(message.trim().slice(0, 200));
-    const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}`;
+    const imgFlag = hasImageAttachments ? '1' : '0';
+    const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-img${imgFlag}`;
 
     const now = Date.now();
     const cached = routeCache.get(cacheKey);
@@ -231,6 +241,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       conversation_id: convId,
       page_context: pageContext,
       pinned_agent_id: pinId,
+      has_image_attachments: Boolean(hasImageAttachments),
     });
 
     const result: RouteResult = {

@@ -51,7 +51,7 @@ from app.repositories.ai import (
     AIProviderRepository,
     ProviderApiKeyRepository,
 )
-from app.services.ai.metering_service import CostCalculator, TokenCounter
+from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 logger = LogManager.get_logger("ai")
 
@@ -104,6 +104,50 @@ class AIGateway:
         return LogUserTypeEnum.TENANT_ADMIN.value
 
     @staticmethod
+    def _resolve_billing_context(
+        tenant_id: int | None,
+        *,
+        user_id: int | None,
+        user_type: str | None,
+        billing_context: dict | None = None,
+    ) -> dict[str, object | None]:
+        """
+        Resolve immutable billing attribution defaults for call logging.
+        解析调用日志的不可变计费归属默认值。
+        """
+        resolved = dict(billing_context or {})
+        default_billing_tenant_id = (
+            tenant_id
+            if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+            else None
+        )
+        resolved.setdefault("billing_tenant_id", default_billing_tenant_id)
+        resolved.setdefault("actor_user_id", user_id)
+        resolved.setdefault("actor_user_type", user_type)
+        return resolved
+
+    @staticmethod
+    def _merge_model_provider_snapshots(
+        billing_context: dict | None,
+        *,
+        provider: AIProvider | None,
+        ai_model: AIModel | None,
+    ) -> dict[str, object | None]:
+        """Attach model/provider display snapshots for immutable call ledger rows."""
+        merged = dict(billing_context or {})
+        if ai_model is not None:
+            merged.setdefault(
+                "model_name_snapshot",
+                getattr(ai_model, "name", None) or getattr(ai_model, "code", None),
+            )
+        if provider is not None:
+            merged.setdefault(
+                "provider_name_snapshot",
+                getattr(provider, "name", None) or getattr(provider, "code", None),
+            )
+        return merged
+
+    @staticmethod
     def _attach_runtime_metadata(
         payload: ChatResponse | EmbeddingResponse | ImageGenerationResponse,
         *,
@@ -144,6 +188,7 @@ class AIGateway:
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
         **kwargs
@@ -190,6 +235,12 @@ class AIGateway:
         should_meter_usage = self._should_meter_usage(tenant_id)
         should_record_call_log = self._should_record_call_log(tenant_id)
         call_user_type = self._resolve_call_user_type(tenant_id, user_type)
+        resolved_billing_context = self._resolve_billing_context(
+            tenant_id,
+            user_id=user_id,
+            user_type=call_user_type,
+            billing_context=billing_context,
+        )
 
         # 1. Check cache (only enabled when temperature == 0) / 检查缓存（仅 temperature == 0 时启用）
         use_cache = temperature == 0 and not stream
@@ -232,6 +283,10 @@ class AIGateway:
                     tools=tools, **kwargs,
                 ),
                 tenant_id=tenant_id,
+                adapter_extra={
+                    "internal_db": self.db,
+                    "internal_tenant_id": tenant_id,
+                },
             )
         except AIGatewayError as original_error:
             # Try failover to fallback model / 尝试故障转移到备用模型
@@ -254,6 +309,11 @@ class AIGateway:
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )
@@ -278,6 +338,10 @@ class AIGateway:
                         top_p=top_p, stream=stream, tools=tools, **kwargs,
                     ),
                     tenant_id=tenant_id,
+                    adapter_extra={
+                        "internal_db": self.db,
+                        "internal_tenant_id": tenant_id,
+                    },
                 )
                 # Update references for subsequent metering / 更新引用用于后续计量
                 provider = fb_provider
@@ -311,6 +375,11 @@ class AIGateway:
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )
@@ -374,6 +443,11 @@ class AIGateway:
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )
@@ -409,6 +483,7 @@ class AIGateway:
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
         **kwargs
@@ -447,6 +522,12 @@ class AIGateway:
             raise NotFoundException(message=_("ai.error.model_not_found"))
         should_meter_usage = self._should_meter_usage(tenant_id)
         call_user_type = self._resolve_call_user_type(tenant_id, user_type)
+        resolved_billing_context = self._resolve_billing_context(
+            tenant_id,
+            user_id=user_id,
+            user_type=call_user_type,
+            billing_context=billing_context,
+        )
 
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
@@ -474,6 +555,8 @@ class AIGateway:
                             api_key=current_key.decrypt_key(),
                             base_url=provider.base_url,
                             provider_config=provider.config,
+                            internal_db=self.db,
+                            internal_tenant_id=tenant_id,
                         )
 
                         # Call adapter streaming interface / 调用适配器流式接口
@@ -567,6 +650,11 @@ class AIGateway:
                         user_type=call_user_type,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
+                        billing_context=self._merge_model_provider_snapshots(
+                            resolved_billing_context,
+                            provider=provider,
+                            ai_model=ai_model,
+                        ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
                     )
@@ -586,6 +674,8 @@ class AIGateway:
                         api_key=fb_api_key.decrypt_key(),
                         base_url=fb_provider.base_url,
                         provider_config=fb_provider.config,
+                        internal_db=self.db,
+                        internal_tenant_id=tenant_id,
                     )
 
                     async for chunk in fb_adapter.stream_chat(
@@ -630,6 +720,11 @@ class AIGateway:
                         user_type=call_user_type,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
+                        billing_context=self._merge_model_provider_snapshots(
+                            resolved_billing_context,
+                            provider=provider,
+                            ai_model=ai_model,
+                        ),
                         routed_model_id=routed_model_id,
                         route_reason=route_reason,
                     )
@@ -662,6 +757,11 @@ class AIGateway:
                     latency_ms=stream_latency_ms,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                     routed_model_id=routed_model_id,
                     route_reason=route_reason,
                 )
@@ -683,6 +783,7 @@ class AIGateway:
         tenant_id: int | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        billing_context: dict | None = None,
         **kwargs
     ) -> EmbeddingResponse:
         """
@@ -717,6 +818,12 @@ class AIGateway:
         should_meter_usage = self._should_meter_usage(tenant_id)
         should_record_call_log = self._should_record_call_log(tenant_id)
         call_user_type = self._resolve_call_user_type(tenant_id, user_type)
+        resolved_billing_context = self._resolve_billing_context(
+            tenant_id,
+            user_id=user_id,
+            user_type=call_user_type,
+            billing_context=billing_context,
+        )
 
         # 1. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
@@ -791,6 +898,11 @@ class AIGateway:
                     status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
                     user_type=call_user_type,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))
@@ -813,6 +925,7 @@ class AIGateway:
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict | None = None,
         **kwargs,
     ) -> ImageGenerationResponse:
         """
@@ -851,6 +964,12 @@ class AIGateway:
         should_meter_usage = self._should_meter_usage(tenant_id)
         should_record_call_log = self._should_record_call_log(tenant_id)
         call_user_type = self._resolve_call_user_type(tenant_id, user_type)
+        resolved_billing_context = self._resolve_billing_context(
+            tenant_id,
+            user_id=user_id,
+            user_type=call_user_type,
+            billing_context=billing_context,
+        )
 
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         # Image generation uses fixed token estimate (cannot predict precisely, use 1000 as baseline) / 生图按固定 token 估算（无法精确预估，使用 1000 作为基准）
@@ -934,6 +1053,11 @@ class AIGateway:
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
+                    billing_context=self._merge_model_provider_snapshots(
+                        resolved_billing_context,
+                        provider=provider,
+                        ai_model=ai_model,
+                    ),
                 )
             except Exception as e:
                 logger.error("AI call log enqueue failed: {}", str(e))

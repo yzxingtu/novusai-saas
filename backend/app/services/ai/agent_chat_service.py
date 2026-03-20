@@ -114,6 +114,65 @@ class AgentChatService:
             raise BusinessException(message=_("agent.error.not_published"))
         return agent
 
+    async def _sanitize_client_knowledge_base_ids(
+        self,
+        agent_id: int,
+        knowledge_base_ids: list[int] | None,
+    ) -> list[int] | None:
+        """
+        Keep only KB ids bound to the agent (tenant-scoped bindings). None => no narrowing.
+        仅保留已绑定到智能体的知识库 ID；None 表示不按客户端列表收窄。
+        """
+        if not knowledge_base_ids:
+            return None
+        from app.ai.rag_injector import load_agent_kb_bindings
+
+        bound_ids, _ = await load_agent_kb_bindings(self.db, agent_id, self.tenant_id)
+        allowed = set(bound_ids or [])
+        filtered = [x for x in knowledge_base_ids if x in allowed]
+        dropped = [x for x in knowledge_base_ids if x not in allowed]
+        if dropped:
+            logger.warning(
+                "Dropped knowledge_base_ids not bound to agent_id={}: {}",
+                agent_id,
+                dropped,
+            )
+        return filtered or None
+
+    async def _build_billing_context(
+        self,
+        *,
+        agent: "Agent",
+        user_id: int | None,
+        user_role: str,
+        user_role_id: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Build immutable billing attribution context for the current entrypoint.
+        为当前入口构建不可变计费归属上下文。
+        """
+        if self.tenant_id == PLATFORM_TENANT_ID:
+            from app.services.ai.agent_service import AdminAgentService
+
+            return await AdminAgentService(self.db).build_usage_attribution_context(
+                agent=agent,
+                user_id=user_id,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            )
+
+        from app.services.ai.agent_service import AgentService
+
+        return await AgentService(
+            self.db,
+            self.tenant_id,
+        ).build_usage_attribution_context(
+            agent=agent,
+            user_id=user_id,
+            user_role=user_role,
+            user_role_id=user_role_id,
+        )
+
     async def _extract_memory_delta(
         self,
         message: str,
@@ -434,6 +493,7 @@ class AgentChatService:
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id: int | None = None,
         permissions: set[str] | None = None,
         consented_actions: list[str] | None = None,
         attachments: list[dict[str, Any]] | None = None,
@@ -470,6 +530,9 @@ class AgentChatService:
 
         # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
+        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+            agent_id, knowledge_base_ids,
+        )
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
@@ -539,7 +602,14 @@ class AgentChatService:
             knowledge_base_ids=knowledge_base_ids,
             consented_actions=consented_actions,
             user_role=user_role,
+            user_role_id=user_role_id,
             permissions=permissions,
+            billing_context=await self._build_billing_context(
+                agent=agent,
+                user_id=user_id,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            ),
             memory_scene=normalized_scene,
             memory_channel=normalized_channel,
             memory_source=normalized_source,
@@ -660,6 +730,7 @@ class AgentChatService:
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id: int | None = None,
         permissions: set[str] | None = None,
         consented_actions: list[str] | None = None,
         attachments: list[dict[str, Any]] | None = None,
@@ -691,6 +762,9 @@ class AgentChatService:
 
         # 0. 加载并校验 Agent（必须已发布）/ Load and validate Agent (must be published)
         agent = await self._validate_agent(agent_id)
+        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+            agent_id, knowledge_base_ids,
+        )
 
         # 解析消息：支持单条 message 或批量 messages
         batch = messages if messages else ([message] if message else [])
@@ -774,7 +848,14 @@ class AgentChatService:
             knowledge_base_ids=knowledge_base_ids,
             consented_actions=consented_actions,
             user_role=user_role,
+            user_role_id=user_role_id,
             permissions=permissions,
+            billing_context=await self._build_billing_context(
+                agent=agent,
+                user_id=user_id,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            ),
             memory_scene=normalized_scene,
             memory_channel=normalized_channel,
             memory_source=normalized_source,
@@ -1094,6 +1175,7 @@ class AgentChatService:
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id: int | None = None,
         permissions: set[str] | None = None,
     ) -> StreamingResponse:
         """
@@ -1107,6 +1189,9 @@ class AgentChatService:
         - 仍保留配额检查和统计
         """
         agent = await self._validate_agent(agent_id)
+        knowledge_base_ids = await self._sanitize_client_knowledge_base_ids(
+            agent_id, knowledge_base_ids,
+        )
 
         user_msg = ChatMessage(role="user", content=message)
         all_messages = [user_msg]
@@ -1123,7 +1208,14 @@ class AgentChatService:
             knowledge_base_ids=knowledge_base_ids,
             skip_persistence=True,
             user_role=user_role,
+            user_role_id=user_role_id,
             permissions=permissions,
+            billing_context=await self._build_billing_context(
+                agent=agent,
+                user_id=user_id,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            ),
             memory_scene="ephemeral",
             memory_channel=MEMORY_CHANNEL_SYSTEM,
             memory_source="system.ai_writing",

@@ -55,6 +55,7 @@ class RetryService:
         call_fn: Callable[[Any], Awaitable[_T]],
         tenant_id: int | None = None,
         log_key: str = "ai.log.gateway_chat_call",
+        adapter_extra: dict[str, Any] | None = None,
     ) -> tuple[_T, int, ProviderApiKey]:
         """
         Generic exponential backoff retry.
@@ -82,11 +83,13 @@ class RetryService:
 
         for attempt in range(MAX_RETRIES + 1):
             try:
+                extra = dict(adapter_extra or {})
                 adapter = AdapterRegistry.create_adapter(
                     provider_type=provider.type,
                     api_key=current_key.decrypt_key(),
                     base_url=provider.base_url,
                     provider_config=provider.config,
+                    **extra,
                 )
 
                 logger.info(

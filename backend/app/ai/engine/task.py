@@ -77,6 +77,8 @@ class TaskEngine(BaseEngine):
                 tools=tools or None,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )
 

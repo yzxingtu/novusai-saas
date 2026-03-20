@@ -8,7 +8,7 @@
  * - false (default): Full page layout with avatar, Tag status, RAG sources
  * - true: Compact drawer layout with smaller sizes, no avatar/Tag/RAG
  */
-import type { AgentItem, ChatMessage } from './types';
+import type { AgentItem, ChatAttachment, ChatMessage, RagSource } from './types';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
@@ -16,7 +16,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { useAIPanelStore } from '#/store';
 
-import { Button, Tooltip } from 'ant-design-vue';
+import { Button, Modal, Tooltip } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { MarkdownRender } from '#/components/business/markdown-render';
@@ -109,6 +109,30 @@ const showRouteBadge = computed(
     (props.showAgentSwitch || isMentionRoute.value),
 );
 
+const ragDetailOpen = ref(false);
+const ragDetailItem = ref<RagSource | null>(null);
+function openRagDetail(s: RagSource) {
+  ragDetailItem.value = s;
+  ragDetailOpen.value = true;
+}
+
+/** Group RAG hits by knowledge base for display / 按知识库分组展示引用 */
+const ragGroups = computed(() => {
+  const list = props.msg.ragSources ?? [];
+  const groups = new Map<string, { items: RagSource[]; label: string }>();
+  for (const s of list) {
+    const label =
+      s.knowledge_base_name ||
+      (s.knowledge_base_id != null ? `KB#${s.knowledge_base_id}` : '—');
+    const key = String(s.knowledge_base_id ?? label);
+    if (!groups.has(key)) {
+      groups.set(key, { label, items: [] });
+    }
+    groups.get(key)!.items.push(s);
+  }
+  return [...groups.values()];
+});
+
 const emit = defineEmits<{
   actionClick: [index: number, value: string];
   confirm: [index: number];
@@ -122,6 +146,16 @@ const emit = defineEmits<{
   retry: [index: number];
 }>();
 
+/** 用户消息图片：blob 预览失效时改用 url；仍失败则隐藏避免破图 / Image load error fallback */
+function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
+  const el = event.target as HTMLImageElement;
+  if (!el) return;
+  if (att.preview && el.src.startsWith('blob:') && att.url) {
+    el.src = att.url;
+    return;
+  }
+  el.classList.add('hidden');
+}
 
 const aiPanelStore = useAIPanelStore();
 
@@ -934,31 +968,85 @@ watch(
             </summary>
             <div
               :class="
-                compact ? 'mt-1 space-y-1 pl-4' : 'mt-1.5 space-y-1.5 pl-5'
+                compact ? 'mt-1 space-y-2 pl-4' : 'mt-1.5 space-y-2.5 pl-5'
               "
             >
               <div
-                v-for="(src, si) in msg.ragSources"
-                :key="si"
-                class="rounded-md bg-accent/50 text-muted-foreground"
-                :class="
-                  compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'
-                "
+                v-for="(grp, gi) in ragGroups"
+                :key="gi"
+                class="rounded-md border border-border/30 bg-accent/40"
+                :class="compact ? 'p-1.5' : 'p-2'"
               >
-                <div class="font-medium text-foreground">
-                  {{ src.doc_name }}
-                </div>
                 <div
-                  :class="
-                    compact ? 'mt-0.5 line-clamp-2' : 'mt-0.5 line-clamp-3'
-                  "
+                  class="mb-1 flex items-center gap-1 font-medium text-primary/80"
+                  :class="compact ? 'text-[10px]' : 'text-xs'"
                 >
-                  {{ src.snippet }}
+                  <IconifyIcon icon="lucide:library" class="size-3 shrink-0" />
+                  {{ grp.label }}
                 </div>
+                <button
+                  v-for="(src, si) in grp.items"
+                  :key="si"
+                  type="button"
+                  class="block w-full rounded-md bg-accent/50 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  :class="
+                    compact ? 'mb-1 px-2 py-1 text-[11px]' : 'mb-1 px-2.5 py-1.5 text-xs'
+                  "
+                  @click="openRagDetail(src)"
+                >
+                  <div class="font-medium text-foreground">
+                    {{ src.doc_name }}
+                  </div>
+                  <div
+                    :class="
+                      compact ? 'mt-0.5 line-clamp-2' : 'mt-0.5 line-clamp-2'
+                    "
+                  >
+                    {{ src.snippet }}
+                  </div>
+                  <div
+                    class="mt-0.5 text-[10px] text-primary/70"
+                  >
+                    {{ $t('common.globalAiChat.ragClickForDetail') }}
+                  </div>
+                </button>
               </div>
             </div>
           </details>
         </div>
+
+        <Modal
+          v-model:open="ragDetailOpen"
+          :title="$t('common.globalAiChat.ragSourceDetailTitle')"
+          :footer="null"
+          :width="compact ? '90vw' : 560"
+          destroy-on-close
+        >
+          <div v-if="ragDetailItem" class="space-y-2 text-sm">
+            <div v-if="ragDetailItem.knowledge_base_name || ragDetailItem.knowledge_base_id != null">
+              <span class="text-muted-foreground">{{ $t('common.globalAiChat.ragKbLabel') }}:</span>
+              {{ ragDetailItem.knowledge_base_name || `KB#${ragDetailItem.knowledge_base_id}` }}
+            </div>
+            <div>
+              <span class="text-muted-foreground">{{ $t('common.globalAiChat.ragDocLabel') }}:</span>
+              {{ ragDetailItem.doc_name }}
+            </div>
+            <div
+              v-if="ragDetailItem.page != null || ragDetailItem.heading"
+              class="text-xs text-muted-foreground"
+            >
+              <template v-if="ragDetailItem.page != null">
+                {{ $t('common.globalAiChat.ragPageLabel', { page: ragDetailItem.page }) }}
+              </template>
+              <template v-if="ragDetailItem.heading">
+                · {{ ragDetailItem.heading }}
+              </template>
+            </div>
+            <div class="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-foreground">
+              {{ ragDetailItem.snippet }}
+            </div>
+          </div>
+        </Modal>
 
         <!-- Action Buttons -->
         <div
@@ -1049,7 +1137,7 @@ watch(
         class="flex flex-wrap justify-end"
         :class="compact ? 'mb-1 gap-1' : 'mb-1.5 gap-1.5'"
       >
-        <template v-for="(att, ati) in msg.attachments" :key="ati">
+        <template v-for="(att, ati) in msg.attachments" :key="`${ati}-${att.url}`">
           <img
             v-if="att.type === 'image'"
             :src="att.preview || att.url"
@@ -1060,6 +1148,7 @@ watch(
                 ? 'max-h-32 max-w-40'
                 : 'max-h-48 max-w-60 border border-white/20'
             "
+            @error="onUserAttachmentImageError($event, att)"
             @click="emit('openUrl', att.url)"
           />
           <audio

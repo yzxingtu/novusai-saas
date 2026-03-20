@@ -401,7 +401,8 @@
       "kbEnabled": "启用",
       "kbDocCount": "文档数",
       "selectKnowledgeBase": "选择知识库",
-      "bindKnowledgeBase": "绑定"
+      "bindKnowledgeBase": "绑定",
+      "knowledgeBasesGlobalHint": "此处绑定为平台全局知识库：所有被分配或可使用该智能体的企业，在对话 RAG 中默认都会使用这些知识库。企业可在企业端对单个平台知识库选择「本企业不使用」，仅影响本企业检索，不改变此处配置。"
     },
     "memory": {
       "title": "会话记忆",
@@ -444,6 +445,19 @@
     "description": "描述",
     "status": "状态",
     "scopeLabel": "可见范围",
+    "distribution": {
+      "label": "分发模式",
+      "help": "决定平台智能体对企业开放范围；选择「指定企业」时需分配企业列表。",
+      "internal": "仅平台内部",
+      "all_tenants": "全部企业",
+      "assigned_tenants": "指定企业",
+      "filterPlaceholder": "分发模式"
+    },
+    "ownerType": {
+      "label": "归属",
+      "platform": "平台",
+      "tenant": "企业"
+    },
     "targetAudience": "目标受众",
     "executionMode": "执行模式",
     "modelName": "关联模型",
@@ -585,6 +599,7 @@
     }
   },
   "conversation": {
+    "name": "对话管理",
     "title": "对话管理",
     "pageDesc": "监控所有企业的 AI 对话记录，查看对话详情和费用统计。",
     "agentName": "智能体",
@@ -597,6 +612,16 @@
     "createdAt": "创建时间",
     "viewDetail": "查看详情",
     "messageList": "消息记录",
+    "tabMessages": "消息流程",
+    "tabModelCalls": "模型调用",
+    "modelCallsEmpty": "暂无关联的模型调用记录",
+    "thinkingBlock": "思考过程",
+    "ragRefs": "知识库引用",
+    "toolCalls": "工具调用",
+    "toolOk": "成功",
+    "toolFailed": "失败",
+    "callLogTokens": "Tokens",
+    "callLogLatency": "耗时",
     "messageCount": "消息数量",
     "conversationTitle": "对话标题",
     "status_options": {

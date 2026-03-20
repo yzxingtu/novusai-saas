@@ -118,6 +118,51 @@ const formatTokens = (tokens: number | undefined) => {
   return `${tokens}`;
 };
 
+/** 与后端 CallAccessChannelEnum 一致，用于展示顺序 */
+const ACCESS_CHANNEL_ORDER = [
+  'tenant_admin',
+  'tenant_user',
+  'admin_internal',
+] as const;
+
+const accessChannelRows = computed(() => {
+  const rows = [...(summary.value?.access_channel_stats ?? [])];
+  rows.sort((a, b) => {
+    const ca = a.access_channel ?? '';
+    const cb = b.access_channel ?? '';
+    let ia = ACCESS_CHANNEL_ORDER.indexOf(
+      ca as (typeof ACCESS_CHANNEL_ORDER)[number],
+    );
+    let ib = ACCESS_CHANNEL_ORDER.indexOf(
+      cb as (typeof ACCESS_CHANNEL_ORDER)[number],
+    );
+    if (ia < 0) ia = 99;
+    if (ib < 0) ib = 99;
+    return ia - ib;
+  });
+  return rows;
+});
+
+const accessChannelRowsNonEmpty = computed(() =>
+  accessChannelRows.value.filter((r) => (r.call_count ?? 0) > 0),
+);
+
+const accessChannelCardVisible = computed(
+  () => accessChannelRowsNonEmpty.value.length > 0,
+);
+
+function accessChannelLabel(channel: null | string | undefined): string {
+  const c = channel ?? '';
+  const keyMap: Record<string, string> = {
+    admin_internal: 'tenant.ai.usage.accessChannel.admin_internal',
+    tenant_admin: 'tenant.ai.usage.accessChannel.tenant_admin',
+    tenant_user: 'tenant.ai.usage.accessChannel.tenant_user',
+  };
+  const i18nKey =
+    keyMap[c] ?? 'tenant.ai.usage.accessChannel.unknown';
+  return $t(i18nKey);
+}
+
 onMounted(loadSummary);
 
 // ============ ECharts ============
@@ -395,6 +440,56 @@ onUnmounted(() => {
           </div>
         </Card>
       </div>
+
+      <!-- 按访问渠道（企业管理员 / 终端用户等） -->
+      <Card
+        v-if="accessChannelCardVisible"
+        class="mt-4"
+        :title="$t('tenant.ai.usage.accessChannel.title')"
+      >
+        <template #extra>
+          <span class="max-w-[220px] text-right text-xs text-muted-foreground sm:max-w-none">
+            {{ $t('tenant.ai.usage.accessChannel.subtitle') }}
+          </span>
+        </template>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="(row, idx) in accessChannelRowsNonEmpty"
+            :key="row.access_channel ?? `unknown-${idx}`"
+            class="rounded-lg border border-border/60 bg-muted/30 p-4"
+          >
+            <div class="mb-3 text-sm font-medium text-foreground">
+              {{ accessChannelLabel(row.access_channel) }}
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('tenant.ai.usage.accessChannel.calls') }}
+                </div>
+                <div class="mt-0.5 text-lg font-semibold tabular-nums">
+                  {{ row.call_count ?? 0 }}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('tenant.ai.usage.accessChannel.tokens') }}
+                </div>
+                <div class="mt-0.5 text-lg font-semibold tabular-nums">
+                  {{ formatTokens(row.total_tokens) }}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground">
+                  {{ $t('tenant.ai.usage.accessChannel.cost') }}
+                </div>
+                <div class="mt-0.5 text-lg font-semibold tabular-nums">
+                  {{ formatCost(row.total_cost) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <!-- ECharts 趋势图 -->
       <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

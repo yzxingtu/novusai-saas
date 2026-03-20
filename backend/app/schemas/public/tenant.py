@@ -58,6 +58,9 @@ class TenantPublicConfig(BaseSchema):
     # 注册页链接
     privacy_policy_url: str | None = Field(None, description="隐私政策链接")
     terms_url: str | None = Field(None, description="服务条款链接")
+    # 是否启用站内富文本页（有正文则 true，注册页优先链到站内）
+    privacy_policy_internal: bool = Field(False, description="是否有站内隐私政策 HTML")
+    terms_internal: bool = Field(False, description="是否有站内服务条款 HTML")
 
     # 域名信息
     subdomain: str = Field(..., description="企业子域名")
@@ -98,7 +101,14 @@ class DomainVerificationInfo(BaseSchema):
     )
 
 
+class TenantLegalDocumentResponse(BaseSchema):
+    """站内法律文档 HTML / In-site legal document HTML"""
+
+    html: str = Field("", description="消毒后的 HTML 正文")
+
+
 __all__ = [
     "TenantPublicConfig",
+    "TenantLegalDocumentResponse",
     "DomainVerificationInfo",
 ]

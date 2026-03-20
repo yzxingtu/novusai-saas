@@ -14,6 +14,7 @@ from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
+from app.enums.agent import AgentOwnerTypeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
@@ -27,6 +28,7 @@ from app.rbac.decorators import (
 from app.schemas.ai.agent import AgentCreate, AgentUpdate
 from app.schemas.ai.agent_access import AgentAccessUpdate
 from app.schemas.ai.agent_memory import AgentMemoryDisableRequest
+from app.schemas.ai.tenant_agent_publication import TenantAgentPublicationUpdate
 from app.services.ai.agent_service import AgentService
 
 
@@ -46,6 +48,24 @@ async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     if agent.tenant_id != tenant_id:
         raise BusinessException(message=_("agent.error.system_protected"))
     return agent
+
+
+async def _ensure_agent_kb_mutations_allowed(db, tenant_id: int, agent_id: int):
+    """
+    允许变更知识库绑定：企业自有智能体，或当前企业可用的平台智能体（仅叠加本企业绑定行）/ KB mutations: tenant-owned or accessible platform agent.
+    """
+    service = AgentService(db, tenant_id)
+    agent = await service.get_by_id(agent_id)
+    if not agent:
+        raise NotFoundException(message=_("agent.error.not_found"))
+    if agent.tenant_id == tenant_id:
+        return agent
+    if (
+        agent.tenant_id is None
+        and agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
+    ):
+        return agent
+    raise BusinessException(message=_("agent.error.system_protected"))
 
 
 def _build_agent_list_item(agent) -> dict:
@@ -300,14 +320,53 @@ class TenantAgentController(TenantController):
             Note: Access config stored in AgentAccess (tenant-level table), allows configuring platform-assigned agents.
             """
             service = AgentService(db, tenant_admin.tenant_id)
-            config = await service.update_access_config(
-                agent_id=agent_id,
-                admin_role_ids=data.admin_role_ids,
-                tenant_role_ids=data.tenant_role_ids,
-                user_role_ids=data.user_role_ids,
-            )
+            patch = data.model_dump(exclude_unset=True)
+            config = await service.update_access_config(agent_id, patch)
             await db.commit()
 
+            return success(data=config, message=_("agent.access.updated"))
+
+        @router.get("/{agent_id}/publication", summary="获取企业用户发布配置")
+        @action_read("action.agent.access_config")
+        async def get_publication_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取企业用户发布配置 / Get tenant-user publication config.
+
+            企业可对“当前可用”的智能体配置是否开放给用户端。
+            Tenant can configure whether an available agent is exposed to tenant users.
+            """
+            service = AgentService(db, tenant_admin.tenant_id)
+            config = await service.get_publication_config(agent_id)
+            return success(data=config)
+
+        @router.put("/{agent_id}/publication", summary="更新企业用户发布配置")
+        @action_update("action.agent.update_access")
+        async def update_publication_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            data: TenantAgentPublicationUpdate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            更新企业用户发布配置 / Update tenant-user publication config.
+            """
+            service = AgentService(db, tenant_admin.tenant_id)
+            config = await service.update_publication_config(
+                agent_id=agent_id,
+                enabled_for_users=data.enabled_for_users,
+                access_type=data.access_type,
+                tenant_user_role_ids=data.tenant_user_role_ids,
+                tenant_user_ids=data.tenant_user_ids,
+                org_node_ids=data.org_node_ids,
+                published_by=tenant_admin.id,
+            )
+            await db.commit()
             return success(data=config, message=_("agent.access.updated"))
 
         @router.get("/{agent_id}/memory", summary="获取智能体记忆开关状态")

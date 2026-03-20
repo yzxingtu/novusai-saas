@@ -7,7 +7,7 @@ Records all AI call requests and responses for metering, billing and monitoring.
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, JSON, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
@@ -38,10 +38,16 @@ class AICallLog(TenantModel):
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
+        "billing_tenant_id": "billing_tenant_id",
         "agent_id": "agent_id",
         "conversation_id": "conversation_id",
         "user_id": "user_id",
         "user_type": "user_type",
+        "actor_user_id": "actor_user_id",
+        "actor_user_type": "actor_user_type",
+        "access_channel": "access_channel",
+        "agent_owner_type": "agent_owner_type",
+        "agent_distribution_mode": "agent_distribution_mode",
         "provider_id": "provider_id",
         "model_id": "model_id",
         "routed_model_id": "routed_model_id",
@@ -70,6 +76,29 @@ class AICallLog(TenantModel):
         String(50),
         nullable=True,
         comment=_("enum.ai_call_log.user_type")
+    )
+    billing_tenant_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="计费归属企业 ID / Billing tenant ID",
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="调用方用户 ID / Actor user ID",
+    )
+    actor_user_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="调用方用户类型 / Actor user type",
+    )
+    access_channel: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+        comment="访问渠道 / Access channel",
     )
     agent_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -188,13 +217,75 @@ class AICallLog(TenantModel):
         nullable=True,
         comment=_("enum.ai_call_log.route_reason"),
     )
-
+    agent_owner_type: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True,
+        comment="智能体归属类型快照 / Agent owner type snapshot",
+    )
+    agent_owner_tenant_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="智能体归属企业快照 / Agent owner tenant snapshot",
+    )
+    agent_distribution_mode: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True,
+        comment="智能体分发模式快照 / Agent distribution mode snapshot",
+    )
+    tenant_publication_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("tenant_agent_publications.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="企业用户发布记录 ID / Tenant agent publication ID",
+    )
+    publication_enabled_snapshot: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="发布启用状态快照 / Publication enabled snapshot",
+    )
+    publication_access_type_snapshot: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="发布访问类型快照 / Publication access type snapshot",
+    )
+    # 展示快照（不依赖当前 agents/tenants/models 行，避免改名/删除导致历史不可读）
+    agent_id_snapshot: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="调用时智能体 ID 快照（无外键）/ Agent id snapshot at call time (no FK)",
+    )
+    agent_name_snapshot: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="调用时智能体名称快照 / Agent name snapshot at call time",
+    )
+    billing_tenant_name_snapshot: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="计费企业名称快照 / Billing tenant name snapshot",
+    )
+    model_name_snapshot: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="模型名称快照 / Model name snapshot",
+    )
+    provider_name_snapshot: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="供应商名称快照 / Provider name snapshot",
+    )
 
     # ==================== 索引 ====================
 
     __table_args__ = (
         # 企业 + 创建时间复合索引（用于按企业查询最近记录）
         Index("idx_ai_call_logs_tenant_created", "tenant_id", "created_at"),
+        Index("idx_ai_call_logs_billing_tenant_created", "billing_tenant_id", "created_at"),
         Index("idx_ai_call_logs_agent_created", "agent_id", "created_at"),
         Index("idx_ai_call_logs_conv_created", "conversation_id", "created_at"),
         # 用户 + 状态复合索引（用于用户调用统计）

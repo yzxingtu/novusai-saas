@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractLeadingAgentMentionDraft,
   filterAgentsByMentionQuery,
+  filterKnowledgeBasesByMentionQuery,
   moveStreamingContentToThinking,
 } from '../chat-input-utils';
 
@@ -41,6 +42,24 @@ describe('chat-input-utils', () => {
     expect(filterAgentsByMentionQuery(agents, 'data').map((agent) => agent.id)).toEqual([1]);
     expect(filterAgentsByMentionQuery(agents, 'editor').map((agent) => agent.id)).toEqual([2]);
     expect(filterAgentsByMentionQuery(agents, '').map((agent) => agent.id)).toEqual([1, 2, 3]);
+  });
+
+  it('filters knowledge bases by name or id', () => {
+    const bindings = [
+      { knowledge_base_id: 10, kb_name: 'Product Docs' as null | string },
+      { knowledge_base_id: 20, kb_name: 'HR Policy' as null | string },
+    ];
+    expect(
+      filterKnowledgeBasesByMentionQuery(bindings, 'product').map(
+        (b) => b.knowledge_base_id,
+      ),
+    ).toEqual([10]);
+    expect(
+      filterKnowledgeBasesByMentionQuery(bindings, '20').map(
+        (b) => b.knowledge_base_id,
+      ),
+    ).toEqual([20]);
+    expect(filterKnowledgeBasesByMentionQuery(bindings, '').length).toBe(2);
   });
 
   it('moves streamed tool-round content into the thinking block', () => {

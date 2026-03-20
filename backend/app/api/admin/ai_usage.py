@@ -20,7 +20,7 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
-from app.services.ai import MeteringService
+from app.repositories.ai import AICallLogRepository
 
 
 @permission_resource(
@@ -65,8 +65,8 @@ class AdminAIUsageController(GlobalController):
 
             权限 / Permission: ai_usage:tenant_summary
             """
-            metering = MeteringService(db)
-            summary = await metering.get_tenant_usage(
+            repo = AICallLogRepository(db)
+            summary = await repo.get_billing_tenant_usage_summary(
                 tenant_id=tenant_id,
                 start_date=start_date,
                 end_date=end_date,
@@ -89,8 +89,8 @@ class AdminAIUsageController(GlobalController):
 
             权限 / Permission: ai_usage:model_summary
             """
-            metering = MeteringService(db)
-            summary = await metering.get_model_usage(
+            repo = AICallLogRepository(db)
+            summary = await repo.get_billing_model_usage_summary(
                 model_id=model_id,
                 start_date=start_date,
                 end_date=end_date,
@@ -113,10 +113,8 @@ class AdminAIUsageController(GlobalController):
 
             权限 / Permission: ai_usage:stats
             """
-            from app.repositories.ai.usage_stat_repository import UsageStatRepository
-
-            repo = UsageStatRepository(db)
-            items, total = await repo.query_list_with_names(spec)
+            repo = AICallLogRepository(db)
+            items, total = await repo.query_usage_stats(spec)
 
             return success(
                 data=PageResponse.create(

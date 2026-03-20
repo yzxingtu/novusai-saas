@@ -38,9 +38,9 @@ from app.models.ai import (
     Skill,
     SkillCallLog,
     SkillPackage,
+    TenantAgentPublication,
     TenantModelRateLimit,
     TenantQuota,
-    UsageStat,
 )
 
 # RBAC 模型 / RBAC models
@@ -124,7 +124,6 @@ __all__ = [
     "AIModel",
     "ProviderApiKey",
     "AICallLog",
-    "UsageStat",
     "TenantModelRateLimit",
     "TenantQuota",
     # 智能体
@@ -137,6 +136,7 @@ __all__ = [
     "AgentVersion",
     # 智能体访问权限 / Agent access
     "AgentAccess",
+    "TenantAgentPublication",
     "AgentMemoryOverride",
     # AI 操作审计日志 / AI action logs
     "AIActionLog",

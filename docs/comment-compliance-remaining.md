@@ -169,7 +169,7 @@ python scripts/scan_comment_compliance.py --ci
 ### 第二十三轮续补（本次继续）
 
 - **api/admin/plugins.py**：_short_name（get_menu_parent_options 内）docstring 首行补中文。
-- **plugins/lifecycle.py**：_module_candidates、_has_importable_module、_load_project_requirements、_normalize_pkg_name 首行双语。
+- **plugins/lifecycle.py**：_module_candidates、_has_importable_module、_load_project_pyproject_dependencies、_normalize_pkg_name 首行双语。
 
 ### 第二十四轮（收尾说明）
 

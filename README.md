@@ -106,9 +106,10 @@ python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# 安装依赖
-pip install -e .  # 或 pip install -r requirements.txt
-# 安装 -e . 后可获得 novusai CLI
+# 安装依赖（以 pyproject.toml + uv.lock 为唯一来源）
+uv sync --extra dev
+# 若无 uv：pip install -e ".[dev]"
+# 安装后可获得 novusai CLI
 
 # 配置环境变量
 cp .env.example .env
@@ -121,6 +122,8 @@ novusai db upgrade head
 novusai run --reload
 # 另开终端启动 Celery Worker + Beat
 novusai celery dev
+# 终端噪音：SQL 默认只写入 backend/logs/db.log（LOG_DB_TO_CONSOLE=true 可打回终端）；
+# WebSocket 握手 INFO 默认不在终端显示（LOG_QUIET_WEBSOCKET_HANDSHAKE=false 可恢复）
 # 启动前端
 pnpm dev:antd
 ```

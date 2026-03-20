@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.meta import ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
 from app.core.logging import LogManager
-from app.enums.config import ConfigScope
+from app.enums.config import ConfigScope, ConfigValueType
+from app.utils.config_html_sanitize import sanitize_config_html
 from app.models.system.config import (
     SystemConfig,
     SystemConfigValue,
@@ -502,6 +503,14 @@ class ConfigService:
             )
         )
         value_record = result.scalar_one_or_none()
+
+        config_meta = self.registry.get_config_by_key(key)
+        if config_meta and config_meta.value_type == ConfigValueType.HTML:
+            if value is None:
+                value = ""
+            elif not isinstance(value, str):
+                value = str(value)
+            value = sanitize_config_html(value)
 
         serialized_value = self._serialize_value(value)
 

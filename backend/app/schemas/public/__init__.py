@@ -8,11 +8,13 @@ Defines API data structures accessible without authentication.
 from app.schemas.public.platform import PlatformPublicConfig
 from app.schemas.public.tenant import (
     DomainVerificationInfo,
+    TenantLegalDocumentResponse,
     TenantPublicConfig,
 )
 
 __all__ = [
     "TenantPublicConfig",
+    "TenantLegalDocumentResponse",
     "DomainVerificationInfo",
     "PlatformPublicConfig",
 ]

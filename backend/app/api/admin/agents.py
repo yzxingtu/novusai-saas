@@ -12,7 +12,7 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
-from app.enums.common import ResourceScopeEnum
+from app.enums.agent import AgentDistributionModeEnum, AgentOwnerTypeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -44,9 +44,8 @@ from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AdminAgentService, AgentService
 from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
-SCOPES_NEEDING_ASSIGNMENT = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+DISTRIBUTION_MODES_NEEDING_ASSIGNMENT = (
+    AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
 )
 
 logger = LogManager.get_logger("ai")
@@ -57,7 +56,6 @@ def _build_admin_agent_item(agent) -> dict:
     from app.api.shared._agent_helpers import build_agent_base_item
 
     item = build_agent_base_item(agent)
-    item["scope"] = agent.scope
     item["model_id"] = agent.model_id
     return item
 
@@ -150,7 +148,7 @@ class AdminAgentController(GlobalController):
             agent = await service.create(data)
 
             # 同步企业分配 / Sync tenant assignments
-            if agent.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            if agent.distribution_mode in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
 
@@ -186,11 +184,11 @@ class AdminAgentController(GlobalController):
             agent = await service.update(agent_id, data)
 
             # 同步企业分配 / Sync tenant assignments
-            effective_scope = agent.scope
-            if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            effective_distribution = agent.distribution_mode
+            if effective_distribution in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent_id, tenant_ids)
-            elif effective_scope not in SCOPES_NEEDING_ASSIGNMENT:
+            elif effective_distribution not in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.delete_all_for_resource("agent", agent_id)
 
@@ -244,12 +242,18 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            # 使用企业 Service 获取完整详情（含模型关联） / Use tenant Service to get full details (including model associations)
-            service = AgentService(db, agent.tenant_id)
-            detail = await service.get_agent_detail(agent_id)
+            detail = agent.to_dict()
+            detail["owner_tenant_id"] = agent.tenant_id
+            model_obj = getattr(agent, "model", None)
+            detail["model_name"] = getattr(model_obj, "name", None)
+            detail["model_code"] = getattr(model_obj, "code", None)
+            memory_config = await admin_service.get_memory_config(agent_id)
+            detail["memory_enabled"] = bool(getattr(agent, "memory_enabled", True))
+            detail["effective_memory_enabled"] = memory_config["effective_memory_enabled"]
+            detail["memory_disabled_by_tenant"] = False
 
             # 追加已分配的企业 ID 列表 / Append assigned tenant ID list
-            if agent.scope in SCOPES_NEEDING_ASSIGNMENT:
+            if agent.distribution_mode in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
                     "agent", agent_id
@@ -657,7 +661,7 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
+            service = AdminAgentService(db)
             config = await service.get_access_config(agent_id)
             return success(data=config)
 
@@ -680,13 +684,9 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
-            config = await service.update_access_config(
-                agent_id=agent_id,
-                admin_role_ids=data.admin_role_ids,
-                tenant_role_ids=data.tenant_role_ids,
-                user_role_ids=data.user_role_ids,
-            )
+            service = AdminAgentService(db)
+            patch = data.model_dump(exclude_unset=True)
+            config = await service.update_access_config(agent_id, patch)
             await db.commit()
             return success(data=config, message=_("agent.access.updated"))
 

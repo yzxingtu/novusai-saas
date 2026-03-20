@@ -381,13 +381,20 @@ class BaseEngine(ABC):
         from app.ai.rag_injector import (
             inject_rag_context,
             load_agent_kb_bindings,
-            merge_kb_ids,
         )
         rag_sources = None
         agent_kb_ids, agent_kb_weights = await load_agent_kb_bindings(
-            self.db, agent.id,
+            self.db, agent.id, request.tenant_id,
         )
-        merged_kb_ids = merge_kb_ids(agent_kb_ids, request.knowledge_base_ids)
+        # User-selected KB ids (already sanitized to bound subset in AgentChatService) narrow retrieval.
+        # 用户选中的知识库（已在 AgentChatService 校验为绑定子集）用于收窄检索范围。
+        if request.knowledge_base_ids:
+            sel = set(request.knowledge_base_ids)
+            merged_kb_ids = [kid for kid in (agent_kb_ids or []) if kid in sel]
+            if not merged_kb_ids:
+                merged_kb_ids = agent_kb_ids
+        else:
+            merged_kb_ids = agent_kb_ids
         effective_rag_config = agent.rag_config or {}
         if merged_kb_ids:
             messages, rag_sources = await inject_rag_context(
@@ -434,7 +441,7 @@ class BaseEngine(ABC):
         route_result = None
         try:
             from app.ai.routing.router import ModelRouter
-            from app.services.ai.metering_service import TokenCounter
+            from app.services.ai.usage_metrics import TokenCounter
 
             estimated_tokens = TokenCounter.count_messages_tokens(
                 [{"content": m.content or "", "name": m.name or ""} for m in messages]
@@ -465,6 +472,7 @@ class BaseEngine(ABC):
         tenant_id: int | None = None,
         user_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict[str, Any] | None = None,
         route_result: Any | None = None,
         log_user_type: str | None = None,
     ) -> ChatResponse:
@@ -549,6 +557,7 @@ class BaseEngine(ABC):
             user_type=log_user_type,
             agent_id=getattr(agent, "id", None),
             conversation_id=conversation_id,
+            billing_context=billing_context,
             routed_model_id=routed_model_id,
             route_reason=route_reason,
             supports_vision=bool(is_vision),
@@ -678,12 +687,13 @@ class BaseEngine(ABC):
                         agent=agent,
                         messages=messages,
                         tools=tools,
-                        tenant_id=request.tenant_id,
-                        user_id=request.user_id,
-                        conversation_id=request.conversation_id,
-                        route_result=route_result,
-                        log_user_type=log_user_type_for_call_log(request.user_role),
-                    )
+                    tenant_id=request.tenant_id,
+                    user_id=request.user_id,
+                    conversation_id=request.conversation_id,
+                    billing_context=request.billing_context,
+                    route_result=route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                )
                     total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
                         current_response = peek_response
@@ -698,6 +708,7 @@ class BaseEngine(ABC):
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
                 conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
                 route_result=route_result,
                 log_user_type=log_user_type_for_call_log(request.user_role),
             )

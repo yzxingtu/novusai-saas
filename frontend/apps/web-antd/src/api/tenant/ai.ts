@@ -76,8 +76,20 @@ export interface TenantAIUsageSummary {
   total_calls: number;
   success_calls: number;
   failed_calls: number;
+  input_tokens?: number;
+  output_tokens?: number;
   daily_stats?: TenantAIUsageDaily[];
   model_stats?: TenantAIUsageByModel[];
+  /** 按访问渠道拆分的用量（如 tenant_admin / tenant_user） */
+  access_channel_stats?: TenantAIUsageAccessChannel[];
+}
+
+/** 按访问渠道的用量片段 */
+export interface TenantAIUsageAccessChannel {
+  access_channel: null | string;
+  call_count: number;
+  total_tokens: number;
+  total_cost: number;
 }
 
 /** Daily usage / 每日用量 */

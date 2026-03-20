@@ -157,7 +157,10 @@
     "identification_failed": "无法识别企业",
     "owner_not_found": "企业所有者不存在",
     "owner_password_reset": "企业超级管理员密码重置成功",
-    "no_plan": "当前企业未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。"
+    "no_plan": "当前企业未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。",
+    "legal": {
+      "not_found": "未配置或内容为空"
+    }
   },
   "domain": {
     "instructions_header": "请在您的 DNS 服务商处添加以下记录",
@@ -391,7 +394,8 @@
       "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
       "system_protected": "系统智能体不可删除或修改关键属性",
       "system_agent_not_found": "系统智能体未找到，请先执行数据库迁移",
-      "audience_not_allowed": "您无权访问该智能体（受目标受众限制）"
+      "audience_not_allowed": "您无权访问该智能体（受目标受众限制）",
+      "publication_org_node_not_supported": "组织节点发布规则暂未开放，请选择其他访问类型"
     },
     "batch": {
       "cancelled": "批处理任务已取消"
@@ -584,7 +588,10 @@
       "kb_not_found": "知识库不存在",
       "binding_not_found": "该知识库未绑定到此智能体",
       "agent_not_found": "智能体不存在",
-      "kb_not_accessible": "无权访问该知识库"
+      "kb_not_accessible": "无权访问该知识库",
+      "platform_suppress_platform_agent_only": "仅平台下发的智能体支持「本企业停用平台知识库」",
+      "platform_suppress_not_global_binding": "只能对管理端配置的平台全局知识库设置本企业停用",
+      "platform_suppression_not_found": "未找到本企业对该平台知识库的停用记录"
     }
   },
   "agent_skill_binding": {
@@ -729,6 +736,7 @@
       "context_length_exceeded": "输入内容超出模型上下文长度限制",
       "content_filtered": "内容被安全策略拦截",
       "vision_not_supported": "当前模型不支持图片，请切换到支持视觉的模型",
+      "image_url_inaccessible": "无法获取图片内容（链接无效或不可访问）。请重试上传或检查附件存储配置。",
       "quota_not_found": "配额配置不存在",
       "fallback_self_reference": "备用模型不能指向自身",
       "embedding_empty_result": "Embedding 返回空结果",
@@ -2912,8 +2920,7 @@
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表",
-      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}",
-      "agent_invalid_audience": "智能体 target_audience '{audience}' 无效。有效值：{valid}"
+      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -3090,10 +3097,14 @@
   "config.tenant.user_privacy_policy_url.desc": "注册页面显示的隐私政策链接地址，留空则不显示",
   "config.tenant.user_terms_url.name": "服务条款链接",
   "config.tenant.user_terms_url.desc": "注册页面显示的服务条款链接地址，留空则不显示",
-  "enum.agent_model.target_audience": "目标受众",
+  "config.tenant.user_privacy_policy_html.name": "隐私政策正文（富文本）",
+  "config.tenant.user_privacy_policy_html.desc": "用户端站内展示的隐私政策 HTML。注册页链接规则：若已填上方外链，始终打开外链；仅当外链留空且此处有正文时，才链到站内页。空编辑器产生的无文字 HTML 视为未配置。",
+  "config.tenant.user_terms_html.name": "服务条款正文（富文本）",
+  "config.tenant.user_terms_html.desc": "用户端站内展示的服务条款 HTML。注册页链接规则：若已填上方外链，始终打开外链；仅当外链留空且此处有正文时，才链到站内页。空编辑器产生的无文字 HTML 视为未配置。",
+  "enum.config_value_type.html": "HTML",
   "agent_access.admin_role_ids": "管理端角色授权",
   "agent_access.tenant_role_ids": "企业端角色授权",
-  "agent_access.user_role_ids": "用户端角色授权",
+  "agent_access.access_type": "历史访问类型（兼容库表 NOT NULL）；终端用户规则请用企业发布配置",
   "skill_package.system.engine": "系统引擎技能包",
   "skill_package.system.data_management": "平台数据管理",
   "skill_package.system.web_search": "联网搜索",

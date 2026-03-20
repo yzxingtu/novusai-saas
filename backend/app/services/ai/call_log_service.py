@@ -142,6 +142,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
     ) -> AICallLog:
@@ -183,10 +184,15 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         request_hash = self._generate_request_hash(model_id, messages, temperature, tools)
 
         # 创建日志记录
+        billing_context = dict(billing_context or {})
         call_log = AICallLog(
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            billing_tenant_id=billing_context.get("billing_tenant_id"),
+            actor_user_id=billing_context.get("actor_user_id", user_id),
+            actor_user_type=billing_context.get("actor_user_type", user_type),
+            access_channel=billing_context.get("access_channel"),
             agent_id=agent_id,
             conversation_id=conversation_id,
             provider_id=provider_id,
@@ -211,6 +217,17 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             },
             routed_model_id=routed_model_id,
             route_reason=route_reason,
+            agent_owner_type=billing_context.get("agent_owner_type"),
+            agent_owner_tenant_id=billing_context.get("agent_owner_tenant_id"),
+            agent_distribution_mode=billing_context.get("agent_distribution_mode"),
+            tenant_publication_id=billing_context.get("tenant_publication_id"),
+            publication_enabled_snapshot=billing_context.get("publication_enabled_snapshot"),
+            publication_access_type_snapshot=billing_context.get("publication_access_type_snapshot"),
+            agent_id_snapshot=billing_context.get("agent_id_snapshot", agent_id),
+            agent_name_snapshot=billing_context.get("agent_name_snapshot"),
+            billing_tenant_name_snapshot=billing_context.get("billing_tenant_name_snapshot"),
+            model_name_snapshot=billing_context.get("model_name_snapshot"),
+            provider_name_snapshot=billing_context.get("provider_name_snapshot"),
         )
 
         self.db.add(call_log)
@@ -287,6 +304,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         user_type: str | None = None,
         agent_id: int | None = None,
         conversation_id: int | None = None,
+        billing_context: dict[str, Any] | None = None,
         routed_model_id: int | None = None,
         route_reason: str | None = None,
     ):
@@ -317,6 +335,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             user_type=user_type,
             agent_id=agent_id,
             conversation_id=conversation_id,
+            billing_context=billing_context,
             routed_model_id=routed_model_id,
             route_reason=route_reason,
         )

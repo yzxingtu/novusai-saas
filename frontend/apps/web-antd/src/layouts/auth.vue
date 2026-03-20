@@ -6,16 +6,24 @@
  * Warm beige + 3 warm blobs + white card with top gradient accent
  */
 import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 import { LanguageToggle, ThemeToggle } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { usePreferences } from '@vben/preferences';
 
+import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
 
 const publicConfigStore = usePublicConfigStore();
 const { isDark } = usePreferences();
+const route = useRoute();
+
+/** 隐私政策 / 服务条款等法律文档页：加宽容器 + 顶栏，不复用窄登录表单卡片 */
+const isLegalDocumentPage = computed(
+  () => route.meta.authDocumentPage === true,
+);
 
 onMounted(() => {
   publicConfigStore.loadPlatformConfig();
@@ -51,8 +59,13 @@ const siteName = computed(() => {
 
 <template>
   <div
-    :class="[isDark ? 'dark' : '']"
-    class="user-auth-root relative flex min-h-screen items-center justify-center overflow-y-auto px-4 py-8"
+    :class="[
+      isDark ? 'dark' : '',
+      isLegalDocumentPage
+        ? 'items-start justify-center py-6 sm:py-10'
+        : 'items-center justify-center py-8',
+    ]"
+    class="user-auth-root relative flex min-h-screen overflow-y-auto px-4"
   >
     <!-- Toolbar -->
     <div
@@ -69,15 +82,23 @@ const siteName = computed(() => {
 
     <!-- Card with top accent bar / 带顶部彩条的卡片 -->
     <div
-      class="user-auth-card relative z-10 flex w-full max-w-[420px] min-h-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white px-8 py-10 shadow-[0_20px_60px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)] sm:px-10"
+      :class="[
+        'user-auth-card relative z-10 flex w-full min-h-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)]',
+        isLegalDocumentPage
+          ? 'legal-doc-shell max-w-[min(100%,52rem)] px-5 pb-10 pt-5 sm:px-8 sm:pb-12 sm:pt-6 lg:max-w-[56rem]'
+          : 'max-w-[420px] px-8 py-10 sm:px-10',
+      ]"
     >
       <!-- Top gradient accent / 顶部 4px 彩条 -->
       <div
         class="user-card-accent absolute left-0 right-0 top-0 h-1 shrink-0"
       />
 
-      <!-- Branding -->
-      <div class="mb-8 flex flex-col items-center">
+      <!-- Branding：登录等窄表单 / 法律页顶栏 -->
+      <div
+        v-if="!isLegalDocumentPage"
+        class="mb-8 flex flex-col items-center"
+      >
         <img
           v-if="siteLogo"
           :src="siteLogo"
@@ -93,8 +114,39 @@ const siteName = computed(() => {
         <span class="text-lg font-bold text-foreground">{{ siteName }}</span>
       </div>
 
+      <header
+        v-else
+        class="legal-doc-header mb-6 flex shrink-0 items-center gap-3 border-b border-black/[0.06] pb-4 dark:border-border"
+      >
+        <img
+          v-if="siteLogo"
+          :src="siteLogo"
+          :alt="siteName"
+          class="size-10 shrink-0 rounded-lg object-contain"
+        />
+        <div
+          v-else
+          class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+        >
+          <IconifyIcon icon="lucide:scale" class="size-5 text-primary" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-base font-semibold text-foreground">
+            {{ siteName }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('user.auth.legalDocumentSubtitle') }}
+          </div>
+        </div>
+      </header>
+
       <!-- Page content -->
-      <RouterView />
+      <div
+        :class="isLegalDocumentPage ? 'min-h-0 flex-1' : ''"
+        class="flex flex-col"
+      >
+        <RouterView />
+      </div>
     </div>
 
     <!-- Copyright -->

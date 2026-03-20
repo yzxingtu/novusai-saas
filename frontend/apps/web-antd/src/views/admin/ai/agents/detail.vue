@@ -5,7 +5,7 @@ import type { PkgOption } from './data';
  * 管理端智能体详情页
  *
  * Tab 面板：概览 / 模型参数 / 对话配置 / 技能绑定 / 配额管理
- * 额外显示 scope/企业信息，系统智能体核心字段保护。
+ * 显示分发模式/归属等元信息，系统智能体核心字段保护。
  */
 import type {
   AIAgentInfo,
@@ -25,6 +25,7 @@ import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Alert,
   Select as ASelect,
   Button,
   Empty,
@@ -68,16 +69,18 @@ import {
   getSkillTypeColor,
   getSkillTypeIcon,
 } from '#/utils/ai-helpers';
-import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 
 import {
-  getAudienceText,
+  getDistributionModeColor,
+  getDistributionModeText,
   getExecutionModeText,
+  getOwnerTypeColor,
+  getOwnerTypeText,
   getPackageSelectOptions,
-  getScopeColor,
   getStatusText,
 } from './data';
 import AccessConfigDrawer from './modules/AccessConfig.vue';
@@ -705,7 +708,6 @@ function openAccessConfig() {
   accessConfigApi.setData({
     id: agent.value.id,
     name: agent.value.name,
-    target_audience: agent.value.target_audience,
   });
   accessConfigApi.open();
 }
@@ -913,24 +915,23 @@ onBeforeUnmount(() => {
                     {{ getExecutionModeText(agent.execution_mode) }}
                   </div>
                   <Tag
-                    :color="getScopeColor(agent.scope)"
+                    :color="getDistributionModeColor(agent.distribution_mode)"
                     class="!mr-0 !text-xs"
                   >
                     <div class="flex items-center gap-1">
-                      <IconifyIcon
-                        :icon="getScopeIcon(agent.scope)"
-                        class="size-3"
-                      />
-                      {{ getScopeText(agent.scope) }}
+                      <IconifyIcon icon="lucide:share-2" class="size-3" />
+                      {{ getDistributionModeText(agent.distribution_mode) }}
                     </div>
                   </Tag>
-                  <div
-                    v-if="agent.target_audience"
-                    class="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/8 px-3 py-1 text-xs text-primary"
+                  <Tag
+                    :color="getOwnerTypeColor(agent.owner_type)"
+                    class="!mr-0 !text-xs"
                   >
-                    <IconifyIcon icon="lucide:users" class="size-3" />
-                    {{ getAudienceText(agent.target_audience) }}
-                  </div>
+                    <div class="flex items-center gap-1">
+                      <IconifyIcon icon="lucide:building-2" class="size-3" />
+                      {{ getOwnerTypeText(agent.owner_type) }}
+                    </div>
+                  </Tag>
                   <!-- Routing status chip (clickable) -->
                   <button
                     class="flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-all duration-200 hover:opacity-80"
@@ -1024,14 +1025,14 @@ onBeforeUnmount(() => {
                         class="size-3.5 text-muted-foreground"
                       />
                       <span class="text-xs text-muted-foreground">{{
-                        $t('admin.ai.agent.scopeLabel')
+                        $t('admin.ai.agent.distribution.label')
                       }}</span>
                     </div>
                     <Tag
-                      :color="getScopeColor(agent.scope)"
+                      :color="getDistributionModeColor(agent.distribution_mode)"
                       class="!mr-0 !text-xs"
                     >
-                      {{ getScopeText(agent.scope) }}
+                      {{ getDistributionModeText(agent.distribution_mode) }}
                     </Tag>
                   </div>
                 </div>
@@ -1786,6 +1787,15 @@ onBeforeUnmount(() => {
               <div class="p-5 pt-3">
                 <Spin :spinning="kbBindingsLoading">
                   <div class="flex flex-col gap-4">
+                    <Alert
+                      v-if="agent.owner_type === 'platform'"
+                      type="info"
+                      show-icon
+                      class="text-sm"
+                      :message="
+                        $t('admin.ai.agent.detail.knowledgeBasesGlobalHint')
+                      "
+                    />
                     <!-- Add binding row -->
                     <div
                       class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"

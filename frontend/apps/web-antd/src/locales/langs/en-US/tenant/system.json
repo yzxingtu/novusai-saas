@@ -180,13 +180,7 @@
     "offline": "Offline",
     "allUsers": "All Users",
     "allUsersDesc": "View all users in this tenant, regardless of role",
-    "allUsersListTitle": "User List",
-    "builtInRoles": {
-      "default_user": {
-        "name": "Default User",
-        "description": "System default role for end users; automatically assigned to newly registered users."
-      }
-    }
+    "allUsersListTitle": "User List"
   },
   "configs": {
     "title": "System Configs",

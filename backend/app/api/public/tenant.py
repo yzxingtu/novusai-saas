@@ -8,13 +8,21 @@ Provides pre-login accessible tenant public information endpoints
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.configs.service import ConfigService
+from app.utils.config_html_sanitize import (
+    sanitize_config_html,
+    tenant_legal_html_has_meaningful_body,
+)
 from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import public
-from app.schemas.public import DomainVerificationInfo, TenantPublicConfig
+from app.schemas.public import (
+    DomainVerificationInfo,
+    TenantLegalDocumentResponse,
+    TenantPublicConfig,
+)
 from app.schemas.public.platform import StoragePublicConfig
 
 router = APIRouter(prefix="/tenant", tags=["企业公开接口 / Tenant Public API"])
@@ -118,6 +126,11 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     footer_copyright = configs.get("tenant_footer_copyright") or platform_general_config.get("site_copyright") or ""
     login_bg = configs.get("tenant_login_bg") or ""
 
+    privacy_html = configs.get("user_privacy_policy_html") or ""
+    terms_html = configs.get("user_terms_html") or ""
+    privacy_policy_internal = tenant_legal_html_has_meaningful_body(privacy_html)
+    terms_internal = tenant_legal_html_has_meaningful_body(terms_html)
+
     return success(
         data=TenantPublicConfig(
             tenant_id=tenant.id,
@@ -148,10 +161,70 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             file_upload=configs.get("tenant_file_upload"),
             privacy_policy_url=configs.get("user_privacy_policy_url") or None,
             terms_url=configs.get("user_terms_url") or None,
+            privacy_policy_internal=privacy_policy_internal,
+            terms_internal=terms_internal,
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
             storage=storage_config_obj,
         ),
+        message=_("common.success"),
+    )
+
+
+@router.get("/legal/privacy", summary="获取隐私政策 HTML / Get privacy policy HTML")
+@public
+async def get_tenant_legal_privacy(request: Request, db: DbSession):
+    """用户端站内隐私政策正文，需已识别企业域名 / Privacy policy HTML for user site."""
+    tenant_ctx = get_tenant_context(request)
+    tenant = tenant_ctx.tenant if tenant_ctx and tenant_ctx.is_resolved else None
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("tenant.not_found"),
+        )
+    config_service = ConfigService(db)
+    feature_config = await config_service.get_tenant_configs_by_group(
+        tenant.id,
+        "tenant_features",
+    )
+    raw = feature_config.get("user_privacy_policy_html") or ""
+    html = str(raw).strip()
+    if not tenant_legal_html_has_meaningful_body(html):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("tenant.legal.not_found"),
+        )
+    return success(
+        data=TenantLegalDocumentResponse(html=sanitize_config_html(html)),
+        message=_("common.success"),
+    )
+
+
+@router.get("/legal/terms", summary="获取服务条款 HTML / Get terms of service HTML")
+@public
+async def get_tenant_legal_terms(request: Request, db: DbSession):
+    """用户端站内服务条款正文 / Terms of service HTML for user site."""
+    tenant_ctx = get_tenant_context(request)
+    tenant = tenant_ctx.tenant if tenant_ctx and tenant_ctx.is_resolved else None
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("tenant.not_found"),
+        )
+    config_service = ConfigService(db)
+    feature_config = await config_service.get_tenant_configs_by_group(
+        tenant.id,
+        "tenant_features",
+    )
+    raw = feature_config.get("user_terms_html") or ""
+    html = str(raw).strip()
+    if not tenant_legal_html_has_meaningful_body(html):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("tenant.legal.not_found"),
+        )
+    return success(
+        data=TenantLegalDocumentResponse(html=sanitize_config_html(html)),
         message=_("common.success"),
     )
 

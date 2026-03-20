@@ -104,6 +104,7 @@ class AdminAgentChatController(GlobalController):
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+                user_role_id=admin.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
@@ -148,6 +149,7 @@ class AdminAgentChatController(GlobalController):
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+                user_role_id=admin.role_id,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
@@ -186,9 +188,11 @@ class AdminAgentChatController(GlobalController):
                 tenant_id=PLATFORM_TENANT_ID,
                 message=data.message,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+                user_role_id=admin.role_id,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=admin.id,
+                has_image_attachments=data.has_image_attachments,
             )
 
         # ========================================

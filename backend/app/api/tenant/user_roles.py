@@ -28,17 +28,23 @@ from app.schemas.tenant.user_role import (
     TenantUserRolePermissionsRequest,
     TenantUserRoleUpdateRequest,
 )
+from app.services.tenant.tenant_user_role_display import (
+    localized_tenant_user_role_name_and_description,
+)
 from app.services.tenant.tenant_user_role_service import TenantUserRoleService
 
 
 def _serialize_role(role) -> dict:
     """序列化角色信息 / Serialize role info"""
+    disp_name, disp_desc = localized_tenant_user_role_name_and_description(
+        role.code, role.name, role.description,
+    )
     return {
         "id": role.id,
         "tenant_id": role.tenant_id,
-        "name": role.name,
+        "name": disp_name,
         "code": role.code,
-        "description": role.description,
+        "description": disp_desc,
         "is_system": role.is_system,
         "is_active": role.is_active,
         "sort_order": role.sort_order,
