@@ -11,6 +11,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.core.logging import LogManager
 from app.services.common.channels.base import NotificationChannel
 
@@ -39,7 +41,7 @@ class EmailChannel(NotificationChannel):
                 row = (
                     session.query(SystemConfigValue.value)
                     .join(SystemConfig, SystemConfigValue.config_id == SystemConfig.id)
-                    .filter(SystemConfig.key == "email_enabled", SystemConfigValue.tenant_id == 0)
+                    .filter(SystemConfig.key == "email_enabled", SystemConfigValue.tenant_id == PLATFORM_TENANT_ID)
                     .first()
                 )
                 if not row:

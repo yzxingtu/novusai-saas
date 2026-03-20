@@ -36,6 +36,7 @@ import {
   getAdminActionLogDetailApi,
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
+import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
@@ -44,6 +45,7 @@ import {
   getLevelText,
   getStatusColor,
   getStatusText,
+  getTenantDisplay,
   getTypeColor,
   getTypeText,
   useColumns,
@@ -283,6 +285,20 @@ onUnmounted(() => {
           </Tag>
         </template>
 
+        <template #tenantInfo_cell="{ row }">
+          <div class="flex min-w-0 flex-col">
+            <span class="truncate font-medium">
+              {{ getTenantDisplay(row) }}
+            </span>
+            <span
+              v-if="row.tenant_id !== PLATFORM_TENANT_ID && row.tenant_code"
+              class="text-xs text-muted-foreground"
+            >
+              {{ row.tenant_code }}
+            </span>
+          </div>
+        </template>
+
         <template #duration_cell="{ row }">
           <span v-if="row.duration_ms" class="text-muted-foreground">
             {{ row.duration_ms }}ms
@@ -363,10 +379,10 @@ onUnmounted(() => {
                 </div>
                 <div class="rounded-lg border border-dashed border-border bg-background p-3">
                   <div class="text-xs text-muted-foreground">
-                    {{ $t('admin.ai.actionLog.tenantId') }}
+                    {{ $t('admin.ai.actionLog.tenantInfo') }}
                   </div>
                   <div class="mt-2 text-sm font-semibold">
-                    {{ detailData.tenant_id }}
+                    {{ getTenantDisplay(detailData) }}
                   </div>
                 </div>
                 <div class="rounded-lg border border-dashed border-border bg-background p-3">
@@ -412,8 +428,8 @@ onUnmounted(() => {
                         {{ getStatusText(detailData.status) }}
                       </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.tenantId')">
-                      {{ detailData.tenant_id }}
+                    <Descriptions.Item :label="$t('admin.ai.actionLog.tenantInfo')">
+                      {{ getTenantDisplay(detailData) }}
                     </Descriptions.Item>
                     <Descriptions.Item :label="$t('admin.ai.actionLog.operatorId')">
                       {{ detailData.operator_id ?? '-' }}

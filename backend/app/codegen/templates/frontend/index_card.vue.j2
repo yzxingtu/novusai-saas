@@ -3,20 +3,6 @@
  * {{ display_name }} 列表页 (Card 模式)
  * {{ display_name_en }} List Page (Card mode)
  */
-import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
-import {
-  get{{ resource | pascal }}ListApi,
-} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
-import { useCrudList } from '#/composables';
-import { Input, Pagination } from 'ant-design-vue';
-import { Page } from '@vben/common-ui';
-import { MoreOutlined } from '@ant-design/icons-vue';
-import { Dropdown, Card, Menu, Button } from 'ant-design-vue';
-import { $t } from '#/locales';
-
-import { getFormDefaults, useFormSchema } from './data';
-import Form from './modules/form.vue';
-
 {% set _ep = admin_ep if api_scope | default('admin') == 'admin' else tenant_ep %}
 {% set _fe = _ep.get('frontend') or {} %}
 {% set route_prefix = _ep.get('route_prefix') | default('/' + resource_plural) %}
@@ -31,8 +17,39 @@ import Form from './modules/form.vue';
 {% set _page_size = _fe.get('page_size') or 12 %}
 {% set _default_sort = _fe.get('default_sort') or '-created_at' %}
 {% set _scope_cap = (api_scope | default('admin') | capitalize) %}
+import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _recycle_bin %}
+import { computed, ref } from 'vue';
+{% endif %}
+import {
+  get{{ resource | pascal }}ListApi,
+} from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
+{% if _recycle_bin %}
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
+{% endif %}
+import { useCrudList } from '#/composables';
+import { {% if _recycle_bin %}Badge, Tooltip, {% endif %}Input, Pagination } from 'ant-design-vue';
+import { Page } from '@vben/common-ui';
+import { MoreOutlined } from '@ant-design/icons-vue';
+import { Dropdown, Card, Menu, Button } from 'ant-design-vue';
+import { $t } from '#/locales';
+
+import { getFormDefaults, useFormSchema } from './data';
+import Form from './modules/form.vue';
 
 defineOptions({ name: '{{ _scope_cap }}{{ resource | pascal }}CardList' });
+
+const createPermission = '{{ perm_resource }}:create';
+const updatePermission = createPermission.replace(/:\w+$/, ':update');
+const deletePermission = createPermission.replace(/:\w+$/, ':delete');
+{% if _recycle_bin %}
+const recycleBinPermission = createPermission.replace(/:\w+$/, ':recycle_bin');
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(null);
+const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
+{% endif %}
 
 const {
   FormDrawer,
@@ -52,12 +69,12 @@ const {
     list: get{{ resource | pascal }}ListApi,
     resource: '{{ full_path }}',
   },
-  createPermission: '{{ perm_resource }}:create',
+  createPermission,
   defaultSort: '{{ _default_sort }}',
   formComponent: Form,
   formDefaults: getFormDefaults,
   i18nPrefix: '{{ i18n_pre }}',
-  nameField: '{{ name_field }}',
+  nameField: '{{ name_field | camel }}',
   pageSize: {{ _page_size }},
   recycleBin: {{ _recycle_bin | lower }},
   ai: { pageKey: '{{ i18n_pre }}', formSchema: useFormSchema },
@@ -67,14 +84,27 @@ const {
 <template>
   <Page>
     <div class="mb-4 flex items-center justify-between">
-      <Input.Search
-        v-model:value="searchKeyword"
-        allow-clear
-        :placeholder="$t('{{ i18n_pre }}.placeholder.search')"
-        class="max-w-md"
-        @search="(val) => onSearch(val ? { 'filter[{{ search_field }}][ilike]': val } : {})"
-      />
-      <Button type="primary" @click="onCreate">
+      <div class="flex items-center gap-3">
+        <Input.Search
+          v-model:value="searchKeyword"
+          allow-clear
+          :placeholder="$t('{{ i18n_pre }}.placeholder.search')"
+          class="max-w-md"
+          @search="(val) => onSearch(val ? { 'filter[{{ search_field }}][ilike]': val } : {})"
+        />
+        {% if _recycle_bin %}
+        <span v-access:code="[recycleBinPermission]">
+          <Tooltip :title="$t('common.recycleBin.title')">
+            <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+              <Button @click="openRecycleBin">
+                {{ "{{ $t('common.recycleBin.title') }}" }}
+              </Button>
+            </Badge>
+          </Tooltip>
+        </span>
+        {% endif %}
+      </div>
+      <Button v-access:code="[createPermission]" type="primary" @click="onCreate">
         {{ "{{ $t('shared.common.create') }}" }}
       </Button>
     </div>
@@ -86,8 +116,8 @@ const {
             <MoreOutlined class="cursor-pointer" />
             <template #overlay>
               <Menu @click="({ key }) => handleMenuAction(key, item)">
-                <Menu.Item key="edit">{{ "{{ $t('shared.common.edit') }}" }}</Menu.Item>
-                <Menu.Item key="delete" danger>{{ "{{ $t('shared.common.delete') }}" }}</Menu.Item>
+                <Menu.Item key="edit" v-access:code="[updatePermission]">{{ "{{ $t('shared.common.edit') }}" }}</Menu.Item>
+                <Menu.Item key="delete" danger v-access:code="[deletePermission]">{{ "{{ $t('shared.common.delete') }}" }}</Menu.Item>
               </Menu>
             </template>
           </Dropdown>
@@ -109,5 +139,12 @@ const {
       @change="onPageChange"
     />
     <FormDrawer @success="loadList" />
+    {% if _recycle_bin %}
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="{{ full_path }}"
+      @restored="loadList"
+    />
+    {% endif %}
   </Page>
 </template>

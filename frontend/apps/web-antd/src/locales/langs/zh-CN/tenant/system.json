@@ -314,6 +314,7 @@
     "detail": "日志详情",
     "username": "操作用户",
     "userType": "用户类型",
+    "traceId": "追踪 ID",
     "module": "模块",
     "action": "操作类型",
     "method": "请求方法",
@@ -335,6 +336,7 @@
     },
     "placeholder": {
       "searchUsername": "搜索操作用户",
+      "searchTraceId": "搜索追踪 ID",
       "searchModule": "搜索模块",
       "searchAction": "搜索操作类型",
       "searchIp": "搜索IP地址",

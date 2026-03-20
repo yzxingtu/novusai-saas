@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
@@ -148,7 +149,16 @@ class AgentRouterService:
         # P3.5: 调用 Router 智能体（TASK 模式）
         try:
             route_result = await self._call_router(
-                router_agent, candidates, message, page_context
+                router_agent,
+                candidates,
+                message,
+                page_context,
+                execution_tenant_id=(
+                    PLATFORM_TENANT_ID
+                    if user_role == UserRoleEnum.PLATFORM_ADMIN.value
+                    else tenant_id
+                ),
+                execution_user_role=user_role,
             )
         except Exception as exc:
             logger.error("Router call failed: {}", exc, exc_info=True)
@@ -299,6 +309,9 @@ class AgentRouterService:
         candidates: list[Agent],
         message: str,
         page_context: dict[str, Any] | None,
+        *,
+        execution_tenant_id: int | None,
+        execution_user_role: str,
     ) -> dict[str, Any] | None:
         """
         TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
@@ -351,10 +364,11 @@ class AgentRouterService:
 
         request = ExecutionRequest(
             agent_id=router_agent.id,
-            tenant_id=router_agent.tenant_id or 0,
+            tenant_id=execution_tenant_id or PLATFORM_TENANT_ID,
             messages=[ChatMessage(role="user", content=routing_prompt)],
             execution_mode=AgentExecutionModeEnum.TASK.value,
             stream=False,
+            user_role=execution_user_role,
         )
 
         dispatcher = ExecutionDispatcher(self.db)

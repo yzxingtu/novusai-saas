@@ -296,6 +296,7 @@ class ConversationEngine(BaseEngine):
             provider_type=provider.type,
             api_key=api_key.decrypt_key(),
             base_url=provider.base_url,
+            provider_config=provider.config,
         )
         openai_tools = to_openai_tools(tools) if tools else None
 

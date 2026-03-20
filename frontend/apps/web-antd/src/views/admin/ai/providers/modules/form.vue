@@ -6,12 +6,18 @@ import type { AIProviderInfo } from '#/api/admin/ai';
 
 import { computed } from 'vue';
 
+import { message } from 'ant-design-vue';
+
 import { useVbenForm } from '#/adapter/form';
 import { getAIProviderDetailApi } from '#/api/admin/ai';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { getFormDefaults, useFormSchema } from '../data';
+import {
+  getFormDefaults,
+  normalizeProviderBaseUrl,
+  useFormSchema,
+} from '../data';
 
 defineOptions({ name: 'AIProviderForm' });
 
@@ -27,10 +33,23 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
   schema: (edit) => useFormSchema(edit),
   defaults: getFormDefaults,
   transform: (values, edit) => {
+    const { normalizedBaseUrl, wasEndpointNormalized } =
+      normalizeProviderBaseUrl(
+        typeof values.base_url === 'string' ? values.base_url : null,
+        typeof values.type === 'string' ? values.type : null,
+      );
+    if (wasEndpointNormalized && normalizedBaseUrl) {
+      message.warning(
+        $t('admin.ai.provider.messages.baseUrlAutoNormalized', {
+          baseUrl: normalizedBaseUrl,
+        }),
+      );
+    }
+
     const result: Record<string, unknown> = {
       name: values.name,
       type: values.type,
-      base_url: values.base_url || null,
+      base_url: normalizedBaseUrl,
       description: values.description || null,
       icon: values.icon || null,
       sort_order: values.sort_order ?? 0,

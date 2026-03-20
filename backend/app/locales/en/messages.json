@@ -51,7 +51,7 @@
       "rolled_back": "Rolled Back"
     },
     "rollback": {
-      "no_manifest_entry": "No manifest entry found for the given resource or config_id"
+      "no_manifest_entry": "No matching entry in codegen_manifest.json for this config. The DB status may not match this workspace. Typical causes: manifest never written, server run from another cwd, or manifest removed/out of sync. Re-run Generate from the monorepo root to refresh the manifest, then retry rollback; to fix DB-only state, adjust the database or ask an admin."
     },
     "db": {
       "table_not_found": "Table not found: {name}"
@@ -677,6 +677,7 @@
       "embedding_provider_not_found": "Embedding model provider not found",
       "model_code_exists": "Model code already exists",
       "provider_code_exists": "Provider code already exists",
+      "provider_base_url_invalid": "Provider API URL is invalid. Please use a full URL starting with http:// or https://",
       "api_key_not_found": "API Key not found",
       "fetch_remote_models_failed": "Failed to fetch models from provider",
       "quota_exceeded_default": "AI quota exceeded, please try again later"

@@ -60,8 +60,11 @@
       "noResults": "No matching icons found",
       "searchTip": "Type keywords to search icons"
     },
+    "validation": {
+      "baseUrlInvalid": "Enter a valid API URL starting with http:// or https://"
+    },
     "help": {
-      "baseUrl": "The provider's API endpoint URL, e.g. https://api.openai.com/v1. Different providers have different URLs; self-hosted services need the actual address",
+      "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; if a full endpoint is pasted, it is auto-corrected on save",
       "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
     },
@@ -74,7 +77,8 @@
       "toggleSuccess": "Provider status updated",
       "confirmEnable": "Are you sure to enable this provider?",
       "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail.",
-      "deleteSuccess": "Provider deleted successfully"
+      "deleteSuccess": "Provider deleted successfully",
+      "baseUrlAutoNormalized": "API URL auto-corrected to base URL: {baseUrl}"
     }
   },
   "model": {
@@ -612,6 +616,8 @@
     "actionLevel": "Safety Level",
     "status": "Status",
     "tenantId": "Tenant ID",
+    "tenantInfo": "Tenant",
+    "platformTenant": "Admin Console",
     "agentName": "Agent",
     "operatorId": "Operator",
     "executionTime": "Duration",

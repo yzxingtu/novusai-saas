@@ -12,6 +12,8 @@ import { requestClient } from '#/utils/request';
 export interface AdminActionLogItem {
   id: number;
   tenant_id: number;
+  tenant_code: null | string;
+  tenant_name: null | string;
   action_name: string;
   action_type: string;
   action_level: string;

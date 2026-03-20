@@ -16,7 +16,7 @@ export interface ActionLogItem {
   status: string;
   agent_id: null | number;
   agent_name: null | string;
-  execution_time_ms: null | number;
+  duration_ms: null | number;
   error_message: null | string;
   created_at: string;
 }

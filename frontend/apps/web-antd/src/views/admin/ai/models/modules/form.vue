@@ -59,6 +59,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       tpm_limit: values.tpm_limit || null,
       supports_function_calling: values.supports_function_calling ?? false,
       supports_vision: values.supports_vision ?? false,
+      supports_audio: values.supports_audio ?? false,
+      supports_video: values.supports_video ?? false,
       supports_streaming: values.supports_streaming ?? true,
       max_image_count: values.supports_vision
         ? values.max_image_count || 5
@@ -85,6 +87,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       tpm_limit: data.tpm_limit,
       supports_function_calling: data.supports_function_calling,
       supports_vision: data.supports_vision,
+      supports_audio: data.supports_audio,
+      supports_video: data.supports_video,
       supports_streaming: data.supports_streaming,
       max_image_count: data.max_image_count ?? 5,
       max_image_size_mb: data.max_image_size_mb ?? 10,
@@ -185,6 +189,8 @@ function onRemoteModelSelect(modelId: unknown) {
     if (caps.model_type) values.type = caps.model_type;
     if (caps.supports_vision != null)
       values.supports_vision = caps.supports_vision;
+    if (caps.supports_audio != null) values.supports_audio = caps.supports_audio;
+    if (caps.supports_video != null) values.supports_video = caps.supports_video;
     if (caps.supports_function_calling != null)
       values.supports_function_calling = caps.supports_function_calling;
     if (caps.supports_streaming != null)
@@ -196,6 +202,8 @@ function onRemoteModelSelect(modelId: unknown) {
       values.input_price_per_1k = caps.input_price_per_1k;
     if (caps.output_price_per_1k != null)
       values.output_price_per_1k = caps.output_price_per_1k;
+    if (caps.rpm_limit != null) values.rpm_limit = caps.rpm_limit;
+    if (caps.tpm_limit != null) values.tpm_limit = caps.tpm_limit;
   }
 
   formApi.setValues(values);

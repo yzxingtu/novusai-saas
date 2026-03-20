@@ -382,7 +382,7 @@ class AIGateway:
             With exponential backoff retry, API Key rotation, and failover.
             带指数退避重试、API Key 轮换和故障转移。
             """
-            nonlocal api_key, provider, ai_model
+            nonlocal api_key, provider, ai_model, model
             current_key = api_key
 
             try:
@@ -393,6 +393,7 @@ class AIGateway:
                             provider_type=provider.type,
                             api_key=current_key.decrypt_key(),
                             base_url=provider.base_url,
+                            provider_config=provider.config,
                         )
 
                         # Call adapter streaming interface / 调用适配器流式接口
@@ -499,6 +500,7 @@ class AIGateway:
                         provider_type=fb_provider.type,
                         api_key=fb_api_key.decrypt_key(),
                         base_url=fb_provider.base_url,
+                        provider_config=fb_provider.config,
                     )
 
                     async for chunk in fb_adapter.stream_chat(
@@ -516,6 +518,7 @@ class AIGateway:
                     api_key = fb_api_key
                     provider = fb_provider
                     ai_model = fallback_model
+                    model = fallback_model.code
                     logger.info(
                         "Fallback succeeded: fallback_model={}",
                         fallback_model.code,
@@ -891,11 +894,22 @@ class AIGateway:
         start_time = time.time()
 
         try:
+            logger.info(
+                "AI model test config: provider={} provider_id={} model={} base_url={} wire_api={} api_key_id={} stream={}",
+                provider.code,
+                provider.id,
+                model_code,
+                provider.base_url or "",
+                (provider.config or {}).get("wire_api", "chat_completions") if isinstance(provider.config, dict) else "chat_completions",
+                api_key.id,
+                stream,
+            )
             # Create adapter / 创建适配器
             adapter = AdapterRegistry.create_adapter(
                 provider_type=provider.type,
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
+                provider_config=provider.config,
             )
 
             if is_embedding:

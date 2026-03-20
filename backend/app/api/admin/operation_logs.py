@@ -72,6 +72,7 @@ class AdminOperationLogController(GlobalController):
             - 普通管理员：只能查看自己及其角色子树下用户的日志 / Regular admin: own logs and role subtree users' logs only
 
             支持 JSON:API 风格筛选参数 / Supports JSON:API style filter params:
+            - filter[trace_id]=xxx 按追踪 ID 精确筛选 / Exact filter by trace ID
             - filter[username][ilike]=xxx 用户名模糊搜索 / Username fuzzy search
             - filter[module]=auth 按模块筛选 / Filter by module
             - filter[action]=login 按操作类型筛选 / Filter by action type

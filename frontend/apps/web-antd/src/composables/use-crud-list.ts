@@ -60,6 +60,11 @@ import type { PageOperation } from '#/components/business/ai-slide-panel/page-op
 import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import { $t } from '#/locales';
+import {
+  getErrorData,
+  getErrorMessage,
+  getErrorStatus,
+} from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 import type { FormPopupApi } from './use-ai-operations';
 import { createStandardOperations, extractFormParams } from './use-ai-operations';
@@ -906,12 +911,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         );
         preview = (res?.data ?? res) as DeletePreviewResult;
       } catch (err: unknown) {
-        const status = (
-          (err as Record<string, unknown>)?.response as
-            | Record<string, unknown>
-            | undefined
-        )?.status as number | undefined;
-        if (status !== undefined && status !== 404) {
+        const status = getErrorStatus(err);
+        if (status !== 404) {
+          message.error(getErrorMessage(err, 'common.deleteFailed'));
           return;
         }
       }
@@ -930,28 +932,28 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         }
       }
 
-      await (api.delete
-        ? api.delete(rowId as number)
-        : requestClient.delete(`${api.resource}/${rowId}`, {
-            loading: true,
-            showCodeMessage: false,
-            showSuccessMessage: true,
-            successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
-          }));
+      if (api.delete) {
+        await api.delete(rowId as number);
+        message.success($t(`${i18nPrefix}.messages.deleteSuccess`));
+      } else {
+        await requestClient.delete(`${api.resource}/${rowId}`, {
+          loading: true,
+          showCodeMessage: false,
+          showSuccessMessage: true,
+          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+        });
+      }
       await loadList();
     } catch (error: unknown) {
-      const resp = (error as Record<string, unknown>)?.response as
-        | Record<string, unknown>
-        | undefined;
-      const data = resp?.data as Record<string, unknown> | undefined;
+      const data = getErrorData(error);
       if (data?.code === DEPENDENCY_BLOCKED_CODE && data?.dependencies) {
         const displayName = String(row[nameField] || rowId);
         showDependencyBlock(
           data.dependencies as DependencyGroup[],
           displayName,
         );
-      } else if (data?.message) {
-        message.error(String(data.message));
+      } else {
+        message.error(getErrorMessage(error, 'common.deleteFailed'));
       }
     } finally {
       setProcessing(rowId, false);

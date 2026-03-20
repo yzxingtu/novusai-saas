@@ -11,12 +11,15 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
 from app.models.ai.action_log import AIActionLog
+from app.models.tenant.tenant import Tenant
 from app.repositories.ai.action_log_repository import (
     AIActionLogRepository,
     AdminAIActionLogRepository,
@@ -173,6 +176,57 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
 
     model = AIActionLog
     repository_class = AdminAIActionLogRepository
+
+    async def _load_tenant_meta_map(
+        self,
+        tenant_ids: set[int],
+    ) -> dict[int, dict[str, str | None]]:
+        positive_tenant_ids = {
+            tenant_id
+            for tenant_id in tenant_ids
+            if tenant_id > PLATFORM_TENANT_ID
+        }
+        tenant_meta_map: dict[int, dict[str, str | None]] = {
+            PLATFORM_TENANT_ID: {
+                'tenant_name': None,
+                'tenant_code': 'platform_admin',
+            },
+        }
+
+        if not positive_tenant_ids:
+            return tenant_meta_map
+
+        stmt = select(Tenant.id, Tenant.name, Tenant.code).where(
+            Tenant.id.in_(positive_tenant_ids),
+            Tenant.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        for row in result.all():
+            tenant_meta_map[row.id] = {
+                'tenant_name': row.name,
+                'tenant_code': row.code,
+            }
+        return tenant_meta_map
+
+    async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
+        item = log.to_dict()
+        tenant_id = item.get('tenant_id', PLATFORM_TENANT_ID) or PLATFORM_TENANT_ID
+        tenant_meta_map = await self._load_tenant_meta_map({tenant_id})
+        item.update(tenant_meta_map.get(tenant_id, {}))
+        return item
+
+    async def serialize_logs(self, logs: list[AIActionLog]) -> list[dict[str, Any]]:
+        tenant_meta_map = await self._load_tenant_meta_map(
+            {log.tenant_id or PLATFORM_TENANT_ID for log in logs},
+        )
+        items: list[dict[str, Any]] = []
+        for log in logs:
+            item = log.to_dict()
+            item.update(
+                tenant_meta_map.get(log.tenant_id or PLATFORM_TENANT_ID, {}),
+            )
+            items.append(item)
+        return items
 
     async def get_stats(self) -> dict:
         return await self.repo.get_stats()

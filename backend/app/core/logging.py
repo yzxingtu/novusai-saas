@@ -249,7 +249,14 @@ class LogManager:
         if cache_key in cls._loggers:
             return cls._loggers[cache_key]
 
-        bound = logger.bind(module=name)
+        category_values = {cat.value for cat in LogCategoryEnum}
+        # Preserve the documented API: known log categories should route to
+        # their dedicated files, while arbitrary names remain module loggers.
+        # 保持文档约定：已知日志分类写入专属文件，其余名称仍作为模块日志器使用。
+        if name in category_values:
+            bound = logger.bind(category=name)
+        else:
+            bound = logger.bind(module=name)
         cls._loggers[cache_key] = bound
         return bound
 

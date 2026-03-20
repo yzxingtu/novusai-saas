@@ -36,6 +36,7 @@ class OperationLogResponse(BaseSchema):
     """操作日志响应 / Operation log response."""
 
     id: int = Field(..., description="日志 ID")
+    trace_id: str | None = Field(None, description="追踪 ID")
     tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
@@ -63,6 +64,7 @@ class OperationLogResponse(BaseSchema):
         """从模型创建响应 / Build response from model."""
         return cls(
             id=log.id,
+            trace_id=log.trace_id,
             tenant_id=log.tenant_id,
             user_type=log.user_type,
             user_id=log.user_id,
@@ -91,6 +93,7 @@ class OperationLogListResponse(BaseSchema):
     """操作日志列表项响应（简化版） / Operation log list item response (simplified)."""
 
     id: int = Field(..., description="日志 ID")
+    trace_id: str | None = Field(None, description="追踪 ID")
     tenant_id: int | None = Field(None, description="企业 ID")
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
@@ -114,6 +117,7 @@ class OperationLogListResponse(BaseSchema):
         """从模型创建列表响应 / Build list response from model."""
         return cls(
             id=log.id,
+            trace_id=log.trace_id,
             tenant_id=log.tenant_id,
             user_type=log.user_type,
             user_id=log.user_id,

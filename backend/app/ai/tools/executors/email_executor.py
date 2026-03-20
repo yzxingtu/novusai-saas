@@ -11,6 +11,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
@@ -123,7 +124,10 @@ class EmailToolExecutor(BaseToolExecutor):
             subject = f"{prefix} {subject}"
 
         try:
-            tenant_id = (context.tenant_id if context else None) or 0
+            tenant_id = (
+                (context.tenant_id if context else None)
+                or PLATFORM_TENANT_ID
+            )
 
             # Rate limiting (per tenant per hour) / 频控（按企业/小时）
             from app.ai.tools.security import EmailRateLimitError, EmailRateLimiter
@@ -144,7 +148,11 @@ class EmailToolExecutor(BaseToolExecutor):
                 html_body=body or None,
                 cc=cc_list if cc_list else None,
                 triggered_by="ai_tool",
-                tenant_id=tenant_id if tenant_id else None,
+                tenant_id=(
+                    tenant_id
+                    if tenant_id != PLATFORM_TENANT_ID
+                    else None
+                ),
             )
 
             duration_ms = int((time.perf_counter() - start) * 1000)

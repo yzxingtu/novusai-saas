@@ -33,6 +33,7 @@ from app.ai.gateway import AIGateway
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.database import async_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -101,7 +102,7 @@ class AgentChatService:
             NotFoundException: 智能体不存在
             BusinessException: 智能体未发布
         """
-        if self.tenant_id == 0:
+        if self.tenant_id == PLATFORM_TENANT_ID:
             from app.repositories.ai.agent_repository import AdminAgentRepository
             agent_repo = AdminAgentRepository(self.db)
         else:
@@ -156,7 +157,7 @@ class AgentChatService:
                     model_code = cfg_model
                 else:
                     # 降级：使用 Agent 自身绑定的模型 / Fallback: use Agent's bound model
-                    if self.tenant_id == 0:
+                    if self.tenant_id == PLATFORM_TENANT_ID:
                         from app.repositories.ai.agent_repository import AdminAgentRepository
                         agent_repo = AdminAgentRepository(llm_db)
                     else:
@@ -201,7 +202,11 @@ class AgentChatService:
                     model=model_code,
                     temperature=0.1,
                     max_tokens=500,
-                    tenant_id=self.tenant_id if self.tenant_id > 0 else None,
+                    tenant_id=(
+                        self.tenant_id
+                        if self.tenant_id > PLATFORM_TENANT_ID
+                        else None
+                    ),
                 )
 
                 content = (llm_response.message.content or "").strip()
@@ -386,7 +391,7 @@ class AgentChatService:
             return False
 
         try:
-            if self.tenant_id == 0:
+            if self.tenant_id == PLATFORM_TENANT_ID:
                 from app.services.ai.agent_service import AdminAgentService
 
                 config = await AdminAgentService(self.db).get_memory_config(agent_id)

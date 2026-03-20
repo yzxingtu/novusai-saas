@@ -25,7 +25,7 @@ from app.core.dependency_checker import (
 )
 from app.core.logging import LogManager
 from app.enums.common import DeleteLevelEnum
-from app.exceptions.base import DependencyBlockedException
+from app.exceptions.base import DependencyBlockedException, NotFoundException
 from app.schemas.common.query import FilterRule, QuerySpec
 from app.schemas.common.select import SelectResponse
 
@@ -212,6 +212,9 @@ class BaseService(Generic[ModelType, RepoType]):
 
         Returns:
             是否删除成功 / Whether deletion was successful
+
+        Raises:
+            NotFoundException: 记录不存在 / Record does not exist
         """
         # 删除前钩子（子类可覆盖，如 is_system 保护） / Pre-delete hook (overridable, e.g. is_system protection)
         await self._before_delete(id)
@@ -219,7 +222,7 @@ class BaseService(Generic[ModelType, RepoType]):
         if soft:
             instance = await self.repo.get_by_id(id)
             if instance is None:
-                return False
+                raise NotFoundException()
 
             # 声明式依赖检查（BLOCK 策略） / Declarative dependency check (BLOCK strategy)
             await self._check_deletion_deps(instance)
@@ -232,7 +235,7 @@ class BaseService(Generic[ModelType, RepoType]):
         else:
             result = await self.repo.delete(id, soft=False)
             if not result:
-                return False
+                raise NotFoundException()
 
         # 删除后钩子 / Post-delete hook
         await self._after_delete(id)

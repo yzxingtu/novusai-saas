@@ -173,6 +173,32 @@ class ManifestManager:
                 )
         return None
 
+    def find_entry_for_config(
+        self, resource: str | None, config_id: int
+    ) -> ManifestEntry | None:
+        """
+        按 resource 或 config_id 查找清单条目（与回滚 API 查找逻辑一致）.
+        Match rollback API lookup: by resource first, then by config_id.
+        """
+        entries = self.list_entries()
+        if resource:
+            for e in entries:
+                if e.resource == resource:
+                    return e
+        for e in entries:
+            if e.config_id == config_id:
+                return e
+        return None
+
+    def manifest_index(self) -> tuple[set[str], set[int]]:
+        """
+        单次读盘：有清单条目的 resource 集合、config_id 集合 / One load for batch lookups.
+        """
+        entries = self.list_entries()
+        resources = {e.resource for e in entries if e.resource}
+        cids = {e.config_id for e in entries if e.config_id is not None}
+        return resources, cids
+
     def remove_entry(self, resource: str) -> None:
         """移除条目 / Remove entry."""
         lock_path = Path(str(self.path) + ".lock")

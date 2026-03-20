@@ -46,6 +46,11 @@ import DependencyBlockModal from '#/components/business/dependency-block-modal/i
 import { createFormOperations } from '#/composables/use-ai-operations';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
+import {
+  getErrorData,
+  getErrorMessage,
+  getErrorStatus,
+} from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
@@ -215,12 +220,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         );
         preview = (res?.data ?? res) as Record<string, unknown>;
       } catch (err: unknown) {
-        const status = (
-          (err as Record<string, unknown>)?.response as
-            | Record<string, unknown>
-            | undefined
-        )?.status as number | undefined;
-        if (status !== undefined && status !== 404) {
+        const status = getErrorStatus(err);
+        if (status !== 404) {
+          message.error(getErrorMessage(err, 'common.deleteFailed'));
           return;
         }
       }
@@ -244,21 +246,23 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         }
       }
 
-      await requestClient.delete(`${api.resource}/${row.id}`, {
-        loading: true,
-        showCodeMessage: false,
-        showSuccessMessage: true,
-        successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
-      });
+      if (api.delete) {
+        await api.delete(row.id as number);
+        message.success($t(`${i18nPrefix}.messages.deleteSuccess`));
+      } else {
+        await requestClient.delete(`${api.resource}/${row.id}`, {
+          loading: true,
+          showCodeMessage: false,
+          showSuccessMessage: true,
+          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+        });
+      }
       onRefresh();
       if (recycleBinEnabled) {
         recycleBinRef.value?.refreshCount();
       }
     } catch (error: unknown) {
-      const resp = (error as Record<string, unknown>)?.response as
-        | Record<string, unknown>
-        | undefined;
-      const respData = resp?.data as Record<string, unknown> | undefined;
+      const respData = getErrorData(error);
       if (respData?.code === DEPENDENCY_BLOCKED_CODE && respData?.dependencies) {
         const displayName = String(row[nameField] || row.id);
         depBlockRef.value?.open(
@@ -267,8 +271,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           >[0],
           displayName,
         );
-      } else if (respData?.message) {
-        message.error(respData.message as string);
+      } else {
+        message.error(getErrorMessage(error, 'common.deleteFailed'));
       }
     } finally {
       setProcessing(row.id, false);

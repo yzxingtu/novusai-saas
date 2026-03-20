@@ -1,0 +1,36 @@
+# 测试与验证规则
+
+## 后端单元测试
+
+- 新增或重构 Service 后，优先补 `tests/services/test_{name}.py`
+- 测试不得依赖真实 DB、Redis、网络、第三方 API
+- 优先复用 `tests/services/conftest.py` 的共享 fixtures 和 mock 工厂
+- Service 实例化用 `__new__` 跳过 `__init__`，手动注入 `db` / `tenant_id` / `repo`
+- 每个 Service 测试文件至少覆盖正常流程、边界条件、异常分支
+- 一般要求不少于 6 个 case，核心服务建议 10 个以上
+
+## Mock 规范
+
+- 数据库查询结果统一用 `make_scalar_result()`、`make_scalars_result()`、`make_row_result()`
+- 外部依赖用 `patch()` / `patch.object()`
+- 所有 async Service 测试使用 `pytest.mark.asyncio`
+
+## 浏览器验证
+
+- 日常页面验证优先使用 `chrome-devtools`
+- 需要文件上传或复杂多标签页时再使用 `playwright`
+- 同一条测试流程不要混用两套浏览器 MCP
+- 页面状态变化后重新 snapshot，不要复用失效的 `uid` / `ref`
+- 先查 console / network，再判断前端逻辑是否失败
+
+## 验收最低要求
+
+- 新增表单：至少验证打开、填写、提交、错误提示
+- 新增列表：至少验证筛选、分页、权限按钮显示
+- 新增上传下载：至少验证上传成功、下载成功、权限或可见性正确
+- 新增插件页：至少验证菜单注册、页面加载、权限与卸载后回收
+
+## 参考
+
+- `../skills/novusai-saas/references/testing-spec.md`
+- `../skills/novusai-saas/references/browser-testing-spec.md`

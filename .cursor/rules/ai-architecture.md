@@ -1,7 +1,7 @@
 # AI 架构规则（强制）
 
 > 本规则适用于 NovusAI SaaS 项目中所有涉及 AI 功能的开发。违反任何一条均视为代码缺陷。
-> 详细 AI 模块开发规范见 `/SKILL` workflow → `references/ai-module.md`。
+> 详细 AI 模块开发规范见 [../skills/novusai-saas/references/ai-module.md](../skills/novusai-saas/references/ai-module.md)。
 
 ## 一、核心原则：Agent→Skill 全链路
 
@@ -69,6 +69,26 @@
 
 **禁止跳过步骤直接调用 AIGateway。**
 
+## 六-A、AI 写作规则
+
+- 富文本编辑器 AI 写作统一走 `/admin|/tenant/ai/writing/{feature}`
+- 后端必须通过 `writing_service.stream_writing_feature()` 解析 `system.ai_writing` 智能体分配
+- 前端必须复用 `useEditorAI()` + `requestClient.postSSE()`，不要在业务页面手写 SSE 解析器
+- 不要硬编码 Agent ID，不要在编辑器链路直接调用 `AIGateway`
+- 结构化富文本输出通过 `withFormat` + `format_instruction` 约定处理，禁止把 HTML/JSON 协议文本直接回显给用户
+
+## 六-B、会话记忆规则
+
+- 会话记忆只允许用于真实对话场景：`ai_chat_page` / `admin_chat`
+- `stream_chat_ephemeral()`、AI 写作、无对话持久化场景**禁止**启用会话记忆
+- 会话记忆最终开关必须经 `AgentChatService._resolve_effective_memory_enabled()` 解析，遵守平台默认 + 管理端 Agent 开关 + 企业覆盖三层逻辑
+- 会话记忆读写必须统一走 `SessionMemoryService`，禁止在 Controller/Service 手工拼 Redis key 自行写入
+- 会话记忆分类固定为 `preferences` / `constraints` / `task_states` / `verified_facts`，禁止私自增加第 5 类
+- 对话归档、删除、清空记忆必须统一经 `ConversationService` 清理；不要只依赖 TTL
+- 前端统一复用 `useAIChat()` 的 `fetchConversationMemory()` / `clearConversationMemory()` / `memory_updated` 标记，禁止单页另写一套接口协议
+
+→ 完整规范见 [../skills/novusai-saas/references/session-memory-spec.md](../skills/novusai-saas/references/session-memory-spec.md)
+
 ## 七、页面感知与操作规则
 
 - 三层架构：Layer 1（system prompt 注入）+ Layer 2（`get_page_context` 工具）+ Layer 3（`invoke_page_operation` WebSocket 执行）
@@ -86,4 +106,4 @@
 - ❌ 禁止绕过 `FileValidator` 直接写入存储
 - ❌ 禁止硬编码存储路径或上传 URL 前缀
 
-→ 完整上传存储规范见 `/SKILL` workflow → `references/upload-storage-spec.md`
+→ 完整上传存储规范见 [../skills/novusai-saas/references/upload-storage-spec.md](../skills/novusai-saas/references/upload-storage-spec.md)

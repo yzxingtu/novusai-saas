@@ -168,3 +168,67 @@ def test_generate_step_controller() -> None:
     paths = [f.path for f in files]
     api_files = [p for p in paths if "api" in p and p.endswith(".py")]
     assert len(api_files) >= 1
+
+
+def test_card_mode_template_includes_permissions_and_recycle_bin() -> None:
+    """card 模板生成的页面应包含回收站入口和编辑/删除权限控制."""
+    config = {
+        "module": "system",
+        "resource": "library",
+        "display_name": "知识库",
+        "display_name_en": "Knowledge Base",
+        "model": {"base_class": "BaseModel"},
+        "fields": [
+            {
+                "name": "name",
+                "type": "String(100)",
+                "required": True,
+                "filterable": True,
+                "comment": "名称",
+            },
+            {
+                "name": "description",
+                "type": "Text",
+                "nullable": True,
+                "comment": "描述",
+            },
+        ],
+        "endpoints": [
+            {
+                "scope": "admin",
+                "data_mode": "independent",
+                "route_prefix": "/libraries",
+                "frontend": {
+                    "mode": "card",
+                    "recycle_bin": True,
+                },
+                "permission": {
+                    "scope": "admin_only",
+                    "parent_resource": "system_config",
+                    "menu": {
+                        "icon": "lucide:book-open",
+                        "path": "/system/libraries",
+                        "component": "system/library/index",
+                        "parent": "system_mgmt",
+                        "sort_order": 40,
+                    },
+                },
+            }
+        ],
+    }
+
+    parser = ConfigParser()
+    parsed = parser.parse(config)
+    gen = CodeGenerator()
+
+    result = gen.generate(parsed, step="frontend")
+    index_file = next(
+        f
+        for f in result.files
+        if f.path.endswith("frontend/apps/web-antd/src/views/admin/system/library/index.vue")
+    )
+
+    assert "RecycleBinDrawer" in index_file.content
+    assert "recycleBinPermission" in index_file.content
+    assert 'v-access:code="[updatePermission]"' in index_file.content
+    assert 'v-access:code="[deletePermission]"' in index_file.content

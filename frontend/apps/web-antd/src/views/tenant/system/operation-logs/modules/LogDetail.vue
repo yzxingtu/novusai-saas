@@ -118,6 +118,11 @@ const statusCodeType = computed(() => {
             >
               {{ formatDate(detail.createdAt) }}
             </DescriptionsItem>
+            <DescriptionsItem :label="$t('tenant.system.operationLog.traceId')">
+              <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
+                {{ detail.traceId || '-' }}
+              </code>
+            </DescriptionsItem>
             <DescriptionsItem
               :label="$t('tenant.system.operationLog.path')"
               :span="2"

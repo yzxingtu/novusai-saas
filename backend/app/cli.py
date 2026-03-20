@@ -18,6 +18,7 @@ import platform
 import subprocess
 import sys
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import click
@@ -593,6 +594,33 @@ def _run_async(coro):
     return asyncio.run(coro)
 
 
+def _echo_json(data: dict) -> None:
+    import json
+
+    click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+@contextmanager
+def _suppress_logging(enabled: bool):
+    if not enabled:
+        yield
+        return
+
+    import logging
+
+    previous_disable = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logging.disable(previous_disable)
+
+
+def _run_quietly(enabled: bool, func, *args, **kwargs):
+    with _suppress_logging(enabled):
+        return func(*args, **kwargs)
+
+
 @cli.group("codegen", help="CRUD code generation / 代码生成器")
 def codegen_cmd() -> None:
     pass
@@ -649,7 +677,13 @@ def codegen_generate(
                     raise SystemExit("Config not found")
                 return cfg.config_json or {}
 
-        config_json = _run_async(_do())
+        try:
+            config_json = _run_quietly(output_json, _run_async, _do())
+        except SystemExit as e:
+            if output_json:
+                _echo_json({"success": False, "error": str(e)})
+                sys.exit(1)
+            raise
 
     # When template_type specified, merge preset as base (config overrides preset)
     if template_type and config_json:
@@ -722,18 +756,19 @@ def codegen_generate(
             return output
 
     try:
+        json_result: dict | None = None
         try:
-            output = _run_async(_do())
+            output = _run_quietly(output_json, _run_async, _do())
             result = output.result
             if output_json:
-                import json
-                click.echo(json.dumps({
+                json_result = {
                     "success": result.success,
                     "files_created": result.files_created,
                     "files_modified": result.files_modified,
                     "errors": result.errors,
-                }, ensure_ascii=False, indent=2))
+                }
                 if not result.success:
+                    _echo_json(json_result)
                     sys.exit(1)
             elif result.success:
                 click.echo("[{}] Generated successfully".format(_STATUS_OK))
@@ -769,9 +804,18 @@ def codegen_generate(
             from app.codegen.manifest import ManifestManager
 
             _resource = output.resource
-            mig_result = CodegenService.run_auto_migrate(_resource, _CODEGEN_PROJECT_ROOT)
+            mig_result = _run_quietly(
+                output_json,
+                CodegenService.run_auto_migrate,
+                _resource,
+                _CODEGEN_PROJECT_ROOT,
+            )
             if mig_result.get("success"):
-                click.echo("[auto-migrate] " + str(mig_result.get("message", "OK")))
+                if output_json:
+                    assert json_result is not None
+                    json_result["auto_migrate"] = mig_result
+                else:
+                    click.echo("[auto-migrate] " + str(mig_result.get("message", "OK")))
                 if _resource and mig_result.get("migration_path"):
                     manifest = ManifestManager(_CODEGEN_PROJECT_ROOT)
                     manifest.update_migration_file(_resource, mig_result["migration_path"])
@@ -786,9 +830,9 @@ def codegen_generate(
                                     "last_error": None,
                                 },
                             )
-                    _run_async(_mark_applied())
+                    _run_quietly(output_json, _run_async, _mark_applied())
             else:
-                err_msg = "[auto-migrate] Failed (phase={}): {}".format(
+                err_msg = "auto_migrate failed (phase={}): {}".format(
                     mig_result.get("phase", "unknown"),
                     mig_result.get("error", "unknown error"),
                 )
@@ -806,12 +850,24 @@ def codegen_generate(
                                     ),
                                 },
                             )
-                    _run_async(_mark_generate_failed())
-                click.echo(
-                    err_msg,
-                    err=True,
-                )
+                    _run_quietly(output_json, _run_async, _mark_generate_failed())
+                if output_json:
+                    assert json_result is not None
+                    json_result["success"] = False
+                    json_result["error"] = err_msg
+                    json_result["auto_migrate"] = mig_result
+                    _echo_json(json_result)
+                else:
+                    click.echo(
+                        "[auto-migrate] Failed (phase={}): {}".format(
+                            mig_result.get("phase", "unknown"),
+                            mig_result.get("error", "unknown error"),
+                        ),
+                        err=True,
+                    )
                 sys.exit(1)
+        if output_json and json_result is not None:
+            _echo_json(json_result)
     finally:
         _codegen_lock.release()
 
@@ -852,7 +908,13 @@ def codegen_preview(
                     raise SystemExit("Config not found")
                 return cfg.config_json or {}
 
-        config_json = _run_async(_do())
+        try:
+            config_json = _run_quietly(output_json, _run_async, _do())
+        except SystemExit as e:
+            if output_json:
+                _echo_json({"success": False, "error": str(e)})
+                sys.exit(1)
+            raise
 
     if not config_json:
         _err_msg = "Provide --config, --id, or --resource"
@@ -1084,7 +1146,7 @@ def codegen_versions(config_id: int, limit: int, output_json: bool) -> None:
             svc = CodegenService(db)
             return await svc.list_versions(config_id, limit=limit)
 
-    items = _run_async(_do())
+    items = _run_quietly(output_json, _run_async, _do())
 
     if output_json:
         import json
@@ -1111,7 +1173,7 @@ def codegen_restore(config_id: int, version_id: int, output_json: bool) -> None:
             return await svc.restore_version(config_id, version_id)
 
     try:
-        obj = _run_async(_do())
+        obj = _run_quietly(output_json, _run_async, _do())
         if not obj:
             if output_json:
                 import json
@@ -1162,7 +1224,7 @@ def codegen_list(status: str | None, output_json: bool) -> None:
                 "last_generated_at": c.last_generated_at.isoformat() if c.last_generated_at else None,
             } for c in items]
 
-    items = _run_async(_do())
+    items = _run_quietly(output_json, _run_async, _do())
 
     if output_json:
         import json
@@ -1190,14 +1252,16 @@ def codegen_show(config_id: int, output_json: bool) -> None:
                 return None
             return {"id": cfg.id, "name": cfg.name, "resource": cfg.resource, "config_json": cfg.config_json}
 
-    data = _run_async(_do())
+    data = _run_quietly(output_json, _run_async, _do())
     if not data:
-        click.echo("Config not found", err=True)
+        if output_json:
+            _echo_json({"success": False, "error": "Config not found"})
+        else:
+            click.echo("Config not found", err=True)
         sys.exit(1)
 
     if output_json:
-        import json
-        click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+        _echo_json(data)
     else:
         click.echo("ID: {}".format(data["id"]))
         click.echo("Name: {}".format(data["name"]))
@@ -1234,7 +1298,7 @@ def codegen_import_cmd(config_path: str, output_json: bool) -> None:
             })
             return cfg.id
 
-    cid = _run_async(_do())
+    cid = _run_quietly(output_json, _run_async, _do())
     if output_json:
         import json
         click.echo(json.dumps({"id": cid}, ensure_ascii=False))
@@ -1294,6 +1358,7 @@ def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> Non
     os.chdir(_BACKEND_DIR)
 
     from app.core.database import get_db_context
+    from app.exceptions import AppException
     from app.services.system.codegen_service import CodegenService
 
     async def _do():
@@ -1301,7 +1366,18 @@ def codegen_delete(config_id: int, skip_confirm: bool, output_json: bool) -> Non
             svc = CodegenService(db)
             await svc.delete(config_id)
 
-    _run_async(_do())
+    try:
+        _run_quietly(output_json, _run_async, _do())
+    except AppException as e:
+        if output_json:
+            import json
+
+            click.echo(
+                json.dumps({"success": False, "error": e.message}, ensure_ascii=False)
+            )
+        else:
+            click.echo("Error: {}".format(e.message), err=True)
+        sys.exit(1)
     if output_json:
         import json
         click.echo(json.dumps({"success": True, "deleted_id": config_id}, ensure_ascii=False))
@@ -1317,6 +1393,7 @@ def codegen_duplicate(config_id: int, output_json: bool) -> None:
     os.chdir(_BACKEND_DIR)
 
     from app.core.database import get_db_context
+    from app.exceptions import AppException
     from app.services.system.codegen_service import CodegenService
 
     async def _do():
@@ -1325,7 +1402,18 @@ def codegen_duplicate(config_id: int, output_json: bool) -> None:
             cfg = await svc.duplicate(config_id)
             return cfg.id
 
-    new_id = _run_async(_do())
+    try:
+        new_id = _run_quietly(output_json, _run_async, _do())
+    except AppException as e:
+        if output_json:
+            import json
+
+            click.echo(
+                json.dumps({"success": False, "error": e.message}, ensure_ascii=False)
+            )
+        else:
+            click.echo("Error: {}".format(e.message), err=True)
+        sys.exit(1)
     if output_json:
         import json
         click.echo(json.dumps({"id": new_id}, ensure_ascii=False))
@@ -1350,7 +1438,7 @@ def codegen_db_tables(output_json: bool) -> None:
     from app.services.system.codegen_service import CodegenService
 
     svc = CodegenService.create_standalone()
-    items = svc.introspect_tables()
+    items = _run_quietly(output_json, svc.introspect_tables)
 
     if output_json:
         import json
@@ -1370,7 +1458,7 @@ def codegen_db_columns(table: str, output_json: bool) -> None:
     from app.services.system.codegen_service import CodegenService
 
     svc = CodegenService.create_standalone()
-    items = svc.introspect_columns(table)
+    items = _run_quietly(output_json, svc.introspect_columns, table)
 
     if output_json:
         import json

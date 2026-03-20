@@ -13,6 +13,7 @@ from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.system_agent import SystemAgentService
 from app.ai.utils import parse_messages, parse_provider_and_model
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
@@ -84,7 +85,7 @@ class AdminAIGatewayController(GlobalController):
                     top_p=body.top_p,
                     stream=False,
                     tools=tools,
-                    tenant_id=None,
+                    tenant_id=PLATFORM_TENANT_ID,
                 )
                 return success(data=response.__dict__)
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -122,7 +123,7 @@ class AdminAIGatewayController(GlobalController):
                     max_tokens=body.max_tokens,
                     top_p=body.top_p,
                     tools=tools,
-                    tenant_id=None,
+                    tenant_id=PLATFORM_TENANT_ID,
                 )
                 return response
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -151,7 +152,7 @@ class AdminAIGatewayController(GlobalController):
                     provider_code=provider_code,
                     texts=body.texts,
                     model=model,
-                    tenant_id=None,
+                    tenant_id=PLATFORM_TENANT_ID,
                 )
                 return success(data=response.__dict__)
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):

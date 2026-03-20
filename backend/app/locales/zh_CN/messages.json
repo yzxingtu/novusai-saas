@@ -51,7 +51,7 @@
       "rolled_back": "已回滚"
     },
     "rollback": {
-      "no_manifest_entry": "未找到对应的 manifest 条目"
+      "no_manifest_entry": "未找到生成清单 codegen_manifest.json 中与此配置对应的条目。数据库状态可能与当前工作区不一致。常见原因：清单未生成、在其它目录运行进程、清单被删除或未与仓库同步。请在本 monorepo 根目录重新执行「生成」以写入清单后再回滚；若仅想修正状态请联系管理员或手动调整数据库。"
     },
     "db": {
       "table_not_found": "表不存在: {name}"
@@ -677,6 +677,7 @@
       "embedding_provider_not_found": "Embedding 模型的供应商未找到",
       "model_code_exists": "模型代码已存在",
       "provider_code_exists": "供应商代码已存在",
+      "provider_base_url_invalid": "供应商 API 地址格式无效，请使用以 http:// 或 https:// 开头的完整地址",
       "api_key_not_found": "API Key 不存在",
       "fetch_remote_models_failed": "从供应商拉取模型列表失败",
       "quota_exceeded_default": "AI 配额已超出，请稍后重试"

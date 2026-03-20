@@ -86,6 +86,7 @@ class RetryService:
                     provider_type=provider.type,
                     api_key=current_key.decrypt_key(),
                     base_url=provider.base_url,
+                    provider_config=provider.config,
                 )
 
                 logger.info(

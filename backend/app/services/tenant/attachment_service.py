@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.core.i18n import _
@@ -354,7 +354,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         # 单文件大小：取套餐和系统配置中更严格的那个
         plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
-        from app.configs.service import ConfigService
+        from app.configs.service import ConfigService, PLATFORM_TENANT_ID
         config_service = ConfigService(self.db)
         platform_limit_mb = int(
             await config_service.get_platform_config(
@@ -725,7 +725,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         # 保存物理文件信息（删除后 instance 可能不可用）
         file_driver = attachment.driver
         file_path = attachment.path
-        file_tenant_id = attachment.tenant_id or 0
+        file_tenant_id = attachment.tenant_id or PLATFORM_TENANT_ID
 
         # BaseService.delete() 自动执行 __delete_deps__ 检查
         result = await super().delete(id, soft=soft)

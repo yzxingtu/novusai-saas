@@ -14,7 +14,7 @@ Three-mode resolution chain (priority high → low):
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.exceptions import BusinessException
@@ -168,7 +168,7 @@ class StorageConfigResolver:
             )
 
     async def resolve_config(
-        self, storage_mode: str, tenant_id: int = 0
+        self, storage_mode: str, tenant_id: int = PLATFORM_TENANT_ID
     ) -> StorageConfig:
         """
         按模式解析存储配置 / Resolve storage config based on mode.
@@ -204,7 +204,7 @@ class StorageConfigResolver:
         return storage_mode, storage_config, apply_quota
 
     async def resolve_for_attachment(
-        self, driver: str, tenant_id: int = 0
+        self, driver: str, tenant_id: int = PLATFORM_TENANT_ID
     ) -> StorageConfig:
         """
         解析已有附件的存储配置 / Resolve storage config for an existing attachment.

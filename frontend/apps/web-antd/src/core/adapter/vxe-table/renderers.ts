@@ -216,16 +216,19 @@ export function registerRenderers(vxeUI: any) {
 
       // Render icon button (with Tooltip) / 渲染图标按钮（带 Tooltip）
       function renderIconBtn(opt: Recordable<any>, listen = true) {
+        const isDisabled = !!opt.disabled;
         const iconBtn = h(
           Button,
           {
             type: 'text',
             size: 'small',
             danger: opt.danger,
+            disabled: isDisabled,
             class: 'action-icon-btn',
-            onClick: listen
-              ? () => attrs?.onClick?.({ code: opt.code, row })
-              : undefined,
+            onClick:
+              listen && !isDisabled
+                ? () => attrs?.onClick?.({ code: opt.code, row })
+                : undefined,
           },
           {
             default: () =>
@@ -236,10 +239,13 @@ export function registerRenderers(vxeUI: any) {
           },
         );
 
+        // Disabled buttons do not fire mouse events; wrap so Tooltip still works / 禁用态需包裹以显示提示
+        const trigger = isDisabled ? h('span', { class: 'inline-flex' }, [iconBtn]) : iconBtn;
+
         return h(
           Tooltip,
           { title: opt.text, placement: 'top' },
-          { default: () => iconBtn },
+          { default: () => trigger },
         );
       }
 

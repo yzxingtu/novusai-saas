@@ -169,6 +169,9 @@ lerna-debug.log*
 .warp/
 .cursor/*
 !.cursor/rules/
+!.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
 .trae/
 .windsurf/*
 !.windsurf/rules/

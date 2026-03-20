@@ -19,6 +19,8 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.core.logging import get_logger
 from app.enums.agent import (
     MemoryChannelEnum,
@@ -654,7 +656,7 @@ class PluginContext:
         # Always use requester's tenant_id (even if agent is global with tenant_id=NULL)
         # / effective_tenant_id 用于 AgentChatService 创建对话记录
         # 始终使用请求者的 tenant_id（即使 agent 是全局的 tenant_id=NULL）
-        effective_tenant_id = resolved_tenant_id or 0
+        effective_tenant_id = resolved_tenant_id or PLATFORM_TENANT_ID
 
         return agent_id, effective_tenant_id
 

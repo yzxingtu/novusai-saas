@@ -29,6 +29,8 @@ export interface CodegenConfigInfo {
   generated_files: null | Record<string, unknown>;
   config_hash: null | string;
   last_error: null | string;
+  /** 仓库根目录 codegen_manifest.json 是否有可回滚条目 / Manifest entry exists */
+  manifest_present?: boolean;
   created_at: string;
   updated_at: string;
 }

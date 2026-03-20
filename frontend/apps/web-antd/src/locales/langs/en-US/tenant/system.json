@@ -314,6 +314,7 @@
     "detail": "Log Detail",
     "username": "Operator",
     "userType": "User Type",
+    "traceId": "Trace ID",
     "module": "Module",
     "action": "Action",
     "method": "Method",
@@ -335,6 +336,7 @@
     },
     "placeholder": {
       "searchUsername": "Search operator",
+      "searchTraceId": "Search trace ID",
       "searchModule": "Search module",
       "searchAction": "Search action",
       "searchIp": "Search IP address",

@@ -4,6 +4,19 @@
 
 多企业 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
+## 规则入口
+
+`.cursorrules` 仅作为兼容旧版 Cursor 的总览，规范正文以 `.cursor/rules/*.md` 为准。以下主题必须配套阅读：
+
+- `.cursor/rules/ai-architecture.md`
+- `.cursor/rules/attachments-and-storage.md`
+- `.cursor/rules/async-notification-websocket.md`
+- `.cursor/rules/plugin-system.md`
+- `.cursor/rules/rbac-and-data-permission.md`
+- `.cursor/rules/user-endpoint-and-domain-isolation.md`
+- `.cursor/rules/testing-validation.md`
+- `.cursor/rules/trace-and-monitoring.md`
+
 ## 全局禁令
 
 - 禁止硬编码中文字符串，前端用 `$t()`，后端用 `_()`
@@ -153,7 +166,7 @@ error(message, code, status_code)         # 自定义错误
 - `ActiveTenantAdmin` — 活跃企业管理员
 - `QueryParams` — JSON:API 查询参数
 - `SuperAdmin` — 超级管理员
-- `ActiveUser` — 活跃用户（用户端接口）
+- `ActiveTenantUser` — 活跃用户（用户端接口）
 
 ### Service 基类选择
 
@@ -220,9 +233,11 @@ if obj.tenant_id != self.tenant_id:
 ### 日志
 
 ```python
-from app.core.logging import LogManager
-logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/captcha/impersonate
+from app.core.logging import get_logger
+logger = get_logger(__name__)
 ```
+
+分类日志仍可使用 `LogManager.get_logger("auth")`；Service 优先 `LoggerMixin` / `self.logger`。
 
 ### 迁移
 
@@ -241,12 +256,12 @@ alembic revision --autogenerate -m "add xxx table"
 - 搜索语法统一 JSON:API：前端 `filter[field][ilike]` ↔ 后端 `QueryParams` 自动解析
 - 排序统一：前端 `sort=-created_at` ↔ 后端 `__sortable__` 白名单
 - 分页统一：前端 `page[number]/page[size]` ↔ 后端 `paginated()`
-- Token 按 URL 前缀自动选择：`/admin/*` → admin Token，`/tenant/*` → tenant Token
+- Token 按 URL 前缀自动选择：`/admin/*` → admin Token，`/tenant/*` → tenant Token，`/api/user/*` → user Token
 - 错误码对照：前端 4010 → 跳登录，4011 → token 过期刷新，4030 → 权限不足提示
 
 ## AI 架构规则（强制）
 
-> 完整规范见 `.windsurf/rules/ai-architecture.md`（本节仅保留最关键禁令，避免与详细规则文件重复维护）
+> 完整规范见 `.cursor/rules/ai-architecture.md`（本节仅保留最关键禁令，避免与详细规则文件重复维护）
 
 **核心禁令（任何情况不可违反）：**
 - ❌ 禁止在 Controller/Service 层直接调用 `AIGateway.chat()` / `embedding()`
@@ -261,9 +276,13 @@ alembic revision --autogenerate -m "add xxx table"
 
 **技能类型（7 种）：** `toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 
-**多模型路由（M264）：** 通过 `routing_config` 在 Agent 上启用智能路由 → 详见 `.windsurf/workflows/references/ai-routing.md`
+**多模型路由（M264）：** 通过 `routing_config` 在 Agent 上启用智能路由 → 详见 `.cursor/skills/novusai-saas/references/ai-routing.md`
 
-**多模态 RAG（M263）：** KnowledgeBase 支持 `vision_model_id` + `extract_images` → 详见 `.windsurf/workflows/references/multimodal-rag.md`
+**多模态 RAG（M263）：** KnowledgeBase 支持 `vision_model_id` + `extract_images` → 详见 `.cursor/skills/novusai-saas/references/multimodal-rag.md`
+
+**AI 写作：** 富文本编辑器链路统一走 `/admin|/tenant/ai/writing/{feature}` -> `system.ai_writing` 智能体分配 -> `AgentChatService.stream_chat_ephemeral()`，禁止在编辑器页直接调用 AIGateway
+
+**会话记忆：** 仅 `ai_chat_page` / `admin_chat` 这类真实对话场景允许启用；必须复用 `AgentChatService` + `SessionMemoryService` + `ConversationService`，禁止在 Controller 或前端手工管理 `memory-state`
 
 ## DevGenius 治理规则
 

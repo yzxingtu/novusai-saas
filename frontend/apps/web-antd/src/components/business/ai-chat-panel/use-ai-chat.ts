@@ -55,7 +55,7 @@ import { addConsent, getConsentedActions } from '#/utils/ai-consent';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 export interface UseAIChatOptions {
-  /** API prefix: '/admin' or '/tenant' / API 前缀 */
+  /** API prefix: '/admin', '/tenant', or '/api/user' / API 前缀 */
   apiPrefix: Ref<string> | string;
   /** Upload endpoint / 上传接口地址 */
   uploadUrl: Ref<string> | string;

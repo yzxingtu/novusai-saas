@@ -130,10 +130,10 @@ export async function reorder{{ resource | pascal }}sApi(
 export async function import{{ resource | pascal }}Api(
   file: File,
   options?: ApiRequestOptions,
-): Promise<{ data: { imported: number; errors?: string[] } }> {
+): Promise<{ imported: number; errors?: string[] }> {
   const formData = new FormData();
   formData.append('file', file);
-  return requestClient.post<{ data: { imported: number; errors?: string[] } }>(
+  return requestClient.post<{ imported: number; errors?: string[] }>(
     `${API_PREFIX}/import`,
     formData,
     {

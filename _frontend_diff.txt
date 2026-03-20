@@ -1,0 +1,944 @@
+﻿diff --git a/frontend/apps/web-antd/src/api/admin/action-logs.ts b/frontend/apps/web-antd/src/api/admin/action-logs.ts
+index c790e53d..31dfe2ce 100644
+--- a/frontend/apps/web-antd/src/api/admin/action-logs.ts
++++ b/frontend/apps/web-antd/src/api/admin/action-logs.ts
+@@ -12,6 +12,8 @@ import { requestClient } from '#/utils/request';
+ export interface AdminActionLogItem {
+   id: number;
+   tenant_id: number;
++  tenant_code: null | string;
++  tenant_name: null | string;
+   action_name: string;
+   action_type: string;
+   action_level: string;
+diff --git a/frontend/apps/web-antd/src/api/admin/ai-models.ts b/frontend/apps/web-antd/src/api/admin/ai-models.ts
+index 8467b0c6..172fd294 100644
+--- a/frontend/apps/web-antd/src/api/admin/ai-models.ts
++++ b/frontend/apps/web-antd/src/api/admin/ai-models.ts
+@@ -28,6 +28,8 @@ export interface AIModelInfo {
+   tpm_limit: null | number;
+   supports_function_calling: boolean;
+   supports_vision: boolean;
++  supports_audio: boolean;
++  supports_video: boolean;
+   supports_streaming: boolean;
+   max_image_count: null | number;
+   max_image_size_mb: null | number;
+@@ -56,6 +58,8 @@ export interface AIModelCreateRequest {
+   tpm_limit?: null | number;
+   supports_function_calling?: boolean;
+   supports_vision?: boolean;
++  supports_audio?: boolean;
++  supports_video?: boolean;
+   supports_streaming?: boolean;
+   max_image_count?: null | number;
+   max_image_size_mb?: null | number;
+@@ -79,6 +83,8 @@ export interface AIModelUpdateRequest {
+   tpm_limit?: null | number;
+   supports_function_calling?: boolean | null;
+   supports_vision?: boolean | null;
++  supports_audio?: boolean | null;
++  supports_video?: boolean | null;
+   supports_streaming?: boolean | null;
+   max_image_count?: null | number;
+   max_image_size_mb?: null | number;
+@@ -95,7 +101,11 @@ export interface RemoteModelCapabilities {
+   max_output_tokens?: null | number;
+   model_type?: null | string;
+   output_price_per_1k?: null | number;
++  rpm_limit?: null | number;
++  tpm_limit?: null | number;
+   supports_function_calling?: boolean | null;
++  supports_audio?: boolean | null;
++  supports_video?: boolean | null;
+   supports_streaming?: boolean | null;
+   supports_vision?: boolean | null;
+ }
+diff --git a/frontend/apps/web-antd/src/api/tenant/action-logs.ts b/frontend/apps/web-antd/src/api/tenant/action-logs.ts
+index 8ff0058e..31e687df 100644
+--- a/frontend/apps/web-antd/src/api/tenant/action-logs.ts
++++ b/frontend/apps/web-antd/src/api/tenant/action-logs.ts
+@@ -16,7 +16,7 @@ export interface ActionLogItem {
+   status: string;
+   agent_id: null | number;
+   agent_name: null | string;
+-  execution_time_ms: null | number;
++  duration_ms: null | number;
+   error_message: null | string;
+   created_at: string;
+ }
+diff --git a/frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat.ts b/frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat.ts
+index 1e65aadc..cd85ccf1 100644
+--- a/frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat.ts
++++ b/frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat.ts
+@@ -55,7 +55,7 @@ import { addConsent, getConsentedActions } from '#/utils/ai-consent';
+ import { toAvatarDisplayUrl } from '#/utils/image';
+ 
+ export interface UseAIChatOptions {
+-  /** API prefix: '/admin' or '/tenant' / API 前缀 */
++  /** API prefix: '/admin', '/tenant', or '/api/user' / API 前缀 */
+   apiPrefix: Ref<string> | string;
+   /** Upload endpoint / 上传接口地址 */
+   uploadUrl: Ref<string> | string;
+diff --git a/frontend/apps/web-antd/src/composables/use-crud-list.ts b/frontend/apps/web-antd/src/composables/use-crud-list.ts
+index cc0506bd..a6af93ef 100644
+--- a/frontend/apps/web-antd/src/composables/use-crud-list.ts
++++ b/frontend/apps/web-antd/src/composables/use-crud-list.ts
+@@ -528,6 +528,27 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
+ // ============================================================
+ const DEPENDENCY_BLOCKED_CODE = 4221;
+ 
++function getErrorResponse(error: unknown): Record<string, unknown> | undefined {
++  return (error as { response?: Record<string, unknown> } | undefined)?.response;
++}
++
++function getErrorStatus(error: unknown): number | undefined {
++  return getErrorResponse(error)?.status as number | undefined;
++}
++
++function getErrorData(error: unknown): Record<string, unknown> | undefined {
++  return getErrorResponse(error)?.data as Record<string, unknown> | undefined;
++}
++
++function getErrorMessage(error: unknown, fallbackKey: string): string {
++  const responseMessage = getErrorData(error)?.message;
++  if (typeof responseMessage === 'string' && responseMessage) {
++    return responseMessage;
++  }
++  const errorMessage = (error as { message?: string } | undefined)?.message;
++  return errorMessage || $t(fallbackKey);
++}
++
+ // ============================================================
+ // Default response adapter: auto-detect array/paginated format
+ // 默认响应适配器：自动检测数组/分页格式
+@@ -906,12 +927,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
+         );
+         preview = (res?.data ?? res) as DeletePreviewResult;
+       } catch (err: unknown) {
+-        const status = (
+-          (err as Record<string, unknown>)?.response as
+-            | Record<string, unknown>
+-            | undefined
+-        )?.status as number | undefined;
+-        if (status !== undefined && status !== 404) {
++        const status = getErrorStatus(err);
++        if (status !== 404) {
++          message.error(getErrorMessage(err, 'common.deleteFailed'));
+           return;
+         }
+       }
+@@ -930,28 +948,28 @@ export function useCrudList<T extends object = Record<string, unknown>>(
+         }
+       }
+ 
+-      await (api.delete
+-        ? api.delete(rowId as number)
+-        : requestClient.delete(`${api.resource}/${rowId}`, {
+-            loading: true,
+-            showCodeMessage: false,
+-            showSuccessMessage: true,
+-            successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+-          }));
++      if (api.delete) {
++        await api.delete(rowId as number);
++        message.success($t(`${i18nPrefix}.messages.deleteSuccess`));
++      } else {
++        await requestClient.delete(`${api.resource}/${rowId}`, {
++          loading: true,
++          showCodeMessage: false,
++          showSuccessMessage: true,
++          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
++        });
++      }
+       await loadList();
+     } catch (error: unknown) {
+-      const resp = (error as Record<string, unknown>)?.response as
+-        | Record<string, unknown>
+-        | undefined;
+-      const data = resp?.data as Record<string, unknown> | undefined;
++      const data = getErrorData(error);
+       if (data?.code === DEPENDENCY_BLOCKED_CODE && data?.dependencies) {
+         const displayName = String(row[nameField] || rowId);
+         showDependencyBlock(
+           data.dependencies as DependencyGroup[],
+           displayName,
+         );
+-      } else if (data?.message) {
+-        message.error(String(data.message));
++      } else {
++        message.error(getErrorMessage(error, 'common.deleteFailed'));
+       }
+     } finally {
+       setProcessing(rowId, false);
+diff --git a/frontend/apps/web-antd/src/constants/endpoints.ts b/frontend/apps/web-antd/src/constants/endpoints.ts
+index 5f61e7c9..a103f035 100644
+--- a/frontend/apps/web-antd/src/constants/endpoints.ts
++++ b/frontend/apps/web-antd/src/constants/endpoints.ts
+@@ -53,10 +53,10 @@ export const USER_HOME_PATH = '/';
+ // ============================================================
+ 
+ /** Admin API prefix / 平台管理端 API 前缀 */
+-export const ADMIN_API_PREFIX = '/api/v1/admin';
++export const ADMIN_API_PREFIX = '/api/admin';
+ 
+ /** Tenant API prefix / 企业管理端 API 前缀 */
+-export const TENANT_API_PREFIX = '/api/v1/tenant';
++export const TENANT_API_PREFIX = '/api/tenant';
+ 
+ /** User API prefix / 用户端 API 前缀 */
+ export const USER_API_PREFIX = '/api/user';
+diff --git a/frontend/apps/web-antd/src/constants/index.ts b/frontend/apps/web-antd/src/constants/index.ts
+index 113e78a8..d84edf20 100644
+--- a/frontend/apps/web-antd/src/constants/index.ts
++++ b/frontend/apps/web-antd/src/constants/index.ts
+@@ -11,3 +11,6 @@ export * from './storage-keys';
+ 
+ // Upload rule constants / 上传规则常量
+ export * from './upload';
++
++// Tenant constants / 租户常量
++export * from './tenant';
+diff --git a/frontend/apps/web-antd/src/core/adapter/vxe-table/use-crud-page.ts b/frontend/apps/web-antd/src/core/adapter/vxe-table/use-crud-page.ts
+index 610f8401..5f054afd 100644
+--- a/frontend/apps/web-antd/src/core/adapter/vxe-table/use-crud-page.ts
++++ b/frontend/apps/web-antd/src/core/adapter/vxe-table/use-crud-page.ts
+@@ -54,6 +54,27 @@ import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
+ /** Dependency blocked error code / 依赖阻止错误码 */
+ const DEPENDENCY_BLOCKED_CODE = 4221;
+ 
++function getErrorResponse(error: unknown): Record<string, unknown> | undefined {
++  return (error as { response?: Record<string, unknown> } | undefined)?.response;
++}
++
++function getErrorStatus(error: unknown): number | undefined {
++  return getErrorResponse(error)?.status as number | undefined;
++}
++
++function getErrorData(error: unknown): Record<string, unknown> | undefined {
++  return getErrorResponse(error)?.data as Record<string, unknown> | undefined;
++}
++
++function getErrorMessage(error: unknown, fallbackKey: string): string {
++  const responseMessage = getErrorData(error)?.message;
++  if (typeof responseMessage === 'string' && responseMessage) {
++    return responseMessage;
++  }
++  const errorMessage = (error as { message?: string } | undefined)?.message;
++  return errorMessage || $t(fallbackKey);
++}
++
+ /**
+  * Declarative CRUD list page composable / 声明式 CRUD 列表页 Composable
+  */
+@@ -215,12 +236,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
+         );
+         preview = (res?.data ?? res) as Record<string, unknown>;
+       } catch (err: unknown) {
+-        const status = (
+-          (err as Record<string, unknown>)?.response as
+-            | Record<string, unknown>
+-            | undefined
+-        )?.status as number | undefined;
+-        if (status !== undefined && status !== 404) {
++        const status = getErrorStatus(err);
++        if (status !== 404) {
++          message.error(getErrorMessage(err, 'common.deleteFailed'));
+           return;
+         }
+       }
+@@ -244,21 +262,23 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
+         }
+       }
+ 
+-      await requestClient.delete(`${api.resource}/${row.id}`, {
+-        loading: true,
+-        showCodeMessage: false,
+-        showSuccessMessage: true,
+-        successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+-      });
++      if (api.delete) {
++        await api.delete(row.id as number);
++        message.success($t(`${i18nPrefix}.messages.deleteSuccess`));
++      } else {
++        await requestClient.delete(`${api.resource}/${row.id}`, {
++          loading: true,
++          showCodeMessage: false,
++          showSuccessMessage: true,
++          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
++        });
++      }
+       onRefresh();
+       if (recycleBinEnabled) {
+         recycleBinRef.value?.refreshCount();
+       }
+     } catch (error: unknown) {
+-      const resp = (error as Record<string, unknown>)?.response as
+-        | Record<string, unknown>
+-        | undefined;
+-      const respData = resp?.data as Record<string, unknown> | undefined;
++      const respData = getErrorData(error);
+       if (respData?.code === DEPENDENCY_BLOCKED_CODE && respData?.dependencies) {
+         const displayName = String(row[nameField] || row.id);
+         depBlockRef.value?.open(
+@@ -267,8 +287,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
+           >[0],
+           displayName,
+         );
+-      } else if (respData?.message) {
+-        message.error(respData.message as string);
++      } else {
++        message.error(getErrorMessage(error, 'common.deleteFailed'));
+       }
+     } finally {
+       setProcessing(row.id, false);
+diff --git a/frontend/apps/web-antd/src/locales/langs/en-US/admin/ai.json b/frontend/apps/web-antd/src/locales/langs/en-US/admin/ai.json
+index 579b6789..eeb7a2dc 100644
+--- a/frontend/apps/web-antd/src/locales/langs/en-US/admin/ai.json
++++ b/frontend/apps/web-antd/src/locales/langs/en-US/admin/ai.json
+@@ -60,8 +60,11 @@
+       "noResults": "No matching icons found",
+       "searchTip": "Type keywords to search icons"
+     },
++    "validation": {
++      "baseUrlInvalid": "Enter a valid API URL starting with http:// or https://"
++    },
+     "help": {
+-      "baseUrl": "The provider's API endpoint URL, e.g. https://api.openai.com/v1. Different providers have different URLs; self-hosted services need the actual address",
++      "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; if a full endpoint is pasted, it is auto-corrected on save",
+       "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
+       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
+     },
+@@ -74,7 +77,8 @@
+       "toggleSuccess": "Provider status updated",
+       "confirmEnable": "Are you sure to enable this provider?",
+       "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail.",
+-      "deleteSuccess": "Provider deleted successfully"
++      "deleteSuccess": "Provider deleted successfully",
++      "baseUrlAutoNormalized": "API URL auto-corrected to base URL: {baseUrl}"
+     }
+   },
+   "model": {
+@@ -150,7 +154,7 @@
+       "embedding": "Embedding",
+       "image": "Image"
+     },
+-    "help": {
++    "validation": {
+       "code": "The model's API call code, e.g. gpt-4, claude-3-opus-20240229. Must match the code accepted by the provider's API",
+       "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
+       "contextWindow": "Maximum tokens the model can process (input + output). GPT-4 is 128K, Claude 3 is 200K",
+@@ -198,7 +202,7 @@
+       "allProviders": "All Providers",
+       "inputUsageLimit": "Leave empty for unlimited"
+     },
+-    "help": {
++    "validation": {
+       "apiKey": "The API secret key from the provider. Stored encrypted. Cannot be viewed in full after creation",
+       "scope": "Admin Only keys are used exclusively for admin AI calls; tenants cannot fall back to these keys. All Tenants keys can be shared platform-wide (no tenant) or assigned to a specific tenant (tenant-exclusive)",
+       "usageLimit": "Maximum call count for this key. Automatically marked unavailable when reached. Leave empty for unlimited",
+@@ -503,7 +507,7 @@
+       "inputMaxTokens": "Maximum token generation limit",
+       "inputTopP": "0-1, used together with temperature"
+     },
+-    "help": {
++    "validation": {
+       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
+       "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
+       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
+@@ -612,6 +616,8 @@
+     "actionLevel": "Safety Level",
+     "status": "Status",
+     "tenantId": "Tenant ID",
++    "tenantInfo": "Tenant",
++    "platformTenant": "Admin Console",
+     "agentName": "Agent",
+     "operatorId": "Operator",
+     "executionTime": "Duration",
+@@ -719,7 +725,7 @@
+     },
+     "tenantId": "Tenant",
+     "assignedTenants": "Assigned Tenants",
+-    "help": {
++    "validation": {
+       "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants",
+       "assignedTenants": "Select tenants that are allowed to use this skill package"
+     },
+@@ -966,7 +972,7 @@
+       "inputSchema": "Input parameter definition in JSON format"
+     },
+     "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
+-    "help": {
++    "validation": {
+       "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Data Intelligence: database query & CRUD; Builtin: system-predefined tools",
+       "scope": "Platform skills are globally available, tenant skills are limited to their tenant",
+       "config": "Runtime configuration for the skill",
+diff --git a/frontend/apps/web-antd/src/locales/langs/en-US/admin/system.json b/frontend/apps/web-antd/src/locales/langs/en-US/admin/system.json
+index b0662be9..05bf5563 100644
+--- a/frontend/apps/web-antd/src/locales/langs/en-US/admin/system.json
++++ b/frontend/apps/web-antd/src/locales/langs/en-US/admin/system.json
+@@ -960,12 +960,15 @@
+       "validateConfig": "Validate Config",
+       "validateSuccess": "Validation passed",
+       "validationErrors": "Validation failed. Please fix the following issues",
+-      "applyAndMigrateHint": "Run alembic migration manually after generation",
++      "applyAndMigrateHint": "Generation will try to run migrations automatically; handle them manually only if auto-migrate fails.",
+       "resultTitle": "Generate Result",
+       "nextSteps": "Next Steps",
+       "checkMigration": "Check migration files",
++      "migrationAlreadyApplied": "Auto-migration already completed",
++      "migrationNoChanges": "No schema changes were detected, so no migration is needed",
+       "runMigration": "Run migration",
+       "restartServer": "Restart server",
++      "restartIfNeeded": "Restart affected services if your dev process did not hot-reload",
+       "reviewCode": "Review code",
+       "viewFiles": "View Generated Files",
+       "noPreview": "No preview, complete previous steps",
+diff --git a/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/ai.json b/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/ai.json
+index 069c4bed..9c04f6c4 100644
+--- a/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/ai.json
++++ b/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/ai.json
+@@ -60,8 +60,11 @@
+       "noResults": "未找到匹配图标",
+       "searchTip": "输入关键词搜索图标"
+     },
++    "validation": {
++      "baseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效 API 地址"
++    },
+     "help": {
+-      "baseUrl": "供应商的 API 接口地址，如 https://api.openai.com/v1。不同供应商地址不同，自建服务需填写实际地址",
++      "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions；若误填完整接口，保存时会自动纠正",
+       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
+       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
+     },
+@@ -74,7 +77,8 @@
+       "toggleSuccess": "供应商状态已更新",
+       "confirmEnable": "确认启用此供应商？",
+       "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败",
+-      "deleteSuccess": "供应商删除成功"
++      "deleteSuccess": "供应商删除成功",
++      "baseUrlAutoNormalized": "已自动将 API 地址纠正为基础地址：{baseUrl}"
+     }
+   },
+   "model": {
+@@ -150,7 +154,7 @@
+       "embedding": "向量",
+       "image": "图像"
+     },
+-    "help": {
++    "validation": {
+       "code": "模型的 API 调用代码，如 gpt-4、claude-3-opus-20240229。必须与供应商 API 接受的代码一致",
+       "type": "对话模型用于聊天和文本生成；向量模型用于知识库文档嵌入；图像模型用于图片生成",
+       "contextWindow": "模型能处理的最大 Token 数（输入+输出）。GPT-4 为 128K，Claude 3 为 200K",
+@@ -198,7 +202,7 @@
+       "allProviders": "全部供应商",
+       "inputUsageLimit": "留空不限制"
+     },
+-    "help": {
++    "validation": {
+       "apiKey": "从供应商获取的 API 密钥，系统会加密存储。创建后不可查看完整 Key",
+       "scope": "「仅管理端」Key 只在管理端 AI 调用中使用，企业无法回退到此 Key。「全部企业」Key 可被所有企业共享（平台级）或指定给特定企业（企业专用）",
+       "usageLimit": "该 Key 的最大调用次数。达到上限后自动标记为不可用。留空表示不限制",
+@@ -504,7 +508,7 @@
+       "inputMaxTokens": "最大生成 Token 数量",
+       "inputTopP": "0-1，与 temperature 配合使用"
+     },
+-    "help": {
++    "validation": {
+       "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
+       "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
+       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
+@@ -613,6 +617,8 @@
+     "actionLevel": "安全等级",
+     "status": "状态",
+     "tenantId": "企业 ID",
++    "tenantInfo": "所属企业",
++    "platformTenant": "管理端",
+     "agentName": "智能体",
+     "operatorId": "操作者",
+     "executionTime": "耗时",
+@@ -720,7 +726,7 @@
+     },
+     "tenantId": "所属企业",
+     "assignedTenants": "分配企业",
+-    "help": {
++    "validation": {
+       "scope": "仅管理端：仅管理端可见；指定企业：仅该企业可见；全局共享：管理端和所有企业都可见",
+       "assignedTenants": "选择允许使用此技能包的企业"
+     },
+@@ -967,7 +973,7 @@
+       "inputSchema": "JSON 格式的输入参数定义"
+     },
+     "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
+-    "help": {
++    "validation": {
+       "type": "Toolkit: Python 工具；知识库: RAG 问答；数据智能: 数据库查询；HTTP: 外部 API；邮件: 发送邮件；代码执行: 沙箱运行代码",
+       "scope": "平台技能全局可用，企业技能仅限所属企业",
+       "config": "技能运行时的配置信息",
+diff --git a/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/system.json b/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/system.json
+index 059a27c0..028b2e5c 100644
+--- a/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/system.json
++++ b/frontend/apps/web-antd/src/locales/langs/zh-CN/admin/system.json
+@@ -960,12 +960,15 @@
+       "validateConfig": "校验配置",
+       "validateSuccess": "校验通过",
+       "validationErrors": "校验失败，请修正以下问题",
+-      "applyAndMigrateHint": "生成代码后需手动执行 alembic 迁移",
++      "applyAndMigrateHint": "生成后会自动尝试执行迁移；仅在自动迁移失败时再手动处理。",
+       "resultTitle": "生成结果",
+       "nextSteps": "下一步",
+       "checkMigration": "检查迁移文件",
++      "migrationAlreadyApplied": "自动迁移已完成，无需再次执行",
++      "migrationNoChanges": "本次没有数据库结构变更，无需执行迁移",
+       "runMigration": "运行迁移",
+       "restartServer": "重启服务器",
++      "restartIfNeeded": "如开发进程未自动热更新，请重启相关服务",
+       "reviewCode": "审查代码",
+       "viewFiles": "查看生成的文件",
+       "noPreview": "暂无预览，请完成前几步配置",
+diff --git a/frontend/apps/web-antd/src/views/admin/ai/action-logs/data.ts b/frontend/apps/web-antd/src/views/admin/ai/action-logs/data.ts
+index 2b12b76f..519e28cb 100644
+--- a/frontend/apps/web-antd/src/views/admin/ai/action-logs/data.ts
++++ b/frontend/apps/web-antd/src/views/admin/ai/action-logs/data.ts
+@@ -6,6 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+ import type { AdminActionLogItem } from '#/api/admin/action-logs';
+ 
+ import { searchInput, select } from '#/adapter/form';
++import { PLATFORM_TENANT_ID } from '#/constants';
+ import { $t } from '#/locales';
+ 
+ export type { AdminActionLogItem as ActionLogItem } from '#/api/admin/action-logs';
+@@ -161,6 +162,22 @@ export function getLevelColor(level: string | undefined): string {
+   }
+ }
+ 
++export function getTenantDisplay(log: Pick<AdminActionLogItem, 'tenant_code' | 'tenant_id' | 'tenant_name'>): string {
++  if (log.tenant_id === PLATFORM_TENANT_ID) {
++    return $t('admin.ai.actionLog.platformTenant');
++  }
++
++  if (log.tenant_name) {
++    return log.tenant_name;
++  }
++
++  if (log.tenant_code) {
++    return log.tenant_code;
++  }
++
++  return '-';
++}
++
+ /**
+  * 表格列定义
+  */
+@@ -204,9 +221,9 @@ export function useColumns<T = AdminActionLogItem>(
+     },
+     {
+       field: 'tenant_id',
+-      title: $t('admin.ai.actionLog.tenantId'),
+-      width: 100,
+-      align: 'center',
++      title: $t('admin.ai.actionLog.tenantInfo'),
++      minWidth: 180,
++      slots: { default: 'tenantInfo_cell' },
+     },
+     {
+       field: 'duration_ms',
+diff --git a/frontend/apps/web-antd/src/views/admin/ai/action-logs/index.vue b/frontend/apps/web-antd/src/views/admin/ai/action-logs/index.vue
+index ef9cfea3..bb93e82d 100644
+--- a/frontend/apps/web-antd/src/views/admin/ai/action-logs/index.vue
++++ b/frontend/apps/web-antd/src/views/admin/ai/action-logs/index.vue
+@@ -36,6 +36,7 @@ import {
+   getAdminActionLogDetailApi,
+   getAdminActionLogListApi,
+ } from '#/api/admin/action-logs';
++import { PLATFORM_TENANT_ID } from '#/constants';
+ import { $t } from '#/locales';
+ import { copyToClipboard, formatDate } from '#/utils/common';
+ 
+@@ -44,6 +45,7 @@ import {
+   getLevelText,
+   getStatusColor,
+   getStatusText,
++  getTenantDisplay,
+   getTypeColor,
+   getTypeText,
+   useColumns,
+@@ -283,6 +285,20 @@ onUnmounted(() => {
+           </Tag>
+         </template>
+ 
++        <template #tenantInfo_cell="{ row }">
++          <div class="flex min-w-0 flex-col">
++            <span class="truncate font-medium">
++              {{ getTenantDisplay(row) }}
++            </span>
++            <span
++              v-if="row.tenant_id !== PLATFORM_TENANT_ID && row.tenant_code"
++              class="text-xs text-muted-foreground"
++            >
++              {{ row.tenant_code }}
++            </span>
++          </div>
++        </template>
++
+         <template #duration_cell="{ row }">
+           <span v-if="row.duration_ms" class="text-muted-foreground">
+             {{ row.duration_ms }}ms
+@@ -363,10 +379,10 @@ onUnmounted(() => {
+                 </div>
+                 <div class="rounded-lg border border-dashed border-border bg-background p-3">
+                   <div class="text-xs text-muted-foreground">
+-                    {{ $t('admin.ai.actionLog.tenantId') }}
++                    {{ $t('admin.ai.actionLog.tenantInfo') }}
+                   </div>
+                   <div class="mt-2 text-sm font-semibold">
+-                    {{ detailData.tenant_id }}
++                    {{ getTenantDisplay(detailData) }}
+                   </div>
+                 </div>
+                 <div class="rounded-lg border border-dashed border-border bg-background p-3">
+@@ -412,8 +428,8 @@ onUnmounted(() => {
+                         {{ getStatusText(detailData.status) }}
+                       </Tag>
+                     </Descriptions.Item>
+-                    <Descriptions.Item :label="$t('admin.ai.actionLog.tenantId')">
+-                      {{ detailData.tenant_id }}
++                    <Descriptions.Item :label="$t('admin.ai.actionLog.tenantInfo')">
++                      {{ getTenantDisplay(detailData) }}
+                     </Descriptions.Item>
+                     <Descriptions.Item :label="$t('admin.ai.actionLog.operatorId')">
+                       {{ detailData.operator_id ?? '-' }}
+diff --git a/frontend/apps/web-antd/src/views/admin/ai/models/modules/form.vue b/frontend/apps/web-antd/src/views/admin/ai/models/modules/form.vue
+index 20bf7063..fcf38a59 100644
+--- a/frontend/apps/web-antd/src/views/admin/ai/models/modules/form.vue
++++ b/frontend/apps/web-antd/src/views/admin/ai/models/modules/form.vue
+@@ -59,6 +59,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
+       tpm_limit: values.tpm_limit || null,
+       supports_function_calling: values.supports_function_calling ?? false,
+       supports_vision: values.supports_vision ?? false,
++      supports_audio: values.supports_audio ?? false,
++      supports_video: values.supports_video ?? false,
+       supports_streaming: values.supports_streaming ?? true,
+       max_image_count: values.supports_vision
+         ? values.max_image_count || 5
+@@ -85,6 +87,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
+       tpm_limit: data.tpm_limit,
+       supports_function_calling: data.supports_function_calling,
+       supports_vision: data.supports_vision,
++      supports_audio: data.supports_audio,
++      supports_video: data.supports_video,
+       supports_streaming: data.supports_streaming,
+       max_image_count: data.max_image_count ?? 5,
+       max_image_size_mb: data.max_image_size_mb ?? 10,
+@@ -185,6 +189,8 @@ function onRemoteModelSelect(modelId: unknown) {
+     if (caps.model_type) values.type = caps.model_type;
+     if (caps.supports_vision != null)
+       values.supports_vision = caps.supports_vision;
++    if (caps.supports_audio != null) values.supports_audio = caps.supports_audio;
++    if (caps.supports_video != null) values.supports_video = caps.supports_video;
+     if (caps.supports_function_calling != null)
+       values.supports_function_calling = caps.supports_function_calling;
+     if (caps.supports_streaming != null)
+@@ -196,6 +202,8 @@ function onRemoteModelSelect(modelId: unknown) {
+       values.input_price_per_1k = caps.input_price_per_1k;
+     if (caps.output_price_per_1k != null)
+       values.output_price_per_1k = caps.output_price_per_1k;
++    if (caps.rpm_limit != null) values.rpm_limit = caps.rpm_limit;
++    if (caps.tpm_limit != null) values.tpm_limit = caps.tpm_limit;
+   }
+ 
+   formApi.setValues(values);
+diff --git a/frontend/apps/web-antd/src/views/admin/ai/providers/data.ts b/frontend/apps/web-antd/src/views/admin/ai/providers/data.ts
+index 48f6b363..6f7d42d5 100644
+--- a/frontend/apps/web-antd/src/views/admin/ai/providers/data.ts
++++ b/frontend/apps/web-antd/src/views/admin/ai/providers/data.ts
+@@ -8,6 +8,8 @@ import type { AdapterTypeInfo, AIProviderInfo } from '#/api/admin/ai';
+ 
+ import { ref } from 'vue';
+ 
++import { z } from 'zod';
++
+ import {
+   inputField,
+   searchInput,
+@@ -22,6 +24,70 @@ import { $t } from '#/locales';
+ /** 缓存适配器类型列表 / Cached adapter type list */
+ const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
+ 
++const OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES = [
++  ['/responses', 'responses'],
++  ['/chat/completions', 'chat_completions'],
++] as const;
++
++export function normalizeProviderBaseUrl(
++  baseUrl: null | string | undefined,
++  providerType: null | string | undefined,
++): {
++  inferredWireApi: null | string;
++  normalizedBaseUrl: null | string;
++  wasEndpointNormalized: boolean;
++} {
++  const trimmedBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : '';
++  if (!trimmedBaseUrl) {
++    return {
++      inferredWireApi: null,
++      normalizedBaseUrl: null,
++      wasEndpointNormalized: false,
++    };
++  }
++
++  const normalizedBaseUrl = trimmedBaseUrl.replace(/\/+$/, '');
++  if (providerType !== 'openai_compatible') {
++    return {
++      inferredWireApi: null,
++      normalizedBaseUrl,
++      wasEndpointNormalized: false,
++    };
++  }
++
++  const lowerBaseUrl = normalizedBaseUrl.toLowerCase();
++  for (const [suffix, wireApi] of OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES) {
++    if (lowerBaseUrl.endsWith(suffix)) {
++      const strippedBaseUrl = normalizedBaseUrl
++        .slice(0, -suffix.length)
++        .replace(/\/+$/, '');
++      return {
++        inferredWireApi: wireApi,
++        normalizedBaseUrl: strippedBaseUrl || normalizedBaseUrl,
++        wasEndpointNormalized: true,
++      };
++    }
++  }
++
++  return {
++    inferredWireApi: null,
++    normalizedBaseUrl,
++    wasEndpointNormalized: false,
++  };
++}
++
++function isValidProviderBaseUrl(value: string): boolean {
++  const trimmedValue = value.trim();
++  if (!trimmedValue) return true;
++
++  try {
++    const url = new URL(trimmedValue);
++    return url.protocol === 'http:' || url.protocol === 'https:';
++  } catch {
++    return false;
++  }
++}
++
+ /** 加载适配器类型（含插件注册的） / Load adapter types (including plugin-registered) */
+ export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
+   if (adapterTypesCache.value.length > 0) return adapterTypesCache.value;
+@@ -180,11 +246,18 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
+       help: $t('admin.ai.provider.help.type'),
+     },
+     {
+-      ...inputField('base_url', $t('admin.ai.provider.baseUrl'), {
++      component: 'Input',
++      componentProps: {
++        maxLength: 500,
+         placeholder: $t('admin.ai.provider.placeholder.inputBaseUrl'),
++      },
++      fieldName: 'base_url',
++      label: $t('admin.ai.provider.baseUrl'),
++      rules: z.string().refine((value) => isValidProviderBaseUrl(value), {
++        message: $t('admin.ai.provider.validation.baseUrlInvalid'),
+       }),
+       help: $t('admin.ai.provider.help.baseUrl'),
+-    },
++    } as VbenFormSchema,
+     textareaField('description', $t('admin.ai.provider.description'), {
+       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
+     }),
+diff --git a/frontend/apps/web-antd/src/views/admin/ai/providers/modules/form.vue b/frontend/apps/web-antd/src/views/admin/ai/providers/modules/form.vue
+index 8ad4420a..68c59a9f 100644
+--- a/frontend/apps/web-antd/src/views/admin/ai/providers/modules/form.vue
++++ b/frontend/apps/web-antd/src/views/admin/ai/providers/modules/form.vue
+@@ -6,12 +6,18 @@ import type { AIProviderInfo } from '#/api/admin/ai';
+ 
+ import { computed } from 'vue';
+ 
++import { message } from 'ant-design-vue';
++
+ import { useVbenForm } from '#/adapter/form';
+ import { getAIProviderDetailApi } from '#/api/admin/ai';
+ import { useCrudDrawer } from '#/composables';
+ import { $t } from '#/locales';
+ 
+-import { getFormDefaults, useFormSchema } from '../data';
++import {
++  getFormDefaults,
++  normalizeProviderBaseUrl,
++  useFormSchema,
++} from '../data';
+ 
+ defineOptions({ name: 'AIProviderForm' });
+ 
+@@ -27,10 +33,23 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
+   schema: (edit) => useFormSchema(edit),
+   defaults: getFormDefaults,
+   transform: (values, edit) => {
++    const { normalizedBaseUrl, wasEndpointNormalized } =
++      normalizeProviderBaseUrl(
++        typeof values.base_url === 'string' ? values.base_url : null,
++        typeof values.type === 'string' ? values.type : null,
++      );
++    if (wasEndpointNormalized && normalizedBaseUrl) {
++      message.warning(
++        $t('admin.ai.provider.messages.baseUrlAutoNormalized', {
++          baseUrl: normalizedBaseUrl,
++        }),
++      );
++    }
++
+     const result: Record<string, unknown> = {
+       name: values.name,
+       type: values.type,
+-      base_url: values.base_url || null,
++      base_url: normalizedBaseUrl,
+       description: values.description || null,
+       icon: values.icon || null,
+       sort_order: values.sort_order ?? 0,
+diff --git a/frontend/apps/web-antd/src/views/admin/system/codegen/builder.vue b/frontend/apps/web-antd/src/views/admin/system/codegen/builder.vue
+index 34dfe234..4716d2d8 100644
+--- a/frontend/apps/web-antd/src/views/admin/system/codegen/builder.vue
++++ b/frontend/apps/web-antd/src/views/admin/system/codegen/builder.vue
+@@ -99,9 +99,46 @@ const lastResult = ref<{
+   table_name?: string | null;
+   migration?: { success?: boolean; message?: string; migration_path?: string; phase?: string; error?: string } | null;
+ } | null>(null);
++type GenerateNextStepKey =
++  | 'checkMigration'
++  | 'migrationAlreadyApplied'
++  | 'migrationNoChanges'
++  | 'runMigration'
++  | 'restartIfNeeded'
++  | 'reviewCode';
+ 
+ const moduleOptions = ref<Array<{ label: string; value: string }>>([]);
+ 
++const resultNextSteps = computed<GenerateNextStepKey[]>(() => {
++  const result = lastResult.value;
++  if (!result) return [];
++
++  const steps: GenerateNextStepKey[] = [];
++  const migration = result.migration;
++  const hasWrittenFiles =
++    (result.files_created?.length ?? 0) > 0 ||
++    (result.files_modified?.length ?? 0) > 0;
++
++  if (migration?.migration_path) {
++    steps.push('checkMigration');
++  }
++
++  if (migration?.phase === 'noop') {
++    steps.push('migrationNoChanges');
++  } else if (migration?.success) {
++    steps.push('migrationAlreadyApplied');
++  } else if (migration || result.success) {
++    steps.push('runMigration');
++  }
++
++  if (hasWrittenFiles) {
++    steps.push('restartIfNeeded');
++  }
++
++  steps.push('reviewCode');
++  return steps;
++});
++
+ const configId = computed(() => {
+   const id = route.params.id;
+   if (id == null || id === '' || id === 'new') return null;
+@@ -1006,10 +1043,9 @@ watch(
+         <div class="mt-4 rounded border border-border p-3">
+           <h5 class="mb-2 font-medium">{{ $t('admin.system.codegen.generate.nextSteps') }}</h5>
+           <ul class="list-inside list-decimal space-y-1 text-sm">
+-            <li>{{ $t('admin.system.codegen.generate.checkMigration') }}</li>
+-            <li>{{ $t('admin.system.codegen.generate.runMigration') }}</li>
+-            <li>{{ $t('admin.system.codegen.generate.restartServer') }}</li>
+-            <li>{{ $t('admin.system.codegen.generate.reviewCode') }}</li>
++            <li v-for="step in resultNextSteps" :key="step">
++              {{ $t(`admin.system.codegen.generate.${step}`) }}
++            </li>
+           </ul>
+         </div>
+         <div class="mt-4 flex justify-end gap-2">
+diff --git a/frontend/apps/web-antd/src/views/tenant/ai/action-logs/data.ts b/frontend/apps/web-antd/src/views/tenant/ai/action-logs/data.ts
+index f16c15d6..b32d143b 100644
+--- a/frontend/apps/web-antd/src/views/tenant/ai/action-logs/data.ts
++++ b/frontend/apps/web-antd/src/views/tenant/ai/action-logs/data.ts
+@@ -31,7 +31,7 @@ function getStatusOptions() {
+     },
+     {
+       label: $t('tenant.ai.actionLog.status_options.pending'),
+-      value: 'pending',
++      value: 'pending_confirm',
+     },
+   ];
+ }
+@@ -60,7 +60,7 @@ export function getStatusText(status: string | undefined): string {
+     case 'failed': {
+       return $t('tenant.ai.actionLog.status_options.failed');
+     }
+-    case 'pending': {
++    case 'pending_confirm': {
+       return $t('tenant.ai.actionLog.status_options.pending');
+     }
+     case 'rejected': {
+@@ -80,7 +80,7 @@ export function getStatusColor(status: string | undefined): string {
+     case 'failed': {
+       return 'error';
+     }
+-    case 'pending': {
++    case 'pending_confirm': {
+       return 'processing';
+     }
+     case 'rejected': {
+@@ -152,7 +152,7 @@ export function useColumns<T = ActionLogItem>(
+       width: 140,
+     },
+     {
+-      field: 'execution_time_ms',
++      field: 'duration_ms',
+       title: $t('tenant.ai.actionLog.executionTime'),
+       width: 120,
+       align: 'right',
+diff --git a/frontend/apps/web-antd/src/views/tenant/ai/action-logs/index.vue b/frontend/apps/web-antd/src/views/tenant/ai/action-logs/index.vue
+index a11148e3..317c4699 100644
+--- a/frontend/apps/web-antd/src/views/tenant/ai/action-logs/index.vue
++++ b/frontend/apps/web-antd/src/views/tenant/ai/action-logs/index.vue
+@@ -8,9 +8,6 @@ import type { ActionLogItem, ActionLogStats } from '#/api/tenant/action-logs';
+ 
+ import { onMounted, onUnmounted, ref } from 'vue';
+ 
+-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+-
+ import { Page } from '@vben/common-ui';
+ import { IconifyIcon } from '@vben/icons';
+ 
+@@ -21,6 +18,8 @@ import {
+   getActionLogListApi,
+   getActionLogStatsApi,
+ } from '#/api/tenant/action-logs';
++import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
++import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+ import { $t } from '#/locales';
+ import { formatDate } from '#/utils/common';
+ 
+@@ -233,8 +232,8 @@ onUnmounted(() => {
+ 
+         <!-- 耗时列 -->
+         <template #executionTime_cell="{ row }">
+-          <span v-if="row.execution_time_ms" class="text-muted-foreground">
+-            {{ row.execution_time_ms }}ms
++          <span v-if="row.duration_ms" class="text-muted-foreground">
++            {{ row.duration_ms }}ms
+           </span>
+           <span v-else class="text-muted-foreground">-</span>
+         </template>

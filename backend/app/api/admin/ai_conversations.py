@@ -9,6 +9,7 @@ from fastapi import Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -96,7 +97,7 @@ async def _batch_load_users(
 ) -> dict[str, dict]:
     """
     批量加载用户信息 / Batch load user info.
-    tenant_id=0 → Admin 表 / Admin table，tenant_id>0 → TenantAdmin 表 / TenantAdmin table。
+    tenant_id=PLATFORM_TENANT_ID → Admin 表 / Admin table，tenant_id>PLATFORM_TENANT_ID → TenantAdmin 表 / TenantAdmin table。
     返回 / Returns {'{tenant_id}:{user_id}': {username, nickname, avatar}} 映射 / mapping。
     """
     admin_ids: set[int] = set()
@@ -104,7 +105,7 @@ async def _batch_load_users(
     for conv in items:
         if conv.user_id is None:
             continue
-        if conv.tenant_id == 0:
+        if conv.tenant_id == PLATFORM_TENANT_ID:
             admin_ids.add(conv.user_id)
         else:
             tenant_admin_ids.add(conv.user_id)
@@ -117,7 +118,7 @@ async def _batch_load_users(
         ).where(Admin.id.in_(admin_ids), Admin.is_deleted.is_(False))
         result = await db.execute(stmt)
         for row in result.all():
-            user_map[f"0:{row.id}"] = {
+            user_map[f"{PLATFORM_TENANT_ID}:{row.id}"] = {
                 "username": row.username,
                 "nickname": row.nickname,
                 "avatar": row.avatar,
@@ -148,7 +149,7 @@ async def _load_single_user_info(
     """加载单个用户信息（用于详情页） / Load single user info (for detail page)"""
     if user_id is None:
         return None
-    if tenant_id == 0:
+    if tenant_id == PLATFORM_TENANT_ID:
         stmt = select(
             Admin.id, Admin.username, Admin.nickname, Admin.avatar,
         ).where(Admin.id == user_id, Admin.is_deleted.is_(False))

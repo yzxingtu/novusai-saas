@@ -125,6 +125,7 @@
     "detail": "日志详情",
     "username": "操作用户",
     "userType": "用户类型",
+    "traceId": "追踪 ID",
     "module": "模块",
     "action": "操作类型",
     "method": "请求方法",
@@ -149,6 +150,7 @@
     },
     "placeholder": {
       "searchUsername": "搜索操作用户",
+      "searchTraceId": "搜索追踪 ID",
       "searchModule": "搜索模块",
       "searchAction": "搜索操作类型",
       "searchIp": "搜索IP地址",
@@ -724,7 +726,8 @@
       "generate": "生成",
       "download": "下载",
       "duplicate": "复制",
-      "rollback": "回滚"
+      "rollback": "回滚",
+      "rollbackDisabledHint": "当前工作区清单中无此配置记录（codegen_manifest.json）。请在本仓库根目录重新生成后再试，或与数据库状态不一致时需先对齐。"
     },
     "confirm": {
       "generate": "确定要为「{name}」执行代码生成吗？",
@@ -960,12 +963,15 @@
       "validateConfig": "校验配置",
       "validateSuccess": "校验通过",
       "validationErrors": "校验失败，请修正以下问题",
-      "applyAndMigrateHint": "生成代码后需手动执行 alembic 迁移",
+      "applyAndMigrateHint": "生成后会自动尝试执行迁移；仅在自动迁移失败时再手动处理。",
       "resultTitle": "生成结果",
       "nextSteps": "下一步",
       "checkMigration": "检查迁移文件",
+      "migrationAlreadyApplied": "自动迁移已完成，无需再次执行",
+      "migrationNoChanges": "本次没有数据库结构变更，无需执行迁移",
       "runMigration": "运行迁移",
       "restartServer": "重启服务器",
+      "restartIfNeeded": "如开发进程未自动热更新，请重启相关服务",
       "reviewCode": "审查代码",
       "viewFiles": "查看生成的文件",
       "noPreview": "暂无预览，请完成前几步配置",

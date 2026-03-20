@@ -31,7 +31,7 @@ function getStatusOptions() {
     },
     {
       label: $t('tenant.ai.actionLog.status_options.pending'),
-      value: 'pending',
+      value: 'pending_confirm',
     },
   ];
 }
@@ -60,7 +60,7 @@ export function getStatusText(status: string | undefined): string {
     case 'failed': {
       return $t('tenant.ai.actionLog.status_options.failed');
     }
-    case 'pending': {
+    case 'pending_confirm': {
       return $t('tenant.ai.actionLog.status_options.pending');
     }
     case 'rejected': {
@@ -80,7 +80,7 @@ export function getStatusColor(status: string | undefined): string {
     case 'failed': {
       return 'error';
     }
-    case 'pending': {
+    case 'pending_confirm': {
       return 'processing';
     }
     case 'rejected': {
@@ -152,7 +152,7 @@ export function useColumns<T = ActionLogItem>(
       width: 140,
     },
     {
-      field: 'execution_time_ms',
+      field: 'duration_ms',
       title: $t('tenant.ai.actionLog.executionTime'),
       width: 120,
       align: 'right',

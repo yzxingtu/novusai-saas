@@ -8,9 +8,6 @@ import type { ActionLogItem, ActionLogStats } from '#/api/tenant/action-logs';
 
 import { onMounted, onUnmounted, ref } from 'vue';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -21,6 +18,8 @@ import {
   getActionLogListApi,
   getActionLogStatsApi,
 } from '#/api/tenant/action-logs';
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -233,8 +232,8 @@ onUnmounted(() => {
 
         <!-- 耗时列 -->
         <template #executionTime_cell="{ row }">
-          <span v-if="row.execution_time_ms" class="text-muted-foreground">
-            {{ row.execution_time_ms }}ms
+          <span v-if="row.duration_ms" class="text-muted-foreground">
+            {{ row.duration_ms }}ms
           </span>
           <span v-else class="text-muted-foreground">-</span>
         </template>

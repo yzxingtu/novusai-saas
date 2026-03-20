@@ -11,7 +11,7 @@ from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.i18n import _
@@ -218,7 +218,7 @@ class AttachmentDownloadService:
         resolver = StorageConfigResolver(self.db)
         return await resolver.resolve_for_attachment(
             driver=attachment.driver,
-            tenant_id=self.tenant_id or 0,
+            tenant_id=self.tenant_id or PLATFORM_TENANT_ID,
         )
 
     @staticmethod

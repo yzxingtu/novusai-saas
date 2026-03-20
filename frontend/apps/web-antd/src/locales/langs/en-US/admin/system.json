@@ -125,6 +125,7 @@
     "detail": "Log Detail",
     "username": "Operator",
     "userType": "User Type",
+    "traceId": "Trace ID",
     "module": "Module",
     "action": "Action",
     "method": "Method",
@@ -149,6 +150,7 @@
     },
     "placeholder": {
       "searchUsername": "Search operator",
+      "searchTraceId": "Search trace ID",
       "searchModule": "Search module",
       "searchAction": "Search action",
       "searchIp": "Search IP address",
@@ -724,7 +726,8 @@
       "generate": "Generate",
       "download": "Download",
       "duplicate": "Duplicate",
-      "rollback": "Rollback"
+      "rollback": "Rollback",
+      "rollbackDisabledHint": "No manifest entry in this workspace (codegen_manifest.json). Re-generate from the repo root, or DB status is out of sync."
     },
     "confirm": {
       "generate": "Generate code for \"{name}\"?",
@@ -960,12 +963,15 @@
       "validateConfig": "Validate Config",
       "validateSuccess": "Validation passed",
       "validationErrors": "Validation failed. Please fix the following issues",
-      "applyAndMigrateHint": "Run alembic migration manually after generation",
+      "applyAndMigrateHint": "Generation will try to run migrations automatically; handle them manually only if auto-migrate fails.",
       "resultTitle": "Generate Result",
       "nextSteps": "Next Steps",
       "checkMigration": "Check migration files",
+      "migrationAlreadyApplied": "Auto-migration already completed",
+      "migrationNoChanges": "No schema changes were detected, so no migration is needed",
       "runMigration": "Run migration",
       "restartServer": "Restart server",
+      "restartIfNeeded": "Restart affected services if your dev process did not hot-reload",
       "reviewCode": "Review code",
       "viewFiles": "View Generated Files",
       "noPreview": "No preview, complete previous steps",

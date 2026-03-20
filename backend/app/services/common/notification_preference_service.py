@@ -10,6 +10,8 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.core.logging import LogManager
 from app.models.common.notification_preference import NotificationPreference
 
@@ -47,13 +49,13 @@ class NotificationPreferenceService:
     async def get_global_preferences(
         self,
         global_user_type: str,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> list[dict]:
         """
         获取全局通知偏好列表（缺失的 category 用硬编码默认补全）/ Get global notification preferences (fill missing with defaults).
 
         :param global_user_type: 'platform_global' | 'tenant_global'
-        :param tenant_id: 租户 ID（平台级为 0）
+        :param tenant_id: 租户 ID（平台级为 PLATFORM_TENANT_ID）
         """
         result = await self.db.execute(
             select(NotificationPreference).where(
@@ -152,8 +154,10 @@ class NotificationPreferenceService:
                 )
                 logger.info(
                     "Cleared individual notification prefs for changed categories: {} "
-                    "(global_type=%s, tenant_id=%s)",
-                    changed_categories, global_user_type, tenant_id,
+                    "(global_type={}, tenant_id={})",
+                    changed_categories,
+                    global_user_type,
+                    tenant_id,
                 )
 
     # ------------------------------------------------------------------
@@ -164,7 +168,7 @@ class NotificationPreferenceService:
         self,
         user_type: str,
         user_id: int,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> list[dict]:
         """
         获取用户所有分类的偏好设置（个人 -> 全局 -> 硬编码默认）/ Get user preferences per category (user -> global -> default).
@@ -220,7 +224,7 @@ class NotificationPreferenceService:
         user_type: str,
         user_id: int,
         data: list[dict],
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> None:
         """
         批量保存个人偏好设置（upsert 语义）/ Batch save user preferences (upsert).
@@ -260,7 +264,7 @@ class NotificationPreferenceService:
         self,
         user_type: str,
         user_id: int,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> None:
         """
         清除个人通知偏好（恢复为全局默认）/ Clear user notification preferences (restore to global default).

@@ -6,6 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AdminActionLogItem } from '#/api/admin/action-logs';
 
 import { searchInput, select } from '#/adapter/form';
+import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 
 export type { AdminActionLogItem as ActionLogItem } from '#/api/admin/action-logs';
@@ -161,6 +162,22 @@ export function getLevelColor(level: string | undefined): string {
   }
 }
 
+export function getTenantDisplay(log: Pick<AdminActionLogItem, 'tenant_code' | 'tenant_id' | 'tenant_name'>): string {
+  if (log.tenant_id === PLATFORM_TENANT_ID) {
+    return $t('admin.ai.actionLog.platformTenant');
+  }
+
+  if (log.tenant_name) {
+    return log.tenant_name;
+  }
+
+  if (log.tenant_code) {
+    return log.tenant_code;
+  }
+
+  return '-';
+}
+
 /**
  * 表格列定义
  */
@@ -204,9 +221,9 @@ export function useColumns<T = AdminActionLogItem>(
     },
     {
       field: 'tenant_id',
-      title: $t('admin.ai.actionLog.tenantId'),
-      width: 100,
-      align: 'center',
+      title: $t('admin.ai.actionLog.tenantInfo'),
+      minWidth: 180,
+      slots: { default: 'tenantInfo_cell' },
     },
     {
       field: 'duration_ms',

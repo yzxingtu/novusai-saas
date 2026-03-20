@@ -43,8 +43,8 @@ class Admin{{ resource | pascal }}Service(GlobalService[{{ resource | pascal }},
     repository_class = Admin{{ resource | pascal }}Repository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """管理端创建时注入 tenant_id=0（平台级）/ Inject tenant_id=0 for platform-level records"""
-        data.setdefault("tenant_id", 0)
+        """管理端创建时注入 tenant_id=PLATFORM_TENANT_ID（平台级）/ Inject tenant_id=PLATFORM_TENANT_ID for platform-level records"""
+        data.setdefault("tenant_id", PLATFORM_TENANT_ID)
         await super()._before_create(data)
 
 {% endif %}

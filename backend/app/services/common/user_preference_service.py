@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.models.common.user_preference import UserPreference
 
@@ -24,8 +25,6 @@ SCOPE_PLATFORM_GLOBAL = "platform_global"
 SCOPE_TENANT_GLOBAL = "tenant_global"
 SCOPE_ADMIN = "admin"
 SCOPE_TENANT_ADMIN = "tenant_admin"
-
-PLATFORM_TENANT_ID = 0
 
 GLOBAL_SCOPES = {SCOPE_PLATFORM_GLOBAL, SCOPE_TENANT_GLOBAL}
 INDIVIDUAL_SCOPES = {SCOPE_ADMIN, SCOPE_TENANT_ADMIN}

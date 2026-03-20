@@ -28,6 +28,8 @@ export interface AIModelInfo {
   tpm_limit: null | number;
   supports_function_calling: boolean;
   supports_vision: boolean;
+  supports_audio: boolean;
+  supports_video: boolean;
   supports_streaming: boolean;
   max_image_count: null | number;
   max_image_size_mb: null | number;
@@ -56,6 +58,8 @@ export interface AIModelCreateRequest {
   tpm_limit?: null | number;
   supports_function_calling?: boolean;
   supports_vision?: boolean;
+  supports_audio?: boolean;
+  supports_video?: boolean;
   supports_streaming?: boolean;
   max_image_count?: null | number;
   max_image_size_mb?: null | number;
@@ -79,6 +83,8 @@ export interface AIModelUpdateRequest {
   tpm_limit?: null | number;
   supports_function_calling?: boolean | null;
   supports_vision?: boolean | null;
+  supports_audio?: boolean | null;
+  supports_video?: boolean | null;
   supports_streaming?: boolean | null;
   max_image_count?: null | number;
   max_image_size_mb?: null | number;
@@ -95,7 +101,11 @@ export interface RemoteModelCapabilities {
   max_output_tokens?: null | number;
   model_type?: null | string;
   output_price_per_1k?: null | number;
+  rpm_limit?: null | number;
+  tpm_limit?: null | number;
   supports_function_calling?: boolean | null;
+  supports_audio?: boolean | null;
+  supports_video?: boolean | null;
   supports_streaming?: boolean | null;
   supports_vision?: boolean | null;
 }

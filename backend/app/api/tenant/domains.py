@@ -47,7 +47,7 @@ from app.services.system.tenant_domain_service import TenantDomainTenantService
         path="/system-mgmt/domains",
         component="tenant/system-mgmt/domains/index",
         parent="system_mgmt",  # 父菜单: 系统管理 / Parent menu: system management
-        sort_order=10,
+        sort_order=15,  # 与 tenant_config(10) 错开，避免同级 sort 并列不稳定 / After tenant_config
     ),
 )
 class TenantDomainController(TenantController):

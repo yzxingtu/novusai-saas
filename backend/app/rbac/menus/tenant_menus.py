@@ -78,8 +78,8 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # Child menus declared by controllers / 子菜单由控制器声明:
     # - menu:tenant.user_architecture (User Architecture / 用户架构) - declared by user_roles.py / 由 user_roles.py 声明
     # - menu:tenant.organization (Organization / 组织架构) - declared by roles.py / 由 roles.py 声明
-    # - menu:tenant.permission (Permission Management / 权限管理) - optional, usually hidden / 可选，一般隐藏
-    # Note: tenant_user merged into user_architecture page / 注意: tenant_user 已合并到 user_architecture 页面
+    # permission 控制器无菜单，仅 API / permission controller has no menu
+    # tenant_user 无独立菜单（权限挂在用户架构等页面）/ tenant_user has no menu entry
 
     # ========================================
     # System Management (directory) / 系统管理（目录）
@@ -96,9 +96,10 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=20,
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
-    # - menu:tenant.tenant_config (Tenant Config / 企业配置)
-    # - menu:tenant.tenant_settings (Tenant Settings / 企业设置)
-    # - menu:tenant.global_preferences (Global Preferences / 偏好设置) — declared below / 下方声明
+    # - menu:tenant.tenant_config — configs.py
+    # - menu:tenant.tenant_domain — domains.py
+    # - menu:tenant.attachment — attachments.py
+    # - menu:tenant.global_preferences — 下方静态声明
 
     # ---- Global Preferences (leaf menu) / 偏好设置（叶子菜单） ----
     PermissionMeta(
@@ -145,9 +146,10 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
     # - menu:tenant.agent (Agent Management / 智能体管理)
-    # - menu:tenant.agent_chat (AI Chat / AI 对话)
+    # - menu:tenant.agent_chat (hidden menu entry for /ai/chat / 隐藏项，路由用)
     # - menu:tenant.knowledge_base (Knowledge Base / 知识库)
-    # - menu:tenant.agent_tool (Tool Management / 工具管理)
+    # - menu:tenant.agent_assignment (功能分配)
+    # 无独立「工具管理」菜单（工具在智能体等页面内配置）/ No standalone tool menu in core tenant UI
 
     # ---- Settings (sub-directory) / 设置（子目录） ----
     PermissionMeta(

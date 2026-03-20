@@ -14,6 +14,8 @@ from typing import Any
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.models.common.notification import Notification
@@ -112,7 +114,7 @@ class NotificationService:
             if not force:
                 pref = await self._get_preference(
                     user_type, user_id, template.category,
-                    tenant_id=tenant_id or 0,
+                    tenant_id=tenant_id or PLATFORM_TENANT_ID,
                 )
             else:
                 pref = {}
@@ -307,7 +309,7 @@ class NotificationService:
         user_type: str,
         user_id: int,
         category: str,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> dict[str, bool]:
         """查询用户通知偏好（个人 -> 全局 -> 硬编码默认） / Get user notification preference (user -> global -> default)."""
         result = await self.db.execute(

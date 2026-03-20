@@ -69,9 +69,13 @@ class CodegenConfigResponse(BaseResponseSchema):
     )
     config_hash: str | None = Field(None, description="配置哈希 / Config hash")
     last_error: str | None = Field(None, description="上次生成错误 / Last error")
+    manifest_present: bool = Field(
+        False,
+        description="仓库根目录 codegen_manifest.json 中是否存在可回滚条目 / Manifest entry exists for rollback",
+    )
 
     @classmethod
-    def from_model(cls, obj) -> "CodegenConfigResponse":
+    def from_model(cls, obj, *, manifest_present: bool = False) -> "CodegenConfigResponse":
         """从模型创建响应 / Build response from model."""
         return cls(
             id=obj.id,
@@ -89,6 +93,7 @@ class CodegenConfigResponse(BaseResponseSchema):
             generated_files=obj.generated_files,
             config_hash=obj.config_hash,
             last_error=obj.last_error,
+            manifest_present=manifest_present,
         )
 
 

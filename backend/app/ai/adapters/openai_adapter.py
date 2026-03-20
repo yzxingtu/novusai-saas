@@ -9,9 +9,11 @@ Supports OpenAI official API and all compatible services
 from __future__ import annotations
 
 import base64
+import json
 import re
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 from openai import AsyncOpenAI
@@ -19,7 +21,9 @@ from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
+from app.ai.constants import OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API
 from app.ai.exceptions import AIGatewayError, convert_openai_error
+from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
     ChatChunk,
     ChatMessage,
@@ -70,12 +74,124 @@ class OpenAIAdapter(BaseAdapter):
     def __init__(self, api_key: str, base_url: str | None = None, **kwargs):
         super().__init__(api_key, base_url, **kwargs)
 
+        provider_config = self.config.get("provider_config")
+        self.provider_config = provider_config.copy() if isinstance(provider_config, dict) else {}
+        self.base_url, inferred_wire_api = self._normalize_base_url(base_url)
+
         # Initialize OpenAI client / 初始化 OpenAI 客户端
         client_kwargs = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
 
         self.client = AsyncOpenAI(**client_kwargs)
+        self.wire_api = self._resolve_wire_api(
+            self.provider_config.get("wire_api"),
+            inferred_wire_api=inferred_wire_api,
+        )
+
+    def _normalize_base_url(self, base_url: str | None) -> tuple[str | None, str | None]:
+        normalized = str(base_url or "").strip()
+        if not normalized:
+            return None, None
+
+        normalized = normalized.rstrip("/")
+        lower_normalized = normalized.lower()
+        for suffix, inferred_wire_api in OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API.items():
+            if lower_normalized.endswith(suffix):
+                stripped_base_url = normalized[: -len(suffix)].rstrip("/")
+                if stripped_base_url:
+                    logger.warning(
+                        "AI provider base_url includes endpoint path; normalized base_url from {} to {} and inferred wire_api={}",
+                        normalized,
+                        stripped_base_url,
+                        inferred_wire_api,
+                    )
+                    return stripped_base_url, inferred_wire_api
+                return normalized, inferred_wire_api
+
+        return normalized, None
+
+    def _resolve_wire_api(self, wire_api: Any, *, inferred_wire_api: str | None = None) -> str:
+        configured_wire_api = str(wire_api or "").strip()
+        if configured_wire_api:
+            normalized_wire_api = self._normalize_wire_api(configured_wire_api)
+            if inferred_wire_api and normalized_wire_api != inferred_wire_api:
+                logger.warning(
+                    "AI provider wire_api overrides inferred endpoint: configured={} inferred={}",
+                    normalized_wire_api,
+                    inferred_wire_api,
+                )
+            return normalized_wire_api
+
+        if inferred_wire_api:
+            return self._normalize_wire_api(inferred_wire_api)
+        return self._normalize_wire_api(None)
+
+    def _get_effective_base_url(self) -> str:
+        return (self.base_url or "https://api.openai.com/v1").rstrip("/")
+
+    def _build_endpoint_url(self, endpoint_path: str) -> str:
+        return f"{self._get_effective_base_url()}/{endpoint_path.lstrip('/')}"
+
+    def _chat_endpoint_path(self) -> str:
+        return "responses" if self._use_responses_api() else "chat/completions"
+
+    def _format_preview(self, payload: Any, limit: int = 400) -> str:
+        if payload is None:
+            return ""
+        if isinstance(payload, str):
+            text = payload
+        else:
+            try:
+                text = json.dumps(payload, ensure_ascii=False)
+            except TypeError:
+                text = repr(payload)
+        return text[:limit]
+
+    def _log_upstream_request(
+        self,
+        *,
+        endpoint_path: str,
+        model: str,
+        stream: bool,
+    ) -> None:
+        logger.info(
+            "AI upstream request: wire_api={} method=POST url={} model={} stream={} auth_header=Bearer content_type=application/json accept={}",
+            self.wire_api,
+            self._build_endpoint_url(endpoint_path),
+            model,
+            stream,
+            "text/event-stream" if stream else "application/json",
+        )
+
+    def _log_upstream_error(
+        self,
+        error: Exception,
+        *,
+        endpoint_path: str,
+        model: str,
+    ) -> None:
+        response = getattr(error, "response", None)
+        request = getattr(response, "request", None)
+        request_url = str(getattr(request, "url", "") or self._build_endpoint_url(endpoint_path))
+        status_code = getattr(error, "status_code", None)
+        if status_code is None and response is not None:
+            status_code = getattr(response, "status_code", None)
+        content_type = None
+        if response is not None:
+            headers = getattr(response, "headers", None)
+            if headers is not None:
+                content_type = headers.get("content-type")
+        body_preview = self._format_preview(getattr(error, "body", None) or getattr(response, "text", None))
+        logger.warning(
+            "AI upstream error: wire_api={} url={} model={} status_code={} content_type={} response_preview={}",
+            self.wire_api,
+            request_url,
+            model,
+            status_code,
+            content_type or "",
+            body_preview,
+        )
 
     async def chat(
         self,
@@ -124,9 +240,43 @@ class OpenAIAdapter(BaseAdapter):
             # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
 
+            if self._use_responses_api():
+                return await self._chat_via_responses(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    supports_vision=vision_flag,
+                    supports_audio=audio_flag,
+                    supports_video=video_flag,
+                    **kwargs,
+                )
+
             # Call API / 调用 API
+            self._log_upstream_request(endpoint_path=self._chat_endpoint_path(), model=model, stream=False)
             logger.info("Chat request: model={} messages={}", model, len(messages))
-            response: ChatCompletion = await self.client.chat.completions.create(**request_params)
+            response = await self.client.chat.completions.create(**request_params)
+
+            if self._should_fallback_to_responses(response):
+                logger.warning(
+                    "Chat response missing choices; fallback to responses API: model={} response_type={}",
+                    model,
+                    type(response).__name__,
+                )
+                return await self._chat_via_responses(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    supports_vision=vision_flag,
+                    supports_audio=audio_flag,
+                    supports_video=video_flag,
+                    **kwargs,
+                )
 
             # Convert response / 转换响应
             return self._convert_chat_response(response, model)
@@ -134,6 +284,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
+            self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
             logger.error("Chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
@@ -183,17 +334,63 @@ class OpenAIAdapter(BaseAdapter):
             # Add extra parameters / 添加额外参数
             request_params.update(kwargs)
 
+            if self._use_responses_api():
+                async for chunk in self._stream_chat_via_responses(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    supports_vision=vision_flag,
+                    supports_audio=audio_flag,
+                    supports_video=video_flag,
+                    **kwargs,
+                ):
+                    yield chunk
+                return
+
             # Call streaming API / 调用流式 API
+            self._log_upstream_request(endpoint_path=self._chat_endpoint_path(), model=model, stream=True)
             logger.info("Stream chat request: model={}", model)
             stream = await self.client.chat.completions.create(**request_params)
 
             # Convert streaming response / 转换流式响应
+            first_chunk = await anext(stream, None)
+            if first_chunk is None:
+                return
+
+            if self._should_fallback_to_responses(first_chunk):
+                logger.warning(
+                    "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
+                    model,
+                    type(first_chunk).__name__,
+                )
+                if hasattr(stream, "aclose"):
+                    await stream.aclose()
+                async for chunk in self._stream_chat_via_responses(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    supports_vision=vision_flag,
+                    supports_audio=audio_flag,
+                    supports_video=video_flag,
+                    **kwargs,
+                ):
+                    yield chunk
+                return
+
+            yield self._convert_chat_chunk(first_chunk, model)
             async for chunk in stream:
                 yield self._convert_chat_chunk(chunk, model)
 
         except AIGatewayError:
             raise
         except Exception as e:
+            self._log_upstream_error(e, endpoint_path=self._chat_endpoint_path(), model=model)
             logger.error("Stream chat error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
@@ -208,6 +405,7 @@ class OpenAIAdapter(BaseAdapter):
         """
         try:
             # Call API / 调用 API
+            self._log_upstream_request(endpoint_path="embeddings", model=model, stream=False)
             logger.info("Embedding request: model={} texts={}", model, len(texts))
             response: CreateEmbeddingResponse = await self.client.embeddings.create(
                 input=texts,
@@ -226,6 +424,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
+            self._log_upstream_error(e, endpoint_path="embeddings", model=model)
             logger.error("Embedding error: model={} error={}", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
 
@@ -240,6 +439,7 @@ class OpenAIAdapter(BaseAdapter):
             Model info list / 模型信息列表
         """
         try:
+            self._log_upstream_request(endpoint_path="models", model="", stream=False)
             response = await self.client.models.list()
             return [
                 {
@@ -249,8 +449,402 @@ class OpenAIAdapter(BaseAdapter):
                 for model in response.data
             ]
         except Exception as e:
+            self._log_upstream_error(e, endpoint_path="models", model="")
             logger.error("List models error: {}", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
+
+    def _normalize_wire_api(self, wire_api: Any) -> str:
+        value = str(wire_api or "").strip().lower().replace("-", "_")
+        if value in {"responses", "response", "responses_api"}:
+            return "responses"
+        return "chat_completions"
+
+    def _use_responses_api(self) -> bool:
+        return self.wire_api == "responses"
+
+    def _payload_looks_like_api_error(self, payload: Any) -> bool:
+        """True when upstream returned an error object, not a misrouted success body."""
+        if payload is None:
+            return False
+        if getattr(payload, "error", None) is not None:
+            return True
+        if isinstance(payload, dict) and payload.get("error") is not None:
+            return True
+        return False
+
+    def _payload_resembles_responses_api_body(self, payload: Any) -> bool:
+        """
+        True when payload looks like OpenAI Responses API JSON, not arbitrary missing choices.
+        仅在响应体像 Responses 结构时才 fallback，避免对 HTML/空对象等误触发二次请求。
+        """
+        if payload is None:
+            return False
+        if getattr(payload, "object", None) == "response":
+            return True
+        if isinstance(payload, dict) and payload.get("object") == "response":
+            return True
+        if hasattr(payload, "output"):
+            return True
+        if isinstance(payload, dict) and "output" in payload:
+            return True
+        if hasattr(payload, "output_text"):
+            return True
+        if isinstance(payload, dict) and "output_text" in payload:
+            return True
+        return False
+
+    def _should_fallback_to_responses(self, payload: Any) -> bool:
+        if self._use_responses_api():
+            return False
+        if hasattr(payload, "choices"):
+            return False
+        if self._payload_looks_like_api_error(payload):
+            return False
+        return self._payload_resembles_responses_api_body(payload)
+
+    async def _chat_via_responses(
+        self,
+        messages: list[ChatMessage],
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        top_p: float = 1.0,
+        tools: list[dict] | None = None,
+        **kwargs,
+    ) -> ChatResponse:
+        request_params = self._build_responses_request(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            tools=tools,
+            **kwargs,
+        )
+        self._log_upstream_request(endpoint_path="responses", model=model, stream=False)
+        logger.info("Responses chat request: model={} messages={}", model, len(messages))
+        response = await self.client.responses.create(**request_params)
+        return self._convert_responses_chat_response(response, model)
+
+    async def _stream_chat_via_responses(
+        self,
+        messages: list[ChatMessage],
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        top_p: float = 1.0,
+        tools: list[dict] | None = None,
+        **kwargs,
+    ) -> AsyncIterator[ChatChunk]:
+        request_params = self._build_responses_request(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            tools=tools,
+            stream=True,
+            **kwargs,
+        )
+        self._log_upstream_request(endpoint_path="responses", model=model, stream=True)
+        logger.info("Responses stream request: model={}", model)
+        stream = await self.client.responses.create(**request_params)
+        emitted_text = False
+
+        async for event in stream:
+            event_type = getattr(event, "type", "")
+
+            if event_type == "response.output_text.delta":
+                delta = getattr(event, "delta", "") or ""
+                if delta:
+                    emitted_text = True
+                    yield ChatChunk(delta=delta)
+                continue
+
+            if event_type in {"response.reasoning_text.delta", "response.reasoning_summary_text.delta"}:
+                delta = getattr(event, "delta", "") or ""
+                if delta:
+                    yield ChatChunk(delta="", reasoning_delta=delta)
+                continue
+
+            if event_type == "response.output_item.added":
+                item = getattr(event, "item", None)
+                if getattr(item, "type", None) == "function_call":
+                    yield ChatChunk(
+                        delta="",
+                        tool_calls=[{
+                            "index": getattr(event, "output_index", None),
+                            "id": getattr(item, "call_id", None) or getattr(item, "id", None) or "",
+                            "function": {
+                                "name": getattr(item, "name", None) or "",
+                                "arguments": getattr(item, "arguments", None) or "",
+                            },
+                        }],
+                    )
+                continue
+
+            if event_type == "response.function_call_arguments.delta":
+                yield ChatChunk(
+                    delta="",
+                    tool_calls=[{
+                        "index": getattr(event, "output_index", None),
+                        "id": getattr(event, "item_id", None) or "",
+                        "function": {"arguments": getattr(event, "delta", "") or ""},
+                    }],
+                )
+                continue
+
+            if event_type == "response.function_call_arguments.done":
+                yield ChatChunk(
+                    delta="",
+                    tool_calls=[{
+                        "index": getattr(event, "output_index", None),
+                        "id": getattr(event, "item_id", None) or "",
+                        "function": {
+                            "name": getattr(event, "name", None) or "",
+                            "arguments": getattr(event, "arguments", None) or "{}",
+                        },
+                    }],
+                )
+                continue
+
+            if event_type == "response.completed":
+                response = getattr(event, "response", None)
+                if response is not None and not emitted_text:
+                    final_text = self._extract_responses_text(response)
+                    if final_text:
+                        yield ChatChunk(delta=final_text)
+                usage = getattr(response, "usage", None)
+                yield ChatChunk(
+                    delta="",
+                    finish_reason="stop",
+                    input_tokens=getattr(usage, "input_tokens", None),
+                    output_tokens=getattr(usage, "output_tokens", None),
+                    total_tokens=getattr(usage, "total_tokens", None),
+                )
+                continue
+
+            if event_type in {"response.error", "response.failed"}:
+                error_obj = getattr(event, "error", None)
+                if error_obj is not None:
+                    raise RuntimeError(str(error_obj))
+                raise RuntimeError(event_type)
+
+    def _build_responses_request(
+        self,
+        messages: list[ChatMessage],
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        top_p: float = 1.0,
+        tools: list[dict] | None = None,
+        stream: bool = False,
+        **kwargs,
+    ) -> dict[str, Any]:
+        supports_vision = kwargs.pop("supports_vision", True)
+        supports_audio = kwargs.pop("supports_audio", False)
+        supports_video = kwargs.pop("supports_video", False)
+        request_params: dict[str, Any] = {
+            "model": model,
+            "input": self._convert_messages_to_responses_input(
+                messages,
+                supports_vision=supports_vision,
+                supports_audio=supports_audio,
+                supports_video=supports_video,
+            ),
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+        if max_tokens is not None:
+            request_params["max_output_tokens"] = max_tokens
+        if stream:
+            request_params["stream"] = True
+        if tools:
+            request_params["tools"] = self._convert_tools_for_responses(tools)
+        request_params.update(kwargs)
+        return request_params
+
+    def _convert_tools_for_responses(self, tools: list[dict]) -> list[dict]:
+        converted: list[dict] = []
+        for tool in tools:
+            if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+                function = tool["function"]
+                # Omit strict: many OpenAI-compatible gateways reject or mishandle it / 省略 strict：多数兼容网关不支持或行为不一致
+                converted.append({
+                    "type": "function",
+                    "name": function.get("name", ""),
+                    "description": function.get("description"),
+                    "parameters": function.get("parameters"),
+                })
+                continue
+            converted.append(tool)
+        return converted
+
+    def _convert_messages_to_responses_input(
+        self,
+        messages: list[ChatMessage],
+        *,
+        supports_vision: bool = True,
+        supports_audio: bool = False,
+        supports_video: bool = False,
+    ) -> list[dict[str, Any]]:
+        converted: list[dict[str, Any]] = []
+
+        for msg in messages:
+            if msg.role == "tool":
+                converted.append({
+                    "type": "function_call_output",
+                    "call_id": msg.tool_call_id or "",
+                    "output": msg.content or "",
+                })
+                continue
+
+            if msg.role == "assistant" and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    function = tool_call.get("function") or {}
+                    tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
+                    converted.append({
+                        "type": "function_call",
+                        "call_id": tc_id,
+                        "id": tool_call.get("id") or tc_id,
+                        "name": function.get("name", ""),
+                        "arguments": function.get("arguments", "{}") or "{}",
+                        "status": "completed",
+                    })
+                if not (msg.content or "").strip():
+                    continue
+
+            content = self._build_responses_message_content(
+                msg,
+                supports_vision=supports_vision,
+                supports_audio=supports_audio,
+                supports_video=supports_video,
+            )
+            converted.append({
+                "type": "message",
+                "role": msg.role,
+                "content": content,
+            })
+
+        return converted
+
+    def _build_responses_message_content(
+        self,
+        msg: ChatMessage,
+        *,
+        supports_vision: bool = True,
+        supports_audio: bool = False,
+        supports_video: bool = False,
+    ) -> str | list[dict[str, Any]]:
+        if msg.role != "user" or not msg.attachments:
+            return msg.content or ""
+
+        parts: list[dict[str, Any]] = []
+        if msg.content:
+            parts.append({"type": "input_text", "text": msg.content})
+
+        for att in msg.attachments:
+            att_type = str(att.get("type") or "").lower()
+            url = str(att.get("url") or "").strip()
+            name = att.get("name") or att.get("filename") or "file"
+
+            if att_type == "image":
+                if supports_vision and url:
+                    parts.append({
+                        "type": "input_image",
+                        "image_url": url,
+                        "detail": "auto",
+                    })
+                else:
+                    parts.append({"type": "input_text", "text": f"[Image: {name}]"})
+                continue
+
+            if att_type == "file":
+                if url:
+                    parts.append({
+                        "type": "input_file",
+                        "file_url": url,
+                        "filename": str(name),
+                    })
+                else:
+                    parts.append({"type": "input_text", "text": f"[File: {name}]"})
+                continue
+
+            if att_type == "audio":
+                if supports_audio and url:
+                    parts.append({
+                        "type": "input_file",
+                        "file_url": url,
+                        "filename": str(name),
+                    })
+                else:
+                    parts.append({"type": "input_text", "text": f"[Audio: {name}]"})
+                continue
+
+            if att_type == "video":
+                if supports_video and url:
+                    parts.append({
+                        "type": "input_file",
+                        "file_url": url,
+                        "filename": str(name),
+                    })
+                else:
+                    parts.append({"type": "input_text", "text": f"[Video: {name}]"})
+                continue
+
+            parts.append({"type": "input_text", "text": f"[Attachment: {name}]"})
+
+        return parts or (msg.content or "")
+
+    def _extract_responses_text(self, response: Any) -> str:
+        output_text = getattr(response, "output_text", None)
+        if isinstance(output_text, str) and output_text:
+            return output_text
+
+        parts: list[str] = []
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "message":
+                continue
+            for content in getattr(item, "content", []) or []:
+                if getattr(content, "type", None) == "output_text":
+                    text = getattr(content, "text", None)
+                    if text:
+                        parts.append(text)
+        return "".join(parts)
+
+    def _extract_responses_tool_calls(self, response: Any) -> list[dict] | None:
+        tool_calls: list[dict] = []
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "function_call":
+                continue
+            call_id = getattr(item, "call_id", None) or getattr(item, "id", None) or ""
+            tool_calls.append({
+                "id": call_id,
+                "type": "function",
+                "function": {
+                    "name": getattr(item, "name", None) or "",
+                    "arguments": getattr(item, "arguments", None) or "{}",
+                },
+            })
+        return tool_calls or None
+
+    def _convert_responses_chat_response(self, response: Any, model: str) -> ChatResponse:
+        tool_calls = self._extract_responses_tool_calls(response)
+        usage = getattr(response, "usage", None)
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content=self._extract_responses_text(response),
+                tool_calls=tool_calls,
+            ),
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            total_tokens=getattr(usage, "total_tokens", None),
+            model=model,
+            finish_reason="stop" if getattr(response, "status", None) == "completed" else getattr(response, "status", None),
+            tool_calls=tool_calls,
+            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+        )
 
     async def _fetch_audio_bytes(self, url: str) -> bytes | None:
         """
@@ -272,6 +866,11 @@ class OpenAIAdapter(BaseAdapter):
                 except Exception as e:
                     logger.warning("Audio data URL base64 decode failed: {}", e)
                     return None
+            return None
+        try:
+            await UrlValidator.validate(url)
+        except SSRFBlockedError as e:
+            logger.warning("Audio fetch URL blocked (SSRF): {}", e)
             return None
         try:
             async with httpx.AsyncClient(timeout=_AUDIO_FETCH_TIMEOUT_SEC) as client:
@@ -586,3 +1185,4 @@ class OpenAIAdapter(BaseAdapter):
 __all__ = [
     "OpenAIAdapter",
 ]
+

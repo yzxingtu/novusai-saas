@@ -7,6 +7,8 @@
 
 from fastapi import APIRouter
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.core.deps import ActiveAdmin, DbSession, SuperAdmin
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -33,7 +35,7 @@ async def get_global_preferences(
 ):
     """获取平台全局通知偏好设置 / Get platform global notification preferences"""
     service = NotificationPreferenceService(db)
-    prefs = await service.get_global_preferences("platform_global", tenant_id=0)
+    prefs = await service.get_global_preferences("platform_global", tenant_id=PLATFORM_TENANT_ID)
     return success(data=prefs)
 
 
@@ -48,7 +50,7 @@ async def update_global_preferences(
     更新平台全局通知偏好，变更的分类会从所有管理员个人覆盖中清除 / Update platform global notification preferences; changed categories cleared from admin overrides.
     """
     service = NotificationPreferenceService(db)
-    await service.update_global_preferences("platform_global", tenant_id=0, data=data)
+    await service.update_global_preferences("platform_global", tenant_id=PLATFORM_TENANT_ID, data=data)
     await db.commit()
 
     await sio.emit(
@@ -73,7 +75,7 @@ async def get_preferences(
 ):
     """获取当前管理员的所有通知偏好设置（含全局回退） / Get all notification preferences for current admin"""
     service = NotificationPreferenceService(db)
-    prefs = await service.get_all_preferences("admin", admin.id, tenant_id=0)
+    prefs = await service.get_all_preferences("admin", admin.id, tenant_id=PLATFORM_TENANT_ID)
     return success(data=prefs)
 
 
@@ -86,7 +88,7 @@ async def save_preferences(
 ):
     """批量保存管理员的通知偏好设置 / Batch save admin notification preferences"""
     service = NotificationPreferenceService(db)
-    await service.save_preferences("admin", admin.id, data, tenant_id=0)
+    await service.save_preferences("admin", admin.id, data, tenant_id=PLATFORM_TENANT_ID)
     await db.commit()
     return success(message=_("common.success"))
 
@@ -99,7 +101,7 @@ async def reset_preferences(
 ):
     """重置管理员通知偏好（恢复为全局默认） / Reset admin notification preferences to global defaults"""
     service = NotificationPreferenceService(db)
-    await service.reset_individual_preferences("admin", admin.id, tenant_id=0)
+    await service.reset_individual_preferences("admin", admin.id, tenant_id=PLATFORM_TENANT_ID)
     await db.commit()
     return success(message=_("common.success"))
 

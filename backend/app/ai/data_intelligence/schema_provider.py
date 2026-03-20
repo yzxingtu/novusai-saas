@@ -23,6 +23,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.constants import SCHEMA_CACHE_KEY_PREFIX, SCHEMA_CACHE_TTL, schema_cache_key
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
@@ -220,7 +221,7 @@ class SchemaProvider:
         db: AsyncSession,
         permissions: set[str] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> set[str]:
         """Get set of table names allowed for current user (after RBAC filtering) / 获取当前用户允许查询的表名集合"""
         policies = await self._load_active_policies(db, tenant_id)
@@ -235,7 +236,7 @@ class SchemaProvider:
     @staticmethod
     async def _load_active_policies(
         db: AsyncSession,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> list[dict[str, Any]]:
         """
         Load active policy list (merge global + tenant overrides). / 加载有效策略列表（合并全局 + 企业覆盖）。
@@ -252,9 +253,9 @@ class SchemaProvider:
         result = await db.execute(stmt)
         global_policies = result.scalars().all()
 
-        # Load tenant overrides (when tenant_id > 0) / 加载企业覆盖
+        # Load tenant overrides (when tenant_id > PLATFORM_TENANT_ID) / 加载企业覆盖
         overrides_map: dict[int, AITablePolicyOverride] = {}
-        if tenant_id and tenant_id > 0:
+        if tenant_id and tenant_id > PLATFORM_TENANT_ID:
             override_stmt = select(AITablePolicyOverride).where(
                 AITablePolicyOverride.tenant_id == tenant_id,
                 AITablePolicyOverride.is_deleted == False,  # noqa: E712
@@ -622,7 +623,7 @@ class SchemaProvider:
                               When None, loads all active policies (backward compatible).
             tenant_id: When set, applies ai_table_policy_overrides for that tenant.
         """
-        if tenant_id is not None and tenant_id > 0:
+        if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID:
             policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
             filtered = [
                 p for p in policies
@@ -647,7 +648,7 @@ class SchemaProvider:
     @staticmethod
     async def _load_active_policies_with_ids(
         db: AsyncSession,
-        tenant_id: int = 0,
+        tenant_id: int = PLATFORM_TENANT_ID,
     ) -> list[dict[str, Any]]:
         """Load policies with id included for filtering by table_policy_ids."""
         stmt = select(AITablePolicy).where(
@@ -658,7 +659,7 @@ class SchemaProvider:
         global_policies = result.scalars().all()
 
         overrides_map: dict[int, AITablePolicyOverride] = {}
-        if tenant_id and tenant_id > 0:
+        if tenant_id and tenant_id > PLATFORM_TENANT_ID:
             ov_stmt = select(AITablePolicyOverride).where(
                 AITablePolicyOverride.tenant_id == tenant_id,
                 AITablePolicyOverride.is_deleted == False,  # noqa: E712
@@ -694,7 +695,7 @@ class SchemaProvider:
         Returns:
             {"create": [(name, label), ...], "update": [...], "delete": [...]}
         """
-        if tenant_id is not None and tenant_id > 0:
+        if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID:
             policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id)
             filtered = [
                 p for p in policies
@@ -756,7 +757,10 @@ class SchemaProvider:
             "id", "created_at", "updated_at", "is_deleted", "deleted_at", "tenant_id",
         })
 
-        policies = await SchemaProvider._load_active_policies_with_ids(db, tenant_id=0)
+        policies = await SchemaProvider._load_active_policies_with_ids(
+            db,
+            tenant_id=PLATFORM_TENANT_ID,
+        )
         filtered = [
             p for p in policies
             if (table_policy_ids is None or p["id"] in table_policy_ids)
@@ -887,3 +891,4 @@ __all__ = [
     "TableSchema",
     "SchemaProvider",
 ]
+

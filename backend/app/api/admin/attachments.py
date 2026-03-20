@@ -8,7 +8,7 @@ Provides cross-tenant attachment management endpoints (platform admin only).
 from fastapi import File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -45,7 +45,7 @@ def _with_preview_url(data: dict) -> dict:
     """为序列化后的附件字典注入 preview_url / Inject preview_url into serialized attachment dict."""
     data["preview_url"] = AttachmentDownloadService.build_preview_url(
         attachment_id=data["id"],
-        tenant_id=data.get("tenant_id", 0),
+        tenant_id=data.get("tenant_id", PLATFORM_TENANT_ID),
         visibility=data.get("visibility", "private"),
     )
     return data
@@ -95,7 +95,7 @@ class AdminAttachmentController(GlobalController):
 
             权限 / Permission: attachment:upload_rules
             """
-            from app.configs.service import ConfigService
+            from app.configs.service import ConfigService, PLATFORM_TENANT_ID
             config_service = ConfigService(db)
 
             allowed = await config_service.get_platform_config(
@@ -123,7 +123,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             body: AttachmentPreflightRequest,
-            tenant_id: int = Query(0, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Query(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
         ):
             """
             预检文件是否已存在 / Check if file already exists (preflight)
@@ -169,7 +169,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description=_("api.param.file")),
-            tenant_id: int = Form(0, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Form(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
             visibility: str = Form("", description=_("api.param.visibility")),
             business_type: str | None = Form(None, description=_("api.param.business_type")),
             business_id: int | None = Form(None, description=_("api.param.business_id")),
@@ -177,8 +177,8 @@ class AdminAttachmentController(GlobalController):
             """
             平台端上传附件 / Platform upload attachment
 
-            - tenant_id=0: 平台附件（站点 Logo、系统资源等） / Platform attachment (site logo, system resources, etc.)
-            - tenant_id>0: 代企业上传附件 / Upload on behalf of tenant
+            - tenant_id=PLATFORM_TENANT_ID: 平台附件（站点 Logo、系统资源等） / Platform attachment (site logo, system resources, etc.)
+            - tenant_id>PLATFORM_TENANT_ID: 代企业上传附件 / Upload on behalf of tenant
 
             不受企业配额限制，使用平台存储配置 / Not subject to tenant quota, uses platform storage config
 
@@ -221,7 +221,7 @@ class AdminAttachmentController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             files: list[UploadFile] = File(..., description=_("api.param.files")),
-            tenant_id: int = Form(0, ge=0, description=_("api.param.tenant_id")),
+            tenant_id: int = Form(PLATFORM_TENANT_ID, ge=0, description=_("api.param.tenant_id")),
             visibility: str = Form("", description=_("api.param.visibility")),
             business_type: str | None = Form(None, description=_("api.param.business_type")),
             business_id: int | None = Form(None, description=_("api.param.business_id")),
@@ -298,8 +298,8 @@ class AdminAttachmentController(GlobalController):
             """
             初始化分片上传会话（平台端） / Initialize chunk upload session (platform)
 
-            - tenant_id=0: 平台附件 / Platform attachment
-            - tenant_id>0: 代企业上传 / Upload on behalf of tenant
+            - tenant_id=PLATFORM_TENANT_ID: 平台附件 / Platform attachment
+            - tenant_id>PLATFORM_TENANT_ID: 代企业上传 / Upload on behalf of tenant
 
             权限 / Permission: attachment:chunk_init
             """

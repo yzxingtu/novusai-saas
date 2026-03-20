@@ -11,6 +11,7 @@ so RedisManager will not be initialized. All Redis operations must use a sync re
 
 import contextlib
 from datetime import timedelta
+from typing import Any
 
 import redis
 
@@ -301,6 +302,16 @@ def clean_expired_session_memories(self: BaseTask) -> dict:
 LLMRING_REGISTRY_BASE = "https://llmring.github.io/registry"
 LLMRING_PROVIDERS = ["openai", "anthropic", "google"]
 REQUEST_TIMEOUT = 30
+DASHSCOPE_MODEL_DOC_URL = "https://www.alibabacloud.com/help/en/model-studio/models"
+DASHSCOPE_RATE_LIMIT_DOC_URL = "https://www.alibabacloud.com/help/en/model-studio/rate-limit"
+DASHSCOPE_SUPPLEMENT_DEFAULTS: dict[str, dict] = {
+    "qwen-max": {"mode": "chat"},
+    "qwen-max-latest": {"mode": "chat"},
+    "qwen-vl-max": {"mode": "chat", "supports_vision": True},
+    "qwen-vl-max-latest": {"mode": "chat", "supports_vision": True},
+    "qwen-vl-plus": {"mode": "chat", "supports_vision": True},
+    "qwen-vl-plus-latest": {"mode": "chat", "supports_vision": True},
+}
 
 LITELLM_REGISTRY_URLS = [
     "https://cdn.jsdelivr.net/gh/BerriAI/litellm@main/model_prices_and_context_window.json",
@@ -446,6 +457,182 @@ def _merge_llmring_into_registry(registry: dict, payload: dict) -> int:
     return added
 
 
+def _parse_int_from_text(raw_value: object) -> int | None:
+    """Parse int from text like 1,000,000 / 从文本中解析整数。"""
+    if raw_value is None:
+        return None
+    text = str(raw_value).replace(",", "").strip()
+    if not text:
+        return None
+    digits = []
+    for char in text:
+        if char.isdigit():
+            digits.append(char)
+        elif digits:
+            break
+    if not digits:
+        return None
+    try:
+        return int("".join(digits))
+    except ValueError:
+        return None
+
+
+def _parse_price_per_token(raw_value: object) -> float | None:
+    """Parse price cell like $0.21 (per 1M tokens) to per-token / 价格转 LiteLLM 每 token 单价。"""
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text.startswith("$"):
+        return None
+    try:
+        return float(text[1:].replace(",", "")) / 1_000_000
+    except ValueError:
+        return None
+
+
+def _extract_model_name_from_cell(cell_text: str) -> str:
+    """Extract leading model code from table cell / 从表格首列提取模型编码。"""
+    return str(cell_text).strip().split(" ", 1)[0]
+
+
+def _find_table_row_by_model(soup: Any, model_id: str):
+    """Find table row whose first cell starts with model_id / 按首列查找模型行。"""
+    for row in soup.find_all("tr"):
+        cells = [
+            cell.get_text(" ", strip=True)
+            for cell in row.find_all(["td", "th"], recursive=False)
+        ]
+        if cells and _extract_model_name_from_cell(cells[0]) == model_id:
+            return row, cells
+    return None, None
+
+
+def _resolve_rate_limits_from_row(row, cells: list[str]) -> tuple[int | None, int | None]:
+    """Resolve RPM/TPM from rate-limit table row / 从限流表解析 RPM 与 TPM。"""
+    rpm = _parse_int_from_text(cells[1]) if len(cells) >= 3 else None
+    tpm = _parse_int_from_text(cells[2]) if len(cells) >= 3 else None
+    if rpm is not None and tpm is not None:
+        return rpm, tpm
+
+    cursor = row
+    for _ in range(6):
+        cursor = cursor.find_next_sibling("tr") if cursor else None
+        if cursor is None:
+            break
+        next_cells = [
+            cell.get_text(" ", strip=True)
+            for cell in cursor.find_all(["td", "th"], recursive=False)
+        ]
+        if len(next_cells) < 3:
+            continue
+        rpm = _parse_int_from_text(next_cells[-2])
+        tpm = _parse_int_from_text(next_cells[-1])
+        if rpm is not None and tpm is not None:
+            return rpm, tpm
+    return None, None
+
+
+def _build_dashscope_doc_entry(
+    cells: list[str],
+    *,
+    fallback_entry: dict | None = None,
+    defaults: dict | None = None,
+    rpm_limit: int | None = None,
+    tpm_limit: int | None = None,
+) -> dict:
+    """Build LiteLLM-style entry from DashScope docs row / 从 DashScope 文档行构建 LiteLLM 风格条目。"""
+    entry = dict(fallback_entry or {})
+    _merge_entry_fill_empty(entry, defaults or {})
+
+    if len(cells) >= 7:
+        context_window = _parse_int_from_text(cells[2])
+        max_input_tokens = _parse_int_from_text(cells[3])
+        max_output_tokens = _parse_int_from_text(cells[4])
+        input_cost_per_token = _parse_price_per_token(cells[5])
+        output_cost_per_token = _parse_price_per_token(cells[6])
+        if context_window is not None:
+            entry["context_window"] = context_window
+        if max_input_tokens is not None:
+            entry["max_input_tokens"] = max_input_tokens
+        if max_output_tokens is not None:
+            entry["max_output_tokens"] = max_output_tokens
+        if input_cost_per_token is not None:
+            entry["input_cost_per_token"] = input_cost_per_token
+        if output_cost_per_token is not None:
+            entry["output_cost_per_token"] = output_cost_per_token
+    elif len(cells) >= 4:
+        input_cost_per_token = _parse_price_per_token(cells[2])
+        output_cost_per_token = _parse_price_per_token(cells[3])
+        if input_cost_per_token is not None:
+            entry["input_cost_per_token"] = input_cost_per_token
+        if output_cost_per_token is not None:
+            entry["output_cost_per_token"] = output_cost_per_token
+
+    if rpm_limit is not None:
+        entry["rpm"] = rpm_limit
+    if tpm_limit is not None:
+        entry["tpm"] = tpm_limit
+
+    entry["litellm_provider"] = "dashscope"
+    entry["source"] = DASHSCOPE_MODEL_DOC_URL
+    return entry
+
+
+def _fetch_dashscope_doc_supplements(registry: dict) -> dict[str, dict]:
+    """Fetch targeted DashScope model metadata from official docs / 从官方文档抓取 DashScope 关键模型元数据。"""
+    import requests
+    from bs4 import BeautifulSoup
+
+    model_resp = requests.get(DASHSCOPE_MODEL_DOC_URL, timeout=REQUEST_TIMEOUT)
+    model_resp.raise_for_status()
+    rate_resp = requests.get(DASHSCOPE_RATE_LIMIT_DOC_URL, timeout=REQUEST_TIMEOUT)
+    rate_resp.raise_for_status()
+
+    model_soup = BeautifulSoup(model_resp.text, "lxml")
+    rate_soup = BeautifulSoup(rate_resp.text, "lxml")
+    entries: dict[str, dict] = {}
+
+    for model_id in DASHSCOPE_SUPPLEMENT_DEFAULTS:
+        model_row, model_cells = _find_table_row_by_model(model_soup, model_id)
+        rate_row, rate_cells = _find_table_row_by_model(rate_soup, model_id)
+        if not model_cells:
+            continue
+
+        rpm_limit, tpm_limit = (None, None)
+        if rate_row and rate_cells:
+            rpm_limit, tpm_limit = _resolve_rate_limits_from_row(rate_row, rate_cells)
+
+        fallback_entry = registry.get(f"dashscope/{model_id}")
+        if fallback_entry is None and model_id.endswith("-latest"):
+            base_model_id = model_id[: -len("-latest")]
+            fallback_entry = entries.get(f"dashscope/{base_model_id}")
+            if fallback_entry is None:
+                fallback_entry = registry.get(f"dashscope/{base_model_id}")
+
+        entries[f"dashscope/{model_id}"] = _build_dashscope_doc_entry(
+            model_cells,
+            fallback_entry=fallback_entry,
+            defaults=DASHSCOPE_SUPPLEMENT_DEFAULTS.get(model_id),
+            rpm_limit=rpm_limit,
+            tpm_limit=tpm_limit,
+        )
+
+    return entries
+
+
+def _merge_dashscope_supplements_into_registry(registry: dict) -> int:
+    """Merge DashScope official-doc supplements into registry / 合并 DashScope 官方文档补充源。"""
+    additions = 0
+    for key, entry in _fetch_dashscope_doc_supplements(registry).items():
+        if key in registry:
+            _merge_entry_fill_empty(registry[key], entry)
+            continue
+        registry[key] = entry
+        additions += 1
+    return additions
+
+
 @register_task(
     queue="scheduled",
     description="Sync LiteLLM + LLMRing multi-source model registry to Redis / 同步 LiteLLM + LLMRing 多源模型能力注册表到 Redis",
@@ -464,6 +651,7 @@ def sync_litellm_registry(self: BaseTask) -> dict:
     registry: dict | None = None
     litellm_keys = 0
     llmring_added_keys = 0
+    dashscope_added_keys = 0
     source_url: str | None = None
 
     for url in LITELLM_REGISTRY_URLS:
@@ -499,6 +687,15 @@ def sync_litellm_registry(self: BaseTask) -> dict:
                         provider,
                         str(llm_err),
                     )
+            try:
+                dashscope_added_keys = _merge_dashscope_supplements_into_registry(
+                    registry
+                )
+            except Exception as dashscope_err:
+                logger.warning(
+                    "DashScope supplement fetch failed: error={}",
+                    str(dashscope_err),
+                )
             break
         except Exception as e:
             last_error = e
@@ -517,15 +714,17 @@ def sync_litellm_registry(self: BaseTask) -> dict:
     )
     model_count = len(registry)
     logger.info(
-        "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={}",
+        "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={} dashscope_added={}",
         source_url,
         model_count,
         litellm_keys,
         llmring_added_keys,
+        dashscope_added_keys,
     )
     return {
         "source": source_url,
         "model_count": model_count,
         "litellm_keys": litellm_keys,
         "llmring_added_keys": llmring_added_keys,
+        "dashscope_added_keys": dashscope_added_keys,
     }

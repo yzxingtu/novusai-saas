@@ -90,6 +90,11 @@ function onToggleStatus(row: {{ resource | pascal }}Info) {
 }
 {% endif %}
 
+const createPermission = '{{ perm_resource }}:create';
+{% if _import %}
+const importPermission = createPermission.replace(/:\w+$/, ':import');
+{% endif %}
+
 const {
   FormDrawer,
   Grid,
@@ -106,7 +111,7 @@ const {
   },
   columns: useColumns,
   {% if detail and detail.get('enabled') %}customActions: { detail: onViewDetail },
-  {% endif %}createPermission: '{{ perm_resource }}:create',
+  {% endif %}createPermission,
   defaultSort: '{{ _default_sort }}',
   formComponent: Form,
   formDefaults: getFormDefaults,
@@ -132,11 +137,10 @@ async function onImportChange(e: Event) {
   const file = el.files?.[0];
   if (!file) return;
   try {
-    const res = await import{{ resource | pascal }}Api(file);
-    const data = res?.data as { imported?: number; errors?: string[] } | undefined;
-    message.success($t('shared.common.importSuccess', { count: data?.imported ?? 0 }));
-    if (data?.errors?.length) {
-      message.warning(data.errors.slice(0, 3).join('; '));
+    const result = await import{{ resource | pascal }}Api(file);
+    message.success($t('shared.common.importSuccess', { count: result.imported ?? 0 }));
+    if (result.errors?.length) {
+      message.warning(result.errors.slice(0, 3).join('; '));
     }
     onRefresh();
   } catch (err: unknown) {
@@ -160,7 +164,7 @@ useAutoTableDragSort(() => gridApi.grid, {
     <template #toolbar-tools>
       {% if _import %}
       <Button
-        v-if="!createPermission || $auth.has((createPermission || '').replace(/:\w+$/, ':import'))"
+        v-if="!createPermission || $auth.has(importPermission)"
         type="default"
         size="small"
         class="ml-2"

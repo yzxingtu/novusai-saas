@@ -224,6 +224,10 @@ export function useGridFormSchema(
       fieldName: 'filter[user_type]',
       label: $t('tenant.system.operationLog.userType'),
     },
+    searchInput('trace_id', $t('tenant.system.operationLog.traceId'), {
+      op: 'eq',
+      placeholder: $t('tenant.system.operationLog.placeholder.searchTraceId'),
+    }),
     searchInput('module', $t('tenant.system.operationLog.module'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchModule'),
     }),

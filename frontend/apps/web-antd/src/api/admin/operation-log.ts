@@ -25,6 +25,7 @@ export interface OperatorItem {
 /** Operation log info (backend raw snake_case) / 操作日志信息（后端原始） */
 export interface OperationLogInfoRaw {
   id: number;
+  trace_id?: null | string;
   tenant_id: null | number;
   user_type: string;
   user_id: null | number;
@@ -49,6 +50,7 @@ export interface OperationLogInfoRaw {
 /** Operation log info (frontend camelCase) / 操作日志信息（前端） */
 export interface OperationLogInfo {
   id: number;
+  traceId?: null | string;
   tenantId: null | number;
   userType: string;
   userId: null | number;
@@ -86,6 +88,7 @@ export interface OperationLogListResponse {
 function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
   return {
     id: raw.id,
+    traceId: raw.trace_id,
     tenantId: raw.tenant_id,
     userType: raw.user_type,
     userId: raw.user_id,

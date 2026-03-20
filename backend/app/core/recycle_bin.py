@@ -16,6 +16,9 @@ Provides standardized recycle bin API endpoint registration for Controllers.
                 resource_name="agent",
             )
 
+企业端无「总回收站」聚合 API；仅各业务路由下的 /recycle-bin/*（本模块注册）。
+There is no tenant-wide aggregate recycle-bin API; only per-resource /recycle-bin/* routes.
+
 使用示例（GlobalController）:
     from app.core.recycle_bin import register_admin_recycle_bin_routes
 

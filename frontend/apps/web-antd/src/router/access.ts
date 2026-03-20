@@ -3,6 +3,8 @@ import type {
   GenerateMenuAndRoutesOptions,
 } from '@vben/types';
 
+import type { RouteRecordRaw, Router } from 'vue-router';
+
 import type { ApiEndpoint } from '#/api';
 
 import { generateAccessible } from '@vben/access';
@@ -20,8 +22,54 @@ import {
 } from '#/api';
 import { BasicLayout, IFrameView, UserLayout } from '#/layouts';
 import { $t } from '#/locales';
+import { adminRoutes } from '#/router/routes/admin';
 
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
+
+const ADMIN_ROOT_PATH = '/admin';
+
+/**
+ * Normalize admin child route to absolute path for dedupe / 将管理端子路由规范为绝对路径以便去重
+ */
+function adminChildAbsolutePath(childPath: string): string {
+  const p = (childPath || '').replace(/\/+/g, '/');
+  if (p.startsWith('/')) {
+    return p;
+  }
+  return `${ADMIN_ROOT_PATH}/${p}`.replace(/\/+/g, '/');
+}
+
+/**
+ * After backend menu rebuilds AdminRoot, static-only children (e.g. codegen/new, :id/edit) are missing.
+ * Re-add any child from the initial admin route definition whose absolute path is not already registered.
+ * 后端菜单重建 AdminRoot 后，仅静态注册的子路由（如 codegen/new、:id/edit）会丢失；按绝对路径去重后补回。
+ */
+function mergeAdminStaticRoutesMissingFromBackend(router: Router) {
+  const adminRootDef = adminRoutes.find((r) => r.name === 'AdminRoot');
+  const staticChildren = adminRootDef?.children as RouteRecordRaw[] | undefined;
+  if (!staticChildren?.length) {
+    return;
+  }
+
+  const mounted = router.getRoutes().find((r) => r.name === 'AdminRoot');
+  if (!mounted?.children?.length) {
+    return;
+  }
+
+  const existingAbs = new Set(
+    mounted.children.map((c) =>
+      adminChildAbsolutePath((c.path as string) || ''),
+    ),
+  );
+
+  for (const child of staticChildren) {
+    const abs = adminChildAbsolutePath((child.path as string) || '');
+    if (!existingAbs.has(abs)) {
+      router.addRoute('AdminRoot', child);
+      existingAbs.add(abs);
+    }
+  }
+}
 
 /**
  * Get menu API with permissions by endpoint type
@@ -67,7 +115,7 @@ async function generateAccess(
   const currentEndpoint = endpoint || getCurrentEndpoint();
   const menuApi = getMenuWithPermissionsApi(currentEndpoint);
 
-  return generateAccessible(preferences.app.accessMode, {
+  const result = await generateAccessible(preferences.app.accessMode, {
     ...options,
     fetchMenuListAsync: async () => {
       message.loading({
@@ -76,8 +124,13 @@ async function generateAccess(
       });
       // 获取菜单和权限码
       const { menus, permissions } = await menuApi();
-      // 设置权限码到 accessStore
-      accessStore.setAccessCodes(permissions);
+      // Merge with codes already set by fetchUserInfo (e.g. super admin `*`) / 与 fetchUserInfo 已写入的权限合并（如超管 `*`），避免被菜单提取列表覆盖丢失
+      const prev = accessStore.accessCodes;
+      const merged =
+        prev.length > 0
+          ? [...new Set([...prev, ...permissions])]
+          : permissions;
+      accessStore.setAccessCodes(merged);
       return menus;
     },
     // 可以指定没有权限跳转403页面
@@ -86,6 +139,12 @@ async function generateAccess(
     layoutMap,
     pageMap,
   });
+
+  if (currentEndpoint === 'admin') {
+    mergeAdminStaticRoutesMissingFromBackend(options.router);
+  }
+
+  return result;
 }
 
 /**

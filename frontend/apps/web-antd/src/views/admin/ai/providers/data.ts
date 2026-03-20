@@ -8,6 +8,8 @@ import type { AdapterTypeInfo, AIProviderInfo } from '#/api/admin/ai';
 
 import { ref } from 'vue';
 
+import { z } from 'zod';
+
 import {
   inputField,
   searchInput,
@@ -21,6 +23,71 @@ import { $t } from '#/locales';
 
 /** 缓存适配器类型列表 / Cached adapter type list */
 const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
+
+/** Must match backend `OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API` (app/ai/constants.py) / 须与后端常量一致 */
+const OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES = [
+  ['/responses', 'responses'],
+  ['/chat/completions', 'chat_completions'],
+] as const;
+
+export function normalizeProviderBaseUrl(
+  baseUrl: null | string | undefined,
+  providerType: null | string | undefined,
+): {
+  inferredWireApi: null | string;
+  normalizedBaseUrl: null | string;
+  wasEndpointNormalized: boolean;
+} {
+  const trimmedBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : '';
+  if (!trimmedBaseUrl) {
+    return {
+      inferredWireApi: null,
+      normalizedBaseUrl: null,
+      wasEndpointNormalized: false,
+    };
+  }
+
+  const normalizedBaseUrl = trimmedBaseUrl.replace(/\/+$/, '');
+  if (providerType !== 'openai_compatible') {
+    return {
+      inferredWireApi: null,
+      normalizedBaseUrl,
+      wasEndpointNormalized: false,
+    };
+  }
+
+  const lowerBaseUrl = normalizedBaseUrl.toLowerCase();
+  for (const [suffix, wireApi] of OPENAI_COMPATIBLE_ENDPOINT_SUFFIXES) {
+    if (lowerBaseUrl.endsWith(suffix)) {
+      const strippedBaseUrl = normalizedBaseUrl
+        .slice(0, -suffix.length)
+        .replace(/\/+$/, '');
+      return {
+        inferredWireApi: wireApi,
+        normalizedBaseUrl: strippedBaseUrl || normalizedBaseUrl,
+        wasEndpointNormalized: true,
+      };
+    }
+  }
+
+  return {
+    inferredWireApi: null,
+    normalizedBaseUrl,
+    wasEndpointNormalized: false,
+  };
+}
+
+function isValidProviderBaseUrl(value: string): boolean {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return true;
+
+  try {
+    const url = new URL(trimmedValue);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 /** 加载适配器类型（含插件注册的） / Load adapter types (including plugin-registered) */
 export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
@@ -180,11 +247,22 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       help: $t('admin.ai.provider.help.type'),
     },
     {
-      ...inputField('base_url', $t('admin.ai.provider.baseUrl'), {
+      component: 'Input',
+      componentProps: {
+        maxLength: 500,
         placeholder: $t('admin.ai.provider.placeholder.inputBaseUrl'),
-      }),
+      },
+      fieldName: 'base_url',
+      label: $t('admin.ai.provider.baseUrl'),
+      rules: z
+        .union([z.string(), z.undefined()])
+        .refine(
+          (value) =>
+            value === undefined || value === '' || isValidProviderBaseUrl(value),
+          { message: $t('admin.ai.provider.validation.baseUrlInvalid') },
+        ),
       help: $t('admin.ai.provider.help.baseUrl'),
-    },
+    } as VbenFormSchema,
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),

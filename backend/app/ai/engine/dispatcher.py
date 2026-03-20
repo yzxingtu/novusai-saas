@@ -17,6 +17,7 @@ from app.ai.agent_quota import (
     AgentQuotaExceeded,
     AgentQuotaManager,
 )
+from app.configs.service import PLATFORM_TENANT_ID
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.skills.resolver import resolve_for_agent
 from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
@@ -102,7 +103,7 @@ class ExecutionDispatcher:
             if pre_loaded_agent is not None:
                 agent = pre_loaded_agent
             else:
-                if request.tenant_id == 0:
+                if request.tenant_id == PLATFORM_TENANT_ID:
                     from app.repositories.ai.agent_repository import (
                         AdminAgentRepository,
                     )

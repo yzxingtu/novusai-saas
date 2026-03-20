@@ -7,8 +7,8 @@ for testing and support purposes.
 """
 
 from fastapi import Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -19,7 +19,6 @@ from app.enums.agent import (
 )
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -40,24 +39,7 @@ from app.schemas.ai.agent_chat import (
     UpdateConversationTitleRequest,
 )
 from app.services.ai.agent_chat_service import AgentChatService
-from app.services.ai.agent_service import AdminAgentService
 from app.services.ai.conversation_service import ConversationService
-
-
-async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
-    """加载智能体并返回其 tenant_id / Load agent via AdminAgentService and return its tenant_id.
-
-    对于 tenant_id 为 NULL 的全局/管理端智能体，返回 0 作为管理端上下文对话的哨兵值。
-    For global/admin agents where tenant_id is NULL, returns 0
-    as a sentinel value for admin-context conversations.
-
-    智能体不存在时抛出 NotFoundException / Raises NotFoundException if agent does not exist.
-    """
-    service = AdminAgentService(db)
-    agent = await service.get_by_id(agent_id)
-    if not agent:
-        raise NotFoundException(message=_("agent.error.not_found"))
-    return agent.tenant_id or 0
 
 
 @permission_resource(
@@ -77,9 +59,9 @@ class AdminAgentChatController(GlobalController):
     """
     平台管理员智能体对话控制器 / Platform Admin Agent Chat Controller
 
-    允许管理员测试/交互任何企业的已发布智能体，自动解析智能体的 tenant_id。
-    Allows admins to test / interact with any tenant's published agents.
-    The agent's own tenant_id is resolved automatically.
+    允许管理员测试/交互任何企业的已发布智能体，但管理端执行上下文固定使用平台租户哨兵值。
+    Allows admins to test / interact with any published agent while always using
+    the platform tenant sentinel as the admin execution context.
     """
 
     prefix = "/ai/agent-chat"
@@ -110,10 +92,9 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:chat
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
-            service = AgentChatService(db, tenant_id)
+            service = AgentChatService(db, PLATFORM_TENANT_ID)
             result = await service.chat(
                 agent_id=agent_id,
                 message=data.message,
@@ -154,10 +135,9 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:stream
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
-            service = AgentChatService(db, tenant_id)
+            service = AgentChatService(db, PLATFORM_TENANT_ID)
             return await service.stream_chat(
                 agent_id=agent_id,
                 message=data.message or "",
@@ -203,7 +183,7 @@ class AdminAgentChatController(GlobalController):
             """
             return await handle_route(
                 db,
-                tenant_id=None,
+                tenant_id=PLATFORM_TENANT_ID,
                 message=data.message,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 page_context=data.page_context.model_dump() if data.page_context else None,
@@ -230,10 +210,13 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:confirm
             """
-            # 该接口与具体智能体无关，使用企业哨兵值 0 / This endpoint is agent-agnostic, uses tenant sentinel value 0
-            service = AgentChatService(db, 0)
+            # 该接口与具体智能体无关，使用平台租户哨兵值 / Agent-agnostic endpoint uses platform tenant sentinel
+            service = AgentChatService(db, PLATFORM_TENANT_ID)
             return await handle_confirm_or_cancel(
-                service, data, tenant_id=0, user_id=admin.id,
+                service,
+                data,
+                tenant_id=PLATFORM_TENANT_ID,
+                user_id=admin.id,
             )
 
         # ========================================
@@ -257,7 +240,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:conversations
             """
-            service = ConversationService(db, 0)
+            service = ConversationService(db, PLATFORM_TENANT_ID)
             items, total = await service.query_list(spec=query)
             return paginated(
                 items=enrich_conversations_with_agent(items),
@@ -385,3 +368,4 @@ class AdminAgentChatController(GlobalController):
 router = AdminAgentChatController.get_router()
 
 __all__ = ["router", "AdminAgentChatController"]
+

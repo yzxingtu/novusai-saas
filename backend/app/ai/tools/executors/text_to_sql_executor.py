@@ -20,6 +20,8 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from app.configs.service import PLATFORM_TENANT_ID
+
 from app.ai.data_intelligence.readonly_executor import ReadOnlyExecutor
 from app.ai.data_intelligence.result_formatter import ResultFormatter
 from app.ai.data_intelligence.schema_provider import SchemaProvider
@@ -116,11 +118,11 @@ class TextToSQLExecutor(BaseToolExecutor):
                 error=_("data_intelligence.executor.missing_question"),
             )
 
-        tenant_id = context.tenant_id if context else 0
+        tenant_id = context.tenant_id if context else PLATFORM_TENANT_ID
         user_role = context.user_role if context else UserRoleEnum.TENANT_ADMIN.value
 
-        # platform_admin can use tenant_id=0 to query platform-level tables
-        # platform_admin 可使用 tenant_id=0 查询平台级表
+        # platform_admin can use tenant_id=PLATFORM_TENANT_ID to query platform-level tables
+        # platform_admin 可使用 tenant_id=PLATFORM_TENANT_ID 查询平台级表
         if tenant_id is None or (not tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value):
             return ToolResult(
                 tool_call_id=tool_call_id,

@@ -182,6 +182,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
                 provider_type=provider.type,
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
+                provider_config=provider.config,
             )
             remote_models = await adapter.list_models()
         except Exception as e:
@@ -208,7 +209,10 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         # 通过 LiteLLM 注册表附加模型能力（优雅降级）
         try:
             from app.services.ai.model_capability_lookup import enrich_remote_models
-            remote_models = await enrich_remote_models(remote_models)
+            remote_models = await enrich_remote_models(
+                remote_models,
+                provider_code=provider.code,
+            )
         except Exception as e:
             _logger.warning("LiteLLM capability enrichment skipped: {}", str(e))
 

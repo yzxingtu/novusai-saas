@@ -18,6 +18,18 @@ export function getStatusColor(status: string): string {
   return map[status] || 'default';
 }
 
+/**
+ * 回滚以 codegen_manifest.json 为准；新 API 返回 manifest_present。
+ * Rollback requires manifest; prefer manifest_present from API.
+ */
+function canCodegenRollback(row: Record<string, unknown>): boolean {
+  if (typeof row.manifest_present === 'boolean') {
+    return row.manifest_present;
+  }
+  const s = row.status as string | undefined;
+  return s === 'generated' || s === 'applied';
+}
+
 /** 状态选项（搜索用） / Status options (for search) */
 function getStatusOptions() {
   return [
@@ -147,9 +159,13 @@ export function useColumns<T = Record<string, unknown>>(
           },
           {
             code: 'rollback',
-            text: $t('admin.system.codegen.actions.rollback'),
+            text: (row: Record<string, unknown>) =>
+              canCodegenRollback(row)
+                ? $t('admin.system.codegen.actions.rollback')
+                : $t('admin.system.codegen.actions.rollbackDisabledHint'),
             icon: 'lucide:undo-2',
             accessCodes: ['action.codegen.rollback'],
+            disabled: (row: Record<string, unknown>) => !canCodegenRollback(row),
           },
           {
             code: 'delete',

@@ -11,3 +11,6 @@ export * from './storage-keys';
 
 // Upload rule constants / 上传规则常量
 export * from './upload';
+
+// Tenant constants / 租户常量
+export * from './tenant';

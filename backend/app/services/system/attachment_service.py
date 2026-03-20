@@ -15,7 +15,7 @@ from typing import Any, BinaryIO
 import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.i18n import _
@@ -445,12 +445,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         构建存储路径（管理端始终使用平台存储 / 共享 Bucket）/ Build storage path (platform/shared bucket).
 
-        - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
-        - tenant_id>0: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
+        - tenant_id=PLATFORM_TENANT_ID: 平台附件，路径为 platform/{date}/{uuid}.ext
+        - tenant_id>PLATFORM_TENANT_ID: 企业附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
-        prefix = "platform" if tenant_id == 0 else f"tenants/{tenant_id}"
+        prefix = "platform" if tenant_id == PLATFORM_TENANT_ID else f"tenants/{tenant_id}"
         return f"{prefix}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:
@@ -579,7 +579,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         # 保存物理文件信息（删除后 instance 可能不可用）
         file_driver = attachment.driver
         file_path = attachment.path
-        file_tenant_id = attachment.tenant_id or 0
+        file_tenant_id = attachment.tenant_id or PLATFORM_TENANT_ID
 
         # BaseService.delete() 自动执行 __delete_deps__ 检查
         result = await super().delete(id, soft=soft)

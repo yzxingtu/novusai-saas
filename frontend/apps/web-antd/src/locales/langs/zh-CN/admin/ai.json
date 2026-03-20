@@ -60,8 +60,11 @@
       "noResults": "未找到匹配图标",
       "searchTip": "输入关键词搜索图标"
     },
+    "validation": {
+      "baseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效 API 地址"
+    },
     "help": {
-      "baseUrl": "供应商的 API 接口地址，如 https://api.openai.com/v1。不同供应商地址不同，自建服务需填写实际地址",
+      "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions；若误填完整接口，保存时会自动纠正",
       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
     },
@@ -74,7 +77,8 @@
       "toggleSuccess": "供应商状态已更新",
       "confirmEnable": "确认启用此供应商？",
       "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败",
-      "deleteSuccess": "供应商删除成功"
+      "deleteSuccess": "供应商删除成功",
+      "baseUrlAutoNormalized": "已自动将 API 地址纠正为基础地址：{baseUrl}"
     }
   },
   "model": {
@@ -613,6 +617,8 @@
     "actionLevel": "安全等级",
     "status": "状态",
     "tenantId": "企业 ID",
+    "tenantInfo": "所属企业",
+    "platformTenant": "管理端",
     "agentName": "智能体",
     "operatorId": "操作者",
     "executionTime": "耗时",

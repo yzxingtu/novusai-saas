@@ -111,6 +111,8 @@ class RemoteModelCapabilities(BaseResponseSchema):
     model_type: str | None = None
     input_price_per_1k: float | None = None
     output_price_per_1k: float | None = None
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
 
 
 class RemoteModelInfoResponse(BaseResponseSchema):

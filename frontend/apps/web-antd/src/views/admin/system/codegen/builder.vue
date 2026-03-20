@@ -99,8 +99,45 @@ const lastResult = ref<{
   table_name?: string | null;
   migration?: { success?: boolean; message?: string; migration_path?: string; phase?: string; error?: string } | null;
 } | null>(null);
+type GenerateNextStepKey =
+  | 'checkMigration'
+  | 'migrationAlreadyApplied'
+  | 'migrationNoChanges'
+  | 'runMigration'
+  | 'restartIfNeeded'
+  | 'reviewCode';
 
 const moduleOptions = ref<Array<{ label: string; value: string }>>([]);
+
+const resultNextSteps = computed<GenerateNextStepKey[]>(() => {
+  const result = lastResult.value;
+  if (!result) return [];
+
+  const steps: GenerateNextStepKey[] = [];
+  const migration = result.migration;
+  const hasWrittenFiles =
+    (result.files_created?.length ?? 0) > 0 ||
+    (result.files_modified?.length ?? 0) > 0;
+
+  if (migration?.migration_path) {
+    steps.push('checkMigration');
+  }
+
+  if (migration?.phase === 'noop') {
+    steps.push('migrationNoChanges');
+  } else if (migration?.success) {
+    steps.push('migrationAlreadyApplied');
+  } else if (migration || result.success) {
+    steps.push('runMigration');
+  }
+
+  if (hasWrittenFiles) {
+    steps.push('restartIfNeeded');
+  }
+
+  steps.push('reviewCode');
+  return steps;
+});
 
 const configId = computed(() => {
   const id = route.params.id;
@@ -1006,10 +1043,9 @@ watch(
         <div class="mt-4 rounded border border-border p-3">
           <h5 class="mb-2 font-medium">{{ $t('admin.system.codegen.generate.nextSteps') }}</h5>
           <ul class="list-inside list-decimal space-y-1 text-sm">
-            <li>{{ $t('admin.system.codegen.generate.checkMigration') }}</li>
-            <li>{{ $t('admin.system.codegen.generate.runMigration') }}</li>
-            <li>{{ $t('admin.system.codegen.generate.restartServer') }}</li>
-            <li>{{ $t('admin.system.codegen.generate.reviewCode') }}</li>
+            <li v-for="step in resultNextSteps" :key="step">
+              {{ $t(`admin.system.codegen.generate.${step}`) }}
+            </li>
           </ul>
         </div>
         <div class="mt-4 flex justify-end gap-2">

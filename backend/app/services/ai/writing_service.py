@@ -14,6 +14,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 
 if TYPE_CHECKING:
@@ -299,7 +300,7 @@ async def stream_writing_feature(
     else:
         combined_message = system_parts[0] if system_parts else ""
 
-    effective_tenant_id = tenant_id or 0
+    effective_tenant_id = tenant_id or PLATFORM_TENANT_ID
     chat_service = AgentChatService(db, effective_tenant_id)
 
     try:

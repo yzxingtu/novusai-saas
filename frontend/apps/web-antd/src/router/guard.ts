@@ -94,7 +94,12 @@ function setupAccessGuard(router: Router) {
       if (requiredAccessCodes.length === 0) {
         return true;
       }
-      const codeSet = new Set(accessStore.accessCodes);
+      const codes = accessStore.accessCodes;
+      // Super admin wildcard — consistent with checkPermission() / 超管通配符，与 checkPermission() 保持一致
+      if (codes.includes('*')) {
+        return true;
+      }
+      const codeSet = new Set(codes);
       const mode = to.meta.accessCodesMode === 'all' ? 'all' : 'any';
       return mode === 'all'
         ? requiredAccessCodes.every((code) => codeSet.has(code))

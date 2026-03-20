@@ -112,8 +112,22 @@ class AdminCodegenController(GlobalController):
             _require_debug()
             service = CodegenService(db)
             items, total = await service.query_list(spec)
+            manifest = ManifestManager(_PROJECT_ROOT)
+            res_set, cid_set = manifest.manifest_index()
+
+            def _row_has_manifest(x) -> bool:
+                if x.resource and x.resource in res_set:
+                    return True
+                return x.id in cid_set
+
             return paginated(
-                items=[CodegenConfigResponse.from_model(x) for x in items],
+                items=[
+                    CodegenConfigResponse.from_model(
+                        x,
+                        manifest_present=_row_has_manifest(x),
+                    )
+                    for x in items
+                ],
                 total=total,
                 page=spec.page or 1,
                 page_size=spec.size or 20,
@@ -132,7 +146,9 @@ class AdminCodegenController(GlobalController):
             obj = await service.get_by_id(id)
             if not obj:
                 raise NotFoundException(message=_("codegen.config_not_found"))
-            return success(data=CodegenConfigResponse.from_model(obj))
+            manifest = ManifestManager(_PROJECT_ROOT)
+            mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
+            return success(data=CodegenConfigResponse.from_model(obj, manifest_present=mp))
 
         @router.post("/configs", summary=_("codegen.api.configs.create"))
         @action_create("action.codegen.create")
@@ -146,7 +162,10 @@ class AdminCodegenController(GlobalController):
             service = CodegenService(db)
             obj = await service.create(body.model_dump())
             await db.commit()
-            return success(data=CodegenConfigResponse.from_model(obj), message=_("common.created"))
+            return success(
+                data=CodegenConfigResponse.from_model(obj, manifest_present=False),
+                message=_("common.created"),
+            )
 
         @router.put("/configs/{id}", summary=_("codegen.api.configs.update"))
         @action_update("action.codegen.update")
@@ -163,7 +182,12 @@ class AdminCodegenController(GlobalController):
             if not obj:
                 raise NotFoundException(message=_("codegen.config_not_found"))
             await db.commit()
-            return success(data=CodegenConfigResponse.from_model(obj), message=_("common.updated"))
+            manifest = ManifestManager(_PROJECT_ROOT)
+            mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
+            return success(
+                data=CodegenConfigResponse.from_model(obj, manifest_present=mp),
+                message=_("common.updated"),
+            )
 
         @router.delete("/configs/{id}", summary=_("codegen.api.configs.delete"))
         @action_delete("action.codegen.delete")
@@ -191,7 +215,10 @@ class AdminCodegenController(GlobalController):
             service = CodegenService(db)
             obj = await service.duplicate(id)
             await db.commit()
-            return success(data=CodegenConfigResponse.from_model(obj), message=_("common.created"))
+            return success(
+                data=CodegenConfigResponse.from_model(obj, manifest_present=False),
+                message=_("common.created"),
+            )
 
         # ========== 配置版本历史 / Config Version History ==========
         @router.get("/configs/{id}/versions", summary=_("codegen.api.configs.versions"))
@@ -246,7 +273,12 @@ class AdminCodegenController(GlobalController):
             if not obj:
                 raise NotFoundException(message=_("common.not_found"))
             await db.commit()
-            return success(data=CodegenConfigResponse.from_model(obj), message=_("common.updated"))
+            manifest = ManifestManager(_PROJECT_ROOT)
+            mp = manifest.find_entry_for_config(obj.resource, obj.id) is not None
+            return success(
+                data=CodegenConfigResponse.from_model(obj, manifest_present=mp),
+                message=_("common.updated"),
+            )
 
         # ========== 元数据 ==========
         @router.get("/types", summary=_("codegen.api.types"))
@@ -631,14 +663,13 @@ class AdminCodegenController(GlobalController):
             _require_debug()
             service = CodegenService(db)
             config = await service.get_by_id(id)
-            resource = config.resource if config else None
+            if not config:
+                raise NotFoundException(message=_("codegen.config_not_found"))
             manifest = ManifestManager(_PROJECT_ROOT)
-            entry = manifest.get_entry(resource) if resource else None
-            if not entry:
-                entry = next((e for e in manifest.list_entries() if e.config_id == id), None)
+            entry = manifest.find_entry_for_config(config.resource, id)
             if not entry:
                 raise HTTPException(
-                    400,
+                    status.HTTP_400_BAD_REQUEST,
                     _("codegen.rollback.no_manifest_entry"),
                 )
             resource = entry.resource

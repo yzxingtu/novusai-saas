@@ -178,6 +178,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'filter[username]',
       label: $t('admin.system.operationLog.username'),
     },
+    searchInput('trace_id', $t('admin.system.operationLog.traceId'), {
+      op: 'eq',
+      placeholder: $t('admin.system.operationLog.placeholder.searchTraceId'),
+    }),
     searchInput('module', $t('admin.system.operationLog.module'), {
       placeholder: $t('admin.system.operationLog.placeholder.searchModule'),
     }),

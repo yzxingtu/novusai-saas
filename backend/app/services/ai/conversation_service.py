@@ -16,6 +16,7 @@ from app.ai.engine.types import ExecutionResult
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -256,7 +257,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         return conversation
 
     def _get_memory_tenant_id(self) -> int:
-        return self.tenant_id if self.tenant_id is not None else 0
+        return self.tenant_id if self.tenant_id is not None else PLATFORM_TENANT_ID
 
     async def get_conversation_memory_state(
         self,
@@ -610,7 +611,11 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             # 续接已有对话
             conversation = await self.get_accessible_conversation(
                 conversation_id,
-                user_id=user_id if self.tenant_id != 0 else None,
+                user_id=(
+                    user_id
+                    if self.tenant_id != PLATFORM_TENANT_ID
+                    else None
+                ),
             )
 
             if conversation.status == ConversationStatusEnum.ARCHIVED.value:
@@ -983,3 +988,4 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
 
 __all__ = ["ConversationService"]
+

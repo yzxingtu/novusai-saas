@@ -53,10 +53,10 @@ export const USER_HOME_PATH = '/';
 // ============================================================
 
 /** Admin API prefix / 平台管理端 API 前缀 */
-export const ADMIN_API_PREFIX = '/api/v1/admin';
+export const ADMIN_API_PREFIX = '/api/admin';
 
 /** Tenant API prefix / 企业管理端 API 前缀 */
-export const TENANT_API_PREFIX = '/api/v1/tenant';
+export const TENANT_API_PREFIX = '/api/tenant';
 
 /** User API prefix / 用户端 API 前缀 */
 export const USER_API_PREFIX = '/api/user';

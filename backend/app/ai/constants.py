@@ -88,7 +88,12 @@ TEXT_TO_SQL_TIMEOUT = 30
 # Session Memory Scenes (Entry Boundary) / 会话记忆场景（入口边界）
 # ============================================
 
-# Only this scene enables session memory / 仅该场景允许启用会话记忆
+# Legacy default memory scene marker.
+# Runtime allowlist is resolved in AgentChatService._resolve_memory_context()
+# and currently includes ai_chat_page + admin_chat.
+# 历史默认记忆场景标记。运行时真正允许的场景由
+# AgentChatService._resolve_memory_context() 决定，当前包含
+# ai_chat_page + admin_chat。
 MEMORY_ENABLED_SCENE = "ai_chat_page"
 
 # Default scene (used when not explicitly provided) / 默认场景（未显式传入时使用）
@@ -134,6 +139,18 @@ def session_memory_conversation_pattern(tenant_id: int, conversation_id: int) ->
     return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*:*:*:*:{conversation_id}"
 
 
+# ============================================
+# OpenAI-compatible provider URL suffixes / OpenAI 兼容供应商 URL 路径后缀
+# ============================================
+
+# Trailing path suffix (matched on lowercased URL) → provider.config["wire_api"].
+# 与 Adapter 剥离 base_url 路径、ProviderService 保存时规范化共用同一映射。
+OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API: dict[str, str] = {
+    "/responses": "responses",
+    "/chat/completions": "chat_completions",
+}
+
+
 __all__ = [
     # Rate limiting / 频率限制
     "ACTION_RATE_KEY_PREFIX",
@@ -167,4 +184,6 @@ __all__ = [
     "SESSION_MEMORY_TTL_SECONDS",
     "session_memory_key",
     "session_memory_conversation_pattern",
+    # OpenAI-compatible URL normalization / OpenAI 兼容 URL 规范化
+    "OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API",
 ]

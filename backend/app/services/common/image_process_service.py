@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
+from app.configs.service import ConfigService, PLATFORM_TENANT_ID
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 from app.utils.image import PRESETS, ImageProcessParams
 
@@ -315,7 +315,7 @@ class ImageProcessService:
         resolver = StorageConfigResolver(self.db)
         return await resolver.resolve_for_attachment(
             driver=attachment.driver,
-            tenant_id=self.tenant_id or 0,
+            tenant_id=self.tenant_id or PLATFORM_TENANT_ID,
         )
 
     @staticmethod

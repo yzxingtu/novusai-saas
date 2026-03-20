@@ -4,6 +4,21 @@
 
 多企业 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
 
+## 规则入口
+
+`.cursor/rules/novusai-saas.md` 是总览规则，以下文件是必须配套阅读的专题规则：
+
+- `ai-architecture.md` — AI / Agent / Skill / 页面操作
+- `attachments-and-storage.md` — 上传、下载、附件可见性、存储驱动
+- `async-notification-websocket.md` — Celery、通知、邮件、Socket.IO
+- `plugin-system.md` — 插件 manifest、生命周期、权限同步、菜单注册
+- `rbac-and-data-permission.md` — `parent_resource`、`messages.json`、数据权限
+- `user-endpoint-and-domain-isolation.md` — `/api/user/*`、UserLayout、域名隔离
+- `testing-validation.md` — 后端单元测试、浏览器验证
+- `trace-and-monitoring.md` — `X-Trace-ID`、LogManager、Prometheus/Grafana
+- `tenant-architecture.md` — 企业端能力边界
+- `menu-i18n.md` — 动态菜单多语言职责边界
+
 ## 全局禁令
 
 - 禁止 `except Exception: pass/continue`（至少 `logger.debug` 记录）
@@ -183,7 +198,7 @@ error(message, code, status_code)         # 自定义错误
 - `ActiveTenantAdmin` — 活跃企业管理员
 - `QueryParams` — JSON:API 查询参数
 - `SuperAdmin` — 超级管理员
-- `ActiveUser` — 活跃用户（用户端接口）
+- `ActiveTenantUser` — 活跃用户（用户端接口）
 
 ### Service 基类选择
 
@@ -196,6 +211,7 @@ error(message, code, status_code)         # 自定义错误
 ### Codegen 代码生成器
 
 - **codegen 管理页面**：仅 DEBUG 模式可用（通过路由或权限控制）
+- **UI 真实形态**：`/admin/system/codegen/new|:id/edit` 对应 `builder.vue` 三栏可视化构建器，不是旧版 6 步 wizard
 - **生成代码命名**：resource 用 snake_case（category、notice）；module 用单数（system、tenant、business）
 - **生成后必须审查**：生成的代码需人工 review，尤其权限、数据隔离、软删除等
 
@@ -256,9 +272,11 @@ if obj.tenant_id != self.tenant_id:
 ### 日志
 
 ```python
-from app.core.logging import LogManager
-logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/captcha/impersonate
+from app.core.logging import get_logger
+logger = get_logger(__name__)
 ```
+
+分类日志或按模块拆文件场景可继续使用 `LogManager.get_logger("auth")`；Service 优先使用 `LoggerMixin` / `self.logger`。禁止直接 `from loguru import logger`。
 
 Loguru 使用 `{}` 风格，禁止 `%s`/`%d`：`logger.info("id={}", x)` 而不是 `logger.info("id=%s", x)`。
 
@@ -300,7 +318,7 @@ alembic revision --autogenerate -m "add xxx table"
 
 ## AI 架构规则（强制）
 
-> 完整规范见 `.windsurf/rules/ai-architecture.md`（本节仅保留最关键禁令，避免与详细规则文件重复维护）
+> 完整规范见 [ai-architecture.md](ai-architecture.md)。
 
 **核心禁令（任何情况不可违反）：**
 - ❌ 禁止在 Controller/Service 层直接调用 `AIGateway.chat()` / `embedding()`
@@ -315,9 +333,77 @@ alembic revision --autogenerate -m "add xxx table"
 
 **技能类型（7 种）：** `toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 
-**多模型路由（M264）：** 通过 `routing_config` 在 Agent 上启用智能路由 → 详见 `.windsurf/workflows/references/ai-routing.md`
+**多模型路由（M264）：** 通过 `routing_config` 在 Agent 上启用智能路由 → 详见 [../skills/novusai-saas/references/ai-routing.md](../skills/novusai-saas/references/ai-routing.md)
 
-**多模态 RAG（M263）：** KnowledgeBase 支持 `vision_model_id` + `extract_images` → 详见 `.windsurf/workflows/references/multimodal-rag.md`
+**多模态 RAG（M263）：** KnowledgeBase 支持 `vision_model_id` + `extract_images` → 详见 [../skills/novusai-saas/references/multimodal-rag.md](../skills/novusai-saas/references/multimodal-rag.md)
+
+**会话记忆：** 仅 `ai_chat_page` / `admin_chat` 这类真实对话场景允许启用；必须复用 `AgentChatService` + `SessionMemoryService` + `ConversationService`，禁止在 Controller 或前端手工管理 `memory-state`
+
+## 上传与下载
+
+- 所有上传必须经过 `AttachmentService`，前端统一走 `smartUploadFile` / `FilePicker` / `ImageUpload` / `ConfigImagePicker`
+- 业务页面禁止 `requestClient.upload('/xxx/upload')` 直连端点，禁止自建上传组件；仅富文本编辑器等基础设施封装可在内部直接调用标准附件上传端点
+- 文件下载统一用 `requestClient.download` + `downloadBlob`；插件必须用 `NovusPluginShared.downloadBlob`
+- 展示类图片走 `/api/public/attachments/{id}/image`，禁止在前端拼接 `base_url + path`
+- `public` / `private` 可见性必须按用途区分，不能把展示图片错误标成 `private`
+
+→ 详见 [attachments-and-storage.md](attachments-and-storage.md)
+
+## 异步任务、通知与实时通信
+
+- 业务任务模块必须用 `@register_task`，禁止直接写 `@celery_app.task` / `@shared_task`；插件注册器这类框架桥接层可在内部动态注册 Celery task
+- Worker 为同步进程，DB 访问必须用 `self.get_db_session()`，不要在任务函数里写 `async def`
+- 定时任务优先通过 `periodic_tasks` 表管理，系统级兜底才使用静态 `beat_schedule`
+- 业务通知统一走 `NotificationService.send()` / `notify()`，业务代码不能直接发通知邮件
+- 通知偏好统一走 `NotificationPreferenceService` / `NotificationSettings.vue`，全局修改后需精确清除个人覆盖
+- 所有业务邮件默认异步发送；通知邮件走 `notification` 队列，普通邮件走 `default`
+- WebSocket namespace 固定为 `/admin` / `/tenant` / `/user`；Celery 侧推送必须用 `sio_bridge.*_sync()`
+
+→ 详见 [async-notification-websocket.md](async-notification-websocket.md)
+
+## RBAC 与数据权限
+
+- 每个 Controller 的 `@permission_resource` 都必须声明 `parent_resource`
+- `backend/app/locales/{zh_CN,en}/messages.json` 的现有 `"action"` 节点必须补齐翻译，禁止新建第二个顶层 `"action"`
+- 插件权限同步必须调用 `sync_plugin_permissions(plugin.name)`，不要在插件事务里跑全量同步
+- 需要行级过滤的模型通过 `__data_permission__ = True` 声明式启用，禁止在 Service 层手工拼部门过滤
+- 新增页面时必须同时保证后端菜单注册和前端页面落点一致，避免 `[MenuCheck]` / `[DynamicMenu] [CRITICAL]`
+
+→ 详见 [rbac-and-data-permission.md](rbac-and-data-permission.md)
+
+## 用户端与域名隔离
+
+- 用户端 API 前缀固定为 `/api/user/*`，依赖注入使用 `ActiveTenantUser`
+- 用户端布局固定为 `UserLayout`，无侧边栏，移动端优先
+- 当前前端静态主路由为 `/home`、`/ai-chat`、`/settings/*`，认证页在共享 `/auth/*`
+- 企业域名与平台域名由 Host header 和 `detectDomainType()` 协同判定，禁止回退到 `tenant_code` 查询参数主导
+- 品牌与验证码统一走公开配置：`/api/public/platform|tenant/config` + `usePublicConfigStore` + `CaptchaProvider`
+- 平台域名禁止访问 tenant / user 端，企业域名禁止访问 admin 端
+- `impersonate` 仅传 token，不要拼接无效 `tenant_code`
+
+→ 详见 [user-endpoint-and-domain-isolation.md](user-endpoint-and-domain-isolation.md)
+
+## 插件系统
+
+- 插件必须零侵入，代码只能位于 `backend/plugins/{name}/`
+- `plugin.yaml` 的 capabilities / extensions / permissions 必须如实声明，不能偷跑主系统能力
+- 插件 Skill 类型只能使用系统既有 7 种，禁止自定义 SkillType
+- 插件表名必须 `px_{name}_*`，迁移 `branch_labels` 必须是 `plugin_{name_underscored}`
+- 插件前端通过 UMD 动态加载，权限和菜单注册必须与 manifest 声明保持一致
+
+→ 详见 [plugin-system.md](plugin-system.md)
+
+## 测试、追踪与监控
+
+- 新增或重构 Service 必须补 `tests/services/test_{name}.py`，不依赖真实 DB / Redis / 网络
+- 浏览器验证优先 `chrome-devtools` MCP，文件上传再用 `playwright`，一次流程不要混用
+- 所有请求链路自动携带 `X-Trace-ID`，日志统一通过 `app.core.logging` 暴露的封装（`get_logger` / `LoggerMixin` / `LogManager` 分类日志）
+- AI 工具与页面操作审计统一写入 `AIActionLog`，状态用 `pending_confirm`，耗时字段用 `duration_ms`
+- 新增 AI / Celery / WebSocket 关键路径时，必须同步埋入 `app/core/metrics.py` 指标
+- 监控页面与接口仅允许 Admin 端暴露
+
+→ 详见 [testing-validation.md](testing-validation.md)
+→ 详见 [trace-and-monitoring.md](trace-and-monitoring.md)
 
 ## DevGenius 治理规则
 
