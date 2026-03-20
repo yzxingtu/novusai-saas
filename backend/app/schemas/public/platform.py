@@ -12,6 +12,12 @@ class StoragePublicConfig(BaseSchema):
     allowed_extensions: str | None = Field(None, description="允许的文件扩展名")
 
 
+class RuntimeLimitsPublicConfig(BaseSchema):
+    """Runtime limits public config / 运行时限制公开配置"""
+
+    page_context_max_bytes: int = Field(..., description="page_context.page_data 最大字节数")
+
+
 class PlatformPublicConfig(BaseSchema):
     site_name: str = Field(..., description="站点名称")
     site_description: str | None = Field(None, description="站点描述")
@@ -40,6 +46,11 @@ class PlatformPublicConfig(BaseSchema):
 
     # 存储配置
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
+    runtime_limits: RuntimeLimitsPublicConfig | None = Field(None, description="运行时限制")
 
 
-__all__ = ["PlatformPublicConfig", "StoragePublicConfig"]
+__all__ = [
+    "PlatformPublicConfig",
+    "RuntimeLimitsPublicConfig",
+    "StoragePublicConfig",
+]

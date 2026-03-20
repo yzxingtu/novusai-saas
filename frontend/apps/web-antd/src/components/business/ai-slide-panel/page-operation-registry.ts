@@ -96,6 +96,14 @@ export interface PageOperation {
 const registry = new Map<string, PageOperation[]>();
 
 /**
+ * Extra operation groups: merged on top of primary registrations.
+ * Used by platform auto-enhancement, plugins, editors, etc.
+ * 追加操作组：合并到主注册之上。
+ * 供平台自动增强、插件、编辑器等场景使用。
+ */
+const extrasRegistry = new Map<string, PageOperation[][]>();
+
+/**
  * Reactive version number — incremented on each register/unregister,
  * allowing external computed properties to track changes in real time.
  * 响应式版本号 — 每次注册/注销时自增，
@@ -126,6 +134,33 @@ export function registerPageOperations(
   };
 }
 
+function mergeOperationGroups(
+  primary: PageOperation[] = [],
+  extraGroups: PageOperation[][] = [],
+): PageOperation[] {
+  const merged: PageOperation[] = [...primary];
+
+  // Later appended operations override same-named primary operations.
+  // 后追加操作覆盖同名主操作。
+  for (const group of extraGroups) {
+    for (const op of group) {
+      const existingIndex = merged.findIndex((item) => item.name === op.name);
+      if (existingIndex >= 0) {
+        merged.splice(existingIndex, 1);
+      }
+      merged.push(op);
+    }
+  }
+
+  return merged;
+}
+
+function getMergedOperations(key: string): PageOperation[] {
+  const primary = registry.get(key) ?? [];
+  const extraGroups = extrasRegistry.get(key) ?? [];
+  return mergeOperationGroups(primary, extraGroups);
+}
+
 /**
  * Append page operations to the current list for a key (without replacing).
  * Use when a consumer (e.g. plugin) needs to add ops on top of platform-registered ops.
@@ -145,14 +180,19 @@ export function appendPageOperations(
   operations: PageOperation[],
 ): () => void {
   const nk = normalizePageKey(key);
-  const appendedNames = new Set(operations.map((op) => op.name));
-  const current = registry.get(nk) ?? [];
-  registry.set(nk, [...current, ...operations]);
+  const current = extrasRegistry.get(nk) ?? [];
+  current.push(operations);
+  extrasRegistry.set(nk, current);
   pageOperationVersion.value++;
   return () => {
-    const cur = registry.get(nk);
+    const cur = extrasRegistry.get(nk);
     if (cur) {
-      registry.set(nk, cur.filter((op) => !appendedNames.has(op.name)));
+      const next = cur.filter((group) => group !== operations);
+      if (next.length > 0) {
+        extrasRegistry.set(nk, next);
+      } else {
+        extrasRegistry.delete(nk);
+      }
       pageOperationVersion.value++;
     }
   };
@@ -166,7 +206,7 @@ export function appendPageOperations(
  * @returns Operation list, empty array if not registered / 操作列表，未注册时返回空数组
  */
 export function listPageOperations(key: string): readonly PageOperation[] {
-  return registry.get(normalizePageKey(key)) ?? [];
+  return getMergedOperations(normalizePageKey(key));
 }
 
 /**
@@ -184,8 +224,8 @@ export async function executePageOperation(
   params: Record<string, unknown> = {},
 ): Promise<PageOperationResult> {
   const nk = normalizePageKey(key);
-  const operations = registry.get(nk);
-  if (!operations) {
+  const operations = getMergedOperations(nk);
+  if (operations.length === 0) {
     return {
       success: false,
       message: $t('shared.pageOperation.msg.pageNoOperations', { page: nk }),
@@ -262,7 +302,7 @@ export function findPageOperation(
   key: string,
   operationName: string,
 ): PageOperation | undefined {
-  const operations = registry.get(normalizePageKey(key));
+  const operations = getMergedOperations(normalizePageKey(key));
   return operations?.find((op) => op.name === operationName);
 }
 
@@ -271,7 +311,7 @@ export function findPageOperation(
  * 获取当前所有已注册的页面操作 key（调试用）
  */
 export function getRegisteredOperationKeys(): string[] {
-  return [...registry.keys()];
+  return [...new Set([...registry.keys(), ...extrasRegistry.keys()])];
 }
 
 /**
@@ -280,5 +320,6 @@ export function getRegisteredOperationKeys(): string[] {
  */
 export function clearPageOperationRegistry(): void {
   registry.clear();
+  extrasRegistry.clear();
   pageOperationVersion.value++;
 }

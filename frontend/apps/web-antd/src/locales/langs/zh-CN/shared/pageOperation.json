@@ -22,6 +22,10 @@
 
   "search": "搜索",
   "clearSearch": "清空搜索",
+  "nextPage": "下一页",
+  "prevPage": "上一页",
+  "goToPage": "跳转页码",
+  "setPageSize": "设置每页条数",
   "searchByKeyword": "按关键词搜索",
   "exportData": "导出数据",
   "uploadFile": "上传文件",
@@ -104,6 +108,12 @@
     "navigateIdRequired": "请提供记录 id",
     "searchApplied": "搜索已应用：{fields}",
     "searchClearedAlt": "搜索已清空",
+    "pageChanged": "已切换到第 {page} 页",
+    "pageSizeChanged": "每页条数已设置为 {pageSize}",
+    "alreadyFirstPage": "当前已在第一页（第 {page} 页）",
+    "alreadyLastPage": "当前已在最后一页（第 {page} 页）",
+    "pageOutOfRange": "页码 {page} 超出范围，可选范围：{min}-{max}",
+    "invalidPageSize": "无效的每页条数：{pageSize}",
     "unknownField": "未知字段：{field}。可用字段：{available}",
     "foundOptions": "已找到 {field} 的 {count} 个选项",
     "noOptionsLoaded": "未加载到 {field} 的选项"

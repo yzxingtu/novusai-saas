@@ -38,7 +38,7 @@ export interface AIAgentInfo {
   suggested_questions: null | string[];
   system_prompt: null | string;
   temperature: number;
-  max_tokens: number;
+  max_tokens: null | number;
   top_p: null | number;
   knowledge_base_ids: null | number[];
   routing_config: null | Record<string, unknown>;

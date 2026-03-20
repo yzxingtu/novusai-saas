@@ -63,6 +63,35 @@ class TestBeforeCreate:
         assert hasattr(service, 'rollback_agent')
         assert hasattr(service, 'get_agent_detail')
 
+    @pytest.mark.asyncio
+    async def test_validate_agent_max_tokens_against_model_limit(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.agent_service import (
+            _validate_agent_max_tokens_against_model,
+        )
+
+        model_repo = AsyncMock()
+        model_repo.get_by_id = AsyncMock(
+            return_value=make_mock_model(
+                id=7,
+                name="gpt-4.1",
+                max_output_tokens=4096,
+            ),
+        )
+
+        with patch(
+            "app.services.ai.agent_service.AIModelRepository",
+            return_value=model_repo,
+        ):
+            with pytest.raises(BusinessException) as exc_info:
+                await _validate_agent_max_tokens_against_model(
+                    mock_db,
+                    model_id=7,
+                    max_tokens=8192,
+                )
+
+        assert "4096" in str(exc_info.value)
+
 
 class TestAgentQuery:
 

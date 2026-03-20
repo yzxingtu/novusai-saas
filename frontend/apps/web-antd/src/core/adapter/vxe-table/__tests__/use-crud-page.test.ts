@@ -18,6 +18,13 @@ vi.mock('@vben/common-ui', () => ({
   useVbenModal: () => [defineComponent({ name: 'MockModal', render: () => null }), {}],
 }));
 
+vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    path: '/admin/items',
+    meta: {},
+  }),
+}));
+
 vi.mock('ant-design-vue', () => ({
   Modal: { confirm: vi.fn() },
   message: {
@@ -52,7 +59,19 @@ vi.mock('#/components/business/dependency-block-modal/index.vue', () => ({
 }));
 
 vi.mock('#/composables/use-ai-operations', () => ({
+  buildCrudListSummary: () => undefined,
+  buildCrudPaginationState: () => ({
+    current_page: 1,
+    page_size: 15,
+    total_pages: 1,
+    total_rows: 0,
+    has_next_page: false,
+    has_previous_page: false,
+  }),
+  compactCrudContextValues: (value: Record<string, unknown>) => value,
   createFormOperations: () => [],
+  createStandardOperations: () => [],
+  extractFormParams: () => ({}),
 }));
 
 vi.mock('#/composables/use-form-state-tracker', () => ({

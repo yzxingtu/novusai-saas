@@ -40,6 +40,7 @@ from app.schemas.ai.agent_chat import (
 )
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.page_context_limits import validate_page_context_size
 
 
 @permission_resource(
@@ -94,6 +95,7 @@ class AdminAgentChatController(GlobalController):
             """
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
+            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
             result = await service.chat(
                 agent_id=agent_id,
@@ -138,6 +140,7 @@ class AdminAgentChatController(GlobalController):
             """
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
+            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
             return await service.stream_chat(
                 agent_id=agent_id,

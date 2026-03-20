@@ -192,7 +192,7 @@ class StreamExecutionHandler:
                     "sources": rag_sources,
                 })
 
-            # ---- Build result and call callback (before done event) ---- / 构建结果并调用回调（在 done 事件之前）
+            # ---- Build result ---- / 构建结果
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
 
             result = ExecutionResult(
@@ -210,24 +210,25 @@ class StreamExecutionHandler:
                 rag_sources=rag_sources,
             )
 
-            extra_done_data: dict[str, Any] = {}
-            if self.on_complete and not self._on_complete_called:
-                self._on_complete_called = True
-                try:
-                    cb_result = await self.on_complete(result)
-                    if isinstance(cb_result, dict):
-                        extra_done_data = cb_result
-                except Exception as cb_exc:
-                    logger.error("on_complete callback error: {}", str(cb_exc))
-
-            # ---- Send done event (with extra data from callback) ---- / 发送完成事件（含回调返回的额外数据）
+            # ---- Send done event FIRST so frontend unlocks immediately ----
+            # on_complete may trigger slow operations (e.g. memory extraction LLM call);
+            # emitting done before the callback prevents the UI from hanging.
             yield SSEChunkEncoder.encode({
                 "event": "done",
                 "conversation_id": self.request.conversation_id,
                 "total_tokens": total_tokens,
                 "duration_ms": duration_ms,
-                **extra_done_data,
             })
+
+            # ---- Run on_complete callback (persistence, memory, hooks) ----
+            # SSE connection stays alive until [DONE]; callback runs while stream is still open.
+            if self.on_complete and not self._on_complete_called:
+                self._on_complete_called = True
+                try:
+                    await self.on_complete(result)
+                except Exception as cb_exc:
+                    logger.error("on_complete callback error: {}", str(cb_exc))
+
             yield SSEChunkEncoder.done()
 
         except Exception as exc:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -111,8 +112,121 @@ async def test_chat_does_not_fallback_on_error_payload_without_choices() -> None
         )
 
 
+def _fake_chat_completion_chunk(delta_text: str, finish_reason: str | None = None):
+    choice = SimpleNamespace(
+        delta=SimpleNamespace(
+            content=delta_text,
+            reasoning_content=None,
+            role=None,
+            tool_calls=None,
+        ),
+        finish_reason=finish_reason,
+    )
+    return SimpleNamespace(choices=[choice], usage=None)
+
+
+class _FakeChatStream:
+    def __init__(self, chunks: list):
+        self._chunks = list(chunks)
+        self._iter = iter(self._chunks)
+        self.aclose_called = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
+
+    async def aclose(self) -> None:
+        self.aclose_called = True
+
+
 @pytest.mark.asyncio
-async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
+async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    poison = object()
+    stream = _FakeChatStream(
+        [
+            _fake_chat_completion_chunk("hi", None),
+            _fake_chat_completion_chunk("", "stop"),
+            poison,
+        ]
+    )
+    adapter.client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=stream))),
+        responses=SimpleNamespace(create=AsyncMock()),
+    )
+
+    chunks: list = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-4",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "hi"
+    assert chunks[-1].finish_reason == "stop"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_output_text_done_without_completed() -> None:
+    """兼容网关只发 output_text.done、不发 response.completed 时也必须结束迭代。"""
+
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(type="response.output_text.delta", delta="A"),
+        SimpleNamespace(
+            type="response.output_text.done",
+            text="",
+            usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
+        ),
+    ])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=_FakeResponses(rs).create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-x",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "A"
+    assert chunks[-1].finish_reason == "stop"
+    assert chunks[-1].total_tokens == 5
+    assert rs.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_done_event_text_when_no_prior_deltas() -> None:
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -127,6 +241,56 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
             except StopIteration as exc:
                 raise StopAsyncIteration from exc
 
+        async def aclose(self) -> None:
+            return None
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=_FakeResponses(
+                _FakeResponsesStream([
+                    SimpleNamespace(type="response.output_text.done", text="Body", usage=None),
+                ])
+            ).create,
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-x",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "Body"
+    assert chunks[-1].finish_reason == "stop"
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -137,15 +301,15 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
         output_text="OK",
         output=[],
     )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(type="response.output_text.delta", delta="O"),
+        SimpleNamespace(type="response.output_text.delta", delta="K"),
+        SimpleNamespace(type="response.completed", response=completed_response),
+        SimpleNamespace(type="response.output_text.delta", delta="TAIL"),
+    ])
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
-            create=_FakeResponses(
-                _FakeResponsesStream([
-                    SimpleNamespace(type="response.output_text.delta", delta="O"),
-                    SimpleNamespace(type="response.output_text.delta", delta="K"),
-                    SimpleNamespace(type="response.completed", response=completed_response),
-                ])
-            ).create,
+            create=_FakeResponses(rs).create,
         ),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
@@ -158,8 +322,10 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
         chunks.append(chunk)
 
     assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert "TAIL" not in "".join(chunk.delta for chunk in chunks)
     assert chunks[-1].finish_reason == "stop"
     assert chunks[-1].total_tokens == 15
+    assert rs.aclose_called is True
 
 
 @pytest.mark.asyncio

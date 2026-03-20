@@ -89,7 +89,7 @@
     "type": "Model Type",
     "providerId": "Provider",
     "providerName": "Provider",
-    "contextWindow": "Context Window",
+    "contextWindow": "Context Window Budget",
     "maxOutputTokens": "Max Output Tokens",
     "inputPrice": "Input Price ($/1K)",
     "outputPrice": "Output Price ($/1K)",
@@ -138,8 +138,8 @@
       "selectRemoteModel": "Select a remote model to auto-fill",
       "allProviders": "All Providers",
       "allTypes": "All Types",
-      "inputContextWindow": "e.g. 128000",
-      "inputMaxOutput": "e.g. 4096",
+      "inputContextWindow": "e.g. 128000 total token budget",
+      "inputMaxOutput": "e.g. 4096 max generated tokens",
       "inputPrice": "e.g. 0.015",
       "outputPrice": "e.g. 0.03",
       "inputRpmLimit": "Requests per minute limit (leave empty for unlimited)",
@@ -157,8 +157,8 @@
     "help": {
       "code": "The model's API call code, e.g. gpt-4, claude-3-opus-20240229. Must match the code accepted by the provider's API",
       "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
-      "contextWindow": "Maximum tokens the model can process (input + output). GPT-4 is 128K, Claude 3 is 200K",
-      "maxOutputTokens": "Maximum output tokens per request. Setting too high may increase cost and latency",
+      "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first",
+      "maxOutputTokens": "Maximum generated tokens per request. This only limits output length and does not increase input context capacity",
       "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",
       "tier": "Model tier for multi-model routing. Fast = simple tasks, Premium = complex analysis. Leave unset to opt out of auto-routing",
       "fallbackModel": "Automatically switches to fallback model when current model is unavailable, ensuring service continuity",
@@ -457,7 +457,7 @@
     "version": "Version",
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
-    "maxTokens": "Max Tokens",
+    "maxTokens": "Per-Reply Max Output Tokens",
     "topP": "Top P",
     "welcomeMessage": "Welcome Message",
     "suggestedQuestions": "Starter Questions",
@@ -519,16 +519,19 @@
       "inputRoleIds": "Enter role IDs, separated by commas",
       "selectRoles": "Select roles",
       "inputTemperature": "0-2, higher values produce more random output",
-      "inputMaxTokens": "Maximum token generation limit",
+      "inputMaxTokens": "Per-reply max generated tokens",
       "inputTopP": "0-1, used together with temperature"
     },
     "help": {
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
-      "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
+      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for model default and do not exceed the selected model limit. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "skillPackageBindings": "Select skill packages this agent can invoke",
       "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
       "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "Per-reply max output tokens cannot exceed the selected model limit {limit}"
     },
     "type_options": {
       "system": "System Agent",

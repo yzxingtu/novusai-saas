@@ -7,7 +7,8 @@ from app.core.i18n import _
 from app.core.response import success
 from app.rbac.decorators import public
 from app.schemas.public import PlatformPublicConfig
-from app.schemas.public.platform import StoragePublicConfig
+from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
+from app.services.ai.page_context_limits import get_page_context_max_bytes
 
 router = APIRouter(prefix="/platform", tags=["平台公开接口 / Platform Public API"])
 
@@ -22,10 +23,13 @@ async def get_platform_public_config(db: DbSession):
     security_config = await config_service.get_platform_configs_by_group(
         group_code="platform_security",
     )
+    ai_toolkit_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_ai_toolkit",
+    )
     storage_config = await config_service.get_platform_configs_by_group(
         group_code="platform_storage",
     )
-    configs = {**general_config, **security_config, **storage_config}
+    configs = {**general_config, **security_config, **ai_toolkit_config, **storage_config}
 
     return success(
         data=PlatformPublicConfig(
@@ -57,6 +61,9 @@ async def get_platform_public_config(db: DbSession):
                 chunk_size_mb=configs.get("platform_storage_chunk_size_mb"),
                 max_file_size_mb=configs.get("platform_storage_max_file_size_mb"),
                 allowed_extensions=configs.get("platform_storage_allowed_extensions"),
+            ),
+            runtime_limits=RuntimeLimitsPublicConfig(
+                page_context_max_bytes=await get_page_context_max_bytes(db),
             ),
         ),
         message=_("common.success"),

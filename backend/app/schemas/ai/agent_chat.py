@@ -16,10 +16,6 @@ from app.enums.agent import ConfirmActionEnum
 
 PAGE_CONTEXT_KEY = "page_context"
 
-# page_data 序列化后最大字节数（8KB — form_fields + operations 等增强数据需要更大空间）
-# Max serialized bytes for page_data (8KB — enhanced form_fields + operations need more space)
-MAX_PAGE_DATA_BYTES = 8192
-
 
 class ChatAttachment(BaseModel):
     """对话附件（图片/文件/音频/视频） / Chat attachment (image/file/audio/video)."""
@@ -163,18 +159,6 @@ class PageContext(BaseModel):
         validation_alias=AliasChoices("page_data", "detail"),
         description=_("agent_chat.field.page_data"),
     )
-
-    @model_validator(mode="after")
-    def _check_page_data_size(self) -> "PageContext":
-        if self.page_data is not None:
-            import json as _json
-
-            serialized = _json.dumps(self.page_data, ensure_ascii=False, default=str)
-            if len(serialized.encode("utf-8")) > MAX_PAGE_DATA_BYTES:
-                raise ValueError(
-                    f"page_data exceeds {MAX_PAGE_DATA_BYTES} bytes limit"
-                )
-        return self
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, Any] | None:

@@ -39,6 +39,7 @@ from app.rbac.services.permission_service import PermissionService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.page_context_limits import validate_page_context_size
 
 
 @permission_resource(
@@ -115,6 +116,7 @@ class UserAgentChatController(BaseController):
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_user_permissions(current_user)
+            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, current_user.tenant_id)
             result = await service.chat(
                 agent_id=agent_id,
@@ -163,6 +165,7 @@ class UserAgentChatController(BaseController):
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_user_permissions(current_user)
+            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, current_user.tenant_id)
 
             return await service.stream_chat(

@@ -89,8 +89,8 @@
     "type": "模型类型",
     "providerId": "所属供应商",
     "providerName": "所属供应商",
-    "contextWindow": "上下文窗口",
-    "maxOutputTokens": "最大输出 Tokens",
+    "contextWindow": "上下文窗口总预算",
+    "maxOutputTokens": "最大输出 Token 数",
     "inputPrice": "输入价格 ($/1K)",
     "outputPrice": "输出价格 ($/1K)",
     "functionCalling": "函数调用",
@@ -138,8 +138,8 @@
       "selectRemoteModel": "选择远程模型自动填充",
       "allProviders": "全部供应商",
       "allTypes": "全部类型",
-      "inputContextWindow": "如 128000",
-      "inputMaxOutput": "如 4096",
+      "inputContextWindow": "如 128000（单次请求总 Token 预算）",
+      "inputMaxOutput": "如 4096（单次回复最大输出）",
       "inputPrice": "如 0.015",
       "outputPrice": "如 0.03",
       "inputRpmLimit": "每分钟请求数限制（留空不限制）",
@@ -157,8 +157,8 @@
     "help": {
       "code": "模型的 API 调用代码，如 gpt-4、claude-3-opus-20240229。必须与供应商 API 接受的代码一致",
       "type": "对话模型用于聊天和文本生成；向量模型用于知识库文档嵌入；图像模型用于图片生成",
-      "contextWindow": "模型能处理的最大 Token 数（输入+输出）。GPT-4 为 128K，Claude 3 为 200K",
-      "maxOutputTokens": "单次请求的最大输出 Token 数。设置过大可能增加成本和延迟",
+      "contextWindow": "单次请求可容纳的总 Token 预算（系统提示词 + 历史消息 + 用户输入 + RAG 上下文 + 模型输出）。如果你想调大“输入能吃多少”，优先改这里",
+      "maxOutputTokens": "单次请求允许模型生成的最大输出 Token 数，只限制输出长度，不会增加可输入上下文",
       "functionCalling": "启用后模型可调用工具函数。需要模型本身支持 Function Calling 能力",
       "tier": "模型级别用于多模型路由策略。快速型优先用于简单任务，高级型用于复杂分析。不设置则不参与自动路由",
       "fallbackModel": "当前模型不可用时自动切换到备用模型，确保服务不中断",
@@ -457,7 +457,7 @@
     "version": "版本",
     "systemPrompt": "系统提示词",
     "temperature": "温度",
-    "maxTokens": "最大 Token",
+    "maxTokens": "单次回复最大输出 Token",
     "topP": "Top P",
     "welcomeMessage": "欢迎语",
     "suggestedQuestions": "开场问题",
@@ -520,16 +520,19 @@
       "inputRoleIds": "输入角色 ID，多个用逗号分隔",
       "selectRoles": "请选择角色",
       "inputTemperature": "0-2，值越高输出越随机",
-      "inputMaxTokens": "最大生成 Token 数量",
+      "inputMaxTokens": "单次回复最大输出 Token 数",
       "inputTopP": "0-1，与 temperature 配合使用"
     },
     "help": {
       "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
-      "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
+      "maxTokens": "只限制单次回复的输出长度，不控制输入上下文上限。留空使用模型默认值，且不能超过所选模型的最大输出 Token。1 个中文字约 2 个 Token",
       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
       "skillPackageBindings": "选择此智能体可调用的技能包",
       "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
       "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "单次回复最大输出 Token 不能超过所选模型上限 {limit}"
     },
     "type_options": {
       "system": "系统智能体",

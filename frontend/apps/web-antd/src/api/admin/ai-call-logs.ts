@@ -52,6 +52,7 @@ export interface AICallLogInfo {
 
 /** Usage stat record / 使用量统计记录（按计费事实聚合，无独立 id） */
 export interface AIUsageStatInfo {
+  id: string;
   tenant_id: number | null;
   model_id: number;
   request_type: string;
@@ -134,15 +135,33 @@ export async function getAICallLogFailedApi(
 
 const USAGE_PREFIX = '/admin/ai/usage';
 
+function buildAIUsageStatRowId(item: Omit<AIUsageStatInfo, 'id'>): string {
+  return [
+    item.stat_date,
+    item.tenant_id ?? 'platform',
+    item.model_id,
+    item.request_type,
+  ].join(':');
+}
+
 /** Get usage stats list / 获取使用量统计列表 */
 export async function getAIUsageStatsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIUsageStatInfo>> {
-  return requestClient.get<PageResponse<AIUsageStatInfo>>(
+  const response = await requestClient.get<
+    PageResponse<Omit<AIUsageStatInfo, 'id'>>
+  >(
     `${USAGE_PREFIX}/stats`,
     { params, ...options },
   );
+  return {
+    ...response,
+    items: response.items.map((item) => ({
+      ...item,
+      id: buildAIUsageStatRowId(item),
+    })),
+  };
 }
 
 /** Get tenant usage summary / 获取企业使用量汇总 */

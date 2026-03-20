@@ -142,6 +142,54 @@ describe('Page context editor ops', () => {
     expect(afterCleanup).not.toContain('update_title');
   });
 
+  it('appendPageOperations survives later primary register and can override thin legacy ops', () => {
+    const cleanupAppend = appendPageOperations(EDITOR_KEY, [
+      {
+        name: 'search',
+        label: 'Structured Search',
+        description: 'Schema-driven search',
+        readonly: true,
+        params: {
+          status: { type: 'string' },
+        },
+        handler: async () => ({ success: true, message: '' }),
+      },
+      {
+        name: 'next_page',
+        label: 'Next Page',
+        description: 'Go to next page',
+        readonly: true,
+        handler: async () => ({ success: true, message: '' }),
+      },
+    ]);
+
+    registerPageOperations(EDITOR_KEY, [
+      {
+        name: 'refresh_list',
+        label: 'Refresh',
+        description: 'Refresh list',
+        readonly: true,
+        handler: async () => ({ success: true, message: '' }),
+      },
+      {
+        name: 'search',
+        label: 'Legacy Search',
+        description: 'Keyword only',
+        readonly: true,
+        handler: async () => ({ success: true, message: '' }),
+      },
+    ]);
+
+    const ops = listPageOperations(EDITOR_KEY);
+    expect(ops.map((op) => op.name)).toEqual(['refresh_list', 'search', 'next_page']);
+    expect(ops.find((op) => op.name === 'search')?.label).toBe('Structured Search');
+
+    cleanupAppend();
+    const afterCleanup = listPageOperations(EDITOR_KEY);
+    expect(afterCleanup.map((op) => op.name)).toEqual(['refresh_list', 'search']);
+    expect(afterCleanup.find((op) => op.name === 'search')?.label).toBe('Legacy Search');
+  });
+
   it('DocumentEditor-style extras: merge does not overwrite platform entity_description', () => {
     const baseDesc = 'Base description from platform';
     registerPageContext(EDITOR_KEY, () => ({

@@ -23,6 +23,7 @@ from app.enums.ai import CallAccessChannelEnum
 from app.enums.common import ResourceScopeEnum, UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
+from app.repositories.ai import AIModelRepository
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
 from app.repositories.ai.agent_memory_override_repository import (
     AgentMemoryOverrideRepository,
@@ -63,6 +64,34 @@ def _role_ids_allow(role_ids: list[int] | None, user_role_id: int | None) -> boo
     if user_role_id is None:
         return False
     return user_role_id in role_ids
+
+
+async def _validate_agent_max_tokens_against_model(
+    db: Any,
+    *,
+    model_id: int | None,
+    max_tokens: int | None,
+) -> None:
+    """Ensure agent max_tokens does not exceed model max_output_tokens / 校验智能体 max_tokens 不超过模型 max_output_tokens."""
+    if model_id is None or max_tokens is None:
+        return
+
+    model_repo = AIModelRepository(db)
+    model = await model_repo.get_by_id(model_id)
+    if not model:
+        return
+
+    model_limit = getattr(model, "max_output_tokens", None)
+    if model_limit is None or max_tokens <= model_limit:
+        return
+
+    raise BusinessException(
+        message=_("agent.error.max_tokens_exceeds_model_limit").format(
+            max_tokens=max_tokens,
+            model_limit=model_limit,
+            model_name=getattr(model, "name", model_id),
+        ),
+    )
 
 
 class AgentService(TenantService[Agent, AgentRepository]):
@@ -287,6 +316,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
+        await _validate_agent_max_tokens_against_model(
+            self.db,
+            model_id=data.get("model_id"),
+            max_tokens=data.get("max_tokens"),
+        )
+
     async def _after_create(self, instance: Agent) -> None:
         """创建后：触发插件钩子 / After create: trigger plugin hooks."""
         await super()._after_create(instance)
@@ -344,6 +379,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
             existing = await self.repo.get_by_name(name, exclude_id=id)
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
+
+        await _validate_agent_max_tokens_against_model(
+            self.db,
+            model_id=data.get("model_id", agent.model_id),
+            max_tokens=data.get("max_tokens", agent.max_tokens),
+        )
 
     async def _after_update(self, instance: Agent) -> None:
         """更新后：触发插件钩子 / After update: trigger plugin hooks."""
@@ -1039,6 +1080,12 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
+        await _validate_agent_max_tokens_against_model(
+            self.db,
+            model_id=data.get("model_id"),
+            max_tokens=data.get("max_tokens"),
+        )
+
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：平台级资源 + 作用域 + 名称唯一性 + 系统保护 / Before update: platform resource, scope, name uniqueness, system protection."""
         await super()._before_update(id, data)
@@ -1081,6 +1128,12 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             )
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
+
+        await _validate_agent_max_tokens_against_model(
+            self.db,
+            model_id=data.get("model_id", agent.model_id),
+            max_tokens=data.get("max_tokens", agent.max_tokens),
+        )
 
     async def query_list(self, query: QuerySpec) -> tuple[list[Agent], int]:
         """

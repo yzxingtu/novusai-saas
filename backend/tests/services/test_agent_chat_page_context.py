@@ -53,6 +53,7 @@ from app.ai.tools.types import ExecutionContext, ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
 from app.enums.agent import SkillTypeEnum
 from app.enums.common import ResourceScopeEnum, UserRoleEnum
+from app.exceptions import ValidationException
 from app.schemas.ai.agent_chat import AgentChatRequest, AgentRouteRequest, PageContext
 
 
@@ -230,6 +231,41 @@ def test_agent_route_request_accepts_legacy_page_context_shape() -> None:
         "page_title": "Agent detail",
         "page_data": {"agent_id": 1},
     }
+
+
+@pytest.mark.asyncio
+async def test_validate_page_context_size_accepts_payload_within_runtime_limit() -> None:
+    from app.services.ai.page_context_limits import validate_page_context_size
+
+    page_context = {
+        "page_key": "tenant.agent.detail",
+        "page_data": {"agent_id": 1, "status": "active"},
+    }
+
+    with patch(
+        "app.services.ai.page_context_limits.get_page_context_max_bytes",
+        AsyncMock(return_value=1024),
+    ):
+        await validate_page_context_size(MagicMock(), page_context)
+
+
+@pytest.mark.asyncio
+async def test_validate_page_context_size_rejects_payload_over_runtime_limit() -> None:
+    from app.services.ai.page_context_limits import validate_page_context_size
+
+    page_context = {
+        "page_key": "tenant.agent.detail",
+        "page_data": {"content": "x" * 128},
+    }
+
+    with patch(
+        "app.services.ai.page_context_limits.get_page_context_max_bytes",
+        AsyncMock(return_value=32),
+    ):
+        with pytest.raises(ValidationException) as exc_info:
+            await validate_page_context_size(MagicMock(), page_context)
+
+    assert "32" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -612,7 +648,7 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "app.services.ai.metering_service.TokenCounter.count_messages_tokens",
+            "app.ai.engine.conversation.TokenCounter.count_messages_tokens",
             return_value=0,
         ),
     ):
@@ -725,17 +761,15 @@ class TestPageContextDataSizeLimit:
         assert ctx.page_data == {"metric": "users", "count": 42}
 
     def test_oversized_page_data_rejected(self):
-        """超过 8KB 的 page_data 被拒绝 / page_data exceeding 8KB is rejected"""
+        """Schema 层不再拒绝超大 page_data，运行期限制负责拦截 / Schema no longer rejects oversized page_data."""
         from app.schemas.ai.agent_chat import PageContext
 
         large_data = {"key": "x" * 10000}
-
-        with pytest.raises(Exception) as exc_info:
-            PageContext(
-                page_key="admin.dashboard",
-                page_data=large_data,
-            )
-        assert "page_data exceeds" in str(exc_info.value) or "limit" in str(exc_info.value)
+        ctx = PageContext(
+            page_key="admin.dashboard",
+            page_data=large_data,
+        )
+        assert ctx.page_data == large_data
 
     def test_none_page_data_passes(self):
         """page_data 为 None 时不校验 / page_data None"""
@@ -745,13 +779,12 @@ class TestPageContextDataSizeLimit:
         assert ctx.page_data is None
 
     def test_normalize_rejects_oversized(self):
-        """normalize 方法对超大 page_data 返回 None / normalize page_data N..."""
-        from app.schemas.ai.agent_chat import MAX_PAGE_DATA_BYTES, PageContext
+        """normalize 仅做结构标准化，不再做大小拒绝 / normalize only standardizes structure now."""
+        from app.schemas.ai.agent_chat import PageContext
 
-        # 超过 MAX_PAGE_DATA_BYTES（8KB）的 page_data 应返回 None
-        oversized = {"key": "x" * (MAX_PAGE_DATA_BYTES + 100)}
+        oversized = {"key": "x" * 9000}
         result = PageContext.normalize({"page_key": "test", "page_data": oversized})
-        assert result is None
+        assert result == {"page_key": "test", "page_data": oversized}
 
     def test_boundary_page_data_passes(self):
         """刚好在 4KB 限制内的 page_data 通过验证 / 4KB page_data"""

@@ -10,7 +10,7 @@
     "code": "Model Code",
     "type": "Type",
     "providerName": "Provider",
-    "contextWindow": "Context Window",
+    "contextWindow": "Context Window Budget",
     "inputPrice": "Input Price ($/1K)",
     "outputPrice": "Output Price ($/1K)",
     "functionCalling": "Function Calling",
@@ -242,7 +242,7 @@
     "modelName": "Model",
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
-    "maxTokens": "Max Tokens",
+    "maxTokens": "Per-Reply Max Output Tokens",
     "topP": "Top P",
     "welcomeMessage": "Welcome Message",
     "suggestedQuestions": "Starter Questions",
@@ -305,7 +305,7 @@
       "inputSystemPrompt": "Enter system prompt to define agent behavior and role",
       "inputDescription": "Enter description",
       "inputTemperature": "0-2, higher values produce more random output",
-      "inputMaxTokens": "Maximum token generation limit",
+      "inputMaxTokens": "Per-reply max generated tokens",
       "inputTopP": "0-1, used together with temperature",
       "inputWelcomeMessage": "Welcome message shown before the first turn starts",
       "inputSuggestedQuestions": "One question per line, JSON array is also supported",
@@ -316,7 +316,7 @@
     },
     "help": {
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
-      "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
+      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for model default and do not exceed the selected model limit. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
       "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line",
@@ -338,6 +338,9 @@
       "ragSearchMode": "Vector search for semantic similarity, keyword for exact match, hybrid combines both",
       "ragRewriteStrategy": "Rewrites user query to improve retrieval. Multi-Query generates multiple search queries, HyDE generates a hypothetical answer for embedding",
       "ragContextTokenRatio": "Max ratio of total context budget for KB content. E.g., 0.3 = at most 30% of token budget"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "Per-reply max output tokens cannot exceed the selected model limit {limit}"
     },
     "inputVariables": {
       "title": "Input Variables",

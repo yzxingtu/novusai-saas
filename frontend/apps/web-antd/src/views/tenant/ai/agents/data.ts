@@ -401,10 +401,12 @@ export function useGridFormSchema(): VbenFormSchema[] {
 
 // ============ 编辑表单 ============
 
-/**
- * 智能体表单 Schema
- */
-export function useFormSchema(isCreate = false): VbenFormSchema[] {
+export function useFormSchema(
+  isCreate = false,
+  resolveModelMaxOutputTokens?: (
+    modelId: null | number | undefined,
+  ) => number | undefined,
+): VbenFormSchema[] {
   return [
     inputField('name', $t('tenant.ai.agent.name'), {
       required: true,
@@ -445,6 +447,15 @@ export function useFormSchema(isCreate = false): VbenFormSchema[] {
       {
         ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
           min: 1,
+          placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
+        }),
+        componentProps: (values: Record<string, unknown>) => ({
+          style: { width: '100%' },
+          min: 1,
+          max:
+            resolveModelMaxOutputTokens?.(
+              values.model_id as null | number | undefined,
+            ) ?? 128_000,
           placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
         }),
         help: $t('tenant.ai.agent.help.maxTokens'),
@@ -522,8 +533,13 @@ const FIELD_STEP_MAP: Record<string, number> = {
 /**
  * 向导模式某步骤的表单 Schema — 直接返回该步骤对应的字段，无需 triggerFields 机制
  */
-export function getWizardStepSchema(step: number): VbenFormSchema[] {
-  return useFormSchema().filter(
+export function getWizardStepSchema(
+  step: number,
+  resolveModelMaxOutputTokens?: (
+    modelId: null | number | undefined,
+  ) => number | undefined,
+): VbenFormSchema[] {
+  return useFormSchema(false, resolveModelMaxOutputTokens).filter(
     (field) => (FIELD_STEP_MAP[field.fieldName] ?? 0) === step,
   );
 }

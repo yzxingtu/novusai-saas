@@ -21,6 +21,7 @@ import {
   batchBindAIAgentSkillsApi,
   getAIAgentDetailApi,
   getAIAgentSkillsApi,
+  getAIModelListApi,
 } from '#/api/admin/ai';
 import { getRecommendedSkillPackagesApi } from '#/api/admin/skill-packages';
 import { scopeNeedsAssignment } from '#/components/business/scope-select/use-scope-fields';
@@ -52,9 +53,26 @@ const packageOptions = ref<PkgOption[]>([]);
 const packageLoading = ref(false);
 const autoBindPackages = ref<AIAgentSkillBindingInfo[]>([]);
 const recommendedPackageIds = ref<number[]>([]);
+const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
+
+function resolveModelMaxOutputTokens(
+  modelId: null | number | undefined,
+): number | undefined {
+  if (modelId == null) return undefined;
+  return modelMaxOutputTokensMap.value[modelId];
+}
+
+function buildSchema(edit = false, isSystem = false, isCreate = false) {
+  return useFormSchema(
+    edit,
+    isSystem,
+    isCreate,
+    resolveModelMaxOutputTokens,
+  );
+}
 
 const [Form, formApi] = useVbenForm({
-  schema: useFormSchema(),
+  schema: buildSchema(),
   showDefaultActions: false,
 });
 
@@ -62,7 +80,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
   useCrudDrawer<AIAgentInfo>({
     formApi,
     apiPath: '/admin/ai/agents',
-    schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value, !edit),
+    schema: (edit) => buildSchema(edit, edit && isSystemAgent.value, !edit),
     defaults: getFormDefaults,
     transform: (values, edit) => {
       const sqArray = parseStarterQuestionsInput(
@@ -121,7 +139,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         ?.is_system;
       isSystemAgent.value = sys;
       // Re-apply schema: initial schema() call ran before isSystemAgent was detected
-      formApi.setState({ schema: useFormSchema(isEdit.value, sys, !isEdit.value) });
+      formApi.setState({ schema: buildSchema(isEdit.value, sys, !isEdit.value) });
       // Pre-populate recommended packages for new agent creation
       if (!isEdit.value && recommendedPackageIds.value.length > 0) {
         const recOpts = packageOptions.value
@@ -231,7 +249,29 @@ async function loadPackageOptions() {
   }
 }
 
-onMounted(loadPackageOptions);
+async function loadModelLimits() {
+  try {
+    const res = await getAIModelListApi({
+      'page[size]': 200,
+      'filter[type][eq]': 'chat',
+    });
+    const next: Record<number, number | undefined> = {};
+    for (const item of res.items || []) {
+      next[item.id] = item.max_output_tokens ?? undefined;
+    }
+    modelMaxOutputTokensMap.value = next;
+    formApi.setState({
+      schema: buildSchema(isEdit.value, isSystemAgent.value, !isEdit.value),
+    });
+  } catch {
+    modelMaxOutputTokensMap.value = {};
+  }
+}
+
+onMounted(() => {
+  void loadPackageOptions();
+  void loadModelLimits();
+});
 
 // Filter out auto-bound packages from the manual selection dropdown
 const manualPackageOptions = computed(() => {

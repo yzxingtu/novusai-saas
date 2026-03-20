@@ -184,6 +184,39 @@ def _build_handler(
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_done_and_on_complete_when_llm_stream_stops_at_finish_reason():
+    """finish_reason 出现后流结束须发 done，且 on_complete 成功（对齐 adapter 主动收口语义）。"""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(delta="p"),
+                ChatChunk(delta="art", finish_reason="stop", total_tokens=9),
+            ],
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    assert any(e.get("event") == "done" for e in events)
+    assert "".join(e.get("delta", "") for e in events if e.get("event") == "message") == "part"
+    assert len(captured) == 1
+    assert captured[0].success is True
+    assert captured[0].partial is False
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_with_tools_keeps_real_delta_order():
     """有 tools 但本轮未触发 tool_call 时，仍保持真实逐块流式顺序。"""
     engine = _FakeEngine(

@@ -77,6 +77,21 @@ TOOLKIT_SCAN_ON_UPLOAD = ConfigMeta(
     sort_order=40,
 )
 
+# Page context payload size limit (bytes) / 页面上下文载荷大小上限（字节）
+AI_PAGE_CONTEXT_MAX_BYTES = ConfigMeta(
+    key="ai_page_context_max_bytes",
+    name_key="config.platform.ai_page_context_max_bytes.name",
+    description_key="config.platform.ai_page_context_max_bytes.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.NUMBER,
+    default_value=8192,
+    validation_rules=[
+        min_value(2048, "validation.min_value"),
+        max_value(65536, "validation.max_value"),
+    ],
+    sort_order=50,
+)
+
 
 # ==========================================
 # Register configs to group / 注册配置到分组
@@ -87,4 +102,14 @@ PLATFORM_AI_TOOLKIT_GROUP.configs = [
     TOOLKIT_MEMORY_LIMIT_MB,
     TOOLKIT_MAX_TIMEOUT,
     TOOLKIT_SCAN_ON_UPLOAD,
+    AI_PAGE_CONTEXT_MAX_BYTES,
+]
+
+
+__all__ = [
+    "TOOLKIT_SECURITY_LEVEL",
+    "TOOLKIT_MEMORY_LIMIT_MB",
+    "TOOLKIT_MAX_TIMEOUT",
+    "TOOLKIT_SCAN_ON_UPLOAD",
+    "AI_PAGE_CONTEXT_MAX_BYTES",
 ]

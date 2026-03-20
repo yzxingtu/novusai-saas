@@ -8,14 +8,13 @@ import type { AdapterTypeInfo, AIProviderInfo } from '#/api/admin/ai';
 
 import { ref } from 'vue';
 
-import { z } from 'zod';
-
 import {
   inputField,
   searchInput,
   select,
   switchField,
   textareaField,
+  z,
 } from '#/adapter/form';
 import { dragColumn } from '#/adapter/vxe-table';
 import { getAdapterTypesApi } from '#/api/admin/ai';
@@ -257,7 +256,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       rules: z
         .union([z.string(), z.undefined()])
         .refine(
-          (value) =>
+          (value: string | undefined) =>
             value === undefined || value === '' || isValidProviderBaseUrl(value),
           { message: $t('admin.ai.provider.validation.baseUrlInvalid') },
         ),

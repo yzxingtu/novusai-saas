@@ -23,7 +23,8 @@ from app.schemas.public import (
     TenantLegalDocumentResponse,
     TenantPublicConfig,
 )
-from app.schemas.public.platform import StoragePublicConfig
+from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
+from app.services.ai.page_context_limits import get_page_context_max_bytes
 
 router = APIRouter(prefix="/tenant", tags=["企业公开接口 / Tenant Public API"])
 
@@ -166,6 +167,9 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
             storage=storage_config_obj,
+            runtime_limits=RuntimeLimitsPublicConfig(
+                page_context_max_bytes=await get_page_context_max_bytes(db),
+            ),
         ),
         message=_("common.success"),
     )

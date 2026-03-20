@@ -22,6 +22,10 @@
 
   "search": "Search",
   "clearSearch": "Clear Search",
+  "nextPage": "Next Page",
+  "prevPage": "Previous Page",
+  "goToPage": "Go To Page",
+  "setPageSize": "Set Page Size",
   "searchByKeyword": "Search by Keyword",
   "exportData": "Export Data",
   "uploadFile": "Upload File",
@@ -104,6 +108,12 @@
     "navigateIdRequired": "Please provide record id",
     "searchApplied": "Search applied: {fields}",
     "searchClearedAlt": "Search cleared",
+    "pageChanged": "Switched to page {page}",
+    "pageSizeChanged": "Page size set to {pageSize}",
+    "alreadyFirstPage": "Already on the first page (page {page})",
+    "alreadyLastPage": "Already on the last page (page {page})",
+    "pageOutOfRange": "Page {page} is out of range. Valid range: {min}-{max}",
+    "invalidPageSize": "Invalid page size: {pageSize}",
     "unknownField": "Unknown field: {field}. Available: {available}",
     "foundOptions": "Found {count} options for {field}",
     "noOptionsLoaded": "No options loaded for {field}"

@@ -21,6 +21,7 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import {
   getAgentDetailApi,
   getAgentSkillsApi,
@@ -52,15 +53,31 @@ const wizardMode = ref(false);
 const currentStep = ref(0);
 const autoBindPackages = ref<AgentSkillBindingInfo[]>([]);
 const manualBindPackages = ref<AgentSkillBindingInfo[]>([]);
+const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
+
+function resolveModelMaxOutputTokens(
+  modelId: null | number | undefined,
+): number | undefined {
+  if (modelId == null) return undefined;
+  return modelMaxOutputTokensMap.value[modelId];
+}
+
+function buildSchema(isCreate = false) {
+  return useFormSchema(isCreate, resolveModelMaxOutputTokens);
+}
+
+function buildWizardStepSchema(step: number) {
+  return getWizardStepSchema(step, resolveModelMaxOutputTokens);
+}
 
 const [Form, formApi] = useVbenForm({
-  schema: useFormSchema(),
+  schema: buildSchema(),
   showDefaultActions: false,
 });
 
 function goStep(step: number) {
   currentStep.value = step;
-  formApi.setState({ schema: getWizardStepSchema(step) });
+  formApi.setState({ schema: buildWizardStepSchema(step) });
 }
 
 function prevStep() {
@@ -81,7 +98,7 @@ const {
   openEdit: _openEdit,
 } = useCrudDrawer<AgentInfo>({
   formApi,
-  schema: (edit) => useFormSchema(!edit),
+  schema: (edit) => buildSchema(!edit),
   defaults: getFormDefaults,
   apiPath: '/tenant/ai/agents',
   transform: (values) => {
@@ -144,12 +161,12 @@ async function openNew() {
   currentStep.value = 0;
   _openNew();
   await nextTick();
-  formApi.setState({ schema: getWizardStepSchema(0) });
+  formApi.setState({ schema: buildWizardStepSchema(0) });
 }
 
 function openEdit(record: AgentListItem) {
   wizardMode.value = false;
-  formApi.setState({ schema: useFormSchema() });
+  formApi.setState({ schema: buildSchema() });
   _openEdit(record);
 }
 
@@ -161,6 +178,26 @@ const title = computed(() =>
 
 const isLastStep = computed(() => currentStep.value === TOTAL_STEPS - 1);
 const isFirstStep = computed(() => currentStep.value === 0);
+
+async function loadModelLimits() {
+  try {
+    const models = await getTenantAIModelsApi();
+    const next: Record<number, number | undefined> = {};
+    for (const item of models) {
+      next[item.id] = item.max_output_tokens ?? undefined;
+    }
+    modelMaxOutputTokensMap.value = next;
+    formApi.setState({
+      schema: wizardMode.value
+        ? buildWizardStepSchema(currentStep.value)
+        : buildSchema(!isEdit.value),
+    });
+  } catch {
+    modelMaxOutputTokensMap.value = {};
+  }
+}
+
+void loadModelLimits();
 
 </script>
 

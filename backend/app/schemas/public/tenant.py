@@ -8,7 +8,7 @@ Defines tenant public info accessible before login.
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
-from app.schemas.public.platform import StoragePublicConfig
+from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
 
 
 class TenantPublicConfig(BaseSchema):
@@ -68,6 +68,7 @@ class TenantPublicConfig(BaseSchema):
 
     # 存储配置
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
+    runtime_limits: RuntimeLimitsPublicConfig | None = Field(None, description="运行时限制")
 
 
 class DomainVerificationInfo(BaseSchema):

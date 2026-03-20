@@ -131,6 +131,12 @@ export interface DomainConfig {
   verificationPrefix: string;
 }
 
+/** Runtime limits / 运行时限制 */
+export interface RuntimeLimitsConfig {
+  /** Hard limit for page_context.page_data bytes / page_context.page_data 硬限制 */
+  pageContextMaxBytes: number;
+}
+
 /** Platform public config / 平台公开配置 */
 export interface PlatformPublicConfig {
   /** Brand config / 品牌配置 */
@@ -143,6 +149,8 @@ export interface PlatformPublicConfig {
   maintenance: MaintenanceConfig;
   /** Domain config / 域名配置 */
   domain: DomainConfig;
+  /** Runtime limits / 运行时限制 */
+  runtimeLimits?: RuntimeLimitsConfig;
   /** Platform admin domain list (for domain detection) / 平台管理端域名列表 */
   platformDomains: string[];
 }
@@ -165,6 +173,8 @@ export interface TenantPublicConfig {
   maintenance: MaintenanceConfig;
   /** Domain config / 域名配置 */
   domain: DomainConfig;
+  /** Runtime limits / 运行时限制 */
+  runtimeLimits?: RuntimeLimitsConfig;
   /** Feature toggles / 功能开关 */
   features?: Record<string, boolean>;
   /** Registration privacy policy URL / 注册页隐私政策链接 */
@@ -196,6 +206,11 @@ interface PlatformPublicConfigRaw {
   tenant_domain_suffix?: string;
   domain_verification_prefix?: string;
   platform_domains?: string[];
+
+  // Runtime limits
+  runtime_limits?: {
+    page_context_max_bytes?: number;
+  };
 
   // Maintenance
   maintenance_mode?: boolean;
@@ -281,6 +296,11 @@ interface TenantPublicConfigRaw {
     driver?: string;
     max_file_size_mb?: number;
   };
+
+  // Runtime limits
+  runtime_limits?: {
+    page_context_max_bytes?: number;
+  };
 }
 
 // ============================================================
@@ -332,6 +352,12 @@ function transformPlatformConfig(
       suffix: raw.tenant_domain_suffix ?? '',
       verificationPrefix: raw.domain_verification_prefix ?? '',
     },
+    runtimeLimits:
+      raw.runtime_limits?.page_context_max_bytes != null
+        ? {
+            pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
+          }
+        : undefined,
     platformDomains: raw.platform_domains ?? [],
   };
 }
@@ -378,6 +404,12 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       suffix: '',
       verificationPrefix: '',
     },
+    runtimeLimits:
+      raw.runtime_limits?.page_context_max_bytes != null
+        ? {
+            pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
+          }
+        : undefined,
     privacyPolicyUrl: raw.privacy_policy_url || undefined,
     termsUrl: raw.terms_url || undefined,
     privacyPolicyInternal: raw.privacy_policy_internal === true,

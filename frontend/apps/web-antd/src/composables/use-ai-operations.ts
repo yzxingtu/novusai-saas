@@ -44,6 +44,10 @@ interface SearchParamEntry {
   description: string;
   /** Original JSON:API filter fieldName (e.g. 'filter[name][ilike]') / 原始 JSON:API filter 字段名 */
   filterFieldName: string;
+  /** Original search form field name / 原始搜索表单字段名 */
+  formFieldName: string;
+  /** Date-range slot role when the source field is _dateRange_* / 日期范围字段的槽位角色 */
+  dateRangeRole?: 'end' | 'start';
 }
 
 /**
@@ -106,6 +110,21 @@ export interface FormPopupApi {
   setData: (data: Record<string, unknown>) => { open: () => void };
 }
 
+interface CrudSearchStatePayload {
+  rawFormValues?: Record<string, unknown>;
+}
+
+type ValueResolver<T> = (() => T) | Ref<T> | T;
+
+export interface CrudPaginationState {
+  current_page: number;
+  page_size: number;
+  total_pages: number;
+  total_rows: number;
+  has_next_page: boolean;
+  has_previous_page: boolean;
+}
+
 /**
  * Options for createStandardOperations
  * createStandardOperations 配置选项
@@ -116,9 +135,22 @@ export interface CrudAiOperationsOptions {
   /** Reload list callback / 刷新列表回调 */
   loadList: () => Promise<void>;
   /** Apply search params callback / 应用搜索参数回调 */
-  onSearch: (params?: Record<string, unknown>) => void;
+  onSearch: (
+    params?: Record<string, unknown>,
+    state?: CrudSearchStatePayload,
+  ) => void | Promise<void>;
   /** Current list data ref / 当前列表数据 ref */
   list: Ref<unknown[]>;
+  /** Total row count / 总行数 */
+  total?: Ref<number> | number;
+  /** Current page number / 当前页码 */
+  currentPage?: ValueResolver<number>;
+  /** Current page size / 当前每页条数 */
+  pageSize?: ValueResolver<number>;
+  /** Set current page / 设置当前页 */
+  setCurrentPage?: (page: number) => void | Promise<void>;
+  /** Set page size / 设置每页条数 */
+  setPageSize?: (size: number) => void | Promise<void>;
   /** Form popup API (from useVbenDrawer or useVbenModal) / 表单弹窗 API */
   formPopupApi?: FormPopupApi | null;
   /** Form default values / 表单默认值 */
@@ -139,6 +171,104 @@ export interface CrudAiOperationsOptions {
   extra?: PageOperation[];
   /** Page key (for form state tracking via formStateTracker) / 页面标识（用于表单状态追踪） */
   pageKey?: string;
+}
+
+function resolveValue<T>(value?: ValueResolver<T>): T | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'function') {
+    return (value as () => T)();
+  }
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    return (value as Ref<T>).value;
+  }
+  return value as T;
+}
+
+export function compactCrudContextValues(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => {
+      if (entry === undefined || entry === null || entry === '') return false;
+      if (Array.isArray(entry) && entry.length === 0) return false;
+      return true;
+    }),
+  );
+}
+
+export function buildCrudPaginationState(opts: {
+  currentPage?: ValueResolver<number>;
+  pageSize?: ValueResolver<number>;
+  total?: ValueResolver<number>;
+}): CrudPaginationState {
+  const currentPage = Math.max(1, Number(resolveValue(opts.currentPage) ?? 1));
+  const pageSize = Math.max(1, Number(resolveValue(opts.pageSize) ?? 20));
+  const totalRows = Math.max(0, Number(resolveValue(opts.total) ?? 0));
+  const totalPages = Math.max(Math.ceil(totalRows / pageSize), 1);
+
+  return {
+    current_page: currentPage,
+    page_size: pageSize,
+    total_pages: totalPages,
+    total_rows: totalRows,
+    has_next_page: currentPage < totalPages,
+    has_previous_page: currentPage > 1,
+  };
+}
+
+function stringifySummaryValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') return value.slice(0, 80);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+
+  try {
+    return JSON.stringify(value).slice(0, 80);
+  } catch {
+    return String(value).slice(0, 80);
+  }
+}
+
+export function buildCrudListSummary(
+  rows: unknown[],
+  opts: {
+    currentPage?: ValueResolver<number>;
+    displayKeys?: string[];
+    pageSize?: ValueResolver<number>;
+    total?: ValueResolver<number>;
+  },
+): Record<string, unknown> | undefined {
+  if (rows.length === 0) return undefined;
+
+  const fallbackKeys = Object.keys(rows[0] as Record<string, unknown>)
+    .filter((key) => !key.startsWith('_') && key !== 'id')
+    .slice(0, 6);
+  const displayKeys = (opts.displayKeys?.filter(Boolean) ?? fallbackKeys).slice(0, 6);
+
+  const sampleRows = rows.slice(0, 5).map((row) => {
+    const record = row as Record<string, unknown>;
+    const summary: Record<string, unknown> = {};
+
+    for (const key of displayKeys) {
+      const text = stringifySummaryValue(record[key]);
+      if (text !== undefined) {
+        summary[key] = text;
+      }
+    }
+
+    return summary;
+  });
+
+  const pagination = buildCrudPaginationState({
+    currentPage: opts.currentPage,
+    pageSize: opts.pageSize,
+    total: opts.total,
+  });
+
+  return {
+    ...pagination,
+    sample_rows: sampleRows,
+  };
 }
 
 // ============ Schema Extraction / schema 字段提取 ============
@@ -170,11 +300,15 @@ export function extractSearchParams(
         type: 'string',
         description: `${label} (start / 开始, YYYY-MM-DD)`,
         filterFieldName: `filter[${field}][gte]`,
+        formFieldName: fieldName,
+        dateRangeRole: 'start',
       };
       params[`${field}_lte`] = {
         type: 'string',
         description: `${label} (end / 结束, YYYY-MM-DD)`,
         filterFieldName: `filter[${field}][lte]`,
+        formFieldName: fieldName,
+        dateRangeRole: 'end',
       };
       continue;
     }
@@ -206,6 +340,7 @@ export function extractSearchParams(
         type,
         description: label,
         filterFieldName: fieldName,
+        formFieldName: fieldName,
       };
     }
   }
@@ -610,6 +745,11 @@ export function createStandardOperations(
     loadList,
     onSearch,
     list,
+    total,
+    currentPage,
+    pageSize,
+    setCurrentPage,
+    setPageSize,
     formPopupApi,
     formDefaults,
     searchSchema,
@@ -667,6 +807,44 @@ export function createStandardOperations(
     searchOpParams[key] = { type: entry.type, description: entry.description };
   }
 
+  function buildRawSearchFormValues(
+    params: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const rawFormValues: Record<string, unknown> = {};
+
+    for (const entry of Object.values(searchParamsMap)) {
+      rawFormValues[entry.formFieldName] = undefined;
+    }
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null || value === '') continue;
+      const entry = searchParamsMap[key];
+      if (!entry) continue;
+
+      if (entry.formFieldName.startsWith('_dateRange_')) {
+        const current = Array.isArray(rawFormValues[entry.formFieldName])
+          ? [...(rawFormValues[entry.formFieldName] as unknown[])]
+          : [undefined, undefined];
+        const slotIndex = entry.dateRangeRole === 'end' ? 1 : 0;
+        current[slotIndex] = value;
+        rawFormValues[entry.formFieldName] = current;
+        continue;
+      }
+
+      rawFormValues[entry.formFieldName] = value;
+    }
+
+    return rawFormValues;
+  }
+
+  function getPaginationState(): CrudPaginationState {
+    return buildCrudPaginationState({
+      currentPage,
+      pageSize,
+      total,
+    });
+  }
+
   const createOpParams: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(formParamsMap)) {
     createOpParams[key] = buildFieldParamSchema(entry);
@@ -703,6 +881,7 @@ export function createStandardOperations(
       params: searchOpParams,
       handler: async (params) => {
         const filterParams: Record<string, unknown> = {};
+        const rawFormValues = buildRawSearchFormValues(params);
 
         for (const [key, value] of Object.entries(params)) {
           if (value === undefined || value === null || value === '') continue;
@@ -714,7 +893,7 @@ export function createStandardOperations(
           }
         }
 
-        onSearch(filterParams);
+        await onSearch(filterParams, { rawFormValues });
 
         const applied = Object.keys(params).filter(
           (k) => params[k] != null && params[k] !== '',
@@ -739,10 +918,160 @@ export function createStandardOperations(
         'Clear all search conditions and reload / 清空所有搜索条件并重新加载',
       readonly: true,
       handler: async () => {
-        onSearch({});
+        await onSearch({}, {
+          rawFormValues: buildRawSearchFormValues({}),
+        });
         return {
           success: true,
           message: $t('shared.pageOperation.msg.searchCleared'),
+        };
+      },
+    });
+  }
+
+  // ── 3b. pagination operations — Navigate list pages / 分页操作 ──
+  if (
+    !isDisabled('next_page')
+    && currentPage !== undefined
+    && pageSize !== undefined
+    && total !== undefined
+    && setCurrentPage
+  ) {
+    operations.push({
+      name: 'next_page',
+      label: $t('shared.pageOperation.nextPage'),
+      description: 'Go to the next page of the current list / 前往当前列表的下一页',
+      readonly: true,
+      handler: async () => {
+        const pagination = getPaginationState();
+        if (!pagination.has_next_page) {
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.alreadyLastPage', {
+              page: pagination.current_page,
+            }),
+          };
+        }
+
+        const targetPage = pagination.current_page + 1;
+        await setCurrentPage(targetPage);
+        await loadList();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+        };
+      },
+    });
+  }
+
+  if (
+    !isDisabled('prev_page')
+    && currentPage !== undefined
+    && pageSize !== undefined
+    && total !== undefined
+    && setCurrentPage
+  ) {
+    operations.push({
+      name: 'prev_page',
+      label: $t('shared.pageOperation.prevPage'),
+      description: 'Go to the previous page of the current list / 返回当前列表的上一页',
+      readonly: true,
+      handler: async () => {
+        const pagination = getPaginationState();
+        if (!pagination.has_previous_page) {
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.alreadyFirstPage', {
+              page: pagination.current_page,
+            }),
+          };
+        }
+
+        const targetPage = pagination.current_page - 1;
+        await setCurrentPage(targetPage);
+        await loadList();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+        };
+      },
+    });
+  }
+
+  if (
+    !isDisabled('go_to_page')
+    && currentPage !== undefined
+    && pageSize !== undefined
+    && total !== undefined
+    && setCurrentPage
+  ) {
+    operations.push({
+      name: 'go_to_page',
+      label: $t('shared.pageOperation.goToPage'),
+      description: 'Jump to a specific page number / 跳转到指定页码',
+      readonly: true,
+      params: {
+        page: {
+          type: 'number',
+          description: 'Target page number / 目标页码',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const targetPage = Number(params.page);
+        const pagination = getPaginationState();
+        if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage > pagination.total_pages) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.pageOutOfRange', {
+              max: pagination.total_pages,
+              min: 1,
+              page: targetPage,
+            }),
+          };
+        }
+
+        await setCurrentPage(targetPage);
+        await loadList();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+        };
+      },
+    });
+  }
+
+  if (!isDisabled('set_page_size') && setPageSize) {
+    operations.push({
+      name: 'set_page_size',
+      label: $t('shared.pageOperation.setPageSize'),
+      description: 'Change the number of rows shown per page / 修改每页显示的行数',
+      readonly: true,
+      params: {
+        page_size: {
+          type: 'number',
+          description: 'Rows per page / 每页行数',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const nextPageSize = Number(params.page_size);
+        if (!Number.isFinite(nextPageSize) || nextPageSize < 1) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.invalidPageSize', {
+              pageSize: nextPageSize,
+            }),
+          };
+        }
+
+        await setPageSize(nextPageSize);
+        await loadList();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.pageSizeChanged', {
+            pageSize: nextPageSize,
+          }),
         };
       },
     });

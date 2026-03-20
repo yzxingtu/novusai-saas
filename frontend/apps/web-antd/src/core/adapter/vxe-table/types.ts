@@ -7,6 +7,7 @@ import type { Component } from 'vue';
 import type { Recordable } from '@vben/types';
 
 import type { VbenFormSchema } from '#/adapter/form';
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 // Export base types from vben plugin / 从 vben 插件导出基础类型
 export type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
@@ -114,6 +115,30 @@ export interface ToolbarConfig {
   zoom?: boolean;
 }
 
+export interface CrudPageAiOptions {
+  /** Page key matching registerPageOperations / 匹配 registerPageOperations 的页面标识 */
+  pageKey?: string;
+  /** Form schema factory for AI field extraction / 表单 schema 工厂函数，用于 AI 字段提取 */
+  formSchema?: (isEdit?: boolean) => VbenFormSchema[];
+  /** Detail route template / 详情页路由模板 */
+  detailRoute?: string;
+  /** Operations to disable / 禁用的操作名称列表 */
+  disabled?: string[];
+  /** Extra custom operations merged with standard ops / 额外自定义操作 */
+  extra?: PageOperation[];
+  /** Entity display name for AI context / AI 上下文中的实体显示名 */
+  entityName?: string;
+  /** Entity description for AI context / AI 上下文中的实体描述 */
+  entityDescription?: string;
+  /** Form purpose descriptions / 表单用途描述 */
+  formPurpose?: {
+    create?: string;
+    edit?: string;
+  };
+  /** Extra page_data merged into auto-registered context / 合并到自动注册上下文的额外 page_data */
+  contextExtras?: () => Record<string, unknown>;
+}
+
 /**
  * useCrudPage configuration options / useCrudPage 配置选项
  */
@@ -188,15 +213,10 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
 
   /**
    * AI page awareness config. When provided, enables form state tracking
-   * and generates form AI operations (get_form_state, fill_form, etc.)
-   * AI 页面感知配置。提供后启用表单状态追踪并生成表单 AI 操作
+   * and global page AI auto-registration (context + operations)
+   * AI 页面感知配置。提供后启用表单状态追踪与全局页面 AI 自动注册（上下文 + 操作）
    */
-  ai?: {
-    /** Page key matching registerPageOperations / 匹配 registerPageOperations 的页面标识 */
-    pageKey: string;
-    /** Form schema factory for AI field extraction / 表单 schema 工厂函数，用于 AI 字段提取 */
-    formSchema: (isEdit?: boolean) => VbenFormSchema[];
-  };
+  ai?: CrudPageAiOptions;
 }
 
 /**

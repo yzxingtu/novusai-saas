@@ -37,6 +37,17 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
 
+
+async def _aclose_openai_stream(stream: Any) -> None:
+    """Close upstream SDK stream when the wire has sent a terminal SSE event but keeps HTTP open."""
+    if stream is None or not hasattr(stream, "aclose"):
+        return
+    try:
+        await stream.aclose()
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("OpenAI upstream stream aclose (ignored): {}", exc)
+
+
 # Native audio: when True and supports_audio, convert audio attachments to OpenAI input_audio block
 # 原生音频：为 True 且 supports_audio 时，将音频附件转为 OpenAI input_audio 块
 SUPPORTS_NATIVE_AUDIO: bool = True
@@ -355,38 +366,60 @@ class OpenAIAdapter(BaseAdapter):
             self._log_upstream_request(endpoint_path=self._chat_endpoint_path(), model=model, stream=True)
             logger.info("Stream chat request: model={}", model)
             stream = await self.client.chat.completions.create(**request_params)
+            stream_closed = False
 
-            # Convert streaming response / 转换流式响应
-            first_chunk = await anext(stream, None)
-            if first_chunk is None:
-                return
+            try:
+                # Convert streaming response / 转换流式响应
+                first_chunk = await anext(stream, None)
+                if first_chunk is None:
+                    return
 
-            if self._should_fallback_to_responses(first_chunk):
-                logger.warning(
-                    "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
-                    model,
-                    type(first_chunk).__name__,
-                )
-                if hasattr(stream, "aclose"):
-                    await stream.aclose()
-                async for chunk in self._stream_chat_via_responses(
-                    messages=messages,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    tools=tools,
-                    supports_vision=vision_flag,
-                    supports_audio=audio_flag,
-                    supports_video=video_flag,
-                    **kwargs,
-                ):
-                    yield chunk
-                return
+                if self._should_fallback_to_responses(first_chunk):
+                    logger.warning(
+                        "Stream chunk missing choices; fallback to responses API: model={} chunk_type={}",
+                        model,
+                        type(first_chunk).__name__,
+                    )
+                    await _aclose_openai_stream(stream)
+                    stream_closed = True
+                    async for chunk in self._stream_chat_via_responses(
+                        messages=messages,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        tools=tools,
+                        supports_vision=vision_flag,
+                        supports_audio=audio_flag,
+                        supports_video=video_flag,
+                        **kwargs,
+                    ):
+                        yield chunk
+                    return
 
-            yield self._convert_chat_chunk(first_chunk, model)
-            async for chunk in stream:
-                yield self._convert_chat_chunk(chunk, model)
+                first_chat_chunk = self._convert_chat_chunk(first_chunk, model)
+                yield first_chat_chunk
+                if first_chat_chunk.finish_reason is not None:
+                    logger.info(
+                        "Stream finish_reason on first chunk, closing upstream: model={} finish_reason={} wire_api=chat_completions",
+                        model,
+                        first_chat_chunk.finish_reason,
+                    )
+                    return
+
+                async for chunk in stream:
+                    chat_chunk = self._convert_chat_chunk(chunk, model)
+                    yield chat_chunk
+                    if chat_chunk.finish_reason is not None:
+                        logger.info(
+                            "Stream finish_reason received, closing upstream: model={} finish_reason={} wire_api=chat_completions",
+                            model,
+                            chat_chunk.finish_reason,
+                        )
+                        break
+            finally:
+                if not stream_closed:
+                    await _aclose_openai_stream(stream)
 
         except AIGatewayError:
             raise
@@ -552,84 +585,112 @@ class OpenAIAdapter(BaseAdapter):
         stream = await self.client.responses.create(**request_params)
         emitted_text = False
 
-        async for event in stream:
-            event_type = getattr(event, "type", "")
+        try:
+            async for event in stream:
+                event_type = getattr(event, "type", "")
 
-            if event_type == "response.output_text.delta":
-                delta = getattr(event, "delta", "") or ""
-                if delta:
-                    emitted_text = True
-                    yield ChatChunk(delta=delta)
-                continue
+                if event_type == "response.output_text.delta":
+                    delta = getattr(event, "delta", "") or ""
+                    if delta:
+                        emitted_text = True
+                        yield ChatChunk(delta=delta)
+                    continue
 
-            if event_type in {"response.reasoning_text.delta", "response.reasoning_summary_text.delta"}:
-                delta = getattr(event, "delta", "") or ""
-                if delta:
-                    yield ChatChunk(delta="", reasoning_delta=delta)
-                continue
+                # Some OpenAI-compatible proxies end the text stream with this event and never send
+                # response.completed — align with raw SSE clients that treat the stream as done here.
+                if event_type == "response.output_text.done":
+                    text = getattr(event, "text", None) or ""
+                    if text and not emitted_text:
+                        yield ChatChunk(delta=text)
+                        emitted_text = True
+                    usage = getattr(event, "usage", None)
+                    yield ChatChunk(
+                        delta="",
+                        finish_reason="stop",
+                        input_tokens=getattr(usage, "input_tokens", None),
+                        output_tokens=getattr(usage, "output_tokens", None),
+                        total_tokens=getattr(usage, "total_tokens", None),
+                    )
+                    logger.info(
+                        "Responses stream response.output_text.done, closing upstream: model={} wire_api=responses",
+                        model,
+                    )
+                    return
 
-            if event_type == "response.output_item.added":
-                item = getattr(event, "item", None)
-                if getattr(item, "type", None) == "function_call":
+                if event_type in {"response.reasoning_text.delta", "response.reasoning_summary_text.delta"}:
+                    delta = getattr(event, "delta", "") or ""
+                    if delta:
+                        yield ChatChunk(delta="", reasoning_delta=delta)
+                    continue
+
+                if event_type == "response.output_item.added":
+                    item = getattr(event, "item", None)
+                    if getattr(item, "type", None) == "function_call":
+                        yield ChatChunk(
+                            delta="",
+                            tool_calls=[{
+                                "index": getattr(event, "output_index", None),
+                                "id": getattr(item, "call_id", None) or getattr(item, "id", None) or "",
+                                "function": {
+                                    "name": getattr(item, "name", None) or "",
+                                    "arguments": getattr(item, "arguments", None) or "",
+                                },
+                            }],
+                        )
+                    continue
+
+                if event_type == "response.function_call_arguments.delta":
                     yield ChatChunk(
                         delta="",
                         tool_calls=[{
                             "index": getattr(event, "output_index", None),
-                            "id": getattr(item, "call_id", None) or getattr(item, "id", None) or "",
+                            "id": getattr(event, "item_id", None) or "",
+                            "function": {"arguments": getattr(event, "delta", "") or ""},
+                        }],
+                    )
+                    continue
+
+                if event_type == "response.function_call_arguments.done":
+                    yield ChatChunk(
+                        delta="",
+                        tool_calls=[{
+                            "index": getattr(event, "output_index", None),
+                            "id": getattr(event, "item_id", None) or "",
                             "function": {
-                                "name": getattr(item, "name", None) or "",
-                                "arguments": getattr(item, "arguments", None) or "",
+                                "name": getattr(event, "name", None) or "",
+                                "arguments": getattr(event, "arguments", None) or "{}",
                             },
                         }],
                     )
-                continue
+                    continue
 
-            if event_type == "response.function_call_arguments.delta":
-                yield ChatChunk(
-                    delta="",
-                    tool_calls=[{
-                        "index": getattr(event, "output_index", None),
-                        "id": getattr(event, "item_id", None) or "",
-                        "function": {"arguments": getattr(event, "delta", "") or ""},
-                    }],
-                )
-                continue
+                if event_type == "response.completed":
+                    response = getattr(event, "response", None)
+                    if response is not None and not emitted_text:
+                        final_text = self._extract_responses_text(response)
+                        if final_text:
+                            yield ChatChunk(delta=final_text)
+                    usage = getattr(response, "usage", None) if response is not None else None
+                    yield ChatChunk(
+                        delta="",
+                        finish_reason="stop",
+                        input_tokens=getattr(usage, "input_tokens", None),
+                        output_tokens=getattr(usage, "output_tokens", None),
+                        total_tokens=getattr(usage, "total_tokens", None),
+                    )
+                    logger.info(
+                        "Responses stream response.completed, closing upstream: model={} wire_api=responses",
+                        model,
+                    )
+                    return
 
-            if event_type == "response.function_call_arguments.done":
-                yield ChatChunk(
-                    delta="",
-                    tool_calls=[{
-                        "index": getattr(event, "output_index", None),
-                        "id": getattr(event, "item_id", None) or "",
-                        "function": {
-                            "name": getattr(event, "name", None) or "",
-                            "arguments": getattr(event, "arguments", None) or "{}",
-                        },
-                    }],
-                )
-                continue
-
-            if event_type == "response.completed":
-                response = getattr(event, "response", None)
-                if response is not None and not emitted_text:
-                    final_text = self._extract_responses_text(response)
-                    if final_text:
-                        yield ChatChunk(delta=final_text)
-                usage = getattr(response, "usage", None)
-                yield ChatChunk(
-                    delta="",
-                    finish_reason="stop",
-                    input_tokens=getattr(usage, "input_tokens", None),
-                    output_tokens=getattr(usage, "output_tokens", None),
-                    total_tokens=getattr(usage, "total_tokens", None),
-                )
-                continue
-
-            if event_type in {"response.error", "response.failed"}:
-                error_obj = getattr(event, "error", None)
-                if error_obj is not None:
-                    raise RuntimeError(str(error_obj))
-                raise RuntimeError(event_type)
+                if event_type in {"response.error", "response.failed"}:
+                    error_obj = getattr(event, "error", None)
+                    if error_obj is not None:
+                        raise RuntimeError(str(error_obj))
+                    raise RuntimeError(event_type)
+        finally:
+            await _aclose_openai_stream(stream)
 
     async def _build_responses_request(
         self,

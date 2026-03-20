@@ -427,7 +427,23 @@ function collectVisualState() {
  * Return value is safe to spread into page_data.
  */
 const MAX_FORM_FIELDS = 20;
-const MAX_PAGE_DATA_BYTES = 7168; // 7KB budget (backend limit is 8KB)
+const DEFAULT_PAGE_CONTEXT_MAX_BYTES = 8192;
+const PAGE_CONTEXT_SOFT_RESERVE_BYTES = 1024;
+
+const pageContextHardLimitBytes = computed(() => {
+  return (
+    publicConfigStore.platformConfig?.runtimeLimits?.pageContextMaxBytes ||
+    publicConfigStore.tenantConfig?.runtimeLimits?.pageContextMaxBytes ||
+    DEFAULT_PAGE_CONTEXT_MAX_BYTES
+  );
+});
+
+function getPageContextSoftLimitBytes(): number {
+  return Math.max(
+    pageContextHardLimitBytes.value - PAGE_CONTEXT_SOFT_RESERVE_BYTES,
+    1024,
+  );
+}
 
 function truncateFormFields(
   pageData: Record<string, unknown>,
@@ -442,24 +458,25 @@ function truncateFormFields(
 }
 
 /**
- * Ensure total page_data stays under MAX_PAGE_DATA_BYTES.
- * 确保 page_data 总大小不超过 MAX_PAGE_DATA_BYTES。
+ * Ensure total page_data stays under the runtime soft budget.
+ * 确保 page_data 总大小不超过运行时软预算。
  * Progressively drops list_summary.sample_rows and form_fields if needed.
  */
 function guardPageDataSize(pageData: Record<string, unknown>): Record<string, unknown> {
+  const maxPageDataBytes = getPageContextSoftLimitBytes();
   let data = { ...pageData };
   let size = new TextEncoder().encode(JSON.stringify(data)).length;
-  if (size <= MAX_PAGE_DATA_BYTES) return data;
+  if (size <= maxPageDataBytes) return data;
 
   // Step 1: reduce list_summary sample_rows / 步骤 1：精简 list_summary sample_rows
   const ls = data.list_summary as Record<string, unknown> | undefined;
   if (ls?.sample_rows && Array.isArray(ls.sample_rows) && ls.sample_rows.length > 0) {
     data = { ...data, list_summary: { ...ls, sample_rows: (ls.sample_rows as unknown[]).slice(0, 2) } };
     size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= MAX_PAGE_DATA_BYTES) return data;
+    if (size <= maxPageDataBytes) return data;
     data = { ...data, list_summary: { ...ls, sample_rows: [] } };
     size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= MAX_PAGE_DATA_BYTES) return data;
+    if (size <= maxPageDataBytes) return data;
   }
 
   // Step 2: drop form_fields entirely / 步骤 2：完全移除 form_fields
@@ -467,10 +484,25 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
     const { form_fields: _ff, ...rest } = data;
     data = rest;
     size = new TextEncoder().encode(JSON.stringify(data)).length;
-    if (size <= MAX_PAGE_DATA_BYTES) return data;
+    if (size <= maxPageDataBytes) return data;
   }
 
-  // Step 3: truncate document_body_text (NovusDoc / DocumentEditor) / 步骤 3：截断 document_body_text
+  // Step 3: slim available_operations — strip params first, then drop entirely
+  const aops = data.available_operations;
+  if (Array.isArray(aops) && aops.length > 0) {
+    data = {
+      ...data,
+      available_operations: aops.map(({ params: _p, ...op }: Record<string, unknown>) => op),
+    };
+    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    if (size <= maxPageDataBytes) return data;
+    const { available_operations: _ao, ...rest } = data;
+    data = rest;
+    size = new TextEncoder().encode(JSON.stringify(data)).length;
+    if (size <= maxPageDataBytes) return data;
+  }
+
+  // Step 4: truncate document_body_text (NovusDoc / DocumentEditor) / 步骤 4：截断 document_body_text
   const body = data.document_body_text;
   if (typeof body === 'string' && body.length > 0) {
     const encoder = new TextEncoder();
@@ -482,7 +514,7 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
     for (const maxBodyBytes of [2400, 1600, 800]) {
       data = { ...data, document_body_text: truncateToBytes(body, maxBodyBytes) };
       size = new TextEncoder().encode(JSON.stringify(data)).length;
-      if (size <= MAX_PAGE_DATA_BYTES) return data;
+      if (size <= maxPageDataBytes) return data;
     }
     data = { ...data, document_body_text: truncateToBytes(body, 400) };
   }

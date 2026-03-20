@@ -407,79 +407,87 @@ class ConversationEngine(BaseEngine):
                 yield chunk
 
         # 流结束后：与 gateway.chat 一致 — 先租户计量再 Key；日志 best-effort
+        # 整个尾部用 try/except 保护，避免计量/flush 异常阻塞生成器导致前端永远收不到 done
         latency_ms = int((time.perf_counter() - stream_start) * 1000)
-        resolved_log_type = UsageRecorder._resolve_call_user_type(tenant_id, log_user_type)
+        try:
+            resolved_log_type = UsageRecorder._resolve_call_user_type(tenant_id, log_user_type)
 
-        cost = (
-            CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
-            if ai_model
-            else 0.0
-        )
-
-        if should_meter_usage and ai_model and estimated_input > 0:
-            assert tenant_id is not None
-            await self.gateway.usage_recorder.record_usage_and_adjust(
-                tenant_id=tenant_id,
-                model_id=ai_model.id,
-                request_type=RequestTypeEnum.CHAT.value,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens,
-                cost=cost,
-                estimated_input=estimated_input,
-                latency_ms=latency_ms,
-                user_id=user_id,
+            cost = (
+                CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
+                if ai_model
+                else 0.0
             )
 
-        api_key.increment_usage()
-        await self.db.flush()
-
-        if should_record_call_log and ai_model:
-            try:
+            if should_meter_usage and ai_model and estimated_input > 0:
                 assert tenant_id is not None
-                await self.gateway.usage_recorder.call_log_service.log_call_async(
+                await self.gateway.usage_recorder.record_usage_and_adjust(
                     tenant_id=tenant_id,
                     model_id=ai_model.id,
-                    provider_id=provider.id,
                     request_type=RequestTypeEnum.CHAT.value,
-                    request_data={
-                        "_stream": True,
-                        "messages": messages_to_dicts(messages),
-                        "temperature": agent.temperature,
-                        "max_tokens": agent.max_tokens,
-                        "top_p": agent.top_p or 1.0,
-                        "tools": openai_tools,
-                    },
-                    response_data={
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
-                        "total_tokens": total_tokens,
-                        "model": model_code,
-                    },
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     total_tokens=total_tokens,
                     cost=cost,
+                    estimated_input=estimated_input,
                     latency_ms=latency_ms,
-                    status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
-                    user_type=resolved_log_type,
-                    agent_id=getattr(agent, "id", None),
-                    conversation_id=conversation_id,
-                    billing_context=billing_context,
-                    routed_model_id=(
-                        int(getattr(route_result, "model_id", 0) or 0)
-                        if route_result is not None and getattr(route_result, "is_overridden", False)
-                        else None
-                    ),
-                    route_reason=(
-                        route_result.reason
-                        if route_result is not None and getattr(route_result, "is_overridden", False)
-                        else None
-                    ),
                 )
-            except Exception as log_exc:
-                logger.error("Engine stream call log failed: {}", str(log_exc))
+
+            api_key.increment_usage()
+            await self.db.flush()
+
+            if should_record_call_log and ai_model:
+                try:
+                    assert tenant_id is not None
+                    await self.gateway.usage_recorder.call_log_service.log_call_async(
+                        tenant_id=tenant_id,
+                        model_id=ai_model.id,
+                        provider_id=provider.id,
+                        request_type=RequestTypeEnum.CHAT.value,
+                        request_data={
+                            "_stream": True,
+                            "messages": messages_to_dicts(messages),
+                            "temperature": agent.temperature,
+                            "max_tokens": agent.max_tokens,
+                            "top_p": agent.top_p or 1.0,
+                            "tools": openai_tools,
+                        },
+                        response_data={
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "total_tokens": total_tokens,
+                            "model": model_code,
+                        },
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
+                        cost=cost,
+                        latency_ms=latency_ms,
+                        status=CallStatusEnum.SUCCESS.value,
+                        user_id=user_id,
+                        user_type=resolved_log_type,
+                        agent_id=getattr(agent, "id", None),
+                        conversation_id=conversation_id,
+                        billing_context=billing_context,
+                        routed_model_id=(
+                            int(getattr(route_result, "model_id", 0) or 0)
+                            if route_result is not None and getattr(route_result, "is_overridden", False)
+                            else None
+                        ),
+                        route_reason=(
+                            route_result.reason
+                            if route_result is not None and getattr(route_result, "is_overridden", False)
+                            else None
+                        ),
+                    )
+                except Exception as log_exc:
+                    logger.error("Engine stream call log failed: {}", str(log_exc))
+        except Exception as tail_exc:
+            logger.error(
+                "Stream tail metering/flush failed (stream still completes): model={} error={}",
+                model_code,
+                str(tail_exc),
+            )
 
 
 __all__ = ["ConversationEngine"]

@@ -318,6 +318,7 @@ async function savePrompt() {
 const modelTemp = ref(0.7);
 const modelMaxTokens = ref<number | undefined>(undefined);
 const modelTopP = ref<number | undefined>(undefined);
+const chatModelMaxOutputTokens = ref<Record<number, number | undefined>>({});
 
 function initModelParams() {
   if (!agent.value) return;
@@ -327,6 +328,21 @@ function initModelParams() {
 }
 
 async function saveModelParams() {
+  const modelLimit = agent.value?.model_id
+    ? chatModelMaxOutputTokens.value[agent.value.model_id]
+    : undefined;
+  if (
+    modelLimit != null &&
+    modelMaxTokens.value != null &&
+    modelMaxTokens.value > modelLimit
+  ) {
+    message.warning(
+      $t('tenant.ai.agent.validation.maxTokensExceedsModelLimit', {
+        limit: modelLimit,
+      }),
+    );
+    return;
+  }
   await saveFields({
     temperature: modelTemp.value,
     max_tokens: modelMaxTokens.value ?? null,
@@ -607,8 +623,14 @@ async function loadRoutingModelOptions() {
         label: `${m.name} (${m.provider_name || '-'})`,
         value: m.id,
       }));
+    chatModelMaxOutputTokens.value = Object.fromEntries(
+      models
+        .filter((m) => m.type === 'chat')
+        .map((m) => [m.id, m.max_output_tokens ?? undefined]),
+    );
   } catch {
     // fallback: empty list
+    chatModelMaxOutputTokens.value = {};
   }
 }
 

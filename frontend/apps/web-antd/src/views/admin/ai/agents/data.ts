@@ -244,6 +244,9 @@ export function useFormSchema(
   _isEdit = false,
   isSystem = false,
   isCreate = false,
+  resolveModelMaxOutputTokens?: (
+    modelId: null | number | undefined,
+  ) => number | undefined,
 ): VbenFormSchema[] {
   const locked = isSystem
     ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') }
@@ -294,7 +297,15 @@ export function useFormSchema(
       {
         ...numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
           min: 1,
-          max: 128_000,
+          placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
+        }),
+        componentProps: (values: Record<string, unknown>) => ({
+          style: { width: '100%' },
+          min: 1,
+          max:
+            resolveModelMaxOutputTokens?.(
+              values.model_id as null | number | undefined,
+            ) ?? 128_000,
           placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
         }),
         help: $t('admin.ai.agent.help.maxTokens'),

@@ -638,7 +638,9 @@ export function useAIChat(options: UseAIChatOptions) {
     inputMessage.value = '';
   }
 
-  function selectMentionKnowledgeBase(binding: ChatKBBindingInfo) {
+  function selectMentionKnowledgeBase(
+    binding: Pick<ChatKBBindingInfo, 'knowledge_base_id'>,
+  ) {
     const id = binding.knowledge_base_id;
     if (!selectedKBIds.value.includes(id)) {
       selectedKBIds.value = [...selectedKBIds.value, id];

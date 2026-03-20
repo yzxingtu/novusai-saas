@@ -10,7 +10,7 @@
     "code": "模型代码",
     "type": "类型",
     "providerName": "供应商",
-    "contextWindow": "上下文窗口",
+    "contextWindow": "上下文窗口总预算",
     "inputPrice": "输入价格 ($/1K)",
     "outputPrice": "输出价格 ($/1K)",
     "functionCalling": "函数调用",
@@ -242,7 +242,7 @@
     "modelName": "关联模型",
     "systemPrompt": "系统提示词",
     "temperature": "温度",
-    "maxTokens": "最大 Token",
+    "maxTokens": "单次回复最大输出 Token",
     "topP": "Top P",
     "welcomeMessage": "欢迎语",
     "suggestedQuestions": "开场问题",
@@ -305,7 +305,7 @@
       "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
       "inputDescription": "请输入描述",
       "inputTemperature": "0-2，值越高输出越随机",
-      "inputMaxTokens": "最大生成 Token 数量",
+      "inputMaxTokens": "单次回复最大输出 Token 数",
       "inputTopP": "0-1，与 temperature 配合使用",
       "inputWelcomeMessage": "用户在开始首轮对话前看到的欢迎语",
       "inputSuggestedQuestions": "每行一个问题，也支持 JSON 数组格式",
@@ -316,7 +316,7 @@
     },
     "help": {
       "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
-      "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
+      "maxTokens": "只限制单次回复的输出长度，不控制输入上下文上限。留空使用模型默认值，且不能超过所选模型的最大输出 Token。1 个中文字约 2 个 Token",
       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
       "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
       "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个",
@@ -338,6 +338,9 @@
       "ragSearchMode": "向量检索适合语义相似，关键词检索适合精确匹配，混合模式综合两者优势",
       "ragRewriteStrategy": "对用户问题进行改写以提升检索效果。假设文档生成假想答案再检索，回退提问将问题泛化",
       "ragContextTokenRatio": "知识库内容在总上下文中占的最大比例。如 0.3 表示最多使用 30% 的 Token 预算"
+    },
+    "validation": {
+      "maxTokensExceedsModelLimit": "单次回复最大输出 Token 不能超过所选模型上限 {limit}"
     },
     "inputVariables": {
       "title": "输入变量",

@@ -7,13 +7,16 @@ Common logic extracted from admin/tenant agent chat controllers.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.agent import ConfirmActionEnum
 from app.schemas.ai.agent_chat import AgentConfirmRequest, AgentRouteResponse
-from app.services.ai.agent_chat_service import AgentChatService
+from app.services.ai.page_context_limits import validate_page_context_size
+
+if TYPE_CHECKING:
+    from app.services.ai.agent_chat_service import AgentChatService
 
 
 async def handle_confirm_or_cancel(
@@ -70,6 +73,7 @@ async def handle_route(
     from app.services.ai.agent_router_service import AgentRouterService
 
     router_svc = AgentRouterService(db)
+    await validate_page_context_size(db, page_context)
     result = await router_svc.route(
         tenant_id=tenant_id,
         message=message,
@@ -110,3 +114,10 @@ def enrich_conversations_with_agent(
             d["agent_avatar"] = None
         result.append(d)
     return result
+
+
+__all__ = [
+    "enrich_conversations_with_agent",
+    "handle_confirm_or_cancel",
+    "handle_route",
+]

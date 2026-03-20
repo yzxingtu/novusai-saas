@@ -57,7 +57,8 @@ import { message, Modal } from 'ant-design-vue';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { registerPageContextExtras } from '#/components/business/ai-slide-panel/page-context-registry';
+import { appendPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import { $t } from '#/locales';
 import {
@@ -67,7 +68,13 @@ import {
 } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
 import type { FormPopupApi } from './use-ai-operations';
-import { createStandardOperations, extractFormParams } from './use-ai-operations';
+import {
+  buildCrudListSummary,
+  buildCrudPaginationState,
+  compactCrudContextValues,
+  createStandardOperations,
+  extractFormParams,
+} from './use-ai-operations';
 import { formStateTracker } from './use-form-state-tracker';
 
 // ============================================================
@@ -787,7 +794,8 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   // Resolved AI page key (shared between operations and form tracking) / 解析后的 AI 页面 key（操作与表单追踪共用）
   // 解析后的 AI 页面标识（在操作注册和表单追踪间共享）
   let resolvedAiPageKey: string | undefined;
-  let cleanupAiContext: (() => void) | null = null;
+  let cleanupAiContextBase: (() => void) | null = null;
+  let cleanupAiContextExtras: (() => void) | null = null;
 
   if (ai !== false && ai !== undefined) {
     const route = useRoute();
@@ -804,6 +812,16 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       loadList,
       onSearch,
       list: list as Ref<unknown[]>,
+      total,
+      currentPage,
+      pageSize,
+      setCurrentPage: (page) => {
+        currentPage.value = page;
+      },
+      setPageSize: (size) => {
+        pageSize.value = size;
+        currentPage.value = 1;
+      },
       formPopupApi: formPopupApi as FormPopupApi | null,
       formDefaults,
       searchSchema: ai.searchSchema,
@@ -816,7 +834,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       pageKey,
     });
 
-    cleanupAiOps = registerPageOperations(pageKey, standardOps);
+    cleanupAiOps = appendPageOperations(pageKey, standardOps);
 
     // Auto-register enhanced page context with semantic info / 自动注册带语义信息的增强页面上下文
     // 自动注册含语义信息的增强页面上下文
@@ -829,41 +847,36 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       ? extractFormParams(ai.formSchema(false))
       : undefined;
 
-    cleanupAiContext = registerPageContext(pageKey, () => {
-      // Build list_summary: top-5 rows with up to 6 fields each / 构建 list_summary：前 5 行，每行最多 6 字段
-      let listSummary: Record<string, unknown> | undefined;
-      const rows = list.value;
-      if (rows.length > 0) {
-        const allKeys = Object.keys(rows[0] as Record<string, unknown>);
-        const displayKeys = allKeys
-          .filter((k) => !k.startsWith('_') && k !== 'id')
-          .slice(0, 6);
-        const sampleRows = rows.slice(0, 5).map((row) => {
-          const summary: Record<string, unknown> = {};
-          for (const k of displayKeys) {
-            const val = (row as Record<string, unknown>)[k];
-            if (val !== undefined && val !== null) {
-              summary[k] = String(val).slice(0, 50);
-            }
-          }
-          return summary;
-        });
-        listSummary = {
-          total_rows: total.value,
-          page_size: pageSize.value,
-          current_page: currentPage.value,
-          sample_rows: sampleRows,
-        };
-      }
+    cleanupAiContextBase = registerPageContext(pageKey, () => ({
+      page_key: pageKey,
+      page_title: entityName || routeTitle || pageKey,
+      page_data: {
+        resource: api.resource,
+      },
+    }));
+
+    cleanupAiContextExtras = registerPageContextExtras(pageKey, () => {
+      const rows = list.value as unknown[];
+      const pagination = buildCrudPaginationState({
+        currentPage,
+        pageSize,
+        total,
+      });
+      const listSummary = buildCrudListSummary(rows, {
+        currentPage,
+        pageSize,
+        total,
+      });
+      const activeFilters = compactCrudContextValues(
+        processFormValues(searchParams.value),
+      );
 
       return {
         page_key: pageKey,
-        page_title: entityName || routeTitle || pageKey,
         page_data: {
+          ...pagination,
           total: total.value,
-          current_page: currentPage.value,
           list_count: rows.length,
-          resource: api.resource,
           ...(entityName ? { entity_name: entityName } : {}),
           ...(entityDescription ? { entity_description: entityDescription } : {}),
           ...(formPurpose ? { form_purpose: formPurpose } : {}),
@@ -872,6 +885,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
             : {}),
           ...(formStateTracker.isOpen(pageKey)
             ? { form_is_open: true }
+            : {}),
+          ...(Object.keys(activeFilters).length > 0
+            ? { active_filters: activeFilters }
             : {}),
           ...(listSummary ? { list_summary: listSummary } : {}),
           ...(contextExtras ? contextExtras() : {}),
@@ -1080,7 +1096,8 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     stopAutoRefresh();
     // Cleanup AI page operations and context on unmount / 组件卸载时清理 AI 页面操作和上下文注册
     cleanupAiOps?.();
-    cleanupAiContext?.();
+    cleanupAiContextExtras?.();
+    cleanupAiContextBase?.();
     if (resolvedAiPageKey) formStateTracker.close(resolvedAiPageKey);
   });
 
