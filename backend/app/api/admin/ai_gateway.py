@@ -86,6 +86,8 @@ class AdminAIGatewayController(GlobalController):
                     stream=False,
                     tools=tools,
                     tenant_id=PLATFORM_TENANT_ID,
+                    user_id=admin.id,
+                    user_type="admin",
                 )
                 return success(data=response.__dict__)
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -124,6 +126,8 @@ class AdminAIGatewayController(GlobalController):
                     top_p=body.top_p,
                     tools=tools,
                     tenant_id=PLATFORM_TENANT_ID,
+                    user_id=admin.id,
+                    user_type="admin",
                 )
                 return response
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -153,6 +157,8 @@ class AdminAIGatewayController(GlobalController):
                     texts=body.texts,
                     model=model,
                     tenant_id=PLATFORM_TENANT_ID,
+                    user_id=admin.id,
+                    user_type="admin",
                 )
                 return success(data=response.__dict__)
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):

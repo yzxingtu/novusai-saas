@@ -310,7 +310,66 @@
       "invalid_module": "Invalid module code"
     },
     "cleanup_triggered": "Cleanup task submitted",
-    "module_cleared": "Module recycle bin cleared"
+    "module_cleared": "Module recycle bin cleared",
+    "column": {
+      "common": {
+        "id": "ID",
+        "name": "Name",
+        "code": "Code",
+        "type": "Type",
+        "status": "Status",
+        "scope": "Scope",
+        "is_active": "Active",
+        "created_at": "Created at",
+        "updated_at": "Updated at",
+        "provider_id": "Provider",
+        "tenant_id": "Tenant",
+        "model_id": "Model",
+        "tier": "Tier",
+        "supports_vision": "Vision",
+        "supports_audio": "Audio",
+        "supports_video": "Video",
+        "supports_function_calling": "Function calling",
+        "supports_streaming": "Streaming",
+        "target_audience": "Target audience",
+        "visibility": "Visibility",
+        "execution_mode": "Execution mode",
+        "is_system": "System",
+        "is_recommended": "Recommended",
+        "bind_mode": "Bind mode",
+        "embedding_model_id": "Embedding model",
+        "vision_model_id": "Vision model",
+        "audio_model_id": "Audio model",
+        "video_model_id": "Video model",
+        "billing_cycle": "Billing cycle",
+        "sort_order": "Sort order",
+        "parent_id": "Parent",
+        "level": "Level",
+        "data_scope": "Data scope",
+        "leader_id": "Leader",
+        "domain": "Domain",
+        "table_name": "Table name",
+        "label": "Label",
+        "is_visible": "Visible",
+        "task_path": "Task path",
+        "schedule_type": "Schedule type",
+        "contact_name": "Contact name",
+        "contact_phone": "Contact phone",
+        "contact_email": "Contact email",
+        "plan_id": "Plan",
+        "expires_at": "Expires at",
+        "is_verified": "Verified",
+        "is_primary": "Primary",
+        "ssl_status": "SSL status",
+        "allow_read": "Allow read",
+        "allow_create": "Allow create",
+        "allow_update": "Allow update",
+        "allow_delete": "Allow delete"
+      },
+      "ai_models": {
+        "model_id": "Model code"
+      }
+    }
   },
   "agent": {
     "created": "Agent created successfully",
@@ -1139,11 +1198,6 @@
     "ai_conversation": {
       "list": "View All Tenant Conversations",
       "detail": "View Conversation Detail (Audit)"
-    },
-    "tenant_agent_assignment": {
-      "list": "View Agent Assignment List",
-      "update": "Set Tenant Override Binding",
-      "delete": "Delete Tenant Override Binding"
     },
     "ai_action_log": {
       "list": "View AI Action Log List",
@@ -2920,7 +2974,10 @@
       "override_not_found": "Tenant override binding not found",
       "agent_not_found": "Agent not found or has been deleted",
       "agent_not_published": "Agent is not published and cannot be bound",
-      "agent_not_accessible": "This agent is not accessible to the current tenant"
+      "agent_not_accessible": "This agent is not accessible to the current tenant",
+      "agent_must_be_platform_global": "Feature assignment only allows platform-created agents; tenant-owned agents cannot be bound",
+      "agent_must_be_global_shared_scope": "Feature assignment requires a globally shared scope: Admin+All Tenants or All Tenants; assigned-only or admin-only scopes are not allowed",
+      "agent_audience_not_for_tenant_consumption": "Feature assignment cannot bind agents with Admin-only audience; tenants would be unable to invoke them"
     }
   },
   "email_log": {

@@ -25,6 +25,7 @@ import {
   TransformComponent,
 } from 'echarts/components';
 import * as echarts from 'echarts/core';
+import * as echartsFeatures from 'echarts/features';
 import { LabelLayout, UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 
@@ -55,5 +56,13 @@ echarts.use([
   LegendComponent,
   ToolboxComponent,
 ]);
+
+const legacyGridContainLabel = (
+  echartsFeatures as Record<string, unknown>
+).LegacyGridContainLabel;
+
+if (legacyGridContainLabel) {
+  echarts.use([legacyGridContainLabel as never]);
+}
 
 export default echarts;

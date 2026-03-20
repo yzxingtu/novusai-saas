@@ -41,6 +41,7 @@
       "deleting": "Deleting {name}...",
       "deleteSuccess": "Deleted successfully",
       "resetPasswordSuccess": "Password reset successfully",
+      "resetPasswordMismatch": "The two new passwords do not match. Please try again.",
       "createSuccess": "Created successfully",
       "updateSuccess": "Updated successfully",
       "approveSuccess": "User approved successfully",
@@ -59,6 +60,7 @@
       "inputUsername": "Please enter username",
       "inputNickname": "Please enter nickname",
       "inputPassword": "Please enter password (at least 6 characters)",
+      "inputNewPasswordConfirm": "Enter new password again",
       "inputEmail": "Please enter email",
       "inputPhone": "Please enter phone",
       "selectRole": "Please select role"
@@ -178,7 +180,13 @@
     "offline": "Offline",
     "allUsers": "All Users",
     "allUsersDesc": "View all users in this tenant, regardless of role",
-    "allUsersListTitle": "User List"
+    "allUsersListTitle": "User List",
+    "builtInRoles": {
+      "default_user": {
+        "name": "Default User",
+        "description": "System default role for end users; automatically assigned to newly registered users."
+      }
+    }
   },
   "configs": {
     "title": "System Configs",

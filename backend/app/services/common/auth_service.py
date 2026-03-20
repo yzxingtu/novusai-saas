@@ -64,6 +64,37 @@ class AuthService:
         self.db = db
         self._config_service = ConfigService(db)
 
+    @staticmethod
+    def _mask_identifier(identifier: str | None) -> str:
+        if not identifier:
+            return ""
+        value = identifier.strip()
+        if len(value) <= 2:
+            return "*" * len(value)
+        if len(value) <= 6:
+            return f"{value[:1]}***{value[-1:]}"
+        return f"{value[:2]}***{value[-2:]}"
+
+    @staticmethod
+    def _format_auth_fields(**fields: Any) -> str:
+        parts: list[str] = []
+        for key, value in fields.items():
+            if value is None or value == "":
+                continue
+            normalized = str(value).replace("\r", r"\r").replace("\n", r"\n")
+            parts.append(f"{key}={normalized}")
+        return " | ".join(parts)
+
+    @classmethod
+    def _log_auth_info(cls, event: str, **fields: Any) -> None:
+        details = cls._format_auth_fields(**fields)
+        logger.info(f"{event} | {details}" if details else event)
+
+    @classmethod
+    def _log_auth_warning(cls, event: str, **fields: Any) -> None:
+        details = cls._format_auth_fields(**fields)
+        logger.warning(f"{event} | {details}" if details else event)
+
     async def _record_active_tokens(
         self,
         user_type: str,
@@ -96,6 +127,12 @@ class AuthService:
         """
         payload = _decode_token_no_blacklist(access_token)
         if not payload or not payload.get("jti"):
+            self._log_auth_warning(
+                "auth.logout.skipped",
+                user_type=user_type,
+                user_id=user_id,
+                reason="missing_jti",
+            )
             return  # 旧 Token 无 jti，跳过
         access_jti = payload["jti"]
         exp = payload.get("exp")
@@ -111,8 +148,20 @@ class AuthService:
                 refresh_ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
                 await revoke_token(refresh_jti, refresh_ttl)
             await client.hdel(key, access_jti)
-        except Exception:
-            pass
+            self._log_auth_info(
+                "auth.logout.success",
+                user_type=user_type,
+                user_id=user_id,
+                revoked_refresh=bool(refresh_jti),
+            )
+        except Exception as exc:
+            self._log_auth_warning(
+                "auth.logout.failed",
+                user_type=user_type,
+                user_id=user_id,
+                reason="token_revoke_error",
+                error_type=type(exc).__name__,
+            )
 
     async def force_logout(
         self,
@@ -135,10 +184,12 @@ class AuthService:
 
         user_id_str = str(user_id)
         key = f"{ACTIVE_TOKENS_PREFIX}{user_type}:{user_id_str}"
+        revoked_sessions = 0
         try:
             client = get_redis_client()
             pairs = await client.hgetall(key)
             if pairs:
+                revoked_sessions = len(pairs)
                 from time import time
                 for access_jti, refresh_jti in pairs.items():
                     # 使用剩余 TTL 作为吊销 TTL（简化：用 refresh 的 7 天）
@@ -148,19 +199,50 @@ class AuthService:
                     if refresh_jti:
                         await revoke_token(refresh_jti, refresh_ttl)
                 await client.delete(key)
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log_auth_warning(
+                "auth.force_logout.revoke_failed",
+                user_type=user_type,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                reason="token_revoke_error",
+                error_type=type(exc).__name__,
+            )
 
         # 清除在线状态 / Clear presence
         try:
             await PresenceManager.set_offline(
                 user_type, user_id, tenant_id=tenant_id
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log_auth_warning(
+                "auth.force_logout.presence_cleanup_failed",
+                user_type=user_type,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                error_type=type(exc).__name__,
+            )
 
         # 向对应用户类型所在 namespace 发送 force_logout / Emit to user's namespace only
-        await emit_force_logout(user_id, user_type)
+        try:
+            await emit_force_logout(user_id, user_type)
+        except Exception as exc:
+            self._log_auth_warning(
+                "auth.force_logout.emit_failed",
+                user_type=user_type,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                error_type=type(exc).__name__,
+            )
+            raise
+
+        self._log_auth_info(
+            "auth.force_logout.success",
+            user_type=user_type,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            revoked_sessions=revoked_sessions,
+        )
 
     # ==================== 密码策略验证 ====================
 
@@ -262,6 +344,12 @@ class AuthService:
         # 检查账户是否存在
         if admin is None:
             await self._record_admin_login_failure(username, client_ip)
+            self._log_auth_warning(
+                "admin.login.failed",
+                identifier=self._mask_identifier(username),
+                client_ip=client_ip,
+                reason="user_not_found",
+            )
             captcha_enabled = await self._config_service.get_platform_config(
                 "login_captcha_enabled", default=True
             )
@@ -276,10 +364,24 @@ class AuthService:
 
         # 检查账户锁定状态
         if await self._is_account_locked(admin.id, "admin"):
+            self._log_auth_warning(
+                "admin.login.failed",
+                user_id=admin.id,
+                username=admin.username,
+                client_ip=client_ip,
+                reason="account_locked",
+            )
             raise AuthenticationException(message=_("auth.account_locked"))
 
         # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
         if not admin.is_active:
+            self._log_auth_warning(
+                "admin.login.failed",
+                user_id=admin.id,
+                username=admin.username,
+                client_ip=client_ip,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.credentials_invalid"))
 
         captcha_enabled = await self._config_service.get_platform_config(
@@ -295,13 +397,25 @@ class AuthService:
                 captcha_challenge_id,
                 captcha_solution,
                 captcha_provider_code,
-                {"ip": client_ip, "endpoint": "admin", "action": "login"},
+                {
+                    "ip": client_ip,
+                    "endpoint": "admin",
+                    "action": "login",
+                    "identifier": self._mask_identifier(username),
+                },
             )
 
         # 验证密码
         if not verify_password(password, admin.password_hash):
             # 记录登录失败
             await self._record_admin_login_failure(username, client_ip)
+            self._log_auth_warning(
+                "admin.login.failed",
+                user_id=admin.id,
+                username=admin.username,
+                client_ip=client_ip,
+                reason="password_mismatch",
+            )
             next_fail_count = fail_count + 1
             captcha_required_after = captcha_enabled and (
                 threshold == 0 or next_fail_count >= threshold
@@ -333,6 +447,13 @@ class AuthService:
 
         await self._record_active_tokens(
             "admin", str(admin.id), access_jti, refresh_jti
+        )
+
+        self._log_auth_info(
+            "admin.login.success",
+            user_id=admin.id,
+            username=admin.username,
+            client_ip=client_ip,
         )
 
         tokens = {
@@ -515,18 +636,41 @@ class AuthService:
         Raises:
             AuthenticationException: 验证码无效
         """
+        log_fields = {
+            "endpoint": ctx.get("endpoint"),
+            "action": ctx.get("action"),
+            "identifier": ctx.get("identifier"),
+            "tenant_id": ctx.get("tenant_id"),
+            "client_ip": ctx.get("ip"),
+            "provider": provider_code,
+        }
         if not provider_code:
+            self._log_auth_warning(
+                "captcha.verify.failed",
+                **log_fields,
+                reason="provider_required",
+            )
             raise AuthenticationException(
                 message=_("auth.captcha_provider_required"),
                 data={"captcha_required": True},
             )
         if not challenge_id or not solution:
+            self._log_auth_warning(
+                "captcha.verify.failed",
+                **log_fields,
+                reason="challenge_required",
+            )
             raise AuthenticationException(
                 message=_("auth.captcha_required"),
                 data={"captcha_required": True},
             )
         result = await captcha_service.verify(provider_code, challenge_id, solution, ctx)
         if not result.ok:
+            self._log_auth_warning(
+                "captcha.verify.failed",
+                **log_fields,
+                reason="invalid",
+            )
             raise AuthenticationException(
                 message=_("auth.captcha_invalid"),
                 data={"captcha_required": True},
@@ -549,6 +693,10 @@ class AuthService:
             refresh_token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_REFRESH
         )
         if admin_id is None:
+            self._log_auth_warning(
+                "admin.token.refresh.failed",
+                reason="invalid_token",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         # 查询管理员
@@ -561,15 +709,31 @@ class AuthService:
         admin = result.scalar_one_or_none()
 
         if admin is None:
+            self._log_auth_warning(
+                "admin.token.refresh.failed",
+                user_id=admin_id,
+                reason="user_not_found",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         if not admin.is_active:
+            self._log_auth_warning(
+                "admin.token.refresh.failed",
+                user_id=admin.id,
+                username=admin.username,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.account_disabled"))
 
         tokens = create_token_pair(admin.id, scope=TOKEN_SCOPE_ADMIN)
         await self._record_active_tokens(
             "admin", str(admin.id),
             tokens["access_jti"], tokens["refresh_jti"],
+        )
+        self._log_auth_info(
+            "admin.token.refresh.success",
+            user_id=admin.id,
+            username=admin.username,
         )
         return tokens
 
@@ -632,6 +796,12 @@ class AuthService:
         """
         # 企业域名隔离：必须通过企业域名或显式指定 tenant_code 访问
         if not tenant_code and not tenant_id_from_ctx:
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                identifier=self._mask_identifier(username),
+                client_ip=client_ip,
+                reason="tenant_domain_required",
+            )
             raise AuthenticationException(
                 message=_("auth.tenant_domain_required"),
             )
@@ -660,6 +830,13 @@ class AuthService:
 
         # 多条匹配 → 要求指定 tenant_code
         if len(results) > 1:
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                identifier=self._mask_identifier(username),
+                tenant_code=tenant_code,
+                client_ip=client_ip,
+                reason="tenant_code_required",
+            )
             raise AuthenticationException(
                 message=_("auth.tenant_code_required"),
                 data={"tenant_code_required": True},
@@ -670,6 +847,13 @@ class AuthService:
         # 检查账户是否存在
         if tenant_admin is None:
             await self._record_login_failure(username, client_ip, "tenant_admin", tenant_id=None)
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                identifier=self._mask_identifier(username),
+                tenant_code=tenant_code,
+                client_ip=client_ip,
+                reason="user_not_found",
+            )
             raise AuthenticationException(
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": False},
@@ -677,10 +861,26 @@ class AuthService:
 
         # 检查账户锁定状态
         if await self._is_account_locked(tenant_admin.id, "tenant_admin"):
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                client_ip=client_ip,
+                reason="account_locked",
+            )
             raise AuthenticationException(message=_("auth.account_locked"))
 
         # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
         if not tenant_admin.is_active:
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                client_ip=client_ip,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.credentials_invalid"))
 
         captcha_enabled = await self._config_service.get_tenant_config(
@@ -696,12 +896,26 @@ class AuthService:
                 captcha_challenge_id,
                 captcha_solution,
                 captcha_provider_code,
-                {"ip": client_ip, "endpoint": "tenant", "action": "login"},
+                {
+                    "ip": client_ip,
+                    "endpoint": "tenant",
+                    "action": "login",
+                    "identifier": self._mask_identifier(username),
+                    "tenant_id": tenant_admin.tenant_id,
+                },
             )
 
         # 验证密码
         if not verify_password(password, tenant_admin.password_hash):
             await self._record_login_failure(username, client_ip, "tenant_admin", tenant_id=tenant_admin.tenant_id)
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                client_ip=client_ip,
+                reason="password_mismatch",
+            )
             next_fail_count = fail_count + 1
             captcha_required_after = captcha_enabled and (
                 threshold == 0 or next_fail_count >= threshold
@@ -718,6 +932,14 @@ class AuthService:
         tenant = tenant_result.scalar_one_or_none()
 
         if tenant is None or not tenant.is_active:
+            self._log_auth_warning(
+                "tenant_admin.login.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                client_ip=client_ip,
+                reason="tenant_disabled",
+            )
             raise AuthenticationException(message=_("tenant.disabled"))
 
         # 登录成功，重置失败计数
@@ -745,6 +967,15 @@ class AuthService:
             tokens["access_jti"], tokens["refresh_jti"],
         )
 
+        self._log_auth_info(
+            "tenant_admin.login.success",
+            user_id=tenant_admin.id,
+            username=tenant_admin.username,
+            tenant_id=tenant_admin.tenant_id,
+            tenant_code=tenant.code if tenant else tenant_code,
+            client_ip=client_ip,
+        )
+
         return tokens
 
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
@@ -764,6 +995,10 @@ class AuthService:
             refresh_token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_REFRESH
         )
         if admin_id is None:
+            self._log_auth_warning(
+                "tenant_admin.token.refresh.failed",
+                reason="invalid_token",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         # 查询企业管理员
@@ -776,9 +1011,21 @@ class AuthService:
         tenant_admin = result.scalar_one_or_none()
 
         if tenant_admin is None:
+            self._log_auth_warning(
+                "tenant_admin.token.refresh.failed",
+                user_id=admin_id,
+                reason="user_not_found",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         if not tenant_admin.is_active:
+            self._log_auth_warning(
+                "tenant_admin.token.refresh.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.account_disabled"))
 
         tokens = create_token_pair(
@@ -789,6 +1036,12 @@ class AuthService:
         await self._record_active_tokens(
             "tenant_admin", str(tenant_admin.id),
             tokens["access_jti"], tokens["refresh_jti"],
+        )
+        self._log_auth_info(
+            "tenant_admin.token.refresh.success",
+            user_id=tenant_admin.id,
+            username=tenant_admin.username,
+            tenant_id=tenant_admin.tenant_id,
         )
         return tokens
 
@@ -838,6 +1091,10 @@ class AuthService:
         payload = await verify_impersonate_token(impersonate_token, TOKEN_SCOPE_TENANT_ADMIN)
 
         if payload is None:
+            self._log_auth_warning(
+                "tenant_admin.impersonate.failed",
+                reason="invalid_token",
+            )
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
 
         admin_id = int(payload["sub"]) if payload.get("sub") else None
@@ -845,6 +1102,10 @@ class AuthService:
         target_role_id = payload.get("target_role_id")
 
         if admin_id is None:
+            self._log_auth_warning(
+                "tenant_admin.impersonate.failed",
+                reason="missing_admin_id",
+            )
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
 
         # 验证企业状态
@@ -857,6 +1118,12 @@ class AuthService:
         tenant = tenant_result.scalar_one_or_none()
 
         if tenant is None or not tenant.is_active:
+            self._log_auth_warning(
+                "tenant_admin.impersonate.failed",
+                admin_id=admin_id,
+                target_tenant_id=target_tenant_id,
+                reason="tenant_disabled",
+            )
             raise AuthenticationException(message=_("tenant.disabled"))
 
         # 获取企业的所有者信息
@@ -870,6 +1137,12 @@ class AuthService:
         tenant_owner = owner_result.scalar_one_or_none()
 
         if tenant_owner is None:
+            self._log_auth_warning(
+                "tenant_admin.impersonate.failed",
+                admin_id=admin_id,
+                target_tenant_id=target_tenant_id,
+                reason="tenant_owner_not_found",
+            )
             raise NotFoundException(message=_("tenant.owner_not_found"))
 
         # 获取执行 impersonate 的平台管理员信息
@@ -911,6 +1184,16 @@ class AuthService:
             "target_role_id": target_role_id,
         }
 
+        self._log_auth_info(
+            "tenant_admin.impersonate.success",
+            admin_id=admin_id,
+            admin_username=platform_admin_username,
+            target_tenant_id=target_tenant_id,
+            target_tenant_code=tenant.code,
+            tenant_owner_id=tenant_owner.id,
+            target_role_id=target_role_id,
+        )
+
         return tokens, audit_info
 
     # ==================== 企业用户认证 ====================
@@ -944,6 +1227,12 @@ class AuthService:
         """
         # 企业域名隔离：必须通过企业域名或显式指定 tenant_code 访问
         if not tenant_code and not tenant_id_from_ctx:
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                identifier=self._mask_identifier(username),
+                client_ip=client_ip,
+                reason="tenant_domain_required",
+            )
             raise AuthenticationException(
                 message=_("auth.tenant_domain_required"),
             )
@@ -973,6 +1262,13 @@ class AuthService:
 
         # 多条匹配 → 要求指定 tenant_code
         if len(results) > 1:
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                identifier=self._mask_identifier(username),
+                tenant_code=tenant_code,
+                client_ip=client_ip,
+                reason="tenant_code_required",
+            )
             raise AuthenticationException(
                 message=_("auth.tenant_code_required"),
                 data={"tenant_code_required": True},
@@ -983,6 +1279,13 @@ class AuthService:
         # 检查账户是否存在
         if user is None:
             await self._record_login_failure(username, client_ip, "tenant_user", tenant_id=None)
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                identifier=self._mask_identifier(username),
+                tenant_code=tenant_code,
+                client_ip=client_ip,
+                reason="user_not_found",
+            )
             raise AuthenticationException(
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": False},
@@ -990,10 +1293,26 @@ class AuthService:
 
         # 检查账户锁定状态
         if await self._is_account_locked(user.id, "tenant_user"):
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                user_id=user.id,
+                username=user.username,
+                tenant_id=user.tenant_id,
+                client_ip=client_ip,
+                reason="account_locked",
+            )
             raise AuthenticationException(message=_("auth.account_locked"))
 
         # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
         if not user.is_active:
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                user_id=user.id,
+                username=user.username,
+                tenant_id=user.tenant_id,
+                client_ip=client_ip,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.credentials_invalid"))
 
         captcha_enabled = await self._config_service.get_tenant_config(
@@ -1009,12 +1328,26 @@ class AuthService:
                 captcha_challenge_id,
                 captcha_solution,
                 captcha_provider_code,
-                {"ip": client_ip, "endpoint": "user", "action": "login"},
+                {
+                    "ip": client_ip,
+                    "endpoint": "user",
+                    "action": "login",
+                    "identifier": self._mask_identifier(username),
+                    "tenant_id": user.tenant_id,
+                },
             )
 
         # 验证密码
         if not verify_password(password, user.password_hash):
             await self._record_login_failure(username, client_ip, "tenant_user", tenant_id=user.tenant_id)
+            self._log_auth_warning(
+                "tenant_user.login.failed",
+                user_id=user.id,
+                username=user.username,
+                tenant_id=user.tenant_id,
+                client_ip=client_ip,
+                reason="password_mismatch",
+            )
             next_fail_count = fail_count + 1
             captcha_required_after = captcha_enabled and (
                 threshold == 0 or next_fail_count >= threshold
@@ -1049,6 +1382,15 @@ class AuthService:
             tokens["access_jti"], tokens["refresh_jti"],
         )
 
+        self._log_auth_info(
+            "tenant_user.login.success",
+            user_id=user.id,
+            username=user.username,
+            tenant_id=user.tenant_id,
+            tenant_code=tenant_code,
+            client_ip=client_ip,
+        )
+
         return tokens
 
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
@@ -1068,6 +1410,10 @@ class AuthService:
             refresh_token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_REFRESH
         )
         if user_id is None:
+            self._log_auth_warning(
+                "tenant_user.token.refresh.failed",
+                reason="invalid_token",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         # 查询用户
@@ -1080,9 +1426,21 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if user is None:
+            self._log_auth_warning(
+                "tenant_user.token.refresh.failed",
+                user_id=user_id,
+                reason="user_not_found",
+            )
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
 
         if not user.is_active:
+            self._log_auth_warning(
+                "tenant_user.token.refresh.failed",
+                user_id=user.id,
+                username=user.username,
+                tenant_id=user.tenant_id,
+                reason="account_disabled",
+            )
             raise AuthenticationException(message=_("auth.account_disabled"))
 
         tokens = create_token_pair(
@@ -1093,6 +1451,12 @@ class AuthService:
         await self._record_active_tokens(
             "tenant_user", str(user.id),
             tokens["access_jti"], tokens["refresh_jti"],
+        )
+        self._log_auth_info(
+            "tenant_user.token.refresh.success",
+            user_id=user.id,
+            username=user.username,
+            tenant_id=user.tenant_id,
         )
         return tokens
 

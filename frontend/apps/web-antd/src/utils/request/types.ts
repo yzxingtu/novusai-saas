@@ -246,10 +246,10 @@ export type BusinessErrorHandler = (
  * SSE 请求选项
  */
 export interface SseRequestOptions extends Omit<RequestInit, 'signal'> {
-  /** Message callback / 消息回调 */
-  onMessage?: (message: string) => void;
+  /** Message callback（可 async，便于在回调内 await nextTick 以触发逐帧渲染）/ Message callback */
+  onMessage?: (message: string) => void | Promise<void>;
   /** End callback / 结束回调 */
-  onEnd?: () => void;
+  onEnd?: () => void | Promise<void>;
   /** Error callback / 错误回调 */
   onError?: (error: Error) => void;
   /** AbortController for request cancellation / 用于取消请求的 AbortController */

@@ -21,8 +21,9 @@ from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
 
-from .base import MAX_TOOL_CALL_ROUNDS
+from .base import MAX_TOOL_CALL_ROUNDS, log_user_type_for_call_log
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 
 if TYPE_CHECKING:
@@ -87,6 +88,8 @@ class StreamExecutionHandler:
         self._output = ""  # Used for partial persist on interrupt
         self._reasoning_output = ""  # For chain-of-thought models, used in partial persist
         self._total_tokens = 0
+        self._runtime_model_info: dict[str, Any] | None = None
+        self._on_complete_called = False
 
         try:
             if self.request.conversation_id:
@@ -127,12 +130,25 @@ class StreamExecutionHandler:
             else:
                 # ---- Without tools: real streaming push ---- / 无工具：真实流式推送
                 self._reasoning_output = ""
+                _req_role = getattr(
+                    self.request, "user_role", UserRoleEnum.TENANT_ADMIN.value,
+                )
                 async for chunk in self.engine._stream_llm_chunks(
                     agent=self.agent,
                     messages=messages,
                     tenant_id=self.request.tenant_id,
+                    conversation_id=self.request.conversation_id,
                     route_result=self.prep.route_result,
+                    user_id=getattr(self.request, "user_id", None),
+                    log_user_type=log_user_type_for_call_log(_req_role),
                 ):
+                    if (
+                        self._runtime_model_info is None
+                        and isinstance(getattr(chunk, "metadata", None), dict)
+                    ):
+                        self._runtime_model_info = chunk.metadata.get(
+                            "runtime_model_info",
+                        )
                     if chunk.reasoning_delta:
                         self._reasoning_output += chunk.reasoning_delta
                         yield SSEChunkEncoder.encode({
@@ -150,8 +166,8 @@ class StreamExecutionHandler:
                     if chunk.total_tokens is not None:
                         total_tokens = chunk.total_tokens
 
-                    if chunk.finish_reason is not None:
-                        break
+                    # 不可在 finish_reason 处 break：会提前 aclose 异步生成器，
+                    # ConversationEngine._stream_llm_chunks 尾部的 Key 计数/commit 不会执行。
 
                 messages.append(ChatMessage(
                     role="assistant",
@@ -186,10 +202,15 @@ class StreamExecutionHandler:
                 total_tokens=total_tokens,
                 duration_ms=duration_ms,
                 conversation_id=self.request.conversation_id,
+                runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
+                runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
+                runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
+                runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
             )
 
             extra_done_data: dict[str, Any] = {}
-            if self.on_complete:
+            if self.on_complete and not self._on_complete_called:
+                self._on_complete_called = True
                 try:
                     cb_result = await self.on_complete(result)
                     if isinstance(cb_result, dict):
@@ -225,7 +246,8 @@ class StreamExecutionHandler:
                 pass  # Ignore yield error when connection is broken / 连接已断开时忽略 yield 错误
 
             # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
-            if self.on_complete:
+            if self.on_complete and not self._on_complete_called:
+                self._on_complete_called = True
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 partial_output = getattr(self, "_output", None) or output
                 partial_tokens = getattr(self, "_total_tokens", None)
@@ -247,6 +269,10 @@ class StreamExecutionHandler:
                     total_tokens=partial_tokens,
                     duration_ms=duration_ms,
                     conversation_id=self.request.conversation_id,
+                    runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
+                    runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
+                    runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
+                    runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
                     error=str(exc),
                     partial=True,
                     interrupted=False,
@@ -267,7 +293,8 @@ class StreamExecutionHandler:
                 self.agent.id, type(exc).__name__, str(exc),
                 exc_info=True,
             )
-            if self.on_complete:
+            if self.on_complete and not self._on_complete_called:
+                self._on_complete_called = True
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 partial_output = getattr(self, "_output", None) or output
                 partial_tokens = getattr(self, "_total_tokens", None)
@@ -288,6 +315,10 @@ class StreamExecutionHandler:
                     total_tokens=partial_tokens,
                     duration_ms=duration_ms,
                     conversation_id=self.request.conversation_id,
+                    runtime_model_id=(self._runtime_model_info or {}).get("model_id"),
+                    runtime_model_name=(self._runtime_model_info or {}).get("model_name"),
+                    runtime_provider_id=(self._runtime_model_info or {}).get("provider_id"),
+                    runtime_provider_name=(self._runtime_model_info or {}).get("provider_name"),
                     error=f"{type(exc).__name__}: {exc}",
                     partial=True,
                     interrupted=True,
@@ -384,13 +415,26 @@ class StreamExecutionHandler:
             self._output = ""
             self._reasoning_output = ""
 
+            _req_role = getattr(
+                self.request, "user_role", UserRoleEnum.TENANT_ADMIN.value,
+            )
             async for chunk in self.engine._stream_llm_chunks(
                 agent=self.agent,
                 messages=messages,
                 tenant_id=self.request.tenant_id,
+                conversation_id=self.request.conversation_id,
                 route_result=self.prep.route_result,
                 tools=tools,
+                user_id=getattr(self.request, "user_id", None),
+                log_user_type=log_user_type_for_call_log(_req_role),
             ):
+                if (
+                    self._runtime_model_info is None
+                    and isinstance(getattr(chunk, "metadata", None), dict)
+                ):
+                    self._runtime_model_info = chunk.metadata.get(
+                        "runtime_model_info",
+                    )
                 if chunk.reasoning_delta:
                     round_reasoning_output += chunk.reasoning_delta
                     round_visible_thinking += chunk.reasoning_delta

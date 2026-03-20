@@ -192,6 +192,8 @@
     "usageLimit": "Usage Limit",
     "usageCount": "Used Count",
     "lastUsedAt": "Last Used",
+    "lastUsedRecent": "Last used",
+    "lastUsedNever": "Never used",
     "expiresAt": "Expires At",
     "create": "Add API Key",
     "placeholder": {
@@ -226,7 +228,7 @@
   },
   "callLog": {
     "title": "Call Logs",
-    "pageDesc": "View all tenant AI call records including token usage, cost, and response time.",
+    "pageDesc": "View both admin and tenant AI call records, including token usage, cost, and response time.",
     "requestType": "Request Type",
     "inputTokens": "Input Tokens",
     "outputTokens": "Output Tokens",
@@ -234,7 +236,10 @@
     "cost": "Cost",
     "latency": "Latency (ms)",
     "status": "Status",
+    "source": "Source",
     "tenantName": "Tenant",
+    "platformTenant": "Admin Console",
+    "callerName": "Caller",
     "modelName": "Model",
     "providerName": "Provider",
     "userId": "User ID",
@@ -249,6 +254,10 @@
       "success": "Success",
       "failed": "Failed",
       "timeout": "Timeout"
+    },
+    "source_options": {
+      "platform": "Admin Call",
+      "tenant": "Tenant Call"
     },
     "summary": {
       "totalCalls": "Total Calls",
@@ -445,7 +454,7 @@
     "maxTokens": "Max Tokens",
     "topP": "Top P",
     "welcomeMessage": "Welcome Message",
-    "suggestedQuestions": "Suggested Questions (JSON)",
+    "suggestedQuestions": "Starter Questions",
     "inputVariables": {
       "title": "Input Variables",
       "label": "Variable Definitions (JSON)"
@@ -497,8 +506,8 @@
       "tenantId": "Enter tenant ID",
       "allTypes": "All Types",
       "selectSkillPackages": "Select skill packages to bind",
-      "inputWelcomeMessage": "Welcome message shown when user opens conversation",
-      "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
+      "inputWelcomeMessage": "Welcome message shown before the first turn starts",
+      "inputSuggestedQuestions": "One question per line, JSON array is also supported",
       "selectOrgNodes": "Select organization nodes",
       "inputUserIds": "Enter user IDs, separated by commas",
       "inputRoleIds": "Enter role IDs, separated by commas",
@@ -512,8 +521,8 @@
       "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "skillPackageBindings": "Select skill packages this agent can invoke",
-      "welcomeMessage": "Automatically shown when user first opens a conversation. Leave empty to hide",
-      "suggestedQuestions": "Shown to users when starting a new conversation, helping them get started quickly"
+      "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
+      "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line"
     },
     "type_options": {
       "system": "System Agent",
@@ -1050,7 +1059,7 @@
   },
   "agentAssignment": {
     "title": "AI Feature Assignment",
-    "pageDesc": "Assign a driving agent to each AI feature module. Changes take effect immediately across the platform.",
+    "pageDesc": "Assign a driving agent to each AI feature module. Changes take effect immediately across the platform. Only platform-level globally shared agents are allowed (scope Admin+All Tenants or All Tenants), and audience cannot be Admin-only.",
     "selectAgent": "Select agent",
     "typePlugin": "Plugin",
     "globalDefault": "Global default: {name}",

@@ -424,6 +424,10 @@ class TestThinkingPersistence:
             partial=False,
             interrupted=False,
             completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
         )
 
         service = ConversationService.__new__(ConversationService)
@@ -444,6 +448,54 @@ class TestThinkingPersistence:
         create_calls = service._message_repo.create.await_args_list
         assistant_payload = create_calls[1].args[0]
         assert assistant_payload["metadata_"]["thinking_content"] == "先分析上下文。"
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_stores_runtime_model_snapshot(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=89, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "你好"},
+                {
+                    "role": "assistant",
+                    "content": "最终答复",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=33,
+            runtime_model_name="GPT-5.4 XHigh",
+            runtime_provider_id=5,
+            runtime_provider_name="OpenAI Compatible",
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        assert assistant_payload["model_id"] == 33
+        assert assistant_payload["metadata_"]["model_name"] == "GPT-5.4 XHigh"
+        assert assistant_payload["metadata_"]["provider_id"] == 5
+        assert assistant_payload["metadata_"]["provider_name"] == "OpenAI Compatible"
 
 
 class TestSanitizeToolMessages:

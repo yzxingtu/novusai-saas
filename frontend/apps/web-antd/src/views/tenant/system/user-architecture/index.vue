@@ -49,6 +49,10 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+import {
+  displayTenantUserRoleDescription,
+  displayTenantUserRoleName,
+} from './display-role';
 import { useMemberColumns, useMemberSearchSchema, useUserFormSchema } from './data';
 import PermissionDrawer from './modules/PermissionDrawer.vue';
 import UserForm from './modules/UserForm.vue';
@@ -72,12 +76,23 @@ const isAllUsersSelected = computed(() => selectedRole.value?.id === ALL_USERS_I
 const filteredRoles = computed(() => {
   if (!searchKeyword.value) return roles.value;
   const kw = searchKeyword.value.toLowerCase();
-  return roles.value.filter(
-    (r) =>
+  return roles.value.filter((r) => {
+    const shown = displayTenantUserRoleName(r, $t).toLowerCase();
+    return (
+      shown.includes(kw) ||
       r.name.toLowerCase().includes(kw) ||
-      r.code.toLowerCase().includes(kw),
-  );
+      r.code.toLowerCase().includes(kw)
+    );
+  });
 });
+
+function roleDisplayName(role: TenantUserRoleInfo) {
+  return displayTenantUserRoleName(role, $t);
+}
+
+function roleDisplayDescription(role: TenantUserRoleInfo) {
+  return displayTenantUserRoleDescription(role, $t);
+}
 
 async function loadRoles() {
   rolesLoading.value = true;
@@ -276,6 +291,7 @@ async function handleBatchReject() {
 }
 
 const newPasswordRef = ref('');
+const confirmPasswordRef = ref('');
 
 async function onForceLogout(row: TenantUserInfo) {
   try {
@@ -289,19 +305,33 @@ async function onForceLogout(row: TenantUserInfo) {
 
 async function onResetPassword(row: TenantUserInfo) {
   newPasswordRef.value = '';
+  confirmPasswordRef.value = '';
   Modal.confirm({
     title: $t('tenant.system.user.resetPassword'),
     content: () =>
-      h(Input.Password, {
-        'placeholder': $t('tenant.system.user.newPassword'),
-        'value': newPasswordRef.value,
-        'onUpdate:value': (val: string) => {
-          newPasswordRef.value = val;
-        },
-      }),
+      h('div', { class: 'flex flex-col gap-3' }, [
+        h(Input.Password, {
+          placeholder: $t('tenant.system.user.newPassword'),
+          value: newPasswordRef.value,
+          'onUpdate:value': (val: string) => {
+            newPasswordRef.value = val;
+          },
+        }),
+        h(Input.Password, {
+          placeholder: $t('tenant.system.user.placeholder.inputNewPasswordConfirm'),
+          value: confirmPasswordRef.value,
+          'onUpdate:value': (val: string) => {
+            confirmPasswordRef.value = val;
+          },
+        }),
+      ]),
     onOk: async () => {
       if (!newPasswordRef.value || newPasswordRef.value.length < 6) {
         message.warning($t('tenant.system.user.placeholder.inputPassword'));
+        throw new Error('validation');
+      }
+      if (newPasswordRef.value !== confirmPasswordRef.value) {
+        message.warning($t('tenant.system.user.messages.resetPasswordMismatch'));
         throw new Error('validation');
       }
       await resetTenantUserPasswordApi(row.id, {
@@ -626,7 +656,7 @@ onUnmounted(() => {
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <span class="truncate text-sm font-medium text-foreground">
-                        {{ role.name }}
+                        {{ roleDisplayName(role) }}
                       </span>
                       <Tag v-if="role.isSystem" color="orange" class="!text-[10px] !leading-tight !px-1">
                         {{ $t('tenant.system.userRole.isSystem') }}
@@ -737,7 +767,7 @@ onUnmounted(() => {
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <h2 class="truncate text-base font-semibold lg:text-xl">
-                      {{ selectedRole.name }}
+                      {{ roleDisplayName(selectedRole) }}
                     </h2>
                     <Tag
                       :class="
@@ -812,7 +842,7 @@ onUnmounted(() => {
                 <Popconfirm
                   :title="
                     $t('tenant.system.userRole.messages.deleteConfirm', {
-                      name: selectedRole.name,
+                      name: roleDisplayName(selectedRole),
                     })
                   "
                   :ok-text="$t('shared.common.confirm')"
@@ -838,12 +868,12 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- 第二行：描述 -->
+            <!-- 第二行：描述（内置角色用 i18n，与库中语言无关） -->
             <div
-              v-if="selectedRole.description"
+              v-if="roleDisplayDescription(selectedRole)"
               class="mt-2 rounded bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
             >
-              {{ selectedRole.description }}
+              {{ roleDisplayDescription(selectedRole) }}
             </div>
           </div>
 

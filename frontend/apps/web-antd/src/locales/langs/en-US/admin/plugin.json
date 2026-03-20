@@ -18,6 +18,11 @@
   "pricingType": "Pricing",
   "errorCount": "Error Count",
   "capabilitiesLabel": "Capabilities",
+  "aiAssignment": {
+    "hintTitle": "This plugin declares AI features",
+    "hintDesc": "Agent bindings are managed only under AI Feature Assignment for a single entry point and consistent rules. Configure plugin.* feature codes there with platform-level globally shared agents.",
+    "goButton": "Open AI Feature Assignment"
+  },
   "readme": "Documentation",
   "create": "Install Plugin",
   "upload": "Upload & Install",

@@ -47,7 +47,7 @@ def _build_admin_conversation_item(
 
     # 企业信息 / tenant info
     tenant_info = None
-    if tenant_map and conv.tenant_id:
+    if tenant_map and conv.tenant_id is not None:
         tenant_info = tenant_map.get(conv.tenant_id)
 
     # 用户信息 / user info
@@ -212,7 +212,7 @@ class AdminAIConversationController(GlobalController):
             支持 tenant_id 筛选和 JSON:API 分页排序 / Supports tenant_id filtering and JSON:API pagination/sorting
             权限 / Permission: ai_conversation:list
             """
-            if tenant_id:
+            if tenant_id is not None:
                 service = ConversationService(db, tenant_id)
                 items, total = await service.query_list(spec=query)
             else:
@@ -221,7 +221,7 @@ class AdminAIConversationController(GlobalController):
                 items, total = await repo.query_list(query)
 
             # 批量加载关联信息 / Batch load associated info
-            tenant_ids = {c.tenant_id for c in items if c.tenant_id}
+            tenant_ids = {c.tenant_id for c in items if c.tenant_id is not None}
             tenant_map = await _batch_load_tenants(db, tenant_ids)
             user_map = await _batch_load_users(db, items)
 
@@ -272,7 +272,7 @@ class AdminAIConversationController(GlobalController):
                 detail["agent_avatar"] = None
 
             # 补充企业信息 / Supplement tenant info
-            if conversation.tenant_id:
+            if conversation.tenant_id is not None:
                 t_map = await _batch_load_tenants(
                     db, {conversation.tenant_id},
                 )

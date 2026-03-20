@@ -107,6 +107,8 @@ class ImageGenerationEngine:
                     n=params.get("n", 1),
                     tenant_id=request.tenant_id,
                     user_id=request.user_id,
+                    agent_id=agent.id,
+                    conversation_id=request.conversation_id,
                 )
 
                 # Push each image result / 推送每张图片的结果
@@ -135,6 +137,9 @@ class ImageGenerationEngine:
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 extra_done_data: dict = {}
                 if on_complete:
+                    runtime_info = dict(getattr(response, "metadata", {}) or {}).get(
+                        "runtime_model_info", {}
+                    )
                     result = ExecutionResult(
                         success=True,
                         output=output,
@@ -145,6 +150,10 @@ class ImageGenerationEngine:
                         total_tokens=0,
                         duration_ms=duration_ms,
                         conversation_id=request.conversation_id,
+                        runtime_model_id=runtime_info.get("model_id"),
+                        runtime_model_name=runtime_info.get("model_name"),
+                        runtime_provider_id=runtime_info.get("provider_id"),
+                        runtime_provider_name=runtime_info.get("provider_name"),
                     )
                     try:
                         cb_result = await on_complete(result)

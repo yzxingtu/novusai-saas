@@ -35,21 +35,27 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
     repository_class = AgentAssignmentRepository
 
     async def validate_agent_id(
-        self, agent_id: int | None, tenant_id: int | None = None
+        self,
+        agent_id: int | None,
+        tenant_id: int | None = None,
+        *,
+        for_platform_feature_binding: bool = False,
     ) -> None:
         """
-        校验 agent_id 有效性：存在 + 已发布 + 对企业可见 / Validate agent_id: exists, published, visible to tenant.
+        校验 agent_id 有效性：存在 + 已发布 +（可选）平台功能绑定规则 + 对企业可见 / Validate agent_id: exists, published, optional platform binding rules, tenant visibility.
 
         Args:
             agent_id: 要校验的智能体 ID，None 时跳过（清除绑定）
-            tenant_id: 企业 ID，None 表示 admin 端（不做 scope 校验）
+            tenant_id: 企业 ID，None 表示非企业覆盖场景下的校验
+            for_platform_feature_binding: True 时用于管理端「功能分配」全局绑定：要求平台级、
+                scope 为 admin_and_all / all_tenants，且受众非 admin_only（保证各企业可一致调用）
         """
         if agent_id is None:
             return
 
         from sqlalchemy import select
 
-        from app.enums.common import ResourceScopeEnum
+        from app.enums.common import AudienceEnum, ResourceScopeEnum
         from app.models.ai.agent import Agent
 
         result = await self.repo.db.execute(
@@ -71,12 +77,30 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 message=_("system_agent_assignment.error.agent_not_published"),
             )
 
-        # admin 端不做 scope / target_audience 校验
+        if for_platform_feature_binding:
+            if agent.tenant_id is not None:
+                raise ValidationException(
+                    message=_("system_agent_assignment.error.agent_must_be_platform_global"),
+                )
+            if agent.scope not in (
+                ResourceScopeEnum.ADMIN_AND_ALL.value,
+                ResourceScopeEnum.ALL_TENANTS.value,
+            ):
+                raise ValidationException(
+                    message=_("system_agent_assignment.error.agent_must_be_global_shared_scope"),
+                )
+            target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
+            if target_audience == AudienceEnum.ADMIN_ONLY.value:
+                raise ValidationException(
+                    message=_("system_agent_assignment.error.agent_audience_not_for_tenant_consumption"),
+                )
+            return
+
+        # 非「平台功能分配」且未指定企业：仅校验存在 + 已发布（兼容其它调用方）
         if tenant_id is None:
             return
 
         # 企业端校验 target_audience：企业端不能绑定 admin_only 的智能体
-        from app.enums.common import AudienceEnum
         target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
         if target_audience == AudienceEnum.ADMIN_ONLY.value:
             raise AuthorizationException(

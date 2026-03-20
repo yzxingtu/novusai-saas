@@ -38,6 +38,7 @@ import { usePageScreenshot } from '#/composables/use-page-screenshot';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
+import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getFileIcon } from '#/utils/file';
 
 import { pageContextVersion, resolvePageContext } from './page-context-registry';
@@ -908,22 +909,16 @@ async function handleScreenshot() {
 
 // ============ Welcome & Suggested Questions ============
 
+const starterAgent = computed(() => {
+  return mentionedAgent.value ?? selectedAgent.value ?? null;
+});
+
 const effectiveWelcomeMessage = computed(() => {
-  // Use pinned agent's welcome if pinned, otherwise show generic welcome / 置顶时用置顶 agent 的欢迎语，否则通用欢迎
-  if (isPinned.value && selectedAgent.value?.welcome_message) {
-    return selectedAgent.value.welcome_message;
-  }
-  return '';
+  return starterAgent.value?.welcome_message || '';
 });
 
 const effectiveSuggestedQuestions = computed<string[]>(() => {
-  const raw = isPinned.value
-    ? selectedAgent.value?.suggested_questions
-    : undefined;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (q): q is string => typeof q === 'string' && q.trim() !== '',
-  );
+  return normalizeStarterQuestions(starterAgent.value?.suggested_questions);
 });
 
 function askSuggested(question: string) {

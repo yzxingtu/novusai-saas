@@ -80,6 +80,16 @@ function formatJson(data: unknown): string {
           >
             {{ detail.provider_name || '-' }}
           </Descriptions.Item>
+          <Descriptions.Item
+            :label="$t('tenant.ai.callLog.callerName')"
+            :span="1"
+          >
+            {{
+              detail.caller_name && detail.caller_name !== '-'
+                ? detail.caller_name
+                : '-'
+            }}
+          </Descriptions.Item>
           <Descriptions.Item :label="$t('tenant.ai.callLog.status')" :span="1">
             <Tag
               :color="
@@ -92,6 +102,28 @@ function formatJson(data: unknown): string {
             >
               {{ getStatusText(detail.status) }}
             </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item
+            v-if="
+              detail.route_reason ||
+              (detail.routed_model_id && detail.routed_model_id !== detail.model_id)
+            "
+            :label="$t('tenant.ai.callLog.modelName')"
+            :span="2"
+          >
+            <span class="font-medium text-warning">
+              {{
+                detail.routed_model_name ||
+                detail.model_name ||
+                (detail.routed_model_id ? `#${detail.routed_model_id}` : '-')
+              }}
+            </span>
+            <span
+              v-if="detail.route_reason"
+              class="ml-2 text-xs text-muted-foreground"
+            >
+              ({{ detail.route_reason }})
+            </span>
           </Descriptions.Item>
           <Descriptions.Item
             :label="$t('tenant.ai.callLog.createdAt')"

@@ -310,7 +310,66 @@
       "invalid_module": "无效的模块代码"
     },
     "cleanup_triggered": "清理任务已提交",
-    "module_cleared": "已清空当前模块回收站"
+    "module_cleared": "已清空当前模块回收站",
+    "column": {
+      "common": {
+        "id": "ID",
+        "name": "名称",
+        "code": "编码",
+        "type": "类型",
+        "status": "状态",
+        "scope": "范围",
+        "is_active": "启用状态",
+        "created_at": "创建时间",
+        "updated_at": "更新时间",
+        "provider_id": "供应商",
+        "tenant_id": "企业",
+        "model_id": "模型",
+        "tier": "档位",
+        "supports_vision": "支持视觉",
+        "supports_audio": "支持音频",
+        "supports_video": "支持视频",
+        "supports_function_calling": "支持函数调用",
+        "supports_streaming": "支持流式",
+        "target_audience": "目标受众",
+        "visibility": "可见性",
+        "execution_mode": "执行模式",
+        "is_system": "系统项",
+        "is_recommended": "推荐",
+        "bind_mode": "绑定模式",
+        "embedding_model_id": "Embedding 模型",
+        "vision_model_id": "视觉模型",
+        "audio_model_id": "音频模型",
+        "video_model_id": "视频模型",
+        "billing_cycle": "计费周期",
+        "sort_order": "排序",
+        "parent_id": "父级",
+        "level": "层级",
+        "data_scope": "数据范围",
+        "leader_id": "负责人",
+        "domain": "域名",
+        "table_name": "表名",
+        "label": "标签",
+        "is_visible": "可见",
+        "task_path": "任务路径",
+        "schedule_type": "调度类型",
+        "contact_name": "联系人",
+        "contact_phone": "联系电话",
+        "contact_email": "联系邮箱",
+        "plan_id": "套餐",
+        "expires_at": "到期时间",
+        "is_verified": "已验证",
+        "is_primary": "主域名",
+        "ssl_status": "SSL 状态",
+        "allow_read": "允许读",
+        "allow_create": "允许新增",
+        "allow_update": "允许更新",
+        "allow_delete": "允许删除"
+      },
+      "ai_models": {
+        "model_id": "模型代码"
+      }
+    }
   },
   "agent": {
     "created": "智能体创建成功",
@@ -1139,11 +1198,6 @@
     "ai_conversation": {
       "list": "查看全企业对话列表",
       "detail": "查看对话详情（审计）"
-    },
-    "tenant_agent_assignment": {
-      "list": "查看智能体绑定列表",
-      "update": "设置企业覆盖绑定",
-      "delete": "删除企业覆盖绑定"
     },
     "ai_action_log": {
       "list": "查看 AI 操作日志列表",
@@ -2938,7 +2992,10 @@
       "override_not_found": "企业覆盖绑定不存在",
       "agent_not_found": "智能体不存在或已删除",
       "agent_not_published": "智能体尚未发布，无法绑定",
-      "agent_not_accessible": "该智能体不在当前企业的可见范围内"
+      "agent_not_accessible": "该智能体不在当前企业的可见范围内",
+      "agent_must_be_platform_global": "功能分配仅可绑定平台创建的智能体，不能绑定企业自有智能体",
+      "agent_must_be_global_shared_scope": "功能分配仅支持全局共享作用域：「管理端+全部企业」或「全部企业」，不可使用按企业分配或仅管理端等作用域",
+      "agent_audience_not_for_tenant_consumption": "功能分配不可绑定受众为「仅管理端」的智能体，否则企业端无法调用"
     }
   },
   "email_log": {

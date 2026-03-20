@@ -92,6 +92,10 @@ def log_ai_call_task(
     error_message: str = None,
     user_id: int = None,
     user_type: str = None,
+    agent_id: int = None,
+    conversation_id: int = None,
+    routed_model_id: int = None,
+    route_reason: str = None,
 ):
     """
     Async AI call log recording (sync write) / 异步记录 AI 调用日志（同步写入）
@@ -117,6 +121,10 @@ def log_ai_call_task(
         error_message: Error message / 错误信息
         user_id: User ID / 用户 ID
         user_type: User type / 用户类型
+        agent_id: Agent ID / 智能体 ID
+        conversation_id: Conversation ID / 对话 ID
+        routed_model_id: Routed model ID / 路由后模型 ID
+        route_reason: Route reason / 路由原因
     """
     from app.models.ai.call_log import AICallLog
 
@@ -142,6 +150,8 @@ def log_ai_call_task(
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,
@@ -157,7 +167,13 @@ def log_ai_call_task(
                 "request": sanitized_request,
                 "response": truncated_response,
                 "timestamp": utc_now().isoformat(),
+                "agent_id": agent_id,
+                "conversation_id": conversation_id,
+                "routed_model_id": routed_model_id,
+                "route_reason": route_reason,
             },
+            routed_model_id=routed_model_id,
+            route_reason=route_reason,
         )
 
         db.add(call_log)

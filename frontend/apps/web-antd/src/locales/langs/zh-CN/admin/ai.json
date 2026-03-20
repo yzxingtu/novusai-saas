@@ -192,6 +192,8 @@
     "usageLimit": "使用上限",
     "usageCount": "已使用次数",
     "lastUsedAt": "最后使用",
+    "lastUsedRecent": "最近使用",
+    "lastUsedNever": "尚未使用",
     "expiresAt": "过期时间",
     "create": "添加 API Key",
     "placeholder": {
@@ -226,7 +228,7 @@
   },
   "callLog": {
     "title": "调用日志",
-    "pageDesc": "查看所有企业的 AI 调用记录，包括 Token 用量、费用和响应时间。",
+    "pageDesc": "查看管理端与企业端的 AI 调用记录，包括 Token 用量、费用和响应时间。",
     "requestType": "请求类型",
     "inputTokens": "输入 Tokens",
     "outputTokens": "输出 Tokens",
@@ -234,7 +236,10 @@
     "cost": "费用",
     "latency": "延迟 (ms)",
     "status": "状态",
+    "source": "调用来源",
     "tenantName": "企业",
+    "platformTenant": "管理端",
+    "callerName": "调用人",
     "modelName": "模型",
     "providerName": "供应商",
     "userId": "用户 ID",
@@ -249,6 +254,10 @@
       "success": "成功",
       "failed": "失败",
       "timeout": "超时"
+    },
+    "source_options": {
+      "platform": "平台调用",
+      "tenant": "企业调用"
     },
     "summary": {
       "totalCalls": "总调用数",
@@ -445,7 +454,7 @@
     "maxTokens": "最大 Token",
     "topP": "Top P",
     "welcomeMessage": "欢迎语",
-    "suggestedQuestions": "推荐问题 (JSON)",
+    "suggestedQuestions": "开场问题",
     "inputVariables": {
       "title": "输入变量",
       "label": "变量定义 (JSON)"
@@ -498,8 +507,8 @@
       "allTypes": "全部类型",
       "selectSkillPackages": "选择要绑定的技能包",
       "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
-      "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
-      "inputSuggestedQuestions": "JSON 数组格式，如: [\"问题1\", \"问题2\"]",
+      "inputWelcomeMessage": "用户在开始首轮对话前看到的欢迎语",
+      "inputSuggestedQuestions": "每行一个问题，也支持 JSON 数组格式",
       "selectOrgNodes": "选择组织节点",
       "inputUserIds": "输入用户 ID，多个用逗号分隔",
       "inputRoleIds": "输入角色 ID，多个用逗号分隔",
@@ -513,8 +522,8 @@
       "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
       "skillPackageBindings": "选择此智能体可调用的技能包",
-      "welcomeMessage": "用户首次打开对话时自动显示的欢迎语，留空则不显示",
-      "suggestedQuestions": "用户初次进入对话时显示的推荐问题，帮助用户快速开始"
+      "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
+      "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个"
     },
     "type_options": {
       "system": "系统智能体",
@@ -1051,7 +1060,7 @@
   },
   "agentAssignment": {
     "title": "AI 功能分配",
-    "pageDesc": "为各 AI 功能模块指定驱动智能体，修改后即时生效、影响全平台。",
+    "pageDesc": "为各 AI 功能模块指定驱动智能体，修改后即时生效、影响全平台。仅可选择平台级、全局共享智能体（作用域为「管理端+全部企业」或「全部企业」），且受众不能为「仅管理端」。",
     "selectAgent": "选择智能体",
     "typePlugin": "插件",
     "globalDefault": "全局默认：{name}",

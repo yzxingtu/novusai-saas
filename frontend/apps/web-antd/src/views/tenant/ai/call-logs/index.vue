@@ -17,7 +17,7 @@ import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { getProcessedImageUrl } from '#/utils/image';
 
 import {
@@ -30,6 +30,14 @@ import {
 import CallLogDetail from './modules/CallLogDetail.vue';
 
 defineOptions({ name: 'TenantAICallLogList' });
+
+/** provider.icon 可能为数字 ID 字符串 / Attachment id for provider logo */
+function providerIconId(icon: unknown): null | number {
+  if (icon === null || icon === undefined || icon === '') return null;
+  const n = Number(icon);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.trunc(n);
+}
 
 const detailOpen = ref(false);
 const detailLogId = ref<null | number>(null);
@@ -111,8 +119,9 @@ onUnmounted(() => {
 <template>
   <Page
     auto-content-height
+    class="min-w-0 max-w-full"
     :description="$t('tenant.ai.callLog.pageDesc')"
-    content-class="flex flex-col gap-4"
+    content-class="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4"
   >
     <!-- 详情抽屉 -->
     <CallLogDetail v-model:open="detailOpen" :log-id="detailLogId" />
@@ -150,39 +159,70 @@ onUnmounted(() => {
       </Button>
     </div>
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid>
+    <Card
+      class="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col"
+      :body-style="{
+        padding: '16px',
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }"
+    >
+      <div class="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden">
+        <Grid class="h-full min-w-0 w-full max-w-full">
         <!-- 调用时间列 -->
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.created_at)">
             <span class="text-muted-foreground">
-              {{ formatDate(row.created_at) }}
+              {{ formatRelativeTime(row.created_at) }}
             </span>
           </Tooltip>
         </template>
 
         <!-- 模型名称列 -->
         <template #modelName_cell="{ row }">
-          <div class="flex items-center gap-1.5">
+          <div
+            v-if="row.model_name && row.model_name !== '-'"
+            class="flex items-center gap-1.5"
+          >
             <IconifyIcon
               icon="lucide:brain"
               class="size-3.5 text-muted-foreground"
             />
             <code class="rounded bg-accent px-1 py-0.5 text-xs">
-              {{ row.model_name || '-' }}
+              {{ row.model_name }}
             </code>
           </div>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
+        <!-- 调用人 -->
+        <template #callerName_cell="{ row }">
+          <span
+            v-if="row.caller_name && row.caller_name !== '-'"
+            class="text-foreground"
+          >
+            {{ row.caller_name }}
+          </span>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- Provider column: icon + name / 供应商列：图标 + 名称 -->
         <template #providerName_cell="{ row }">
           <div
-            v-if="row.provider_name"
+            v-if="row.provider_name && row.provider_name !== '-'"
             class="flex items-center justify-center gap-1.5"
           >
             <img
-              v-if="row.provider_icon && Number(row.provider_icon) > 0"
-              :src="getProcessedImageUrl(Number(row.provider_icon), { preset: 'small' })"
+              v-if="providerIconId(row.provider_icon)"
+              :src="
+                getProcessedImageUrl(providerIconId(row.provider_icon)!, {
+                  preset: 'small',
+                })
+              "
               class="size-4 shrink-0 rounded object-contain"
               alt=""
             />
@@ -217,7 +257,8 @@ onUnmounted(() => {
           </span>
           <span v-else class="text-muted-foreground">-</span>
         </template>
-      </Grid>
+        </Grid>
+      </div>
     </Card>
   </Page>
 </template>

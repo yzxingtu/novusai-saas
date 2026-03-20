@@ -27,6 +27,10 @@ import {
 } from '#/api/tenant/agents';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+import {
+  formatStarterQuestionsInput,
+  parseStarterQuestionsInput,
+} from '#/utils/ai-starter-questions';
 
 import {
   getFormDefaults,
@@ -69,27 +73,6 @@ function nextStep() {
 
 const wizardSteps = computed(() => getWizardSteps());
 
-/**
- * 安全解析 JSON 数组字符串
- */
-function safeJsonArrayParse(str: string | undefined): null | unknown[] {
-  if (!str || str.trim() === '' || str.trim() === '[]') return null;
-  try {
-    const parsed = JSON.parse(str);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 数组转 JSON 字符串（美化格式）
- */
-function toJsonArrayString(arr: null | undefined | unknown[]): string {
-  if (!arr || arr.length === 0) return '';
-  return JSON.stringify(arr, null, 2);
-}
-
 const {
   Drawer,
   isEdit,
@@ -113,7 +96,9 @@ const {
       max_tokens: values.max_tokens || null,
       top_p: values.top_p ?? null,
       welcome_message: values.welcome_message || null,
-      suggested_questions: safeJsonArrayParse(values.suggested_questions_str),
+      suggested_questions: parseStarterQuestionsInput(
+        values.suggested_questions_str,
+      ),
     };
   },
   toFormValues: (data) => {
@@ -128,7 +113,7 @@ const {
       max_tokens: data.max_tokens,
       top_p: data.top_p,
       welcome_message: data.welcome_message,
-      suggested_questions_str: toJsonArrayString(
+      suggested_questions_str: formatStarterQuestionsInput(
         data.suggested_questions as null | unknown[],
       ),
     };

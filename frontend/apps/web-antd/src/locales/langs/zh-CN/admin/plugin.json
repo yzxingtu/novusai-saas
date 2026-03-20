@@ -18,6 +18,11 @@
   "pricingType": "定价",
   "errorCount": "错误次数",
   "capabilitiesLabel": "能力授权",
+  "aiAssignment": {
+    "hintTitle": "本插件包含 AI 功能",
+    "hintDesc": "智能体绑定已统一在「AI 功能分配」中管理，入口唯一、规则与全平台一致。请在该页为 plugin.* 功能码绑定平台级全局共享智能体。",
+    "goButton": "前往 AI 功能分配"
+  },
   "readme": "说明文档",
   "create": "安装插件",
   "upload": "上传安装",

@@ -88,6 +88,7 @@ class AgentRouterService:
         page_context: dict[str, Any] | None = None,
         pinned_agent_id: int | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
+        user_id: int | None = None,
     ) -> RouteResult:
         """
         执行智能路由 / Execute agent routing.
@@ -159,6 +160,7 @@ class AgentRouterService:
                     else tenant_id
                 ),
                 execution_user_role=user_role,
+                user_id=user_id,
             )
         except Exception as exc:
             logger.error("Router call failed: {}", exc, exc_info=True)
@@ -312,6 +314,7 @@ class AgentRouterService:
         *,
         execution_tenant_id: int | None,
         execution_user_role: str,
+        user_id: int | None = None,
     ) -> dict[str, Any] | None:
         """
         TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
@@ -365,6 +368,7 @@ class AgentRouterService:
         request = ExecutionRequest(
             agent_id=router_agent.id,
             tenant_id=execution_tenant_id or PLATFORM_TENANT_ID,
+            user_id=user_id,
             messages=[ChatMessage(role="user", content=routing_prompt)],
             execution_mode=AgentExecutionModeEnum.TASK.value,
             stream=False,

@@ -99,7 +99,7 @@
     "noAgents": "No agents available",
     "welcomeTitle": "Start AI Chat",
     "welcomeDesc": "Select an agent to start your AI conversation",
-    "inputPlaceholder": "Type a message, use @ to search agents...",
+    "inputPlaceholder": "Type a message, use {'@'} to search agents...",
     "varsModal": {
       "title": "Fill in Variables — {name}",
       "desc": "Please fill in the following information to personalize this conversation.",

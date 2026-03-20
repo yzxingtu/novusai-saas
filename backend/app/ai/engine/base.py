@@ -31,11 +31,22 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
+from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai.agent import Agent
 
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 
 logger = LogManager.get_logger("ai.engine")
+
+
+def log_user_type_for_call_log(user_role: str) -> str:
+    """Map ExecutionRequest.user_role → call_log.user_type / 执行请求角色 → 调用日志用户类型."""
+    if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
+        return LogUserTypeEnum.ADMIN.value
+    if user_role == UserRoleEnum.TENANT_USER.value:
+        return LogUserTypeEnum.TENANT_USER.value
+    return LogUserTypeEnum.TENANT_ADMIN.value
 
 # Max tool call rounds (prevents infinite loop) / 工具调用最大循环次数（防止无限循环）
 MAX_TOOL_CALL_ROUNDS = 10
@@ -453,7 +464,9 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        conversation_id: int | None = None,
         route_result: Any | None = None,
+        log_user_type: str | None = None,
     ) -> ChatResponse:
         """
         Call LLM.
@@ -472,13 +485,18 @@ class BaseEngine(ABC):
         if tools:
             openai_tools = to_openai_tools(tools)
 
+        routed_model_id: int | None = None
+        route_reason: str | None = None
+
         # Get model info: route override takes priority / 获取模型信息：路由覆写优先
         if route_result is not None and getattr(route_result, "is_overridden", False):
             provider_code = route_result.provider_code or ""
             model_code = route_result.model_code or ""
+            routed_model_id = int(getattr(route_result, "model_id", 0) or 0) or None
+            route_reason = route_result.reason or None
             # Use routed model's actual capabilities (per spec: 根据模型的 supports_* 决定)
             # 使用路由选中模型的真实能力（规范：根据模型的 supports_* 决定）
-            model_id: int = getattr(route_result, "model_id", 0)
+            model_id: int = int(getattr(route_result, "model_id", 0) or 0)
             route_model_obj = None
             if model_id:
                 from app.repositories.ai.model_repository import AIModelRepository
@@ -528,10 +546,22 @@ class BaseEngine(ABC):
             tools=openai_tools,
             tenant_id=tenant_id,
             user_id=user_id,
+            user_type=log_user_type,
+            agent_id=getattr(agent, "id", None),
+            conversation_id=conversation_id,
+            routed_model_id=routed_model_id,
+            route_reason=route_reason,
             supports_vision=bool(is_vision),
             supports_audio=bool(is_audio),
             supports_video=bool(is_video),
         )
+
+        metadata = dict(getattr(response, "metadata", {}) or {})
+        if routed_model_id is not None:
+            metadata["routed_model_id"] = routed_model_id
+        if route_reason:
+            metadata["route_reason"] = route_reason
+        response.metadata = metadata
 
         return response
 
@@ -625,7 +655,10 @@ class BaseEngine(ABC):
                                     content=current_response.message.content or "",
                                     tool_calls=tool_calls,
                                 ),
-                                metadata={"skip_final_assistant": True},
+                                metadata={
+                                    **dict(getattr(current_response, "metadata", {}) or {}),
+                                    "skip_final_assistant": True,
+                                },
                             ),
                             all_tool_results,
                             total_tokens,
@@ -647,7 +680,9 @@ class BaseEngine(ABC):
                         tools=tools,
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
+                        conversation_id=request.conversation_id,
                         route_result=route_result,
+                        log_user_type=log_user_type_for_call_log(request.user_role),
                     )
                     total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
@@ -662,7 +697,9 @@ class BaseEngine(ABC):
                 tools=tools,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                conversation_id=request.conversation_id,
                 route_result=route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
             )
             total_tokens += current_response.total_tokens or 0
 
@@ -720,4 +757,4 @@ class BaseEngine(ABC):
         return [dataclasses.asdict(msg) for msg in messages]
 
 
-__all__ = ["BaseEngine"]
+__all__ = ["BaseEngine", "log_user_type_for_call_log"]

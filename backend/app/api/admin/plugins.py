@@ -59,10 +59,6 @@ class PluginActivateLicenseBody(PydanticBaseModel):
     license_key: str = Field(default="", max_length=500)
 
 
-class PluginBindAiFeatureBody(PydanticBaseModel):
-    agent_id: int | None = None
-
-
 class PluginRollbackBody(PydanticBaseModel):
     target_version: str = Field(default="", pattern=r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
 
@@ -1258,44 +1254,8 @@ class AdminPluginController(GlobalController):
             assignments = result.scalars().all()
             return success(data=[a.to_dict() for a in assignments])
 
-        @self.router.put("/{plugin_id}/ai-features/{assignment_id}")
-        @action_update("action.plugin.bind_ai")
-        async def bind_ai_feature(
-            plugin_id: int,
-            assignment_id: int,
-            body: PluginBindAiFeatureBody,
-            db: DbSession = None,
-            admin: ActiveAdmin = None,
-        ):
-            """为插件 AI 功能绑定 Agent / Bind Agent to plugin AI feature"""
-            from sqlalchemy import select, update
-
-            from app.models.system.agent_assignment import SystemAgentAssignment
-            from app.models.system.plugin import Plugin as PluginModel
-
-            plugin_name_result = await db.execute(
-                select(PluginModel.name).where(
-                    PluginModel.id == plugin_id,
-                    PluginModel.is_deleted.is_(False),
-                )
-            )
-            plugin_name = plugin_name_result.scalar_one_or_none()
-            if not plugin_name:
-                from app.exceptions.base import NotFoundException
-                raise NotFoundException(message="Plugin not found")
-
-            result = await db.execute(
-                update(SystemAgentAssignment).where(
-                    SystemAgentAssignment.id == assignment_id,
-                    SystemAgentAssignment.feature_code.like(f"plugin.{plugin_name}.%"),
-                    SystemAgentAssignment.is_deleted.is_(False),
-                ).values(agent_id=body.agent_id)
-            )
-            if result.rowcount == 0:
-                from app.exceptions.base import NotFoundException
-                raise NotFoundException(message="AI feature assignment not found for this plugin")
-            await db.flush()
-            return success(data={"message": "AI feature binding updated"})
+        # 插件 AI 功能绑定仅能通过「AI 功能分配」/admin/ai/agent-assignments 修改，不在此提供 PUT，避免双入口。
+        # Plugin AI bindings are edited only via AI Feature Assignment; no PUT here to keep a single entry point.
 
         # ── 备份 / Backup ──
 

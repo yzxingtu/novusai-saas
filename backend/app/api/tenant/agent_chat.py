@@ -218,6 +218,7 @@ class TenantAgentChatController(TenantController):
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
+                user_id=tenant_admin.id,
             )
 
         # ========================================

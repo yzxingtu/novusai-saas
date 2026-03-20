@@ -213,6 +213,7 @@ class UserAgentChatController(BaseController):
                 user_role=UserRoleEnum.TENANT_USER.value,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
+                user_id=current_user.id,
             )
 
         # ========================================

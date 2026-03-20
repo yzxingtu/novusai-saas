@@ -159,12 +159,18 @@ class AdminAgentAssignmentController(GlobalController):
             update_data = body.model_dump(exclude_unset=True)
             i18n_map = await _build_plugin_feature_i18n_map(db)
             if update_data:
-                # 校验 agent_id 有效性（admin 端 tenant_id=None，不做 scope 校验） / Validate agent_id (admin side tenant_id=None, skip scope check)
+                # 功能分配仅允许平台级全局共享智能体（与全企业调用一致） / Feature binding: platform global-shared agents only
                 if "agent_id" in update_data:
-                    await service.validate_agent_id(update_data["agent_id"])
-                # 启用时校验已绑定的 agent 仍可用（防止启用指向已删除/下架 Agent 的绑定） / Validate bound agent is still available when enabling (prevent enabling bindings pointing to deleted/unpublished agents)
+                    await service.validate_agent_id(
+                        update_data["agent_id"],
+                        for_platform_feature_binding=True,
+                    )
+                # 启用时校验已绑定的 agent 仍可用且仍符合全局共享规则 / Re-validate on enable
                 elif update_data.get("is_active") is True and assignment.agent_id:
-                    await service.validate_agent_id(assignment.agent_id)
+                    await service.validate_agent_id(
+                        assignment.agent_id,
+                        for_platform_feature_binding=True,
+                    )
                 updated = await service.update(assignment.id, update_data)
                 return success(data=_build_assignment_item(updated, i18n_map=i18n_map))
 

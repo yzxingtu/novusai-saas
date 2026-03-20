@@ -442,12 +442,16 @@ export class RequestClient {
       while (!isEnd) {
         const { done, value } = await reader.read();
         if (done) {
+          const tail = decoder.decode(new Uint8Array(), { stream: false });
+          if (tail) {
+            await Promise.resolve(onMessage?.(tail));
+          }
           isEnd = true;
-          onEnd?.();
+          await Promise.resolve(onEnd?.());
           break;
         }
         const content = decoder.decode(value, { stream: true });
-        onMessage?.(content);
+        await Promise.resolve(onMessage?.(content));
       }
     } catch (error: any) {
       // 检查是否为取消操作

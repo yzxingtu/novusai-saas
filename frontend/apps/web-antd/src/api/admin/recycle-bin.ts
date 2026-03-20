@@ -21,6 +21,8 @@ export interface RecycleBinModuleMeta {
   columns: string[];
   label_field: string;
   filterable: string[];
+  /** 后端按当前语言生成的列/筛选项标题，未包含的字段由前端 getColumnLabel 回退 */
+  column_labels?: Record<string, string>;
 }
 
 /** Recycle bin item / 回收站记录项 */

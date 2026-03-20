@@ -33,6 +33,40 @@ router = APIRouter(prefix="/recycle-bin", tags=["admin-recycle-bin"])
 _MAX_BATCH_SIZE = 100
 
 
+def _recycle_column_label(module_code: str, field: str) -> str:
+    """字段展示名：模块优先，其次通用键；无翻译时返回空串（由前端回退） / Display label: module-specific, then common; empty if none (frontend fallback)."""
+    for key in (
+        f"recycle_bin.column.{module_code}.{field}",
+        f"recycle_bin.column.common.{field}",
+    ):
+        text = _(key)
+        if text != key:
+            return text
+    return ""
+
+
+def _build_column_labels(
+    module_code: str,
+    config: dict[str, Any],
+    filterable_keys: list[str],
+) -> dict[str, str]:
+    """合并列表列与可筛字段，生成非空标签映射 / Merge list columns and filterable fields into non-empty label map."""
+    columns = list(config.get("columns") or [])
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for f in columns + filterable_keys:
+        if f in seen:
+            continue
+        seen.add(f)
+        ordered.append(f)
+    out: dict[str, str] = {}
+    for f in ordered:
+        label = _recycle_column_label(module_code, f)
+        if label:
+            out[f] = label
+    return out
+
+
 # ── 可回收模块注册表 / Recyclable Module Registry ──
 # columns: 前端需要展示的字段列表（id / deleted_at / delete_level / tenant_name 由框架自动附加） / columns: fields frontend needs to display (id / deleted_at / delete_level / tenant_name are auto-appended by framework)
 RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
@@ -273,12 +307,14 @@ async def recycle_bin_modules(
         # 对企业模型额外开放 tenant_id / Additionally expose tenant_id for tenant models
         if config.get("is_tenant") and "tenant_id" not in filterable:
             filterable = {**filterable, "tenant_id": "tenant_id"}
+        filter_keys = list(filterable.keys())
         result[code] = {
             "label": _(config["i18n_key"]),
             "is_tenant": config.get("is_tenant", False),
             "columns": config["columns"],
             "label_field": config["label_field"],
-            "filterable": list(filterable.keys()),
+            "filterable": filter_keys,
+            "column_labels": _build_column_labels(code, config, filter_keys),
         }
     return success(data=result)
 

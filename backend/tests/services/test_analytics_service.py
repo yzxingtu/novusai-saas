@@ -86,6 +86,20 @@ class TestCallTrend:
 
         assert len(result) == 1
 
+    @pytest.mark.asyncio
+    async def test_call_trend_with_platform_tenant_zero_keeps_filter(self, mock_db):
+        from app.services.ai.analytics_service import AnalyticsService
+
+        result_mock = MagicMock()
+        result_mock.all.return_value = _make_trend_rows(1)
+        mock_db.execute.return_value = result_mock
+
+        service = AnalyticsService(mock_db)
+        await service.get_call_trend(tenant_id=0)
+
+        stmt = mock_db.execute.await_args.args[0]
+        assert "ai_call_logs.tenant_id" in str(stmt)
+
 
 class TestModelDistribution:
 

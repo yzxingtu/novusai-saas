@@ -1,22 +1,17 @@
 <script lang="ts" setup>
+/**
+ * Admin global recycle bin — standard declarative grid (VxeGrid + CrudGrid)
+ * 管理端总回收站 — 系统标准声明式表格
+ */
+import type { VbenFormSchema } from '#/adapter/form';
+import type { OnActionClickParams } from '#/adapter/vxe-table';
 import type {
   RecycleBinItem,
   RecycleBinModuleMeta,
   RecycleBinModuleSummary,
 } from '#/api/admin/recycle-bin';
 
-/**
- * Admin global recycle bin page
- * 管理端总回收站页面
- *
- * - Advanced search: inherits declarative search Schema from original CRUD modules
- * - 高级搜索：继承原 CRUD 模块的声明式搜索 Schema
- * - Dynamic columns: renders different columns based on module metadata
- * - 动态列：根据模块元数据渲染不同列
- * - Tenant distinction: tenant-level modules show "Tenant" column
- * - 企业区分：企业级模块展示「所属企业」列
- */
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, toRaw } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
@@ -26,16 +21,22 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
+  Card,
+  Empty,
   message,
   Modal,
   Popconfirm,
   Spin,
-  Table,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
 
-import { useVbenForm } from '#/adapter/form';
+import {
+  useGridSearchFormOptions,
+  useVbenVxeGrid,
+} from '#/adapter/vxe-table';
+import CrudGrid from '#/core/adapter/vxe-table/components/crud-grid.vue';
+import { useExportModal } from '#/core/adapter/vxe-table/components';
 import {
   clearRecycleBinModuleApi,
   getRecycleBinListApi,
@@ -48,62 +49,225 @@ import {
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import { getColumnLabel, getModuleSearchSchema } from './data';
+import { buildDynamicFilterSchema, buildRecycleColumns } from './data';
 
-// ==================== State / 状态 ====================
-const summaryLoading = ref(false);
-const listLoading = ref(false);
+defineOptions({ name: 'AdminSystemRecycleBin' });
+
+/** 仅表示正在拉取 /modules + /summary；须先于表格挂载结束，再在已挂载的 form 上 setValues */
+const configFetching = ref(true);
 const summary = ref<RecycleBinModuleSummary[]>([]);
 const moduleMeta = ref<Record<string, RecycleBinModuleMeta>>({});
-const activeModule = ref('');
-const items = ref<RecycleBinItem[]>([]);
-const total = ref(0);
-const currentPage = ref(1);
-const pageSize = ref(20);
-const deleteLevelFilter = ref('');
-
-// ==================== Search form / 搜索表单 ====================
-const [SearchForm, searchFormApi] = useVbenForm({
-  schema: [],
-  commonConfig: {
-    componentProps: {
-      class: 'w-full',
-    },
-  },
-  showDefaultActions: false,
-  submitOnChange: true,
-  handleSubmit: () => {
-    currentPage.value = 1;
-    loadList();
-  },
-  wrapperClass: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-});
-
-// ==================== Total count / 总数 ====================
 const totalDeletedCount = computed(() =>
   summary.value.reduce((sum, m) => sum + m.count, 0),
 );
-
-// ==================== Current module metadata / 当前模块元数据 ====================
-const currentMeta = computed(
-  () => moduleMeta.value[activeModule.value] ?? null,
+const hasModuleConfig = computed(
+  () => Object.keys(moduleMeta.value).length > 0,
 );
 
-// ==================== Module icon map / 模块图标映射 ====================
-const moduleIcons: Record<string, string> = {
-  ai_providers: 'lucide:server',
-  ai_models: 'lucide:brain',
-  agents: 'lucide:bot',
-  skill_packages: 'lucide:package',
-  knowledge_bases: 'lucide:book-open',
-  admin_roles: 'lucide:shield',
-  tenant_plans: 'lucide:credit-card',
-  tenants: 'lucide:building-2',
-  tenant_domains: 'lucide:globe',
-  table_policies: 'lucide:table',
-};
+function sortedModuleCodes(): string[] {
+  return Object.keys(moduleMeta.value).sort();
+}
 
-// ==================== Loading / 加载 ====================
+/** 默认选中：优先 summary 首项（与后端顺序一致），否则字典序首模块 */
+function defaultModuleCode(): string {
+  for (const row of summary.value) {
+    if (row.module && moduleMeta.value[row.module]) {
+      return row.module;
+    }
+  }
+  const codes = sortedModuleCodes();
+  return codes[0] ?? '';
+}
+
+/** 下拉选项：以 /modules 为准，条数来自 /summary（空回收站时 summary 可能为 []） */
+function buildModuleSelectOptions() {
+  const countBy = new Map(
+    summary.value.map((s) => [s.module, s.count] as const),
+  );
+  return sortedModuleCodes().map((code) => {
+    const meta = moduleMeta.value[code];
+    const label = meta?.label ?? code;
+    const c = countBy.get(code) ?? 0;
+    return { label: `${label} (${c})`, value: code };
+  });
+}
+/** Current list API module (synced on each query) / 与列表请求一致的模块 */
+const activeListModule = ref('');
+
+/** 当前列表模块在 summary 中的条数（用于禁用「清空当前模块」） */
+const activeModuleDeletedCount = computed(() => {
+  const mod = activeListModule.value;
+  if (!mod) return 0;
+  return summary.value.find((s) => s.module === mod)?.count ?? 0;
+});
+
+const syncingModule = ref(false);
+/** 已与表格列/动态搜索 schema 对齐的模块（不能再用 form.module===newMod 判断，否则会与 submitOnChange 竞态） */
+const lastSyncedRecycleModule = ref('');
+
+/** Vxe 代理查询读 getLatestSubmissionValues，程序化 setValues 后需同步 */
+async function syncSubmissionAndReload(page?: Record<string, unknown>) {
+  const v = await gridApi.formApi?.getValues();
+  if (v && gridApi.formApi?.setLatestSubmissionValues) {
+    gridApi.formApi.setLatestSubmissionValues(toRaw(v));
+  }
+  await gridApi.reload(page ?? {});
+}
+
+function handleActionClick(e: OnActionClickParams<RecycleBinItem>) {
+  const mod = activeListModule.value;
+  if (!mod) return;
+  if (e.code === 'restore') {
+    void handleRestore(e.row, mod);
+  } else if (e.code === 'delete') {
+    handlePermanentDelete(e.row, mod);
+  }
+}
+
+async function handleRestore(row: RecycleBinItem, module: string) {
+  try {
+    await restoreRecycleBinItemApi(module, row.id);
+    message.success($t('common.recycleBin.restoreSuccess'));
+    await refreshSummaryOnly();
+    await patchModuleSelectOptions();
+    await gridApi.query();
+  } catch {
+    //
+  }
+}
+
+function handlePermanentDelete(row: RecycleBinItem, module: string) {
+  const meta = moduleMeta.value[module];
+  const labelField = meta?.label_field ?? 'name';
+  const displayName = String(row[labelField] ?? row.id);
+  Modal.confirm({
+    title: $t('common.recycleBin.permanentDelete'),
+    content: $t('common.recycleBin.confirmPermanentDelete', {
+      name: displayName,
+    }),
+    okType: 'danger',
+    onOk: async () => {
+      await permanentDeleteRecycleBinItemApi(module, row.id);
+      message.success($t('common.recycleBin.deleteSuccess'));
+      await refreshSummaryOnly();
+      await patchModuleSelectOptions();
+      await gridApi.query();
+    },
+  });
+}
+
+async function handleCleanup() {
+  try {
+    await triggerRecycleBinCleanupApi(30);
+    message.success($t('admin.system.recycleBin.cleanupTriggered'));
+    await refreshSummaryOnly();
+    await patchModuleSelectOptions();
+    await gridApi.query();
+  } catch {
+    //
+  }
+}
+
+function handleClearModule() {
+  const mod = activeListModule.value;
+  if (!mod) return;
+  const currentSummary = summary.value.find((s) => s.module === mod);
+  const moduleName = currentSummary?.label ?? mod;
+  Modal.confirm({
+    title: $t('admin.system.recycleBin.clearModule'),
+    content: $t('admin.system.recycleBin.clearModuleConfirm', {
+      module: moduleName,
+    }),
+    okType: 'danger',
+    onOk: async () => {
+      const res = await clearRecycleBinModuleApi(mod);
+      const count = res?.count ?? 0;
+      message.success(
+        $t('admin.system.recycleBin.clearModuleSuccess', { count }),
+      );
+      await refreshSummaryOnly();
+      await patchModuleSelectOptions();
+      await syncSubmissionAndReload();
+    },
+  });
+}
+
+function onModuleFieldChange(v: string) {
+  void applyModuleChange(v);
+}
+
+function moduleSelectProps() {
+  return {
+    allowClear: false,
+    class: 'w-full',
+    onChange: onModuleFieldChange,
+    optionFilterProp: 'label',
+    options: buildModuleSelectOptions(),
+    showSearch: true,
+  };
+}
+
+function deleteLevelProps() {
+  return {
+    allowClear: false,
+    class: 'w-full',
+    options: [
+      { label: $t('admin.system.recycleBin.levelAll'), value: 'all' },
+      { label: $t('admin.system.recycleBin.levelAdmin'), value: 'admin' },
+      { label: $t('admin.system.recycleBin.levelTenant'), value: 'tenant' },
+    ],
+  };
+}
+
+function buildFullSchema(activeMod: string): VbenFormSchema[] {
+  const meta = activeMod ? (moduleMeta.value[activeMod] ?? null) : null;
+  return [
+    {
+      component: 'Select',
+      componentProps: moduleSelectProps(),
+      fieldName: 'module',
+      label: $t('admin.system.recycleBin.modules'),
+    },
+    {
+      component: 'Select',
+      componentProps: deleteLevelProps(),
+      fieldName: 'delete_level',
+      label: $t('admin.system.recycleBin.deleteSource'),
+    },
+    ...buildDynamicFilterSchema(meta, activeMod),
+  ];
+}
+
+async function applyModuleChange(newMod: string) {
+  if (!newMod || syncingModule.value) return;
+  // submitOnChange 可能先于本 handler 把 module 写入表单，若此时用 getValues().module 对比会误判「未变化」而跳过列/schema 更新
+  if (lastSyncedRecycleModule.value === newMod) return;
+  syncingModule.value = true;
+  try {
+    const prevDl =
+      (await gridApi.formApi?.getValues())?.delete_level ?? 'all';
+    await gridApi.formApi?.setState({
+      schema: buildFullSchema(newMod),
+    });
+    await nextTick();
+    await gridApi.formApi?.setValues({
+      delete_level: prevDl,
+      module: newMod,
+    });
+    gridApi.setGridOptions({
+      columns: buildRecycleColumns(
+        moduleMeta.value[newMod] ?? null,
+        newMod,
+        handleActionClick,
+      ),
+    });
+    lastSyncedRecycleModule.value = newMod;
+    await syncSubmissionAndReload({ page: 1 });
+  } finally {
+    syncingModule.value = false;
+  }
+}
+
 async function loadModuleMeta() {
   try {
     const res = await getRecycleBinModulesApi();
@@ -113,211 +277,133 @@ async function loadModuleMeta() {
   }
 }
 
-async function loadSummary() {
-  summaryLoading.value = true;
+/** 仅更新条数统计；不在此 updateSchema，避免触发表单 submitOnChange 反复请求 */
+async function refreshSummaryOnly() {
   try {
     const res = await getRecycleBinSummaryApi();
     summary.value = res ?? [];
-    if (summary.value.length > 0 && !activeModule.value) {
-      activeModule.value = summary.value[0]!.module;
-    }
-    if (activeModule.value) {
-      await loadList();
-    }
   } catch {
     summary.value = [];
-  } finally {
-    summaryLoading.value = false;
   }
 }
 
-async function loadList() {
-  if (!activeModule.value) return;
-  listLoading.value = true;
-  try {
-    const params: Record<string, unknown> = {
-      'page[number]': currentPage.value,
-      'page[size]': pageSize.value,
-      sort: '-deleted_at',
-    };
-    // Get filter params from search form / 从搜索表单获取过滤参数
-    const formValues = await searchFormApi.getValues();
-    for (const [key, val] of Object.entries(formValues)) {
-      if (val !== undefined && val !== null && val !== '') {
-        params[key] = val;
-      }
-    }
-    if (deleteLevelFilter.value) {
-      params.delete_level = deleteLevelFilter.value;
-    }
-    const res = await getRecycleBinListApi(activeModule.value, params);
-    items.value = res?.items ?? [];
-    total.value = res?.total ?? 0;
-  } catch {
-    items.value = [];
-    total.value = 0;
-  } finally {
-    listLoading.value = false;
-  }
-}
-
-// ==================== Operations / 操作 ====================
-async function handleRestore(record: RecycleBinItem) {
-  try {
-    await restoreRecycleBinItemApi(activeModule.value, record.id);
-    message.success($t('common.recycleBin.restoreSuccess'));
-    await loadList();
-    await loadSummary();
-  } catch {
-    // handled by interceptor / 错误由请求拦截器处理
-  }
-}
-
-function handlePermanentDelete(record: RecycleBinItem) {
-  const meta = currentMeta.value;
-  const labelField = meta?.label_field ?? 'name';
-  const displayName = String(record[labelField] ?? record.id);
-  Modal.confirm({
-    title: $t('common.recycleBin.permanentDelete'),
-    content: $t('common.recycleBin.confirmPermanentDelete', {
-      name: displayName,
-    }),
-    okType: 'danger',
-    onOk: async () => {
-      await permanentDeleteRecycleBinItemApi(activeModule.value, record.id);
-      message.success($t('common.recycleBin.deleteSuccess'));
-      await loadList();
-      await loadSummary();
+const [Grid, gridApi] = useVbenVxeGrid({
+  formOptions: useGridSearchFormOptions(buildFullSchema('')),
+  gridOptions: {
+    cellConfig: { height: 56 },
+    columns: buildRecycleColumns(null, '', handleActionClick),
+    keepSource: true,
+    pagerConfig: { enabled: true },
+    proxyConfig: {
+      ajax: {
+        query: async ({ page }: { page: { currentPage: number; pageSize: number } }, formValues: Record<string, unknown>) => {
+          const mod = String(formValues?.module ?? '');
+          activeListModule.value = mod;
+          if (!mod) {
+            return { items: [], total: 0 };
+          }
+          const params: Record<string, unknown> = {
+            'page[number]': page.currentPage,
+            'page[size]': page.pageSize,
+            sort: '-deleted_at',
+          };
+          for (const [key, val] of Object.entries(formValues ?? {})) {
+            if (key === 'module' || key === 'delete_level') continue;
+            if (val !== undefined && val !== null && val !== '') {
+              params[key] = val;
+            }
+          }
+          const dl = formValues?.delete_level;
+          if (dl && dl !== 'all') {
+            params.delete_level = dl;
+          }
+          return getRecycleBinListApi(mod, params);
+        },
+      },
     },
-  });
-}
-
-async function handleCleanup() {
-  try {
-    await triggerRecycleBinCleanupApi(30);
-    message.success($t('admin.system.recycleBin.cleanupTriggered'));
-  } catch {
-    // handled by interceptor / 错误由请求拦截器处理
-  }
-}
-
-function handleClearModule() {
-  if (!activeModule.value) return;
-  const currentSummary = summary.value.find(
-    (s) => s.module === activeModule.value,
-  );
-  const moduleName = currentSummary?.label ?? activeModule.value;
-  Modal.confirm({
-    title: $t('admin.system.recycleBin.clearModule'),
-    content: $t('admin.system.recycleBin.clearModuleConfirm', {
-      module: moduleName,
-    }),
-    okType: 'danger',
-    onOk: async () => {
-      const res = await clearRecycleBinModuleApi(activeModule.value);
-      const count = res?.count ?? 0;
-      message.success(
-        $t('admin.system.recycleBin.clearModuleSuccess', { count }),
-      );
-      await loadSummary();
+    rowConfig: { keyField: 'id' },
+    stripe: true,
+    toolbarConfig: {
+      custom: true,
+      export: false,
+      refresh: false,
+      search: true,
+      zoom: true,
     },
-  });
-}
-
-async function onTabChange(key: number | string) {
-  activeModule.value = String(key);
-  currentPage.value = 1;
-  // Switch search Schema and reset form / 切换搜索 Schema 并重置表单
-  const schema = getModuleSearchSchema(activeModule.value);
-  await searchFormApi.setState({ schema });
-  await nextTick();
-  await searchFormApi.resetForm();
-  await loadList();
-}
-
-function onPageChange(p: number, ps: number) {
-  currentPage.value = p;
-  pageSize.value = ps;
-  loadList();
-}
-
-function onDeleteLevelChange(level: string) {
-  deleteLevelFilter.value = level;
-  currentPage.value = 1;
-  loadList();
-}
-
-// ==================== Dynamic column definitions / 动态列定义 ====================
-const columns = computed(() => {
-  const meta = currentMeta.value;
-  const cols: Record<string, unknown>[] = [];
-
-  if (meta) {
-    for (const field of meta.columns) {
-      cols.push({
-        title: getColumnLabel(field, activeModule.value),
-        dataIndex: field,
-        key: field,
-        ellipsis: true,
-      });
-    }
-    if (meta.is_tenant) {
-      cols.push({
-        title: $t('admin.system.recycleBin.tenant'),
-        dataIndex: 'tenant_name',
-        key: 'tenant_name',
-        width: 150,
-      });
-    }
-  } else {
-    cols.push({
-      title: $t('common.basicInfo'),
-      dataIndex: 'name',
-      key: 'name',
-      ellipsis: true,
-    });
-  }
-
-  cols.push(
-    {
-      title: $t('admin.system.recycleBin.deleteLevel'),
-      dataIndex: 'delete_level',
-      key: 'delete_level',
-      width: 100,
-      align: 'center' as const,
-    },
-    {
-      title: $t('common.recycleBin.deletedAt'),
-      dataIndex: 'deleted_at',
-      key: 'deleted_at',
-      width: 180,
-    },
-    {
-      title: $t('admin.common.operation'),
-      key: 'action',
-      width: 120,
-      align: 'center' as const,
-      fixed: 'right' as const,
-    },
-  );
-
-  return cols;
+  },
 });
 
-// ==================== Initialization / 初始化 ====================
-onMounted(async () => {
-  await loadModuleMeta();
-  await loadSummary();
-  // Initialize search Schema for the first module / 初始化第一个模块的搜索 Schema
-  if (activeModule.value) {
-    const schema = getModuleSearchSchema(activeModule.value);
-    await searchFormApi.setState({ schema });
+const { ExportModal, openExportModal } = useExportModal(() => gridApi?.grid);
+
+/** 同步「数据模块」下拉中的条数（summary 变化后调用） */
+async function patchModuleSelectOptions() {
+  await gridApi.formApi?.updateSchema([
+    {
+      componentProps: {
+        options: buildModuleSelectOptions(),
+      },
+      fieldName: 'module',
+    },
+  ]);
+}
+
+async function onToolbarRefresh() {
+  await refreshSummaryOnly();
+  await patchModuleSelectOptions();
+  const v = await gridApi.formApi?.getValues();
+  if (v && gridApi.formApi?.setLatestSubmissionValues) {
+    gridApi.formApi.setLatestSubmissionValues(toRaw(v));
   }
+  await gridApi.query();
+}
+
+/**
+ * 在 CrudGrid 已挂载、formApi.mount 完成后执行。
+ * 若在 v-if 隐藏表格阶段调用 setState/setValues，会无效，表现为下拉「请选择」、列表 0 条。
+ */
+async function bootstrapGridForm() {
+  const first = defaultModuleCode();
+  if (!first) return;
+  await nextTick();
+  await nextTick();
+  await gridApi.formApi?.setState({
+    schema: buildFullSchema(first),
+  });
+  await nextTick();
+  await gridApi.formApi?.setValues({
+    delete_level: 'all',
+    module: first,
+  });
+  gridApi.setGridOptions({
+    columns: buildRecycleColumns(
+      moduleMeta.value[first] ?? null,
+      first,
+      handleActionClick,
+    ),
+  });
+  lastSyncedRecycleModule.value = first;
+  await syncSubmissionAndReload();
+}
+
+onMounted(async () => {
+  try {
+    await loadModuleMeta();
+    await refreshSummaryOnly();
+  } finally {
+    configFetching.value = false;
+  }
+  if (!hasModuleConfig.value) {
+    return;
+  }
+  // 等待 v-if 切换到 Card+CrudGrid，formApi.mount 完成后再写表单
+  await nextTick();
+  await nextTick();
+  await bootstrapGridForm();
 });
 
 const cleanupPageContext = registerPageContext('admin/system/recycle-bin', () => ({
   page_key: 'admin.system.recycle-bin',
-  page_title: $t('admin.system.recycleBin.name'),
+  page_title: $t('admin.system.recycleBin.title'),
   page_data: {
     resource: '/admin/recycle-bin',
   },
@@ -325,25 +411,25 @@ const cleanupPageContext = registerPageContext('admin/system/recycle-bin', () =>
 
 const cleanupPageOps = registerPageOperations('admin.system.recycle-bin', [
   {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
     description: 'Reload the recycle bin summary and list',
-    readonly: true,
     handler: async () => {
-      await loadSummary();
-      return { success: true, message: 'Recycle bin refreshed' };
+      await onToolbarRefresh();
+      return { message: 'Recycle bin refreshed', success: true };
     },
+    label: $t('shared.pageOperation.refreshList'),
+    name: 'refresh_list',
+    readonly: true,
   },
   {
-    name: 'trigger_cleanup',
-    label: $t('shared.pageOperation.deleteRecord'),
     description: 'Trigger cleanup of expired items in recycle bin',
-    readonly: false,
     handler: async () => {
       await triggerRecycleBinCleanupApi();
-      await loadSummary();
-      return { success: true, message: 'Cleanup triggered' };
+      await onToolbarRefresh();
+      return { message: 'Cleanup triggered', success: true };
     },
+    label: $t('shared.pageOperation.deleteRecord'),
+    name: 'trigger_cleanup',
+    readonly: false,
   },
 ]);
 
@@ -354,299 +440,115 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-5">
-    <!-- ===== Hero 头部 ===== -->
-    <div
-      class="to-warning/3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-destructive/5 via-background p-6"
+  <Page
+    auto-content-height
+    content-class="flex flex-col gap-4"
+    :description="$t('admin.system.recycleBin.description')"
+  >
+    <Card
+      v-if="!configFetching && !hasModuleConfig"
+      class="flex-1"
+      :body-style="{ padding: '48px 16px' }"
     >
-      <div
-        class="relative z-10 flex flex-wrap items-center justify-between gap-4"
-      >
-        <div class="flex items-center gap-4">
-          <div
-            class="flex size-12 items-center justify-center rounded-xl bg-destructive/10"
-          >
-            <IconifyIcon
-              icon="lucide:trash-2"
-              class="size-6 text-destructive"
-            />
-          </div>
-          <div>
-            <h1 class="text-xl font-bold text-foreground">
-              {{ $t('admin.system.recycleBin.title') }}
-            </h1>
-            <p class="mt-0.5 text-sm text-muted-foreground">
-              {{ $t('admin.system.recycleBin.description') }}
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <div
-            v-if="totalDeletedCount > 0"
-            class="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5"
-          >
-            <IconifyIcon icon="lucide:archive" class="size-4 text-warning" />
-            <span class="text-sm font-medium text-warning">
-              {{
-                $t('common.recycleBin.itemCount', { count: totalDeletedCount })
-              }}
-            </span>
-          </div>
-          <Popconfirm
-            :title="$t('admin.system.recycleBin.cleanupConfirm')"
-            @confirm="handleCleanup"
-          >
-            <Button type="primary" danger class="!rounded-lg">
-              <IconifyIcon icon="lucide:flame" class="mr-1.5 size-4" />
-              {{ $t('admin.system.recycleBin.cleanup') }}
-            </Button>
-          </Popconfirm>
-        </div>
-      </div>
-      <div
-        class="absolute -right-12 -top-12 size-40 rounded-full bg-destructive/5 blur-3xl"
-      ></div>
-    </div>
+      <Empty :description="$t('admin.system.recycleBin.configUnavailable')" />
+    </Card>
 
-    <Spin :spinning="summaryLoading">
-      <!-- 空状态 -->
-      <div
-        v-if="!summaryLoading && summary.length === 0"
-        class="flex flex-col items-center justify-center gap-4 py-24"
-      >
-        <div
-          class="flex size-20 items-center justify-center rounded-2xl bg-muted"
-        >
-          <IconifyIcon
-            icon="lucide:check-circle"
-            class="size-10 text-success/50"
-          />
-        </div>
-        <div class="text-center">
-          <p class="text-sm font-medium text-foreground">
-            {{ $t('common.recycleBin.empty') }}
-          </p>
-          <p class="mt-1 text-xs text-muted-foreground">
-            {{ $t('common.recycleBin.emptyDesc') }}
-          </p>
-        </div>
-      </div>
+    <Spin v-else-if="configFetching" class="block py-24" />
 
-      <!-- ===== 主内容：左侧模块导航 + 右侧列表 ===== -->
-      <div v-else class="flex gap-5" style="min-height: 500px">
-        <!-- 左侧模块导航 -->
-        <div
-          class="flex w-56 shrink-0 flex-col gap-1 rounded-2xl border border-border/50 bg-card p-3"
-        >
-          <div
-            class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"
-          >
-            {{ $t('admin.system.recycleBin.modules') || 'Modules' }}
-          </div>
-          <button
-            v-for="mod in summary"
-            :key="mod.module"
-            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200"
-            :class="
-              activeModule === mod.module
-                ? 'bg-primary/10 text-primary shadow-sm'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            "
-            @click="onTabChange(mod.module)"
-          >
-            <div
-              class="flex size-8 shrink-0 items-center justify-center rounded-lg"
-              :class="
-                activeModule === mod.module ? 'bg-primary/15' : 'bg-muted'
-              "
-            >
-              <IconifyIcon
-                :icon="moduleIcons[mod.module] || 'lucide:box'"
-                class="size-4"
-              />
-            </div>
-            <div class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-medium">{{
-                mod.label
-              }}</span>
-            </div>
+    <Card
+      v-else
+      class="flex-1"
+      :body-style="{ padding: '16px', height: '100%' }"
+    >
+      <ExportModal />
+      <CrudGrid
+        :grid="Grid"
+        :show-export="true"
+        :on-export="openExportModal"
+        :on-refresh="onToolbarRefresh"
+      >
+        <template #toolbar-tools>
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <span
-              class="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-              :class="
-                activeModule === mod.module
-                  ? 'bg-primary/20 text-primary'
-                  : 'bg-muted text-muted-foreground'
+              v-if="totalDeletedCount > 0"
+              class="mr-1 hidden text-xs text-muted-foreground sm:inline"
+            >
+              {{
+                $t('common.recycleBin.itemCount', {
+                  count: totalDeletedCount,
+                })
+              }}
+              ·
+              {{ $t('common.recycleBin.retentionDays', { days: 30 }) }}
+            </span>
+            <Popconfirm
+              :title="$t('admin.system.recycleBin.cleanupConfirm')"
+              @confirm="handleCleanup"
+            >
+              <Button type="primary" danger size="small">
+                <IconifyIcon icon="lucide:flame" class="mr-1 size-3.5" />
+                {{ $t('admin.system.recycleBin.cleanup') }}
+              </Button>
+            </Popconfirm>
+            <Tooltip
+              :title="
+                activeModuleDeletedCount <= 0
+                  ? $t('admin.system.recycleBin.clearModuleDisabledTip')
+                  : ''
               "
             >
-              {{ mod.count }}
-            </span>
-          </button>
-        </div>
-
-        <!-- 右侧内容区 -->
-        <div class="recycle-table-wrap min-w-0 flex-1">
-          <!-- 删除层级筛选 + 提示 -->
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-1 rounded-lg border border-border/50 p-0.5">
-              <button
-                v-for="lvl in [
-                  { key: '', label: $t('admin.system.recycleBin.levelAll') },
-                  { key: 'admin', label: $t('admin.system.recycleBin.levelAdmin') },
-                  { key: 'tenant', label: $t('admin.system.recycleBin.levelTenant') },
-                ]"
-                :key="lvl.key"
-                class="rounded-md px-3 py-1 text-xs font-medium transition-all"
-                :class="deleteLevelFilter === lvl.key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                @click="onDeleteLevelChange(lvl.key)"
-              >
-                {{ lvl.label }}
-              </button>
-            </div>
-            <div class="flex shrink-0 items-center gap-3">
-              <div
-                class="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-              >
-                <IconifyIcon icon="lucide:clock" class="size-3" />
-                <span>{{
-                  $t('common.recycleBin.retentionDays', { days: 30 })
-                }}</span>
-              </div>
-              <Button
-                v-if="items.length > 0"
-                size="small"
-                danger
-                @click="handleClearModule"
-              >
-                <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3.5" />
-                {{ $t('admin.system.recycleBin.clearModule') }}
-              </Button>
-            </div>
+              <span class="inline-block">
+                <Button
+                  danger
+                  size="small"
+                  :disabled="activeModuleDeletedCount <= 0"
+                  @click="handleClearModule"
+                >
+                  <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3.5" />
+                  {{ $t('admin.system.recycleBin.clearModule') }}
+                </Button>
+              </span>
+            </Tooltip>
           </div>
+        </template>
 
-          <!-- 搜索表单 -->
-          <div class="mb-3">
-            <SearchForm />
-          </div>
-
-          <!-- 表格 -->
-          <div
-            class="overflow-hidden rounded-xl border border-border/40 bg-card"
+        <template #tenant_name_cell="{ row }">
+          <Tag
+            v-if="row.tenant_name"
+            color="blue"
+            class="!rounded-md !border-0"
           >
-            <Table
-              :columns="columns"
-              :data-source="items"
-              :loading="listLoading"
-              :pagination="{
-                current: currentPage,
-                pageSize,
-                total,
-                showSizeChanger: true,
-                size: 'small',
-                showTotal: (t: number) => `${$t('admin.common.total')} ${t}`,
-                onChange: onPageChange,
-              }"
-              row-key="id"
-              size="middle"
-              :scroll="{ x: 800 }"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'tenant_name'">
-                  <Tag
-                    v-if="record.tenant_name"
-                    color="blue"
-                    class="!rounded-md !border-0"
-                  >
-                    {{ record.tenant_name }}
-                  </Tag>
-                  <span v-else class="text-muted-foreground">—</span>
-                </template>
+            {{ row.tenant_name }}
+          </Tag>
+          <span v-else class="text-muted-foreground">—</span>
+        </template>
 
-                <template v-else-if="column.key === 'delete_level'">
-                  <span
-                    v-if="record.delete_level === 'admin'"
-                    class="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive"
-                  >
-                    <IconifyIcon icon="lucide:shield" class="size-3" />
-                    {{ $t('admin.system.recycleBin.levelAdmin') }}
-                  </span>
-                  <span
-                    v-else-if="record.delete_level === 'tenant'"
-                    class="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
-                  >
-                    <IconifyIcon icon="lucide:building-2" class="size-3" />
-                    {{ $t('admin.system.recycleBin.levelTenant') }}
-                  </span>
-                  <span v-else class="text-muted-foreground">—</span>
-                </template>
+        <template #delete_level_cell="{ row }">
+          <span
+            v-if="row.delete_level === 'admin'"
+            class="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+          >
+            <IconifyIcon icon="lucide:shield" class="size-3" />
+            {{ $t('admin.system.recycleBin.levelAdmin') }}
+          </span>
+          <span
+            v-else-if="row.delete_level === 'tenant'"
+            class="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning"
+          >
+            <IconifyIcon icon="lucide:building-2" class="size-3" />
+            {{ $t('admin.system.recycleBin.levelTenant') }}
+          </span>
+          <span v-else class="text-muted-foreground">—</span>
+        </template>
 
-                <template v-else-if="column.key === 'deleted_at'">
-                  <Tooltip :title="formatDate(record.deleted_at)">
-                    <span class="text-xs text-muted-foreground">
-                      {{ formatRelativeTime(record.deleted_at) }}
-                    </span>
-                  </Tooltip>
-                </template>
-
-                <template v-else-if="column.key === 'action'">
-                  <div class="flex items-center justify-center gap-1">
-                    <Tooltip :title="$t('common.recycleBin.restore')">
-                      <button
-                        class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                        @click="handleRestore(record as RecycleBinItem)"
-                      >
-                        <IconifyIcon icon="lucide:rotate-ccw" class="size-4" />
-                      </button>
-                    </Tooltip>
-                    <Tooltip :title="$t('common.recycleBin.permanentDelete')">
-                      <button
-                        class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        @click="handlePermanentDelete(record as RecycleBinItem)"
-                      >
-                        <IconifyIcon icon="lucide:x" class="size-4" />
-                      </button>
-                    </Tooltip>
-                  </div>
-                </template>
-              </template>
-
-              <template #emptyText>
-                <div class="flex flex-col items-center gap-3 py-12">
-                  <IconifyIcon
-                    icon="lucide:inbox"
-                    class="size-10 text-muted-foreground/30"
-                  />
-                  <span class="text-sm text-muted-foreground">{{
-                    $t('common.recycleBin.empty')
-                  }}</span>
-                </div>
-              </template>
-            </Table>
-          </div>
-        </div>
-      </div>
-    </Spin>
+        <template #deleted_at_cell="{ row }">
+          <Tooltip :title="formatDate(row.deleted_at)">
+            <span class="text-muted-foreground">{{
+              formatRelativeTime(row.deleted_at)
+            }}</span>
+          </Tooltip>
+        </template>
+      </CrudGrid>
+    </Card>
   </Page>
 </template>
-
-<style scoped>
-.recycle-table-wrap :deep(.ant-table-thead > tr > th) {
-  padding: 10px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--ant-color-bg-layout);
-}
-
-.recycle-table-wrap :deep(.ant-table-tbody > tr > td) {
-  padding: 10px 12px;
-  font-size: 13px;
-}
-
-.recycle-table-wrap :deep(.ant-table-tbody > tr:hover > td) {
-  background: hsl(var(--primary) / 3%);
-}
-
-.recycle-table-wrap :deep(.ant-pagination) {
-  padding: 10px 12px;
-  margin: 0;
-}
-</style>

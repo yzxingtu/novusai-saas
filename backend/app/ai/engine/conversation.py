@@ -19,12 +19,14 @@ from fastapi.responses import StreamingResponse
 from app.ai.adapters import AdapterRegistry
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatChunk, ChatMessage, messages_to_dicts
+from app.ai.usage_recorder import UsageRecorder
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
-from app.enums.ai import RequestTypeEnum
+from app.enums.ai import CallStatusEnum, RequestTypeEnum
 from app.models.ai.agent import Agent
 from app.services.ai.metering_service import CostCalculator, TokenCounter
 
-from .base import BaseEngine
+from .base import BaseEngine, log_user_type_for_call_log
 from .stream_handler import StreamExecutionHandler
 from .types import ExecutionRequest, ExecutionResult
 
@@ -92,7 +94,9 @@ class ConversationEngine(BaseEngine):
                 tools=tools or None,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                conversation_id=request.conversation_id,
                 route_result=prep.route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
             )
 
             total_tokens = response.total_tokens or 0
@@ -120,6 +124,9 @@ class ConversationEngine(BaseEngine):
                 messages.append(ChatMessage(role="assistant", content=output))
 
             duration_ms = int((time.perf_counter() - start) * 1000)
+            runtime_info = dict(getattr(response, "metadata", {}) or {}).get(
+                "runtime_model_info", {}
+            )
 
             result = ExecutionResult(
                 success=True,
@@ -129,6 +136,10 @@ class ConversationEngine(BaseEngine):
                 total_tokens=total_tokens,
                 duration_ms=duration_ms,
                 conversation_id=request.conversation_id,
+                runtime_model_id=runtime_info.get("model_id"),
+                runtime_model_name=runtime_info.get("model_name"),
+                runtime_provider_id=runtime_info.get("provider_id"),
+                runtime_provider_name=runtime_info.get("provider_name"),
             )
             # Attach RAG reference sources / 附加 RAG 引用来源
             if rag_sources:
@@ -218,8 +229,11 @@ class ConversationEngine(BaseEngine):
         agent: Agent,
         messages: list[ChatMessage],
         tenant_id: int | None = None,
+        conversation_id: int | None = None,
         route_result: Any | None = None,
         tools: list[ToolDefinition] | None = None,
+        user_id: int | None = None,
+        log_user_type: str | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         Get streaming ChatChunk via adapter (with rate limiting/quota/metering protection).
@@ -236,27 +250,45 @@ class ConversationEngine(BaseEngine):
             tenant_id: Tenant ID (for API Key retrieval) / 企业 ID
             route_result: ModelRouter route result (affects provider/model selection) / ModelRouter 路由结果
             tools: Tool definition list (for Function Calling) / 工具定义列表
+            user_id: Caller user id for ai_call_logs / 调用人 ID
+            log_user_type: Explicit call_log user_type / 调用日志用户类型
 
         Yields:
             ChatChunk
         """
-        # Route override takes priority / 路由覆写优先
+        stream_start = time.perf_counter()
+
+        # Route override takes priority / 路由覆写优先（与 BaseEngine._call_llm 对齐）
         if route_result is not None and getattr(route_result, "is_overridden", False):
             provider_code: str = route_result.provider_code or ""
             model_code: str = route_result.model_code or ""
-            reason_str: str = route_result.reason or ""
-            is_vision: bool = "vision" in reason_str
-            is_audio: bool = "audio" in reason_str
-            is_video: bool = "video" in reason_str
+            routed_mid = int(getattr(route_result, "model_id", 0) or 0)
+            route_model_obj = None
+            if routed_mid:
+                from app.repositories.ai.model_repository import AIModelRepository
+
+                route_model_obj = await AIModelRepository(self.db).get_active_with_provider(
+                    routed_mid,
+                )
+            if route_model_obj is not None:
+                ai_model = route_model_obj
+                is_vision = bool(route_model_obj.supports_vision)
+                is_audio = bool(getattr(route_model_obj, "supports_audio", False))
+                is_video = bool(getattr(route_model_obj, "supports_video", False))
+            else:
+                ai_model = agent.model
+                reason_str: str = route_result.reason or ""
+                is_vision = "vision" in reason_str
+                is_audio = "audio" in reason_str
+                is_video = "video" in reason_str
         else:
-            model_obj = agent.model
-            provider_code = (
-                model_obj.provider.code if model_obj and model_obj.provider else ""
-            )
-            model_code = model_obj.code if model_obj else ""
-            is_vision = model_obj.supports_vision if model_obj else False
-            is_audio = getattr(model_obj, "supports_audio", False) if model_obj else False
-            is_video = getattr(model_obj, "supports_video", False) if model_obj else False
+            mobj = agent.model
+            ai_model = mobj
+            provider_code = mobj.provider.code if mobj and mobj.provider else ""
+            model_code = mobj.code if mobj else ""
+            is_vision = mobj.supports_vision if mobj else False
+            is_audio = getattr(mobj, "supports_audio", False) if mobj else False
+            is_video = getattr(mobj, "supports_video", False) if mobj else False
 
         # Non-capability model: remove corresponding attachments to avoid API errors
         # 无对应能力的模型：移除对应附件，避免 API 报错
@@ -273,18 +305,18 @@ class ConversationEngine(BaseEngine):
                 ]
                 msg.attachments = kept if kept else None
 
-        # Keep model_obj reference for backward compatibility with rate limiting/quota logic / 为了兼容现有限流/配额逻辑，保留 model_obj 引用
-        model_obj = agent.model
-
         # Get provider and API Key via gateway / 通过 gateway 获取 provider 和 API Key
         provider, api_key = await self.gateway.get_provider_and_key(
             provider_code, tenant_id,
         )
-        ai_model = model_obj
 
         # Rate limiting + quota check (reuse gateway unified method) / 限流 + 配额检查（复用 gateway 统一方法）
         estimated_input = 0
-        if tenant_id and ai_model:
+        should_meter_usage = (
+            tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+        )
+        should_record_call_log = tenant_id is not None
+        if should_meter_usage and ai_model:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
@@ -305,6 +337,21 @@ class ConversationEngine(BaseEngine):
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
+        runtime_info = {
+            "provider_id": provider.id,
+            "provider_name": (
+                getattr(provider, "name", None)
+                or getattr(provider, "code", None)
+                or f"Provider #{provider.id}"
+            ),
+            "model_id": ai_model.id if ai_model else None,
+            "model_name": (
+                (getattr(ai_model, "name", None) or model_code)
+                if ai_model
+                else None
+            ),
+            "model_code": model_code,
+        }
 
         if not supports_streaming:
             logger.info(
@@ -333,6 +380,7 @@ class ConversationEngine(BaseEngine):
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 tool_calls=response.tool_calls,
+                metadata={"runtime_model_info": runtime_info},
             )
         else:
             async for chunk in adapter.stream_chat(
@@ -352,11 +400,22 @@ class ConversationEngine(BaseEngine):
                     input_tokens = chunk.input_tokens
                 if chunk.output_tokens is not None:
                     output_tokens = chunk.output_tokens
+                chunk.metadata = dict(chunk.metadata or {})
+                chunk.metadata.setdefault("runtime_model_info", runtime_info)
                 yield chunk
 
-        # After stream ends: adjust TPM and quota (reuse gateway unified method) / 流结束后：调整 TPM 和配额（复用 gateway 统一方法）
-        if tenant_id and ai_model and estimated_input > 0:
-            cost = CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
+        # 流结束后：与 gateway.chat 一致 — 先租户计量再 Key；日志 best-effort
+        latency_ms = int((time.perf_counter() - stream_start) * 1000)
+        resolved_log_type = UsageRecorder._resolve_call_user_type(tenant_id, log_user_type)
+
+        cost = (
+            CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens)
+            if ai_model
+            else 0.0
+        )
+
+        if should_meter_usage and ai_model and estimated_input > 0:
+            assert tenant_id is not None
             await self.gateway.usage_recorder.record_usage_and_adjust(
                 tenant_id=tenant_id,
                 model_id=ai_model.id,
@@ -366,8 +425,58 @@ class ConversationEngine(BaseEngine):
                 total_tokens=total_tokens,
                 cost=cost,
                 estimated_input=estimated_input,
-                latency_ms=0,
+                latency_ms=latency_ms,
+                user_id=user_id,
             )
+
+        api_key.increment_usage()
+        await self.db.flush()
+
+        if should_record_call_log and ai_model:
+            try:
+                assert tenant_id is not None
+                await self.gateway.usage_recorder.call_log_service.log_call_async(
+                    tenant_id=tenant_id,
+                    model_id=ai_model.id,
+                    provider_id=provider.id,
+                    request_type=RequestTypeEnum.CHAT.value,
+                    request_data={
+                        "_stream": True,
+                        "messages": messages_to_dicts(messages),
+                        "temperature": agent.temperature,
+                        "max_tokens": agent.max_tokens,
+                        "top_p": agent.top_p or 1.0,
+                        "tools": openai_tools,
+                    },
+                    response_data={
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "total_tokens": total_tokens,
+                        "model": model_code,
+                    },
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
+                    latency_ms=latency_ms,
+                    status=CallStatusEnum.SUCCESS.value,
+                    user_id=user_id,
+                    user_type=resolved_log_type,
+                    agent_id=getattr(agent, "id", None),
+                    conversation_id=conversation_id,
+                    routed_model_id=(
+                        int(getattr(route_result, "model_id", 0) or 0)
+                        if route_result is not None and getattr(route_result, "is_overridden", False)
+                        else None
+                    ),
+                    route_reason=(
+                        route_result.reason
+                        if route_result is not None and getattr(route_result, "is_overridden", False)
+                        else None
+                    ),
+                )
+            except Exception as log_exc:
+                logger.error("Engine stream call log failed: {}", str(log_exc))
 
 
 __all__ = ["ConversationEngine"]

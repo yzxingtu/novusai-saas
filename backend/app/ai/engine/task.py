@@ -13,7 +13,7 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.models.ai.agent import Agent
 
-from .base import BaseEngine
+from .base import BaseEngine, log_user_type_for_call_log
 from .types import ExecutionRequest, ExecutionResult
 
 logger = LogManager.get_logger("ai.engine.task")
@@ -77,6 +77,7 @@ class TaskEngine(BaseEngine):
                 tools=tools or None,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                log_user_type=log_user_type_for_call_log(request.user_role),
             )
 
             total_tokens = response.total_tokens or 0

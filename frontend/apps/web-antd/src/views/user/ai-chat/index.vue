@@ -31,6 +31,7 @@ import {
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { $t } from '#/locales';
+import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getFileIcon } from '#/utils/file';
 
 defineOptions({ name: 'UserAIChat' });
@@ -275,21 +276,21 @@ function onClearMemory() {
 
 // ============ Welcome & Suggested Questions ============
 
+const starterAgent = computed(
+  () => mentionedAgent.value ?? selectedAgent.value ?? null,
+);
+
 const effectiveWelcomeMessage = computed(
-  () => selectedAgent.value?.welcome_message || '',
+  () => starterAgent.value?.welcome_message || '',
 );
 
 const effectiveSuggestedQuestions = computed<string[]>(() => {
-  const raw = selectedAgent.value?.suggested_questions;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (q): q is string => typeof q === 'string' && q.trim() !== '',
-  );
+  return normalizeStarterQuestions(starterAgent.value?.suggested_questions);
 });
 
 function askSuggested(question: string) {
   inputMessage.value = question;
-  sendMessage();
+  handleSendClick();
 }
 
 // ============ Image Preview ============

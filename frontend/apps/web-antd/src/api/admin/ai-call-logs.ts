@@ -14,6 +14,8 @@ import { requestClient } from '#/utils/request';
 export interface AICallLogInfo {
   id: number;
   tenant_id: null | number;
+  agent_id?: null | number;
+  conversation_id?: null | number;
   model_id: null | number;
   provider_id: null | number;
   request_type: string;
@@ -32,6 +34,7 @@ export interface AICallLogInfo {
   provider_name?: null | string;
   provider_icon?: null | string;
   tenant_name?: null | string;
+  caller_name?: null | string;
   // Routing fields (multi-model routing) / 路由字段（多模型路由）
   routed_model_id?: null | number;
   route_reason?: null | string;

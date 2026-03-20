@@ -23,9 +23,11 @@ from app.ai.types import (
     ChatResponse,
     messages_to_dicts,
 )
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.ai import CallStatusEnum, RequestTypeEnum, UserTypeEnum
+from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.services.ai.call_log_service import CallLogService
 from app.services.ai.metering_service import MeteringService
@@ -50,6 +52,27 @@ class UsageRecorder:
         self.metering = MeteringService(db)
         self.quota_manager = QuotaManager(db)
         self.call_log_service = CallLogService(db)
+
+    @staticmethod
+    def _should_meter_usage(tenant_id: int | None) -> bool:
+        return tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+
+    @staticmethod
+    def _should_record_call_log(tenant_id: int | None) -> bool:
+        return tenant_id is not None
+
+    @staticmethod
+    def _resolve_call_user_type(
+        tenant_id: int | None,
+        user_type: str | None = None,
+    ) -> str | None:
+        if user_type:
+            return user_type
+        if tenant_id is None:
+            return None
+        if tenant_id == PLATFORM_TENANT_ID:
+            return LogUserTypeEnum.ADMIN.value
+        return LogUserTypeEnum.TENANT_ADMIN.value
 
     async def check_rate_and_quota(
         self,
@@ -162,14 +185,20 @@ class UsageRecorder:
         request_type: str,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
     ) -> None:
         """
         记录失败调用日志到 DB（用于审计追踪）/ Log failed call to DB (for audit trail).
         """
         _ = model
-        if not tenant_id:
+        if not self._should_record_call_log(tenant_id):
             return
         try:
+            assert tenant_id is not None
             latency_ms = int((time.time() - start_time) * 1000)
             request_data = {
                 "messages": messages_to_dicts(messages),
@@ -192,7 +221,11 @@ class UsageRecorder:
                 latency_ms=latency_ms,
                 status=CallStatusEnum.FAILED.value,
                 user_id=user_id,
-                user_type=UserTypeEnum.TENANT_ADMIN.value,
+                user_type=self._resolve_call_user_type(tenant_id, user_type),
+                agent_id=agent_id,
+                conversation_id=conversation_id,
+                routed_model_id=routed_model_id,
+                route_reason=route_reason,
             )
         except Exception as log_err:
             logger.error("Record usage failed: {}", str(log_err))
@@ -208,9 +241,14 @@ class UsageRecorder:
         cost: float = 0,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
         model_id: int = 0,
         estimated_input: int = 0,
         latency_ms: int = 0,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
     ) -> None:
         """
         流式响应完成回调 / Stream response completion callback.
@@ -218,26 +256,30 @@ class UsageRecorder:
         Records logs, updates usage stats, adjusts TPM/quota.
         记录日志、更新使用统计、调整 TPM/配额。
         """
-        # Update API Key usage count / 更新 API Key 使用计数
+        should_meter_usage = self._should_meter_usage(tenant_id)
+        should_record_call_log = self._should_record_call_log(tenant_id)
+
+        # 与 gateway.chat 一致：先租户计量（失败则不增加 Key），再 Key；Celery 日志 best-effort
+        if should_meter_usage:
+            assert tenant_id is not None
+            await self.record_usage_and_adjust(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                request_type=RequestTypeEnum.CHAT.value,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                cost=cost,
+                estimated_input=estimated_input,
+                latency_ms=latency_ms,
+                user_id=user_id,
+            )
+
         api_key.increment_usage()
 
-        # Record usage (if tenant_id is provided) / 记录使用量（如果提供了 tenant_id）
-        if tenant_id:
+        if should_record_call_log:
             try:
-                await self.record_usage_and_adjust(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    request_type=RequestTypeEnum.CHAT.value,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    estimated_input=estimated_input,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                )
-
-                # Async record call log / 异步记录调用日志
+                assert tenant_id is not None
                 await self.call_log_service.log_call_async(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -256,11 +298,14 @@ class UsageRecorder:
                     latency_ms=latency_ms,
                     status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
-                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                    user_type=self._resolve_call_user_type(tenant_id, user_type),
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
+                    routed_model_id=routed_model_id,
+                    route_reason=route_reason,
                 )
-
             except Exception as e:
-                logger.error("Stream usage recording failed: {}", str(e))
+                logger.error("AI call log enqueue failed: {}", str(e))
 
         await self.db.commit()
 

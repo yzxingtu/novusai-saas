@@ -28,6 +28,8 @@ import {
 import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
 import { $t } from '#/locales';
 
+import { displayTenantUserRoleName } from '../display-role';
+
 const props = defineProps<{
   open: boolean;
   role: TenantUserRoleInfo | null;
@@ -68,7 +70,7 @@ interface TreeNode {
 
 const drawerTitle = computed(() => {
   if (!props.role) return $t('tenant.system.userRole.assignPermissions');
-  return `${$t('tenant.system.userRole.assignPermissions')} - ${props.role.name}`;
+  return `${$t('tenant.system.userRole.assignPermissions')} - ${displayTenantUserRoleName(props.role, $t)}`;
 });
 
 // ============================================================

@@ -334,20 +334,7 @@ export function getPluginAIFeaturesApi(id: number) {
   );
 }
 
-/** Bind plugin AI feature / 绑定插件 AI 功能 */
-export function bindPluginAIFeatureApi(
-  id: number,
-  assignmentId: number,
-  agentId: null | number,
-) {
-  return requestClient.put(
-    `${BASE_URL}/${id}/ai-features/${assignmentId}`,
-    {},
-    {
-      params: { agent_id: agentId },
-    },
-  );
-}
+// 插件 AI 绑定统一到「AI 功能分配」页；后端已移除 PUT /ai-features/:id
 
 // ── License ──
 

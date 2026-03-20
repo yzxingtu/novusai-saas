@@ -156,6 +156,13 @@ class ProviderApiKey(BaseModel):
         """
         return decrypt_data(self.encrypted_key)
 
+    def mark_last_used(self) -> None:
+        """
+        仅刷新最近使用时间（不增加 usage_count）。
+        For cache hits etc. where no upstream provider call occurred.
+        """
+        self.last_used_at = utc_now()
+
     def increment_usage(self) -> None:
         """增加使用次数 / Increment usage count."""
         self.usage_count += 1

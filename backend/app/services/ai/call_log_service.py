@@ -140,6 +140,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         error_message: str | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
     ) -> AICallLog:
         """
         记录调用日志 / Record call log.
@@ -160,6 +164,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             error_message: 错误信息
             user_id: 用户 ID
             user_type: 用户类型
+            agent_id: 智能体 ID
+            conversation_id: 对话 ID
+            routed_model_id: 路由后模型 ID
+            route_reason: 路由原因
 
         Returns:
             AICallLog 实例
@@ -179,6 +187,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             tenant_id=tenant_id,
             user_id=user_id,
             user_type=user_type,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
             provider_id=provider_id,
             model_id=model_id,
             request_type=request_type,
@@ -194,7 +204,13 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
                 "request": sanitized_request,
                 "response": truncated_response,
                 "timestamp": utc_now().isoformat(),
+                "agent_id": agent_id,
+                "conversation_id": conversation_id,
+                "routed_model_id": routed_model_id,
+                "route_reason": route_reason,
             },
+            routed_model_id=routed_model_id,
+            route_reason=route_reason,
         )
 
         self.db.add(call_log)
@@ -269,6 +285,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         error_message: str | None = None,
         user_id: int | None = None,
         user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
     ):
         """
         异步记录调用日志 (通过 Celery) / Record call log asynchronously via Celery.
@@ -295,6 +315,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             error_message=error_message,
             user_id=user_id,
             user_type=user_type,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
+            routed_model_id=routed_model_id,
+            route_reason=route_reason,
         )
 
         logger.debug(

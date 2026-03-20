@@ -85,6 +85,7 @@ class TenantAIGatewayController(TenantController):
                     tools=tools,
                     tenant_id=tenant_admin.tenant_id,
                     user_id=tenant_admin.id,
+                    user_type="tenant_admin",
                 )
                 return success(data=response.__dict__, message=_("common.success"))
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -124,6 +125,7 @@ class TenantAIGatewayController(TenantController):
                     tools=tools,
                     tenant_id=tenant_admin.tenant_id,
                     user_id=tenant_admin.id,
+                    user_type="tenant_admin",
                 )
                 return response
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
@@ -153,6 +155,8 @@ class TenantAIGatewayController(TenantController):
                     texts=body.texts,
                     model=model,
                     tenant_id=tenant_admin.tenant_id,
+                    user_id=tenant_admin.id,
+                    user_type="tenant_admin",
                 )
                 return success(data=response.__dict__, message=_("common.success"))
             except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):

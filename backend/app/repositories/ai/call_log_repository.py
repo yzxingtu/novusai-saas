@@ -4,19 +4,51 @@ AI 调用日志 Repository / AI Call Log Repository
 提供调用日志查询、统计和分析功能 / Provides AI call log query, statistics and analysis functions
 """
 
-from datetime import date
+from datetime import date, datetime, timezone as dt_timezone
 
 from sqlalchemy import case, func, select
 
 from app.core.base_repository import BaseRepository
 from app.core.logging import LogManager
+from app.schemas.common.query import FilterRule
 from app.enums.ai import CallStatusEnum
+from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AICallLog
 from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
+from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
+from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.tenant.tenant_user import TenantUser
 
 logger = LogManager.get_logger("ai.call_log")
+
+
+def _display_name(nickname: str | None, username: str | None, fallback: str) -> str:
+    if nickname and str(nickname).strip():
+        return str(nickname).strip()
+    if username and str(username).strip():
+        return str(username).strip()
+    return fallback
+
+
+def _datetime_to_iso_utc_str(value: object) -> object:
+    """
+    与 BaseSchema 一致：DB naive UTC → 带时区 ISO，避免 JSON 输出无后缀时被浏览器当作本地时间解析。
+    Align with BaseSchema: naive UTC → timezone-aware ISO for correct browser local display.
+    """
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=dt_timezone.utc).isoformat()
+        return value.isoformat()
+    return value
+
+
+def _normalize_call_log_dict_datetimes(d: dict) -> None:
+    """就地规范化 API 中的时间字段 / Normalize datetime fields in-place for JSON API."""
+    for key in ("created_at", "updated_at", "deleted_at"):
+        if key in d:
+            d[key] = _datetime_to_iso_utc_str(d[key])
 
 
 class AICallLogRepository(BaseRepository[AICallLog]):
@@ -25,23 +57,29 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     """
     model = AICallLog
 
-    async def query_list_with_names(self, spec) -> tuple[list[dict], int]:
+    async def enrich_logs_to_dicts(
+        self,
+        items: list[AICallLog],
+        *,
+        include_tenant_names: bool = True,
+        include_caller_names: bool = False,
+        include_payload: bool = False,
+    ) -> list[dict]:
         """
-        查询调用日志列表，附带 model_name / provider_name / tenant_name / Query call log list with names.
-
-        通过批量查 ID→Name 映射，避免逐行 JOIN 性能问题
+        将 ORM 列表转为 dict，并批量填充 model/provider/tenant/caller 展示字段。
         """
-        items, total = await self.query_list(spec)
-
         if not items:
-            return [], total
+            return []
 
-        # 收集所有关联 ID
-        model_ids = {i.model_id for i in items if i.model_id}
+        model_ids = {
+            model_id
+            for item in items
+            for model_id in (item.model_id, item.routed_model_id)
+            if model_id
+        }
         provider_ids = {i.provider_id for i in items if i.provider_id}
-        tenant_ids = {i.tenant_id for i in items if i.tenant_id}
+        tenant_ids = {i.tenant_id for i in items if i.tenant_id is not None}
 
-        # 批量查映射
         model_map: dict[int, str] = {}
         if model_ids:
             rows = (await self.db.execute(
@@ -53,20 +91,74 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         provider_icon_map: dict[int, str | None] = {}
         if provider_ids:
             rows = (await self.db.execute(
-                select(AIProvider.id, AIProvider.name, AIProvider.icon).where(AIProvider.id.in_(provider_ids))
+                select(AIProvider.id, AIProvider.name, AIProvider.icon).where(
+                    AIProvider.id.in_(provider_ids)
+                )
             )).all()
             provider_map = {r.id: r.name for r in rows}
             provider_icon_map = {r.id: r.icon for r in rows}
 
         tenant_map: dict[int, str] = {}
-        if tenant_ids:
+        if include_tenant_names and tenant_ids:
             rows = (await self.db.execute(
                 select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
             )).all()
             tenant_map = {r.id: r.name for r in rows}
 
-        # 组装结果
-        result = []
+        tenant_admin_ids: set[int] = set()
+        tenant_user_ids: set[int] = set()
+        platform_admin_ids: set[int] = set()
+        if include_caller_names:
+            for i in items:
+                if not i.user_id:
+                    continue
+                ut = i.user_type
+                if ut == LogUserTypeEnum.TENANT_ADMIN.value:
+                    tenant_admin_ids.add(i.user_id)
+                elif ut == LogUserTypeEnum.TENANT_USER.value:
+                    tenant_user_ids.add(i.user_id)
+                elif ut == LogUserTypeEnum.ADMIN.value:
+                    platform_admin_ids.add(i.user_id)
+
+        tenant_admin_display: dict[int, str] = {}
+        if tenant_admin_ids:
+            rows = (await self.db.execute(
+                select(TenantAdmin.id, TenantAdmin.username, TenantAdmin.nickname).where(
+                    TenantAdmin.id.in_(tenant_admin_ids)
+                )
+            )).all()
+            for r in rows:
+                tenant_admin_display[r.id] = _display_name(
+                    r.nickname, r.username, f"#{r.id}",
+                )
+
+        tenant_user_display: dict[int, str] = {}
+        if tenant_user_ids:
+            rows = (await self.db.execute(
+                select(TenantUser.id, TenantUser.username, TenantUser.nickname, TenantUser.email).where(
+                    TenantUser.id.in_(tenant_user_ids)
+                )
+            )).all()
+            for r in rows:
+                tenant_user_display[r.id] = _display_name(
+                    r.nickname,
+                    r.username,
+                    (r.email or f"#{r.id}"),
+                )
+
+        platform_admin_display: dict[int, str] = {}
+        if platform_admin_ids:
+            rows = (await self.db.execute(
+                select(Admin.id, Admin.username, Admin.nickname).where(
+                    Admin.id.in_(platform_admin_ids)
+                )
+            )).all()
+            for r in rows:
+                platform_admin_display[r.id] = _display_name(
+                    r.nickname, r.username, f"#{r.id}",
+                )
+
+        result: list[dict] = []
         for item in items:
             d = item.to_dict() if hasattr(item, "to_dict") else {
                 "id": item.id,
@@ -88,9 +180,67 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             d["model_name"] = model_map.get(item.model_id, "-")
             d["provider_name"] = provider_map.get(item.provider_id, "-")
             d["provider_icon"] = provider_icon_map.get(item.provider_id)
-            d["tenant_name"] = tenant_map.get(item.tenant_id, "-")
+            d["routed_model_name"] = model_map.get(item.routed_model_id, "-")
+            if include_tenant_names:
+                d["tenant_name"] = tenant_map.get(item.tenant_id, "-")
+
+            caller = "-"
+            if include_caller_names and item.user_id:
+                ut = item.user_type
+                uid = item.user_id
+                if ut == LogUserTypeEnum.TENANT_ADMIN.value:
+                    caller = tenant_admin_display.get(uid, f"ID:{uid}")
+                elif ut == LogUserTypeEnum.TENANT_USER.value:
+                    caller = tenant_user_display.get(uid, f"ID:{uid}")
+                elif ut == LogUserTypeEnum.ADMIN.value:
+                    caller = platform_admin_display.get(uid, f"ID:{uid}")
+                else:
+                    caller = f"ID:{uid}"
+            d["caller_name"] = caller
+
+            metadata = (
+                item.request_metadata
+                if isinstance(item.request_metadata, dict)
+                else {}
+            )
+            d.pop("request_metadata", None)
+            if not d.get("routed_model_id"):
+                d["routed_model_id"] = metadata.get("routed_model_id")
+            if not d.get("route_reason"):
+                d["route_reason"] = metadata.get("route_reason")
+            if include_payload:
+                d["request_data"] = metadata.get("request")
+                d["response_data"] = metadata.get("response")
+
+            _normalize_call_log_dict_datetimes(d)
+
             result.append(d)
 
+        return result
+
+    async def query_list_with_names(
+        self,
+        spec,
+        *,
+        forced_filters: list[FilterRule] | None = None,
+        include_tenant_names: bool = True,
+        include_caller_names: bool = False,
+    ) -> tuple[list[dict], int]:
+        """
+        查询调用日志列表，附带 model_name / provider_name / tenant_name / Query call log list with names.
+
+        通过批量查 ID→Name 映射，避免逐行 JOIN 性能问题
+        """
+        items, total = await self.query_list(spec, forced_filters=forced_filters)
+        if not items:
+            return [], total
+
+        result = await self.enrich_logs_to_dicts(
+            items,
+            include_tenant_names=include_tenant_names,
+            include_caller_names=include_caller_names,
+            include_payload=False,
+        )
         return result, total
 
     async def get_statistics(
@@ -146,7 +296,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         stmt = select(*select_columns)
 
         # 企业筛选
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
         # 日期筛选
@@ -206,7 +356,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             AICallLog.status == CallStatusEnum.SUCCESS.value,
         )
 
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
         # 按创建时间倒序,获取最新的匹配记录
@@ -234,7 +384,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         """
         stmt = select(AICallLog)
 
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
         stmt = stmt.order_by(AICallLog.created_at.desc())
@@ -264,7 +414,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             AICallLog.status == CallStatusEnum.FAILED.value
         )
 
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
         if start_date:
@@ -301,7 +451,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             )).label("failed_calls"),
         )
 
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
         if start_date:
             stmt = stmt.where(AICallLog.created_at >= start_date)

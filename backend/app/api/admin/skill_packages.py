@@ -336,10 +336,8 @@ class AdminSkillPackageController(GlobalController):
                 file=file,
                 package_service=service,
                 skill_service=skill_svc,
-                scope=ResourceScopeEnum.ADMIN_ONLY.value,
                 tenant_id=None,
                 is_system=is_system,
-                source_plugin=True,
             )
             await db.commit()
 

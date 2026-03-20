@@ -22,6 +22,7 @@ import { preferences } from '@vben/preferences';
 
 
 import {
+  Alert,
   Button,
   Collapse,
   CollapsePanel,
@@ -117,6 +118,18 @@ const needsTenantAssignment = computed(() => {
     (plugin.value.manifest as Record<string, unknown>)?.scope;
   return scopeNeedsAssignment(String(scope || ''));
 });
+
+/** 插件声明了 AI 功能（需在「AI 功能分配」统一绑定）/ Plugin declares AI features */
+const pluginHasAiFeatures = computed(() => {
+  const ar = plugin.value?.ai_requirements;
+  if (!ar || typeof ar !== 'object') return false;
+  const features = (ar as { features?: unknown }).features;
+  return Array.isArray(features) && features.length > 0;
+});
+
+function goToAgentAssignments() {
+  router.push('/admin/ai/agent-assignments');
+}
 
 const assignedTenantIds = computed(
   () => new Set(tenantAssignments.value.map((a) => a.tenant_id)),
@@ -717,6 +730,23 @@ defineExpose({ open });
           }}</code>
         </DescriptionsItem>
       </Descriptions>
+
+      <!-- AI 功能：统一在「AI 功能分配」绑定 / AI features: bind only via Feature Assignment -->
+      <Alert v-if="pluginHasAiFeatures" type="info" show-icon class="mb-6">
+        <template #message>
+          {{ $t('admin.plugin.aiAssignment.hintTitle') }}
+        </template>
+        <template #description>
+          <div class="space-y-2">
+            <p class="mb-0 text-sm">
+              {{ $t('admin.plugin.aiAssignment.hintDesc') }}
+            </p>
+            <Button size="small" type="primary" @click="goToAgentAssignments">
+              {{ $t('admin.plugin.aiAssignment.goButton') }}
+            </Button>
+          </div>
+        </template>
+      </Alert>
 
       <!-- README document (collapsible) / README 文档（可折叠） -->
       <div v-if="plugin.readme" class="mb-6">

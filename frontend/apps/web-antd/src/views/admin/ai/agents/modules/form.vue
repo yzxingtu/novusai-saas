@@ -26,6 +26,10 @@ import { getRecommendedSkillPackagesApi } from '#/api/admin/skill-packages';
 import { extractScopePayload } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+import {
+  formatStarterQuestionsInput,
+  parseStarterQuestionsInput,
+} from '#/utils/ai-starter-questions';
 import { getScopeColor } from '#/utils/scope-helpers';
 import { getAudienceColor } from '#/views/admin/ai/skill-packages/data';
 
@@ -61,18 +65,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
     schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value, !edit),
     defaults: getFormDefaults,
     transform: (values, edit) => {
-      // suggested_questions: JSON string → array (same format as tenant)
-      const sqText = (values.suggested_questions as string || '').trim();
-      let sqArray: string[] | null = null;
-      if (sqText && sqText !== '[]') {
-        try {
-          const parsed = JSON.parse(sqText);
-          sqArray = Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
-        } catch {
-          // fallback: treat as single question
-          sqArray = sqText ? [sqText] : null;
-        }
-      }
+      const sqArray = parseStarterQuestionsInput(
+        values.suggested_questions as string | undefined,
+      );
 
       const result: Record<string, unknown> = {
         avatar: values.avatar || null,
@@ -109,9 +104,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         max_tokens: data.max_tokens,
         top_p: data.top_p,
         welcome_message: data.welcome_message || '',
-        suggested_questions: Array.isArray(data.suggested_questions) && data.suggested_questions.length > 0
-          ? JSON.stringify(data.suggested_questions, null, 2)
-          : '',
+        suggested_questions: formatStarterQuestionsInput(
+          data.suggested_questions as null | unknown[],
+        ),
       };
     },
     afterOpen: () => {

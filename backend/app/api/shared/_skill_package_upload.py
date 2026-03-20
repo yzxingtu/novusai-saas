@@ -3,8 +3,8 @@
 
 admin/tenant 两端 upload_skill_package 的公共流程提取，
 Common upload flow extracted from admin/tenant upload_skill_package,
-通过参数区分端（scope / tenant_id / is_system / service 类型）。
-differentiated by parameters (scope / tenant_id / is_system / service type).
+通过参数区分端（tenant_id / is_system / service 类型）。
+differentiated by parameters (tenant_id / is_system / service type).
 """
 
 from __future__ import annotations
@@ -33,10 +33,8 @@ async def process_skill_package_upload(
     file: UploadFile,
     package_service: BaseService,
     skill_service: BaseService,
-    scope: str,
     tenant_id: int | None,
     is_system: bool = False,
-    source_plugin: bool = False,
 ) -> tuple[Any, str, str]:
     """
     处理技能包 ZIP 上传的公共流程。
@@ -47,10 +45,8 @@ async def process_skill_package_upload(
         file: 上传的 ZIP 文件 / Uploaded ZIP file
         package_service: 已实例化的 SkillPackageService（admin 或 tenant） / Instantiated SkillPackageService (admin or tenant)
         skill_service: 已实例化的 SkillService（admin 或 tenant） / Instantiated SkillService (admin or tenant)
-        scope: 资源范围 / Resource scope ("admin" / "tenant")
         tenant_id: 企业 ID（admin 端为 None） / Tenant ID (None for admin)
         is_system: 是否系统包（仅 admin 端使用） / Whether system package (admin only)
-        source_plugin: 是否设置 source_plugin 字段 / Whether to set source_plugin field
 
     Returns:
         (pkg, skill_name, skill_version) 元组 / tuple
@@ -128,13 +124,12 @@ async def process_skill_package_upload(
             "name": skill_name,
             "description": skill_desc,
             "avatar": skill_icon,
-            "scope": scope,
             "is_system": is_system,
             "is_active": True,
             "valves_schema": valves_schema,
         }
-        if tenant_id is None:
-            pkg_data["tenant_id"] = None
+        if tenant_id is not None:
+            pkg_data["tenant_id"] = tenant_id
 
         pkg = await package_service.create(pkg_data)
         await db.flush()
@@ -149,10 +144,6 @@ async def process_skill_package_upload(
                 server_dir, metadata,
                 env_schema=valves_schema,
             )
-
-        # 标记来源（admin 端使用） / Mark source (admin only)
-        if source_plugin:
-            await package_service.update(pkg.id, {"source_plugin": skill_name})
 
         # 创建 Skill (toolkit type) / Create Skill (toolkit type)
         await skill_service.create({

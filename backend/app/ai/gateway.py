@@ -38,10 +38,12 @@ from app.ai.types import (
     messages_to_dicts,
 )
 from app.ai.usage_recorder import UsageRecorder
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.ai import CallStatusEnum, RequestTypeEnum, UserTypeEnum
+from app.enums.ai import CallStatusEnum, RequestTypeEnum
+from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.repositories.ai import (
@@ -80,6 +82,53 @@ class AIGateway:
         self.retry_service = RetryService(self.api_key_repo)
         self.usage_recorder = UsageRecorder(db)
 
+    @staticmethod
+    def _should_meter_usage(tenant_id: int | None) -> bool:
+        return tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+
+    @staticmethod
+    def _should_record_call_log(tenant_id: int | None) -> bool:
+        return tenant_id is not None
+
+    @staticmethod
+    def _resolve_call_user_type(
+        tenant_id: int | None,
+        user_type: str | None = None,
+    ) -> str | None:
+        if user_type:
+            return user_type
+        if tenant_id is None:
+            return None
+        if tenant_id == PLATFORM_TENANT_ID:
+            return LogUserTypeEnum.ADMIN.value
+        return LogUserTypeEnum.TENANT_ADMIN.value
+
+    @staticmethod
+    def _attach_runtime_metadata(
+        payload: ChatResponse | EmbeddingResponse | ImageGenerationResponse,
+        *,
+        provider: AIProvider,
+        ai_model: AIModel,
+    ) -> None:
+        """Attach actual runtime provider/model snapshot to response metadata."""
+        metadata = dict(getattr(payload, "metadata", {}) or {})
+        metadata["runtime_model_info"] = {
+            "provider_id": provider.id,
+            "provider_name": (
+                getattr(provider, "name", None)
+                or getattr(provider, "code", None)
+                or f"Provider #{provider.id}"
+            ),
+            "model_id": ai_model.id,
+            "model_name": (
+                getattr(ai_model, "name", None)
+                or getattr(ai_model, "code", None)
+                or f"Model #{ai_model.id}"
+            ),
+            "model_code": getattr(ai_model, "code", None),
+        }
+        payload.metadata = metadata
+
     async def chat(
         self,
         provider_code: str,
@@ -92,6 +141,11 @@ class AIGateway:
         tools: list[dict] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
         **kwargs
     ) -> ChatResponse:
         """
@@ -133,6 +187,9 @@ class AIGateway:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
         model_id = ai_model.id
+        should_meter_usage = self._should_meter_usage(tenant_id)
+        should_record_call_log = self._should_record_call_log(tenant_id)
+        call_user_type = self._resolve_call_user_type(tenant_id, user_type)
 
         # 1. Check cache (only enabled when temperature == 0) / 检查缓存（仅 temperature == 0 时启用）
         use_cache = temperature == 0 and not stream
@@ -151,11 +208,13 @@ class AIGateway:
             cached_response = await AIResponseCache.get(cache_key)
             if cached_response:
                 logger.info("Cache hit: key={}", cache_key)
+                api_key.mark_last_used()
+                await self.db.flush()
                 return ChatResponse(**cached_response)
 
         # 2. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 检查配额（仅企业调用）
         estimated_input = 0
-        if tenant_id:
+        if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
@@ -192,6 +251,11 @@ class AIGateway:
                     request_type=RequestTypeEnum.CHAT.value,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    user_type=call_user_type,
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
+                    routed_model_id=routed_model_id,
+                    route_reason=route_reason,
                 )
                 raise
 
@@ -244,6 +308,11 @@ class AIGateway:
                     request_type=RequestTypeEnum.CHAT.value,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    user_type=call_user_type,
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
+                    routed_model_id=routed_model_id,
+                    route_reason=route_reason,
                 )
                 raise original_error
 
@@ -255,27 +324,29 @@ class AIGateway:
         total_tokens = response.total_tokens or (input_tokens + output_tokens)
 
         cost = CostCalculator.calculate_cost(ai_model, input_tokens, output_tokens) if ai_model else 0
+        self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
 
-        # 6. Update API Key usage count / 更新 API Key 使用计数
+        # 6–7. 先租户计量（失败则整请求回滚，不增加 Key），再 Key 计数；Celery 日志单独 best-effort
+        if should_meter_usage:
+            assert tenant_id is not None
+            await self.usage_recorder.record_usage_and_adjust(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                request_type=RequestTypeEnum.CHAT.value,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                cost=cost,
+                estimated_input=estimated_input,
+                latency_ms=latency_ms,
+                user_id=user_id,
+            )
+
         used_api_key.increment_usage()
 
-        # 7. Record usage and logs / 记录使用量和日志
-        if tenant_id:
+        if should_record_call_log:
             try:
-                await self.usage_recorder.record_usage_and_adjust(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    request_type=RequestTypeEnum.CHAT.value,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    estimated_input=estimated_input,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                )
-
-                # Build request data (with retry info) / 构建请求数据（含重试信息）
+                assert tenant_id is not None
                 request_data = {
                     "messages": messages_to_dicts(messages),
                     "temperature": temperature,
@@ -286,7 +357,6 @@ class AIGateway:
                 if retry_count > 0:
                     request_data["_retry_count"] = retry_count
 
-                # Async record call log / 异步记录调用日志
                 await self.usage_recorder.call_log_service.log_call_async(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -301,11 +371,14 @@ class AIGateway:
                     latency_ms=latency_ms,
                     status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
-                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                    user_type=call_user_type,
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
+                    routed_model_id=routed_model_id,
+                    route_reason=route_reason,
                 )
-
             except Exception as e:
-                logger.error("Record usage failed: {}", str(e))
+                logger.error("AI call log enqueue failed: {}", str(e))
 
         await self.db.commit()
 
@@ -333,6 +406,11 @@ class AIGateway:
         tools: list[dict] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
+        routed_model_id: int | None = None,
+        route_reason: str | None = None,
         **kwargs
     ) -> StreamingResponse:
         """
@@ -367,10 +445,12 @@ class AIGateway:
 
         if not ai_model:
             raise NotFoundException(message=_("ai.error.model_not_found"))
+        should_meter_usage = self._should_meter_usage(tenant_id)
+        call_user_type = self._resolve_call_user_type(tenant_id, user_type)
 
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
-        if tenant_id:
+        if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 messages_to_dicts(messages)
             )
@@ -484,6 +564,11 @@ class AIGateway:
                         request_type=RequestTypeEnum.CHAT.value,
                         tenant_id=tenant_id,
                         user_id=user_id,
+                        user_type=call_user_type,
+                        agent_id=agent_id,
+                        conversation_id=conversation_id,
+                        routed_model_id=routed_model_id,
+                        route_reason=route_reason,
                     )
                     raise
 
@@ -542,6 +627,11 @@ class AIGateway:
                         request_type=RequestTypeEnum.CHAT.value,
                         tenant_id=tenant_id,
                         user_id=user_id,
+                        user_type=call_user_type,
+                        agent_id=agent_id,
+                        conversation_id=conversation_id,
+                        routed_model_id=routed_model_id,
+                        route_reason=route_reason,
                     )
                     raise original_error
 
@@ -566,9 +656,14 @@ class AIGateway:
                     cost=cost,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    user_type=call_user_type,
                     model_id=ai_model.id,
                     estimated_input=estimated_input,
                     latency_ms=stream_latency_ms,
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
+                    routed_model_id=routed_model_id,
+                    route_reason=route_reason,
                 )
 
         # Create SSE streaming response / 创建 SSE 流式响应
@@ -587,6 +682,7 @@ class AIGateway:
         model: str,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
         **kwargs
     ) -> EmbeddingResponse:
         """
@@ -618,10 +714,13 @@ class AIGateway:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
         model_id = ai_model.id
+        should_meter_usage = self._should_meter_usage(tenant_id)
+        should_record_call_log = self._should_record_call_log(tenant_id)
+        call_user_type = self._resolve_call_user_type(tenant_id, user_type)
 
         # 1. Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         estimated_input = 0
-        if tenant_id:
+        if should_meter_usage:
             estimated_input = TokenCounter.count_messages_tokens(
                 [{"role": "user", "content": t} for t in texts]
             )
@@ -638,6 +737,7 @@ class AIGateway:
             tenant_id=tenant_id,
             log_key="ai.log.gateway_embedding_call",
         )
+        self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
 
         # 4. Calculate latency and usage / 计算延迟和使用量
         latency_ms = int((time.time() - start_time) * 1000)
@@ -647,32 +747,31 @@ class AIGateway:
 
         cost = CostCalculator.calculate_cost(ai_model, input_tokens, 0) if ai_model else 0
 
-        # 5. Update API Key usage count (using actual successful key, may have rotated) / 更新 API Key 使用计数（使用实际成功的 Key，重试可能已轮换）
+        if should_meter_usage:
+            assert tenant_id is not None
+            await self.usage_recorder.record_usage_and_adjust(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                request_type=RequestTypeEnum.EMBEDDING.value,
+                input_tokens=input_tokens,
+                output_tokens=0,
+                total_tokens=total_tokens,
+                cost=cost,
+                estimated_input=estimated_input,
+                latency_ms=latency_ms,
+                user_id=user_id,
+            )
+
         used_api_key.increment_usage()
 
-        # 6. Record usage and logs / 记录使用量和日志
-        if tenant_id:
+        if should_record_call_log:
             try:
-                await self.usage_recorder.record_usage_and_adjust(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    request_type=RequestTypeEnum.EMBEDDING.value,
-                    input_tokens=input_tokens,
-                    output_tokens=0,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    estimated_input=estimated_input,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                )
-
-                # Build request data / 构建请求数据
+                assert tenant_id is not None
                 request_data = {
                     "texts": texts[:3],
                     "text_count": len(texts),
                 }
 
-                # Async record call log / 异步记录调用日志
                 await self.usage_recorder.call_log_service.log_call_async(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -691,11 +790,10 @@ class AIGateway:
                     latency_ms=latency_ms,
                     status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
-                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                    user_type=call_user_type,
                 )
-
             except Exception as e:
-                logger.error("Record usage failed: {}", str(e))
+                logger.error("AI call log enqueue failed: {}", str(e))
 
         await self.db.commit()
 
@@ -712,6 +810,9 @@ class AIGateway:
         n: int = 1,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
+        agent_id: int | None = None,
+        conversation_id: int | None = None,
         **kwargs,
     ) -> ImageGenerationResponse:
         """
@@ -747,11 +848,14 @@ class AIGateway:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
         model_id = ai_model.id
+        should_meter_usage = self._should_meter_usage(tenant_id)
+        should_record_call_log = self._should_record_call_log(tenant_id)
+        call_user_type = self._resolve_call_user_type(tenant_id, user_type)
 
         # Atomic check+record rate limit + quota check (tenant calls only) / 原子检查+记录速率限制 + 配额检查（仅企业调用）
         # Image generation uses fixed token estimate (cannot predict precisely, use 1000 as baseline) / 生图按固定 token 估算（无法精确预估，使用 1000 作为基准）
         estimated_input = 0
-        if tenant_id:
+        if should_meter_usage:
             estimated_input = 1000 * n
             await self.usage_recorder.check_rate_and_quota(
                 tenant_id, model_id, ai_model, estimated_input,
@@ -769,6 +873,7 @@ class AIGateway:
             tenant_id=tenant_id,
             log_key="ai.log.gateway_image_call",
         )
+        self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
 
         # Calculate latency / 计算延迟
         latency_ms = int((time.time() - start_time) * 1000)
@@ -782,25 +887,26 @@ class AIGateway:
             ai_model, input_tokens, output_tokens,
         ) if ai_model else 0
 
-        # Update API Key usage count / 更新 API Key 使用计数
+        if should_meter_usage:
+            assert tenant_id is not None
+            await self.usage_recorder.record_usage_and_adjust(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                request_type=RequestTypeEnum.IMAGE.value,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                cost=cost,
+                estimated_input=estimated_input,
+                latency_ms=latency_ms,
+                user_id=user_id,
+            )
+
         used_api_key.increment_usage()
 
-        # Record usage and logs / 记录使用量和日志
-        if tenant_id:
+        if should_record_call_log:
             try:
-                await self.usage_recorder.record_usage_and_adjust(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    request_type=RequestTypeEnum.IMAGE.value,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    estimated_input=estimated_input,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                )
-
+                assert tenant_id is not None
                 request_data = {
                     "prompt": prompt[:200],
                     "size": size,
@@ -825,11 +931,12 @@ class AIGateway:
                     latency_ms=latency_ms,
                     status=CallStatusEnum.SUCCESS.value,
                     user_id=user_id,
-                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                    user_type=call_user_type,
+                    agent_id=agent_id,
+                    conversation_id=conversation_id,
                 )
-
             except Exception as e:
-                logger.error("Record image generation usage failed: {}", str(e))
+                logger.error("AI call log enqueue failed: {}", str(e))
 
         await self.db.commit()
 

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -108,6 +108,93 @@ class TestPublishAgent:
         assert hasattr(service, 'publish_agent')
         assert hasattr(service, 'rollback_agent')
         assert hasattr(service, 'get_versions')
+
+
+class TestRollbackBindings:
+
+    @pytest.mark.asyncio
+    async def test_restore_skill_bindings_rebuilds_snapshot_via_batch_bind(self, mock_db):
+        from app.services.ai.agent_service import AgentService
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 1
+
+        active_pkg_a = make_mock_model(id=11, is_deleted=False)
+        active_pkg_b = make_mock_model(id=22, is_deleted=False)
+        deleted_pkg = make_mock_model(id=33, is_deleted=True)
+        mock_db.get = AsyncMock(
+            side_effect=lambda _model, pkg_id: {
+                11: active_pkg_a,
+                22: active_pkg_b,
+                33: deleted_pkg,
+            }.get(pkg_id),
+        )
+
+        binding_service = AsyncMock()
+        binding_service.batch_bind = AsyncMock(return_value=[
+            make_mock_model(id=101, package_id=11),
+            make_mock_model(id=102, package_id=22),
+        ])
+        binding_service.update_binding = AsyncMock()
+        binding_service.delete_all_for_agent = AsyncMock()
+
+        snapshot = [
+            {
+                "package_id": 11,
+                "enabled": False,
+                "consent_mode": "ask",
+                "skill_consent_overrides": {"tool_a": "reject"},
+                "sort_order": 9,
+                "config_override": {"timeout": 30},
+            },
+            {
+                "package_id": 22,
+                "enabled": True,
+                "consent_mode": "auto",
+                "skill_consent_overrides": None,
+                "sort_order": 3,
+                "config_override": {"region": "cn"},
+            },
+            {
+                "package_id": 33,
+                "enabled": True,
+                "consent_mode": "auto",
+            },
+        ]
+
+        with patch(
+            "app.services.ai.agent_skill_binding_service.AgentSkillBindingService",
+            return_value=binding_service,
+        ):
+            await service._restore_skill_bindings(7, snapshot)
+
+        binding_service.batch_bind.assert_awaited_once_with(
+            agent_id=7,
+            package_ids=[11, 22],
+            consent_modes={"11": "ask", "22": "auto"},
+        )
+        binding_service.delete_all_for_agent.assert_not_awaited()
+        assert binding_service.update_binding.await_args_list[0].args == (
+            101,
+            {
+                "enabled": False,
+                "consent_mode": "ask",
+                "skill_consent_overrides": {"tool_a": "reject"},
+                "sort_order": 9,
+                "config_override": {"timeout": 30},
+            },
+        )
+        assert binding_service.update_binding.await_args_list[1].args == (
+            102,
+            {
+                "enabled": True,
+                "consent_mode": "auto",
+                "skill_consent_overrides": None,
+                "sort_order": 3,
+                "config_override": {"region": "cn"},
+            },
+        )
 
 
 class TestGetAgentDetail:

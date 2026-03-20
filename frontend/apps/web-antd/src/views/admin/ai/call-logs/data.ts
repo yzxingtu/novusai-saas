@@ -7,6 +7,7 @@ import type { AICallLogInfo } from '#/api/admin/ai';
 
 import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
+import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 
 function getStatusOptions() {
@@ -15,6 +16,34 @@ function getStatusOptions() {
     { label: $t('admin.ai.callLog.status_options.failed'), value: 'failed' },
     { label: $t('admin.ai.callLog.status_options.timeout'), value: 'timeout' },
   ];
+}
+
+export function isPlatformCall(tenantId: null | number | undefined): boolean {
+  return tenantId === PLATFORM_TENANT_ID;
+}
+
+export function getCallSourceText(
+  tenantId: null | number | undefined,
+): string {
+  return isPlatformCall(tenantId)
+    ? $t('admin.ai.callLog.source_options.platform')
+    : $t('admin.ai.callLog.source_options.tenant');
+}
+
+export function getCallSourceColor(
+  tenantId: null | number | undefined,
+): string {
+  return isPlatformCall(tenantId) ? 'processing' : 'success';
+}
+
+export function getTenantDisplayName(
+  tenantId: null | number | undefined,
+  tenantName: null | string | undefined,
+): string {
+  if (isPlatformCall(tenantId)) {
+    return $t('admin.ai.callLog.platformTenant');
+  }
+  return tenantName || '-';
 }
 
 /**
@@ -66,9 +95,16 @@ export function useColumns<T = AICallLogInfo>(
       slots: { default: 'providerName_cell' },
     },
     {
+      field: 'call_source',
+      title: $t('admin.ai.callLog.source'),
+      width: 110,
+      align: 'center',
+      slots: { default: 'source_cell' },
+    },
+    {
       field: 'tenant_name',
       title: $t('admin.ai.callLog.tenantName'),
-      width: 140,
+      minWidth: 120,
       align: 'center',
       slots: { default: 'tenantName_cell' },
     },

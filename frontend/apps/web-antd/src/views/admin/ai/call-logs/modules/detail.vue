@@ -12,7 +12,13 @@ import { getAICallLogDetailApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { formatCost, getStatusText } from '../data';
+import {
+  formatCost,
+  getCallSourceColor,
+  getCallSourceText,
+  getStatusText,
+  getTenantDisplayName,
+} from '../data';
 
 defineOptions({ name: 'CallLogDetail' });
 
@@ -80,8 +86,16 @@ function getStatusColor(status: string): string {
           <Descriptions.Item :label="$t('admin.ai.callLog.providerName')">
             {{ detail.provider_name || '-' }}
           </Descriptions.Item>
+          <Descriptions.Item :label="$t('admin.ai.callLog.source')">
+            <Tag :color="getCallSourceColor(detail.tenant_id)">
+              {{ getCallSourceText(detail.tenant_id) }}
+            </Tag>
+          </Descriptions.Item>
           <Descriptions.Item :label="$t('admin.ai.callLog.tenantName')">
-            {{ detail.tenant_name || '-' }}
+            {{ getTenantDisplayName(detail.tenant_id, detail.tenant_name) }}
+          </Descriptions.Item>
+          <Descriptions.Item :label="$t('admin.ai.callLog.callerName')">
+            {{ detail.caller_name || '-' }}
           </Descriptions.Item>
           <Descriptions.Item :label="$t('admin.ai.callLog.status')">
             <Tag :color="getStatusColor(detail.status)">
@@ -91,14 +105,18 @@ function getStatusColor(status: string): string {
           <!-- 路由覆写信息（模型被路由引擎替换时高亮显示） -->
           <Descriptions.Item
             v-if="
-              detail.routed_model_id &&
-              detail.routed_model_id !== detail.model_id
+              detail.route_reason ||
+              (detail.routed_model_id && detail.routed_model_id !== detail.model_id)
             "
             :label="$t('admin.ai.callLog.routedModel')"
             :span="2"
           >
             <span class="font-medium text-warning">
-              {{ detail.routed_model_name || `#${detail.routed_model_id}` }}
+              {{
+                detail.routed_model_name ||
+                detail.model_name ||
+                (detail.routed_model_id ? `#${detail.routed_model_id}` : '-')
+              }}
             </span>
             <span
               v-if="detail.route_reason"

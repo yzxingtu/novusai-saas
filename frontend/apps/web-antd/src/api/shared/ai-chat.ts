@@ -17,8 +17,16 @@ export interface PaginatedResponse<T = Record<string, unknown>> {
 }
 
 export interface RawMessageItem {
+  agent_avatar?: null | string;
+  agent_id?: null | number;
+  agent_name?: null | string;
   role: string;
   content: null | string;
+  created_at?: null | string;
+  model_id?: null | number;
+  model_name?: null | string;
+  provider_id?: null | number;
+  provider_name?: null | string;
   tool_calls?: Array<{
     function?: { arguments?: string; name?: string };
     id?: string;
@@ -29,8 +37,13 @@ export interface RawMessageItem {
     attachments?: ChatAttachment[];
     completion_reason?: string;
     interrupted?: boolean;
+    model_name?: string;
     memory_updated?: boolean;
     partial?: boolean;
+    provider_id?: number;
+    provider_name?: string;
+    route_source?: string;
+    thinking_content?: string;
     tool_error?: string;
     tool_success?: boolean;
   };
@@ -56,7 +69,7 @@ export interface FileUploadResponse {
 
 export interface SSEOptions {
   abortController: AbortController;
-  onMessage: (rawChunk: string) => void;
+  onMessage: (rawChunk: string) => void | Promise<void>;
   onEnd: () => void;
   onError: (error: Error) => void;
 }

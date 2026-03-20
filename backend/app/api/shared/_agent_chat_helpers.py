@@ -54,6 +54,7 @@ async def handle_route(
     user_role: str,
     page_context: dict[str, Any] | None,
     pinned_agent_id: int | None,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
     """
     智能路由的共享逻辑 / Shared logic for smart routing
@@ -73,6 +74,7 @@ async def handle_route(
         page_context=page_context,
         pinned_agent_id=pinned_agent_id,
         user_role=user_role,
+        user_id=user_id,
     )
     return success(data=AgentRouteResponse(
         agent_id=result.agent_id,

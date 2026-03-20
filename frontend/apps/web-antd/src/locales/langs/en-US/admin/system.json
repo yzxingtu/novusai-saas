@@ -622,9 +622,13 @@
     "searchPlaceholder": "Search deleted records...",
     "allTenants": "All Tenants",
     "modules": "Modules",
+    "deleteSource": "Deleted from",
+    "moduleStash": "{count} in this module",
     "clearModule": "Clear Module",
     "clearModuleConfirm": "Are you sure you want to permanently delete all records in \"{module}\"? This action cannot be undone.",
-    "clearModuleSuccess": "Module recycle bin cleared, {count} records permanently deleted"
+    "clearModuleSuccess": "Module recycle bin cleared, {count} records permanently deleted",
+    "clearModuleDisabledTip": "No deleted records in this module",
+    "configUnavailable": "Failed to load recycle bin configuration. Please refresh or try again later."
   },
   "cache": {
     "title": "Cache Management",

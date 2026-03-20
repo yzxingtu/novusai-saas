@@ -76,7 +76,6 @@
       "tenant_knowledge_base": "知识库",
       "tenant_ai_table_policy": "数据访问策略",
       "admin_agent_assignment_mgmt": "功能分配管理",
-      "tenant_agent_assignment": "智能体绑定",
       "notification_template": "通知模板管理",
       "admin_cache": "缓存管理"
     },

@@ -1,8 +1,8 @@
 """
 智能体功能分配公共辅助函数 / Agent Feature Assignment Shared Helpers
 
-供 admin / tenant 两端 agent_assignments controller 共用。
-Shared by admin / tenant agent_assignments controllers.
+供管理端 agent_assignments controller 使用。
+Used by the admin agent_assignments controller.
 """
 
 from sqlalchemy import select

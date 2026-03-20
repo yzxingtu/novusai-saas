@@ -71,6 +71,7 @@
     "status": "Status",
     "modelName": "Model",
     "providerName": "Provider",
+    "callerName": "Caller",
     "createdAt": "Created At",
     "errorMessage": "Error Message",
     "requestData": "Request Data",
@@ -213,7 +214,7 @@
     "maxTokens": "Max Tokens",
     "topP": "Top P",
     "welcomeMessage": "Welcome Message",
-    "suggestedQuestions": "Suggested Questions (JSON)",
+    "suggestedQuestions": "Starter Questions",
     "toolBindings": "Tool Bindings (JSON)",
     "skillBindings": "Skill Bindings",
     "skillPackageBindings": "Skill Package Bindings",
@@ -275,8 +276,8 @@
       "inputTemperature": "0-2, higher values produce more random output",
       "inputMaxTokens": "Maximum token generation limit",
       "inputTopP": "0-1, used together with temperature",
-      "inputWelcomeMessage": "Welcome message shown when user starts a conversation",
-      "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
+      "inputWelcomeMessage": "Welcome message shown before the first turn starts",
+      "inputSuggestedQuestions": "One question per line, JSON array is also supported",
       "inputVariables": "JSON array, e.g.: [{'{'}\"name\": \"var1\", \"label\": \"Label\", \"type\": \"string\", \"required\": true{'}'}]",
       "inputToolBindings": "JSON array format, e.g.: [{'{'}\"tool_id\": 1{'}'}]",
       "selectSkills": "Select skills to bind",
@@ -286,8 +287,8 @@
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
       "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
-      "welcomeMessage": "Auto-displayed when user opens a new conversation. Leave empty to skip",
-      "suggestedQuestions": "Shown to users when starting a new conversation, helping them get started quickly",
+      "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
+      "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line",
       "toolBindings": "Bind tools the agent can invoke during conversations, each item contains a tool_id field",
       "skillBindings": "Select skills the agent can use. Skills include knowledge base, data intelligence, HTTP calls, and more",
       "skillPackageBindings": "Select skill packages the agent can use. Each package contains multiple skills, and the agent will gain all skills within the bound packages",
@@ -889,24 +890,6 @@
       "createSuccess": "Skill created successfully",
       "updateSuccess": "Skill updated successfully",
       "deleteSuccess": "Skill deleted"
-    }
-  },
-  "agentAssignment": {
-    "title": "Feature Binding Management",
-    "selectAgent": "Select agent",
-    "saveSuccess": "Binding updated",
-    "restoreSuccess": "Restored to global default",
-    "restoreConfirm": "Restore to global default binding?",
-    "restoreDefault": "Restore Default",
-    "overridden": "Overridden",
-    "inherited": "Inherited",
-    "columns": {
-      "featureName": "Feature Name",
-      "featureCode": "Feature Code",
-      "globalDefault": "Global Default",
-      "currentAgent": "Current Binding",
-      "status": "Status",
-      "actions": "Actions"
     }
   }
 }

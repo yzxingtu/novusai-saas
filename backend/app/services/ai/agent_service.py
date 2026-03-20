@@ -96,13 +96,14 @@ class AgentService(TenantService[Agent, AgentRepository]):
             return
 
         from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
-        binding_svc = AgentSkillBindingService(self.db, self.tenant_id)
 
-        # 删除当前所有绑定
-        await binding_svc.delete_all_for_agent(agent_id)
+        binding_svc = AgentSkillBindingService(self.db, self.tenant_id)
 
         # 从快照重建绑定（跳过已删除的技能包）
         from app.models.ai.skill_package import SkillPackage
+        valid_items: list[dict[str, Any]] = []
+        consent_modes: dict[str, str] = {}
+
         for item in bindings_snapshot:
             pkg_id = item.get("package_id")
             if not pkg_id:
@@ -115,10 +116,27 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 )
                 continue
 
-            await binding_svc.create({
-                "agent_id": agent_id,
-                "package_id": pkg_id,
-                "tenant_id": self.tenant_id,
+            valid_items.append(item)
+            consent_modes[str(pkg_id)] = item.get("consent_mode", "auto")
+
+        if not valid_items:
+            await binding_svc.delete_all_for_agent(agent_id)
+            return
+
+        bindings = await binding_svc.batch_bind(
+            agent_id=agent_id,
+            package_ids=[int(item["package_id"]) for item in valid_items],
+            consent_modes=consent_modes,
+        )
+        binding_map = {binding.package_id: binding for binding in bindings}
+
+        for item in valid_items:
+            pkg_id = int(item["package_id"])
+            binding = binding_map.get(pkg_id)
+            if not binding:
+                continue
+
+            await binding_svc.update_binding(binding.id, {
                 "enabled": item.get("enabled", True),
                 "consent_mode": item.get("consent_mode", "auto"),
                 "skill_consent_overrides": item.get("skill_consent_overrides"),

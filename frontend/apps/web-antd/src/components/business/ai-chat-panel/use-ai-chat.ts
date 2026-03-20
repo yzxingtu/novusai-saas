@@ -32,6 +32,7 @@ import type {
   ChatKBBindingInfo,
   MemoryState,
   PageContext,
+  RawMessageItem,
 } from '#/api/shared/ai-chat';
 
 import {
@@ -353,29 +354,7 @@ export function useAIChat(options: UseAIChatOptions) {
    * into a single ChatMessage with toolCalls reconstructed.
    */
   function mergeMessagesForDisplay(
-    rawMessages: Array<{
-      agent_avatar?: null | string;
-      agent_id?: null | number;
-      agent_name?: null | string;
-      content: null | string;
-      created_at?: null | string;
-      metadata?: null | {
-        attachments?: ChatAttachment[];
-        completion_reason?: string;
-        interrupted?: boolean;
-        memory_updated?: boolean;
-        route_source?: string;
-        partial?: boolean;
-        thinking_content?: string;
-      };
-      role: string;
-      tool_call_id?: null | string;
-      tool_calls?: Array<{
-        function?: { arguments?: string; name?: string };
-        id?: string;
-      }> | null;
-      tool_name?: null | string;
-    }>,
+    rawMessages: RawMessageItem[],
   ): ChatMessage[] {
     // Filter out system messages
     const filtered = rawMessages.filter((m) => m.role !== 'system');
@@ -437,7 +416,7 @@ export function useAIChat(options: UseAIChatOptions) {
       while (i < filtered.length && filtered[i]!.role !== 'user') {
         const cur = filtered[i]!;
 
-          if (cur.role === 'assistant') {
+        if (cur.role === 'assistant') {
           if (cur.created_at) turnCreatedAt = cur.created_at;
           // Capture agent info from the first assistant message in this turn
           if (turnAgentId === null && cur.agent_id) {
@@ -448,11 +427,20 @@ export function useAIChat(options: UseAIChatOptions) {
             const agentInfo = agents.value.find((a) => a.id === cur.agent_id);
             if (agentInfo) {
               turnAgentDescription = agentInfo.description ?? null;
-              turnModelName = agentInfo.model_name ?? null;
+              if (!turnModelName) {
+                turnModelName = agentInfo.model_name ?? null;
+              }
               if (!turnAgentAvatar && agentInfo.avatar) {
                 turnAgentAvatar = agentInfo.avatar;
               }
             }
+          }
+          if (turnModelName === null) {
+            turnModelName =
+              cur.model_name ??
+              (typeof cur.metadata?.model_name === 'string'
+                ? cur.metadata.model_name
+                : null);
           }
           if (turnRouteSource === null && typeof cur.metadata?.route_source === 'string') {
             turnRouteSource = cur.metadata.route_source;
@@ -1068,7 +1056,11 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ SSE Streaming ============
 
-  function parseSSEEvents(
+  /**
+   * 解析 SSE 行。对 message/thinking 在 handler 后 await nextTick，避免同一次 fetch chunk
+   * 内多次同步改内容被 Vue 批成一次渲染（表现为「突然全文出现」）。
+   */
+  async function parseSSEEvents(
     rawChunk: string,
     buffer: { value: string },
     handler: (data: string) => void,
@@ -1079,7 +1071,17 @@ export function useAIChat(options: UseAIChatOptions) {
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('data: ')) {
-        handler(trimmed.slice(6));
+        const data = trimmed.slice(6);
+        handler(data);
+        if (data === '[DONE]') continue;
+        let needFlush = false;
+        try {
+          const ev = JSON.parse(data) as { event?: string };
+          needFlush = ev.event === 'message' || ev.event === 'thinking';
+        } catch {
+          needFlush = true;
+        }
+        if (needFlush) await nextTick();
       }
     }
   }
@@ -1253,6 +1255,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const sseBuffer = { value: '' };
     streamAbortController = new AbortController();
     const assistantIdx = chatMessages.value.length - 1;
+    let doneAbortTimer: ReturnType<typeof setTimeout> | null = null;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -1281,6 +1284,197 @@ export function useAIChat(options: UseAIChatOptions) {
         return;
       }
       moveStreamingContentToThinking(msg);
+    }
+
+    function handleSsePayload(data: string) {
+      if (data === '[DONE]') return;
+      try {
+        const event = JSON.parse(data) as Record<string, unknown> & {
+          event?: string;
+          delta?: string;
+        };
+        const msg = chatMessages.value[assistantIdx];
+        if (!msg) return;
+
+        switch (event.event) {
+          case 'optimizing_tools': {
+            msg.optimizingTools = {
+              total: (event.total as number) || 0,
+              selected: (event.selected as number) || 0,
+            };
+            scrollToBottom();
+
+            break;
+          }
+          case 'thinking': {
+            if (event.delta) {
+              msg.thinkingContent = `${msg.thinkingContent || ''}${event.delta}`;
+              scrollToBottom();
+            }
+
+            break;
+          }
+          case 'tool_call': {
+            promoteToolRoundContent();
+            if (!msg.toolCalls) msg.toolCalls = [];
+            let existing = msg.toolCalls.findLast(
+              (tc) => tc.name === event.name && tc.status === 'running',
+            );
+            if (!existing) {
+              existing = msg.toolCalls.findLast((tc) => tc.status === 'running');
+            }
+            if (existing) {
+              existing.status = event.success ? 'success' : 'error';
+              existing.durationMs = event.duration_ms as number | undefined;
+              existing.output = event.output as string | undefined;
+              existing.error = event.error as string | undefined;
+              existing.errorType = event.error_type as string | undefined;
+              if (event.skill_name)
+                existing.skillName = event.skill_name as string;
+              if (event.skill_type)
+                existing.skillType = event.skill_type as string;
+              if (event.display_name)
+                existing.displayName = event.display_name as string;
+              if (event.summary) existing.summary = event.summary as string;
+              if (event.result_link)
+                existing.resultLink = event.result_link as string;
+            } else {
+              msg.toolCalls.push({
+                name: event.name as string,
+                status: event.success ? 'success' : 'error',
+                durationMs: event.duration_ms as number | undefined,
+                output: event.output as string | undefined,
+                error: event.error as string | undefined,
+                errorType: event.error_type as string | undefined,
+                skillName: (event.skill_name as string) || undefined,
+                skillType: (event.skill_type as string) || undefined,
+                displayName: (event.display_name as string) || undefined,
+                summary: (event.summary as string) || undefined,
+                resultLink: (event.result_link as string) || undefined,
+              });
+            }
+            if (event.success && options.onToolCall) {
+              options.onToolCall(
+                event.name as string,
+                (event.output as string) ?? '',
+              );
+            }
+            scrollToBottom();
+
+            break;
+          }
+          case 'tool_start': {
+            promoteToolRoundContent();
+            if (!msg.toolCalls) msg.toolCalls = [];
+            msg.toolCalls.push({
+              id: event.id as string,
+              name: event.name as string,
+              status: 'running',
+              arguments: event.arguments as Record<string, unknown> | undefined,
+              skillName: (event.skill_name as string) || undefined,
+              skillType: (event.skill_type as string) || undefined,
+              startedAt: Date.now(),
+            });
+            scrollToBottom();
+
+            break;
+          }
+          default: {
+            if (
+              event.event === 'authorization_required' &&
+              event.consent_key
+            ) {
+              addConsent(event.consent_key as string);
+            } else if (event.event === 'confirmation_request') {
+              promoteToolRoundContent();
+              msg.pendingConfirmation = {
+                action: (event.action as string) || '',
+                table: (event.table as string) || '',
+                preview: event.preview as Record<string, unknown> | undefined,
+              };
+            } else if (event.event === 'tool_consent_request') {
+              promoteToolRoundContent();
+              if (trustSession.value) {
+                msg.pendingConsent = {
+                  toolName: (event.name as string) || '',
+                  arguments: event.arguments as Record<string, unknown> | undefined,
+                  skillName: (event.skill_name as string) || undefined,
+                  skillType: (event.skill_type as string) || undefined,
+                  resolved: true,
+                  autoApproved: true,
+                };
+                _deferredAutoConfirm = true;
+                inputMessage.value = $t('common.globalAiChat.confirmExecute');
+              } else {
+                msg.pendingConsent = {
+                  toolName: (event.name as string) || '',
+                  arguments: event.arguments as Record<string, unknown> | undefined,
+                  skillName: (event.skill_name as string) || undefined,
+                  skillType: (event.skill_type as string) || undefined,
+                };
+              }
+              scrollToBottom();
+            } else if (
+              event.event === 'conversation' &&
+              event.conversation_id
+            ) {
+              activeConversationId.value = event.conversation_id as number;
+            } else if (
+              event.event === 'action_buttons' &&
+              event.buttons
+            ) {
+              msg.actionButtons = event.buttons as typeof msg.actionButtons;
+              scrollToBottom();
+            } else if (event.event === 'image_result' && event.url) {
+              if (!msg.imageResults) msg.imageResults = [];
+              msg.imageResults.push({
+                url: event.url as string,
+                isBase64: Boolean(event.is_base64),
+                revisedPrompt: (event.revised_prompt as string) || undefined,
+              });
+              scrollToBottom();
+            } else if (event.event === 'rag_sources' && event.sources) {
+              msg.ragSources = event.sources as typeof msg.ragSources;
+            } else if (event.event === 'message' && event.delta) {
+              msg.content += event.delta as string;
+              scrollToBottom();
+            } else if (event.event === 'done') {
+              msg.tokenUsage = (event.total_tokens as number) || 0;
+              msg.durationMs = (event.duration_ms as number) || 0;
+              if (event.conversation_id) {
+                activeConversationId.value = event.conversation_id as number;
+              }
+              if (event.memory_updated) {
+                lastMemoryUpdated.value = true;
+                msg.memoryUpdated = true;
+              }
+              if (options.onStreamComplete) {
+                options.onStreamComplete();
+              }
+              finalizeMessage();
+              streaming.value = false;
+              sending.value = false;
+              loadConversations();
+              if (doneAbortTimer) {
+                clearTimeout(doneAbortTimer);
+              }
+              doneAbortTimer = setTimeout(() => {
+                streamAbortController?.abort();
+              }, 2000);
+            } else if (event.error) {
+              if (event.conversation_id) {
+                activeConversationId.value = event.conversation_id as number;
+              }
+              msg.content = `\u26A0\uFE0F ${
+                (event.message as string) || $t('common.requestFailed')
+              }`;
+              msg.requestFailedRetry = true;
+            }
+          }
+        }
+      } catch (e: unknown) {
+        console.warn('[AI Chat] SSE parse error:', e);
+      }
     }
 
     try {
@@ -1319,189 +1513,15 @@ export function useAIChat(options: UseAIChatOptions) {
         requestBody,
         {
           abortController: streamAbortController,
-          onMessage(rawChunk: string) {
-            parseSSEEvents(rawChunk, sseBuffer, (data) => {
-              if (data === '[DONE]') return;
-              try {
-                const event = JSON.parse(data);
-                const msg = chatMessages.value[assistantIdx];
-                if (!msg) return;
-
-                switch (event.event) {
-                  case 'optimizing_tools': {
-                    msg.optimizingTools = {
-                      total: event.total || 0,
-                      selected: event.selected || 0,
-                    };
-                    scrollToBottom();
-
-                    break;
-                  }
-                  case 'thinking': {
-                    if (event.delta) {
-                      msg.thinkingContent = `${msg.thinkingContent || ''}${event.delta}`;
-                      scrollToBottom();
-                    }
-
-                    break;
-                  }
-                  case 'tool_call': {
-                    promoteToolRoundContent();
-                    if (!msg.toolCalls) msg.toolCalls = [];
-                    // Find matching running tool by name first / 优先按 name 匹配
-                    let existing = msg.toolCalls.findLast(
-                      (tc) => tc.name === event.name && tc.status === 'running',
-                    );
-                    // Fallback: when name mismatch (e.g. sandbox redirect pageop_* -> invoke_page_operation)
-                    // 兜底：name 不一致时（如 sandbox 重定向）匹配最后一个 running
-                    if (!existing) {
-                      existing = msg.toolCalls.findLast((tc) => tc.status === 'running');
-                    }
-                    if (existing) {
-                      existing.status = event.success ? 'success' : 'error';
-                      existing.durationMs = event.duration_ms;
-                      existing.output = event.output;
-                      existing.error = event.error;
-                      existing.errorType = event.error_type;
-                      if (event.skill_name)
-                        existing.skillName = event.skill_name;
-                      if (event.skill_type)
-                        existing.skillType = event.skill_type;
-                      if (event.display_name)
-                        existing.displayName = event.display_name;
-                      if (event.summary) existing.summary = event.summary;
-                      if (event.result_link)
-                        existing.resultLink = event.result_link;
-                    } else {
-                      msg.toolCalls.push({
-                        name: event.name,
-                        status: event.success ? 'success' : 'error',
-                        durationMs: event.duration_ms,
-                        output: event.output,
-                        error: event.error,
-                        errorType: event.error_type,
-                        skillName: event.skill_name || undefined,
-                        skillType: event.skill_type || undefined,
-                        displayName: event.display_name || undefined,
-                        summary: event.summary || undefined,
-                        resultLink: event.result_link || undefined,
-                      });
-                    }
-                    // Dispatch successful tool calls to external handler
-                    if (event.success && options.onToolCall) {
-                      options.onToolCall(event.name, event.output ?? '');
-                    }
-                    scrollToBottom();
-
-                    break;
-                  }
-                  case 'tool_start': {
-                    promoteToolRoundContent();
-                    if (!msg.toolCalls) msg.toolCalls = [];
-                    msg.toolCalls.push({
-                      id: event.id,
-                      name: event.name,
-                      status: 'running',
-                      arguments: event.arguments,
-                      skillName: event.skill_name || undefined,
-                      skillType: event.skill_type || undefined,
-                      startedAt: Date.now(),
-                    });
-                    scrollToBottom();
-
-                    break;
-                  }
-                  default: {
-                    if (
-                      event.event === 'authorization_required' &&
-                      event.consent_key
-                    ) {
-                      addConsent(event.consent_key);
-                    } else if (event.event === 'confirmation_request') {
-                      promoteToolRoundContent();
-                      msg.pendingConfirmation = {
-                        action: event.action || '',
-                        table: event.table || '',
-                        preview: event.preview,
-                      };
-                    } else if (event.event === 'tool_consent_request') {
-                      promoteToolRoundContent();
-                      if (trustSession.value) {
-                        msg.pendingConsent = {
-                          toolName: event.name || '',
-                          arguments: event.arguments,
-                          skillName: event.skill_name || undefined,
-                          skillType: event.skill_type || undefined,
-                          resolved: true,
-                          autoApproved: true,
-                        };
-                        // Defer auto-confirm: sendMessage is blocked during active stream (sending=true).
-                        // Set the message and flag; it will be sent after the stream completes.
-                        _deferredAutoConfirm = true;
-                        inputMessage.value = $t('common.globalAiChat.confirmExecute');
-                      } else {
-                        msg.pendingConsent = {
-                          toolName: event.name || '',
-                          arguments: event.arguments,
-                          skillName: event.skill_name || undefined,
-                          skillType: event.skill_type || undefined,
-                        };
-                      }
-                      scrollToBottom();
-                    } else if (
-                      event.event === 'conversation' &&
-                      event.conversation_id
-                    ) {
-                      activeConversationId.value = event.conversation_id as number;
-                    } else if (
-                      event.event === 'action_buttons' &&
-                      event.buttons
-                    ) {
-                      msg.actionButtons = event.buttons;
-                      scrollToBottom();
-                    } else if (event.event === 'image_result' && event.url) {
-                      if (!msg.imageResults) msg.imageResults = [];
-                      msg.imageResults.push({
-                        url: event.url,
-                        isBase64: event.is_base64 || false,
-                        revisedPrompt: event.revised_prompt || undefined,
-                      });
-                      scrollToBottom();
-                    } else if (event.event === 'rag_sources' && event.sources) {
-                      msg.ragSources = event.sources;
-                    } else if (event.event === 'message' && event.delta) {
-                      msg.content += event.delta;
-                      scrollToBottom();
-                    } else if (event.event === 'done') {
-                      msg.tokenUsage = event.total_tokens || 0;
-                      msg.durationMs = event.duration_ms || 0;
-                      if (event.conversation_id) {
-                        activeConversationId.value = event.conversation_id as number;
-                      }
-                      if (event.memory_updated) {
-                        lastMemoryUpdated.value = true;
-                        msg.memoryUpdated = true;
-                      }
-                      if (options.onStreamComplete) {
-                        options.onStreamComplete();
-                      }
-                    } else if (event.error) {
-                      if (event.conversation_id) {
-                        activeConversationId.value = event.conversation_id as number;
-                      }
-                      msg.content = `\u26A0\uFE0F ${
-                        event.message || $t('common.requestFailed')
-                      }`;
-                      msg.requestFailedRetry = true;
-                    }
-                  }
-                }
-              } catch (e: unknown) {
-                console.warn('[AI Chat] SSE parse error:', e);
-              }
-            });
+          async onMessage(rawChunk: string) {
+            await parseSSEEvents(rawChunk, sseBuffer, handleSsePayload);
           },
-          onEnd() {
+          async onEnd() {
+            if (doneAbortTimer) {
+              clearTimeout(doneAbortTimer);
+              doneAbortTimer = null;
+            }
+            await parseSSEEvents('\n', sseBuffer, handleSsePayload);
             loadConversations();
           },
           onError(error: Error) {
@@ -1532,6 +1552,10 @@ export function useAIChat(options: UseAIChatOptions) {
       }
       finalizeMessage();
     } finally {
+      if (doneAbortTimer) {
+        clearTimeout(doneAbortTimer);
+        doneAbortTimer = null;
+      }
       sending.value = false;
       streaming.value = false;
       streamAbortController = null;

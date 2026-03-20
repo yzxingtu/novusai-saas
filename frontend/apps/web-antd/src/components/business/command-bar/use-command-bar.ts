@@ -35,6 +35,7 @@ import {
   updateChatConversationTitleApi,
 } from '#/api/shared/ai-chat';
 import { useAIPanelStore } from '#/store';
+import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 
 /** Command Bar mode / Command Bar 模式 */
 export type CommandBarMode = 'input' | 'mention';
@@ -146,17 +147,37 @@ export function useCommandBar(options: UseCommandBarOptions) {
     );
   });
 
+  const selectedAgent = computed(() => {
+    const pinnedAgentId = aiPanelStore.pinnedAgentId;
+    if (!pinnedAgentId) return null;
+    return agents.value.find((agent) => agent.id === pinnedAgentId) ?? null;
+  });
+
+  const effectiveWelcomeMessage = computed(
+    () => selectedAgent.value?.welcome_message || '',
+  );
+
+  const effectiveSuggestedQuestions = computed<string[]>(() =>
+    normalizeStarterQuestions(selectedAgent.value?.suggested_questions),
+  );
+
   // ==================== 打开/关闭 ====================
 
   /**
    * Show Command Bar / 显示 Command Bar
    */
-  function show() {
+  async function show() {
     if (!unref(options.canChat)) return;
     open.value = true;
     mode.value = 'input';
     mentionQuery.value = '';
-    loadRecentConversations();
+    void loadRecentConversations();
+    if (
+      aiPanelStore.pinnedAgentId &&
+      !agents.value.some((agent) => agent.id === aiPanelStore.pinnedAgentId)
+    ) {
+      await loadAgents();
+    }
   }
 
   /**
@@ -176,7 +197,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
     if (open.value) {
       hide();
     } else {
-      show();
+      void show();
     }
   }
 
@@ -377,6 +398,9 @@ export function useCommandBar(options: UseCommandBarOptions) {
     agentsLoading,
     mentionQuery,
     filteredAgents,
+    selectedAgent,
+    effectiveWelcomeMessage,
+    effectiveSuggestedQuestions,
     recentConversations,
     recentLoading,
     menuSearchResults,

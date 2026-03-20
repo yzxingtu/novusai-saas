@@ -31,13 +31,13 @@ class OperationLogRepository(BaseRepository[OperationLog]):
     _scope_fields = {
         # 平台管理员可过滤的字段
         "admin": {
-            "id", "tenant_id", "user_type", "user_id", "username",
+            "id", "trace_id", "tenant_id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
             "response_code", "ip", "created_at",
         },
         # 企业管理员可过滤的字段（不包含 tenant_id）
         "tenant": {
-            "id", "user_type", "user_id", "username",
+            "id", "trace_id", "user_type", "user_id", "username",
             "module", "action", "resource", "method", "path",
             "response_code", "ip", "created_at",
         },

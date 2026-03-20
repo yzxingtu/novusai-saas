@@ -181,6 +181,8 @@ export async function getTenantAIUsageSummaryApi(
 export interface TenantAICallLogInfo {
   id: number;
   tenant_id: null | number;
+  agent_id?: null | number;
+  conversation_id?: null | number;
   model_id: null | number;
   provider_id: null | number;
   request_type: string;
@@ -199,6 +201,11 @@ export interface TenantAICallLogInfo {
   model_name?: null | string;
   provider_name?: null | string;
   provider_icon?: null | string;
+  routed_model_id?: null | number;
+  route_reason?: null | string;
+  routed_model_name?: null | string;
+  /** 调用人展示名（企业管理员/业务用户等）/ Resolved caller display */
+  caller_name?: null | string;
 }
 
 interface TenantCallLogPageResponse {

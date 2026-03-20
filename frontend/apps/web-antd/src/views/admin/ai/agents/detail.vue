@@ -59,6 +59,10 @@ import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { smartUploadFile } from '#/api/admin/attachment';
 import { getSkillPackageSkillsApi } from '#/api/admin/skill-packages';
 import { $t } from '#/locales';
+import {
+  formatStarterQuestionsInput,
+  parseStarterQuestionsInput,
+} from '#/utils/ai-starter-questions';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getSkillTypeColor,
@@ -333,9 +337,9 @@ function initChatConfig() {
   chatSystemPrompt.value = agent.value.system_prompt || '';
   chatWelcome.value = agent.value.welcome_message || '';
   const sq = agent.value.suggested_questions;
-  chatSuggestions.value = Array.isArray(sq) && sq.length > 0
-    ? JSON.stringify(sq, null, 2)
-    : '';
+  chatSuggestions.value = formatStarterQuestionsInput(
+    sq as null | unknown[],
+  );
   chatInputVars.value = Array.isArray(agent.value.input_variables)
     ? (agent.value.input_variables as unknown as InputVariable[])
     : [];
@@ -344,20 +348,12 @@ function initChatConfig() {
   chatContextTokens.value = cc.max_history_tokens ?? 0;
 }
 
-function safeJsonArrayParse(str: string): null | unknown[] {
-  if (!str || str.trim() === '' || str.trim() === '[]') return null;
-  try {
-    const parsed = JSON.parse(str);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch { return null; }
-}
-
 async function saveChatConfig() {
   const isSystem = agent.value?.is_system ?? true;
   await saveFields({
     ...(isSystem ? {} : { system_prompt: chatSystemPrompt.value || null }),
     welcome_message: chatWelcome.value || null,
-    suggested_questions: safeJsonArrayParse(chatSuggestions.value),
+    suggested_questions: parseStarterQuestionsInput(chatSuggestions.value),
     input_variables: chatInputVars.value.length > 0 ? chatInputVars.value : null,
     context_config: {
       max_history_messages: chatContextMessages.value,

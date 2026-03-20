@@ -56,9 +56,11 @@ class QuotaPeriodEnum(LabeledStrEnum):
 
 
 class UserTypeEnum(LabeledStrEnum):
-    """AI User Type Enum / AI 用户类型枚举"""
+    """AI User Type Enum / AI 用户类型枚举（与 call_log / audit 的 user_type 字符串对齐）"""
 
+    ADMIN = ("admin", "enum.ai_user.type.admin")
     TENANT_ADMIN = ("tenant_admin", "enum.ai_user.type.tenant_admin")
+    TENANT_USER = ("tenant_user", "enum.ai_user.type.tenant_user")
 
 
 class ModelTierEnum(LabeledStrEnum):

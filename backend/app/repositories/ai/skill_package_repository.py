@@ -8,7 +8,7 @@ from sqlalchemy import delete as sa_delete
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import DeleteLevelEnum
+from app.enums.common import AudienceEnum, DeleteLevelEnum
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
@@ -122,18 +122,38 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     model = SkillPackage
 
+    @staticmethod
+    def _is_tenant_accessible(instance: SkillPackage, tenant_id: int | None) -> bool:
+        """Tenant can access own packages and non-admin-only platform packages."""
+        if instance.tenant_id == tenant_id:
+            return True
+        if instance.tenant_id is None:
+            return instance.target_audience != AudienceEnum.ADMIN_ONLY.value
+        return False
+
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
         """根据 ID 获取技能包（同企业包 + 平台级包均可访问）/ Get skill package by ID (same-tenant + platform-level packages are accessible)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            if instance.tenant_id == self.tenant_id:
-                return instance
-            if instance.tenant_id is None:
+            if self._is_tenant_accessible(instance, self.tenant_id):
                 return instance
             return None
         return instance
+
+    async def get_by_ids(
+        self,
+        ids: list[int],
+        include_deleted: bool = False,
+    ) -> list[SkillPackage]:
+        """根据 ID 列表获取技能包，并过滤 tenant 不可见的平台 admin_only 包。"""
+        instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
+        return [
+            instance
+            for instance in instances
+            if self._is_tenant_accessible(instance, self.tenant_id)
+        ]
 
     async def query_list(
         self,

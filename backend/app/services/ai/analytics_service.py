@@ -72,7 +72,7 @@ class AnalyticsService:
             AICallLog.created_at <= end_date + timedelta(days=1),
         )
 
-        if tenant_id:
+        if tenant_id is not None:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
 
         stmt = stmt.group_by(func.date(AICallLog.created_at)).order_by(func.date(AICallLog.created_at))
@@ -116,7 +116,7 @@ class AnalyticsService:
         )
 
         filters = self._date_filters(start_date, end_date)
-        if tenant_id:
+        if tenant_id is not None:
             filters.append(AICallLog.tenant_id == tenant_id)
 
         stmt = stmt.where(*filters).group_by(AICallLog.model_id).order_by(func.count(AICallLog.id).desc()).limit(20)
@@ -273,7 +273,7 @@ class AnalyticsService:
         ]
 
         filters = self._date_filters(start_date, end_date)
-        if tenant_id:
+        if tenant_id is not None:
             filters.append(AICallLog.tenant_id == tenant_id)
         filters.append(AICallLog.latency_ms.isnot(None))
 

@@ -148,7 +148,6 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.agent (Agent Management / 智能体管理)
     # - menu:tenant.agent_chat (hidden menu entry for /ai/chat / 隐藏项，路由用)
     # - menu:tenant.knowledge_base (Knowledge Base / 知识库)
-    # - menu:tenant.agent_assignment (功能分配)
     # 无独立「工具管理」菜单（工具在智能体等页面内配置）/ No standalone tool menu in core tenant UI
 
     # ---- Settings (sub-directory) / 设置（子目录） ----

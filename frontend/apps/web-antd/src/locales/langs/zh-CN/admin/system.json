@@ -622,9 +622,13 @@
     "searchPlaceholder": "搜索已删除记录…",
     "allTenants": "全部企业",
     "modules": "数据模块",
+    "deleteSource": "删除来源",
+    "moduleStash": "本模块回收站 · {count} 条",
     "clearModule": "清空当前模块",
     "clearModuleConfirm": "确定要永久删除「{module}」中所有回收站记录吗？此操作不可恢复。",
-    "clearModuleSuccess": "已清空当前模块回收站，共删除 {count} 条记录"
+    "clearModuleSuccess": "已清空当前模块回收站，共删除 {count} 条记录",
+    "clearModuleDisabledTip": "当前模块回收站为空",
+    "configUnavailable": "回收站模块配置加载失败，请刷新页面或稍后重试"
   },
   "cache": {
     "title": "缓存管理",

@@ -104,6 +104,7 @@ class SystemAgentService:
         tools: list[dict[str, Any]] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
     ) -> ChatResponse:
         """
         Call LLM chat via system chat Agent (non-streaming). / 通过系统聊天 Agent 调用 LLM 聊天（非流式）。
@@ -130,6 +131,7 @@ class SystemAgentService:
             tools=tools,
             tenant_id=tenant_id,
             user_id=user_id,
+            user_type=user_type,
         )
 
     async def stream_chat(
@@ -144,6 +146,7 @@ class SystemAgentService:
         tools: list[dict[str, Any]] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        user_type: str | None = None,
     ):
         """
         Call streaming LLM chat via system chat Agent. / 通过系统聊天 Agent 调用流式 LLM 聊天。
@@ -169,6 +172,7 @@ class SystemAgentService:
             tools=tools,
             tenant_id=tenant_id,
             user_id=user_id,
+            user_type=user_type,
         )
 
     # ========================================
@@ -182,6 +186,8 @@ class SystemAgentService:
         texts: list[str],
         model: str,
         tenant_id: int | None = None,
+        user_id: int | None = None,
+        user_type: str | None = None,
     ) -> EmbeddingResponse:
         """
         Call embedding via system Embedding Agent. / 通过系统 Embedding Agent 调用向量化。
@@ -202,6 +208,8 @@ class SystemAgentService:
             texts=texts,
             model=model,
             tenant_id=tenant_id,
+            user_id=user_id,
+            user_type=user_type,
         )
 
 

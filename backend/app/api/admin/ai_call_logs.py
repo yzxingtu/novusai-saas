@@ -21,6 +21,7 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
+from app.repositories.ai import AICallLogRepository
 from app.services.ai import CallLogService
 
 
@@ -216,7 +217,16 @@ class AdminAICallLogController(GlobalController):
             if not log:
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))
 
-            return success(data=log, message=_("common.success"))
+            repo = AICallLogRepository(db)
+            payload = (
+                await repo.enrich_logs_to_dicts(
+                    [log],
+                    include_tenant_names=True,
+                    include_caller_names=True,
+                    include_payload=True,
+                )
+            )[0]
+            return success(data=payload, message=_("common.success"))
 
 
 # 导出路由器 / Export router

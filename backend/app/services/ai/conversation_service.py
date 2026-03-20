@@ -214,6 +214,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             else:
                 msg_dict["agent_name"] = None
                 msg_dict["agent_avatar"] = None
+            runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+            msg_dict["model_name"] = runtime_meta.get("model_name")
+            if not msg_dict["model_name"] and getattr(msg, "model", None) is not None:
+                msg_dict["model_name"] = msg.model.name
+            msg_dict["provider_id"] = runtime_meta.get("provider_id")
+            msg_dict["provider_name"] = runtime_meta.get("provider_name")
             message_list.append(msg_dict)
         result["message_list"] = message_list
         result["message_count"] = message_count
@@ -908,8 +914,20 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 metadata["route_source"] = route_source
                 route_source_marked = True
 
+            if role == "assistant":
+                if result.runtime_model_name:
+                    metadata = metadata or {}
+                    metadata["model_name"] = result.runtime_model_name
+                if result.runtime_provider_id is not None:
+                    metadata = metadata or {}
+                    metadata["provider_id"] = result.runtime_provider_id
+                if result.runtime_provider_name:
+                    metadata = metadata or {}
+                    metadata["provider_name"] = result.runtime_provider_name
+
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
+            msg_model_id = result.runtime_model_id if role == "assistant" else None
 
             await self.message_repo.create({
                 "tenant_id": self.tenant_id,
@@ -921,6 +939,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 "tool_calls": tool_calls,
                 "tool_call_id": tool_call_id,
                 "agent_id": msg_agent_id,
+                "model_id": msg_model_id,
                 "metadata_": metadata,
             })
 

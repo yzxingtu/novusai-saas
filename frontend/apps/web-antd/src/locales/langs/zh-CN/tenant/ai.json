@@ -71,6 +71,7 @@
     "status": "状态",
     "modelName": "模型",
     "providerName": "供应商",
+    "callerName": "调用人",
     "createdAt": "调用时间",
     "errorMessage": "错误信息",
     "requestData": "请求数据",
@@ -213,7 +214,7 @@
     "maxTokens": "最大 Token",
     "topP": "Top P",
     "welcomeMessage": "欢迎语",
-    "suggestedQuestions": "推荐问题 (JSON)",
+    "suggestedQuestions": "开场问题",
     "toolBindings": "工具绑定 (JSON)",
     "skillBindings": "技能绑定",
     "skillPackageBindings": "技能包绑定",
@@ -275,8 +276,8 @@
       "inputTemperature": "0-2，值越高输出越随机",
       "inputMaxTokens": "最大生成 Token 数量",
       "inputTopP": "0-1，与 temperature 配合使用",
-      "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
-      "inputSuggestedQuestions": "JSON 数组格式，如: [\"\u95ee\u98981\", \"\u95ee\u98982\"]",
+      "inputWelcomeMessage": "用户在开始首轮对话前看到的欢迎语",
+      "inputSuggestedQuestions": "每行一个问题，也支持 JSON 数组格式",
       "inputVariables": "JSON 数组，如: [{'{'}\"name\": \"var1\", \"label\": \"变量1\", \"type\": \"string\", \"required\": true{'}'}]",
       "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]",
       "selectSkills": "请选择要绑定的技能",
@@ -286,8 +287,8 @@
       "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
       "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
-      "welcomeMessage": "用户首次打开对话时自动显示的欢迎语，留空则不显示",
-      "suggestedQuestions": "用户初次进入对话时显示的推荐问题，帮助用户快速开始",
+      "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
+      "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个",
       "toolBindings": "绑定智能体可调用的工具，每个元素包含 tool_id 字段",
       "skillBindings": "选择智能体可使用的技能。技能包含知识库、数据智能、HTTP 调用等能力",
       "skillPackageBindings": "选择智能体可使用的技能包。每个技能包包含多个技能，智能体将获得包内所有技能",
@@ -889,24 +890,6 @@
       "createSuccess": "技能创建成功",
       "updateSuccess": "技能更新成功",
       "deleteSuccess": "技能已删除"
-    }
-  },
-  "agentAssignment": {
-    "title": "功能绑定管理",
-    "selectAgent": "选择智能体",
-    "saveSuccess": "绑定已更新",
-    "restoreSuccess": "已恢复全局默认",
-    "restoreConfirm": "确认恢复为全局默认绑定？",
-    "restoreDefault": "恢复默认",
-    "overridden": "已覆盖",
-    "inherited": "继承全局",
-    "columns": {
-      "featureName": "功能名称",
-      "featureCode": "功能代码",
-      "globalDefault": "全局默认",
-      "currentAgent": "当前绑定",
-      "status": "状态",
-      "actions": "操作"
     }
   }
 }

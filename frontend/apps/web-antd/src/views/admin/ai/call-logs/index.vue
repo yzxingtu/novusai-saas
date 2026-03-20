@@ -23,7 +23,11 @@ import { getProcessedImageUrl } from '#/utils/image';
 
 import {
   formatCost,
+  getCallSourceColor,
+  getCallSourceText,
   getStatusText,
+  isPlatformCall,
+  getTenantDisplayName,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -262,12 +266,24 @@ onUnmounted(() => {
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
+        <!-- 调用来源列 -->
+        <template #source_cell="{ row }">
+          <Tag :color="getCallSourceColor(row.tenant_id)">
+            {{ getCallSourceText(row.tenant_id) }}
+          </Tag>
+        </template>
+
         <!-- 企业列 -->
         <template #tenantName_cell="{ row }">
-          <span v-if="row.tenant_name" class="text-foreground">
-            {{ row.tenant_name }}
+          <span
+            :class="
+              isPlatformCall(row.tenant_id)
+                ? 'font-medium text-foreground'
+                : 'text-foreground'
+            "
+          >
+            {{ getTenantDisplayName(row.tenant_id, row.tenant_name) }}
           </span>
-          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 状态列：图标 + 文字 -->

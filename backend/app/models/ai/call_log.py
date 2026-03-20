@@ -38,6 +38,8 @@ class AICallLog(TenantModel):
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
+        "agent_id": "agent_id",
+        "conversation_id": "conversation_id",
         "user_id": "user_id",
         "user_type": "user_type",
         "provider_id": "provider_id",
@@ -68,6 +70,20 @@ class AICallLog(TenantModel):
         String(50),
         nullable=True,
         comment=_("enum.ai_call_log.user_type")
+    )
+    agent_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="关联智能体 ID / Related agent ID",
+    )
+    conversation_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("agent_conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="关联对话 ID / Related conversation ID",
     )
 
     # 供应商和模型
@@ -179,6 +195,8 @@ class AICallLog(TenantModel):
     __table_args__ = (
         # 企业 + 创建时间复合索引（用于按企业查询最近记录）
         Index("idx_ai_call_logs_tenant_created", "tenant_id", "created_at"),
+        Index("idx_ai_call_logs_agent_created", "agent_id", "created_at"),
+        Index("idx_ai_call_logs_conv_created", "conversation_id", "created_at"),
         # 用户 + 状态复合索引（用于用户调用统计）
         Index("idx_ai_call_logs_user_status", "user_id", "status"),
         # 模型 + 时间复合索引（用于模型使用统计）

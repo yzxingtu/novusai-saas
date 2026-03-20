@@ -10,8 +10,6 @@ Controllers use @permission_resource to define resource permissions; importing r
 
 from fastapi import APIRouter
 
-from app.api.tenant.agent_assignments import TenantAgentAssignmentController
-from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
 from app.api.tenant.agents import TenantAgentController
@@ -94,8 +92,6 @@ tenant_router.include_router(ai_usage_router)
 tenant_router.include_router(ai_call_logs_router)
 # 智能体 / Agents
 tenant_router.include_router(agents_router)
-# 智能体 / Agents绑定
-tenant_router.include_router(agent_assignments_router)
 # 对话管理 / Conversations
 tenant_router.include_router(conversations_router)
 # AI 对话 / AI chat
@@ -145,8 +141,6 @@ __all__ = [
     "TenantAICallLogController",
     # 智能体 / Agents
     "TenantAgentController",
-    # 智能体 / Agents绑定
-    "TenantAgentAssignmentController",
     # 对话管理 / Conversations
     "TenantConversationController",
     # AI 对话 / AI chat

@@ -41,6 +41,7 @@
       "deleting": "正在删除 {name}...",
       "deleteSuccess": "删除成功",
       "resetPasswordSuccess": "密码重置成功",
+      "resetPasswordMismatch": "两次输入的新密码不一致，请重新输入",
       "createSuccess": "创建成功",
       "updateSuccess": "更新成功",
       "approveSuccess": "审批通过成功",
@@ -59,6 +60,7 @@
       "inputUsername": "请输入用户名",
       "inputNickname": "请输入昵称",
       "inputPassword": "请输入密码，至少6位",
+      "inputNewPasswordConfirm": "请再次输入新密码",
       "inputEmail": "请输入邮箱",
       "inputPhone": "请输入手机号",
       "selectRole": "请选择角色"
@@ -178,7 +180,13 @@
     "offline": "离线",
     "allUsers": "全部用户",
     "allUsersDesc": "查看企业下所有用户，不按角色过滤",
-    "allUsersListTitle": "用户列表"
+    "allUsersListTitle": "用户列表",
+    "builtInRoles": {
+      "default_user": {
+        "name": "默认用户",
+        "description": "系统默认用户角色，新注册用户自动分配此角色。"
+      }
+    }
   },
   "configs": {
     "title": "系统配置",

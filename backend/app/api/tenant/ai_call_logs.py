@@ -82,8 +82,11 @@ class TenantAICallLogController(TenantController):
                 ),
             ]
 
-            items, total = await repo.query_list(
-                spec, forced_filters=forced,
+            items, total = await repo.query_list_with_names(
+                spec,
+                forced_filters=forced,
+                include_tenant_names=False,
+                include_caller_names=True,
             )
 
             return success(
@@ -122,7 +125,15 @@ class TenantAICallLogController(TenantController):
             if log.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
-            return success(data=log, message=_("common.success"))
+            payload = (
+                await repo.enrich_logs_to_dicts(
+                    [log],
+                    include_tenant_names=False,
+                    include_caller_names=True,
+                    include_payload=True,
+                )
+            )[0]
+            return success(data=payload, message=_("common.success"))
 
 
 # 导出路由器 / Export router

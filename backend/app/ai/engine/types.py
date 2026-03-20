@@ -104,6 +104,10 @@ class ExecutionResult:
     total_tokens: int = 0
     duration_ms: int = 0
     conversation_id: int | None = None
+    runtime_model_id: int | None = None
+    runtime_model_name: str | None = None
+    runtime_provider_id: int | None = None
+    runtime_provider_name: str | None = None
     error: str = ""
     partial: bool = False
     interrupted: bool = False
