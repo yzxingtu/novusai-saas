@@ -223,14 +223,6 @@
     "status": "状态",
     "executionMode": "执行模式",
     "targetAudience": "目标受众",
-    "distribution": {
-      "column": "分发模式",
-      "internal": "仅平台内部",
-      "all_tenants": "全部企业",
-      "assigned_tenants": "指定企业",
-      "owner_only": "仅本企业",
-      "filterPlaceholder": "全部分发模式"
-    },
     "publication": {
       "title": "发布给企业终端用户",
       "accessType": "用户端访问规则",

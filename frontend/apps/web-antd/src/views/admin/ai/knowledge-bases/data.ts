@@ -95,7 +95,7 @@ export function getFormDefaults() {
   return {
     name: '',
     description: '',
-    scope: 'admin_and_all',
+    scope: 'global_shared',
     tenant_id: null,
     tenant_ids: [],
     embedding_model_id: undefined,

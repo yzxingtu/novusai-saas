@@ -25,8 +25,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 白名单静态 SQL（禁止动态表名拼接）/ Whitelist only — no dynamic identifiers
+    op.execute(
+        sa.text("UPDATE attachments SET tenant_id = 0 WHERE tenant_id IS NULL")
+    )
+    op.execute(
+        sa.text(
+            "UPDATE knowledge_documents SET tenant_id = 0 WHERE tenant_id IS NULL"
+        )
+    )
+    op.execute(
+        sa.text("UPDATE document_chunks SET tenant_id = 0 WHERE tenant_id IS NULL")
+    )
     for table in ("attachments", "knowledge_documents", "document_chunks"):
-        op.execute(f"UPDATE {table} SET tenant_id = 0 WHERE tenant_id IS NULL")
         op.alter_column(
             table,
             "tenant_id",

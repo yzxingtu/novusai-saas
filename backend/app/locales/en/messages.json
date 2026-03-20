@@ -395,7 +395,8 @@
       "system_protected": "System agent cannot be deleted or have key properties modified",
       "system_agent_not_found": "System agent not found, please run database migrations first",
       "audience_not_allowed": "You are not authorized to access this agent (target audience restriction)",
-      "publication_org_node_not_supported": "Organization-node publication is not supported yet; choose another access type"
+      "publication_org_node_not_supported": "Organization-node publication is not supported yet; choose another access type",
+      "rejected_legacy_field": "Field '{field}' is no longer accepted. Remove it from the request."
     },
     "batch": {
       "cancelled": "Batch task cancelled"
@@ -746,6 +747,8 @@
       "provider_code_exists": "Provider code already exists",
       "provider_base_url_invalid": "Provider API URL is invalid. Please use a full URL starting with http:// or https://",
       "api_key_not_found": "API Key not found",
+      "api_key_owner_required": "Owner tenant is required for selected_tenants scope / 部分企业作用域必须选择归属企业",
+      "api_key_owner_forbidden": "Owner tenant must be empty for this scope / 当前作用域下归属企业必须为空",
       "fetch_remote_models_failed": "Failed to fetch models from provider",
       "quota_exceeded_default": "AI quota exceeded, please try again later"
     },
@@ -1825,12 +1828,11 @@
       "admin": "Admin Only"
     },
     "scope": {
+      "global_shared": "Global Shared",
       "admin_only": "Admin Only",
       "all_tenants": "All Tenants",
-      "admin_and_all": "Global",
-      "admin_and_assigned": "Admin + Assigned Tenants",
-      "assigned_tenants": "Assigned Tenants",
-      "tenant_user": "User Portal"
+      "admin_and_selected_tenants": "Admin + Selected Tenants",
+      "selected_tenants": "Selected Tenants"
     },
     "skill_bind_mode": {
       "auto": "Auto Bind",
@@ -1987,11 +1989,10 @@
       "error": "Error"
     },
     "plugin_scope": {
-      "admin_only": "Admin Only",
-      "all_tenants": "All Tenants",
-      "assigned_tenants": "Assigned Tenants",
-      "admin_and_all": "Admin + All Tenants",
-      "admin_and_assigned": "Admin + Assigned Tenants"
+      "admin": "Admin",
+      "tenant": "Tenant",
+      "both": "Admin + Tenant",
+      "user": "User Portal"
     },
     "plugin_tier": {
       "official": "Official",
@@ -2902,7 +2903,8 @@
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users",
-      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}"
+      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}",
+      "rejected_legacy_field": "Field '{field}' is no longer accepted. Remove it from the request."
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -3012,7 +3014,7 @@
       "agent_kb_binding": "Knowledge Base Binding",
       "agent_skill_binding": "Skill Binding",
       "agent_version": "Agent Version",
-      "knowledge_base_tenant_access": "KB Tenant Access",
+      "resource_tenant_assignment": "Resource–tenant assignment",
       "batch_run": "Batch Run",
       "skill_package": "Skill Package",
       "skill": "Skill",
@@ -3038,7 +3040,8 @@
     "error": {
       "not_found": "Periodic task not found",
       "name_exists": "Periodic task with name '{name}' already exists",
-      "scope_requires_tenant_id": "tenant_id is required when scope is all_tenants",
+      "scope_requires_tenant_id": "owner_tenant_id is required when scope is selected_tenants or admin_and_selected_tenants",
+      "reject_tenant_id_field": "Field tenant_id is removed; use owner_tenant_id",
       "edit_locked": "This task is protected and only supports toggling active status",
       "delete_locked": "Task '{name}' is protected and cannot be deleted"
     }
@@ -3165,7 +3168,7 @@
   "api.param.doc_file": "Document file to upload",
   "api.param.menu_name": "Menu name from plugin.yaml",
   "api.param.admin_parent": "Admin parent menu code (e.g. system_mgmt)",
-  "api.param.tenant_parent": "Tenant parent menu code (for admin_and_all scope)",
+  "api.param.tenant_parent": "Tenant parent menu code (for 'both' endpoint scope)",
   "api.param.channels": "Delivery channel list",
   "api.param.priority": "Priority: low/normal/high/urgent",
   "api.param.title_template": "Title template",

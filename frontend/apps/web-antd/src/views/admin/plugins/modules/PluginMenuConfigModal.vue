@@ -4,8 +4,8 @@
  *
  * 支持：
  * - 多级菜单树形选择（TreeSelect）
- * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 企业端目录
- * - admin_and_all scope：同时配置管理端和企业端父级
+ * - 按菜单挂载端别（manifest 归一化）分组：admin / tenant / both / user
+ * - both：同时配置管理端与企业端父级（tenant_parent）
  */
 import type {
   MenuOverrideItem,
@@ -36,9 +36,9 @@ interface MenuEditRow {
   title: string;
   icon?: string;
   scope: string;
-  /** 管理端父级（admin_only / admin_and_all） / Admin parent scope */
+  /** 管理端父级（admin / both） / Admin-side parent */
   adminParent: string;
-  /** 企业端父级（all_tenants / admin_and_all） / Tenant parent scope */
+  /** 企业端父级（tenant / both） / Tenant-side parent */
   tenantParent: string;
 }
 
@@ -61,11 +61,16 @@ function resolveTitle(title: Record<string, string> | string): string {
   return title?.['zh-CN'] ?? title?.en ?? Object.values(title)[0] ?? '';
 }
 
-/** 规范化旧版 scope 值（manifest 未重新扫描时兼容旧数据） / Normalize legacy scope */
-function normalizeScope(scope: string | undefined): string {
-  if (scope === 'tenant') return 'all_tenants';
-  if (scope === 'admin') return 'admin_only';
-  return scope || 'admin_only';
+/** 菜单挂载端别（与后端 manifest 归一化一致）：admin | tenant | both | user */
+const MENU_ENDPOINT_SCOPES = ['admin', 'tenant', 'both', 'user'] as const;
+
+/**
+ * Validate menu endpoint scope — only canonical values accepted.
+ */
+function normalizeMenuEndpointScope(scope: string | undefined): string {
+  const raw = (scope || 'admin').trim();
+  if ((MENU_ENDPOINT_SCOPES as readonly string[]).includes(raw)) return raw;
+  return 'admin';
 }
 
 /** 将 MenuParentOption[] 转为 AntD TreeSelect 需要的 treeData 格式，含图标渲染 / Convert to treeData for TreeSelect */
@@ -102,7 +107,7 @@ async function open(
       name: m.name,
       title: resolveTitle(m.title),
       icon: m.icon,
-      scope: normalizeScope(m.scope),
+      scope: normalizeMenuEndpointScope(m.scope),
       adminParent: ov.parent ?? m.parent ?? '',
       tenantParent: ov.tenant_parent ?? '',
     };
@@ -117,10 +122,8 @@ async function open(
     const firstAdmin = optionsData.value.admin[0]?.value ?? '';
     const firstTenant = optionsData.value.tenant[0]?.value ?? '';
     for (const row of rows.value) {
-      const needsAdmin =
-        row.scope === 'admin_only' || row.scope === 'admin_and_all';
-      const needsTenant =
-        row.scope === 'all_tenants' || row.scope === 'admin_and_all';
+      const needsAdmin = row.scope === 'admin' || row.scope === 'both';
+      const needsTenant = row.scope === 'tenant' || row.scope === 'both';
       if (needsAdmin && !row.adminParent) row.adminParent = firstAdmin;
       if (needsTenant && !row.tenantParent) row.tenantParent = firstTenant;
     }
@@ -135,7 +138,7 @@ function handleOk() {
   const overrides: MenuOverrideItem[] = rows.value.map((r) => ({
     name: r.name,
     parent: r.adminParent || r.tenantParent,
-    ...(r.scope === 'admin_and_all' && r.tenantParent
+    ...(r.scope === 'both' && r.tenantParent
       ? { tenant_parent: r.tenantParent }
       : {}),
   }));
@@ -152,15 +155,11 @@ const hasMenus = computed(() => rows.value.length > 0);
 
 /** 需要展示管理端区块的行 / Rows showing admin block */
 const adminRows = computed(() =>
-  rows.value.filter(
-    (r) => r.scope === 'admin_only' || r.scope === 'admin_and_all',
-  ),
+  rows.value.filter((r) => r.scope === 'admin' || r.scope === 'both'),
 );
 /** 需要展示企业端区块的行 / Rows showing tenant block */
 const tenantRows = computed(() =>
-  rows.value.filter(
-    (r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all',
-  ),
+  rows.value.filter((r) => r.scope === 'tenant' || r.scope === 'both'),
 );
 
 defineExpose({ open });

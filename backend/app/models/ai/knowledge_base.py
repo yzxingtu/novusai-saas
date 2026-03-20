@@ -7,27 +7,26 @@ Defines knowledge base basic info, embedding config, chunking config, retrieval 
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
-from app.core.base_model import TenantModel
+from app.core.base_model import BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.common import ResourceScopeEnum
 from app.enums.knowledge_base import (
     ChunkStrategyEnum,
     KBStatusEnum,
-    KBVisibilityEnum,
     SearchModeEnum,
 )
 
 
-class KnowledgeBase(TenantModel):
+class KnowledgeBase(BaseModel):
     """
     知识库模型 / Knowledge base model.
 
-    存储知识库配置，包括 Embedding 模型、分块策略、检索模式等
-    属于企业级资源，通过 tenant_id 隔离
+    投放范围由 ResourceScopeEnum + owner_tenant_id + resource_tenant_assignments 表达；
+    TenantRepository 仍通过 tenant_id 键注入/过滤，映射到 owner_tenant_id 列。
     """
 
     __tablename__ = "knowledge_bases"
@@ -39,38 +38,34 @@ class KnowledgeBase(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("KnowledgeBaseTenantAccess", "knowledge_base_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="knowledge_base_tenant_access"),
         DeletionDep("AgentKnowledgeBaseBinding", "knowledge_base_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_kb_binding"),
         DeletionDep("KnowledgeDocument", "knowledge_base_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="knowledge_document"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id，改为可选（scope=global/admin 时为 NULL）
-    tenant_id = Column(
+    owner_tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（scope=tenant 时必填，global/admin 时为 NULL）"
+        comment="归属企业ID（平台级知识库为 NULL）",
     )
+    tenant_id = synonym("owner_tenant_id")
 
-    # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",
         "name": "name",
         "status": "status",
         "scope": "scope",
-        "visibility": "visibility",
         "embedding_model_id": "embedding_model_id",
         "vision_model_id": "vision_model_id",
         "audio_model_id": "audio_model_id",
         "video_model_id": "video_model_id",
-        "tenant_id": "tenant_id",
+        "owner_tenant_id": "owner_tenant_id",
+        "tenant_id": "owner_tenant_id",
         "created_at": "created_at",
     }
 
-    # 允许排序的字段
     __sortable__ = {
         "id": "id",
         "name": "name",
@@ -81,24 +76,13 @@ class KnowledgeBase(TenantModel):
         "updated_at": "updated_at",
     }
 
-    # ==================== 作用域 ====================
-
     scope: Mapped[str] = mapped_column(
-        String(20),
+        String(32),
         nullable=False,
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("knowledge_base.model.scope"),
     )
-    visibility: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=KBVisibilityEnum.PRIVATE.value,
-        index=True,
-        comment=_("knowledge_base.model.visibility"),
-    )
-
-    # ==================== 基本信息 ====================
 
     name: Mapped[str] = mapped_column(
         String(200),
@@ -117,8 +101,6 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.avatar"),
     )
 
-    # ==================== Embedding 配置 ====================
-
     embedding_model_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="RESTRICT"),
@@ -132,8 +114,6 @@ class KnowledgeBase(TenantModel):
         default=1536,
         comment=_("knowledge_base.model.embedding_dimensions"),
     )
-
-    # ==================== Vision 配置 ====================
 
     vision_model_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -149,8 +129,6 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.extract_images"),
     )
 
-    # ==================== Audio/Video 描述配置 ====================
-
     audio_model_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("ai_models.id", ondelete="SET NULL"),
@@ -165,8 +143,6 @@ class KnowledgeBase(TenantModel):
         index=True,
         comment=_("knowledge_base.model.video_model_id"),
     )
-
-    # ==================== 分块配置 ====================
 
     chunk_size: Mapped[int] = mapped_column(
         Integer,
@@ -187,10 +163,6 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.chunk_strategy"),
     )
 
-    # ==================== 检索配置（DEPRECATED） ====================
-    # 这些字段已迁移到 Agent.rag_config，不再用于 RAG 检索。
-    # 保留列以兼容旧数据，稳定后通过迁移删除。
-
     search_mode: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -209,8 +181,6 @@ class KnowledgeBase(TenantModel):
         default=0.5,
         comment="DEPRECATED: use Agent.rag_config.score_threshold",
     )
-
-    # ==================== 统计 ====================
 
     document_count: Mapped[int] = mapped_column(
         Integer,
@@ -231,8 +201,6 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.total_size_bytes"),
     )
 
-    # ==================== 状态 ====================
-
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -241,29 +209,22 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.status"),
     )
 
-    # ==================== 复合索引 ====================
-
     __table_args__ = (
-        Index("ix_kb_tenant_status", "tenant_id", "status"),
+        Index("ix_kb_owner_status", "owner_tenant_id", "status"),
     )
 
-    # ==================== 关系 ====================
-
-    # 关联的 Embedding 模型
     embedding_model = relationship(
         "AIModel",
         foreign_keys=[embedding_model_id],
         lazy="selectin",
     )
 
-    # 关联的 Vision 模型（可选）
     vision_model = relationship(
         "AIModel",
         foreign_keys=[vision_model_id],
         lazy="selectin",
     )
 
-    # 关联的 Audio/Video 描述模型（可选）
     audio_model = relationship(
         "AIModel",
         foreign_keys=[audio_model_id],
@@ -275,7 +236,6 @@ class KnowledgeBase(TenantModel):
         lazy="selectin",
     )
 
-    # 关联的文档列表
     documents = relationship(
         "KnowledgeDocument",
         back_populates="knowledge_base",
@@ -284,7 +244,7 @@ class KnowledgeBase(TenantModel):
     )
 
     def __repr__(self) -> str:
-        return f"<KnowledgeBase(id={self.id}, name={self.name}, tenant_id={self.tenant_id})>"
+        return f"<KnowledgeBase(id={self.id}, name={self.name}, owner_tenant_id={self.owner_tenant_id})>"
 
 
 if TYPE_CHECKING:

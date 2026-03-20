@@ -543,7 +543,7 @@ class ExtensionRegistry:
         icon: str = "",
         parent: str = "",
         sort_order: int = 100,
-        scope: str = "admin_only",
+        scope: str = "admin",
         component: str = "",
         title: dict[str, str] | None = None,
         hidden: bool = False,
@@ -551,7 +551,17 @@ class ExtensionRegistry:
         """
         Register plugin menu entry (stored in-memory, synced to permission system on enable).
         / 注册插件菜单条目（内存存储，enable 时同步到权限系统）。
+
+        scope 须为权限端别字面量：admin / tenant / user（与 PermissionScope 一致）。
         """
+        from app.enums.rbac import PermissionScope as _PS
+
+        _allowed_menu_scopes = {_PS.ADMIN.value, _PS.TENANT.value, _PS.USER.value}
+        if scope not in _allowed_menu_scopes:
+            raise ValueError(
+                f"Invalid plugin menu scope {scope!r}; expected one of {sorted(_allowed_menu_scopes)}"
+            )
+
         menu_entry: dict[str, Any] = {
             "plugin_name": plugin_name,
             "name": name,
@@ -612,12 +622,21 @@ class ExtensionRegistry:
 
         safe_name = plugin_name.replace("-", "_")
 
-        if scope == "admin_only":
+        if scope == PermissionScope.ADMIN.value:
             scope_prefix = "admin"
-            perm_scope = PermissionScope.ADMIN_ONLY
-        else:
+            perm_scope = PermissionScope.ADMIN
+        elif scope == PermissionScope.TENANT.value:
             scope_prefix = "tenant"
-            perm_scope = PermissionScope.ALL_TENANTS
+            perm_scope = PermissionScope.TENANT
+        elif scope == PermissionScope.USER.value:
+            scope_prefix = "user"
+            perm_scope = PermissionScope.USER
+        else:
+            raise ValueError(
+                f"Invalid plugin menu scope {scope!r}; expected "
+                f"{PermissionScope.ADMIN.value!r}, {PermissionScope.TENANT.value!r}, "
+                f"or {PermissionScope.USER.value!r}"
+            )
 
         perm_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
         parent_code = f"menu:{scope_prefix}.{parent}" if parent else None
@@ -659,6 +678,7 @@ class ExtensionRegistry:
         safe_name = plugin_name.replace("-", "_")
         permission_registry.unregister(f"menu:admin.plugin_{safe_name}_{name}")
         permission_registry.unregister(f"menu:tenant.plugin_{safe_name}_{name}")
+        permission_registry.unregister(f"menu:user.plugin_{safe_name}_{name}")
 
     def get_plugin_menus(
         self, plugin_name: str | None = None, scope: str | None = None,
@@ -844,16 +864,10 @@ class ExtensionRegistry:
                     continue
                 if scope:
                     slot_scope = slot.get("scope", "")
-                    # Filter slot visibility by request side: / 按请求端过滤插槽可见性
-                    # - slot_scope="tenant"    → visible only on tenant side
-                    # - slot_scope="admin"/"admin_only" → visible only on admin side
-                    # - others (empty/all_tenants/admin_and_all etc.) → visible on both sides
-                    # / 按请求端过滤插槽可见性
-                    from app.enums.common import ResourceScopeEnum
-                    _ADMIN_ONLY = ResourceScopeEnum.ADMIN_ONLY.value
+                    # Filter by endpoint side (admin / tenant / user / both / empty)
                     if scope == "admin" and slot_scope == "tenant":
                         continue
-                    elif scope == "tenant" and slot_scope in (_ADMIN_ONLY, "admin"):
+                    elif scope == "tenant" and slot_scope == "admin":
                         continue
                 all_slots.append(slot)
         return all_slots

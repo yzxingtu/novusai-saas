@@ -17,7 +17,7 @@ tags:
   - sales
   - customer
 
-scope: admin_and_assigned
+scope: admin_and_selected_tenants
 
 developer:
   name: "NovusAI"

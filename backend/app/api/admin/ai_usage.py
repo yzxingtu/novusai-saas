@@ -26,7 +26,7 @@ from app.repositories.ai import AICallLogRepository
 @permission_resource(
     resource="ai_usage",
     name="menu.admin.ai_usage",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:bar-chart-3",

@@ -58,13 +58,6 @@
     "disabled": "已禁用",
     "error": "异常"
   },
-  "scope_options": {
-    "admin_only": "仅管理端",
-    "all_tenants": "全部企业",
-    "assigned_tenants": "指定企业",
-    "admin_and_all": "管理端+全部企业",
-    "admin_and_assigned": "管理端+指定企业"
-  },
   "dependency": {
     "installed": "依赖已安装",
     "missing": "依赖未安装"

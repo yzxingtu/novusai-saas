@@ -5,12 +5,12 @@
  * Injection-based loading: fetches visible plugin slots via API, then dynamically loads UMD plugin components.
  * 注入式加载：通过 API 获取可见插件插槽，再按需 UMD 动态加载插件组件
  *
- * Scope filter rules / Scope 过滤规则:
- *   - admin_only         → load frontend only on admin side / 仅 admin 端加载
- *   - all_tenants        → load frontend only on tenant side / 仅 tenant 端加载
- *   - assigned_tenants   → load only on assigned tenant side / 仅被分配的 tenant 端加载
- *   - admin_and_all      → admin + all tenants / admin + 所有 tenant 端
- *   - admin_and_assigned → admin + assigned tenants / admin + 被分配的 tenant 端
+ * 插件端点 scope（PermissionScope，与资源 ResourceScopeEnum 不同）过滤规则:
+ *   - admin              → 仅管理端加载
+ *   - tenant             → 仅企业端加载
+ *   - user               → 仅用户端加载
+ *   - both               → 管理端 + 企业端均加载
+ *   Only canonical endpoint scopes are accepted; legacy strings will be rejected.
  */
 
 import type { Component } from 'vue';

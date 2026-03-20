@@ -15,6 +15,7 @@
 - `rbac-and-data-permission.md` — `parent_resource`、`messages.json`、数据权限
 - `user-endpoint-and-domain-isolation.md` — `/api/user/*`、UserLayout、域名隔离
 - `testing-validation.md` — 后端单元测试、浏览器验证
+- `alembic-migration-authoring.md` — Alembic 迁移写法规范（空库 `upgrade heads` 必过）
 - `trace-and-monitoring.md` — `X-Trace-ID`、LogManager、Prometheus/Grafana
 - `tenant-architecture.md` — 企业端能力边界
 - `menu-i18n.md` — 动态菜单多语言职责边界
@@ -69,15 +70,16 @@
 - **禁止手写 CRUD 数据管理**（手动 loading/list/page/total + fetchList + watch 分页 + 手写删除确认 + 手写回收站）
 - 软删除资源的列表页开启 `recycleBin: true`，`useCrudList`/`useCrudPage` 自动处理回收站切换
 
-### 企业端资源操作按鈕显示规则
+### 统一资源作用域（ResourceScopeEnum）与归属
 
-**禁止仅检查 `scope === 'all_tenants'`**，必须同时检查 `tenant_id !== null`：
+- **五类资源作用域**：`global_shared` | `admin_only` | `all_tenants` | `admin_and_selected_tenants` | `selected_tenants`（见后端 `ResourceScopeEnum`）。
+- **可编辑/企业自有**只看 **`owner_tenant_id`**（列表 API 常序列化为 `tenant_id`，语义为归属企业）。
+- **禁止**用 `scope === 'all_tenants' && tenant_id !== null` 判断企业自有（旧双重语义已废除）。
+- **权限/菜单端别**用 `PermissionScope`（admin / tenant / user / both），与资源作用域分离。
 
 ```typescript
-// ✅ 正确
-const canEdit = row.scope === 'all_tenants' && row.tenant_id !== null;
-// ❌ 错误：平台全局包（scope=all_tenants, tenant_id=null）会被误判为可编辑
-const canEdit = row.scope === 'all_tenants';
+// ✅ 企业端：仅当资源归属当前企业时可编辑（示例）
+const canEdit = row.tenant_id != null && row.tenant_id === currentTenantId;
 ```
 
 ### 权限
@@ -228,13 +230,14 @@ async def _before_delete_check(self, obj) -> None:
     """DELETE 前提前检查（不修改数据）"""
 ```
 
-**Scope 保护模式**（企业端必须在 `_before_update` / `_before_delete` 中实现）：
+**归属保护模式**（企业端必须在 `_before_update` / `_before_delete` 中实现）：
 
 ```python
-# 必须同时检查 tenant_id（不能只检查 scope）
-if obj.tenant_id != self.tenant_id:
+# 以归属企业为准：平台资源 owner_tenant_id 为 NULL，或归属非本企业则禁止写
+_owner = getattr(obj, "owner_tenant_id", None)
+if _owner is None or _owner != self.tenant_id:
     raise BusinessException(message=_("平台资源不可修改"))
-# 错误：仅检查 scope 会误放行平台全局包（scope='all_tenants', tenant_id=null）
+# 若模型仍暴露 tenant_id 列名但语义为归属，可与 owner_tenant_id 等价判断
 ```
 
 ### 中间件顺序

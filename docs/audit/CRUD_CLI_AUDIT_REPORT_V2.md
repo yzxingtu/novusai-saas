@@ -159,7 +159,7 @@ docstring 已明确私钥输出至 stdout 及生产环境使用安全存储的�
 | 模型 | 文件 | 问题 | 修复状态 |
 |------|------|------|----------|
 | Agent | `backend/app/models/ai/agent.py` | AgentAccess、AgentVersion（FK agent_id） | ✅ 已补充，均为 CASCADE_DELETE |
-| KnowledgeBase | `backend/app/models/ai/knowledge_base.py` | KnowledgeBaseTenantAccess、AgentKnowledgeBaseBinding（FK knowledge_base_id） | ✅ 已补充，均为 CASCADE_DELETE |
+| KnowledgeBase | `backend/app/models/ai/knowledge_base.py` | ResourceTenantAssignment、AgentKnowledgeBaseBinding（FK knowledge_base_id） | ✅ 已补充，均为 CASCADE_DELETE |
 | SkillPackage | `backend/app/models/ai/skill_package.py` | AgentSkillBinding（FK skill_package_id） | ✅ 已补充 CASCADE_DELETE |
 | Tenant | `backend/app/models/tenant/tenant.py` | `DeletionDep("TenantPlugin", ...)` 引用已不存在的模型 | ✅ 已移除（tenant_plugins 表在迁移 20260223 中已删除） |
 
@@ -253,7 +253,7 @@ docstring 已明确私钥输出至 stdout 及生产环境使用安全存储的�
 ### 4.1 `__delete_deps__` 审计
 
 - **已声明模型**：CodegenConfig、Admin、AIModel、AdminRole、Attachment、TenantDomain、KnowledgeBase、Provider、TenantPlan、TablePolicy、Tenant、TenantAdmin、SkillPackage、Agent、AgentConversation、SystemConfig、Plugin、Permission、TenantAdminRole、TenantUserRole、KnowledgeDocument、AITablePolicy 等
-- **已修复**：Agent 已补充 AgentAccess、AgentVersion；KnowledgeBase 已补充 KnowledgeBaseTenantAccess、AgentKnowledgeBaseBinding；SkillPackage 已补充 AgentSkillBinding；Tenant 已移除 TenantPlugin 错误引用
+- **已修复**：Agent 已补充 AgentAccess、AgentVersion；KnowledgeBase 已补充 ResourceTenantAssignment、AgentKnowledgeBaseBinding；SkillPackage 已补充 AgentSkillBinding；Tenant 已移除 TenantPlugin 错误引用
 
 ### 4.2 分页参数审计
 
@@ -371,7 +371,7 @@ pytest backend/tests/ -v
 
 | 类别 | 修改内容 |
 |------|----------|
-| **3.1 __delete_deps__** | Agent 增加 AgentAccess、AgentVersion（CASCADE_DELETE）；KnowledgeBase 增加 KnowledgeBaseTenantAccess、AgentKnowledgeBaseBinding（CASCADE_DELETE）；SkillPackage 增加 AgentSkillBinding（CASCADE_DELETE）；Tenant 移除 TenantPlugin |
+| **3.1 __delete_deps__** | Agent 增加 AgentAccess、AgentVersion（CASCADE_DELETE）；KnowledgeBase 增加 ResourceTenantAssignment、AgentKnowledgeBaseBinding（CASCADE_DELETE）；SkillPackage 增加 AgentSkillBinding（CASCADE_DELETE）；Tenant 移除 TenantPlugin |
 | **3.2 get-by-id None 检查** | admin/plugins.py get_plugin、admin/periodic_tasks.py get_periodic_task、admin/tasks.py task_detail/retry_task/cancel_task，均增加 None 检查并抛出 NotFoundException |
 | **i18n** | 后端 messages.json：agent_access、agent_version、knowledge_base_tenant_access、periodic_task.error.not_found、task_log.error.not_found；前端 common.json dependency.model 增加上述 key；dependency-block-modal 增加图标映射 |
 

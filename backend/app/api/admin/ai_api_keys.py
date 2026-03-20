@@ -79,11 +79,13 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
     if model_count_map:
         provider_model_count = model_count_map.get(key.provider_id, 0)
 
+    _otid = getattr(key, "owner_tenant_id", None)
     return {
         "id": key.id,
         "provider_id": key.provider_id,
         "scope": key.scope,
-        "tenant_id": key.tenant_id,
+        "tenant_id": _otid,
+        "owner_tenant_id": _otid,
         "name": key.name,
         "is_active": key.is_active,
         "usage_limit": key.usage_limit,
@@ -105,7 +107,7 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
 @permission_resource(
     resource="ai_api_key",
     name="menu.admin.ai_api_key",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:key",

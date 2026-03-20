@@ -77,6 +77,7 @@ export interface AIApiKeyInfo {
   provider_id: number;
   scope: string;
   tenant_id: null | number;
+  owner_tenant_id?: null | number;
   name: string;
   is_active: boolean;
   usage_limit: null | number;

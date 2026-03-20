@@ -25,7 +25,7 @@ from app.services.ai.skill_service import SkillService
 @permission_resource(
     resource="skill",
     name="menu.tenant.skill",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     menu=None,
     parent_resource="skill_package",
 )

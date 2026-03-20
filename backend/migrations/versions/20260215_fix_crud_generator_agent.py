@@ -76,12 +76,11 @@ def upgrade() -> None:
         )).fetchone()
 
         if not model_row:
-            print("[FIX] WARNING: No active chat model found. Creating agent with model_id=NULL.")
-            model_id_val = "NULL"
-            model_param = {}
-        else:
-            model_id_val = ":model_id"
-            model_param = {"model_id": model_row[0]}
+            print(
+                "[FIX] WARNING: No active chat model found. "
+                "Skipping crud_generator_assistant creation (model_id NOT NULL)."
+            )
+            return
 
         result = conn.execute(text(
             "INSERT INTO agents "
@@ -89,17 +88,19 @@ def upgrade() -> None:
             " temperature, execution_mode, status, visibility, is_system, "
             " created_at, updated_at, is_deleted) "
             "VALUES "
-            f"(NULL, 'crud_generator_assistant', "
-            f"'CRUD 代码生成助手 — 自然语言驱动全栈 CRUD 代码生成、字段推荐、i18n 翻译、布局推荐', "
-            f"'admin', :system_prompt, {model_id_val}, "
-            f"0.3, 'conversation', 'published', 'public', true, "
-            f"NOW(), NOW(), false) "
+            "(NULL, 'crud_generator_assistant', "
+            "'CRUD 代码生成助手 — 自然语言驱动全栈 CRUD 代码生成、字段推荐、i18n 翻译、布局推荐', "
+            "'admin', :system_prompt, :model_id, "
+            "0.3, 'conversation', 'published', 'public', true, "
+            "NOW(), NOW(), false) "
             "RETURNING id"
-        ), {"system_prompt": system_prompt, **model_param})
+        ), {"system_prompt": system_prompt, "model_id": model_row[0]})
 
         agent_id = result.fetchone()[0]
-        model_info = f"model_id={model_row[0]}" if model_row else "model_id=NULL"
-        print(f"[FIX] Created agent 'crud_generator_assistant' (id={agent_id}, {model_info}, prompt_len={len(system_prompt)})")
+        print(
+            f"[FIX] Created agent 'crud_generator_assistant' "
+            f"(id={agent_id}, model_id={model_row[0]}, prompt_len={len(system_prompt)})"
+        )
 
     # ---------- 3. Create binding (idempotent) ----------
     existing_binding = conn.execute(text(

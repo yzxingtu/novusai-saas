@@ -45,8 +45,8 @@ from app.services.ai.knowledge_base_service import (
 )
 
 SCOPES_NEEDING_ASSIGNMENT = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
 
 # 支持的文件类型映射 / Supported file type mapping
@@ -81,7 +81,7 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 @permission_resource(
     resource="ai_knowledge_base",
     name="menu.admin.ai_knowledge_base",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
         icon="lucide:book-open",
@@ -175,7 +175,7 @@ class AdminKnowledgeBaseController(GlobalController):
             data.pop("assigned_tenant_ids", None)
             kb = await service.create(data)
 
-            # scope=assigned_tenants/admin_and_assigned 时同步企业分配 / Sync tenant assignments when scope=assigned_tenants/admin_and_assigned
+            # selected_tenants / admin_and_selected_tenants 时同步企业分配 / Sync RTA for assignment scopes
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("knowledge_base", kb.id, tenant_ids)
@@ -252,14 +252,14 @@ class AdminKnowledgeBaseController(GlobalController):
             from app.enums.common import ResourceScopeEnum
             from app.models.ai.knowledge_base import KnowledgeBase
 
-            # 查询管理端可见的知识库（admin_only / admin_and_all） / Query admin-visible knowledge bases
+            # 查询管理端可消费的知识库（admin_only / global_shared） / Admin-consumable KBs
             stmt = (
                 select(KnowledgeBase)
                 .where(
                     KnowledgeBase.is_deleted.is_(False),
                     KnowledgeBase.scope.in_([
                         ResourceScopeEnum.ADMIN_ONLY.value,
-                        ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        ResourceScopeEnum.GLOBAL_SHARED.value,
                     ]),
                 )
                 .order_by(KnowledgeBase.name.asc())

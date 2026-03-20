@@ -47,18 +47,18 @@ async def _ensure_tenant_owned_kb(
     kb_id: int,
 ):
     """
-    确保知识库为企业自有（tenant_id 与当前企业匹配）才允许变更操作 / Ensure KB is tenant-owned before mutations.
+    确保知识库为企业自有（owner_tenant_id 与当前企业匹配）才允许变更操作 / Ensure KB is tenant-owned before mutations.
 
-    平台创建的全局 KB（tenant_id=null）及其他企业的 KB 对当前企业只读，
+    平台创建的全局 KB（owner_tenant_id=null）及其他企业的 KB 对当前企业只读，
     不允许上传文档、删除文档等变更操作。
-    Platform-created global KBs (tenant_id=null) and other tenants' KBs are read-only,
+    Platform-created global KBs (owner_tenant_id=null) and other tenants' KBs are read-only,
     upload/delete document mutations are not allowed.
     """
     kb_service = KnowledgeBaseService(db, tenant_id)
     kb = await kb_service.get_by_id(kb_id)
     if not kb:
         raise NotFoundException(message=_("knowledge_base.error.not_found"))
-    if kb.tenant_id != tenant_id:
+    if kb.owner_tenant_id != tenant_id:
         raise BusinessException(message=_("knowledge_base.error.readonly"))
     return kb
 
@@ -95,7 +95,7 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 @permission_resource(
     resource="knowledge_base",
     name="menu.tenant.knowledge_base",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:book-open",
@@ -167,12 +167,12 @@ class TenantKnowledgeBaseController(TenantController):
                             KnowledgeBase.tenant_id == tenant_id,
                         ),
                         # 全局共享的 KB（admin 创建，所有企业可见） / Global shared KBs (admin-created, visible to all tenants)
-                        KnowledgeBase.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        KnowledgeBase.scope == ResourceScopeEnum.GLOBAL_SHARED.value,
                         # 已分配给当前企业的 KB / KBs assigned to current tenant
                         and_(
                             KnowledgeBase.scope.in_([
-                                ResourceScopeEnum.ASSIGNED_TENANTS.value,
-                                ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+                                ResourceScopeEnum.SELECTED_TENANTS.value,
+                                ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
                             ]),
                             KnowledgeBase.id.in_(assigned_subq),
                         ),

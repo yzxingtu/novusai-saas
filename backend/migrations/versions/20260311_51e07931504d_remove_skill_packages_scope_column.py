@@ -36,7 +36,7 @@ def downgrade() -> None:
             "scope",
             sa.String(20),
             nullable=False,
-            server_default="admin_and_all",
+            server_default="global_shared",
         ),
     )
     op.create_index("ix_skill_packages_scope", "skill_packages", ["scope"])

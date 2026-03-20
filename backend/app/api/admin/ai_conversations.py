@@ -173,7 +173,7 @@ async def _load_single_user_info(
 @permission_resource(
     resource="ai_conversation",
     name="menu.admin.ai_conversation",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:message-square-text",

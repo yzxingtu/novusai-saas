@@ -14,7 +14,20 @@ revision = 'novusdoc_002_tid_nullable'
 down_revision = 'novusdoc_001_init'
 branch_labels = None
 
-TABLES = ['px_novusdoc_folders', 'px_novusdoc_documents', 'px_novusdoc_tags']
+TABLES = ('px_novusdoc_folders', 'px_novusdoc_documents', 'px_novusdoc_tags')
+
+# Static SQL only (no f-string identifiers) / 表名白名单
+_NULL_TENANT_TO_ZERO_SQL: dict[str, str] = {
+    'px_novusdoc_folders': (
+        'UPDATE px_novusdoc_folders SET tenant_id = 0 WHERE tenant_id IS NULL'
+    ),
+    'px_novusdoc_documents': (
+        'UPDATE px_novusdoc_documents SET tenant_id = 0 WHERE tenant_id IS NULL'
+    ),
+    'px_novusdoc_tags': (
+        'UPDATE px_novusdoc_tags SET tenant_id = 0 WHERE tenant_id IS NULL'
+    ),
+}
 
 
 def upgrade():
@@ -31,7 +44,7 @@ def upgrade():
                 if fk.get('name'):
                     op.drop_constraint(fk['name'], table, type_='foreignkey')
 
-        op.execute(sa.text(f"UPDATE {table} SET tenant_id = 0 WHERE tenant_id IS NULL"))
+        op.execute(sa.text(_NULL_TENANT_TO_ZERO_SQL[table]))
         op.alter_column(table, 'tenant_id', nullable=False, server_default='0')
 
 

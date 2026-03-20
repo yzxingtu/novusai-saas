@@ -46,9 +46,9 @@ description: NovusAI AI 调用日志与使用量账本。说明 AICallLog 不可
 
 ## `billing_context` 是什么
 
-- **含义**：一次调用当时的 **计费归属、访问渠道、智能体分发语义、企业侧发布规则快照** 等结构化字典。
+- **含义**：一次调用当时的 **计费归属、访问渠道、智能体资源作用域快照（`agent_resource_scope`）、企业侧发布规则快照** 等结构化字典。
 - **构建**：典型在 `AgentChatService`（如 `_build_billing_context`）注入到 `ExecutionRequest.billing_context`，再经引擎 / Gateway 传到 `log_call_async` → Celery 任务。
-- **落库**：`log_ai_call_task` 将字典拆到 `AICallLog` 各列（`billing_tenant_id`、`access_channel`、`agent_owner_type`、`tenant_publication_id`、各类 `*_snapshot` 等）。
+- **落库**：`log_ai_call_task` 将字典拆到 `AICallLog` 各列（`billing_tenant_id`、`access_channel`、`agent_owner_type`、`agent_resource_scope`、`tenant_publication_id`、各类 `*_snapshot` 等）。
 
 **若任务函数签名缺少 `billing_context` 而调用方仍传入**：任务会整单失败，**库中无该行日志** —— 这通常是 **Worker 未重启、仍跑旧代码**，而非 broker 配置错误。
 
@@ -82,7 +82,7 @@ description: NovusAI AI 调用日志与使用量账本。说明 AICallLog 不可
 
 ## 与「三层分发」的关系（简要）
 
-- **管理端**：平台智能体对企业可用性（`owner_type`、`distribution_mode`、分配、`agent_access.admin_role_ids` 等）。
+- **管理端**：平台智能体对企业可用性（`owner_tenant_id`、`scope`、RTA 分配、`agent_access.admin_role_ids` 等）。
 - **企业端**：是否向 **用户端** 发布及规则（`tenant_agent_publications`，与 `agent_access.tenant_role_ids` 等企业后台角色限制区分）。
 - **统计**：管理端侧重 **按企业计费维度**；企业端侧重 **本企业 + 用户**；均以 **`AICallLog` + `billing_tenant_id` / 渠道等** 聚合，而非旧 `ai_usage_stats`。
 

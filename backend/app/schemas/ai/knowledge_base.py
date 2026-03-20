@@ -63,9 +63,18 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
-    scope: str = Field("all_tenants", description=_("knowledge_base.model.scope"))
-    visibility: str = Field("private", description=_("knowledge_base.model.visibility"))
-    tenant_id: int | None = Field(None, description=_("knowledge_base.model.tenant_id"))
+    scope: str = Field(
+        "global_shared",
+        description=_("knowledge_base.model.scope"),
+    )
+    owner_tenant_id: int | None = Field(
+        None,
+        description="归属企业ID（平台级为 NULL；请求可传 tenant_id 由服务端映射）",
+    )
+    tenant_id: int | None = Field(
+        None,
+        description="兼容字段，写入时映射为 owner_tenant_id",
+    )
     assigned_tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.assigned_tenant_ids"))
     tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.tenant_ids"))
     embedding_model_id: int = Field(..., description=_("knowledge_base.model.embedding_model_id"))
@@ -88,8 +97,8 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
     scope: str | None = Field(None, description=_("knowledge_base.model.scope"))
-    visibility: str | None = Field(None, description=_("knowledge_base.model.visibility"))
-    tenant_id: int | None = Field(None, description=_("knowledge_base.model.tenant_id"))
+    owner_tenant_id: int | None = Field(None, description="归属企业ID")
+    tenant_id: int | None = Field(None, description="兼容字段，映射为 owner_tenant_id")
     assigned_tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.assigned_tenant_ids"))
     tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.tenant_ids"))
     vision_model_id: int | None = Field(None, description=_("knowledge_base.model.vision_model_id"))

@@ -44,14 +44,6 @@ class DocumentTypeEnum(LabeledStrEnum):
     VIDEO = ("video", "enum.knowledge_base.document_type.video")
 
 
-class KBVisibilityEnum(LabeledStrEnum):
-    """Knowledge Base Visibility Enum / 知识库可见性枚举"""
-
-    PRIVATE = ("private", "enum.knowledge_base.visibility.private")
-    ALL_TENANTS = ("all_tenants", "enum.knowledge_base.visibility.all_tenants")
-    ASSIGNED = ("assigned", "enum.knowledge_base.visibility.assigned")
-
-
 class ChunkStrategyEnum(LabeledStrEnum):
     """Text Chunk Strategy Enum / 文本分块策略枚举"""
 
@@ -78,7 +70,6 @@ class RewriteStrategyEnum(LabeledStrEnum):
 
 __all__ = [
     "KBStatusEnum",
-    "KBVisibilityEnum",
     "DocumentStatusEnum",
     "DocumentTypeEnum",
     "ChunkStrategyEnum",

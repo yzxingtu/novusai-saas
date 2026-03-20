@@ -22,11 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import (
-    AgentOwnerTypeEnum,
-    AgentExecutionModeEnum,
-    AgentStatusEnum,
-)
+from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
 from app.enums.ai import CallAccessChannelEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
@@ -282,7 +278,7 @@ class AgentRouterService:
         )
 
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            query = query.where(Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value)
+            query = query.where(Agent.owner_tenant_id.is_(None))
             agents = list((await self.db.execute(query)).scalars().unique().all())
             return agents
         elif tenant_id:
@@ -317,7 +313,7 @@ class AgentRouterService:
             select(Agent).where(
                 Agent.execution_mode == AgentExecutionModeEnum.ROUTER.value,
                 Agent.is_system.is_(True),
-                Agent.tenant_id.is_(None),
+                Agent.owner_tenant_id.is_(None),
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
             ).order_by(Agent.id.asc()).limit(1)
@@ -582,7 +578,7 @@ class AgentRouterService:
     ) -> bool:
         """检查智能体对当前上下文是否可见 / Check agent visible to current context."""
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            return getattr(agent, "owner_type", None) == AgentOwnerTypeEnum.PLATFORM.value
+            return getattr(agent, "owner_tenant_id", None) is None
 
         if not tenant_id:
             return False
@@ -615,14 +611,15 @@ class AgentRouterService:
         else:
             access_channel = CallAccessChannelEnum.TENANT_ADMIN.value
 
+        _otid = getattr(router_agent, "owner_tenant_id", None)
         return {
             "billing_tenant_id": billing_tenant_id,
             "actor_user_id": user_id,
             "actor_user_type": user_role,
             "access_channel": access_channel,
-            "agent_owner_type": getattr(router_agent, "owner_type", None),
-            "agent_owner_tenant_id": getattr(router_agent, "tenant_id", None),
-            "agent_distribution_mode": getattr(router_agent, "distribution_mode", None),
+            "agent_owner_type": ("platform" if _otid is None else "tenant"),
+            "agent_owner_tenant_id": _otid,
+            "agent_resource_scope": getattr(router_agent, "scope", None),
             "tenant_publication_id": None,
             "publication_enabled_snapshot": None,
             "publication_access_type_snapshot": None,

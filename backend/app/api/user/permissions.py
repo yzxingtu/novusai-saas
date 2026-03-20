@@ -22,7 +22,7 @@ from app.rbac.services import PermissionService
 @permission_resource(
     resource="user_permission",
     name="menu.user.permission",
-    scope=PermissionScope.TENANT_USER,
+    scope=PermissionScope.USER,
     parent_resource="menu",
 )
 class UserPermissionController(BaseController):

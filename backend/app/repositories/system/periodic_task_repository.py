@@ -21,7 +21,7 @@ class PeriodicTaskRepository(BaseRepository[PeriodicTask]):
             "id", "name", "task_path", "schedule_type",
             "cron_expression", "interval_seconds", "is_active",
             "last_run_at", "next_run_at", "description",
-            "tenant_id", "created_at",
+            "owner_tenant_id", "created_at",
         },
         "tenant": {
             "id", "name", "task_path", "schedule_type",

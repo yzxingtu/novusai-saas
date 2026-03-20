@@ -8,7 +8,14 @@ from sqlalchemy import and_, select
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository
+from app.enums.common import ResourceScopeEnum
 from app.models.ai import ProviderApiKey
+
+# 企业端可回退使用的平台密钥（非 admin_only）/ Platform keys visible to tenant-side AI
+_TENANT_PLATFORM_KEY_SCOPES: frozenset[str] = frozenset({
+    ResourceScopeEnum.GLOBAL_SHARED.value,
+    ResourceScopeEnum.ALL_TENANTS.value,  # legacy DB rows / 历史数据
+})
 
 
 class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
@@ -41,7 +48,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         if tenant_id:
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
-                ProviderApiKey.tenant_id == tenant_id,
+                ProviderApiKey.owner_tenant_id == tenant_id,
                 ProviderApiKey.is_active.is_(True),
                 ProviderApiKey.is_deleted.is_(False)
             ).order_by(
@@ -53,15 +60,17 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             if key and key.is_available():
                 return key
 
-        # 回退到平台级 Key（排除 admin_only） / Fallback to platform key (exclude admin_only)
+        # 回退到平台级 Key：企业上下文排除 admin_only；平台上下文可使用含 admin_only 的密钥
         fallback_conditions = [
             ProviderApiKey.provider_id == provider_id,
-            ProviderApiKey.tenant_id.is_(None),
+            ProviderApiKey.owner_tenant_id.is_(None),
             ProviderApiKey.is_active.is_(True),
             ProviderApiKey.is_deleted.is_(False),
         ]
-        if tenant_id:
-            fallback_conditions.append(ProviderApiKey.scope != 'admin_only')
+        if tenant_id is not None:
+            fallback_conditions.append(
+                ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES),
+            )
 
         stmt = select(ProviderApiKey).where(
             *fallback_conditions
@@ -101,7 +110,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         if tenant_id:
             # 优先使用企业级 Key
             tenant_conditions = base_conditions + [
-                ProviderApiKey.tenant_id == tenant_id,
+                ProviderApiKey.owner_tenant_id == tenant_id,
             ]
             stmt = select(ProviderApiKey).where(
                 and_(*tenant_conditions)
@@ -116,8 +125,8 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
 
             # 回退到平台级 Key（排除 admin_only） / Fallback to platform key (exclude admin_only)
             platform_conditions = base_conditions + [
-                ProviderApiKey.tenant_id.is_(None),
-                ProviderApiKey.scope != 'admin_only',
+                ProviderApiKey.owner_tenant_id.is_(None),
+                ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES),
             ]
             stmt = select(ProviderApiKey).where(
                 and_(*platform_conditions)
@@ -130,7 +139,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         else:
             # 平台级调用，只使用平台级 Key
             conditions = base_conditions + [
-                ProviderApiKey.tenant_id.is_(None),
+                ProviderApiKey.owner_tenant_id.is_(None),
             ]
             stmt = select(ProviderApiKey).where(
                 and_(*conditions)
@@ -166,7 +175,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             conditions.append(ProviderApiKey.is_deleted.is_(False))
 
         if tenant_id is not None:
-            conditions.append(ProviderApiKey.tenant_id == tenant_id)
+            conditions.append(ProviderApiKey.owner_tenant_id == tenant_id)
 
         stmt = select(ProviderApiKey).where(
             and_(*conditions)
@@ -200,17 +209,19 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
                 ProviderApiKey.id != exclude_key_id,
                 ProviderApiKey.is_active.is_(True),
                 ProviderApiKey.is_deleted.is_(False),
-                ProviderApiKey.scope != 'admin_only',
                 (
-                    (ProviderApiKey.tenant_id == tenant_id)
-                    | (ProviderApiKey.tenant_id.is_(None))
+                    (ProviderApiKey.owner_tenant_id == tenant_id)
+                    | (
+                        ProviderApiKey.owner_tenant_id.is_(None)
+                        & ProviderApiKey.scope.in_(_TENANT_PLATFORM_KEY_SCOPES)
+                    )
                 ),
             ).order_by(ProviderApiKey.created_at.desc())
         else:
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
                 ProviderApiKey.id != exclude_key_id,
-                ProviderApiKey.tenant_id.is_(None),
+                ProviderApiKey.owner_tenant_id.is_(None),
                 ProviderApiKey.is_active.is_(True),
                 ProviderApiKey.is_deleted.is_(False),
             ).order_by(ProviderApiKey.created_at.desc())

@@ -6,7 +6,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
 import { getAIModelSelectApi } from '#/api/admin/ai';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import { useScopeFields } from '#/components/business/scope-select/use-scope-fields';
 import { $t } from '#/locales';
 
 // ============ 类型辅助（系统/自定义）============
@@ -75,46 +75,6 @@ export function getAudienceColor(audience: string | undefined): string {
   }
 }
 
-export function getDistributionModeOptions() {
-  return [
-    {
-      label: $t('admin.ai.agent.distribution.internal'),
-      value: 'internal',
-    },
-    {
-      label: $t('admin.ai.agent.distribution.all_tenants'),
-      value: 'all_tenants',
-    },
-    {
-      label: $t('admin.ai.agent.distribution.assigned_tenants'),
-      value: 'assigned_tenants',
-    },
-  ];
-}
-
-export function getDistributionModeText(mode: string | undefined): string {
-  if (!mode) return '-';
-  const opt = getDistributionModeOptions().find((o) => o.value === mode);
-  return opt?.label ?? mode;
-}
-
-export function getDistributionModeColor(mode: string | undefined): string {
-  switch (mode) {
-    case 'internal': {
-      return 'orange';
-    }
-    case 'assigned_tenants': {
-      return 'blue';
-    }
-    case 'all_tenants': {
-      return 'green';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
-
 export function getOwnerTypeOptions() {
   return [
     { label: $t('admin.ai.agent.ownerType.platform'), value: 'platform' },
@@ -142,76 +102,32 @@ export function getOwnerTypeColor(ownerType: string | undefined): string {
   }
 }
 
-export interface AgentDistributionFieldsOptions {
-  distributionDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
+export interface AgentScopeFieldsOptions {
+  scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
 }
 
-/**
- * 管理端智能体：分发模式 + 指定企业（assigned_tenants）
- */
-export function useAgentDistributionFields(
-  options: AgentDistributionFieldsOptions = {},
+/** 管理端智能体：统一资源作用域 + 分配企业 */
+export function useAgentScopeFields(
+  options: AgentScopeFieldsOptions = {},
 ): VbenFormSchema[] {
-  const { distributionDisabled = false } = options;
-  const needsAssignment = (v: Record<string, unknown>) =>
-    v.distribution_mode === 'assigned_tenants';
-
-  const modeSchema: VbenFormSchema = {
-    component: 'Select',
-    fieldName: 'distribution_mode',
-    label: $t('admin.ai.agent.distribution.label'),
-    rules: 'selectRequired',
-    help: $t('admin.ai.agent.distribution.help'),
-    componentProps: {
-      allowClear: false,
-      class: 'w-full',
-      options: getDistributionModeOptions(),
-      showSearch: true,
-      optionFilterProp: 'label',
-    },
-    dependencies: {
-      triggerFields: ['_mode'],
-      disabled:
-        typeof distributionDisabled === 'function'
-          ? distributionDisabled
-          : () => Boolean(distributionDisabled),
-    },
-  };
-
-  const tenantsSchema: VbenFormSchema = {
-    component: 'ApiSelect',
-    fieldName: 'tenant_ids',
-    label: $t('common.scope.assignedTenantsLabel'),
-    help: $t('common.scope.assignedTenantsHelp'),
-    rules: 'selectRequired',
-    componentProps: {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      resultField: 'items',
-      mode: 'multiple',
-      allowClear: true,
-      showSearch: true,
-      filterOption: false,
-      pagination: true,
-      clickPagination: true,
-      pageSize: 10,
-      class: 'w-full',
-      placeholder: $t('common.scope.selectAssignedTenants'),
-    },
-    dependencies: {
-      triggerFields: ['distribution_mode'],
-      if: needsAssignment,
-    },
-  };
-
-  return [modeSchema, tenantsSchema];
+  const { scopeDisabled = false } = options;
+  return useScopeFields({
+    scopeDisabled,
+    allowedScopes: [
+      'global_shared',
+      'admin_only',
+      'all_tenants',
+      'admin_and_selected_tenants',
+      'selected_tenants',
+    ],
+  });
 }
 
 export function getFormDefaults() {
   return {
     name: '',
     description: '',
-    distribution_mode: 'all_tenants',
+    scope: 'global_shared',
     tenant_id: null,
     tenant_ids: [],
     model_id: undefined,
@@ -346,8 +262,8 @@ export function useFormSchema(
     textareaField('description', $t('admin.ai.agent.description'), {
       rows: 2,
     }),
-    ...useAgentDistributionFields({
-      distributionDisabled: isSystem ? () => true : false,
+    ...useAgentScopeFields({
+      scopeDisabled: isSystem ? () => true : false,
     }),
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {

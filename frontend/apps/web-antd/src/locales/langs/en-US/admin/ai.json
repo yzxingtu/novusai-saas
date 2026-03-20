@@ -206,7 +206,7 @@
     },
     "help": {
       "apiKey": "The API secret key from the provider. Stored encrypted. Cannot be viewed in full after creation",
-      "scope": "Admin Only keys are used exclusively for admin AI calls; tenants cannot fall back to these keys. All Tenants keys can be shared platform-wide (no tenant) or assigned to a specific tenant (tenant-exclusive)",
+      "scope": "One of five resource scopes; admin_only is admin-side only. Other scopes use owner_tenant_id and resource_tenant_assignments (RTA) as documented in the form.",
       "usageLimit": "Maximum call count for this key. Automatically marked unavailable when reached. Leave empty for unlimited",
       "isActive": "When manually disabled, this key is excluded from load balancing. Useful for temporarily pausing a key"
     },
@@ -444,15 +444,7 @@
     "avatar": "Avatar",
     "description": "Description",
     "status": "Status",
-    "scopeLabel": "Scope",
-    "distribution": {
-      "label": "Distribution mode",
-      "help": "Controls how platform agents are exposed to tenants; pick tenants when using \"Assigned tenants\".",
-      "internal": "Platform internal only",
-      "all_tenants": "All tenants",
-      "assigned_tenants": "Assigned tenants",
-      "filterPlaceholder": "Distribution"
-    },
+    "scopeLabel": "Resource scope",
     "ownerType": {
       "label": "Owner",
       "platform": "Platform",
@@ -760,7 +752,7 @@
     "tenantId": "Tenant",
     "assignedTenants": "Assigned Tenants",
     "help": {
-      "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants",
+      "scope": "Five resource scopes: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants. The last two require tenant assignments (RTA).",
       "assignedTenants": "Select tenants that are allowed to use this skill package"
     },
     "tablePolicyFilterHint": "Filtering skills using table policy {id}",

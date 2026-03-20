@@ -49,15 +49,17 @@
 - **禁止手写 CRUD 数据管理**（手动 loading/list/page/total + fetchList + watch 分页 + 手写删除确认 + 手写回收站）
 - 软删除资源的列表页开启 `recycleBin: true`，`useCrudList`/`useCrudPage` 自动处理回收站切换
 
-### 企业端资源操作按鈕显示规则
+### 统一资源作用域（ResourceScopeEnum）与归属
 
-**禁止仅检查 `scope === 'all_tenants'`**，必须同时检查 `tenant_id !== null`：
+- **五类资源作用域**：`global_shared` | `admin_only` | `all_tenants` | `admin_and_selected_tenants` | `selected_tenants`（见后端 `ResourceScopeEnum`）。
+- **可编辑/企业自有**只看 **`owner_tenant_id`**（列表 API 常序列化为 `tenant_id`，语义为归属企业，不是旧「可见性」）。
+- **禁止**用 `scope === 'all_tenants' && tenant_id !== null` 判断企业自有（旧双重语义已废除）。
+- **权限/菜单端别**用 `PermissionScope`（admin / tenant / user / both），与资源作用域分离，禁止混写。
 
 ```typescript
-// ✅ 正确
-const canEdit = row.scope === 'all_tenants' && row.tenant_id !== null;
-// ❌ 错误：平台全局包（scope=all_tenants, tenant_id=null）会被误判为可编辑
-const canEdit = row.scope === 'all_tenants';
+// ✅ 企业端：仅当资源归属当前企业时可编辑（示例，具体字段名以 API 为准）
+const canEdit = row.tenant_id != null && row.tenant_id === currentTenantId;
+// ❌ 禁止用 scope=all_tenants 推断归属
 ```
 
 ### 权限

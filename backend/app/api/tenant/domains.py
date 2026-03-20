@@ -40,7 +40,7 @@ from app.services.system.tenant_domain_service import TenantDomainTenantService
 @permission_resource(
     resource="tenant_domain",
     name="menu.tenant.domain",  # i18n key
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:globe",

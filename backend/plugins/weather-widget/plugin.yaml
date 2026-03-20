@@ -9,7 +9,7 @@ description:
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#0ea5e9"
-scope: admin_and_assigned
+scope: admin_and_selected_tenants
 tags: ["weather", "widget", "example"]
 
 capabilities:

@@ -179,11 +179,12 @@ except Exception as _perm_exc:
 
 ---
 
-## 四、用户端（tenant_user）权限扩展
+## 四、用户端权限扩展
 
-### 新增 Scope
+### 端别（非 ResourceScopeEnum）
 
-用户端 RBAC 使用独立的 `tenant_user` scope，通过 `PermissionScope.TENANT_USER` 枚举值标识。
+- JWT 常使用 **scope=`tenant_user`** 作为**用户端令牌声明**（中间件常量如 `TOKEN_SCOPE_TENANT_USER`）。
+- 权限表对应 **`PermissionScope.USER`**（`permissions.scope='user'`），**不得**写入 `ResourceScopeEnum` 或误称为「资源作用域」。
 
 ### 菜单定义
 
@@ -195,7 +196,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:user.dashboard",
         name="menu.user.dashboard",
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT_USER,
+        scope=PermissionScope.USER,
         resource="menu",
         action="user.dashboard",
         icon="lucide:home",
@@ -213,8 +214,8 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
 
 1. `user_menus.py` 中定义 `USER_DIRECTORY_MENUS`
 2. `register_directory_menus()` 新增 `USER_DIRECTORY_MENUS` 注册
-3. `ResourceScopeEnum` 新增 `TENANT_USER` 值
-4. Permission 中间件 `_load_permissions()` 新增 `TOKEN_SCOPE_TENANT_USER` 分支
+3. 权限行使用 **`PermissionScope.USER`**（与 `ResourceScopeEnum` 无关）
+4. Permission 中间件按 JWT **用户端 scope**（如 `tenant_user` 声明）加载对应权限，不映射到资源五类作用域
 
 ### 用户端 Controller 权限模式
 

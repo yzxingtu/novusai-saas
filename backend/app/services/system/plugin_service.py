@@ -374,8 +374,8 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def get_tenant_visible_plugin_names(self, tenant_id: int) -> set[str]:
         """
         获取当前企业可见的已启用插件名称集合。 / Get set of enabled plugin names visible to tenant.
-        过滤规则（基于 ResourceScopeEnum）：ALL_TENANTS/ADMIN_AND_ALL 全可见；ASSIGNED 仅已分配。
-        Filter by ResourceScopeEnum: ALL_TENANTS/ADMIN_AND_ALL visible to all; ASSIGNED only if assigned.
+        过滤规则（ResourceScopeEnum）：all_tenants/global_shared 全可见；selected_tenants/admin_and_selected_tenants 仅已分配。
+        Filter: all_tenants/global_shared for all tenants; selected_* only if assigned in RTA.
         """
         from sqlalchemy import select
 
@@ -406,17 +406,19 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         _TENANT_ALL_SCOPES = {
             ResourceScopeEnum.ALL_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
         }
         _TENANT_ASSIGNED_SCOPES = {
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
         }
 
         visible: set[str] = set()
         for row in plugin_rows:
             pname, pscope, pid = row[0], row[1], row[2]
-            if pscope in _TENANT_ALL_SCOPES or pscope in _TENANT_ASSIGNED_SCOPES and pid in assigned_plugin_ids:
+            if pscope in _TENANT_ALL_SCOPES or (
+                pscope in _TENANT_ASSIGNED_SCOPES and pid in assigned_plugin_ids
+            ):
                 visible.add(pname)
         return visible
 

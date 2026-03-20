@@ -15,14 +15,21 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
+from app.enums.common import ResourceScopeEnum
 
 
 class ProviderApiKeyCreate(BaseCreateSchema):
     """创建 API Key 请求 / Create API Key request"""
 
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
-    scope: str = Field("all_tenants", description=_("enum.ai_api_key.scope"))
-    tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
+    scope: str = Field(
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+        description=_("enum.ai_api_key.scope"),
+    )
+    tenant_id: int | None = Field(
+        None,
+        description="owner_tenant_id（JSON 兼容字段）/ Owner tenant id (API compat)",
+    )
     name: str = Field(..., max_length=100, description=_("enum.ai_api_key.name"))
     api_key: str = Field(..., min_length=1, description=_("enum.ai_api_key.api_key"))
     is_active: bool = Field(True, description=_("enum.ai_api_key.is_active"))
@@ -45,6 +52,10 @@ class ProviderApiKeyResponse(BaseResponseSchema):
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
     scope: str = Field(..., description=_("enum.ai_api_key.scope"))
     tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
+    owner_tenant_id: int | None = Field(
+        None,
+        description="同 tenant_id，归属企业 / Same as tenant_id",
+    )
     name: str = Field(..., description=_("enum.ai_api_key.name"))
     is_active: bool = Field(..., description=_("enum.ai_api_key.is_active"))
     usage_limit: int | None = Field(None, description=_("enum.ai_api_key.usage_limit"))

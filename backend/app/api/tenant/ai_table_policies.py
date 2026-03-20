@@ -28,7 +28,7 @@ from app.services.ai.table_policy_override_service import AITablePolicyOverrideS
 @permission_resource(
     resource="ai_table_policy_override",
     name="menu.tenant.ai_table_policy_override",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="ai_settings",
 )
 class TenantAITablePolicyController(TenantController):

@@ -1,6 +1,6 @@
 """seed NovusDoc Writer agent and bind system.ai_writing
 
-Creates a platform-level agent "NovusDoc Writer" (visible on admin and all tenants via scope=admin_and_all)
+Creates a platform-level agent "NovusDoc Writer" (visible on admin and all tenants via scope=global_shared)
 and sets system_agent_assignments.system.ai_writing.agent_id to it so the agent appears
 in Ctrl+K @ list as a normal agent without separate feature-agents API.
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
             " temperature, execution_mode, status, visibility, memory_enabled, is_system, "
             " created_at, updated_at, is_deleted) "
             "VALUES "
-            "(NULL, :name, :description, 'admin_and_all', :system_prompt, :model_id, "
+            "(NULL, :name, :description, 'global_shared', :system_prompt, :model_id, "
             " 0.7, 'conversation', 'published', 'public', true, true, "
             " NOW(), NOW(), false) "
             "RETURNING id"

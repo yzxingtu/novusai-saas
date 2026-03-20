@@ -94,15 +94,34 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
                 message=_("periodic_task.error.name_exists", name=data['name'])
             )
         from app.enums.common import ResourceScopeEnum
-        if data.get("scope") == ResourceScopeEnum.ALL_TENANTS.value and not data.get("tenant_id"):
+
+        if "tenant_id" in data:
             raise BusinessException(
-                message=_("periodic_task.error.scope_requires_tenant_id")
+                message=_("periodic_task.error.reject_tenant_id_field"),
             )
-        if data.get("scope") != ResourceScopeEnum.ALL_TENANTS.value:
-            data["tenant_id"] = None
+
+        scope_val = data.get("scope") or ResourceScopeEnum.ADMIN_ONLY.value
+        if scope_val in (
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+            ResourceScopeEnum.ALL_TENANTS.value,
+        ):
+            data["owner_tenant_id"] = None
+        elif scope_val in (
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+        ):
+            if data.get("owner_tenant_id") is None:
+                raise BusinessException(
+                    message=_("periodic_task.error.scope_requires_tenant_id")
+                )
         return data
 
     async def _before_update(self, id: int, data: dict) -> None:
+        if "tenant_id" in data:
+            raise BusinessException(
+                message=_("periodic_task.error.reject_tenant_id_field"),
+            )
         instance = await self.get_by_id(id)
         if instance and not instance.is_editable:
             allowed_fields = {"is_active", "last_run_at", "next_run_at"}

@@ -114,20 +114,22 @@ celery_app.conf.task_ignore_result = False
 # All scheduled tasks are managed via the periodic_tasks table, no hardcoded schedule entries.
 # 所有定时任务通过 periodic_tasks 表管理，不再硬编码任何调度条目。
 #
-# Important: Schedule must be loaded at module level, cannot use beat_init signal.
-# 重要：必须在模块级别加载调度，不能用 beat_init 信号。
-# Reason: In Celery 5.x beat.Service.start(), self.scheduler is accessed
-# before beat_init.send() (debug log line), triggering PersistentScheduler
-# initialization which reads conf.beat_schedule.
-# 原因：Celery 5.x beat.Service.start() 中，self.scheduler 在
-# beat_init.send() 之前就被访问（debug 日志行），触发
-# PersistentScheduler 初始化并读取 conf.beat_schedule。
-# If beat_schedule is empty at that point, the scheduler won't install any entries.
-# 如果此时 beat_schedule 为空，调度器不会安装任何条目。
-# Updating conf.beat_schedule in beat_init signal is already too late.
-# beat_init 信号中再更新 conf.beat_schedule 已经太晚。
+# Important: Schedule must be loaded at module level for the **beat** process only,
+# cannot use beat_init signal (Celery 5.x reads beat_schedule before beat_init).
+# 重要：仅 **celery beat** 进程在模块级加载；Uvicorn/FastAPI 导入本模块时不应查库，
+# 否则会在 init_database()/迁移之前访问 periodic_tasks，列未迁移时会报错且误导排障。
+#
+# Worker 进程不需要 DB 里的 beat_schedule（由 Beat 下发）；空 dict 即可。
 try:
-    from app.tasks.scheduler import load_periodic_tasks_from_db
-    celery_app.conf.beat_schedule = load_periodic_tasks_from_db()
+    import sys
+
+    _argv_lower = [str(a).lower() for a in sys.argv]
+    _is_beat = "beat" in _argv_lower
+    if _is_beat:
+        from app.tasks.scheduler import load_periodic_tasks_from_db
+
+        celery_app.conf.beat_schedule = load_periodic_tasks_from_db()
+    else:
+        celery_app.conf.beat_schedule = {}
 except Exception:
     celery_app.conf.beat_schedule = {}

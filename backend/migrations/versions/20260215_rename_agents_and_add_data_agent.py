@@ -68,35 +68,47 @@ def upgrade() -> None:
         "WHERE name = :name AND is_system = true AND is_deleted = false"
     ), {"name": _DATA_AGENT_NAME}).fetchone()
 
+    agent_id: int | None
     if existing:
         agent_id = existing[0]
         print(f"[SEED] Agent '{_DATA_AGENT_NAME}' already exists (id={agent_id})")
     else:
-        # Use the same model_id as the system chat agent
+        # 与「智能助手」共用 model_id；空库无已种子化系统智能体时跳过创建（避免 model_id NOT NULL 失败）
         chat_agent = conn.execute(text(
             "SELECT model_id FROM agents "
             "WHERE name = '智能助手' AND is_system = true AND is_deleted = false"
         )).fetchone()
         model_id = chat_agent[0] if chat_agent else None
 
-        result = conn.execute(text(
-            "INSERT INTO agents "
-            "(tenant_id, name, description, scope, system_prompt, model_id, "
-            " temperature, execution_mode, status, visibility, is_system, "
-            " created_at, updated_at, is_deleted) "
-            "VALUES "
-            "(NULL, :name, :desc, 'admin', :prompt, :model_id, "
-            " 0.3, 'tool_call', 'published', 'private', true, "
-            " NOW(), NOW(), false) "
-            "RETURNING id"
-        ), {
-            "name": _DATA_AGENT_NAME,
-            "desc": "系统数据分析智能体，支持自然语言查询和操作数据库",
-            "prompt": _DATA_AGENT_PROMPT,
-            "model_id": model_id,
-        })
-        agent_id = result.fetchone()[0]
-        print(f"[SEED] Created agent '{_DATA_AGENT_NAME}' (id={agent_id})")
+        if model_id is None:
+            print(
+                "[SEED] WARNING: No model_id from 智能助手 (empty DB or seed skipped); "
+                f"skipping creation of '{_DATA_AGENT_NAME}'. Configure an AI model and re-run if needed."
+            )
+            agent_id = None
+        else:
+            result = conn.execute(text(
+                "INSERT INTO agents "
+                "(tenant_id, name, description, scope, system_prompt, model_id, "
+                " temperature, execution_mode, status, visibility, is_system, "
+                " created_at, updated_at, is_deleted) "
+                "VALUES "
+                "(NULL, :name, :desc, 'admin', :prompt, :model_id, "
+                " 0.3, 'tool_call', 'published', 'private', true, "
+                " NOW(), NOW(), false) "
+                "RETURNING id"
+            ), {
+                "name": _DATA_AGENT_NAME,
+                "desc": "系统数据分析智能体，支持自然语言查询和操作数据库",
+                "prompt": _DATA_AGENT_PROMPT,
+                "model_id": model_id,
+            })
+            agent_id = result.fetchone()[0]
+            print(f"[SEED] Created agent '{_DATA_AGENT_NAME}' (id={agent_id})")
+
+    if agent_id is None:
+        print("[SEED] Skipping data-agent ↔ package binding (no agent id)")
+        return
 
     # 4. Bind agent to 系统数据智能技能包
     pkg = conn.execute(text(

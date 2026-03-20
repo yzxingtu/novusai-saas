@@ -156,21 +156,23 @@ select('filter[scope][eq]', $t('...'), {
   options: getScopeOptions(), // 从 scope-helpers.ts 统一获取
 })
 
-// ✅ 企业端判断资源是否可编辑（必须同时检查 scope + tenant_id）
-show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
+// ✅ 企业端判断资源是否可编辑：看归属企业（API 常序列化为 tenant_id，语义同 owner_tenant_id）
+show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 ```
 
 **`useScopeFields` 关键选项：**
-- `allowedScopes` — 限制可选 scope（如 `['admin_only', 'all_tenants']`）
+- `allowedScopes` — 限制可选 scope（五类 ResourceScopeEnum 子集）
 - `scopeDisabled` — 编辑时锁定（`(values) => values._mode === 'edit'`）
-- `showTenantId` — 仅当 `all_tenants` 语义为"指定企业"时传 `true`（如定时任务），普通资源不传
+- `showTenantId` — 仅当 `all_tenants` 需选「所属企业」时传 `true`（如定时任务）
+- `ownerTenantWhenScopes` — 如 API Key：`selected_tenants` 时选归属企业
+- `hideTenantIdsField` — 不需要 RTA 多选分配时传 `true`（如 API Key）
 
 ### 禁令
 
 - **禁止手写 CRUD 数据管理**：禁止手动管理 `loading`/`list`/`page`/`total` + `fetchList` + `watch` 分页 + 手写删除确认 + 手写回收站。必须使用 `useCrudPage` 或 `useCrudList`
 - 搜索/表单必须用辅助函数（`searchInput` / `inputField` 等），禁止手写 Schema
 - **禁止手写 scope 选项数组**：必须使用 `useScopeFields` / `getScopeOptions()` / `ScopeSelect`
-- **禁止仅用 `scope === 'all_tenants'` 做企业资源判断**：必须同时检查 `tenant_id !== null`
+- **禁止用 `scope` 推断归属**：企业自有/可编辑只看 `tenant_id`（owner）是否等于当前企业
 - 业务预设（planSelect 等）定义在 `data.ts`，不放 adapter
 - `requestClient` 导入路径：`#/utils/request`
 - 权限指令：`v-access:code="['resource:action']"`
@@ -205,14 +207,12 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 - 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，超时 30s
 - **禁止手动 `registerPageContext` 与 `useCrudList` 的 `ai` 配置共存**——会覆盖增强 context，使用 `contextExtras` 合并自定义数据
 
-### Skill 作用域规则（摘要）
+### 资源作用域 vs 技能包（摘要）
 
-- `all_tenants + tenant_id=null`：平台全局包，全部企业可见，**不可编辑**
-- `all_tenants + tenant_id=X`：企业 X 自有包，仅企业 X 可见且可编辑
-- `admin_only`：仅管理端，企业不可见
-- **Skill 无独立 `scope`**，权限完全继承自所属 SkillPackage
-
-**关键规则**：前端判断可编辑时必须**同时检查 `scope === 'all_tenants' && tenant_id !== null`**，仅检查 `scope` 会误放行平台全局包。后端 `_before_update/_before_delete` 检查 `pkg.tenant_id != self.tenant_id`。
+- **资源作用域**仅五类：`global_shared` / `admin_only` / `all_tenants` / `admin_and_selected_tenants` / `selected_tenants`（`ResourceScopeEnum`）。
+- **投放面**由 `scope` + `resource_tenant_assignments` 表达；**企业是否可编辑**由 **`owner_tenant_id`（或模型仍名为 `tenant_id` 的归属列）** 判定，禁止再用「`all_tenants` + tenant 是否为空」旧双重语义。
+- **Skill 无独立 `scope`**，继承所属 **SkillPackage** 的 scope + 归属列。
+- **受众/发布**（`target_audience`、`TenantAgentPublication` 等）不属于上述五类资源作用域。
 
 **模型多模态**：对话适配器根据模型的 `supports_vision` / `supports_audio` / `supports_video` 决定附件转 image_url、input_audio 或文字提示；知识库可配置 vision/audio/video 可选模型，RAG 描述器选型优先级为 KB 显式配置 → 平台首个对应能力模型。
 
@@ -682,7 +682,7 @@ JWT 含 `jti`，Redis `token_blacklist:{jti}` 记录吊销，`active_tokens:{use
 - [ ] 业务预设在 `data.ts` 定义，不在 adapter
 - [ ] 无跨端导入
 - [ ] 含 scope 字段的表单使用 `useScopeFields()`，不手写选项数组
-- [ ] 企业端资源操作按钮同时检查 `scope === 'all_tenants' && tenant_id !== null`
+- [ ] 企业端资源操作按钮按 **归属企业**（`tenant_id` / `owner_tenant_id`）判断，禁止用 `scope === 'all_tenants'` 推断可编辑
 - [ ] i18n JSON key 无重复、路径正确
 - [ ] 中英文翻译齐全（zh-CN 和 en-US 的 key 必须完全对齐）
 - [ ] Props 用 `defineProps<T>()`

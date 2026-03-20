@@ -179,13 +179,11 @@ def register_all_extensions(
     overrides = menu_overrides or {}
     for menu_ext in ext.frontend.menus:
         override = overrides.get(menu_ext.name, {})
-        scope = menu_ext.scope or "admin_only"
+        scope = menu_ext.scope or "admin"
 
-        if scope == "admin_and_all":
-            # admin_and_all → Always split into two independent permissions (admin + tenant),
-            # each can be configured with different parent menu directories
-            # / admin_and_all → 始终拆分为两条独立权限（管理端 + 企业端），
-            # 分别可配置不同的父级菜单目录
+        if scope == "both":
+            # both → split into admin + tenant menu permissions with separate parents
+            # Split into admin + tenant menu permissions with separate parents
             admin_parent = override.get("parent", menu_ext.parent)
             # tenant_parent falls back to admin parent if not configured / tenant_parent 未配置时沿用 admin parent（降级）
             tenant_parent = override.get("tenant_parent", admin_parent)
@@ -196,7 +194,7 @@ def register_all_extensions(
                 icon=menu_ext.icon,
                 parent=admin_parent,
                 sort_order=menu_ext.sort_order,
-                scope="admin_only",
+                scope="admin",
                 component=menu_ext.component,
                 title=menu_ext.title,
                 hidden=menu_ext.hidden,
@@ -208,14 +206,15 @@ def register_all_extensions(
                 icon=menu_ext.icon,
                 parent=tenant_parent,
                 sort_order=menu_ext.sort_order,
-                scope="all_tenants",
+                scope="tenant",
                 component=menu_ext.component,
                 title=menu_ext.title,
                 hidden=menu_ext.hidden,
             )
         else:
-            # admin_only / all_tenants — Single-endpoint menu / 单端菜单
+            # 单端菜单：与 PermissionScope（admin/tenant/user）字面量一致
             effective_parent = override.get("parent", menu_ext.parent)
+            reg_scope = scope
             registry.register_menu(
                 plugin_name,
                 name=menu_ext.name,
@@ -223,7 +222,7 @@ def register_all_extensions(
                 icon=menu_ext.icon,
                 parent=effective_parent,
                 sort_order=menu_ext.sort_order,
-                scope=scope,
+                scope=reg_scope,
                 component=menu_ext.component,
                 title=menu_ext.title,
                 hidden=menu_ext.hidden,

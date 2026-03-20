@@ -35,7 +35,7 @@
 ```
 Platform Admin → 创建系统技能包（HTTP/数据/知识库/Toolkit）
              ↓
-Platform Admin → 将技能包分配给企业（scope=assigned_tenants 或 admin_and_all）
+Platform Admin → 将技能包分配给企业（`scope=selected_tenants` 或 `admin_and_selected_tenants` + `resource_tenant_assignments`）
              ↓
 Tenant → 查看和使用已分配的技能包（通过平台智能体）
              ↓

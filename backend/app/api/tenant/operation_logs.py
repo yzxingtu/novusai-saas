@@ -22,7 +22,7 @@ from app.services.system import OperationLogService
 @permission_resource(
     resource="operation_log",
     name="menu.tenant.operation_log",  # i18n key
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="logs",
     menu=MenuConfig(
         icon="lucide:file-text",

@@ -29,8 +29,9 @@
 ## 二、Agent 核心规则
 
 - **执行模式**：`conversation`（多轮对话）/ `task`（单次）/ `batch`（批量）/ `api`（外部集成）
-- **作用域**：使用 `ResourceScopeEnum`（5 值），判断可编辑时**必须同时检查 `scope + tenant_id`**
-- **`all_tenants` 双重语义**：`tenant_id=NULL` = 平台全局（只读），`tenant_id=X` = 企业自有（可编辑）
+- **资源作用域**：`ResourceScopeEnum` 仅五类：`global_shared` / `admin_only` / `all_tenants` / `admin_and_selected_tenants` / `selected_tenants`
+- **可编辑/归属**：看 **`owner_tenant_id`**（列表 API 常序列化为 `tenant_id`），**禁止**再用「`all_tenants` + 是否带 tenant」旧双重语义推断
+- **权限/菜单端别**：`PermissionScope`（admin/tenant/user/both），与资源作用域无关
 - `is_system=True` → 不可删除/禁用
 - 工具绑定通过 `AgentSkillBinding`（M:N），禁止使用废弃的 `tool_bindings` JSON 字段
 - `routing_config`（JSON）：多模型路由 → 详见 `references/ai-routing.md`

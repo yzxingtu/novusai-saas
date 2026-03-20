@@ -50,7 +50,7 @@ from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 @permission_resource(
     resource="organization",
     name="menu.tenant.organization",  # i18n key
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system",
     menu=MenuConfig(
         icon="lucide:git-branch",
@@ -413,7 +413,9 @@ class TenantRoleController(TenantController):
                     perm_result = await db.execute(
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
-                            Permission.scope.in_(["all_tenants", "admin_and_all"]),
+                            Permission.scope.in_(
+                                [PermissionScope.TENANT.value, PermissionScope.BOTH.value],
+                            ),
                             Permission.is_enabled.is_(True),
                             Permission.is_deleted.is_(False),
                         )
@@ -524,7 +526,9 @@ class TenantRoleController(TenantController):
                     perm_result = await db.execute(
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
-                            Permission.scope.in_(["all_tenants", "admin_and_all"]),
+                            Permission.scope.in_(
+                                [PermissionScope.TENANT.value, PermissionScope.BOTH.value],
+                            ),
                             Permission.is_enabled.is_(True),
                             Permission.is_deleted.is_(False),
                         )

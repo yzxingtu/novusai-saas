@@ -70,29 +70,25 @@ class PriorityEnum(IntEnum):
 class ResourceScopeEnum(LabeledStrEnum):
     """统一资源作用域枚举 / Unified Resource Scope Enum
 
-    全平台共用：智能体、技能包、知识库、权限、配置、插件、定时任务等。
-    Platform-wide: agents, skill packages, knowledge bases, permissions, configs, plugins, scheduled tasks, etc.
+    仅描述「资源」在管理端与企业端的投放范围，与 RBAC 权限端别、JWT、ASGI 无关。
+    Describes resource visibility only; not RBAC endpoint, not JWT, not ASGI.
 
-    6 种作用域覆盖所有业务场景 / 6 scopes cover all business scenarios:
-      - ADMIN_ONLY:         仅管理端可见 / Admin panel only
-      - ALL_TENANTS:        仅企业端可见 / All tenants only
-      - ADMIN_AND_ALL:      管理端 + 全部企业 / Admin + all tenants (global shared)
-      - ADMIN_AND_ASSIGNED: 管理端 + 部分企业 / Admin + assigned tenants
-      - ASSIGNED_TENANTS:   部分企业 / Assigned tenants only
-      - TENANT_USER:        仅用户端可见 / Tenant users only
-
-    注意区分 / Note: This is 「Resource Scope」, unrelated to:
-      - JWT Token Scope (TOKEN_SCOPE_ADMIN etc.) — 认证身份 / Auth identity
-      - ASGI Scope (Starlette.types.Scope) — HTTP 请求元数据 / HTTP request metadata
-      - BaseRepository._scope_fields — API 端字段过滤 / API field filter
+    五类 / Five scopes:
+      - GLOBAL_SHARED:                 管理端 + 全部企业可用 / Admin + all tenants
+      - ADMIN_ONLY:                    仅管理端可用 / Admin only
+      - ALL_TENANTS:                   全部企业可用（管理端业务不消费）/ All tenants (tenant-side consumption)
+      - ADMIN_AND_SELECTED_TENANTS:    管理端 + 指定企业 / Admin + selected tenants (assignments)
+      - SELECTED_TENANTS:              仅指定企业 / Selected tenants only (assignments)
     """
 
+    GLOBAL_SHARED = ("global_shared", "enum.scope.global_shared")
     ADMIN_ONLY = ("admin_only", "enum.scope.admin_only")
     ALL_TENANTS = ("all_tenants", "enum.scope.all_tenants")
-    ADMIN_AND_ALL = ("admin_and_all", "enum.scope.admin_and_all")
-    ADMIN_AND_ASSIGNED = ("admin_and_assigned", "enum.scope.admin_and_assigned")
-    ASSIGNED_TENANTS = ("assigned_tenants", "enum.scope.assigned_tenants")
-    TENANT_USER = ("tenant_user", "enum.scope.tenant_user")
+    ADMIN_AND_SELECTED_TENANTS = (
+        "admin_and_selected_tenants",
+        "enum.scope.admin_and_selected_tenants",
+    )
+    SELECTED_TENANTS = ("selected_tenants", "enum.scope.selected_tenants")
 
 
 class SkillBindModeEnum(LabeledStrEnum):

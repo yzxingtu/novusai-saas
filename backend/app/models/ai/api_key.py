@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.base_model import BaseModel, utc_now
 from app.core.i18n import _
@@ -21,10 +21,11 @@ class ProviderApiKey(BaseModel):
     """
     AI 供应商 API Key 模型 / AI provider API key model.
 
-    存储平台级或企业级的 API Key，支持加密存储
-    - admin_only + tenant_id=None：仅管理端 AI 调用可用 / Admin-only key
-    - all_tenants + tenant_id=None：平台级 Key，所有企业共享 / Platform-wide key
-    - all_tenants + tenant_id=X：企业 X 专用 Key / Tenant-specific key
+    存储平台级或企业级的 API Key，支持加密存储。
+    归属与投放面由 ResourceScopeEnum + owner_tenant_id 表达（与迁移后列名一致）：
+    - admin_only + owner_tenant_id=NULL：仅管理端可用 / Admin-only key
+    - global_shared + owner_tenant_id=NULL：管理端 + 全部企业可用 / Platform shared
+    - selected_tenants + owner_tenant_id=X：仅企业 X 可用（可有 RTA 行对齐）/ Tenant-scoped
     """
 
     __tablename__ = "ai_api_keys"
@@ -33,7 +34,8 @@ class ProviderApiKey(BaseModel):
     __filterable__ = {
         "id": "id",
         "provider_id": "provider_id",
-        "tenant_id": "tenant_id",
+        "tenant_id": "owner_tenant_id",
+        "owner_tenant_id": "owner_tenant_id",
         "scope": "scope",
         "name": "name",
         "is_active": "is_active",
@@ -51,11 +53,11 @@ class ProviderApiKey(BaseModel):
         "is_active": "is_active",
     }
 
-    # 作用域 / Scope (admin_only / all_tenants)
+    # 资源作用域 / Resource scope (ResourceScopeEnum, 5 values)
     scope: Mapped[str] = mapped_column(
-        String(20),
+        String(32),
         nullable=False,
-        default=ResourceScopeEnum.ALL_TENANTS.value,
+        default=ResourceScopeEnum.GLOBAL_SHARED.value,
         index=True,
         comment=_("enum.ai_api_key.scope"),
     )
@@ -69,14 +71,15 @@ class ProviderApiKey(BaseModel):
         comment=_("enum.ai_api_key.provider_id")
     )
 
-    # 企业 ID（平台级 Key 为 NULL）
-    tenant_id: Mapped[int | None] = mapped_column(
+    # 归属企业（平台级为 NULL）；API/筛选仍可使用 tenant_id 别名
+    owner_tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
-        comment=_("enum.ai_api_key.tenant_id")
+        comment=_("enum.ai_api_key.tenant_id"),
     )
+    tenant_id = synonym("owner_tenant_id")
 
     # Key 名称（便于识别）
     name: Mapped[str] = mapped_column(
@@ -205,7 +208,10 @@ class ProviderApiKey(BaseModel):
         )
 
     def __repr__(self) -> str:
-        return f"<ProviderApiKey(id={self.id}, name={self.name}, scope={self.scope}, tenant_id={self.tenant_id})>"
+        return (
+            f"<ProviderApiKey(id={self.id}, name={self.name}, scope={self.scope}, "
+            f"owner_tenant_id={self.owner_tenant_id})>"
+        )
 
 
 if TYPE_CHECKING:

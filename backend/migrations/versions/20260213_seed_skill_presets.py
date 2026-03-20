@@ -70,26 +70,30 @@ def upgrade() -> None:
             print(f"[SEED] Skill '{seed['name']}' already exists (id={existing.id}), skipping")
             continue
 
-        # Create a package for this seed skill (if skill_packages table exists)
+        # Create a package for this seed skill（若表尚不存在或插入失败须回滚到保存点，
+        # 否则 PG 会整段事务进入 aborted，后续 INSERT skills 报 InFailedSqlTransaction）
         pkg_id = None
         try:
-            pkg_result = conn.execute(text(
-                "INSERT INTO skill_packages "
-                "(tenant_id, name, description, scope, is_active, sort_order, "
-                " created_at, updated_at, is_deleted) "
-                "VALUES "
-                "(NULL, :name, :description, :scope, true, :sort_order, "
-                " NOW(), NOW(), false) "
-                "RETURNING id"
-            ), {
-                "name": seed["name"],
-                "description": seed["description"],
-                "scope": seed["scope"],
-                "sort_order": seed["sort_order"],
-            })
-            pkg_id = pkg_result.fetchone()[0]
+            with conn.begin_nested():
+                pkg_result = conn.execute(text(
+                    "INSERT INTO skill_packages "
+                    "(tenant_id, name, description, scope, is_active, sort_order, "
+                    " created_at, updated_at, is_deleted) "
+                    "VALUES "
+                    "(NULL, :name, :description, :scope, true, :sort_order, "
+                    " NOW(), NOW(), false) "
+                    "RETURNING id"
+                ), {
+                    "name": seed["name"],
+                    "description": seed["description"],
+                    "scope": seed["scope"],
+                    "sort_order": seed["sort_order"],
+                })
+                row = pkg_result.fetchone()
+                if row:
+                    pkg_id = row[0]
         except Exception:
-            pass
+            pkg_id = None
 
         # Build INSERT with or without package_id
         if pkg_id is not None:

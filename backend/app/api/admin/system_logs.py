@@ -64,7 +64,7 @@ class LogStatsResponse(BaseModel):
 @permission_resource(
     resource="system_log",
     name="menu.admin.system_log",  # i18n key
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:file-code-2",

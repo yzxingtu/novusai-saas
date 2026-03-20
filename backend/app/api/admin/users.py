@@ -21,7 +21,7 @@ from app.services.common import AuthService
 @permission_resource(
     resource="admin_user",
     name="menu.admin.admin_user",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system",
     menu=None,
 )

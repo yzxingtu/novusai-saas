@@ -28,7 +28,7 @@ from app.services.ai import CallLogService
 @permission_resource(
     resource="ai_call_log",
     name="menu.admin.ai_call_log",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:scroll-text",

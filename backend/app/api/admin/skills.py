@@ -58,7 +58,7 @@ def _build_admin_skill_item(skill) -> dict:
 @permission_resource(
     resource="ai_skill",
     name="menu.admin.ai_skill",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     menu=None,
     parent_resource="ai_skill_package",
 )

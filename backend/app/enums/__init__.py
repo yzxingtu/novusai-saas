@@ -57,7 +57,6 @@ from app.enums.plugin import (
     PluginInstallSourceEnum,
     PluginLicenseTypeEnum,
     PluginPricingTypeEnum,
-    PluginScopeEnum,
     PluginStatusEnum,
     PluginTierEnum,
     PluginVersionStatusEnum,
@@ -67,7 +66,7 @@ from app.enums.rbac import (
     PermissionType,
 )
 from app.enums.role import RoleType
-from app.enums.task import ScheduleTypeEnum, TaskScopeEnum, TaskStatusEnum
+from app.enums.task import ScheduleTypeEnum, TaskStatusEnum
 
 __all__ = [
     # 基类 / Base Classes
@@ -113,7 +112,6 @@ __all__ = [
     # 任务 / Tasks
     "TaskStatusEnum",
     "ScheduleTypeEnum",
-    "TaskScopeEnum",
     # 智能体 / Agent
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
@@ -142,7 +140,6 @@ __all__ = [
     "CacheCategoryEnum",
     # 插件 / Plugin
     "PluginStatusEnum",
-    "PluginScopeEnum",
     "PluginTierEnum",
     "PluginInstallSourceEnum",
     "PluginPricingTypeEnum",

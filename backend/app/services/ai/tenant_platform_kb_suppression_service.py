@@ -4,7 +4,7 @@
 
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AgentOwnerTypeEnum
+from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_kb_binding_repository import AgentKBBindingRepository
 from app.repositories.ai.agent_repository import AgentRepository
@@ -33,7 +33,11 @@ class TenantPlatformKbSuppressionService:
         agent = await self.agent_repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
-        if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+        if agent.owner_tenant_id is not None:
+            raise BusinessException(
+                message=_("agent_kb_binding.error.platform_suppress_platform_agent_only")
+            )
+        if agent.scope == ResourceScopeEnum.ADMIN_ONLY.value:
             raise BusinessException(
                 message=_("agent_kb_binding.error.platform_suppress_platform_agent_only")
             )

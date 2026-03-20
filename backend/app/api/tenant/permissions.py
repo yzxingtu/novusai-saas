@@ -22,7 +22,7 @@ from app.rbac.services import PermissionService
 @permission_resource(
     resource="permission",
     name="menu.tenant.permission",  # i18n key
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system",
     # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点 / No menu param = no menu permission, API endpoints only
 )

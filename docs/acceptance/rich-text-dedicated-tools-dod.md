@@ -1,6 +1,6 @@
 # 富文本专用 Tools 整改 DoD 验收记录
 
-> 对应计划：`@富文本专用tools整改_a84287ca.plan.md`
+> 对应计划：仓库内「富文本专用 tools 整改」实施计划（文件名随工具导出而变化，此处不绑定固定路径）。
 
 ## 一、整改目标
 
@@ -99,7 +99,7 @@ cd backend/plugins/novusdoc/frontend && pnpm test
 - `backend/app/ai/tools/executors/page_context_executor.py`：has_editor 时输出 available_operations 摘要
 - `backend/app/ai/engine/stream_handler.py`：连续 pageop 失败中止
 - `frontend/.../useEditorPageOps.ts`：replace_section error_type (target_not_found, non_unique_match, invalid_html)、get_editor_html _hint
-- `backend/migrations/.../20260316_novusdoc_writer_scope_admin_and_all.py`：NovusDoc Writer system_prompt 解耦
+- `backend/migrations/.../20260316_novusdoc_writer_scope_admin_and_all.py`：NovusDoc Writer 作用域调整为 `global_shared`（迁移文件名仍含历史 `admin_and_all` 字样）、system_prompt 解耦
 - `backend/migrations/.../20260316_update_invoke_page_operation_desc.py`：params 描述 content_format（html|markdown）
 - `backend/tests/services/test_stream_handler_real_stream.py`：parse error 熔断测试
 - `backend/plugins/novusdoc/frontend/src/views/__tests__/DocumentEditorPageAwareness.test.ts`：DocumentEditor 组件级页面感知测试

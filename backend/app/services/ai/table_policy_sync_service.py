@@ -95,7 +95,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "code": "编码",
     "label": "显示名称",
     "status": "状态",
-    "scope": "作用域（admin_only/all_tenants/admin_and_all/admin_and_assigned/assigned_tenants/tenant_user），旧值 platform/all 映射为 admin_and_all",
+    "scope": "资源作用域 ResourceScopeEnum：global_shared/admin_only/all_tenants/admin_and_selected_tenants/selected_tenants",
     "type": "类型",
     "icon": "图标",
     "path": "路径",
@@ -106,7 +106,7 @@ _COLUMN_DESC_MAP: dict[str, str] = {
     "component": "组件",
     "hidden": "是否隐藏",
     "is_enabled": "是否启用",
-    "distribution_mode": "分发模式（internal/all_tenants/assigned_tenants/owner_only）",
+    "owner_tenant_id": "资源归属企业 ID（平台级资源为 NULL）",
     "visibility": "可见性",
     "avatar": "头像 URL",
     # 用户 / 企业

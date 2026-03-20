@@ -12,6 +12,7 @@ import { Alert, Button, message, Modal, Tag, Upload } from 'ant-design-vue';
 
 import { installPluginApi, previewPluginInstallApi } from '#/api/admin/plugin';
 import { $t } from '#/locales';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import { derivePluginType, getTypeColor, getTypeText } from '../data';
 
@@ -372,8 +373,8 @@ defineExpose({ open });
         <Tag :color="getTypeColor(pluginType)" class="!m-0 !rounded-md">
           {{ getTypeText(pluginType) }}
         </Tag>
-        <Tag color="purple" class="!m-0 !rounded-md">
-          {{ $t(`admin.plugin.scope_options.${pluginScope}`) }}
+        <Tag :color="getScopeColor(pluginScope)" class="!m-0 !rounded-md">
+          {{ getScopeText(pluginScope) }}
         </Tag>
         <Tag
           v-if="deps.python && deps.python.length > 0"

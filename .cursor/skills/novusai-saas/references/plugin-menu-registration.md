@@ -29,7 +29,7 @@ extensions:
         icon: lucide:puzzle       # Lucide 图标
         parent: system_mgmt      # 默认父级目录 short_name（可被管理员覆盖）
         sort_order: 60
-        scope: admin_only        # admin_only | all_tenants | admin_and_all
+        scope: admin              # 端侧：admin | tenant | user | both（manifest 归一化后）
         title:
           zh-CN: "我的插件"
           en: "My Plugin"
@@ -46,15 +46,16 @@ extensions:
         # 不声明 hidden：框架自动将 standalone_pages 设为 hidden=true
 ```
 
-### scope 取值说明
+### `menus[].scope` 取值说明（端侧，≠ ResourceScopeEnum）
 
-| scope | 菜单出现在 | 常见错误 |
-|-------|-----------|----------|
-| `admin_only` | 仅管理端侧边栏 | ~~`"admin"`~~ |
-| `all_tenants` | 仅企业端侧边栏 | ~~`"tenant"`~~ |
-| `admin_and_all` | 管理端 + 企业端（拆分为两条独立权限） | — |
+| scope（归一化后） | 菜单出现在 | 常见错误 |
+|------------------|-----------|----------|
+| `admin` | 仅管理端侧边栏 | 写成未归一化的旧串 |
+| `tenant` | 仅企业端侧边栏 | 同上 |
+| `user` | 用户端（若适用） | 与 JWT `tenant_user` 声明勿混为资源 scope |
+| `both` | 管理端 + 企业端（具体同步策略见 `permissions` 表） | — |
 
-> ⚠️ **旧 bug 记录**：novusdoc 曾使用 `scope: "tenant"` 和 `scope: "admin"`，导致 admin 菜单被错误注册为 `ALL_TENANTS` 作用域。正确值必须是上表中的枚举字符串。
+> ⚠️ 顶层 **`plugins.scope`**（插件资源）才是 **`ResourceScopeEnum` 五类**；本表的 `menus[].scope` 只描述**菜单挂载端别**，二者禁止混用一套值域。
 
 ### 真实示例：novusdoc（管理端 + 企业端双侧菜单）
 
@@ -65,7 +66,7 @@ frontend:
     - name: novusdoc_docs_tenant      # 企业端文档入口
       path: /tenant/plugins/novusdoc/docs
       icon: lucide:file-text
-      scope: all_tenants              # ✅ 不是 "tenant"
+      scope: tenant                   # ✅ 企业端菜单（归一化值）
       parent: tenant_workspace        # 管理员可覆盖
       title:
         zh-CN: "文档"
@@ -74,7 +75,7 @@ frontend:
     - name: novusdoc_docs_admin       # 管理端文档入口
       path: /plugins/novusdoc/docs
       icon: lucide:file-text
-      scope: admin_only               # ✅ 不是 "admin"
+      scope: admin                    # ✅ 管理端菜单（归一化值）
       parent: system_mgmt             # 管理员可覆盖
       title:
         zh-CN: "文档管理"
@@ -241,46 +242,17 @@ parent_code = f"menu:{scope_prefix}.{parent}"
 
 ---
 
-## 六、admin_and_all 双端菜单处理（必读）
+## 六、双端菜单（推荐写法）
 
-`scope: admin_and_all` 的菜单声明，`_extension_registrar.py` **始终**拆分为两条独立权限：
+**推荐**：在 `plugin.yaml` 中**分别声明**管理端与企业端两条 `menus` 项，`scope` 使用归一化后的 **`admin`** 与 **`tenant`**（或由 `both` 经注册器展开，具体以实现代码为准）。
 
-```python
-# name="my_menu", scope="admin_and_all"
-# override = {"parent": "system_mgmt", "tenant_parent": "tenant_home"}
-#
-# → 注册 name="my_menu_admin", scope="admin_only",  parent="system_mgmt"
-# → 注册 name="my_menu_tenant", scope="all_tenants", parent="tenant_home"
-#
-# 若未配置 tenant_parent，降级使用 admin parent：
-# → 注册 name="my_menu_admin", scope="admin_only",  parent="system_mgmt"
-# → 注册 name="my_menu_tenant", scope="all_tenants", parent="system_mgmt"
-```
+**原则**：
 
-**禁止**在 plugin.yaml 中用 `admin_and_all` 替代分别声明两个单端菜单。推荐做法：
+- **资源投放**（插件是否在某企业可用）由 **`plugins.scope` + RTA** 决定。
+- **菜单出现在哪一端**由 **`menus[].scope`（端侧）+ `permissions.scope`（PermissionScope）** 决定。
+- 文档与 YAML **禁止**使用已废弃的旧资源作用域串描述菜单或资源；仅接受五类规范值和四类端别值。
 
-```yaml
-# ✅ 推荐：明确声明两个菜单，分别设置 scope
-menus:
-  - name: my_admin_menu
-    scope: admin_only
-    parent: system_mgmt
-  - name: my_tenant_menu
-    scope: all_tenants
-    parent: tenant_home
-
-# ⚠️ 允许但慎用：admin_and_all 会自动拆分，name 会变成 my_menu_admin / my_menu_tenant
-menus:
-  - name: my_menu
-    scope: admin_and_all
-    parent: system_mgmt  # admin 默认父级（tenant 未配置时也用此）
-```
-
-**弹窗 UI**：`PluginMenuConfigModal` 将菜单按 scope 分为两个区块：
-- **管理端菜单**（`admin_only` + `admin_and_all` 的 admin 侧）
-- **企业端菜单**（`all_tenants` + `admin_and_all` 的 tenant 侧）
-
-每个区块用 TreeSelect 独立选择父级目录，`admin_and_all` 菜单会同时出现在两个区块中。
+**弹窗 UI**：`PluginMenuConfigModal` 按端侧分组选择父级目录；与 `ResourceScopeEnum` 无直接对应关系。
 
 ---
 
@@ -308,4 +280,4 @@ export function setup() { /* ... */ }
 | 菜单名称显示 key | i18n 未加载 | 确认 `locales/{zh-CN\|en}.json` 存在且 key 正确 |
 | 路由 404 | `standalone_pages.path` 缺少 `/admin/plugins/` 前缀 | 对比 `_FRONTEND_PLUGIN_ROUTE_PREFIXES` |
 | 菜单重复出现 | `menus` 和 `standalone_pages` 都声明了同一路径 | `standalone_pages` 不要设 `hidden: false` |
-| 企业端不显示 | scope 设为 `admin_only` | 改为 `all_tenants` 或 `admin_and_all` |
+| 企业端不显示 | `menus[].scope` 设为 `admin` | 改为 `tenant` 或 `both`（按需求） |

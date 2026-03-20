@@ -9,7 +9,7 @@ description:
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#ff9900"
-scope: admin_and_all
+scope: global_shared
 tags: ["storage", "s3", "aws", "minio", "cloud"]
 
 capabilities:

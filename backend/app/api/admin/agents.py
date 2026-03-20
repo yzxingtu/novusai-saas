@@ -12,7 +12,7 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
-from app.enums.agent import AgentDistributionModeEnum, AgentOwnerTypeEnum
+from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -44,8 +44,9 @@ from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AdminAgentService, AgentService
 from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
-DISTRIBUTION_MODES_NEEDING_ASSIGNMENT = (
-    AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+RESOURCE_SCOPES_NEEDING_ASSIGNMENT = (
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
 
 logger = LogManager.get_logger("ai")
@@ -63,7 +64,7 @@ def _build_admin_agent_item(agent) -> dict:
 @permission_resource(
     resource="ai_agent",
     name="menu.admin.ai_agent",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
         icon="lucide:bot",
@@ -135,11 +136,7 @@ class AdminAgentController(GlobalController):
             """
             管理端创建智能体 / Admin create agent
 
-            支持 3 种 scope / Supports 3 scopes:
-            - tenant: 属于指定企业（需提供 tenant_id） / Belongs to specified tenant (tenant_id required)
-            - global: 全局共享（所有企业可见） / Global shared (visible to all tenants)
-            - admin: 仅管理端可见 / Admin-only visible
-
+            使用统一资源作用域 ResourceScopeEnum（五类）与 tenant_ids 分配列表。
             权限 / Permission: ai_agent:create
             """
             service = AdminAgentService(db)
@@ -148,7 +145,7 @@ class AdminAgentController(GlobalController):
             agent = await service.create(data)
 
             # 同步企业分配 / Sync tenant assignments
-            if agent.distribution_mode in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            if agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent.id, tenant_ids)
 
@@ -184,11 +181,11 @@ class AdminAgentController(GlobalController):
             agent = await service.update(agent_id, data)
 
             # 同步企业分配 / Sync tenant assignments
-            effective_distribution = agent.distribution_mode
-            if effective_distribution in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+            eff_scope = agent.scope
+            if eff_scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.sync_assignments("agent", agent_id, tenant_ids)
-            elif effective_distribution not in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT:
+            elif eff_scope not in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 await repo.delete_all_for_resource("agent", agent_id)
 
@@ -243,7 +240,7 @@ class AdminAgentController(GlobalController):
                 raise NotFoundException(message=_("agent.error.not_found"))
 
             detail = agent.to_dict()
-            detail["owner_tenant_id"] = agent.tenant_id
+            detail["owner_tenant_id"] = agent.owner_tenant_id
             model_obj = getattr(agent, "model", None)
             detail["model_name"] = getattr(model_obj, "name", None)
             detail["model_code"] = getattr(model_obj, "code", None)
@@ -253,7 +250,7 @@ class AdminAgentController(GlobalController):
             detail["memory_disabled_by_tenant"] = False
 
             # 追加已分配的企业 ID 列表 / Append assigned tenant ID list
-            if agent.distribution_mode in DISTRIBUTION_MODES_NEEDING_ASSIGNMENT:
+            if agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
                     "agent", agent_id
@@ -313,7 +310,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:skills
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding_service = AgentSkillBindingService(db, agent.owner_tenant_id)
             result = await binding_service.get_agent_packages(agent_id)
             return success(data=result)
 
@@ -332,7 +329,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:bind_skill
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding_service = AgentSkillBindingService(db, agent.owner_tenant_id)
             binding = await binding_service.bind_package(
                 agent_id=agent_id,
                 package_id=data.package_id,
@@ -358,7 +355,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:batch_bind_skills
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding_service = AgentSkillBindingService(db, agent.owner_tenant_id)
             bindings = await binding_service.batch_bind(
                 agent_id=agent_id,
                 package_ids=data.package_ids,
@@ -383,7 +380,7 @@ class AdminAgentController(GlobalController):
             权限: ai_agent:update_skill_binding
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding_service = AgentSkillBindingService(db, agent.owner_tenant_id)
 
             # update_binding internally checks existence
             updated = await binding_service.update_binding(
@@ -412,7 +409,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:unbind_skill
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding_service = AgentSkillBindingService(db, agent.owner_tenant_id)
             await binding_service.unbind_package(
                 agent_id=agent_id, package_id=package_id
             )
@@ -437,7 +434,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:knowledge_bases
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            kb_service = AgentKBBindingService(db, agent.tenant_id)
+            kb_service = AgentKBBindingService(db, agent.owner_tenant_id)
             result = await kb_service.get_agent_kb_bindings(agent_id)
             return success(data=result)
 
@@ -456,7 +453,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:bind_kb
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            kb_service = AgentKBBindingService(db, agent.tenant_id)
+            kb_service = AgentKBBindingService(db, agent.owner_tenant_id)
             binding = await kb_service.bind_kb(
                 agent_id=agent_id,
                 knowledge_base_id=data.knowledge_base_id,
@@ -482,7 +479,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:batch_bind_kbs
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            kb_service = AgentKBBindingService(db, agent.tenant_id)
+            kb_service = AgentKBBindingService(db, agent.owner_tenant_id)
             bindings = await kb_service.batch_bind(
                 agent_id=agent_id,
                 knowledge_base_ids=data.knowledge_base_ids,
@@ -506,7 +503,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:update_kb_binding
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            kb_service = AgentKBBindingService(db, agent.tenant_id)
+            kb_service = AgentKBBindingService(db, agent.owner_tenant_id)
             updated = await kb_service.update_binding(
                 binding_id=binding_id,
                 data=data.model_dump(exclude_unset=True),
@@ -533,7 +530,7 @@ class AdminAgentController(GlobalController):
             权限 / Permission: ai_agent:unbind_kb
             """
             agent = await _get_agent_for_binding(db, agent_id)
-            kb_service = AgentKBBindingService(db, agent.tenant_id)
+            kb_service = AgentKBBindingService(db, agent.owner_tenant_id)
             await kb_service.unbind_kb(
                 agent_id=agent_id, knowledge_base_id=knowledge_base_id
             )
@@ -563,7 +560,7 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
+            service = AgentService(db, agent.owner_tenant_id)
             result = await service.publish_agent(
                 agent_id, change_log=data.change_log, created_by=admin.id,
             )
@@ -589,7 +586,7 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
+            service = AgentService(db, agent.owner_tenant_id)
             result = await service.rollback_agent(agent_id, data.version)
             await db.commit()
             return success(data=result.to_dict(), message=_("agent.version.rolled_back"))
@@ -612,7 +609,7 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
+            service = AgentService(db, agent.owner_tenant_id)
             versions = await service.get_versions(agent_id)
             return success(data=versions)
 
@@ -635,7 +632,7 @@ class AdminAgentController(GlobalController):
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))
 
-            service = AgentService(db, agent.tenant_id)
+            service = AgentService(db, agent.owner_tenant_id)
             detail = await service.get_version_detail(agent_id, version)
             return success(data=detail)
 

@@ -54,7 +54,7 @@ def _with_preview_url(data: dict) -> dict:
 @permission_resource(
     resource="attachment",
     name="menu.admin.attachment",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:paperclip",

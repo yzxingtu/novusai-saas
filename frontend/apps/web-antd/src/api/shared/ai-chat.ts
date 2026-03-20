@@ -84,9 +84,9 @@ function chatBaseUrl(apiPrefix: string): string {
 /**
  * Get published agent list / 获取已发布智能体列表
  *
- * Admin: returns only admin-visible scopes (admin_only / admin_and_all / admin_and_assigned).
+ * Admin: returns only admin-usable resource scopes (admin_only / global_shared / admin_and_selected_tenants).
  * Tenant: backend auto-filters by tenant_id + scope.
- * 管理端：仅返回管理端可见作用域；企业端：后端自动过滤。
+ * 管理端：仅返回管理端可用资源作用域；企业端：后端自动过滤。
  */
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,
@@ -96,7 +96,8 @@ export async function getChatAgentsApi<T = Record<string, unknown>>(
     'page[size]': 100,
   };
   if (apiPrefix.includes('/admin')) {
-    params['filter[scope][in]'] = 'admin_only,admin_and_all,admin_and_assigned';
+    params['filter[scope][in]'] =
+      'admin_only,global_shared,admin_and_selected_tenants';
   }
   return requestClient.get<PaginatedResponse<T>>(`${apiPrefix}/ai/agents`, {
     params,

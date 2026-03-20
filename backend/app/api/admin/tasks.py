@@ -34,7 +34,7 @@ from app.services.system import TaskLogService, TaskManagerService
 @permission_resource(
     resource="task_log",
     name="menu.admin.task_log",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:list-checks",

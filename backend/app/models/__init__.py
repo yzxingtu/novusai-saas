@@ -32,7 +32,6 @@ from app.models.ai import (
     ConversationMessage,
     DocumentChunk,
     KnowledgeBase,
-    KnowledgeBaseTenantAccess,
     KnowledgeDocument,
     ProviderApiKey,
     Skill,
@@ -151,7 +150,6 @@ __all__ = [
     "SkillCallLog",
     # 知识库 / Knowledge bases
     "KnowledgeBase",
-    "KnowledgeBaseTenantAccess",
     "KnowledgeDocument",
     "DocumentChunk",
     # AI 查询日志 / AI query logs

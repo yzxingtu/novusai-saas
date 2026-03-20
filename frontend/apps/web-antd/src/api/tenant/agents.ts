@@ -13,18 +13,18 @@ import { requestClient } from '#/utils/request';
 /** Agent list item / 智能体列表项 */
 export interface AgentListItem {
   id: number;
-  tenant_id: number;
+  tenant_id: null | number;
+  owner_tenant_id?: null | number;
   name: string;
   avatar: null | string;
   description: null | string;
   status: string;
   execution_mode: string;
-  /** @deprecated */
-  scope?: string;
+  /** 统一资源作用域 ResourceScopeEnum */
+  scope: string;
   /** @deprecated */
   target_audience?: string;
   owner_type: string;
-  distribution_mode: string;
   is_system: boolean;
   model_name: null | string;
   skill_packages: { id: number; name: string }[];

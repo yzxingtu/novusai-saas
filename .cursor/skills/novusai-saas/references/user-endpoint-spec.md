@@ -160,9 +160,11 @@ get shouldShowUserCaptcha() {
 
 ## 四、用户端 RBAC
 
-### Scope: `tenant_user`
+### 用户端权限端别（非资源作用域）
 
-用户端权限使用独立的 `tenant_user` scope，与 `admin_only` / `all_tenants` 完全隔离。
+- JWT 常带 **scope=`tenant_user`**（令牌声明）。
+- 权限表菜单/操作使用 **`PermissionScope.USER`**（`permissions.scope='user'`）。
+- 以上均 **不是** `ResourceScopeEnum`（资源五类），禁止与技能包/插件资源 `scope` 混用。
 
 ### 后端菜单定义
 
@@ -174,7 +176,7 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:user.dashboard",
         name="menu.user.dashboard",
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT_USER,
+        scope=PermissionScope.USER,
         resource="menu",
         action="user.dashboard",
         icon="lucide:home",

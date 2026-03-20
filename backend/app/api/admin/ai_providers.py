@@ -34,7 +34,7 @@ from app.services.ai import AIProviderService
 @permission_resource(
     resource="ai_provider",
     name="menu.admin.ai_provider",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:cpu",

@@ -296,8 +296,8 @@ def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
     """
     构建「已分配给指定企业的资源 ID」子查询 / Build subquery of resource IDs assigned to tenant.
 
-    用于企业端 Repository 的 WHERE 子句，让 assigned_tenants / admin_and_assigned
-    scope 的资源对被分配的企业可见。
+    用于企业端 Repository 的 WHERE 子句，让 selected_tenants /
+    admin_and_selected_tenants 资源通过 RTA 对被分配企业可见。
 
     用法::
 
@@ -307,11 +307,11 @@ def assigned_resource_ids_subquery(resource_type: str, tenant_id: int):
         query = query.where(
             or_(
                 Model.tenant_id == self.tenant_id,
-                Model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                Model.scope == ResourceScopeEnum.GLOBAL_SHARED.value,
                 and_(
                     Model.scope.in_([
-                        ResourceScopeEnum.ASSIGNED_TENANTS.value,
-                        ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+                        ResourceScopeEnum.SELECTED_TENANTS.value,
+                        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
                     ]),
                     Model.id.in_(subq),
                 ),

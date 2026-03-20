@@ -74,8 +74,14 @@ class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
     """管理端创建智能体请求 / Admin create agent request."""
 
     name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
-    distribution_mode: str = Field("all_tenants", description="Distribution mode")
-    tenant_ids: list[int] | None = Field(None, description="分配的企业 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
+    scope: str = Field(
+        "global_shared",
+        description="资源作用域 ResourceScopeEnum（五类）/ Unified resource scope",
+    )
+    tenant_ids: list[int] | None = Field(
+        None,
+        description="分配的企业 ID 列表（selected_tenants / admin_and_selected_tenants 时使用）",
+    )
     system_prompt: str | None = Field("", description=_("enum.agent_model.system_prompt"))
 
     @field_validator("system_prompt", mode="before")
@@ -92,8 +98,14 @@ class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
     """管理端更新智能体请求 / Admin update agent request."""
 
     name: str | None = Field(None, max_length=100, description=_("enum.agent_model.name"))
-    distribution_mode: str | None = Field(None, description="Distribution mode")
-    tenant_ids: list[int] | None = Field(None, description="分配的企业 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
+    scope: str | None = Field(
+        None,
+        description="资源作用域 ResourceScopeEnum（五类）/ Unified resource scope",
+    )
+    tenant_ids: list[int] | None = Field(
+        None,
+        description="分配的企业 ID 列表（selected_tenants / admin_and_selected_tenants 时使用）",
+    )
     system_prompt: str | None = Field(None, description=_("enum.agent_model.system_prompt"))
     model_id: int | None = Field(None, description=_("enum.agent_model.model_id"))
     temperature: float | None = Field(None, ge=0.0, le=2.0, description=_("enum.agent_model.temperature"))
@@ -113,9 +125,8 @@ class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
     execution_mode: str = Field(..., description=_("enum.agent_model.execution_mode"))
     published_version: int | None = Field(None, description=_("enum.agent_model.published_version"))
     visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
-    owner_type: str = Field(..., description="Owner type")
     owner_tenant_id: int | None = Field(None, description="Owner tenant ID")
-    distribution_mode: str = Field(..., description="Distribution mode")
+    scope: str = Field(..., description="Resource scope ResourceScopeEnum")
     is_system: bool = Field(False, description=_("enum.agent_model.is_system"))
     # 关联字段
     model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))

@@ -10,11 +10,16 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.enums.plugin import PluginScopeEnum
+from app.enums.common import ResourceScopeEnum
 
 # ── Type aliases / 类型别名 ──
 I18nText = dict[str, str]
 """Multilingual text, e.g. {"zh-CN": "CRM 管理", "en": "CRM Management"}. / 多语言文本。"""
+
+# Plugin manifest menu/slot scope = endpoint side, not ResourceScopeEnum.
+# Only canonical values are accepted; legacy aliases are no longer tolerated.
+_VALID_PLUGIN_ENDPOINT_SCOPES = frozenset({"admin", "tenant", "both", "", "user"})
+_VALID_PLUGIN_PERMISSION_EXT_SCOPES = frozenset({"admin", "tenant", "user", "both"})
 
 _FRONTEND_PLUGIN_ROUTE_PREFIXES = ("/admin/plugins/", "/tenant/plugins/")
 _API_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
@@ -357,12 +362,26 @@ class NotificationExtensionSchema(BaseModel):
 
 
 class PermissionExtensionSchema(BaseModel):
-    """Permission extension declaration / 权限扩展声明"""
+    """Permission extension declaration / 权限扩展声明
+
+    scope 为权限端别（与 ResourceScopeEnum 无关）：admin / tenant / user / both。
+    """
 
     code: str
     name: I18nText = Field(default_factory=dict)
-    scope: str = "all_tenants"
+    scope: str = "tenant"
     actions: list[str] = Field(default_factory=list)
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_permission_ext_scope(cls, v: object) -> str:
+        raw = "tenant" if v is None else str(v).strip()
+        if raw not in _VALID_PLUGIN_PERMISSION_EXT_SCOPES:
+            raise ValueError(
+                f"Invalid permission scope '{v}'. "
+                f"Expected one of: admin|tenant|user|both."
+            )
+        return raw
 
 
 # ── Frontend extensions / 前端扩展 ──
@@ -375,6 +394,8 @@ class MenuExtensionSchema(BaseModel):
     Menus are navigation links pointing to existing routes, not creating new routes,
     so path is not restricted to /admin/plugins/.
     / 菜单是导航链接，指向已有路由，不创建新路由。
+
+    scope 为挂载端别：admin / tenant / both（与资源作用域无关）。
     """
 
     name: str
@@ -382,10 +403,20 @@ class MenuExtensionSchema(BaseModel):
     icon: str = ""
     parent: str | None = None
     sort_order: int = 100
-    scope: str = "admin_only"
+    scope: str = "admin"
     component: str = ""
     title: I18nText = Field(default_factory=dict)
     hidden: bool = False
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_menu_scope(cls, v: object) -> str:
+        raw = "admin" if v is None else str(v).strip()
+        if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
+            raise ValueError(
+                f"Invalid menu scope '{v}'. Expected one of: admin|tenant|both|user."
+            )
+        return raw
 
 
 class HeaderWidgetSchema(BaseModel):
@@ -395,6 +426,18 @@ class HeaderWidgetSchema(BaseModel):
     component: str
     sort_order: int = 100
     scope: str = ""
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_header_scope(cls, v: object) -> str:
+        if v is None:
+            return ""
+        raw = str(v).strip()
+        if not raw:
+            return ""
+        if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
+            raise ValueError(f"Invalid header widget scope '{v}'. Expected one of: admin|tenant|both|user.")
+        return raw
 
 
 class FloatingPanelSchema(BaseModel):
@@ -451,7 +494,15 @@ class DashboardWidgetSchema(BaseModel):
     component: str
     title: I18nText = Field(default_factory=dict)
     grid: dict = Field(default_factory=lambda: {"w": 6, "h": 4})
-    scope: str = "all_tenants"
+    scope: str = "tenant"
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_dashboard_scope(cls, v: object) -> str:
+        raw = "tenant" if v is None else str(v).strip()
+        if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
+            raise ValueError(f"Invalid dashboard widget scope '{v}'. Expected one of: admin|tenant|both|user.")
+        return raw
 
 
 class SettingsTabSchema(BaseModel):
@@ -460,7 +511,15 @@ class SettingsTabSchema(BaseModel):
     name: str
     component: str
     title: I18nText = Field(default_factory=dict)
-    scope: str = "all_tenants"
+    scope: str = "tenant"
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _normalize_settings_tab_scope(cls, v: object) -> str:
+        raw = "tenant" if v is None else str(v).strip()
+        if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
+            raise ValueError(f"Invalid settings tab scope '{v}'. Expected one of: admin|tenant|both|user.")
+        return raw
 
 
 class FrontendSideSchema(BaseModel):
@@ -781,7 +840,7 @@ class ResourcesSchema(BaseModel):
 # ============================================================
 
 _NAME_PATTERN = _PLUGIN_NAME_PATTERN
-_VALID_SCOPES = {e.value for e in PluginScopeEnum}
+_VALID_SCOPES = {e.value for e in ResourceScopeEnum}
 
 # Defined plugin capabilities whitelist (aligned with strings used in PluginContext._require())
 # New capabilities must be added to this set
@@ -877,7 +936,7 @@ class PluginManifest(BaseModel):
     @field_validator("scope")
     @classmethod
     def validate_scope(cls, v: str) -> str:
-        """scope must be a valid PluginScopeEnum value / scope 必须是合法的 PluginScopeEnum 值"""
+        """scope must be a valid ResourceScopeEnum value / scope 必须是合法的资源作用域值"""
         if v not in _VALID_SCOPES:
             raise ValueError(
                 f"Invalid scope '{v}'. Must be one of: {sorted(_VALID_SCOPES)}"

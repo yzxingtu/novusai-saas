@@ -19,6 +19,25 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("db")
 
+# 最近一次 init_database 失败原因（供 main 抛出可读 RuntimeError）/ Last init_database failure detail
+_db_init_failure_reason: str | None = None
+
+
+def get_last_db_init_failure_reason() -> str | None:
+    """返回最近一次数据库初始化失败摘要；成功或未调用时为 None。"""
+    return _db_init_failure_reason
+
+
+def _set_db_init_failure(reason: str) -> None:
+    global _db_init_failure_reason
+    _db_init_failure_reason = reason
+
+
+def _clear_db_init_failure() -> None:
+    global _db_init_failure_reason
+    _db_init_failure_reason = None
+
+
 # ============================================
 # 异步数据库引擎 / Async Database Engine
 # ============================================
@@ -222,6 +241,7 @@ async def check_database_connection() -> bool:
         return True
     except Exception as e:
         _warn_if_pg_not_running(e)
+        _set_db_init_failure(f"check_database_connection: {e}")
         logger.error("Database connection failed: {}", e)
         return False
 
@@ -267,6 +287,7 @@ def create_database_if_not_exists() -> bool:
         return True
     except Exception as e:
         _warn_if_pg_not_running(e)
+        _set_db_init_failure(f"create_database_if_not_exists: {e}")
         logger.error("Database creation failed: {}", e)
         return False
     finally:
@@ -308,10 +329,11 @@ def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
                 logger.warning("Cannot read migration file {}: {}", f, e)
 
     _collect(versions_path)
-    plugins_root = backend.parent / "plugins"
+    # 与 env.py / run_migrations / CLI 一致：插件迁移在 backend/plugins/* 下，非仓库根 plugins/
+    plugins_root = backend / "plugins"
     if plugins_root.is_dir():
-        for p in plugins_root.iterdir():
-            if p.name.startswith("."):
+        for p in sorted(plugins_root.iterdir()):
+            if not p.is_dir() or p.name.startswith("."):
                 continue
             _collect(p / "backend" / "migrations" / "versions")
 
@@ -431,8 +453,11 @@ _collect_revisions_from_dir(versions_dir)
 # 插件迁移（全部插件目录；跳过隐藏目录）
 plugins_root = os.path.join(os.path.dirname(os.path.dirname(versions_dir)), 'plugins')
 if os.path.isdir(plugins_root):
-    for _plugin_name in os.listdir(plugins_root):
+    for _plugin_name in sorted(os.listdir(plugins_root)):
         if _plugin_name.startswith('.'):
+            continue
+        _plugin_root = os.path.join(plugins_root, _plugin_name)
+        if not os.path.isdir(_plugin_root):
             continue
         _plugin_versions_dir = os.path.join(
             plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
@@ -465,8 +490,11 @@ cfg.set_main_option('sqlalchemy.url', {db_url!r})
 # 不能只依赖 env.py 里后置 set_main_option（那时已太晚）。
 _version_locations = [versions_dir]
 if os.path.isdir(plugins_root):
-    for _plugin_name in os.listdir(plugins_root):
+    for _plugin_name in sorted(os.listdir(plugins_root)):
         if _plugin_name.startswith('.'):
+            continue
+        _plugin_root = os.path.join(plugins_root, _plugin_name)
+        if not os.path.isdir(_plugin_root):
             continue
         _plugin_versions_dir = os.path.join(
             plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
@@ -479,11 +507,36 @@ try:
     command.upgrade(cfg, 'heads')
 except Exception as e:
     err_str = str(e)
-    # 若 upgrade 失败原因是"表已存在"（DuplicateTable），说明表结构完整但 stamp 缺失
-    # 用 stamp heads 恢复一致性，而非报错
+    # 仅在 alembic_version 中无任何记录时，DuplicateTable 才视为「表已手工建好、缺 stamp」。
+    # 若已有 revision 记录仍报 DuplicateTable，多为卡在某条迁移上；此时 stamp heads 会跳过后续 ALTER，
+    # 导致 ORM（如 owner_tenant_id）与真实库列不一致——禁止自动 stamp。
     if 'already exists' in err_str or 'DuplicateTable' in type(e).__name__:
-        print('[migration] Tables exist but stamps missing, stamping heads to recover...')
-        command.stamp(cfg, 'heads')
+        eng = create_engine({db_url!r})
+        stamp_count = -1
+        try:
+            with eng.connect() as c:
+                r = c.execute(text('SELECT COUNT(*) FROM alembic_version')).fetchone()
+            stamp_count = int(r[0]) if r else 0
+        except Exception as ver_exc:
+            print(
+                '[migration] Cannot read alembic_version: '
+                + str(ver_exc)
+                + '; refusing unsafe stamp.'
+            )
+            raise e from ver_exc
+        finally:
+            eng.dispose()
+        if stamp_count == 0:
+            print(
+                '[migration] Tables exist but stamps missing, stamping heads to recover...'
+            )
+            command.stamp(cfg, 'heads')
+        else:
+            print(
+                '[migration] DuplicateTable/already exists but alembic_version is nonempty; '
+                'refusing stamp. Fix the DB conflict or run: alembic upgrade heads'
+            )
+            raise
     else:
         raise
 """
@@ -512,14 +565,24 @@ except Exception as e:
 
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "unknown error").strip()
+            _set_db_init_failure(f"alembic subprocess (exit {result.returncode}): {err[:4000]}")
             raise RuntimeError(err)
 
+        out = (result.stdout or "").strip()
+        if out:
+            # 子进程里的 print 默认不进 app 日志；raw 避免 Alembic 输出中的 {} 触发 Loguru 格式化
+            tail = out[-6000:] if len(out) > 6000 else out
+            logger.opt(raw=True).info(
+                "Database migrations subprocess output:\n" + tail + "\n"
+            )
         logger.info("Database migrations completed")
         return True
     except FileNotFoundError:
         logger.warning("Alembic not installed, skipping migrations")
         return True
     except Exception as e:
+        if _db_init_failure_reason is None:
+            _set_db_init_failure(f"run_migrations: {e}")
         logger.error("Database migration failed: {}", e)
         return False
 
@@ -536,19 +599,38 @@ async def init_database() -> bool:
         是否成功 / Whether successful
     """
     logger.info("Initializing database...")
+    _clear_db_init_failure()
 
     # 1. 检查/创建数据库 / Check/create database
     if not await asyncio.to_thread(create_database_if_not_exists):
+        if _db_init_failure_reason is None:
+            _set_db_init_failure("create_database_if_not_exists returned False")
+        logger.error(
+            "Database init failed at step: create_database_if_not_exists "
+            "(see preceding logs)"
+        )
         return False
 
     # 2. 运行迁移 / Run migrations
     if not await asyncio.to_thread(run_migrations):
+        if _db_init_failure_reason is None:
+            _set_db_init_failure(
+                "run_migrations returned False (see db.log for migration subprocess output)",
+            )
+        logger.error(
+            "Database init failed at step: run_migrations — "
+            "run manually: cd backend && alembic upgrade heads"
+        )
         return False
 
     # 3. 验证连接 / Verify connection
     if not await check_database_connection():
+        if _db_init_failure_reason is None:
+            _set_db_init_failure("check_database_connection returned False")
+        logger.error("Database init failed at step: check_database_connection")
         return False
 
+    _clear_db_init_failure()
     logger.info("Database initialization complete")
     return True
 
@@ -574,6 +656,7 @@ __all__ = [
     "check_database_connection",
     "create_database_if_not_exists",
     "purge_orphaned_alembic_stamps",
+    "get_last_db_init_failure_reason",
     "run_migrations",
     "init_database",
     "close_database",

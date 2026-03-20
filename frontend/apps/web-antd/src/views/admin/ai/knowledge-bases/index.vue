@@ -120,7 +120,7 @@ const {
           scope: {
             type: 'string',
             description:
-              'Scope filter: admin_only / admin_and_all / all_tenants / assigned_tenants / 作用域过滤',
+              'Resource scope filter: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants / 资源作用域过滤',
           },
         },
         handler: async (

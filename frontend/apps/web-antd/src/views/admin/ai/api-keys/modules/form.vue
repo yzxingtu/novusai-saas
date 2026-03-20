@@ -8,10 +8,7 @@ import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { getAIApiKeyDetailApi } from '#/api/admin/ai';
-import {
-  extractScopeFormValues,
-  extractScopePayload,
-} from '#/components/business/scope-select';
+import { extractScopeFormValues } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -39,7 +36,10 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
     if (!isEdit.value) {
       data.provider_id = values.provider_id;
       data.api_key = values.api_key;
-      Object.assign(data, extractScopePayload(values, 'scope', true));
+      const scope = values.scope as string;
+      data.scope = scope;
+      data.tenant_id =
+        scope === 'selected_tenants' ? (values.tenant_id as number | null) : null;
     }
     return data;
   },

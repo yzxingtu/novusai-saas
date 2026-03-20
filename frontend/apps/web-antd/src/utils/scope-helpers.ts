@@ -1,11 +1,9 @@
 /**
- * Unified scope utility functions
- * 统一作用域工具函数
+ * Unified resource scope helpers (ResourceScopeEnum — 5 values only)
+ * 统一资源作用域工具（仅 5 个枚举值）
  *
- * Shared across the platform, replacing scattered getScopeColor/getScopeText/getScopeOptions.
- * 5 scopes: admin_only / all_tenants / admin_and_all / admin_and_assigned / assigned_tenants
- * 全平台共用，替代各模块分散的 getScopeColor/getScopeText/getScopeOptions。
- * 5 种作用域：admin_only / all_tenants / admin_and_all / admin_and_assigned / assigned_tenants
+ * global_shared | admin_only | all_tenants | admin_and_selected_tenants | selected_tenants
+ * 与 RBAC 权限端别（admin/tenant/user/both）、插件菜单挂载端别无关。
  */
 
 import { $t } from '#/locales';
@@ -18,6 +16,11 @@ export interface ScopeConfig {
 
 /** Scope configuration table / 作用域配置表 */
 export const SCOPE_CONFIG: Record<string, ScopeConfig> = {
+  global_shared: {
+    color: 'purple',
+    icon: 'lucide:globe',
+    textKey: 'common.scope.globalShared',
+  },
   admin_only: {
     color: 'blue',
     icon: 'lucide:shield',
@@ -28,37 +31,29 @@ export const SCOPE_CONFIG: Record<string, ScopeConfig> = {
     icon: 'lucide:users',
     textKey: 'common.scope.allTenants',
   },
-  admin_and_all: {
-    color: 'purple',
-    icon: 'lucide:globe',
-    textKey: 'common.scope.adminAndAll',
-  },
-  admin_and_assigned: {
+  admin_and_selected_tenants: {
     color: 'orange',
     icon: 'lucide:user-check',
-    textKey: 'common.scope.adminAndAssigned',
+    textKey: 'common.scope.adminAndSelectedTenants',
   },
-  assigned_tenants: {
+  selected_tenants: {
     color: 'cyan',
     icon: 'lucide:user-plus',
-    textKey: 'common.scope.assignedTenants',
+    textKey: 'common.scope.selectedTenants',
   },
 };
 
-/** Get scope color (for Tag component) / 获取 scope 颜色（Tag 使用） */
 export function getScopeColor(scope: string | undefined): string {
   if (!scope) return 'default';
   return SCOPE_CONFIG[scope]?.color ?? 'default';
 }
 
-/** Get scope text (translated) / 获取 scope 文本（已翻译） */
 export function getScopeText(scope: string | undefined): string {
   if (!scope) return '';
   const config = SCOPE_CONFIG[scope];
   return config ? $t(config.textKey) : scope;
 }
 
-/** Get scope icon / 获取 scope 图标 */
 export function getScopeIcon(scope: string | undefined): string {
   if (!scope) return 'lucide:help-circle';
   return SCOPE_CONFIG[scope]?.icon ?? 'lucide:help-circle';
@@ -69,13 +64,6 @@ export interface ScopeOption {
   value: string;
 }
 
-/**
- * Get scope dropdown options
- * 获取 scope 下拉选项
- *
- * @param allowedScopes - Optional, restrict returned scope list. Returns all 5 if omitted.
- *   可选，限制返回的 scope 列表。不传则返回全部 5 种。
- */
 export function getScopeOptions(allowedScopes?: string[]): ScopeOption[] {
   const scopes = allowedScopes ?? Object.keys(SCOPE_CONFIG);
   return scopes
@@ -91,18 +79,17 @@ export function getScopeOptions(allowedScopes?: string[]): ScopeOption[] {
     .filter((item): item is ScopeOption => item !== null);
 }
 
-/** Get admin-side available scope options / 获取管理端可选的 scope 列表 */
 export function getAdminScopeOptions(): ScopeOption[] {
   return getScopeOptions([
+    'global_shared',
     'admin_only',
     'all_tenants',
-    'admin_and_all',
-    'admin_and_assigned',
-    'assigned_tenants',
+    'admin_and_selected_tenants',
+    'selected_tenants',
   ]);
 }
 
-/** Get tenant-side visible scope options (tenant can only create all_tenants) / 获取企业端可见的 scope 列表（企业端只能创建 all_tenants） */
+/** Tenant creates resources that are tenant-owned; scope usually all_tenants */
 export function getTenantScopeOptions(): ScopeOption[] {
   return getScopeOptions(['all_tenants']);
 }

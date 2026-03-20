@@ -1,7 +1,7 @@
 """seed Router agent and default_chat assignment
 
 Creates:
-1. Router system agent (execution_mode=router, scope=admin_and_all, is_system=True)
+1. Router system agent (execution_mode=router, scope=global_shared, is_system=True)
 2. default_chat SystemAgentAssignment (feature_code='default_chat', agent_id=NULL)
 
 Both operations are idempotent — safe to re-run.
@@ -97,7 +97,7 @@ def upgrade() -> None:
             ), {
                 "name": ROUTER_AGENT_NAME,
                 "description": "系统路由智能体 — 分析用户消息并自动分配到最合适的智能体",
-                "scope": "admin_and_all",
+                "scope": "global_shared",
                 "system_prompt": ROUTER_SYSTEM_PROMPT,
                 "model_id": model_id,
                 "temperature": 0.1,

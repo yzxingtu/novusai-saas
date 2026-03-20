@@ -54,7 +54,7 @@ def _serialize_user(user) -> dict:
 @permission_resource(
     resource="tenant_user",
     name="menu.tenant.tenant_user",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system",
 )
 class TenantUserController(TenantController):

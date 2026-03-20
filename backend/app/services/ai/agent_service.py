@@ -16,13 +16,11 @@ from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import (
-    AgentDistributionModeEnum,
-    AgentOwnerTypeEnum,
     AgentPublicationAccessTypeEnum,
     AgentStatusEnum,
 )
 from app.enums.ai import CallAccessChannelEnum
-from app.enums.common import UserRoleEnum
+from app.enums.common import ResourceScopeEnum, UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
@@ -236,7 +234,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             raise NotFoundException(message=_("agent.error.not_found"))
 
         # 企业端仅允许操作自有 agent；全局/系统 agent 不允许覆盖
-        if agent.tenant_id != self.tenant_id:
+        if agent.owner_tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         override_repo = self._get_memory_override_repo()
@@ -273,9 +271,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
             data.update(ctx.get("agent_data", data))
 
-        data["owner_type"] = AgentOwnerTypeEnum.TENANT.value
-        data["distribution_mode"] = AgentDistributionModeEnum.OWNER_ONLY.value
-        data["tenant_id"] = self.tenant_id
+        data["owner_tenant_id"] = self.tenant_id
+        for rejected in ("owner_type", "distribution_mode"):
+            if rejected in data:
+                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+        data.pop("tenant_id", None)
+        scope_val = data.get("scope") or ResourceScopeEnum.ALL_TENANTS.value
+        if scope_val not in {e.value for e in ResourceScopeEnum}:
+            raise BusinessException(message=_("agent.error.invalid_scope"))
+        data["scope"] = scope_val
 
         name = data.get("name")
         if name:
@@ -318,12 +322,17 @@ class AgentService(TenantService[Agent, AgentRepository]):
             raise NotFoundException(message=_("agent.error.not_found"))
 
         # 企业端只能修改自有智能体（即 tenant_id 与当前企业匹配）
-        if agent.tenant_id != self.tenant_id:
+        if agent.owner_tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
-        data.pop("owner_type", None)
-        data.pop("distribution_mode", None)
+        for rejected in ("owner_type", "distribution_mode"):
+            if rejected in data:
+                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
         data.pop("tenant_id", None)
+        data.pop("owner_tenant_id", None)
+        if "scope" in data and data["scope"] is not None:
+            if data["scope"] not in {e.value for e in ResourceScopeEnum}:
+                raise BusinessException(message=_("agent.error.invalid_scope"))
 
         if agent.is_system:
             protected = {"is_system", "status", "execution_mode"}
@@ -369,7 +378,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             raise NotFoundException(message=_("agent.error.not_found"))
 
         # 企业端只能删除自有智能体（即 tenant_id 与当前企业匹配）
-        if agent.tenant_id != self.tenant_id:
+        if agent.owner_tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         if agent.is_system:
@@ -419,7 +428,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         # 构建响应字典
         result = agent.to_dict()
-        result["owner_tenant_id"] = agent.tenant_id
+        result["owner_tenant_id"] = agent.owner_tenant_id
+        result["scope"] = getattr(agent, "scope", None)
         result["model_name"] = None
         result["model_code"] = None
 
@@ -920,14 +930,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
             )
             billing_tenant_name_snapshot = row.scalar_one_or_none()
 
+        _own_tid = getattr(agent, "owner_tenant_id", None)
         return {
             "billing_tenant_id": billing_tenant_id,
             "actor_user_id": user_id,
             "actor_user_type": user_role,
             "access_channel": access_channel,
-            "agent_owner_type": getattr(agent, "owner_type", None),
-            "agent_owner_tenant_id": getattr(agent, "tenant_id", None),
-            "agent_distribution_mode": getattr(agent, "distribution_mode", None),
+            "agent_owner_type": ("platform" if _own_tid is None else "tenant"),
+            "agent_owner_tenant_id": _own_tid,
+            "agent_resource_scope": getattr(agent, "scope", None),
             "tenant_publication_id": getattr(publication, "id", None) if publication else None,
             "publication_enabled_snapshot": (
                 bool(getattr(publication, "enabled_for_users", False))
@@ -956,16 +967,12 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     repository_class = AdminAgentRepository
 
     @staticmethod
-    def _validate_distribution_mode(distribution_mode: str | None) -> str:
-        mode = distribution_mode or AgentDistributionModeEnum.ALL_TENANTS.value
-        allowed = {
-            AgentDistributionModeEnum.INTERNAL.value,
-            AgentDistributionModeEnum.ALL_TENANTS.value,
-            AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
-        }
-        if mode not in allowed:
+    def _validate_resource_scope(scope: str | None) -> str:
+        allowed = {e.value for e in ResourceScopeEnum}
+        val = scope or ResourceScopeEnum.GLOBAL_SHARED.value
+        if val not in allowed:
             raise BusinessException(message=_("agent.error.invalid_scope"))
-        return mode
+        return val
 
     async def _get_platform_default_memory_enabled(self) -> bool:
         """获取平台默认记忆开关（默认 True） / Get platform default memory enabled (default True)."""
@@ -1012,57 +1019,64 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.get_memory_config(agent_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：平台归属 + 分发模式 + 名称唯一性 / Before create: platform ownership, distribution mode, name uniqueness."""
+        """创建前校验：平台级资源 + 资源作用域 + 名称唯一性 / Before create: platform resource, scope, name uniqueness."""
         await super()._before_create(data)
 
-        data["owner_type"] = AgentOwnerTypeEnum.PLATFORM.value
-        data["tenant_id"] = None
-        data["distribution_mode"] = self._validate_distribution_mode(
-            data.get("distribution_mode"),
-        )
+        data["owner_tenant_id"] = None
+        for rejected in ("owner_type", "distribution_mode"):
+            if rejected in data:
+                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+        data.pop("tenant_id", None)
+        data["scope"] = self._validate_resource_scope(data.get("scope"))
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
             existing = await self.repo.exists_by_name(
                 name,
-                tenant_id=None,
-                owner_type=AgentOwnerTypeEnum.PLATFORM.value,
+                owner_tenant_id=None,
             )
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：平台归属 + 分发模式 + 名称唯一性 + 系统保护 / Before update: platform ownership, distribution mode, name uniqueness, system protection."""
+        """更新前校验：平台级资源 + 作用域 + 名称唯一性 + 系统保护 / Before update: platform resource, scope, name uniqueness, system protection."""
         await super()._before_update(id, data)
 
         agent = await self.repo.get_by_id(id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+        if agent.owner_tenant_id is not None:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         # 系统智能体不允许修改关键字段
         if agent.is_system:
-            protected = {"is_system", "status", "execution_mode", "owner_type", "tenant_id"}
+            protected = {
+                "is_system",
+                "status",
+                "execution_mode",
+                "owner_type",
+                "tenant_id",
+                "owner_tenant_id",
+            }
             if protected & set(data.keys()):
                 raise BusinessException(message=_("agent.error.system_protected"))
 
-        data["owner_type"] = AgentOwnerTypeEnum.PLATFORM.value
-        data["tenant_id"] = None
-        if "distribution_mode" in data:
-            data["distribution_mode"] = self._validate_distribution_mode(
-                data.get("distribution_mode"),
-            )
+        for rejected in ("owner_type", "distribution_mode"):
+            if rejected in data:
+                raise BusinessException(message=_("agent.error.rejected_legacy_field").format(field=rejected))
+        data.pop("tenant_id", None)
+        data.pop("owner_tenant_id", None)
+        if "scope" in data and data["scope"] is not None:
+            data["scope"] = self._validate_resource_scope(data["scope"])
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
             existing = await self.repo.exists_by_name(
                 name,
-                tenant_id=None,
-                owner_type=AgentOwnerTypeEnum.PLATFORM.value,
+                owner_tenant_id=None,
                 exclude_id=id,
             )
             if existing:
@@ -1093,12 +1107,11 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
 
         # 清理 resource_tenant_assignments 残留记录
-        if agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value:
-            from app.repositories.system.resource_tenant_assignment_repository import (
-                ResourceTenantAssignmentRepository,
-            )
-            rta_repo = ResourceTenantAssignmentRepository(self.db)
-            await rta_repo.delete_all_for_resource("agent", id)
+        from app.repositories.system.resource_tenant_assignment_repository import (
+            ResourceTenantAssignmentRepository,
+        )
+        rta_repo = ResourceTenantAssignmentRepository(self.db)
+        await rta_repo.delete_all_for_resource("agent", id)
 
     def _get_platform_access_repo(self) -> AgentAccessRepository:
         """平台侧访问配置 Repository（tenant_id=0）/ Platform access config repository (tenant_id=0)."""
@@ -1127,7 +1140,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+        if agent.owner_tenant_id is not None:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         allowed = frozenset({"admin_role_ids", "tenant_role_ids"})
@@ -1149,14 +1162,15 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     ) -> dict[str, Any]:
         """构建平台管理端调用的计费归属上下文 / Build billing attribution context for platform-admin calls."""
         _ = user_role_id
+        _own_tid = getattr(agent, "owner_tenant_id", None)
         return {
             "billing_tenant_id": None,
             "actor_user_id": user_id,
             "actor_user_type": user_role,
             "access_channel": CallAccessChannelEnum.ADMIN_INTERNAL.value,
-            "agent_owner_type": getattr(agent, "owner_type", None),
-            "agent_owner_tenant_id": getattr(agent, "tenant_id", None),
-            "agent_distribution_mode": getattr(agent, "distribution_mode", None),
+            "agent_owner_type": ("platform" if _own_tid is None else "tenant"),
+            "agent_owner_tenant_id": _own_tid,
+            "agent_resource_scope": getattr(agent, "scope", None),
             "tenant_publication_id": None,
             "publication_enabled_snapshot": None,
             "publication_access_type_snapshot": None,

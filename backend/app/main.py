@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.core.database import close_database, init_database
+from app.core.database import close_database, get_last_db_init_failure_reason, init_database
 from app.core.i18n import _, reload_translations
 from app.core.logging import get_logger, init_logging
 from app.core.response import error, validation_error
@@ -62,7 +62,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
         if not await init_database():
-            raise RuntimeError("Database initialization failed")
+            detail = get_last_db_init_failure_reason()
+            raise RuntimeError(
+                "Database initialization failed"
+                + (f": {detail}" if detail else "")
+                + " — 亦可手动执行: cd backend && alembic upgrade heads",
+            )
         logger.info("Database initialized")
 
         # Early Redis initialization (subsequent startup steps depend on Redis for distributed locks) / 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）

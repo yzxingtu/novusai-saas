@@ -15,7 +15,7 @@
         "repository_url": null,
         "license_text": null,
         "tags": [],
-        "scope": "admin_and_assigned",
+        "scope": "admin_and_selected_tenants",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -27,7 +27,7 @@
             "zh-CN": "企业网盘",
             "en": "Enterprise NetDisk"
           },
-          "scope": "admin_and_assigned",
+          "scope": "admin_and_selected_tenants",
           "description": {
             "zh-CN": "企业私有化网盘，支持多级文件夹管理、分片上传、分享链接、存储配额及 AI 文件查询技能。",
             "en": "Enterprise cloud disk with folder management, chunked upload, sharing, quotas and AI search."
@@ -529,7 +529,7 @@
           "widget",
           "example"
         ],
-        "scope": "admin_and_assigned",
+        "scope": "admin_and_selected_tenants",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -541,7 +541,7 @@
             "zh-CN": "天气组件",
             "en": "Weather Widget"
           },
-          "scope": "admin_and_assigned",
+          "scope": "admin_and_selected_tenants",
           "description": {
             "zh-CN": "顶部导航天气组件：实时天气 + 动画展示 + 城市选择 + AI 技能包",
             "en": "Header weather widget: real-time weather + animations + city selector + AI skill pack"
@@ -801,7 +801,7 @@
           "tencent",
           "cloud"
         ],
-        "scope": "admin_and_all",
+        "scope": "global_shared",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -813,7 +813,7 @@
             "zh-CN": "腾讯云 COS 存储",
             "en": "Tencent Cloud COS Storage"
           },
-          "scope": "admin_and_all",
+          "scope": "global_shared",
           "description": {
             "zh-CN": "腾讯云对象存储（COS）驱动，支持 imageMogr2 原生图片处理",
             "en": "Tencent Cloud Object Storage driver with imageMogr2 native image processing"
@@ -1220,7 +1220,7 @@
           "qiniu",
           "cloud"
         ],
-        "scope": "admin_and_all",
+        "scope": "global_shared",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -1232,7 +1232,7 @@
             "zh-CN": "七牛云 Kodo 存储",
             "en": "Qiniu Kodo Storage"
           },
-          "scope": "admin_and_all",
+          "scope": "global_shared",
           "description": {
             "zh-CN": "七牛云对象存储（Kodo）驱动，支持 imageView2 原生图片处理",
             "en": "Qiniu Kodo object storage driver with imageView2 native image processing"
@@ -1382,7 +1382,7 @@
           "version-history",
           "export"
         ],
-        "scope": "admin_and_assigned",
+        "scope": "admin_and_selected_tenants",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -1394,7 +1394,7 @@
             "zh-CN": "NovusDoc Pro — 协作增强",
             "en": "NovusDoc Pro — Collaboration"
           },
-          "scope": "admin_and_assigned",
+          "scope": "admin_and_selected_tenants",
           "description": {
             "zh-CN": "NovusDoc 商业扩展：实时多人协作、评论批注、版本历史、文档权限、分享链接、Word/PDF 导出、文档模板",
             "en": "NovusDoc commercial extension: real-time collaboration, comments, version history, document permissions, sharing, Word/PDF export, templates"
@@ -1832,7 +1832,7 @@
                   "zh-CN": "文档协作",
                   "en": "Document Collaboration"
                 },
-                "scope": "admin_and_assigned",
+                "scope": "admin_and_selected_tenants",
                 "actions": [
                   "collab",
                   "comment",
@@ -1985,7 +1985,7 @@
           "ai",
           "documents"
         ],
-        "scope": "admin_and_all",
+        "scope": "global_shared",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -1997,7 +1997,7 @@
             "zh-CN": "AI 文档编辑器",
             "en": "AI Document Editor"
           },
-          "scope": "admin_and_all",
+          "scope": "global_shared",
           "description": {
             "zh-CN": "基于 Tiptap 的现代化 AI 富文本编辑器，支持文档管理、文件夹、标签、全文搜索、图片上传、HTML/Markdown 导出",
             "en": "Modern AI-powered rich text editor based on Tiptap, with document management, folders, tags, full-text search, image upload, HTML/Markdown export"
@@ -3290,7 +3290,7 @@
           "minio",
           "cloud"
         ],
-        "scope": "admin_and_all",
+        "scope": "global_shared",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -3302,7 +3302,7 @@
             "zh-CN": "S3 兼容存储",
             "en": "S3 Compatible Storage"
           },
-          "scope": "admin_and_all",
+          "scope": "global_shared",
           "description": {
             "zh-CN": "Amazon S3 兼容对象存储驱动，支持 AWS/MinIO/R2/B2 等 S3 协议存储",
             "en": "Amazon S3 compatible object storage driver, supports AWS/MinIO/R2/B2 etc."
@@ -3451,7 +3451,7 @@
           "aliyun",
           "cloud"
         ],
-        "scope": "admin_and_all",
+        "scope": "global_shared",
         "status": "enabled",
         "tier": "community",
         "install_source": "local",
@@ -3463,7 +3463,7 @@
             "zh-CN": "阿里云 OSS 存储",
             "en": "Alibaba Cloud OSS Storage"
           },
-          "scope": "admin_and_all",
+          "scope": "global_shared",
           "description": {
             "zh-CN": "阿里云对象存储服务（OSS）驱动，支持原生图片处理",
             "en": "Alibaba Cloud Object Storage Service driver with native image processing"

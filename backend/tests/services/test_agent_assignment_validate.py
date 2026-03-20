@@ -7,28 +7,26 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.enums.agent import AgentStatusEnum
-from app.enums.common import AudienceEnum, ResourceScopeEnum
+from app.enums.common import ResourceScopeEnum
 from app.exceptions import ValidationException
 from app.services.system.agent_assignment_service import AgentAssignmentService
 
 
 def _row(
     *,
-    tenant_id: int | None = None,
-    scope: str = ResourceScopeEnum.ADMIN_AND_ALL.value,
-    audience: str = AudienceEnum.ADMIN_TENANT.value,
+    owner_tenant_id: int | None = None,
+    scope: str = ResourceScopeEnum.GLOBAL_SHARED.value,
 ):
     r = MagicMock()
     r.id = 1
     r.status = AgentStatusEnum.PUBLISHED.value
     r.scope = scope
-    r.tenant_id = tenant_id
-    r.target_audience = audience
+    r.owner_tenant_id = owner_tenant_id
     return r
 
 
 @pytest.mark.asyncio
-async def test_for_platform_feature_binding_accepts_admin_and_all_platform_agent():
+async def test_for_platform_feature_binding_accepts_global_shared_platform_agent():
     db = MagicMock()
     svc = AgentAssignmentService(db)
     mock_result = MagicMock()
@@ -39,11 +37,24 @@ async def test_for_platform_feature_binding_accepts_admin_and_all_platform_agent
 
 
 @pytest.mark.asyncio
+async def test_for_platform_feature_binding_accepts_all_tenants_platform_agent():
+    db = MagicMock()
+    svc = AgentAssignmentService(db)
+    mock_result = MagicMock()
+    mock_result.one_or_none.return_value = _row(
+        scope=ResourceScopeEnum.ALL_TENANTS.value,
+    )
+    db.execute = AsyncMock(return_value=mock_result)
+
+    await svc.validate_agent_id(1, for_platform_feature_binding=True)
+
+
+@pytest.mark.asyncio
 async def test_for_platform_feature_binding_rejects_tenant_owned_agent():
     db = MagicMock()
     svc = AgentAssignmentService(db)
     mock_result = MagicMock()
-    mock_result.one_or_none.return_value = _row(tenant_id=99)
+    mock_result.one_or_none.return_value = _row(owner_tenant_id=99)
     db.execute = AsyncMock(return_value=mock_result)
 
     with pytest.raises(ValidationException):
@@ -56,7 +67,7 @@ async def test_for_platform_feature_binding_rejects_assigned_scope():
     svc = AgentAssignmentService(db)
     mock_result = MagicMock()
     mock_result.one_or_none.return_value = _row(
-        scope=ResourceScopeEnum.ASSIGNED_TENANTS.value,
+        scope=ResourceScopeEnum.SELECTED_TENANTS.value,
     )
     db.execute = AsyncMock(return_value=mock_result)
 
@@ -65,11 +76,27 @@ async def test_for_platform_feature_binding_rejects_assigned_scope():
 
 
 @pytest.mark.asyncio
-async def test_for_platform_feature_binding_rejects_admin_only_audience():
+async def test_for_platform_feature_binding_rejects_admin_and_selected_scope():
     db = MagicMock()
     svc = AgentAssignmentService(db)
     mock_result = MagicMock()
-    mock_result.one_or_none.return_value = _row(audience=AudienceEnum.ADMIN_ONLY.value)
+    mock_result.one_or_none.return_value = _row(
+        scope=ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    )
+    db.execute = AsyncMock(return_value=mock_result)
+
+    with pytest.raises(ValidationException):
+        await svc.validate_agent_id(1, for_platform_feature_binding=True)
+
+
+@pytest.mark.asyncio
+async def test_for_platform_feature_binding_rejects_admin_only_scope():
+    db = MagicMock()
+    svc = AgentAssignmentService(db)
+    mock_result = MagicMock()
+    mock_result.one_or_none.return_value = _row(
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+    )
     db.execute = AsyncMock(return_value=mock_result)
 
     with pytest.raises(ValidationException):

@@ -9,7 +9,7 @@ description:
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#ff6a00"
-scope: admin_and_all
+scope: global_shared
 tags: ["storage", "oss", "aliyun", "cloud"]
 
 capabilities:

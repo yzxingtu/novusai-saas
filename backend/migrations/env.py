@@ -85,7 +85,6 @@ from app.models import (
 # AI 子模块中有但未在 models/__init__.py 再导出的模型
 from app.models.ai.query_log import AIQueryLog
 from app.models.ai.knowledge_base import KnowledgeBase
-from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.skill_call_log import SkillCallLog
@@ -120,26 +119,13 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 _migrations_dir = Path(__file__).parent / "versions"
 _version_paths = [str(_migrations_dir)]
 
-# 只扫描已安装插件的迁移目录（防止未安装插件的迁移被意外执行）
+# 与 app.core.database.run_migrations 子进程一致：扫描仓库内全部插件的 versions 目录。
+# Align with run_migrations subprocess: all plugin revision files are on version_locations,
+# so `alembic upgrade heads` from CLI and startup auto-migrate resolve the same revision graph.
 _plugins_dir = Path(__file__).parent.parent / "plugins"
 if _plugins_dir.exists():
-    _installed_plugin_names: set[str] = set()
-    try:
-        import psycopg2
-
-        _conn = psycopg2.connect(settings.DATABASE_URL_SYNC)
-        _cur = _conn.cursor()
-        _cur.execute("SELECT name FROM plugins WHERE is_deleted = false")
-        _installed_plugin_names = {row[0] for row in _cur.fetchall()}
-        _cur.close()
-        _conn.close()
-    except Exception:
-        pass  # DB not ready or table missing — skip plugin migrations
-
-    for _plugin_dir in _plugins_dir.iterdir():
-        if not _plugin_dir.is_dir():
-            continue
-        if _plugin_dir.name not in _installed_plugin_names:
+    for _plugin_dir in sorted(_plugins_dir.iterdir()):
+        if not _plugin_dir.is_dir() or _plugin_dir.name.startswith("."):
             continue
         _plugin_migrations = _plugin_dir / "backend" / "migrations" / "versions"
         if _plugin_migrations.is_dir():

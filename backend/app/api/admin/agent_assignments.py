@@ -44,7 +44,7 @@ class AgentAssignmentUpdate(PydanticBaseModel):
 @permission_resource(
     resource="agent_assignment",
     name="menu.admin.agent_assignment",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
         icon="lucide:plug",

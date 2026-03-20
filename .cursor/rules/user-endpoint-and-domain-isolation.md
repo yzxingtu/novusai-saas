@@ -7,7 +7,7 @@
 ## API 与依赖注入
 
 - 用户端 API 前缀固定为 `/api/user/*`
-- Token scope 固定为 `tenant_user`
+- JWT 中常见 **scope=`tenant_user`**（令牌声明）表示**用户端身份**，**不是** `ResourceScopeEnum`；权限表端别用 **`PermissionScope.USER`**（`user`），二者均与资源五类作用域无关
 - 依赖注入使用 `ActiveTenantUser`
 - 公开端点使用 `@public`
 - 登录后端点使用 `@auth_only`
@@ -42,7 +42,7 @@
 ## RBAC
 
 - 用户端菜单定义在 `user_menus.py`
-- 使用 `PermissionScope.TENANT_USER`
+- 使用 `PermissionScope.USER`（DB `permissions.scope='user'`，与资源作用域无关）
 - 用户端大多数业务接口走 `@auth_only` / `@public`，不照搬 admin 端细粒度 CRUD 权限模型
 
 ## 参考

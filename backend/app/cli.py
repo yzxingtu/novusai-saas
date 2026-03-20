@@ -8,7 +8,7 @@ Usage:
     novusai --help
     novusai run --reload
     novusai celery worker
-    novusai db upgrade head
+    novusai db upgrade heads
 """
 
 from __future__ import annotations
@@ -231,9 +231,9 @@ def _get_alembic_config():
 
 
 @db_cmd.command("upgrade")
-@click.argument("revision", default="head")
+@click.argument("revision", default="heads")
 def db_upgrade(revision: str) -> None:
-    """Run migrations up to revision (default: head) / 执行迁移至指定版本（默认 head）"""
+    """Run migrations up to revision (default: heads) / 执行迁移至指定版本（默认 heads，与启动自动迁移一致）"""
     os.chdir(_BACKEND_DIR)
     from alembic import command
 
@@ -286,9 +286,9 @@ def db_history(verbose: bool) -> None:
 
 
 @db_cmd.command("stamp")
-@click.argument("revision", default="head")
+@click.argument("revision", default="heads")
 def db_stamp(revision: str) -> None:
-    """Stamp database to revision without running migrations / 标记数据库版本（不执行迁移）"""
+    """Stamp database to revision without running migrations / 标记数据库版本（不执行迁移，默认 heads）"""
     os.chdir(_BACKEND_DIR)
     from alembic import command
 

@@ -25,7 +25,7 @@ from app.services.system.cache_management_service import CacheManagementService
 @permission_resource(
     resource="cache_management",
     name="menu.admin.cache_management",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
 )
 class AdminCacheController(GlobalController):

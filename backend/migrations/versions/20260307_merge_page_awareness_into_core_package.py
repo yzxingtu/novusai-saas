@@ -3,7 +3,7 @@
 Move get_page_context and invoke_page_operation from the standalone
 "页面感知" package into "系统核心技能包", then soft-delete the old package.
 
-Also fix the core package scope from admin_only → admin_and_all so that
+Also fix the core package scope from admin_only → global_shared so that
 tenant-side agents can also access web_search and page awareness skills
 via auto-bind.
 
@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from alembic import op
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 revision: str = "20260307_merge_page_pkg"
 down_revision: str | Sequence[str] | None = "20260307_fix_op_timeout"
@@ -27,7 +27,7 @@ depends_on: str | Sequence[str] | None = None
 
 _CORE_PKG_NAME = "系统核心技能包"
 _PAGE_PKG_NAME = "页面感知"
-_NEW_CORE_SCOPE = "admin_and_all"
+_NEW_CORE_SCOPE = "global_shared"
 
 
 def upgrade() -> None:
@@ -50,7 +50,7 @@ def upgrade() -> None:
     core_pkg_id = core_row[0]
     old_scope = core_row[1]
 
-    # ── 2. Update core package scope to admin_and_all ──
+    # ── 2. Update core package scope to global_shared ──
     if old_scope != _NEW_CORE_SCOPE:
         conn.execute(
             text(
@@ -139,15 +139,19 @@ def upgrade() -> None:
     if normalized.rowcount > 0:
         print(f"[MERGE] Normalized {normalized.rowcount} package(s) scope: 'admin' → 'admin_only'")
 
-    # Also normalize legacy scope on skills table
-    norm_skills = conn.execute(
-        text(
-            "UPDATE skills SET scope = 'admin_only', updated_at = NOW() "
-            "WHERE scope = 'admin' AND is_deleted = false"
-        ),
-    )
-    if norm_skills.rowcount > 0:
-        print(f"[MERGE] Normalized {norm_skills.rowcount} skill(s) scope: 'admin' → 'admin_only'")
+    # skills.scope 已在 d5e6f7a8b9c0 删除；仅当列仍存在时执行（兼容旧分支回放）
+    skill_cols = {c["name"] for c in inspect(conn).get_columns("skills")}
+    if "scope" in skill_cols:
+        norm_skills = conn.execute(
+            text(
+                "UPDATE skills SET scope = 'admin_only', updated_at = NOW() "
+                "WHERE scope = 'admin' AND is_deleted = false"
+            ),
+        )
+        if norm_skills.rowcount > 0:
+            print(
+                f"[MERGE] Normalized {norm_skills.rowcount} skill(s) scope: 'admin' → 'admin_only'"
+            )
 
     print("[MERGE] Page awareness skills merged into core package successfully.")
 

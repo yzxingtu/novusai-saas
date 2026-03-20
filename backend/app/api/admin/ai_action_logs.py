@@ -22,7 +22,7 @@ from app.services.ai.action_log_service import AdminAIActionLogService
 @permission_resource(
     resource="ai_action_log",
     name="menu.admin.ai_action_log",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:shield-check",

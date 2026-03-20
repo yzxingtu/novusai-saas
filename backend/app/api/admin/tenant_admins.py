@@ -60,7 +60,7 @@ class TenantAdminStatusRequest(BaseModel):
 @permission_resource(
     resource="tenant_admin",
     name="menu.admin.tenant_admin",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="tenant",
     menu=None,
 )

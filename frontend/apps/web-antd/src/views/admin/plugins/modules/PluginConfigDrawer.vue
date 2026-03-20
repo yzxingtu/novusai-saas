@@ -73,10 +73,10 @@ import {
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
 import { formatDate } from '#/utils/common';
+import { getScopeText } from '#/utils/scope-helpers';
 
 import {
   derivePluginType,
-  getScopeText,
   getStatusColor,
   getStatusText,
   getTierColor,
@@ -929,7 +929,7 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- Tenant assignment (only shown for assigned_tenants / admin_and_assigned) / 企业分配（仅 assigned_tenants / admin_and_assigned 显示） -->
+      <!-- Tenant assignment (selected_tenants / admin_and_selected_tenants) / 企业分配 -->
       <div v-if="needsTenantAssignment" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">

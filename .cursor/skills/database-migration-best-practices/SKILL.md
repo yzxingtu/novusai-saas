@@ -5,6 +5,8 @@ description: 数据库迁移最佳实践。当需要创建/修改数据库模型
 
 # 数据库迁移最佳实践
 
+**空库安装 / 迁移脚本硬性写法**：见仓库规则 `.cursor/rules/alembic-migration-authoring.md`（事务与 savepoint、列宽、revision 顺序、种子 NOT NULL 等）。本技能侧重流程与排错；写新迁移时请同时遵守该规则。
+
 ## 核心机制：启动时自动迁移（实时迁移）
 
 **本项目启动时自动执行 `alembic upgrade head`，无需手动运行迁移命令。**
@@ -398,6 +400,16 @@ Codegen 使用 `--auto-migrate`（默认开启）自动执行 `alembic revision 
 5. **回滚只删 codegen 迁移** — `novusai codegen rollback` 仅回滚 codegen 生成的迁移，不影响手写迁移
 
 **识别 codegen 迁移：** 消息前缀 `codegen_`，文件内含 `codegen_source = 'codegen'`。
+
+### 16. 插件 revision、`env.py` 与启动子进程一致
+
+- `migrations/env.py` 的 `version_locations` **与** `app.core.database.run_migrations()` 内嵌子进程 **一致**：都会加入仓库内全部 `plugins/<name>/backend/migrations/versions`（只要目录存在）。
+- 因此手动执行 `cd backend && alembic upgrade heads` 与启动时自动迁移解析的 revision 图一致，避免出现「子进程能解析、纯 CLI 报未知 revision」的分叉。
+- **孤立 stamp 清理**（`purge_orphaned_alembic_stamps` / 子进程第一步）仍会扫描上述全部目录，用文件中的 `revision =` 构建合法集合，再删除 `alembic_version` 中无文件的戳。
+
+### 17. Repair 迁移的 downgrade
+
+- 数据修复类迁移（如列重命名补救）若对称回滚有风险，允许 `downgrade()` **显式 `pass`（no-op）**，并在模块 docstring / `downgrade` 内说明原因（例如与统一作用域主线 `NotImplementedError` 降级策略一致）。
 
 ---
 

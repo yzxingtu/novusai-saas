@@ -58,7 +58,7 @@ _audit_helper = _ImpersonateAuditLogger()
 @permission_resource(
     resource="tenant",
     name="menu.admin.tenant",  # i18n key
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     menu=MenuConfig(
         icon="lucide:store",

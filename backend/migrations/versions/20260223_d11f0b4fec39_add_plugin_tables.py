@@ -73,10 +73,12 @@ def upgrade() -> None:
     op.drop_index(op.f('ix_tenant_plugins_plugin_id'), table_name='tenant_plugins')
     op.drop_index(op.f('ix_tenant_plugins_tenant_id'), table_name='tenant_plugins')
     op.drop_table('tenant_plugins')
-    op.drop_index(op.f('ix_plugin_migrations_id'), table_name='plugin_migrations')
-    op.drop_index(op.f('ix_plugin_migrations_is_deleted'), table_name='plugin_migrations')
-    op.drop_index(op.f('ix_plugin_migrations_plugin_name'), table_name='plugin_migrations')
-    op.drop_table('plugin_migrations')
+    # 20260216_plm 仅创建 ix_plugin_migrations_plugin_name；无 id/is_deleted 索引。
+    # 使用 IF EXISTS，避免空库回放时 UndefinedObject。
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_plugin_migrations_id"))
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_plugin_migrations_is_deleted"))
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_plugin_migrations_plugin_name"))
+    op.drop_table("plugin_migrations")
     op.add_column('plugin_tenant_assignments', sa.Column('is_active', sa.Boolean(), nullable=False, comment='是否启用'))
     op.add_column('plugin_tenant_assignments', sa.Column('config', sa.JSON(), nullable=False, comment='企业级配置'))
     op.alter_column('plugin_tenant_assignments', 'plugin_id',
@@ -147,7 +149,7 @@ def upgrade() -> None:
     op.alter_column('plugins', 'scope',
                existing_type=sa.VARCHAR(),
                comment='作用域',
-               existing_comment='作用域（platform_only/all_tenants/assigned_tenants/global）',
+               existing_comment='资源作用域（admin_only/all_tenants/global_shared/admin_and_selected_tenants/selected_tenants）',
                existing_nullable=False)
     op.alter_column('plugins', 'status',
                existing_type=sa.VARCHAR(),
@@ -243,7 +245,7 @@ def downgrade() -> None:
                existing_nullable=False)
     op.alter_column('plugins', 'scope',
                existing_type=sa.VARCHAR(),
-               comment='作用域（platform_only/all_tenants/assigned_tenants/global）',
+               comment='资源作用域（admin_only/all_tenants/global_shared/admin_and_selected_tenants/selected_tenants）',
                existing_comment='作用域',
                existing_nullable=False)
     op.alter_column('plugins', 'tags',

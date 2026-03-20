@@ -3,7 +3,7 @@
   "plugins": [
     {
       "plugin": "aliyun-oss",
-      "scope": "admin_and_all",
+      "scope": "global_shared",
       "dependencies": {
         "python": [
           "alibabacloud-oss-v2>=1.0.0",
@@ -22,7 +22,7 @@
     },
     {
       "plugin": "amazon-s3",
-      "scope": "admin_and_all",
+      "scope": "global_shared",
       "dependencies": {
         "python": [
           "boto3>=1.35",
@@ -41,7 +41,7 @@
     },
     {
       "plugin": "netdisk",
-      "scope": "admin_and_assigned",
+      "scope": "admin_and_selected_tenants",
       "dependencies": {
         "python": [
           "aiofiles>=23.0",
@@ -164,7 +164,7 @@
     },
     {
       "plugin": "novusdoc",
-      "scope": "admin_and_all",
+      "scope": "global_shared",
       "dependencies": {
         "python": [],
         "plugins": []
@@ -258,7 +258,7 @@
     },
     {
       "plugin": "novusdoc-pro",
-      "scope": "admin_and_assigned",
+      "scope": "admin_and_selected_tenants",
       "dependencies": {
         "python": [
           "y-py>=0.6.0; python_version < '3.12' or sys_platform != 'win32'",
@@ -284,7 +284,7 @@
     },
     {
       "plugin": "qiniu-kodo",
-      "scope": "admin_and_all",
+      "scope": "global_shared",
       "dependencies": {
         "python": [
           "qiniu>=7.14",
@@ -343,7 +343,7 @@
     },
     {
       "plugin": "tencent-cos",
-      "scope": "admin_and_all",
+      "scope": "global_shared",
       "dependencies": {
         "python": [
           "cos-python-sdk-v5>=1.9",
@@ -362,7 +362,7 @@
     },
     {
       "plugin": "weather-widget",
-      "scope": "admin_and_assigned",
+      "scope": "admin_and_selected_tenants",
       "dependencies": {
         "python": [
           "httpx>=0.26.0"

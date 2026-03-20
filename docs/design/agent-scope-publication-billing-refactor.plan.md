@@ -1,5 +1,7 @@
 # Agent Scope, Publication, and Billing Refactor
 
+> **[ARCHIVED]** This design document describes the **legacy** scope model. The current model uses five canonical `ResourceScopeEnum` values (`global_shared`, `admin_only`, `all_tenants`, `admin_and_selected_tenants`, `selected_tenants`) with `owner_tenant_id` and `resource_tenant_assignments`. See `.cursorrules` for the current specification.
+
 ## Status
 
 Draft for implementation.
@@ -85,33 +87,24 @@ Billing data must be immutable at call time.
 
 `Agent` becomes the agent definition and ownership model only.
 
-New semantics:
+New semantics (superseded — see `.cursorrules`):
 
-- `owner_type`: `platform | tenant`
-- `owner_tenant_id`: nullable
-- `distribution_mode`: `internal | all_tenants | assigned_tenants | owner_only`
+- `owner_tenant_id`: nullable (platform-owned = NULL, tenant-owned = tenant ID)
+- `scope`: one of `global_shared | admin_only | all_tenants | admin_and_selected_tenants | selected_tenants`
 
 Rules:
 
-- `platform + internal`
-  - platform-only internal agent
-- `platform + all_tenants`
-  - available to all tenants
-- `platform + assigned_tenants`
-  - available only to assigned tenants
-- `tenant + owner_only`
-  - tenant-owned private business asset
-
-Legacy `target_audience` is removed.
-
-Legacy overloaded `scope` is removed from runtime business logic.
+- `admin_only` → platform-only internal agent
+- `all_tenants` → available to all tenants
+- `admin_and_selected_tenants` / `selected_tenants` → available only to assigned tenants via RTA
+- tenant-owned → scope = `all_tenants`, `owner_tenant_id` = tenant ID
 
 ### B. ResourceTenantAssignment
 
 Keep `resource_tenant_assignments`, but narrow its responsibility:
 
 - it only answers whether a platform-owned resource is distributed to a tenant
-- it is only used when `distribution_mode = assigned_tenants`
+- it is only used when scope requires tenant assignments (selected_tenants / admin_and_selected_tenants)
 
 It must no longer participate in tenant-user publication semantics.
 
@@ -219,7 +212,7 @@ New fields to add:
 - `access_channel`
 - `agent_owner_type`
 - `agent_owner_tenant_id`
-- `agent_distribution_mode`
+- `agent_resource_scope`
 - `tenant_publication_id`
 - `publication_enabled_snapshot`
 - `publication_access_type_snapshot`
@@ -239,8 +232,8 @@ Field notes:
   - snapshot from agent ownership at call time
 - `agent_owner_tenant_id`
   - snapshot from agent ownership at call time
-- `agent_distribution_mode`
-  - snapshot from agent distribution at call time
+- `agent_resource_scope`
+  - snapshot from agent resource scope at call time
 - `tenant_publication_id`
   - nullable for non-user calls
 - `publication_*_snapshot`
@@ -293,30 +286,17 @@ This is the key separation required by the business.
 
 ### Agent mapping
 
-- `scope = admin_only`
-  - `owner_type = platform`
-  - `distribution_mode = internal`
+> **SUPERSEDED** — The mapping below used legacy scope values and columns.
+> Current model uses five `ResourceScopeEnum` values + `owner_tenant_id` + RTA.
+> See `.cursorrules` for the canonical specification.
 
-- `scope = admin_and_all`
-  - `owner_type = platform`
-  - `distribution_mode = all_tenants`
-
-- `scope = all_tenants` with `tenant_id is null`
-  - `owner_type = platform`
-  - `distribution_mode = all_tenants`
-
-- `scope = admin_and_assigned`
-  - `owner_type = platform`
-  - `distribution_mode = assigned_tenants`
-
-- `scope = assigned_tenants`
-  - `owner_type = platform`
-  - `distribution_mode = assigned_tenants`
-
-- `scope = all_tenants` with `tenant_id = X`
-  - `owner_type = tenant`
+- `scope = admin_only` → platform-owned, admin-side only
+- `scope = global_shared` → platform-owned, visible everywhere
+- `scope = all_tenants` (platform-owned) → visible to all tenants
+- `scope = admin_and_selected_tenants` → platform-owned, admin + assigned tenants via RTA
+- `scope = selected_tenants` → visible only to assigned tenants via RTA
+- `scope = all_tenants` (tenant-owned) → tenant's own resource
   - `owner_tenant_id = X`
-  - `distribution_mode = owner_only`
 
 ### target_audience mapping
 

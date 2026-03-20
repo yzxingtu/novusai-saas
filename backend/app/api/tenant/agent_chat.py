@@ -45,7 +45,7 @@ from app.services.ai.conversation_service import ConversationService
 @permission_resource(
     resource="agent_chat",
     name="menu.tenant.agent_chat",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:message-square",

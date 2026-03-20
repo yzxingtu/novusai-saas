@@ -20,25 +20,23 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.base_model import TenantModel
+from app.core.base_model import BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.agent import (
-    AgentDistributionModeEnum,
     AgentExecutionModeEnum,
-    AgentOwnerTypeEnum,
     AgentStatusEnum,
     AgentVisibilityEnum,
 )
 from app.enums.common import ResourceScopeEnum
 
 
-class Agent(TenantModel):
+class Agent(BaseModel):
     """
     智能体模型 / Agent model.
 
     存储智能体配置，包括系统提示词、关联 AI 模型、参数设置、工具绑定等
-    属于企业级资源，通过 tenant_id 隔离
+    平台级与企业级资源通过 owner_tenant_id + scope 表达归属与投放范围
     """
 
     __tablename__ = "agents"
@@ -68,12 +66,12 @@ class Agent(TenantModel):
                     label_field="id", i18n_key="system_agent_assignment"),
     ]
 
-    # 覆盖 TenantModel 的 tenant_id，改为可选（平台级智能体为 NULL，企业自有智能体为所属企业）
-    tenant_id = Column(
+    # 覆盖 TenantModel.tenant_id：使用 owner_tenant_id 表示资源归属企业（平台级为 NULL）
+    owner_tenant_id = Column(
         Integer,
         nullable=True,
         index=True,
-        comment="归属企业ID（平台级智能体为 NULL，企业自有智能体为所属企业）"
+        comment="归属企业ID（平台级智能体为 NULL，企业自有智能体为所属企业）",
     )
 
     # 允许前端筛选的字段
@@ -82,12 +80,10 @@ class Agent(TenantModel):
         "name": "name",
         "status": "status",
         "scope": "scope",
-        "owner_type": "owner_type",
-        "distribution_mode": "distribution_mode",
         "visibility": "visibility",
         "execution_mode": "execution_mode",
         "model_id": "model_id",
-        "tenant_id": "tenant_id",
+        "owner_tenant_id": "owner_tenant_id",
         "is_system": "is_system",
         "created_at": "created_at",
     }
@@ -101,26 +97,12 @@ class Agent(TenantModel):
         "updated_at": "updated_at",
     }
 
-    owner_type: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=AgentOwnerTypeEnum.TENANT.value,
-        index=True,
-        comment="归属类型 / Owner type",
-    )
-    distribution_mode: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=AgentDistributionModeEnum.OWNER_ONLY.value,
-        index=True,
-        comment="分发模式 / Distribution mode",
-    )
     scope: Mapped[str] = mapped_column(
-        String(20),
+        String(32),
         nullable=False,
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
-        comment="资源作用域（admin_only / all_tenants / admin_and_all 等）/ Resource scope",
+        comment="资源作用域 ResourceScopeEnum（五类）/ Resource scope",
     )
 
     # ==================== 基本信息 ====================
@@ -291,7 +273,7 @@ class Agent(TenantModel):
     # ==================== 复合索引 ====================
 
     __table_args__ = (
-        Index("ix_agents_tenant_status", "tenant_id", "status"),
+        Index("ix_agents_owner_tenant_status", "owner_tenant_id", "status"),
     )
 
     # ==================== 关系 ====================
@@ -327,7 +309,7 @@ class Agent(TenantModel):
     )
 
     def __repr__(self) -> str:
-        return f"<Agent(id={self.id}, name={self.name}, tenant_id={self.tenant_id})>"
+        return f"<Agent(id={self.id}, name={self.name}, owner_tenant_id={self.owner_tenant_id})>"
 
 
 if TYPE_CHECKING:

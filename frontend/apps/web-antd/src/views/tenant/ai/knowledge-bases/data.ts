@@ -270,13 +270,11 @@ export function useColumns<T = KnowledgeBaseItem>(
           },
           {
             code: 'edit',
-            show: (row: KnowledgeBaseItem) =>
-              row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: (row: KnowledgeBaseItem) => row.tenant_id !== null,
           },
           {
             code: 'delete',
-            show: (row: KnowledgeBaseItem) =>
-              row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: (row: KnowledgeBaseItem) => row.tenant_id !== null,
           },
         ],
       },

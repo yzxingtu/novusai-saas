@@ -32,7 +32,7 @@ def _build_user_agent_item(agent) -> dict:
 @permission_resource(
     resource="user_agents",
     name="menu.user.ai_chat",
-    scope=PermissionScope.TENANT_USER,
+    scope=PermissionScope.USER,
     parent_resource="menu",
 )
 class UserAgentController(BaseController):

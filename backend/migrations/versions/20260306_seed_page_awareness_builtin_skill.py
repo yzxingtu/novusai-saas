@@ -84,7 +84,7 @@ def _create_package(conn) -> int:
             "INSERT INTO skill_packages "
             "(tenant_id, name, description, scope, bind_mode, is_system, is_active, sort_order, created_at, updated_at, is_deleted) "
             "VALUES "
-            "(NULL, :name, :description, 'admin_and_all', 'auto', true, true, :sort_order, NOW(), NOW(), false) "
+            "(NULL, :name, :description, 'global_shared', 'auto', true, true, :sort_order, NOW(), NOW(), false) "
             "RETURNING id"
         ),
         {
@@ -103,7 +103,7 @@ def _sync_package(conn, package_id: int) -> None:
             "tenant_id = NULL, "
             "name = :name, "
             "description = :description, "
-            "scope = 'admin_and_all', "
+            "scope = 'global_shared', "
             "bind_mode = 'auto', "
             "is_system = true, "
             "is_active = true, "

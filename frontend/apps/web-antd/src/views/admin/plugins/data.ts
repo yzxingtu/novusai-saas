@@ -23,11 +23,6 @@ export function getStatusText(status: string): string {
   return $t(`admin.plugin.status_options.${status}`) || status;
 }
 
-/** 作用域文本 / Scope text */
-export function getScopeText(scope: string): string {
-  return $t(`admin.plugin.scope_options.${scope}`) || scope;
-}
-
 /** 信任等级颜色 / Trust tier color */
 export function getTierColor(tier: string): string {
   const map: Record<string, string> = {

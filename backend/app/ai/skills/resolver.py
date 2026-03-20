@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
-from app.enums.agent import AgentDistributionModeEnum, SkillTypeEnum, ToolTypeEnum
+from app.enums.agent import SkillTypeEnum, ToolTypeEnum
 from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
 
 if TYPE_CHECKING:
@@ -1100,22 +1100,9 @@ async def resolve_for_agent(
     if tenant_id is not None:
         agent_tenant_id: int | None = tenant_id
     else:
-        agent_tenant_id = getattr(agent, "tenant_id", None)
+        agent_tenant_id = getattr(agent, "owner_tenant_id", None)
 
-    # Map distribution_mode → legacy scope semantics for auto-bind package filtering
-    # 分发模式映射到旧 scope 语义，用于自动绑定技能包过滤
-    dm = getattr(agent, "distribution_mode", None)
-    if dm == AgentDistributionModeEnum.INTERNAL.value:
-        agent_scope = ResourceScopeEnum.ADMIN_ONLY.value
-    elif dm == AgentDistributionModeEnum.ALL_TENANTS.value:
-        agent_scope = ResourceScopeEnum.ALL_TENANTS.value
-    elif dm in (
-        AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
-        AgentDistributionModeEnum.OWNER_ONLY.value,
-    ):
-        agent_scope = ResourceScopeEnum.ASSIGNED_TENANTS.value
-    else:
-        agent_scope = getattr(agent, "scope", ResourceScopeEnum.ALL_TENANTS.value)
+    agent_scope = getattr(agent, "scope", ResourceScopeEnum.ALL_TENANTS.value)
 
     # ── Phase 0 (NEW): Load auto-bind skill packages (bind_mode=auto) ──
     # 加载自动绑定技能包（bind_mode=auto）
@@ -1141,9 +1128,9 @@ async def resolve_for_agent(
         )
 
     # ── Phase 1: Load explicit binding data (DB errors re-raised directly) ──
-    # 绑定记录的 tenant_id 跟随 agent.tenant_id，而非调用方的 tenant_id
-    # Binding tenant_id follows agent.tenant_id, not the caller's tenant_id
-    binding_owner_tid = getattr(agent, "tenant_id", None)
+    # 绑定记录的 tenant_id 跟随 agent.owner_tenant_id，而非调用方的 tenant_id
+    # Binding tenant_id follows agent.owner_tenant_id, not the caller's tenant_id
+    binding_owner_tid = getattr(agent, "owner_tenant_id", None)
     if binding_owner_tid is not None:
         binding_tenant_condition = AgentSkillBinding.tenant_id == binding_owner_tid
     else:

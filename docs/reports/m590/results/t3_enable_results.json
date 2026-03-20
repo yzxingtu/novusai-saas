@@ -112,21 +112,21 @@
       "name": "aliyun-oss",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_all"
+      "scope": "global_shared"
     },
     {
       "id": 1073,
       "name": "amazon-s3",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_all"
+      "scope": "global_shared"
     },
     {
       "id": 1081,
       "name": "netdisk",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_assigned"
+      "scope": "admin_and_selected_tenants"
     },
     {
       "id": 1074,
@@ -140,21 +140,21 @@
       "name": "novusdoc",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_all"
+      "scope": "global_shared"
     },
     {
       "id": 1076,
       "name": "novusdoc-pro",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_assigned"
+      "scope": "admin_and_selected_tenants"
     },
     {
       "id": 1077,
       "name": "qiniu-kodo",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_all"
+      "scope": "global_shared"
     },
     {
       "id": 1078,
@@ -168,14 +168,14 @@
       "name": "tencent-cos",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_all"
+      "scope": "global_shared"
     },
     {
       "id": 1080,
       "name": "weather-widget",
       "status": "enabled",
       "version": "1.0.0",
-      "scope": "admin_and_assigned"
+      "scope": "admin_and_selected_tenants"
     }
   ]
 }

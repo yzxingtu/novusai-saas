@@ -206,7 +206,7 @@
     },
     "help": {
       "apiKey": "从供应商获取的 API 密钥，系统会加密存储。创建后不可查看完整 Key",
-      "scope": "「仅管理端」Key 只在管理端 AI 调用中使用，企业无法回退到此 Key。「全部企业」Key 可被所有企业共享（平台级）或指定给特定企业（企业专用）",
+      "scope": "资源作用域五类之一；admin_only 仅管理端；global_shared / all_tenants / admin_and_selected_tenants / selected_tenants 与归属企业 owner_tenant_id、企业分配（RTA）配合使用，详见表单说明。",
       "usageLimit": "该 Key 的最大调用次数。达到上限后自动标记为不可用。留空表示不限制",
       "isActive": "手动禁用后该 Key 不参与负载均衡。可用于临时停用某个 Key"
     },
@@ -444,15 +444,7 @@
     "avatar": "头像",
     "description": "描述",
     "status": "状态",
-    "scopeLabel": "可见范围",
-    "distribution": {
-      "label": "分发模式",
-      "help": "决定平台智能体对企业开放范围；选择「指定企业」时需分配企业列表。",
-      "internal": "仅平台内部",
-      "all_tenants": "全部企业",
-      "assigned_tenants": "指定企业",
-      "filterPlaceholder": "分发模式"
-    },
+    "scopeLabel": "资源作用域",
     "ownerType": {
       "label": "归属",
       "platform": "平台",
@@ -761,7 +753,7 @@
     "tenantId": "所属企业",
     "assignedTenants": "分配企业",
     "help": {
-      "scope": "仅管理端：仅管理端可见；指定企业：仅该企业可见；全局共享：管理端和所有企业都可见",
+      "scope": "资源作用域五类：global_shared（全局共享）、admin_only（仅管理端）、all_tenants（全部企业端）、admin_and_selected_tenants（管理端+指定企业）、selected_tenants（仅指定企业）；后两类需配置企业分配。",
       "assignedTenants": "选择允许使用此技能包的企业"
     },
     "tablePolicyFilterHint": "筛选使用表策略 {id} 的技能",

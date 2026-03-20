@@ -32,7 +32,7 @@ from app.services.tenant.periodic_task_service import TenantPeriodicTaskService
 @permission_resource(
     resource="periodic_task",
     name="menu.tenant.periodic_task",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:timer",

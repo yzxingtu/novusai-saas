@@ -6,7 +6,6 @@ Defines plugin status, scope, trust tier and other enum classes.
 """
 
 from app.enums.base import LabeledStrEnum
-from app.enums.common import ResourceScopeEnum
 
 
 class PluginStatusEnum(LabeledStrEnum):
@@ -16,10 +15,6 @@ class PluginStatusEnum(LabeledStrEnum):
     ENABLED = ("enabled", "enum.plugin_status.enabled")
     DISABLED = ("disabled", "enum.plugin_status.disabled")
     ERROR = ("error", "enum.plugin_status.error")
-
-
-# [DEPRECATED] PluginScopeEnum unified to ResourceScopeEnum, alias kept for backward compat / PluginScopeEnum 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
-PluginScopeEnum = ResourceScopeEnum
 
 
 class PluginTierEnum(LabeledStrEnum):

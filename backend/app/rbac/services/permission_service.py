@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.i18n import _
+from app.enums.rbac import PermissionScope
 from app.models import Admin, Permission, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
@@ -90,7 +91,9 @@ class PermissionService:
                 select(Permission.id).where(
                     Permission.is_enabled.is_(True),
                     Permission.is_deleted.is_(False),
-                    Permission.scope.in_(["admin_only", "admin_and_all"]),
+                    Permission.scope.in_(
+                        [PermissionScope.ADMIN.value, PermissionScope.BOTH.value]
+                    ),
                 )
             )
             return set(result.scalars().all())
@@ -533,16 +536,19 @@ class PermissionService:
         获取指定作用域的所有启用权限。
 
         Args:
-            scope: Permission scope / 权限作用域 (admin_only/all_tenants/tenant_user)
+            scope: Permission endpoint / 权限端别 (admin/tenant/user)
 
         Returns:
             Permission list / 权限列表
         """
-        # tenant_user is independent scope, excludes admin_and_all / tenant_user 独立作用域，不含 admin_and_all
-        if scope == "tenant_user":
-            scopes = [scope]
+        if scope == PermissionScope.USER.value:
+            scopes = [PermissionScope.USER.value]
+        elif scope == PermissionScope.ADMIN.value:
+            scopes = [PermissionScope.ADMIN.value, PermissionScope.BOTH.value]
+        elif scope == PermissionScope.TENANT.value:
+            scopes = [PermissionScope.TENANT.value, PermissionScope.BOTH.value]
         else:
-            scopes = [scope, "admin_and_all"]
+            scopes = [scope]
 
         result = await self.db.execute(
             select(Permission)
@@ -635,7 +641,9 @@ class PermissionService:
         """
         # Super admin returns all permissions / 超级管理员返回所有权限
         if admin.is_super:
-            all_permissions = await self.get_enabled_permissions_by_scope("admin_only")
+            all_permissions = await self.get_enabled_permissions_by_scope(
+                PermissionScope.ADMIN.value
+            )
             return self._build_permission_tree(all_permissions)
 
         # Get user's effective permission ID set / 获取用户的有效权限 ID 集合
@@ -716,7 +724,9 @@ class PermissionService:
             query = select(Permission).where(
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),
-                Permission.scope.in_(["admin_only", "admin_and_all"]),
+                Permission.scope.in_(
+                    [PermissionScope.ADMIN.value, PermissionScope.BOTH.value]
+                ),
             )
             if perm_type:
                 query = query.where(Permission.type == perm_type)
@@ -928,7 +938,9 @@ class PermissionService:
             菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
         """
         # Get all platform permissions (menu + operation) / 获取所有平台端权限
-        all_permissions = await self.get_enabled_permissions_by_scope("admin_only")
+        all_permissions = await self.get_enabled_permissions_by_scope(
+            PermissionScope.ADMIN.value
+        )
 
         # Super admin gets all menus and all permissions / 超级管理员获取所有菜单和所有权限
         if admin.is_super:
@@ -995,7 +1007,9 @@ class PermissionService:
             菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
         """
         # Get all tenant permissions (menu + operation) / 获取所有企业端权限
-        all_permissions = await self.get_enabled_permissions_by_scope("all_tenants")
+        all_permissions = await self.get_enabled_permissions_by_scope(
+            PermissionScope.TENANT.value
+        )
 
         # Get user's effective permission ID set (includes plan filtering) / 获取用户的有效权限 ID 集合
         effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
@@ -1124,7 +1138,9 @@ class PermissionService:
             菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
         """
         # Get all user permissions (menu + operation) / 获取所有用户端权限
-        all_permissions = await self.get_enabled_permissions_by_scope("tenant_user")
+        all_permissions = await self.get_enabled_permissions_by_scope(
+            PermissionScope.USER.value
+        )
 
         # Get user's effective permission ID set / 获取用户的有效权限 ID 集合
         effective_ids = await self.get_tenant_user_effective_permission_ids(tenant_user)

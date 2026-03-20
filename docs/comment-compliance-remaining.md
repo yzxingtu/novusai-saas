@@ -45,7 +45,7 @@ python scripts/scan_comment_compliance.py --ci
 
 ### 第七轮续补（本次继续）
 
-- **models 剩余类**：TenantAdminRole、AIProvider、Tenant、ProviderApiKey、AIModel、SkillPackage、Skill、AgentKnowledgeBaseBinding、AgentSkillBinding、Plugin、PluginVersion、NotificationTemplate、KnowledgeBaseTenantAccess、DomainSslCertificate、TenantUserRole、SystemAgentAssignment、EmailLog、ResourceTenantAssignment 类 docstring 首行补英文。
+- **models 剩余类**：TenantAdminRole、AIProvider、Tenant、ProviderApiKey、AIModel、SkillPackage、Skill、AgentKnowledgeBaseBinding、AgentSkillBinding、Plugin、PluginVersion、NotificationTemplate、DomainSslCertificate、TenantUserRole、SystemAgentAssignment、EmailLog、ResourceTenantAssignment 类 docstring 首行补英文。
 - **repositories**：agent_repository（列表查询、get_published、get_by_status、find_by_name、AdminAgentRepository）、agent_skill_binding_repository（get_enabled_by_agent_id、get_binding、delete_by_agent_id）、skill_package_repository（SkillPackageRepository、query_list 首行双语）。
 - **services**：call_log_service（_truncate_response、_generate_request_hash、log_call、log_call_async）、file_validator（平台端/企业端验证、validate_result_or_raise）、conversation_service（ConversationService、enrich_conversation_list、enrich_conversation_detail、get_conversation_detail、search_messages）首行或 Args 双语。
 

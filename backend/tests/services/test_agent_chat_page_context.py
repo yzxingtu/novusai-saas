@@ -383,9 +383,8 @@ async def test_resolve_for_agent_auto_bind_includes_get_page_context_tool(mock_d
     agent = MagicMock()
     agent.id = 7
     agent.name = "Tenant Agent"
-    agent.distribution_mode = "all_tenants"
     agent.scope = ResourceScopeEnum.ALL_TENANTS.value
-    agent.tenant_id = 1
+    agent.owner_tenant_id = 1
 
     package = MagicMock()
     package.id = 301
@@ -439,9 +438,8 @@ async def test_resolve_for_agent_admin_auto_bind_includes_get_page_context_tool(
     agent = MagicMock()
     agent.id = 8
     agent.name = "Admin Agent"
-    agent.distribution_mode = "internal"
     agent.scope = ResourceScopeEnum.ADMIN_ONLY.value
-    agent.tenant_id = None
+    agent.owner_tenant_id = None
 
     package = MagicMock()
     package.id = 302
@@ -510,7 +508,7 @@ async def test_load_auto_bind_tenant_scope_excludes_assigned_when_all_tenants(
     sql_text = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
     assert "tenant_id IS NULL" in sql_text
-    assert ResourceScopeEnum.ASSIGNED_TENANTS.value not in sql_text
+    assert ResourceScopeEnum.SELECTED_TENANTS.value not in sql_text
 
 
 @pytest.mark.asyncio

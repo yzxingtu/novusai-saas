@@ -223,14 +223,6 @@
     "status": "Status",
     "executionMode": "Execution Mode",
     "targetAudience": "Target Audience",
-    "distribution": {
-      "column": "Distribution",
-      "internal": "Platform internal",
-      "all_tenants": "All tenants",
-      "assigned_tenants": "Assigned tenants",
-      "owner_only": "Owner tenant only",
-      "filterPlaceholder": "All distribution modes"
-    },
     "publication": {
       "title": "Publish to tenant users",
       "accessType": "User access rule",

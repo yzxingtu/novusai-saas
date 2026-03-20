@@ -154,7 +154,7 @@ def upgrade() -> None:
     if not pkg_c_id:
         pkg_c_id = _create_system_package(
             conn, _PKG_C_NAME, _PKG_C_DESC,
-            scope="admin_and_all", target_audience="admin_tenant",
+            scope="global_shared", target_audience="admin_tenant",
             is_recommended=True, sort_order=3,
         )
         print(f"[SPLIT] Created Package C '{_PKG_C_NAME}' (id={pkg_c_id})")
@@ -166,7 +166,7 @@ def upgrade() -> None:
     if not pkg_d_id:
         pkg_d_id = _create_system_package(
             conn, _PKG_D_NAME, _PKG_D_DESC,
-            scope="admin_and_all", target_audience="admin_tenant",
+            scope="global_shared", target_audience="admin_tenant",
             is_recommended=True, sort_order=4,
         )
         print(f"[SPLIT] Created Package D '{_PKG_D_NAME}' (id={pkg_d_id})")

@@ -37,7 +37,7 @@ class UpdateTemplateRequest(BaseModel):
 @permission_resource(
     resource="notification_template",
     name="menu.admin.notification_template",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:bell-ring",

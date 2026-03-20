@@ -225,7 +225,7 @@ class AgentKBBindingService:
 
         kb_ids = list(knowledge_base_ids)
         if (
-            agent.tenant_id is None
+            agent.owner_tenant_id is None
             and self.tenant_id is not None
         ):
             filtered: list[int] = []

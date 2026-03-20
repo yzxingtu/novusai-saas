@@ -44,10 +44,9 @@ import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
-  getDistributionModeColor,
-  getDistributionModeText,
   getExecutionModeText,
   getStatusText,
   isTenantOwnedAgent,
@@ -584,17 +583,15 @@ const stats = computed(() => ({
               </div>
             </Tooltip>
 
-            <!-- Distribution mode -->
+            <!-- Resource scope -->
             <Tag
-              :color="getDistributionModeColor(agent.distribution_mode)"
+              :color="getScopeColor(agent.scope)"
               class="!mr-0 !text-[11px]"
               style="padding: 0 6px; line-height: 20px"
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon icon="lucide:share-2" class="size-3" />
-                <span>{{
-                  getDistributionModeText(agent.distribution_mode)
-                }}</span>
+                <span>{{ getScopeText(agent.scope) }}</span>
               </div>
             </Tag>
 

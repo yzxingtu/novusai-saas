@@ -14,7 +14,7 @@ from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
-from app.enums.agent import AgentOwnerTypeEnum
+from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
@@ -45,7 +45,7 @@ async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     agent = await service.get_by_id(agent_id)
     if not agent:
         raise NotFoundException(message=_("agent.error.not_found"))
-    if agent.tenant_id != tenant_id:
+    if agent.owner_tenant_id != tenant_id:
         raise BusinessException(message=_("agent.error.system_protected"))
     return agent
 
@@ -58,11 +58,11 @@ async def _ensure_agent_kb_mutations_allowed(db, tenant_id: int, agent_id: int):
     agent = await service.get_by_id(agent_id)
     if not agent:
         raise NotFoundException(message=_("agent.error.not_found"))
-    if agent.tenant_id == tenant_id:
+    if agent.owner_tenant_id == tenant_id:
         return agent
     if (
-        agent.tenant_id is None
-        and agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
+        agent.owner_tenant_id is None
+        and agent.scope != ResourceScopeEnum.ADMIN_ONLY.value
     ):
         return agent
     raise BusinessException(message=_("agent.error.system_protected"))
@@ -80,7 +80,7 @@ def _build_agent_list_item(agent) -> dict:
 @permission_resource(
     resource="agent",
     name="menu.tenant.agent",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:bot",

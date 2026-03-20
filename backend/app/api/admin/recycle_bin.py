@@ -271,7 +271,7 @@ async def _batch_resolve_tenant_names(
 @permission_resource(
     resource="recycle_bin",
     name="menu.admin.recycle_bin",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:trash-2",

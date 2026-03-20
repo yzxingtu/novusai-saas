@@ -71,22 +71,22 @@ def upgrade() -> None:
     """)
 
     # ── 3. Batch UPDATE old scope values ──
-    # agents: admin→admin_only, tenant→all_tenants, global→admin_and_all
+    # agents: admin→admin_only, tenant→all_tenants, global→global_shared
     op.execute("UPDATE agents SET scope = 'admin_only' WHERE scope = 'admin'")
     op.execute("UPDATE agents SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE agents SET scope = 'admin_and_all' WHERE scope = 'global'")
+    op.execute("UPDATE agents SET scope = 'global_shared' WHERE scope = 'global'")
 
     # skill_packages: same mapping
     op.execute("UPDATE skill_packages SET scope = 'admin_only' WHERE scope = 'admin'")
     op.execute("UPDATE skill_packages SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE skill_packages SET scope = 'admin_and_all' WHERE scope = 'global'")
+    op.execute("UPDATE skill_packages SET scope = 'global_shared' WHERE scope = 'global'")
 
     # knowledge_bases: same mapping
     op.execute("UPDATE knowledge_bases SET scope = 'admin_only' WHERE scope = 'admin'")
     op.execute("UPDATE knowledge_bases SET scope = 'all_tenants' WHERE scope = 'tenant'")
-    op.execute("UPDATE knowledge_bases SET scope = 'admin_and_all' WHERE scope = 'global'")
+    op.execute("UPDATE knowledge_bases SET scope = 'global_shared' WHERE scope = 'global'")
 
-    # permissions: admin→admin_only, tenant→all_tenants, both→admin_and_all
+    # permissions: admin→admin_only, tenant→all_tenants, both→global_shared
     # NOTE: RBAC permission sync at app startup already creates rows with new scope values.
     # Only UPDATE rows where the new-scope equivalent doesn't exist yet (avoid unique constraint).
     # Stale old-scope rows (disabled by sync) are left as-is — they have FK children and
@@ -106,10 +106,10 @@ def upgrade() -> None:
         )
     """)
     op.execute("""
-        UPDATE permissions p SET scope = 'admin_and_all'
+        UPDATE permissions p SET scope = 'global_shared'
         WHERE p.scope = 'both'
         AND NOT EXISTS (
-            SELECT 1 FROM permissions p2 WHERE p2.code = p.code AND p2.scope = 'admin_and_all'
+            SELECT 1 FROM permissions p2 WHERE p2.code = p.code AND p2.scope = 'global_shared'
         )
     """)
 
@@ -144,22 +144,22 @@ def downgrade() -> None:
     # permissions
     op.execute("UPDATE permissions SET scope = 'admin' WHERE scope = 'admin_only'")
     op.execute("UPDATE permissions SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE permissions SET scope = 'both' WHERE scope = 'admin_and_all'")
+    op.execute("UPDATE permissions SET scope = 'both' WHERE scope = 'global_shared'")
 
     # knowledge_bases
     op.execute("UPDATE knowledge_bases SET scope = 'admin' WHERE scope = 'admin_only'")
     op.execute("UPDATE knowledge_bases SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE knowledge_bases SET scope = 'global' WHERE scope = 'admin_and_all'")
+    op.execute("UPDATE knowledge_bases SET scope = 'global' WHERE scope = 'global_shared'")
 
     # skill_packages
     op.execute("UPDATE skill_packages SET scope = 'admin' WHERE scope = 'admin_only'")
     op.execute("UPDATE skill_packages SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE skill_packages SET scope = 'global' WHERE scope = 'admin_and_all'")
+    op.execute("UPDATE skill_packages SET scope = 'global' WHERE scope = 'global_shared'")
 
     # agents
     op.execute("UPDATE agents SET scope = 'admin' WHERE scope = 'admin_only'")
     op.execute("UPDATE agents SET scope = 'tenant' WHERE scope = 'all_tenants'")
-    op.execute("UPDATE agents SET scope = 'global' WHERE scope = 'admin_and_all'")
+    op.execute("UPDATE agents SET scope = 'global' WHERE scope = 'global_shared'")
 
     # ── Drop bind_mode column from skill_packages ──
     op.drop_index("ix_skill_packages_bind_mode", table_name="skill_packages")

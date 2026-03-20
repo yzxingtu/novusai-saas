@@ -9,10 +9,11 @@ from datetime import datetime
 
 from sqlalchemy import ForeignKey, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSON
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.core.base_model import BaseModel
-from app.enums.task import ScheduleTypeEnum, TaskScopeEnum
+from app.enums.common import ResourceScopeEnum
+from app.enums.task import ScheduleTypeEnum
 
 
 class PeriodicTask(BaseModel):
@@ -30,7 +31,7 @@ class PeriodicTask(BaseModel):
         "task_path": "task_path",
         "schedule_type": "schedule_type",
         "is_active": "is_active",
-        "tenant_id": "tenant_id",
+        "owner_tenant_id": "owner_tenant_id",
         "scope": "scope",
         "created_at": "created_at",
     }
@@ -38,7 +39,7 @@ class PeriodicTask(BaseModel):
     __sortable__ = ["created_at", "name", "next_run_at", "last_run_at"]
 
     __table_args__ = (
-        UniqueConstraint("name", "tenant_id", name="uq_periodic_tasks_name_tenant"),
+        UniqueConstraint("name", "owner_tenant_id", name="uq_periodic_tasks_name_owner_tenant"),
     )
 
     name: Mapped[str] = mapped_column(
@@ -86,15 +87,17 @@ class PeriodicTask(BaseModel):
         default=None,
         comment="任务描述",
     )
-    tenant_id: Mapped[int | None] = mapped_column(
+    owner_tenant_id: Mapped[int | None] = mapped_column(
         ForeignKey("tenants.id", ondelete="CASCADE"),
         default=None,
         index=True,
         comment="所属企业ID（NULL表示平台级任务）",
     )
+    # TenantRepository 仍注入/过滤 tenant_id；映射到 owner_tenant_id 列
+    tenant_id = synonym("owner_tenant_id")
     scope: Mapped[str] = mapped_column(
-        default=TaskScopeEnum.ADMIN_ONLY.value,
-        comment="作用范围（admin_only/all_tenants/admin_and_all）",
+        default=ResourceScopeEnum.ADMIN_ONLY.value,
+        comment="资源作用域 ResourceScopeEnum（五类）/ Resource scope",
     )
     is_locked: Mapped[bool] = mapped_column(
         default=False,

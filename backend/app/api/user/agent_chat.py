@@ -44,7 +44,7 @@ from app.services.ai.conversation_service import ConversationService
 @permission_resource(
     resource="user_agent_chat",
     name="menu.user.ai_chat",
-    scope=PermissionScope.TENANT_USER,
+    scope=PermissionScope.USER,
     parent_resource="menu",
 )
 class UserAgentChatController(BaseController):

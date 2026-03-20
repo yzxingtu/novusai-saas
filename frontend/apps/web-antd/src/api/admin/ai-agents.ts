@@ -14,15 +14,19 @@ import { requestClient } from '#/utils/request';
 export interface AIAgentInfo {
   id: number;
   tenant_id: null | number;
+  owner_tenant_id?: null | number;
   name: string;
   description: null | string;
   avatar: null | string;
-  /** @deprecated UI 展示请用 distribution_mode */
-  scope?: string;
-  /** @deprecated 技能包受众，与智能体分发无关 */
+  /** 统一资源作用域 ResourceScopeEnum */
+  scope: string;
+  /** @deprecated 技能包受众，与智能体资源作用域无关 */
   target_audience?: string;
+  /**
+   * 展示用：由 owner_tenant_id 派生（有值 tenant / 无值 platform），非历史 DB 列 owner_type。
+   * Display-only: derived from owner_tenant_id; not the legacy agents.owner_type column.
+   */
   owner_type: string;
-  distribution_mode: string;
   status: string;
   execution_mode: string;
   is_system: boolean;
@@ -50,7 +54,7 @@ export interface AIAgentInfo {
 export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
-  distribution_mode: string;
+  scope: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id: number;
@@ -66,7 +70,7 @@ export interface AIAgentUpdateRequest {
   name?: string;
   description?: null | string;
   avatar?: null | string;
-  distribution_mode?: string;
+  scope?: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id?: number;

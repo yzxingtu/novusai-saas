@@ -18,7 +18,7 @@ import { $t } from '#/locales';
 import { getScopeOptions } from '#/utils/scope-helpers';
 
 function getApiKeyScopeOptions() {
-  return getScopeOptions(['admin_only', 'all_tenants']);
+  return getScopeOptions(['admin_only', 'global_shared', 'selected_tenants']);
 }
 
 export function useColumns<T = AIApiKeyInfo>(
@@ -162,9 +162,10 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
 
   fields.push(
     ...useScopeFields({
-      allowedScopes: ['admin_only', 'all_tenants'],
-      showTenantId: true,
-      tenantIdRequired: false,
+      allowedScopes: ['admin_only', 'global_shared', 'selected_tenants'],
+      ownerTenantWhenScopes: ['selected_tenants'],
+      hideTenantIdsField: true,
+      tenantIdRequired: true,
       scopeHelp: $t('admin.ai.apiKey.help.scope'),
       scopeDisabled: (values) => values._mode === 'edit',
     }),
@@ -188,7 +189,8 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
 
 export function getFormDefaults(): Record<string, unknown> {
   return {
-    scope: 'all_tenants',
+    scope: 'global_shared',
+    tenant_id: null,
     is_active: true,
   };
 }

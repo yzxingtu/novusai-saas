@@ -57,30 +57,22 @@ class AgentSkillBindingService:
         """
         agent = await self.agent_repo.get_by_id(agent_id)
 
-        # 绑定记录的 tenant_id 跟随 agent.tenant_id，而非调用方的 tenant_id
-        # Binding tenant_id follows agent.tenant_id, not the caller's tenant_id
-        agent_owner_tid = agent.tenant_id if agent else self.tenant_id
+        # 绑定记录的 tenant_id 跟随 agent.owner_tenant_id，而非调用方的 tenant_id
+        # Binding tenant_id follows agent.owner_tenant_id, not the caller's tenant_id
+        agent_owner_tid = agent.owner_tenant_id if agent else self.tenant_id
         effective_binding_repo = AgentSkillBindingRepository(self.db, agent_owner_tid)
 
         auto_items: list[dict[str, Any]] = []
         if agent:
             from app.ai.skills.resolver import _load_auto_bind_packages
             try:
-                dm = getattr(agent, "distribution_mode", None)
-                from app.enums.agent import AgentDistributionModeEnum
                 from app.enums.common import ResourceScopeEnum
-                if dm == AgentDistributionModeEnum.INTERNAL.value:
-                    _scope = ResourceScopeEnum.ADMIN_ONLY.value
-                elif dm == AgentDistributionModeEnum.ALL_TENANTS.value:
-                    _scope = ResourceScopeEnum.ALL_TENANTS.value
-                elif dm in (
-                    AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
-                    getattr(AgentDistributionModeEnum, "OWNER_ONLY", object()).value
-                    if hasattr(AgentDistributionModeEnum, "OWNER_ONLY") else "__none__",
-                ):
-                    _scope = ResourceScopeEnum.ASSIGNED_TENANTS.value
-                else:
-                    _scope = getattr(agent, "scope", ResourceScopeEnum.ALL_TENANTS.value)
+
+                _scope = getattr(
+                    agent,
+                    "scope",
+                    ResourceScopeEnum.ALL_TENANTS.value,
+                )
                 auto_packages = await _load_auto_bind_packages(
                     self.db,
                     agent_scope=_scope,

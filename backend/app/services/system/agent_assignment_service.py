@@ -13,11 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import (
-    AgentDistributionModeEnum,
-    AgentOwnerTypeEnum,
-    AgentStatusEnum,
-)
+from app.enums.agent import AgentStatusEnum
+from app.enums.common import ResourceScopeEnum
 from app.exceptions import (
     AuthorizationException,
     ConflictException,
@@ -65,9 +62,8 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             select(
                 Agent.id,
                 Agent.status,
-                Agent.owner_type,
-                Agent.tenant_id,
-                Agent.distribution_mode,
+                Agent.owner_tenant_id,
+                Agent.scope,
             ).where(
                 Agent.id == agent_id,
                 Agent.is_deleted.is_(False),
@@ -85,13 +81,13 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
             )
 
         if for_platform_feature_binding:
-            if agent.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
+            if agent.owner_tenant_id is not None:
                 raise ValidationException(
                     message=_("system_agent_assignment.error.agent_must_be_platform_global"),
                 )
-            if agent.distribution_mode not in (
-                AgentDistributionModeEnum.ALL_TENANTS.value,
-                AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+            if agent.scope not in (
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+                ResourceScopeEnum.ALL_TENANTS.value,
             ):
                 raise ValidationException(
                     message=_("system_agent_assignment.error.agent_must_be_global_shared_scope"),
@@ -102,21 +98,18 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         if tenant_id is None:
             return
 
-        if (
-            agent.owner_type == AgentOwnerTypeEnum.TENANT.value
-            and agent.tenant_id == tenant_id
+        if agent.owner_tenant_id == tenant_id:
+            return
+
+        if agent.owner_tenant_id is None and agent.scope in (
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+            ResourceScopeEnum.ALL_TENANTS.value,
         ):
             return
 
-        if (
-            agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
-            and agent.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value
-        ):
-            return
-
-        if (
-            agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value
-            and agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value
+        if agent.owner_tenant_id is None and agent.scope in (
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+            ResourceScopeEnum.SELECTED_TENANTS.value,
         ):
             from app.repositories.system.resource_tenant_assignment_repository import (
                 ResourceTenantAssignmentRepository,

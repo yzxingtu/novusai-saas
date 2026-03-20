@@ -395,7 +395,8 @@
       "system_protected": "系统智能体不可删除或修改关键属性",
       "system_agent_not_found": "系统智能体未找到，请先执行数据库迁移",
       "audience_not_allowed": "您无权访问该智能体（受目标受众限制）",
-      "publication_org_node_not_supported": "组织节点发布规则暂未开放，请选择其他访问类型"
+      "publication_org_node_not_supported": "组织节点发布规则暂未开放，请选择其他访问类型",
+      "rejected_legacy_field": "字段 '{field}' 已废弃且不再接受，请从请求中移除。"
     },
     "batch": {
       "cancelled": "批处理任务已取消"
@@ -746,6 +747,8 @@
       "provider_code_exists": "供应商代码已存在",
       "provider_base_url_invalid": "供应商 API 地址格式无效，请使用以 http:// 或 https:// 开头的完整地址",
       "api_key_not_found": "API Key 不存在",
+      "api_key_owner_required": "部分企业（selected_tenants）作用域必须选择归属企业 / Owner tenant is required for selected_tenants scope",
+      "api_key_owner_forbidden": "当前作用域下归属企业必须为空 / Owner tenant must be empty for this scope",
       "fetch_remote_models_failed": "从供应商拉取模型列表失败",
       "quota_exceeded_default": "AI 配额已超出，请稍后重试"
     },
@@ -1827,12 +1830,11 @@
       "admin": "仅管理端"
     },
     "scope": {
+      "global_shared": "全局共享",
       "admin_only": "仅管理端",
       "all_tenants": "全部企业",
-      "admin_and_all": "全局共享",
-      "admin_and_assigned": "管理端+部分企业",
-      "assigned_tenants": "部分企业",
-      "tenant_user": "用户端"
+      "admin_and_selected_tenants": "管理端+指定企业",
+      "selected_tenants": "指定企业"
     },
     "skill_bind_mode": {
       "auto": "自动绑定",
@@ -1996,11 +1998,10 @@
       "error": "异常"
     },
     "plugin_scope": {
-      "admin_only": "仅管理端",
-      "all_tenants": "全部企业",
-      "assigned_tenants": "指定企业",
-      "admin_and_all": "管理端 + 全部企业",
-      "admin_and_assigned": "管理端 + 指定企业"
+      "admin": "管理端",
+      "tenant": "企业端",
+      "both": "管理端 + 企业端",
+      "user": "用户端"
     },
     "plugin_tier": {
       "official": "官方",
@@ -2920,7 +2921,8 @@
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
       "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
       "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表",
-      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}"
+      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}",
+      "rejected_legacy_field": "字段 '{field}' 已废弃且不再接受，请从请求中移除。"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -3030,7 +3032,7 @@
       "agent_kb_binding": "知识库绑定",
       "agent_skill_binding": "技能绑定",
       "agent_version": "智能体版本",
-      "knowledge_base_tenant_access": "知识库企业访问",
+      "resource_tenant_assignment": "资源企业分配",
       "batch_run": "批量运行",
       "skill_package": "技能包",
       "skill": "技能",
@@ -3056,7 +3058,8 @@
     "error": {
       "not_found": "定时任务不存在",
       "name_exists": "名为 '{name}' 的定时任务已存在",
-      "scope_requires_tenant_id": "scope 为 all_tenants 时必须指定 tenant_id",
+      "scope_requires_tenant_id": "scope 为 selected_tenants 或 admin_and_selected_tenants 时必须指定 owner_tenant_id",
+      "reject_tenant_id_field": "已废弃字段 tenant_id，请使用 owner_tenant_id",
       "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
       "delete_locked": "任务 '{name}' 已被保护，禁止删除"
     }
@@ -3170,7 +3173,7 @@
   "api.param.doc_file": "上传的文档文件",
   "api.param.menu_name": "Menu name from plugin.yaml",
   "api.param.admin_parent": "Admin parent menu code (e.g. system_mgmt)",
-  "api.param.tenant_parent": "Tenant parent menu code (for admin_and_all scope)",
+  "api.param.tenant_parent": "Tenant parent menu code (for 'both' endpoint scope)",
   "api.param.channels": "投递渠道列表",
   "api.param.priority": "优先级: low/normal/high/urgent",
   "api.param.title_template": "标题模板",

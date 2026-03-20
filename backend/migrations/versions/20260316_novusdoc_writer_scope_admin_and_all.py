@@ -1,7 +1,7 @@
-"""fix NovusDoc Writer scope to admin_and_all (管理端与全部企业共享)
+"""fix NovusDoc Writer scope to global_shared (管理端与全部企业共享)
 
-删除旧记录后重新创建，确保作用域为 admin_and_all，以便在管理端和企业端 @ 列表均可见。
-幂等：若已是 admin_and_all 则仅重新绑定，否则删除后重建。
+删除旧记录后重新创建，确保作用域为 global_shared，以便在管理端和企业端 @ 列表均可见。
+幂等：若已是 global_shared 则仅重新绑定，否则删除后重建。
 
 Revision ID: 20260316_novusdoc_scope
 Revises: 20260315_novusdoc_wr
@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 FEATURE_CODE = "system.ai_writing"
 AGENT_NAME = "NovusDoc Writer"
-SCOPE_TARGET = "admin_and_all"
+SCOPE_TARGET = "global_shared"
 AGENT_DESCRIPTION = (
     "NovusDoc 文档写作助手 — 嵌入在富文本编辑器中的 AI 写作智能体。"
     "支持续写、优化、校对、翻译、摘要、扩写、重写等。"
@@ -63,14 +63,14 @@ def upgrade() -> None:
         "WHERE feature_code = :code AND tenant_id IS NULL AND is_deleted = false"
     ), {"code": FEATURE_CODE})
 
-    # 2) 删除作用域不为 admin_and_all 的 NovusDoc Writer（或不存在则跳过）
+    # 2) 删除作用域不为 global_shared 的 NovusDoc Writer（或不存在则跳过）
     conn.execute(text(
         "DELETE FROM agents "
         "WHERE name = :name AND tenant_id IS NULL AND is_system = true "
         "AND (scope IS NULL OR scope != :scope)"
     ), {"name": AGENT_NAME, "scope": SCOPE_TARGET})
 
-    # 3) 若不存在则创建（scope=admin_and_all）
+    # 3) 若不存在则创建（scope=global_shared）
     existing = conn.execute(text(
         "SELECT id FROM agents "
         "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"

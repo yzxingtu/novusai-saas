@@ -48,7 +48,7 @@ from app.services.system.admin_role_service import AdminRoleService
 @permission_resource(
     resource="organization",
     name="menu.admin.organization",  # i18n key
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     menu=MenuConfig(
         icon="lucide:git-branch",

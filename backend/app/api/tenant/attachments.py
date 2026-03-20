@@ -49,7 +49,7 @@ def _with_preview_url(data: dict, tenant_id: int) -> dict:
 @permission_resource(
     resource="attachment",
     name="menu.tenant.attachment",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:paperclip",

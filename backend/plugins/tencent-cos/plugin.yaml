@@ -9,7 +9,7 @@ description:
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#006eff"
-scope: admin_and_all
+scope: global_shared
 tags: ["storage", "cos", "tencent", "cloud"]
 
 capabilities:

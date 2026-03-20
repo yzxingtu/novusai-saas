@@ -115,7 +115,7 @@ def upgrade() -> None:
             "(tenant_id, name, description, scope, is_system, is_active, "
             " sort_order, bind_mode, created_at, updated_at, is_deleted) "
             "VALUES "
-            "(NULL, :name, :desc, 'admin_and_all', true, true, "
+            "(NULL, :name, :desc, 'global_shared', true, true, "
             " 0, 'auto', NOW(), NOW(), false) "
             "RETURNING id"
         ), {"name": _NEW_PKG_NAME, "desc": _NEW_PKG_DESC})
@@ -125,7 +125,7 @@ def upgrade() -> None:
         unified_pkg_id = primary[0]
         conn.execute(text(
             "UPDATE skill_packages SET name = :name, description = :desc, "
-            "scope = 'admin_and_all', bind_mode = 'auto', updated_at = NOW() WHERE id = :id"
+            "scope = 'global_shared', bind_mode = 'auto', updated_at = NOW() WHERE id = :id"
         ), {"name": _NEW_PKG_NAME, "desc": _NEW_PKG_DESC, "id": unified_pkg_id})
         print(f"[MERGE] Renamed package id={unified_pkg_id} -> '{_NEW_PKG_NAME}'")
 

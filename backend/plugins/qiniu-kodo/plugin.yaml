@@ -9,7 +9,7 @@ description:
 author: "NovusAI"
 icon: "icon.png"
 icon_color: "#07beff"
-scope: admin_and_all
+scope: global_shared
 tags: ["storage", "kodo", "qiniu", "cloud"]
 
 capabilities:

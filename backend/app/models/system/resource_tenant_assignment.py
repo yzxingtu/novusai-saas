@@ -8,7 +8,7 @@ Generic assignment table for all resource types requiring "assigned tenants" sco
 - knowledge_base: 知识库分配给指定企业
 - plugin: 插件分配给指定企业（替代旧 PluginTenantAssignment）
 
-当资源的 scope 为 assigned_tenants 或 admin_and_assigned 时，
+当资源的 scope 为 selected_tenants 或 admin_and_selected_tenants 时，
 通过本表记录哪些企业可以访问该资源。
 """
 

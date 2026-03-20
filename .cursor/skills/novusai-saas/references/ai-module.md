@@ -178,15 +178,12 @@ result = await registry.execute_tool(tool_name, arguments)
 - 操作超时 30s，超时后自动清理 Future
 - 已覆盖 29 页面（Admin 19 + Tenant 10），标准操作类型：`refresh_list`、`refresh_dashboard`、`export_data`、`navigate_to`
 
-#### `_load_auto_bind_packages` scope 审计（2026-03）
+#### `_load_auto_bind_packages` 资源作用域规则
 
-优化前：`agent_scope` 参数未参与过滤，仅依赖 `tenant_id` 是否为 `None` 分流。
-
-优化后（+22/-6 行精确修改）：
-- **`tenant_id IS NULL` 基础条件**：auto-bind 仅加载系统级包，排除企业自建包
-- **管理端分支**（`tenant_id is None`）：增加 `agent_scope` 守卫，非管理端作用域直接返回空
-- **企业端分支**（`tenant_id` 有值）：`ADMIN_ONLY` agent 直接返回空；仅当 `agent_scope` 为 `ASSIGNED_TENANTS` / `ADMIN_AND_ALL` / `ADMIN_AND_ASSIGNED` 时才查分配表
-- 与 `AgentSkillBindingService._validate_scope()` 保持一致的兼容规则
+- 统一以 **ResourceScopeEnum**（五类）+ **`owner_tenant_id`** + **`resource_tenant_assignments`**（RTA）表达投放面。
+- **企业端上下文**（当前企业 `tenant_id` 有值）：`admin_only` 资源不向企业端暴露；`selected_tenants` / `admin_and_selected_tenants` 必须存在针对该企业的有效 RTA。
+- **平台/管理端上下文**：按资源是否允许管理端消费及绑定关系过滤；系统级包与企业自建包通过 `owner_tenant_id` 区分。
+- 与 `AgentSkillBindingService._validate_scope()` 保持一致。
 
 #### P0 修复（2026-03 审计后落地）
 
@@ -384,45 +381,41 @@ results = await retriever.search(
 
 ---
 
-## 八、Skill 作用域规则（完整版）
+## 八、资源作用域 vs 技能包 / 受众（当前模型）
 
-### 作用域矩阵
+### 资源层（SkillPackage.scope）
 
-| 包的 scope | tenant_id | 含义 | 企业可见 | 企业可编辑 |
-|-----------|-----------|------|---------|-----------|
-| `all_tenants` | `null` | 平台全局包（管理端创建） | ✅ 全部企业 | ❌ |
-| `all_tenants` | `X` | 企业 X 自有包（企业 X 创建） | ✅ 仅企业 X | ✅ 仅企业 X |
-| `admin_only` | `null` | 仅管理端可见 | ❌ | ❌ |
-| `admin_and_all` | `null` | 管理端 + 全部企业（全局共享） | ✅ 全部企业 | ❌ |
-| `admin_and_assigned` | `null` | 管理端 + 指定企业 | ✅ 指定企业 | ❌ |
+仅允许 **`ResourceScopeEnum` 五类**：`global_shared` / `admin_only` / `all_tenants` / `admin_and_selected_tenants` / `selected_tenants`。
 
-### 前端判断是否可编辑
+- **投放面**：由 `scope` + `resource_tenant_assignments`（`selected_tenants` / `admin_and_selected_tenants`）决定企业是否可见。
+- **企业是否可编辑**：由 **归属列** 判定（SkillPackage 当前仍为 `tenant_id` 列表示归属；与 Agent/KB 等模型的 `owner_tenant_id` 语义相同）。**禁止**用「`all_tenants` 且 tenant 是否为空」推断归属。
+
+### 前端判断是否企业自有（可编辑）
 
 ```typescript
-// ✅ 正确 — 必须同时检查 scope 和 tenant_id
-function isTenantOwned(pkg): boolean {
-  return !!pkg && pkg.scope === 'all_tenants' && pkg.tenant_id !== null;
+// ✅ 正确：归属企业 = 当前企业（字段名以 API 为准，多为 tenant_id）
+function isTenantOwned(pkg: { tenant_id?: null | number }, currentTenantId: number): boolean {
+  return pkg.tenant_id != null && pkg.tenant_id === currentTenantId;
 }
 
-// ❌ 错误 — 仅检查 scope，平台全局包（tenant_id=null）也会被误判为可编辑
-function isTenantOwned(pkg): boolean {
-  return !!pkg && pkg.scope === 'all_tenants';
+// ❌ 错误：用 scope 推断归属
+function isTenantOwnedBad(pkg: { scope: string }) {
+  return pkg.scope === 'all_tenants';
 }
 ```
 
-### 后端所有权保护
+### 后端归属保护
 
 ```python
-# Service._before_update / _before_delete
-if pkg.tenant_id != self.tenant_id:  # ✅ 同时覆盖 null（平台包）和其他企业的包
+# Service._before_update / _before_delete（示例：SkillPackage 仍用 tenant_id 存归属）
+if pkg.tenant_id is None or pkg.tenant_id != self.tenant_id:
     raise BusinessException(message=_("skill_package.error.readonly"))
-
-# ❌ 错误：仅检查 scope — 平台全局包也会被误放行
-if pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
-    raise BusinessException(...)
 ```
+
+### 受众 / 发布（非资源五类）
+
+- **`target_audience`**、智能体 **`TenantAgentPublication`** 等描述「谁在用」，**不属于** `ResourceScopeEnum`，不得与资源 scope 混写进同一套规则。
 
 ### Skill 无独立 scope
 
-- **Skill 本身没有 `scope` 字段**，可见性和操作权限完全继承自所属 `SkillPackage`
-- 判断 Skill 是否可编辑时，检查其所属 SkillPackage 的 `scope + tenant_id`
+- **Skill 本身没有 `scope` 字段**，继承所属 **SkillPackage** 的资源作用域与归属列。

@@ -150,16 +150,15 @@ sync_tenant_data.delay(tenant_id=42, data_type="quota")
 | `schedule_type` | `cron` / `interval` |
 | `cron_expression` | Cron 表达式（分 时 日 月 周） |
 | `interval_seconds` | 间隔秒数 |
-| `scope` | `platform`（平台级）/ `tenant`（指定企业）/ `all_tenants`（全企业） |
-| `tenant_id` | scope=tenant 时必填 |
+| `scope` | `ResourceScopeEnum` 五类之一（DB 驱动定时任务投放面） |
+| `owner_tenant_id` | 企业自有任务时非空；平台任务为 `NULL`（`TenantRepository` 仍可用 `tenant_id` 别名） |
 | `is_locked` | 禁止删除保护 |
 | `is_editable` | 禁止编辑保护 |
 
-### 作用范围
+### 作用范围（与 Celery `TenantTask` 区分）
 
-- **platform**：平台级，管理员创建，tenant_id=NULL
-- **tenant**：指定企业，必须关联 tenant_id
-- **all_tenants**：全企业，管理员创建，自动对所有企业执行
+- **DB `PeriodicTask`**：用 **`scope` + `owner_tenant_id` + RTA** 表达与平台其它资源一致；禁止再写「platform/tenant/all_tenants 三分法」旧语义。
+- **Celery 任务**：`TenantTask` 仍通过 **kwargs `tenant_id`** 做运行隔离，与 `PeriodicTask.scope` 不是同一概念。
 
 ### 保护机制
 
@@ -196,7 +195,8 @@ PeriodicTask(
     schedule_type="cron",
     cron_expression="0 3 * * *",     # 分 时 日 月 周
     is_active=True,
-    scope="platform",
+    scope="admin_only",              # 示例：平台级调度，与 ResourceScopeEnum 一致
+    owner_tenant_id=None,
     is_locked=True,
     is_editable=False,
     description="每日检查 SSL 证书续期",

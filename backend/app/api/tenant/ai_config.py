@@ -31,7 +31,7 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
 @permission_resource(
     resource="ai_config",
     name="menu.tenant.ai_config",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="ai_settings",
     menu=MenuConfig(
         icon="lucide:settings-2",

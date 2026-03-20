@@ -32,7 +32,7 @@ from app.services.common.email_templates import render_manual_email, render_test
 @permission_resource(
     resource="email_log",
     name="menu.admin.email_log",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:mail",

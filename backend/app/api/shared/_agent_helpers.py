@@ -68,12 +68,16 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
     """
     model_name, model_capabilities, skill_packages = extract_agent_relations(agent)
 
+    _otid = getattr(agent, "owner_tenant_id", None)
+    # owner_type: 仅列表/详情展示用派生字段（非 ORM 列、非历史 owner_type 列）。
+    # owner_type: display-only derived field (not an ORM column; not the removed agents.owner_type).
+    _derived_owner_type = "tenant" if _otid is not None else "platform"
     result: dict[str, Any] = {
         "id": agent.id,
-        "tenant_id": agent.tenant_id,
-        "owner_tenant_id": agent.tenant_id,
-        "owner_type": getattr(agent, "owner_type", None),
-        "distribution_mode": getattr(agent, "distribution_mode", None),
+        "tenant_id": _otid,
+        "owner_tenant_id": _otid,
+        "owner_type": _derived_owner_type,
+        "scope": getattr(agent, "scope", None),
         "name": agent.name,
         "avatar": agent.avatar,
         "description": agent.description,

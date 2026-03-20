@@ -88,7 +88,7 @@ version: "1.0.0"                   # semver 字符串
 display_name:                      # I18nText（dict[str, str]）
   zh-CN: "我的插件"
   en: "My Plugin"
-scope: all_tenants                 # PluginScopeEnum 值（见下方）
+scope: global_shared               # 插件资源作用域：ResourceScopeEnum 五类之一（见下方）
 
 # ── 基本信息（可选）──
 description:
@@ -301,15 +301,23 @@ resources:
 api_version: "1"
 ```
 
-### scope 枚举值（来自 `enums/plugin.py` PluginScopeEnum）
+### 顶层 `scope`（`plugins` 表 · 资源作用域）
 
-| 值 | 含义 |
+与 **`ResourceScopeEnum`** 一致（五类），**不是** RBAC 的 `PermissionScope`，也不是插件 YAML 里菜单/权限扩展里的「端侧」字段：
+
+| 值 | 含义（摘要） |
 |---|------|
-| `admin_only` | 仅平台管理员可见 |
-| `all_tenants` | 所有企业可用 |
-| `assigned_tenants` | 仅分配的企业可用 |
-| `admin_and_all` | 管理员 + 所有企业 |
-| `admin_and_assigned` | 管理员 + 分配的企业 |
+| `global_shared` | 管理端 + 全部企业 |
+| `admin_only` | 仅管理端功能侧消费 |
+| `all_tenants` | 仅企业端全部企业 |
+| `admin_and_selected_tenants` | 管理端 + RTA 指定企业 |
+| `selected_tenants` | 仅 RTA 指定企业 |
+
+指定企业列表统一走 **`resource_tenant_assignments`**（`resource_type='plugin'`）。
+
+### `extensions.*` 里的 `scope`（端侧挂载，已归一化）
+
+`manifest.py` 将 YAML 中的旧串映射为 **`admin` / `tenant` / `user` / `both`**（权限扩展可为四值）。**禁止**把此处字段当成 `ResourceScopeEnum`。
 
 ---
 
@@ -772,7 +780,6 @@ Webhook handler 签名是 `(plugin_name, path, method, headers, payload)`，与 
 | 枚举 | 值 |
 |------|---|
 | `PluginStatusEnum` | installed / enabled / disabled / error |
-| `PluginScopeEnum` | admin_only / all_tenants / assigned_tenants / admin_and_all / admin_and_assigned |
 | `PluginTierEnum` | official / verified / community |
 | `PluginInstallSourceEnum` | local / marketplace / git |
 | `PluginPricingTypeEnum` | free / paid |

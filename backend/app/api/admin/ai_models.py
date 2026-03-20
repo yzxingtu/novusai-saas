@@ -33,7 +33,7 @@ from app.services.ai import AIModelService
 @permission_resource(
     resource="ai_model",
     name="menu.admin.ai_model",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:brain",

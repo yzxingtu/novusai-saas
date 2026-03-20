@@ -43,6 +43,7 @@ import {
 } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
   derivePluginType,
@@ -785,10 +786,10 @@ onUnmounted(() => {
             </Tag>
             <Tag
               v-if="plugin.scope && plugin.scope !== 'all_tenants'"
-              color="orange"
+              :color="getScopeColor(plugin.scope)"
               class="!m-0 !rounded-md !border-0 !text-[11px]"
             >
-              {{ $t(`admin.plugin.scope_options.${plugin.scope}`) }}
+              {{ getScopeText(plugin.scope) }}
             </Tag>
             <Tag
               :color="getDependencyStatusColor(plugin)"

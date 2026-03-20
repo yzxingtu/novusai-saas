@@ -44,11 +44,13 @@ import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import {
+  getAdminScopeOptions,
+  getScopeColor,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
 import {
-  getDistributionModeColor,
-  getDistributionModeOptions,
-  getDistributionModeText,
   getExecutionModeText,
   getFormDefaults,
   getStatusText,
@@ -247,7 +249,7 @@ async function onToggleStatus(agent: AIAgentInfo) {
 // Search filters / 搜索过滤
 // ============================================================
 
-const filterDistributionMode = ref<string>();
+const filterScope = ref<string>();
 const filterStatus = ref<string>();
 
 function doSearch() {
@@ -255,8 +257,8 @@ function doSearch() {
   if (searchKeyword.value.trim()) {
     params['filter[name][ilike]'] = searchKeyword.value.trim();
   }
-  if (filterDistributionMode.value) {
-    params['filter[distribution_mode][eq]'] = filterDistributionMode.value;
+  if (filterScope.value) {
+    params['filter[scope][eq]'] = filterScope.value;
   }
   if (filterStatus.value) {
     params['filter[status][eq]'] = filterStatus.value;
@@ -266,7 +268,7 @@ function doSearch() {
 
 function onClearFilters() {
   searchKeyword.value = '';
-  filterDistributionMode.value = undefined;
+  filterScope.value = undefined;
   filterStatus.value = undefined;
   onSearch({});
 }
@@ -274,7 +276,7 @@ function onClearFilters() {
 const hasActiveFilters = computed(
   () =>
     !!searchKeyword.value ||
-    !!filterDistributionMode.value ||
+    !!filterScope.value ||
     !!filterStatus.value,
 );
 
@@ -387,16 +389,16 @@ const stats = computed(() => {
         </template>
       </Input>
 
-      <!-- Distribution mode filter -->
+      <!-- Resource scope filter -->
       <Select
-        v-model:value="filterDistributionMode"
-        :placeholder="$t('admin.ai.agent.distribution.filterPlaceholder')"
+        v-model:value="filterScope"
+        :placeholder="$t('common.scope.allScopes')"
         allow-clear
-        class="!w-40"
+        class="!w-48"
         @change="doSearch"
       >
         <SelectOption
-          v-for="opt in getDistributionModeOptions()"
+          v-for="opt in getAdminScopeOptions()"
           :key="opt.value"
           :value="opt.value"
         >
@@ -694,15 +696,15 @@ const stats = computed(() => {
               </div>
             </Tooltip>
 
-            <!-- Distribution mode -->
+            <!-- Resource scope -->
             <Tag
-              :color="getDistributionModeColor(agent.distribution_mode)"
+              :color="getScopeColor(agent.scope)"
               class="!mr-0 !text-[11px]"
               style="padding: 0 6px; line-height: 20px"
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon icon="lucide:share-2" class="size-3" />
-                <span>{{ getDistributionModeText(agent.distribution_mode) }}</span>
+                <span>{{ getScopeText(agent.scope) }}</span>
               </div>
             </Tag>
 

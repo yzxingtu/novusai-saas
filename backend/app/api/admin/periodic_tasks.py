@@ -33,7 +33,7 @@ from app.services.system import PeriodicTaskService
 @permission_resource(
     resource="periodic_task",
     name="menu.admin.periodic_task",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:timer",

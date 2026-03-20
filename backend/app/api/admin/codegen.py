@@ -75,7 +75,7 @@ def _codegen_global_lock(timeout: int = 60) -> FileLock:
 @permission_resource(
     resource="codegen",
     name="menu.admin.codegen",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:code-2",

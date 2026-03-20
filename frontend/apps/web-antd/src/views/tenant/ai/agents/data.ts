@@ -15,54 +15,11 @@ import {
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
+import { getScopeOptions } from '#/utils/scope-helpers';
 
-// ============ 分发模式（平台下发 / 企业自有）============
-
-export function getDistributionModeFilterOptions() {
-  return [
-    {
-      label: $t('tenant.ai.agent.distribution.internal'),
-      value: 'internal',
-    },
-    {
-      label: $t('tenant.ai.agent.distribution.all_tenants'),
-      value: 'all_tenants',
-    },
-    {
-      label: $t('tenant.ai.agent.distribution.assigned_tenants'),
-      value: 'assigned_tenants',
-    },
-    {
-      label: $t('tenant.ai.agent.distribution.owner_only'),
-      value: 'owner_only',
-    },
-  ];
-}
-
-export function getDistributionModeText(mode: string | undefined): string {
-  if (!mode) return '-';
-  const opt = getDistributionModeFilterOptions().find((o) => o.value === mode);
-  return opt?.label ?? mode;
-}
-
-export function getDistributionModeColor(mode: string | undefined): string {
-  switch (mode) {
-    case 'internal': {
-      return 'orange';
-    }
-    case 'assigned_tenants': {
-      return 'blue';
-    }
-    case 'all_tenants': {
-      return 'green';
-    }
-    case 'owner_only': {
-      return 'purple';
-    }
-    default: {
-      return 'default';
-    }
-  }
+/** 列表/筛选：统一资源作用域选项 */
+export function getAgentScopeFilterOptions() {
+  return getScopeOptions();
 }
 
 /** 企业自有智能体可编辑/删除 */
@@ -312,11 +269,11 @@ export function useColumns<T = AgentListItem>(
       slots: { default: 'status_cell' },
     },
     {
-      field: 'distribution_mode',
-      title: $t('tenant.ai.agent.distribution.column'),
-      width: 140,
+      field: 'scope',
+      title: $t('common.scope.label'),
+      width: 160,
       align: 'center',
-      slots: { default: 'distribution_cell' },
+      slots: { default: 'scope_cell' },
     },
     {
       field: 'execution_mode',
@@ -432,11 +389,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('tenant.ai.agent.placeholder.allModes'),
     }),
     select(
-      'filter[distribution_mode][eq]',
-      $t('tenant.ai.agent.distribution.column'),
+      'filter[scope][eq]',
+      $t('common.scope.label'),
       {
-        options: getDistributionModeFilterOptions(),
-        placeholder: $t('tenant.ai.agent.distribution.filterPlaceholder'),
+        options: getAgentScopeFilterOptions(),
+        placeholder: $t('common.scope.allScopes'),
       },
     ),
   ];

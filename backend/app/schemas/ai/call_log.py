@@ -38,7 +38,10 @@ class AICallLogResponse(TenantResponseSchema):
     model_name: str | None = Field(None, description=_("enum.ai_call_log.model_name"))
     agent_owner_type: str | None = Field(None, description="Agent owner type")
     agent_owner_tenant_id: int | None = Field(None, description="Agent owner tenant ID")
-    agent_distribution_mode: str | None = Field(None, description="Agent distribution mode")
+    agent_resource_scope: str | None = Field(
+        None,
+        description="Agent resource scope snapshot (ResourceScopeEnum)",
+    )
     tenant_publication_id: int | None = Field(None, description="Tenant publication ID")
     publication_enabled_snapshot: bool | None = Field(None, description="Publication enabled snapshot")
     publication_access_type_snapshot: str | None = Field(None, description="Publication access type snapshot")

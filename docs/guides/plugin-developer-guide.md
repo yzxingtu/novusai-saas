@@ -58,7 +58,7 @@ version: "1.0.0"                   # semver
 display_name:
   zh-CN: "我的插件"
   en: "My Plugin"
-scope: all_tenants                 # admin_only|all_tenants|assigned_tenants|admin_and_all|admin_and_assigned
+scope: all_tenants                 # ResourceScopeEnum: global_shared|admin_only|all_tenants|admin_and_selected_tenants|selected_tenants
 capabilities:                      # 需要的能力
   - db:own_tables
   - http:outbound

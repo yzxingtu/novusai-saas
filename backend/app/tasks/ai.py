@@ -181,7 +181,7 @@ def log_ai_call_task(
             route_reason=route_reason,
             agent_owner_type=(billing_context or {}).get("agent_owner_type"),
             agent_owner_tenant_id=(billing_context or {}).get("agent_owner_tenant_id"),
-            agent_distribution_mode=(billing_context or {}).get("agent_distribution_mode"),
+            agent_resource_scope=(billing_context or {}).get("agent_resource_scope"),
             tenant_publication_id=(billing_context or {}).get("tenant_publication_id"),
             publication_enabled_snapshot=(billing_context or {}).get("publication_enabled_snapshot"),
             publication_access_type_snapshot=(billing_context or {}).get("publication_access_type_snapshot"),

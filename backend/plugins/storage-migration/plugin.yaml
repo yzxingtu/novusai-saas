@@ -80,7 +80,7 @@ extensions:
         icon: "lucide:hard-drive-download"
         parent: system_mgmt
         sort_order: 60
-        scope: admin_only
+        scope: admin
         title:
           zh-CN: "存储迁移"
           en: "Storage Migration"

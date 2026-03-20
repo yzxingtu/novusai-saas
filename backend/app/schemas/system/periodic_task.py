@@ -26,8 +26,8 @@ class PeriodicTaskResponse(BaseSchema):
     last_run_at: datetime | None = Field(None, description="上次执行时间")
     next_run_at: datetime | None = Field(None, description="下次执行时间")
     description: str | None = Field(None, description="任务描述")
-    scope: str = Field("admin_only", description="作用范围")
-    tenant_id: int | None = Field(None, description="所属企业ID")
+    scope: str = Field("admin_only", description="资源作用域 ResourceScopeEnum")
+    owner_tenant_id: int | None = Field(None, description="归属企业ID（平台级为 NULL）")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
     max_retries: int = Field(0, description="最大重试次数")
@@ -50,8 +50,8 @@ class PeriodicTaskCreateRequest(BaseSchema):
     kwargs: dict | None = Field(None, description="关键字参数")
     is_active: bool = Field(True, description="是否启用")
     description: str | None = Field(None, description="任务描述")
-    scope: str = Field("admin_only", description="作用范围（platform/tenant/all_tenants）")
-    tenant_id: int | None = Field(None, description="所属企业ID（scope=tenant时必填）")
+    scope: str = Field("admin_only", description="资源作用域 ResourceScopeEnum（五类）")
+    owner_tenant_id: int | None = Field(None, description="归属企业ID（单企业任务时填写）")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
     max_retries: int = Field(0, ge=0, le=10, description="最大重试次数")
@@ -61,11 +61,13 @@ class PeriodicTaskCreateRequest(BaseSchema):
     notify_emails: str | None = Field(None, description="通知邮箱列表（逗号分隔）")
 
     @model_validator(mode="after")
-    def validate_scope_tenant(self):
-        if self.scope == ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is None:
-            raise ValueError("tenant_id is required when scope is all_tenants")
-        if self.scope != ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is not None:
-            self.tenant_id = None
+    def validate_scope_owner(self):
+        if self.scope in (
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+            ResourceScopeEnum.ALL_TENANTS.value,
+        ):
+            self.owner_tenant_id = None
         return self
 
 
@@ -81,8 +83,8 @@ class PeriodicTaskUpdateRequest(BaseSchema):
     kwargs: dict | None = Field(None, description="关键字参数")
     is_active: bool | None = Field(None, description="是否启用")
     description: str | None = Field(None, description="任务描述")
-    scope: str | None = Field(None, description="作用范围")
-    tenant_id: int | None = Field(None, description="所属企业ID")
+    scope: str | None = Field(None, description="资源作用域")
+    owner_tenant_id: int | None = Field(None, description="归属企业ID")
     is_locked: bool | None = Field(None, description="是否禁止删除")
     is_editable: bool | None = Field(None, description="是否允许编辑")
     max_retries: int | None = Field(None, ge=0, le=10, description="最大重试次数")

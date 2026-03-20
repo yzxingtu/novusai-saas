@@ -7,9 +7,13 @@ Handles AI API key business logic.
 
 from app.core.base_service import BaseService
 from app.core.i18n import _
-from app.exceptions import NotFoundException
+from app.enums.common import ResourceScopeEnum
+from app.exceptions import NotFoundException, ValidationException
 from app.models.ai import ProviderApiKey
 from app.repositories.ai import ProviderApiKeyRepository
+from app.repositories.system.resource_tenant_assignment_repository import (
+    ResourceTenantAssignmentRepository,
+)
 from app.schemas.ai.api_key import (
     ProviderApiKeyCreate,
     ProviderApiKeyUpdate,
@@ -38,11 +42,48 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         """
         # 从 schema 中提取数据，排除 api_key 字段（模型中用 encrypted_key 存储）
         create_data = data.model_dump(exclude={"api_key"})
+        owner_tid = create_data.pop("tenant_id", None)
+        scope = str(create_data.get("scope") or "")
+
+        if scope == ResourceScopeEnum.ALL_TENANTS.value:
+            if owner_tid is None:
+                create_data["scope"] = ResourceScopeEnum.GLOBAL_SHARED.value
+            else:
+                create_data["scope"] = ResourceScopeEnum.SELECTED_TENANTS.value
+            scope = create_data["scope"]
+
+        if scope == ResourceScopeEnum.SELECTED_TENANTS.value and owner_tid is None:
+            raise ValidationException(
+                message=_("ai.error.api_key_owner_required"),
+            )
+
+        if scope in (
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+        ) and owner_tid is not None:
+            raise ValidationException(
+                message=_("ai.error.api_key_owner_forbidden"),
+            )
+
+        create_data["owner_tenant_id"] = owner_tid
+
         key = ProviderApiKey(**create_data)
         key.encrypt_key(data.api_key)
 
         self.db.add(key)
         await self.db.flush()
+
+        if (
+            key.scope == ResourceScopeEnum.SELECTED_TENANTS.value
+            and key.owner_tenant_id is not None
+        ):
+            rta_repo = ResourceTenantAssignmentRepository(self.db)
+            await rta_repo.sync_assignments(
+                "ai_api_key",
+                key.id,
+                [key.owner_tenant_id],
+            )
+
         return key
 
     async def update_key(self, id: int, data: ProviderApiKeyUpdate) -> ProviderApiKey:

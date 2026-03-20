@@ -67,7 +67,7 @@ class MenuOverrideItem(PydanticBaseModel):
     """单条菜单覆盖：挂载到哪个父级 / Single menu override: which parent to mount under."""
     name: str = Field(..., max_length=100, description="Menu name from plugin.yaml")
     parent: str = Field(..., max_length=100, pattern=r"^[a-z0-9_]+$", description="Admin parent menu code (e.g. system_mgmt)")
-    tenant_parent: str | None = Field(None, max_length=100, description="Tenant parent menu code (for admin_and_all scope)")
+    tenant_parent: str | None = Field(None, max_length=100, description="Tenant parent menu code (when menu scope is both)")
 
 
 class PluginMenuConfigBody(PydanticBaseModel):
@@ -90,7 +90,7 @@ class PluginDependencyActionBody(PydanticBaseModel):
 @permission_resource(
     resource="plugin",
     name="menu.admin.plugin",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:puzzle",
@@ -516,10 +516,14 @@ class AdminPluginController(GlobalController):
                         nodes.append(node)
                 return nodes
 
-            # admin 侧：admin_only + admin_and_all / Admin side: admin_only + admin_and_all
-            admin_menus = [m for m in all_menus if m.scope in ("admin_only", "admin_and_all")]
-            # tenant 侧：all_tenants + admin_and_all / Tenant side: all_tenants + admin_and_all
-            tenant_menus = [m for m in all_menus if m.scope in ("all_tenants", "admin_and_all")]
+            admin_menus = [
+                m for m in all_menus
+                if m.scope in (PermissionScope.ADMIN.value, PermissionScope.BOTH.value)
+            ]
+            tenant_menus = [
+                m for m in all_menus
+                if m.scope in (PermissionScope.TENANT.value, PermissionScope.BOTH.value)
+            ]
 
             return success(data={
                 "admin": _build_tree(admin_menus, None),

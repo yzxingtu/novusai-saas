@@ -8,7 +8,7 @@ description:
   en: "Lightweight document management plugin with folders, tags, full-text search and export. Editor and AI powered by platform."
 author: "NovusAI"
 icon: "lucide:file-text"
-scope: admin_and_assigned
+scope: admin_and_selected_tenants
 
 capabilities:
   - db:own_tables
@@ -71,7 +71,7 @@ extensions:
         path: /tenant/plugins/novusdoc
         icon: "lucide:file-text"
         sort_order: 50
-        scope: all_tenants
+        scope: tenant
         title:
           zh-CN: "文档管理"
           en: "Documents"
@@ -79,7 +79,7 @@ extensions:
         path: /admin/plugins/novusdoc
         icon: "lucide:file-text"
         sort_order: 50
-        scope: admin_only
+        scope: admin
         title:
           zh-CN: "文档管理"
           en: "Documents"

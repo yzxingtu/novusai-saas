@@ -41,6 +41,11 @@ import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
 defineOptions({ name: 'TenantKnowledgeBaseList' });
 
+/** Editable/deletable = owned by current tenant (tenant_id is owner_tenant_id synonym) */
+function isTenantManageableKb(row: KnowledgeBaseItem): boolean {
+  return row.tenant_id !== null;
+}
+
 // ========== 声明式 CRUD ==========
 const {
   list,
@@ -305,14 +310,14 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
                       <span>{{ $t('tenant.knowledgeBase.detail') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem v-if="item.scope === 'all_tenants'" key="edit">
+                  <MenuItem v-if="isTenantManageableKb(item)" key="edit">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-3.5" />
                       <span>{{ $t('tenant.knowledgeBase.edit') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem
-                    v-if="item.scope === 'all_tenants'"
+                    v-if="isTenantManageableKb(item)"
                     key="delete"
                     class="!text-destructive"
                   >

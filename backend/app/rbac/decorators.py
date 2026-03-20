@@ -131,7 +131,7 @@ class PermissionMeta:
 def permission_resource(
     resource: str,
     name: str,
-    scope: PermissionScope = PermissionScope.ALL_TENANTS,
+    scope: PermissionScope = PermissionScope.TENANT,
     menu: MenuConfig | None = None,
     description: str = "",
     parent_resource: str | None = None,
@@ -157,7 +157,7 @@ def permission_resource(
         @permission_resource(
             resource="user",
             name="用户管理",
-            scope=PermissionScope.ALL_TENANTS,
+            scope=PermissionScope.TENANT,
             menu=MenuConfig(icon="user", path="/users", component="user/List")
         )
         class UserController:
@@ -170,7 +170,7 @@ def permission_resource(
         @permission_resource(
             resource="tenant_domain",
             name="企业域名管理",
-            scope=PermissionScope.ADMIN_ONLY,
+            scope=PermissionScope.ADMIN,
             parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下
         )
         class TenantDomainController:
@@ -188,9 +188,9 @@ def permission_resource(
 
         # Register menu permission / 注册菜单权限
         if menu:
-            if scope == PermissionScope.ADMIN_ONLY:
+            if scope == PermissionScope.ADMIN:
                 scope_prefix = "admin"
-            elif scope == PermissionScope.TENANT_USER:
+            elif scope == PermissionScope.USER:
                 scope_prefix = "user"
             else:
                 scope_prefix = "tenant"
@@ -439,9 +439,9 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
 
     # Build parent menu permission code (mount operation permissions under corresponding menu) / 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
-    if scope == PermissionScope.ADMIN_ONLY:
+    if scope == PermissionScope.ADMIN:
         scope_prefix = "admin"
-    elif scope == PermissionScope.TENANT_USER:
+    elif scope == PermissionScope.USER:
         scope_prefix = "user"
     else:
         scope_prefix = "tenant"

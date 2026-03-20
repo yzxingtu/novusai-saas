@@ -60,12 +60,11 @@ import {
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 
 import {
-  getDistributionModeColor,
-  getDistributionModeText,
   getExecutionModeText,
   getStatusColor,
   getStatusText,
@@ -844,12 +843,12 @@ onBeforeUnmount(() => {
                     {{ getExecutionModeText(agent.execution_mode) }}
                   </div>
                   <Tag
-                    :color="getDistributionModeColor(agent.distribution_mode)"
+                    :color="getScopeColor(agent.scope)"
                     class="!mr-0 !text-xs"
                   >
                     <div class="flex items-center gap-1">
-                      <IconifyIcon icon="lucide:share-2" class="size-3" />
-                      {{ getDistributionModeText(agent.distribution_mode) }}
+                      <IconifyIcon :icon="getScopeIcon(agent.scope)" class="size-3" />
+                      {{ getScopeText(agent.scope) }}
                     </div>
                   </Tag>
                   <!-- Readonly badge for non-owned agents -->

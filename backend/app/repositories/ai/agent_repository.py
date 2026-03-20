@@ -11,13 +11,11 @@ from sqlalchemy.orm import selectinload
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.enums.agent import (
-    AgentDistributionModeEnum,
     AgentExecutionModeEnum,
-    AgentOwnerTypeEnum,
     AgentPublicationAccessTypeEnum,
     AgentStatusEnum,
 )
-from app.enums.common import DeleteLevelEnum
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.tenant_agent_publication import TenantAgentPublication
@@ -29,20 +27,26 @@ from app.schemas.common.query import FilterRule, QuerySpec
 
 def _tenant_available_condition(tenant_id: int):
     assigned_subq = assigned_resource_ids_subquery("agent", tenant_id)
-    return or_(
-        and_(
-            Agent.owner_type == AgentOwnerTypeEnum.TENANT.value,
-            Agent.tenant_id == tenant_id,
+    platform_visible = or_(
+        Agent.scope.in_(
+            [
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+            ]
         ),
         and_(
-            Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value,
-            Agent.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value,
-        ),
-        and_(
-            Agent.owner_type == AgentOwnerTypeEnum.PLATFORM.value,
-            Agent.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value,
+            Agent.scope.in_(
+                [
+                    ResourceScopeEnum.SELECTED_TENANTS.value,
+                    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+                ]
+            ),
             Agent.id.in_(assigned_subq),
         ),
+    )
+    return or_(
+        Agent.owner_tenant_id == tenant_id,
+        and_(Agent.owner_tenant_id.is_(None), platform_visible),
     )
 
 
@@ -63,27 +67,15 @@ class AgentRepository(TenantRepository[Agent]):
     ) -> Agent | None:
         """根据 ID 获取当前企业可访问的智能体 / Get agent by ID accessible to current tenant."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
-        if instance and hasattr(instance, "tenant_id"):
-            if instance.owner_type == AgentOwnerTypeEnum.TENANT.value:
-                return instance if instance.tenant_id == self.tenant_id else None
-
-            if instance.owner_type != AgentOwnerTypeEnum.PLATFORM.value:
-                return None
-
-            if instance.distribution_mode == AgentDistributionModeEnum.ALL_TENANTS.value:
-                return instance
-
-            if instance.distribution_mode == AgentDistributionModeEnum.ASSIGNED_TENANTS.value:
-                from app.repositories.system.resource_tenant_assignment_repository import (
-                    ResourceTenantAssignmentRepository,
-                )
-
-                repo = ResourceTenantAssignmentRepository(self.db)
-                if await repo.check_assignment("agent", instance.id, self.tenant_id):
-                    return instance
-                return None
+        if not instance:
             return None
-        return instance
+        chk = await self.db.execute(
+            select(Agent.id).where(
+                Agent.id == id,
+                _tenant_available_condition(self.tenant_id),
+            )
+        )
+        return instance if chk.scalar_one_or_none() is not None else None
 
     async def query_list(
         self,
@@ -110,7 +102,7 @@ class AgentRepository(TenantRepository[Agent]):
         # 应用额外的强制过滤（排除 tenant_id 强制规则）
         extra_forced = [
             f for f in (forced_filters or [])
-            if f.field != "tenant_id"
+            if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
             query = self._apply_filters(query, extra_forced, all_fields)
@@ -183,7 +175,7 @@ class AgentRepository(TenantRepository[Agent]):
 
         extra_forced = [
             f for f in (forced_filters or [])
-            if f.field != "tenant_id"
+            if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
             query = self._apply_filters(query, extra_forced, all_fields)
@@ -312,8 +304,7 @@ class AgentRepository(TenantRepository[Agent]):
             Agent 实例或 None
         """
         conditions = [
-            Agent.owner_type == AgentOwnerTypeEnum.TENANT.value,
-            Agent.tenant_id == self.tenant_id,
+            Agent.owner_tenant_id == self.tenant_id,
             Agent.name == name,
             Agent.is_deleted.is_(False),
         ]
@@ -351,20 +342,18 @@ class AdminAgentRepository(BaseRepository[Agent]):
     async def exists_by_name(
         self,
         name: str,
-        tenant_id: int | None,
-        owner_type: str,
+        owner_tenant_id: int | None,
         exclude_id: int | None = None,
     ) -> Agent | None:
-        """检查同 owner_type+tenant_id 下名称是否重复 / Check name duplicate under same owner_type+tenant_id."""
+        """检查同 owner_tenant_id 下名称是否重复 / Check name duplicate under same owner tenant."""
         conditions = [
             Agent.name == name,
-            Agent.owner_type == owner_type,
             Agent.is_deleted.is_(False),
         ]
-        if tenant_id is not None:
-            conditions.append(Agent.tenant_id == tenant_id)
+        if owner_tenant_id is not None:
+            conditions.append(Agent.owner_tenant_id == owner_tenant_id)
         else:
-            conditions.append(Agent.tenant_id.is_(None))
+            conditions.append(Agent.owner_tenant_id.is_(None))
         if exclude_id is not None:
             conditions.append(Agent.id != exclude_id)
 

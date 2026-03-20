@@ -30,7 +30,7 @@ from app.services.tenant.task_log_service import TenantTaskLogService
 @permission_resource(
     resource="task_log",
     name="menu.tenant.task_log",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="logs",
     menu=MenuConfig(
         icon="lucide:list-checks",

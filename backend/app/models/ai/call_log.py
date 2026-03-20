@@ -47,7 +47,7 @@ class AICallLog(TenantModel):
         "actor_user_type": "actor_user_type",
         "access_channel": "access_channel",
         "agent_owner_type": "agent_owner_type",
-        "agent_distribution_mode": "agent_distribution_mode",
+        "agent_resource_scope": "agent_resource_scope",
         "provider_id": "provider_id",
         "model_id": "model_id",
         "routed_model_id": "routed_model_id",
@@ -229,11 +229,11 @@ class AICallLog(TenantModel):
         index=True,
         comment="智能体归属企业快照 / Agent owner tenant snapshot",
     )
-    agent_distribution_mode: Mapped[str | None] = mapped_column(
-        String(20),
+    agent_resource_scope: Mapped[str | None] = mapped_column(
+        String(40),
         nullable=True,
         index=True,
-        comment="智能体分发模式快照 / Agent distribution mode snapshot",
+        comment="智能体资源作用域快照 / Agent ResourceScopeEnum snapshot",
     )
     tenant_publication_id: Mapped[int | None] = mapped_column(
         Integer,

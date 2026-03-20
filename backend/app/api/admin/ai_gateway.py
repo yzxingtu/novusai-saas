@@ -38,7 +38,7 @@ from app.schemas.ai.gateway import (
 @permission_resource(
     resource="ai_gateway",
     name="menu.admin.ai_gateway",
-    scope=PermissionScope.ADMIN_ONLY,
+    scope=PermissionScope.ADMIN,
     parent_resource="ai_infra",
 )
 class AdminAIGatewayController(GlobalController):

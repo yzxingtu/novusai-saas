@@ -161,7 +161,7 @@ function getTypeIcon(type: string): string {
     admin_role: 'lucide:shield',
     batch_run: 'lucide:play-circle',
     knowledge_base: 'lucide:book-open',
-    knowledge_base_tenant_access: 'lucide:building-2',
+    resource_tenant_assignment: 'lucide:building-2',
     knowledge_document: 'lucide:file-text',
     provider_api_key: 'lucide:key',
     skill: 'lucide:wrench',

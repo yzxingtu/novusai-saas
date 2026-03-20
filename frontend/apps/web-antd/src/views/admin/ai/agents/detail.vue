@@ -69,14 +69,12 @@ import {
   getSkillTypeColor,
   getSkillTypeIcon,
 } from '#/utils/ai-helpers';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
 import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 
 import {
-  getDistributionModeColor,
-  getDistributionModeText,
   getExecutionModeText,
   getOwnerTypeColor,
   getOwnerTypeText,
@@ -915,12 +913,12 @@ onBeforeUnmount(() => {
                     {{ getExecutionModeText(agent.execution_mode) }}
                   </div>
                   <Tag
-                    :color="getDistributionModeColor(agent.distribution_mode)"
+                    :color="getScopeColor(agent.scope)"
                     class="!mr-0 !text-xs"
                   >
                     <div class="flex items-center gap-1">
-                      <IconifyIcon icon="lucide:share-2" class="size-3" />
-                      {{ getDistributionModeText(agent.distribution_mode) }}
+                      <IconifyIcon :icon="getScopeIcon(agent.scope)" class="size-3" />
+                      {{ getScopeText(agent.scope) }}
                     </div>
                   </Tag>
                   <Tag
@@ -1025,14 +1023,14 @@ onBeforeUnmount(() => {
                         class="size-3.5 text-muted-foreground"
                       />
                       <span class="text-xs text-muted-foreground">{{
-                        $t('admin.ai.agent.distribution.label')
+                        $t('common.scope.label')
                       }}</span>
                     </div>
                     <Tag
-                      :color="getDistributionModeColor(agent.distribution_mode)"
+                      :color="getScopeColor(agent.scope)"
                       class="!mr-0 !text-xs"
                     >
-                      {{ getDistributionModeText(agent.distribution_mode) }}
+                      {{ getScopeText(agent.scope) }}
                     </Tag>
                   </div>
                 </div>

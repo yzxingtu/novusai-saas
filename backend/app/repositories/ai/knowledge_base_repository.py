@@ -9,10 +9,8 @@ from sqlalchemy import and_, func, or_, select, update
 
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.enums.common import ResourceScopeEnum
-from app.enums.knowledge_base import KBVisibilityEnum
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_base import KnowledgeBase
-from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.repositories.system.resource_tenant_assignment_repository import (
     assigned_resource_ids_subquery,
@@ -20,17 +18,35 @@ from app.repositories.system.resource_tenant_assignment_repository import (
 from app.schemas.common.query import FilterRule, QuerySpec
 
 _ASSIGNED_SCOPES = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
+
+
+def _kb_visible_condition(tenant_id: int):
+    """当前企业可见的知识库条件 / KB visible to tenant."""
+    assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
+    platform_visible = or_(
+        KnowledgeBase.scope.in_(
+            [
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+            ]
+        ),
+        and_(
+            KnowledgeBase.scope.in_(_ASSIGNED_SCOPES),
+            KnowledgeBase.id.in_(assigned_subq),
+        ),
+    )
+    return or_(
+        KnowledgeBase.owner_tenant_id == tenant_id,
+        and_(KnowledgeBase.owner_tenant_id.is_(None), platform_visible),
+    )
 
 
 class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
     """
     企业级知识库 Repository / Tenant-scoped knowledge base repository.
-
-    提供基于企业隔离的知识库数据访问。
-    查询时自动包含 scope=global 的全局知识库。
     """
 
     model = KnowledgeBase
@@ -40,51 +56,17 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         id: int,
         include_deleted: bool = False,
     ) -> KnowledgeBase | None:
-        """
-        根据 ID 获取知识库，检查可见性权限。 / Get KB by ID with visibility check.
-
-        访问规则：
-        - 自己企业的 KB → 允许
-        - scope=global → 允许（全局知识库对所有企业可见）
-        - visibility=all_tenants → 允许
-        - visibility=assigned → 检查 KnowledgeBaseTenantAccess 关联
-        - 其他 → 拒绝
-        """
+        """根据 ID 获取当前企业可访问的知识库 / Get KB by ID if visible to current tenant."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if not instance:
             return None
-        # 自己企业的 KB
-        if instance.tenant_id == self.tenant_id:
-            return instance
-        # 全局作用域的 KB（admin_and_all）
-        if getattr(instance, "scope", None) == ResourceScopeEnum.ADMIN_AND_ALL.value:
-            return instance
-        # 平台创建的全局 KB（scope=all_tenants, tenant_id=null）
-        if getattr(instance, "scope", None) == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
-            return instance
-        # assigned_tenants / admin_and_assigned scope：检查 resource_tenant_assignments
-        if getattr(instance, "scope", None) in _ASSIGNED_SCOPES:
-            from app.repositories.system.resource_tenant_assignment_repository import (
-                ResourceTenantAssignmentRepository,
+        chk = await self.db.execute(
+            select(KnowledgeBase.id).where(
+                KnowledgeBase.id == id,
+                _kb_visible_condition(self.tenant_id),
             )
-            repo = ResourceTenantAssignmentRepository(self.db)
-            if await repo.check_assignment("knowledge_base", instance.id, self.tenant_id):
-                return instance
-            return None
-        # 对所有企业可见
-        if instance.visibility == KBVisibilityEnum.ALL_TENANTS.value:
-            return instance
-        # 指定企业可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
-        if instance.visibility == KBVisibilityEnum.ASSIGNED.value:
-            access_stmt = select(KnowledgeBaseTenantAccess.id).where(
-                KnowledgeBaseTenantAccess.knowledge_base_id == id,
-                KnowledgeBaseTenantAccess.tenant_id == self.tenant_id,
-                KnowledgeBaseTenantAccess.is_deleted.is_(False),
-            ).limit(1)
-            result = await self.db.execute(access_stmt)
-            if result.scalar_one_or_none() is not None:
-                return instance
-        return None
+        )
+        return instance if chk.scalar_one_or_none() is not None else None
 
     async def query_list(
         self,
@@ -93,11 +75,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         forced_filters: list[FilterRule] | None = None,
         include_deleted: bool = False,
     ) -> tuple[list[KnowledgeBase], int]:
-        """
-        企业级知识库列表查询 / Tenant-scoped knowledge base list query.
-
-        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
-        """
+        """企业级知识库列表 / Tenant KB list with visibility rules."""
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
@@ -106,43 +84,11 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 可见性过滤：自己的 KB + all_tenants + assigned(关联表)
-        assigned_subq = (
-            select(KnowledgeBaseTenantAccess.knowledge_base_id)
-            .where(
-                KnowledgeBaseTenantAccess.tenant_id == self.tenant_id,
-                KnowledgeBaseTenantAccess.is_deleted.is_(False),
-            )
-        ).scalar_subquery()
+        query = query.where(_kb_visible_condition(self.tenant_id))
 
-        rta_subq = assigned_resource_ids_subquery("knowledge_base", self.tenant_id)
-        query = query.where(
-            or_(
-                self.model.tenant_id == self.tenant_id,
-                self.model.visibility == KBVisibilityEnum.ALL_TENANTS.value,
-                and_(
-                    self.model.visibility == KBVisibilityEnum.ASSIGNED.value,
-                    self.model.id.in_(assigned_subq),
-                ),
-                # 全局共享 KB（admin_and_all）
-                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
-                # 平台创建的全局 KB（scope=all_tenants, tenant_id=null）
-                and_(
-                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                    self.model.tenant_id.is_(None),
-                ),
-                # assigned_tenants / admin_and_assigned scope
-                and_(
-                    self.model.scope.in_(_ASSIGNED_SCOPES),
-                    self.model.id.in_(rta_subq),
-                ),
-            )
-        )
-
-        # 应用额外的强制过滤（排除 tenant_id 强制规则）
         extra_forced = [
             f for f in (forced_filters or [])
-            if f.field != "tenant_id"
+            if f.field not in ("tenant_id", "owner_tenant_id")
         ]
         if extra_forced:
             query = self._apply_filters(query, extra_forced, all_fields)
@@ -167,18 +113,9 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         name: str,
         exclude_id: int | None = None,
     ) -> KnowledgeBase | None:
-        """
-        按名称查找知识库（同企业内唯一性检查）/ Find KB by name (uniqueness within tenant).
-
-        Args:
-            name: 知识库名称
-            exclude_id: 排除的 ID（用于更新时排除自身）
-
-        Returns:
-            KnowledgeBase 实例或 None
-        """
+        """同企业归属下按名称查找 / Find KB by name under owning tenant."""
         conditions = [
-            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.owner_tenant_id == self.tenant_id,
             KnowledgeBase.name == name,
             KnowledgeBase.is_deleted.is_(False),
         ]
@@ -193,13 +130,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         self,
         kb_id: int,
     ) -> None:
-        """
-        重新计算并更新知识库统计（文档数、分块数、总大小）/ Recompute and update KB stats (doc count, chunk count, total size).
-
-        Args:
-            kb_id: 知识库 ID
-        """
-        # 统计文档数和总大小
+        """重新计算并更新知识库统计 / Recompute KB statistics."""
         doc_stmt = (
             select(
                 func.count(KnowledgeDocument.id),
@@ -215,7 +146,6 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         doc_result = await self.db.execute(doc_stmt)
         doc_count, total_size = doc_result.one()
 
-        # 统计分块总数
         chunk_stmt = (
             select(func.count(DocumentChunk.id))
             .where(
@@ -228,7 +158,6 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         chunk_result = await self.db.execute(chunk_stmt)
         total_chunks = chunk_result.scalar() or 0
 
-        # 更新知识库统计
         update_stmt = (
             update(KnowledgeBase)
             .where(KnowledgeBase.id == kb_id)
@@ -241,24 +170,18 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         await self.db.execute(update_stmt)
 
     async def count_by_tenant(self) -> int:
-        """统计当前企业的知识库总数 / Count knowledge bases for current tenant."""
+        """统计当前企业自有知识库数量 / Count KB rows owned by current tenant."""
         return await self.count()
 
 
 class AdminKnowledgeBaseRepository(BaseRepository[KnowledgeBase]):
-    """
-    管理端知识库 Repository / Admin knowledge base repository.
-
-    无企业隔离，供平台管理端全局查询使用
-    """
+    """管理端知识库 Repository / Admin KB repository."""
 
     model = KnowledgeBase
 
 
 class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
-    """
-    企业级知识文档 Repository / Tenant-scoped knowledge document repository.
-    """
+    """企业级知识文档 Repository / Tenant-scoped knowledge document repository."""
 
     model = KnowledgeDocument
 
@@ -267,16 +190,6 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
         knowledge_base_id: int,
         file_hash: str,
     ) -> KnowledgeDocument | None:
-        """
-        按知识库 ID 和文件哈希查找文档（去重检测）/ Find document by KB ID and file hash (dedup).
-
-        Args:
-            knowledge_base_id: 知识库 ID
-            file_hash: 文件 MD5 哈希
-
-        Returns:
-            KnowledgeDocument 实例或 None
-        """
         stmt = select(KnowledgeDocument).where(
             and_(
                 KnowledgeDocument.knowledge_base_id == knowledge_base_id,
@@ -295,15 +208,6 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
         error_message: str | None = None,
         error_stage: str | None = None,
     ) -> None:
-        """
-        更新文档处理状态 / Update document processing status.
-
-        Args:
-            doc_id: 文档 ID
-            status: 新状态
-            error_message: 错误信息（仅 error 状态时设置）
-            error_stage: 错误阶段
-        """
         values: dict = {"status": status}
         if error_message is not None:
             values["error_message"] = error_message
@@ -319,9 +223,7 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
 
 
 class DocumentChunkRepository(TenantRepository[DocumentChunk]):
-    """
-    企业级文档分块 Repository / Tenant-scoped document chunk repository.
-    """
+    """企业级文档分块 Repository / Tenant-scoped document chunk repository."""
 
     model = DocumentChunk
 
@@ -330,16 +232,6 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
         document_id: int,
         soft: bool = True,
     ) -> int:
-        """
-        删除指定文档的所有分块 / Delete all chunks for the given document.
-
-        Args:
-            document_id: 文档 ID
-            soft: 是否软删除
-
-        Returns:
-            删除的记录数量
-        """
         if soft:
             stmt = (
                 update(DocumentChunk)
@@ -369,17 +261,6 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[DocumentChunk]:
-        """
-        获取指定文档的分块列表 / Get chunk list for the given document.
-
-        Args:
-            document_id: 文档 ID
-            skip: 跳过数量
-            limit: 返回数量
-
-        Returns:
-            DocumentChunk 列表
-        """
         stmt = (
             select(DocumentChunk)
             .where(

@@ -33,15 +33,6 @@ class AgentOwnerTypeEnum(LabeledStrEnum):
     TENANT = ("tenant", "enum.agent.owner_type.tenant")
 
 
-class AgentDistributionModeEnum(LabeledStrEnum):
-    """Agent Distribution Mode Enum / 智能体分发模式枚举"""
-
-    INTERNAL = ("internal", "enum.agent.distribution_mode.internal")
-    ALL_TENANTS = ("all_tenants", "enum.agent.distribution_mode.all_tenants")
-    ASSIGNED_TENANTS = ("assigned_tenants", "enum.agent.distribution_mode.assigned_tenants")
-    OWNER_ONLY = ("owner_only", "enum.agent.distribution_mode.owner_only")
-
-
 class AgentPublicationAccessTypeEnum(LabeledStrEnum):
     """Tenant Agent Publication Access Type Enum / 企业用户发布访问类型枚举"""
 
@@ -226,7 +217,6 @@ __all__ = [
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
     "AgentOwnerTypeEnum",
-    "AgentDistributionModeEnum",
     "AgentPublicationAccessTypeEnum",
     "MemorySceneEnum",
     "MemoryChannelEnum",

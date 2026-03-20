@@ -4,7 +4,7 @@ import type { PkgOption } from '../data';
 /**
  * 管理端智能体新建/编辑表单抽屉
  *
- * 系统智能体编辑时锁定核心字段（name / distribution_mode / execution_mode），
+ * 系统智能体编辑时锁定核心字段（name / scope / execution_mode），
  * 仅允许修改调优参数（model_id / system_prompt / temperature / max_tokens）。
  */
 import type { AIAgentInfo, AIAgentSkillBindingInfo } from '#/api/admin/ai';
@@ -23,6 +23,7 @@ import {
   getAIAgentSkillsApi,
 } from '#/api/admin/ai';
 import { getRecommendedSkillPackagesApi } from '#/api/admin/skill-packages';
+import { scopeNeedsAssignment } from '#/components/business/scope-select/use-scope-fields';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import {
@@ -82,9 +83,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       if (!edit || !isSystemAgent.value) {
         result.name = values.name;
         result.execution_mode = values.execution_mode;
-        const mode = values.distribution_mode as string;
-        result.distribution_mode = mode;
-        if (mode === 'assigned_tenants') {
+        const scope = values.scope as string;
+        result.scope = scope;
+        if (scopeNeedsAssignment(scope)) {
           result.tenant_ids = (values.tenant_ids as number[]) ?? [];
         } else {
           result.tenant_ids = [];
@@ -97,7 +98,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         name: data.name,
         avatar: data.avatar || '',
         description: data.description,
-        distribution_mode: data.distribution_mode,
+        scope: data.scope,
         tenant_id: data.tenant_id ?? null,
         tenant_ids:
           ((data as unknown as Record<string, unknown>)

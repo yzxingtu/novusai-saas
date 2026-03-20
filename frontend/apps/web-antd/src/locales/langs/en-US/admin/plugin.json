@@ -58,13 +58,6 @@
     "disabled": "Disabled",
     "error": "Error"
   },
-  "scope_options": {
-    "admin_only": "Admin Only",
-    "all_tenants": "All Tenants",
-    "assigned_tenants": "Assigned Tenants",
-    "admin_and_all": "Admin + All Tenants",
-    "admin_and_assigned": "Admin + Assigned"
-  },
   "dependency": {
     "installed": "Dependencies Installed",
     "missing": "Dependencies Missing"

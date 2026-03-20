@@ -66,7 +66,7 @@ def _serialize_role_detail(role) -> dict:
 @permission_resource(
     resource="tenant_user_role",
     name="menu.tenant.user_architecture",
-    scope=PermissionScope.ALL_TENANTS,
+    scope=PermissionScope.TENANT,
     parent_resource="system",
     menu=MenuConfig(
         icon="lucide:network",

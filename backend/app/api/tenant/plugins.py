@@ -30,15 +30,14 @@ async def list_available_plugins(
     """
     获取当前企业可用的已启用插件列表 / Get enabled plugin list available to current tenant
 
-    过滤规则（根据 scope） / Filter rules (by scope):
-    - all_tenants → 所有企业可见 / visible to all tenants
-    - admin_and_all → 所有企业可见 / visible to all tenants
-    - assigned_tenants → 仅分配了当前企业的插件可见 / only plugins assigned to current tenant visible
-    - admin_and_assigned → 仅分配了当前企业的插件可见 / only plugins assigned to current tenant visible
-    - admin_only → 企业端不可见 / not visible in tenant
+    过滤规则（插件资源 scope = ResourceScopeEnum） / Filter rules (plugin resource scope):
+    - all_tenants / global_shared → 所有企业可见 / visible to all tenants
+    - selected_tenants / admin_and_selected_tenants → 仅 RTA 已分配当前企业的插件可见 / assigned via resource_tenant_assignments only
+    - admin_only → 企业端不可见 / not visible on tenant side
     """
     from sqlalchemy import select
 
+    from app.enums.common import ResourceScopeEnum
     from app.enums.plugin import PluginStatusEnum
     from app.models.system.plugin import Plugin
     from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
@@ -64,14 +63,22 @@ async def list_available_plugins(
     )
     assigned_plugin_ids = set(assignment_result.scalars().all())
 
-    # 根据 scope 过滤 / Filter by scope
-    TENANT_ALL_SCOPES = {"all_tenants", "admin_and_all"}
-    TENANT_ASSIGNED_SCOPES = {"assigned_tenants", "admin_and_assigned"}
+    # 根据资源 scope 过滤（与 PluginService.get_tenant_visible_plugin_names 一致）
+    _tenant_all_scopes = {
+        ResourceScopeEnum.ALL_TENANTS.value,
+        ResourceScopeEnum.GLOBAL_SHARED.value,
+    }
+    _tenant_assigned_scopes = {
+        ResourceScopeEnum.SELECTED_TENANTS.value,
+        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    }
 
     visible_plugins = []
     for plugin in all_enabled:
         scope = plugin.scope
-        if scope in TENANT_ALL_SCOPES or scope in TENANT_ASSIGNED_SCOPES and plugin.id in assigned_plugin_ids:
+        if scope in _tenant_all_scopes or (
+            scope in _tenant_assigned_scopes and plugin.id in assigned_plugin_ids
+        ):
             visible_plugins.append(plugin)
         # admin_only → 不返回 / not returned
 
@@ -106,8 +113,8 @@ async def get_plugin_slots(
     Get enabled plugin frontend slot data visible to current tenant.
 
     过滤规则 / Filter rules:
-    - admin_only scope 的插槽不返回 / admin_only scope slots not returned
-    - assigned_tenants / admin_and_assigned scope 的插槽仅当企业被分配时返回 / slots only returned when tenant is assigned
+    - 资源 scope=admin_only 的插件插槽不返回 / admin_only plugin slots not returned
+    - selected_tenants / admin_and_selected_tenants 的插件仅当 RTA 已分配当前企业时返回插槽 / assigned scopes need RTA row
 
     返回格式 / Return format:
     {
