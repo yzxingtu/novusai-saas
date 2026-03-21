@@ -21,7 +21,18 @@ from app.codegen.type_registry import type_registry
 
 # BaseModel 基类字段（反射时排除）/ BaseModel base fields (exclude from introspection)
 _BASE_MODEL_FIELDS = frozenset(
-    {"id", "created_at", "updated_at", "is_deleted", "deleted_at", "delete_level", "remark", "sort_order"}
+    {
+        "id",
+        "created_at",
+        "updated_at",
+        "is_deleted",
+        "deleted_at",
+        "delete_level",
+        "recycle_stage",
+        "promoted_to_global_at",
+        "remark",
+        "sort_order",
+    }
 )
 # TenantModel 额外字段 / TenantModel extra fields
 _TENANT_MODEL_FIELDS = frozenset({"tenant_id"})

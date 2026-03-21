@@ -53,6 +53,7 @@ class AgentVersionResponse(TenantResponseSchema):
     context_config: dict | None = Field(None, description=_("agent.version.field.context_config"))
     output_schema: list | None = Field(None, description=_("agent.version.field.output_schema"))
     quota_config: dict | None = Field(None, description=_("agent.version.field.quota_config"))
+    rag_config: dict | None = Field(None, description=_("agent.version.field.rag_config"))
     change_log: str | None = Field(None, description=_("agent.version.field.change_log"))
     created_by: int | None = Field(None, description=_("agent.version.field.created_by"))
 

@@ -23,10 +23,13 @@ import { normalizePageKey } from '#/components/business/ai-slide-panel';
 import {
   executePageOperation,
   findPageOperation,
+  listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { currentPageAIExecutionPolicy } from '#/composables/use-ai-page-policy';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
+import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
 
 /** Operation invoke event from backend / 后端下发的操作调用事件 */
 export interface PageOperationInvokeEvent {
@@ -216,6 +219,41 @@ export function usePageOperationChannel(): void {
         event.page_key,
         event.operation_name,
       );
+
+      const currentPolicy = currentPageAIExecutionPolicy.value;
+      const normalizedEventPageKey = normalizePageKey(event.page_key);
+      const currentPolicyPageKey = currentPolicy.pageContextKey
+        ? normalizePageKey(currentPolicy.pageContextKey)
+        : '';
+
+      if (
+        operation &&
+        currentPolicyPageKey &&
+        currentPolicyPageKey === normalizedEventPageKey
+      ) {
+        const allowedOperations = filterPageOperationsByPolicy(
+          listPageOperations(normalizedEventPageKey),
+          currentPolicy,
+        );
+        const isAllowed = allowedOperations.some(
+          (item) => item.name === event.operation_name,
+        );
+        if (!isAllowed) {
+          emitResult(
+            socketIOStore,
+            event.invoke_id,
+            {
+              success: false,
+              message: $t('shared.pageOperation.msg.operationDisabled', {
+                op: event.operation_name,
+                page: normalizedEventPageKey,
+              }),
+            },
+            'disabled_by_policy',
+          );
+          return;
+        }
+      }
 
       // Unregistered operation → reject / 未注册操作 → 拒绝执行
       if (!operation) {

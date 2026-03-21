@@ -8,6 +8,10 @@ import type { Recordable } from '@vben/types';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type {
+  PageAICapabilityKey,
+  TablePolicySupportConfig,
+} from '#/utils/ai-page-capabilities';
 
 // Export base types from vben plugin / 从 vben 插件导出基础类型
 export type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
@@ -122,8 +126,12 @@ export interface CrudPageAiOptions {
   formSchema?: (isEdit?: boolean) => VbenFormSchema[];
   /** Detail route template / 详情页路由模板 */
   detailRoute?: string;
-  /** Operations to disable / 禁用的操作名称列表 */
+  /** Legacy disabled operation names / 旧版禁用操作名称列表 */
   disabled?: string[];
+  /** Disabled capability groups / 禁用的能力分组 */
+  disabledCapabilities?: PageAICapabilityKey[];
+  /** Disabled operation names / 禁用的操作名称列表 */
+  disabledOperations?: string[];
   /** Extra custom operations merged with standard ops / 额外自定义操作 */
   extra?: PageOperation[];
   /** Entity display name for AI context / AI 上下文中的实体显示名 */
@@ -137,6 +145,8 @@ export interface CrudPageAiOptions {
   };
   /** Extra page_data merged into auto-registered context / 合并到自动注册上下文的额外 page_data */
   contextExtras?: () => Record<string, unknown>;
+  /** Table policy runtime capability block / 表策略运行时能力块 */
+  tablePolicy?: TablePolicySupportConfig;
 }
 
 /**
@@ -212,11 +222,12 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
   gridOptions?: Record<string, unknown>;
 
   /**
-   * AI page awareness config. When provided, enables form state tracking
-   * and global page AI auto-registration (context + operations)
-   * AI 页面感知配置。提供后启用表单状态追踪与全局页面 AI 自动注册（上下文 + 操作）
+   * AI page awareness config.
+   * - Omit / 省略: auto-enable page AI with inferred defaults / 自动启用并推导默认配置
+   * - false: fully disable page AI for this CRUD page / 完全禁用该 CRUD 页的页面 AI
+   * - CrudPageAiOptions: enable with overrides / 启用并覆盖默认配置
    */
-  ai?: CrudPageAiOptions;
+  ai?: CrudPageAiOptions | false;
 }
 
 /**

@@ -22,6 +22,7 @@ from sqlalchemy import exists, func, select, update
 from app.core.base_model import Base, TenantModel, utc_now
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.logging import LogManager
+from app.enums.common import RecycleStageEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -290,6 +291,7 @@ async def execute_cascade_deps(
     db: AsyncSession,
     instance: Any,
     delete_level: str,
+    recycle_stage: str = RecycleStageEnum.MODULE.value,
     tenant_id: int | None = None,
 ) -> dict[str, int]:
     """
@@ -302,7 +304,8 @@ async def execute_cascade_deps(
     Args:
         db: 异步数据库会话 / Async database session
         instance: 已软删除的模型实例 / Soft-deleted model instance
-        delete_level: 删除层级（tenant / admin） / Deletion level
+        delete_level: 删除侧别（tenant / admin） / Delete scope
+        recycle_stage: 回收站阶段 / Recycle stage
         tenant_id: 企业 ID / Tenant ID
 
     Returns:
@@ -348,6 +351,8 @@ async def execute_cascade_deps(
                     is_deleted=True,
                     deleted_at=now,
                     delete_level=delete_level,
+                    recycle_stage=recycle_stage,
+                    promoted_to_global_at=None,
                     updated_at=now,
                 )
             )
@@ -393,23 +398,21 @@ async def execute_cascade_deps(
     return stats
 
 
-async def execute_cascade_escalate(
+async def execute_cascade_promote_to_global(
     db: AsyncSession,
     instance: Any,
     tenant_id: int | None = None,
 ) -> int:
     """
-    级联升级子记录的删除层级（tenant → admin）。
-    Escalate child records' deletion level (tenant → admin).
+    级联推进子记录到总回收站。
+    Cascade child records into the global recycle bin.
 
     对 CASCADE_SOFT 声明的子模型中已软删除的记录执行升级。
-    Escalates soft-deleted records in CASCADE_SOFT declared child models.
+    Promotes soft-deleted records in CASCADE_SOFT declared child models.
 
     Returns:
         总影响行数 / Total affected rows
     """
-    from app.enums.common import DeleteLevelEnum
-
     model_cls = instance.__class__
     deps: list[DeletionDep] = getattr(model_cls, "__delete_deps__", [])
     total = 0
@@ -438,8 +441,8 @@ async def execute_cascade_escalate(
             update(target_cls)
             .where(*conditions)
             .values(
-                delete_level=DeleteLevelEnum.ADMIN.value,
-                deleted_at=now,
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
                 updated_at=now,
             )
         )
@@ -447,6 +450,19 @@ async def execute_cascade_escalate(
         total += result.rowcount
 
     return total
+
+
+async def execute_cascade_escalate(
+    db: AsyncSession,
+    instance: Any,
+    tenant_id: int | None = None,
+) -> int:
+    """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for execute_cascade_promote_to_global"""
+    return await execute_cascade_promote_to_global(
+        db,
+        instance,
+        tenant_id=tenant_id,
+    )
 
 
 async def execute_cascade_restore(
@@ -495,6 +511,8 @@ async def execute_cascade_restore(
                 is_deleted=False,
                 deleted_at=None,
                 delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
                 updated_at=now,
             )
         )
@@ -509,6 +527,7 @@ __all__ = [
     "DependencyCheckResult",
     "check_deletion_deps",
     "execute_cascade_deps",
+    "execute_cascade_promote_to_global",
     "execute_cascade_escalate",
     "execute_cascade_restore",
     "resolve_model_class",

@@ -42,6 +42,8 @@ export interface BackendMenuItemRaw {
     order?: number;
     title?: string;
     ai?: {
+      disabled_capabilities?: string[] | string;
+      disabled_operations?: string[] | string;
       mode?: string;
       page_context_key?: string;
     };
@@ -197,12 +199,20 @@ function transformMenuItem(
     if (item.meta.iframe_src) meta.iframeSrc = item.meta.iframe_src;
     if (item.meta.link) meta.link = item.meta.link;
     if (item.meta.ai) {
-      (meta as Record<string, unknown>).ai = {
-        mode: item.meta.ai.mode ?? 'context_only',
-        ...(item.meta.ai.page_context_key
-          ? { pageContextKey: item.meta.ai.page_context_key }
-          : {}),
-      };
+      const aiMeta: Record<string, unknown> = {};
+      if (item.meta.ai.mode) aiMeta.mode = item.meta.ai.mode;
+      if (item.meta.ai.page_context_key) {
+        aiMeta.pageContextKey = item.meta.ai.page_context_key;
+      }
+      if (item.meta.ai.disabled_capabilities !== undefined) {
+        aiMeta.disabledCapabilities = item.meta.ai.disabled_capabilities;
+      }
+      if (item.meta.ai.disabled_operations !== undefined) {
+        aiMeta.disabledOperations = item.meta.ai.disabled_operations;
+      }
+      if (Object.keys(aiMeta).length > 0) {
+        (meta as Record<string, unknown>).ai = aiMeta;
+      }
     }
   }
 

@@ -38,6 +38,15 @@
 
 import type { Component, ComputedRef, Ref } from 'vue';
 
+import type { FormPopupApi } from './use-ai-operations';
+
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { VbenFormSchema } from '#/core/adapter/form/setup';
+import type {
+  PageAICapabilityKey,
+  TablePolicySupportConfig,
+} from '#/utils/ai-page-capabilities';
+
 import {
   computed,
   h,
@@ -47,27 +56,27 @@ import {
   onMounted,
   ref,
 } from 'vue';
-
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import {
+  appendPageOperations,
+  registerPageContext,
+  registerPageContextExtras,
+} from '#/components/business/ai-slide-panel';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
-import { registerPageContextExtras } from '#/components/business/ai-slide-panel/page-context-registry';
-import { appendPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import { $t } from '#/locales';
+import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
   getErrorMessage,
   getErrorStatus,
 } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
-import type { FormPopupApi } from './use-ai-operations';
+
 import {
   buildCrudListSummary,
   buildCrudPaginationState,
@@ -152,13 +161,15 @@ function _renderDepCard(dep: DependencyGroup, strategy: StrategyType) {
           ]),
         ],
       ),
-      ...(dep.items || []).slice(0, DEP_MAX_PREVIEW).map((item) =>
-        h(
-          'div',
-          { key: item.id, class: 'pl-2 text-xs text-muted-foreground' },
-          `• ${item.label || `#${item.id}`}`,
+      ...(dep.items || [])
+        .slice(0, DEP_MAX_PREVIEW)
+        .map((item) =>
+          h(
+            'div',
+            { key: item.id, class: 'pl-2 text-xs text-muted-foreground' },
+            `• ${item.label || `#${item.id}`}`,
+          ),
         ),
-      ),
       dep.count > DEP_MAX_PREVIEW
         ? h(
             'div',
@@ -407,7 +418,7 @@ export interface UseCrudListOptions<
    * AI page operation config (auto-registers standard CRUD operations)
    * AI 页面操作配置（自动注册标准 CRUD 操作）
    *
-   * - Not provided / 不提供: AI operations not registered / 不注册 AI 操作
+   * - Not provided / 不提供: auto-enable page AI with inferred defaults / 自动启用并推导默认配置
    * - false: Explicitly disable AI operations / 显式禁用 AI 操作
    * - CrudListAiOptions: Enable with config / 启用并配置
    */
@@ -424,8 +435,12 @@ export interface CrudListAiOptions {
    * 页面标识覆盖（默认通过 normalizePageKey 从 route.meta.ai?.pageContextKey 或 route.path 推导为点号格式）
    */
   pageKey?: string;
-  /** Operations to disable / 禁用的操作名称列表 */
+  /** Legacy disabled operation names / 旧版禁用操作名称列表 */
   disabled?: string[];
+  /** Disabled capability groups / 禁用的能力分组 */
+  disabledCapabilities?: PageAICapabilityKey[];
+  /** Disabled operation names / 禁用的操作名称列表 */
+  disabledOperations?: string[];
   /**
    * Search schema factory — used to derive search params for 'search' operation
    * 搜索 schema 工厂函数 — 用于推导 search 操作的参数
@@ -475,6 +490,10 @@ export interface CrudListAiOptions {
    * 使用此选项替代手动 registerPageContext()，避免 key 冲突。
    */
   contextExtras?: () => Record<string, unknown>;
+  /**
+   * Table policy runtime capability block / 表策略运行时能力块
+   */
+  tablePolicy?: TablePolicySupportConfig;
 }
 
 /** useCrudList return value / useCrudList 返回值 */
@@ -616,6 +635,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     customActions = {},
     ai,
   } = options;
+  const aiConfig = ai === false ? false : (ai ?? {});
 
   /** Get row primary key value / 获取行主键值 */
   function getRowKey(row: T): number | string {
@@ -797,13 +817,13 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   let cleanupAiContextBase: (() => void) | null = null;
   let cleanupAiContextExtras: (() => void) | null = null;
 
-  if (ai !== false && ai !== undefined) {
+  if (aiConfig) {
     const route = useRoute();
     const pageKey = normalizePageKey(
-      ai.pageKey ??
-      ((route.meta?.ai as Record<string, unknown> | undefined)
-        ?.pageContextKey as string | undefined) ??
-      route.path,
+      aiConfig.pageKey ??
+        ((route.meta?.ai as Record<string, unknown> | undefined)
+          ?.pageContextKey as string | undefined) ??
+        route.path,
     );
     resolvedAiPageKey = pageKey;
 
@@ -824,29 +844,29 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       },
       formPopupApi: formPopupApi as FormPopupApi | null,
       formDefaults,
-      searchSchema: ai.searchSchema,
-      formSchema: ai.formSchema,
-      detailRoute: ai.detailRoute,
-      hasRecycleBin: !!options.recycleBin && !!ai.openRecycleBin,
-      openRecycleBin: ai.openRecycleBin,
-      disabled: ai.disabled,
-      extra: ai.extra,
+      searchSchema: aiConfig.searchSchema,
+      formSchema: aiConfig.formSchema,
+      detailRoute: aiConfig.detailRoute,
+      hasRecycleBin: !!options.recycleBin && !!aiConfig.openRecycleBin,
+      openRecycleBin: aiConfig.openRecycleBin,
+      disabled: aiConfig.disabled,
+      disabledCapabilities: aiConfig.disabledCapabilities,
+      disabledOperations: aiConfig.disabledOperations,
+      extra: aiConfig.extra,
       pageKey,
+      rowKeyField: keyField,
     });
 
-    cleanupAiOps = appendPageOperations(pageKey, standardOps);
-
-    // Auto-register enhanced page context with semantic info / 自动注册带语义信息的增强页面上下文
-    // 自动注册含语义信息的增强页面上下文
     const routeTitle = route.meta?.title as string | undefined;
-    const entityName = ai.entityName ?? routeTitle ?? '';
-    const entityDescription = ai.entityDescription;
-    const formPurpose = ai.formPurpose;
-    const contextExtras = ai.contextExtras;
-    const formFieldDescriptors = ai.formSchema
-      ? extractFormParams(ai.formSchema(false))
+    const entityName = aiConfig.entityName ?? routeTitle ?? '';
+    const entityDescription = aiConfig.entityDescription;
+    const formPurpose = aiConfig.formPurpose;
+    const contextExtras = aiConfig.contextExtras;
+    const formFieldDescriptors = aiConfig.formSchema
+      ? extractFormParams(aiConfig.formSchema(false))
       : undefined;
 
+    cleanupAiOps = appendPageOperations(pageKey, standardOps);
     cleanupAiContextBase = registerPageContext(pageKey, () => ({
       page_key: pageKey,
       page_title: entityName || routeTitle || pageKey,
@@ -854,7 +874,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         resource: api.resource,
       },
     }));
-
     cleanupAiContextExtras = registerPageContextExtras(pageKey, () => {
       const rows = list.value as unknown[];
       const pagination = buildCrudPaginationState({
@@ -870,6 +889,9 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       const activeFilters = compactCrudContextValues(
         processFormValues(searchParams.value),
       );
+      const tablePolicySupport = buildTablePolicySupportData(
+        aiConfig.tablePolicy,
+      );
 
       return {
         page_key: pageKey,
@@ -878,18 +900,22 @@ export function useCrudList<T extends object = Record<string, unknown>>(
           total: total.value,
           list_count: rows.length,
           ...(entityName ? { entity_name: entityName } : {}),
-          ...(entityDescription ? { entity_description: entityDescription } : {}),
+          ...(entityDescription
+            ? { entity_description: entityDescription }
+            : {}),
           ...(formPurpose ? { form_purpose: formPurpose } : {}),
-          ...(formFieldDescriptors && Object.keys(formFieldDescriptors).length > 0
+          ...(formFieldDescriptors &&
+          Object.keys(formFieldDescriptors).length > 0
             ? { form_fields: formFieldDescriptors }
             : {}),
-          ...(formStateTracker.isOpen(pageKey)
-            ? { form_is_open: true }
-            : {}),
+          ...(formStateTracker.isOpen(pageKey) ? { form_is_open: true } : {}),
           ...(Object.keys(activeFilters).length > 0
             ? { active_filters: activeFilters }
             : {}),
           ...(listSummary ? { list_summary: listSummary } : {}),
+          ...(tablePolicySupport
+            ? { table_policy_support: tablePolicySupport }
+            : {}),
           ...(contextExtras ? contextExtras() : {}),
         },
       };
@@ -926,10 +952,10 @@ export function useCrudList<T extends object = Record<string, unknown>>(
           { showCodeMessage: false },
         );
         preview = (res?.data ?? res) as DeletePreviewResult;
-      } catch (err: unknown) {
-        const status = getErrorStatus(err);
+      } catch (error: unknown) {
+        const status = getErrorStatus(error);
         if (status !== 404) {
-          message.error(getErrorMessage(err, 'common.deleteFailed'));
+          message.error(getErrorMessage(error, 'common.deleteFailed'));
           return;
         }
       }
@@ -1094,7 +1120,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
   onBeforeUnmount(() => {
     stopAutoRefresh();
-    // Cleanup AI page operations and context on unmount / 组件卸载时清理 AI 页面操作和上下文注册
     cleanupAiOps?.();
     cleanupAiContextExtras?.();
     cleanupAiContextBase?.();

@@ -54,11 +54,13 @@ async def handle_route(
     *,
     tenant_id: int | None,
     message: str,
+    conversation_id: int | None,
     user_role: str,
     user_role_id: int | None,
     page_context: dict[str, Any] | None,
     pinned_agent_id: int | None,
     user_id: int | None = None,
+    force_reroute: bool = False,
     has_image_attachments: bool = False,
 ) -> dict[str, Any]:
     """
@@ -77,11 +79,13 @@ async def handle_route(
     result = await router_svc.route(
         tenant_id=tenant_id,
         message=message,
+        conversation_id=conversation_id,
         page_context=page_context,
         pinned_agent_id=pinned_agent_id,
         user_role=user_role,
         user_role_id=user_role_id,
         user_id=user_id,
+        force_reroute=force_reroute,
         has_image_attachments=has_image_attachments,
     )
     return success(data=AgentRouteResponse(

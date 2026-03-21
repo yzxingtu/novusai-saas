@@ -4,11 +4,8 @@
  */
 import type { MarketplacePluginItem } from '#/api/admin/plugin-marketplace';
 
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -29,6 +26,7 @@ import {
   getMarketplaceListApi,
   marketplaceConfirmInstallApi,
 } from '#/api/admin/plugin-marketplace';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 import { getTierColor, getTierText } from '../data';
@@ -52,18 +50,46 @@ const CATEGORIES = [
     icon: 'lucide:grid-2x2',
     label: () => $t('admin.plugin.type_options.all'),
   },
-  { value: 'ai', icon: 'lucide:brain', label: () => $t('admin.plugin.marketplace.category.ai') },
-  { value: 'integration', icon: 'lucide:link', label: () => $t('admin.plugin.marketplace.category.integration') },
-  { value: 'storage', icon: 'lucide:database', label: () => $t('admin.plugin.marketplace.category.storage') },
-  { value: 'business', icon: 'lucide:briefcase', label: () => $t('admin.plugin.marketplace.category.business') },
-  { value: 'tools', icon: 'lucide:wrench', label: () => $t('admin.plugin.marketplace.category.tools') },
+  {
+    value: 'ai',
+    icon: 'lucide:brain',
+    label: () => $t('admin.plugin.marketplace.category.ai'),
+  },
+  {
+    value: 'integration',
+    icon: 'lucide:link',
+    label: () => $t('admin.plugin.marketplace.category.integration'),
+  },
+  {
+    value: 'storage',
+    icon: 'lucide:database',
+    label: () => $t('admin.plugin.marketplace.category.storage'),
+  },
+  {
+    value: 'business',
+    icon: 'lucide:briefcase',
+    label: () => $t('admin.plugin.marketplace.category.business'),
+  },
+  {
+    value: 'tools',
+    icon: 'lucide:wrench',
+    label: () => $t('admin.plugin.marketplace.category.tools'),
+  },
   {
     value: 'communication',
     icon: 'lucide:message-circle',
     label: () => $t('admin.plugin.marketplace.category.communication'),
   },
-  { value: 'analytics', icon: 'lucide:bar-chart-3', label: () => $t('admin.plugin.marketplace.category.analytics') },
-  { value: 'security', icon: 'lucide:shield', label: () => $t('admin.plugin.marketplace.category.security') },
+  {
+    value: 'analytics',
+    icon: 'lucide:bar-chart-3',
+    label: () => $t('admin.plugin.marketplace.category.analytics'),
+  },
+  {
+    value: 'security',
+    icon: 'lucide:shield',
+    label: () => $t('admin.plugin.marketplace.category.security'),
+  },
 ] as const;
 
 async function loadMarketplace() {
@@ -109,46 +135,43 @@ async function handleInstall(plugin: MarketplacePluginItem) {
   });
 }
 
-const cleanupPageContext = registerPageContext('admin/plugins/marketplace', () => ({
-  page_key: 'admin.plugins.marketplace',
-  page_title: $t('admin.plugin.marketplace.title'),
-  page_data: {
-    resource: '/admin/plugins/marketplace',
+usePageAIRegistration({
+  pageKey: 'admin.plugins.marketplace',
+  title: () => $t('admin.plugin.marketplace.title'),
+  resource: '/admin/plugins/marketplace',
+  data: () => ({
     total: total.value,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.plugins.marketplace', [
-  {
-    name: 'refresh_marketplace',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the plugin marketplace list',
-    readonly: true,
-    handler: async () => {
-      await loadMarketplace();
-      return { success: true, message: 'Marketplace refreshed' };
+  }),
+  operations: [
+    {
+      name: 'refresh_marketplace',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload the plugin marketplace list',
+      readonly: true,
+      handler: async () => {
+        await loadMarketplace();
+        return { success: true, message: 'Marketplace refreshed' };
+      },
     },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchPlugins'),
-    description: 'Search plugins in the marketplace',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Plugin name keyword' },
+    {
+      name: 'search',
+      label: $t('shared.pageOperation.searchPlugins'),
+      description: 'Search plugins in the marketplace',
+      readonly: true,
+      params: {
+        keyword: { type: 'string', description: 'Plugin name keyword' },
+      },
+      handler: async (params) => {
+        searchKeyword.value = (params?.keyword as string) || '';
+        currentPage.value = 1;
+        await loadMarketplace();
+        return {
+          success: true,
+          message: `Searched for: ${searchKeyword.value}`,
+        };
+      },
     },
-    handler: async (params) => {
-      searchKeyword.value = (params?.keyword as string) || '';
-      currentPage.value = 1;
-      await loadMarketplace();
-      return { success: true, message: `Searched for: ${searchKeyword.value}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

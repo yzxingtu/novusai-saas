@@ -12,6 +12,7 @@ class _FakeRedis:
         self.store: dict[str, str] = {}
         self.ttl: dict[str, int] = {}
         self.scan_keys: list[str] = []
+        self.delete_calls: list[tuple[str, ...]] = []
 
     async def get(self, key: str):
         return self.store.get(key)
@@ -26,6 +27,7 @@ class _FakeRedis:
         return await self.set(key, value, ex=ttl)
 
     async def delete(self, *keys):
+        self.delete_calls.append(tuple(keys))
         deleted = 0
         for k in keys:
             if k in self.store:
@@ -36,10 +38,15 @@ class _FakeRedis:
 
     async def scan(self, cursor=0, match: str | None = None, count: int = 100):
         _ = cursor, count
-        if match == "mem:sess:1:*:*:*:*:100":
-            keys = [k for k in self.store if k.startswith("mem:sess:1:") and k.endswith(":100")]
-        else:
-            keys = []
+        keys = []
+        if match and match.startswith("mem:sess:1:*:*:*:*:"):
+            conversation_id = match.rsplit(":", 1)[-1]
+            keys = [
+                k for k in self.store
+                if k.startswith("mem:sess:1:") and k.endswith(f":{conversation_id}")
+            ]
+        elif match == "mem:sess:1:*":
+            keys = [k for k in self.store if k.startswith("mem:sess:1:")]
         return 0, keys
 
     async def watch(self, _key: str):
@@ -140,3 +147,27 @@ async def test_session_memory_clear_by_conversation(monkeypatch):
     deleted = await svc.clear_conversation_memory(100)
     assert deleted == 2
     assert "mem:sess:1:tenant_chat:ai_chat_page:10:20:101" in fake.store
+
+
+@pytest.mark.asyncio
+async def test_session_memory_clear_multiple_conversations(monkeypatch):
+    fake = _FakeRedis()
+    monkeypatch.setattr("app.services.ai.session_memory_service.get_redis_client", lambda: fake)
+
+    fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:100"] = "{}"
+    fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:101"] = "{}"
+    fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:102"] = "{}"
+    fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:999"] = "{}"
+
+    svc = SessionMemoryService(tenant_id=1)
+    deleted = await svc.clear_conversation_memories([100, 101, 100])
+
+    assert deleted == 2
+    assert "mem:sess:1:tenant_chat:ai_chat_page:10:20:102" in fake.store
+    assert "mem:sess:1:tenant_chat:ai_chat_page:10:20:999" in fake.store
+    assert fake.delete_calls == [
+        (
+            "mem:sess:1:tenant_chat:ai_chat_page:10:20:100",
+            "mem:sess:1:tenant_chat:ai_chat_page:10:20:101",
+        )
+    ]

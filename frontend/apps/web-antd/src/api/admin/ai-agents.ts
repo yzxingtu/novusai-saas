@@ -45,9 +45,20 @@ export interface AIAgentInfo {
   quota_config: null | Record<string, unknown>;
   context_config: null | Record<string, unknown>;
   input_variables: null | Record<string, unknown>[];
+  output_schema?: null | unknown[];
+  rag_config?: null | AgentRagConfig;
   assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;
+}
+
+export interface AgentRagConfig {
+  search_mode?: 'hybrid' | 'keyword' | 'vector';
+  top_k?: number;
+  score_threshold?: number;
+  rewrite_strategy?: 'hyde' | 'multi' | 'none';
+  reranker_enabled?: boolean;
+  context_token_ratio?: number;
 }
 
 /** Create agent request / 创建智能体请求 */
@@ -63,6 +74,7 @@ export interface AIAgentCreateRequest {
   temperature?: number;
   max_tokens?: number;
   knowledge_base_ids?: number[];
+  rag_config?: null | AgentRagConfig;
 }
 
 /** Update agent request / 更新智能体请求 */
@@ -85,6 +97,8 @@ export interface AIAgentUpdateRequest {
   quota_config?: null | Record<string, unknown>;
   context_config?: null | Record<string, unknown>;
   knowledge_base_ids?: number[];
+  output_schema?: null | unknown[];
+  rag_config?: null | AgentRagConfig;
 }
 
 /** Agent memory config (admin) / 智能体记忆配置（管理端） */
@@ -315,6 +329,10 @@ export interface AIAgentKBBindingInfo {
   kb_scope: string | null;
   kb_visibility: string | null;
   kb_document_count: number | null;
+  kb_chunk_strategy: null | string;
+  kb_embedding_model_id: null | number;
+  kb_embedding_model_name: null | string;
+  kb_embedding_dimensions: null | number;
 }
 
 /** Bind KB request / 绑定知识库请求 */
@@ -409,6 +427,29 @@ export interface AIAgentVersionItem {
   created_at: string;
 }
 
+export interface AIAgentVersionDetail extends AIAgentVersionItem {
+  system_prompt: string;
+  model_id: number;
+  temperature: number;
+  max_tokens: null | number;
+  top_p: null | number;
+  tool_bindings: null | unknown[];
+  input_variables: null | unknown[];
+  welcome_message: null | string;
+  suggested_questions: null | unknown[];
+  context_config: null | Record<string, unknown>;
+  output_schema: null | unknown[];
+  quota_config: null | Record<string, unknown>;
+  rag_config: AgentRagConfig | null;
+}
+
+export interface AIAgentVersionDiff {
+  agent_id: number;
+  v1: number;
+  v2: number;
+  changes: Record<string, { v1: unknown; v2: unknown }>;
+}
+
 /** Publish agent / 发布智能体 */
 export async function publishAIAgentApi(
   agentId: number,
@@ -444,9 +485,21 @@ export async function getAIAgentVersionsApi(
 export async function getAIAgentVersionDetailApi(
   agentId: number,
   version: number,
-): Promise<Record<string, unknown>> {
-  return requestClient.get<Record<string, unknown>>(
+): Promise<AIAgentVersionDetail> {
+  return requestClient.get<AIAgentVersionDetail>(
     `${AGENT_PREFIX}/${agentId}/versions/${version}`,
+  );
+}
+
+/** Diff versions / 对比版本 */
+export async function diffAIAgentVersionsApi(
+  agentId: number,
+  v1: number,
+  v2: number,
+): Promise<AIAgentVersionDiff> {
+  return requestClient.get<AIAgentVersionDiff>(
+    `${AGENT_PREFIX}/${agentId}/versions/diff`,
+    { params: { v1, v2 } },
   );
 }
 

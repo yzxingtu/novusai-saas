@@ -5,13 +5,17 @@
     "unsaved_content": "You have unsaved changes. Are you sure to leave?",
     "password_placeholder": "Enter new password to change",
     "select_group": "Please select a config group from the left",
-    "json_placeholder": "Enter JSON configuration"
+    "json_placeholder": "Enter JSON configuration",
+    "page_context_limit_title": "Adjust the page-context size limit here",
+    "page_context_limit_desc": "Config key: {configKey}. Default: {defaultValue}. This limits the maximum bytes of page_context.page_data in AI chat/router requests, not model input tokens or output tokens.",
+    "locate_page_context_limit": "Locate this setting"
   },
   "group": {
     "platform_general": "General Settings",
     "platform_security": "Security Settings",
     "platform_email": "Email Settings",
     "platform_ssl": "SSL Certificate Management",
+    "platform_ai_toolkit": "AI Toolkit & Page Context",
     "tenant_appearance": "Appearance",
     "tenant_general": "Security",
     "tenant_features": "Members"
@@ -21,6 +25,7 @@
     "platform_security": "Password policy, login security, etc.",
     "platform_email": "SMTP email delivery configuration",
     "platform_ssl": "ACME certificate issuance, DNS provider, renewal policy",
+    "platform_ai_toolkit": "Toolkit security policies, resource limits, and AI chat page-context size limits",
     "tenant_appearance": "Logo, login page branding",
     "tenant_general": "Login security, password policy, session settings",
     "tenant_features": "Registration, notifications, file upload and other member features"
@@ -60,10 +65,7 @@
     "dns_provider": "DNS Provider",
     "dns_cloudflare_api_token": "Cloudflare API Token",
     "dns_cloudflare_zone_id": "Cloudflare Zone ID",
-    "dns_aliyun_access_key_id": "Alibaba Cloud AccessKey ID",
-    "dns_aliyun_access_key_secret": "Alibaba Cloud AccessKey Secret",
-    "dns_dnspod_secret_id": "DNSPod SecretId",
-    "dns_dnspod_secret_key": "DNSPod SecretKey"
+    "ai_page_context_max_bytes": "Chat Page Context Max Bytes"
   },
   "platform_desc": {
     "site_name": "Displayed in browser title bar and header",
@@ -74,13 +76,10 @@
     "ssl_private_key_encryption_key": "Fernet key for encrypting stored SSL private keys",
     "ssl_auto_renew_days": "Days before expiry to trigger automatic renewal",
     "ssl_allow_custom_cert": "Whether to allow tenants to upload custom SSL certificates",
-    "dns_provider": "DNS provider for ACME DNS-01 challenge validation",
+    "dns_provider": "Production automation currently supports only Cloudflare DNS-01; manual mode is for development/debug only",
     "dns_cloudflare_api_token": "Cloudflare API Token (requires Zone.DNS edit permission)",
     "dns_cloudflare_zone_id": "Cloudflare domain zone ID",
-    "dns_aliyun_access_key_id": "Alibaba Cloud RAM AccessKey ID (requires AliyunDNSFullAccess permission)",
-    "dns_aliyun_access_key_secret": "Alibaba Cloud RAM AccessKey Secret",
-    "dns_dnspod_secret_id": "Tencent Cloud API SecretId (requires DNSPod domain resolution permission)",
-    "dns_dnspod_secret_key": "Tencent Cloud API SecretKey"
+    "ai_page_context_max_bytes": "Limits the maximum bytes of page_context.page_data in AI chat/router requests; this is a page-context budget, not a model token limit"
   },
   "platform_options": {
     "password_complexity": {
@@ -94,10 +93,8 @@
       "tls": "TLS"
     },
     "dns_provider": {
-      "manual": "Manual (requires manual DNS record setup)",
-      "cloudflare": "Cloudflare",
-      "aliyun": "Alibaba Cloud DNS",
-      "dnspod": "DNSPod (Tencent Cloud)"
+      "manual": "Manual (development/debug only, no automated issuance)",
+      "cloudflare": "Cloudflare"
     }
   },
   "generate_key": "Generate Key",

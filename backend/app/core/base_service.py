@@ -20,16 +20,17 @@ from app.core.base_schema import PageParams, PageResponse
 from app.core.dependency_checker import (
     check_deletion_deps,
     execute_cascade_deps,
-    execute_cascade_escalate,
+    execute_cascade_promote_to_global,
     execute_cascade_restore,
 )
 from app.core.logging import LogManager
-from app.enums.common import DeleteLevelEnum
+from app.enums.common import DeleteLevelEnum, RecycleStageEnum
 from app.exceptions.base import DependencyBlockedException, NotFoundException
 from app.schemas.common.query import FilterRule, QuerySpec
 from app.schemas.common.select import SelectResponse
 
 _logger = LogManager.get_logger("db")
+_USE_SERVICE_DEFAULT_DELETE_LEVEL = object()
 
 # 泛型类型变量 / Generic type variables
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -442,6 +443,7 @@ class BaseService(Generic[ModelType, RepoType]):
         self,
         spec: QuerySpec,
         delete_level: str | None = None,
+        recycle_stage: str | None = None,
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
@@ -460,15 +462,28 @@ class BaseService(Generic[ModelType, RepoType]):
         return await self.repo.query_deleted(
             spec=spec,
             delete_level=delete_level,
+            recycle_stage=recycle_stage,
             scope=scope,
             forced_filters=forced_filters,
         )
 
-    async def count_deleted(self, delete_level: str | None = None) -> int:
+    async def count_deleted(
+        self,
+        delete_level: str | None = None,
+        recycle_stage: str | None = None,
+    ) -> int:
         """统计回收站记录数量 / Count recycle bin records"""
-        return await self.repo.count_deleted(delete_level=delete_level)
+        return await self.repo.count_deleted(
+            delete_level=delete_level,
+            recycle_stage=recycle_stage,
+        )
 
-    async def restore(self, id: int) -> ModelType | None:
+    async def restore(
+        self,
+        id: int,
+        recycle_stage: str | None = None,
+        delete_level: str | None | object = _USE_SERVICE_DEFAULT_DELETE_LEVEL,
+    ) -> ModelType | None:
         """
         恢复已删除记录 / Restore a deleted record
 
@@ -482,19 +497,28 @@ class BaseService(Generic[ModelType, RepoType]):
             恢复后的模型实例或 None / Restored model instance or None
         """
         await self._before_restore(id)
-        instance = await self.repo.restore_by_id(id)
+        effective_delete_level = (
+            self._default_delete_level
+            if delete_level is _USE_SERVICE_DEFAULT_DELETE_LEVEL
+            else delete_level
+        )
+        instance = await self.repo.restore_by_id(
+            id,
+            delete_level=effective_delete_level,
+            recycle_stage=recycle_stage,
+        )
         if instance:
             tenant_id = getattr(self, "tenant_id", None)
             await execute_cascade_restore(self.db, instance, tenant_id=tenant_id)
             await self._after_restore(instance)
         return instance
 
-    async def escalate_delete(self, id: int) -> ModelType | None:
+    async def promote_to_global(self, id: int) -> ModelType | None:
         """
-        升级删除层级 / Escalate delete level (tenant → admin)
+        推进记录到总回收站 / Promote deleted record to global recycle bin
 
-        自动级联升级 __delete_deps__ 中 CASCADE_SOFT 声明的子记录。
-        Automatically cascades escalation to child records declared as CASCADE_SOFT in __delete_deps__.
+        自动级联推进 __delete_deps__ 中 CASCADE_SOFT 声明的子记录。
+        Automatically cascades promotion for child records declared as CASCADE_SOFT in __delete_deps__.
 
         Args:
             id: 记录 ID / Record ID
@@ -502,13 +526,28 @@ class BaseService(Generic[ModelType, RepoType]):
         Returns:
             更新后的模型实例或 None / Updated model instance or None
         """
-        instance = await self.repo.escalate_delete_by_id(id)
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is not None:
             tenant_id = getattr(self, "tenant_id", None)
-            await execute_cascade_escalate(self.db, instance, tenant_id=tenant_id)
+            await execute_cascade_promote_to_global(
+                self.db,
+                instance,
+                tenant_id=tenant_id,
+            )
         return instance
 
-    async def permanent_delete(self, id: int) -> bool:
+    async def escalate_delete(self, id: int) -> ModelType | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global"""
+        return await self.promote_to_global(id)
+
+    async def permanent_delete(
+        self,
+        id: int,
+        delete_level: str | None | object = _USE_SERVICE_DEFAULT_DELETE_LEVEL,
+    ) -> bool:
         """
         永久删除记录 / Permanently delete a record
 
@@ -519,7 +558,16 @@ class BaseService(Generic[ModelType, RepoType]):
             是否删除成功 / Whether deletion was successful
         """
         await self._before_permanent_delete(id)
-        return await self.repo.permanent_delete(id)
+        effective_delete_level = (
+            self._default_delete_level
+            if delete_level is _USE_SERVICE_DEFAULT_DELETE_LEVEL
+            else delete_level
+        )
+        return await self.repo.permanent_delete(
+            id,
+            delete_level=effective_delete_level,
+            recycle_stage=RecycleStageEnum.GLOBAL.value,
+        )
 
     async def batch_restore(self, ids: list[int]) -> int:
         """批量恢复（逐条执行，触发级联恢复） / Batch restore (per-item to trigger cascade)"""
@@ -535,6 +583,15 @@ class BaseService(Generic[ModelType, RepoType]):
         count = 0
         for item_id in ids:
             result = await self.permanent_delete(item_id)
+            if result:
+                count += 1
+        return count
+
+    async def batch_promote_to_global(self, ids: list[int]) -> int:
+        """批量推进到总回收站（逐条执行，触发级联） / Batch promote to global recycle bin (per-item to trigger cascade)"""
+        count = 0
+        for item_id in ids:
+            result = await self.promote_to_global(item_id)
             if result:
                 count += 1
         return count
@@ -710,6 +767,7 @@ class BaseService(Generic[ModelType, RepoType]):
             self.db,
             instance,
             delete_level=self._default_delete_level,
+            recycle_stage=RecycleStageEnum.MODULE.value,
             tenant_id=tenant_id,
         )
         if stats:

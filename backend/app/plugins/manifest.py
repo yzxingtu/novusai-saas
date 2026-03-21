@@ -452,13 +452,21 @@ class FloatingPanelSchema(BaseModel):
 class StandalonePageAISchema(BaseModel):
     """Standalone page AI metadata (optional) / 独立页面 AI 元信息（可选）"""
 
-    mode: Literal["disabled", "context_only", "operate"] = Field(
-        "context_only",
-        description="AI mode: disabled / context_only / operate",
+    mode: Literal["disabled", "context_only", "operate"] | None = Field(
+        None,
+        description="AI mode override: disabled / context_only / operate",
     )
     page_context_key: str | None = Field(
         None,
         description="Page context registry key (for resolvePageContext exact matching)",
+    )
+    disabled_capabilities: list[str] | None = Field(
+        None,
+        description="Capability keys disabled on this page",
+    )
+    disabled_operations: list[str] | None = Field(
+        None,
+        description="Operation names disabled on this page",
     )
 
 

@@ -15,7 +15,7 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String, inspect
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase
 
-from app.enums.common import DeleteLevelEnum
+from app.enums.common import DeleteLevelEnum, RecycleStageEnum
 
 
 def utc_now() -> datetime:
@@ -79,7 +79,20 @@ class BaseModel(Base):
         String(20),
         nullable=True,
         default=None,
-        comment="删除层级 / Delete level: tenant=tenant recycle bin, admin=admin recycle bin"
+        comment="删除侧别 / Delete scope: tenant=tenant side, admin=admin side"
+    )
+    recycle_stage = Column(
+        String(20),
+        nullable=True,
+        default=None,
+        index=True,
+        comment="回收站阶段 / Recycle stage: module/global"
+    )
+    promoted_to_global_at = Column(
+        DateTime,
+        nullable=True,
+        default=None,
+        comment="进入总回收站时间 / Promoted to global recycle bin at"
     )
 
     @declared_attr
@@ -117,30 +130,40 @@ class BaseModel(Base):
                 result[col_name] = getattr(self, attr.key)
         return result
 
-    def soft_delete(self, level: str = "admin") -> None:
+    def soft_delete(self, level: str = DeleteLevelEnum.ADMIN.value) -> None:
         """
         软删除 / Soft delete
 
         Args:
-            level: 删除层级 / Delete level ('tenant' or 'admin')
+            level: 删除侧别 / Delete scope ('tenant' or 'admin')
         """
+        now = utc_now()
         self.is_deleted = True
-        self.deleted_at = utc_now()
+        self.deleted_at = now
         self.delete_level = level
-        self.updated_at = utc_now()
+        self.recycle_stage = RecycleStageEnum.MODULE.value
+        self.promoted_to_global_at = None
+        self.updated_at = now
 
     def restore(self) -> None:
         """恢复软删除 / Restore soft-deleted record"""
         self.is_deleted = False
         self.deleted_at = None
         self.delete_level = None
+        self.recycle_stage = None
+        self.promoted_to_global_at = None
         self.updated_at = utc_now()
 
+    def promote_to_global(self) -> None:
+        """推进到总回收站 / Promote record to the global recycle bin"""
+        now = utc_now()
+        self.recycle_stage = RecycleStageEnum.GLOBAL.value
+        self.promoted_to_global_at = now
+        self.updated_at = now
+
     def escalate_delete(self) -> None:
-        """升级删除层级 / Escalate delete level (tenant → admin), reset deleted_at"""
-        self.delete_level = DeleteLevelEnum.ADMIN.value
-        self.deleted_at = utc_now()
-        self.updated_at = utc_now()
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global"""
+        self.promote_to_global()
 
     def update_from_dict(self, data: dict[str, Any]) -> None:
         """

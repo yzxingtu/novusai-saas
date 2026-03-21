@@ -16,9 +16,6 @@ Provides standardized recycle bin API endpoint registration for Controllers.
                 resource_name="agent",
             )
 
-企业端无「总回收站」聚合 API；仅各业务路由下的 /recycle-bin/*（本模块注册）。
-There is no tenant-wide aggregate recycle-bin API; only per-resource /recycle-bin/* routes.
-
 使用示例（GlobalController）:
     from app.core.recycle_bin import register_admin_recycle_bin_routes
 
@@ -39,8 +36,8 @@ from fastapi import APIRouter, Body, Request
 
 from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import deleted, paginated, success
-from app.enums.common import DeleteLevelEnum
+from app.core.response import paginated, success
+from app.enums.common import DeleteLevelEnum, RecycleStageEnum
 from app.exceptions import NotFoundException, ValidationException
 from app.rbac.decorators import action_delete
 
@@ -59,9 +56,9 @@ def register_tenant_recycle_bin_routes(
 
     企业端回收站行为：
     Tenant-side recycle bin behavior:
-    - 查询：查 delete_level='tenant' 的记录 / Query: records with delete_level='tenant'
+    - 查询：查 delete_level='tenant' 且 recycle_stage='module' 的记录 / Query: tenant-side records in module-stage recycle bin
     - 恢复：还原记录 / Restore: undelete records
-    - 删除：升级到 admin 回收站（escalate_delete） / Delete: escalate to admin recycle bin
+    - 删除：推进到管理端唯一总回收站 / Delete: move records into the single admin global recycle bin
 
     Args:
         router: 控制器路由器 / Controller router
@@ -79,7 +76,10 @@ def register_tenant_recycle_bin_routes(
         tenant_admin: ActiveTenantAdmin,
     ):
         svc = service_class(db, tenant_admin.tenant_id)
-        count = await svc.count_deleted(delete_level=DeleteLevelEnum.TENANT.value)
+        count = await svc.count_deleted(
+            delete_level=DeleteLevelEnum.TENANT.value,
+            recycle_stage=RecycleStageEnum.MODULE.value,
+        )
         return success(data={"count": count})
 
     @router.get("/recycle-bin", summary="回收站列表")
@@ -94,6 +94,7 @@ def register_tenant_recycle_bin_routes(
         items, total = await svc.query_deleted_list(
             spec=query,
             delete_level=DeleteLevelEnum.TENANT.value,
+            recycle_stage=RecycleStageEnum.MODULE.value,
         )
         result = [_serialize_with_delete_meta(item, _serialize) for item in items]
         return paginated(
@@ -103,35 +104,8 @@ def register_tenant_recycle_bin_routes(
             page_size=query.size,
         )
 
-    @router.post("/recycle-bin/{item_id}/restore", summary="恢复记录")
-    @action_delete(f"action.{resource_name}.recycle_bin")
-    async def recycle_bin_restore(
-        request: Request,
-        db: DbSession,
-        item_id: int,
-        tenant_admin: ActiveTenantAdmin,
-    ):
-        svc = service_class(db, tenant_admin.tenant_id)
-        instance = await svc.restore(item_id)
-        if not instance:
-            raise NotFoundException(message=_("recycle_bin.error.not_found"))
-        await db.commit()
-        return success(message=_("recycle_bin.restored"))
-
-    @router.delete("/recycle-bin/{item_id}", summary="从回收站删除（升级到管理端）")
-    @action_delete(f"action.{resource_name}.recycle_bin")
-    async def recycle_bin_delete(
-        request: Request,
-        db: DbSession,
-        item_id: int,
-        tenant_admin: ActiveTenantAdmin,
-    ):
-        svc = service_class(db, tenant_admin.tenant_id)
-        instance = await svc.escalate_delete(item_id)
-        if not instance:
-            raise NotFoundException(message=_("recycle_bin.error.not_found"))
-        await db.commit()
-        return success(message=_("recycle_bin.escalated"))
+    # 静态路径须先于 /recycle-bin/{item_id} 注册，否则 "batch" 会被当成 item_id
+    # Static paths must be registered before /recycle-bin/{item_id} or "batch" is parsed as item_id
 
     @router.post("/recycle-bin/batch-restore", summary="批量恢复")
     @action_delete(f"action.{resource_name}.recycle_bin")
@@ -144,11 +118,18 @@ def register_tenant_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db, tenant_admin.tenant_id)
-        count = await svc.batch_restore(ids)
+        count = 0
+        for item_id in ids:
+            instance = await svc.restore(
+                item_id,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+            )
+            if instance:
+                count += 1
         await db.commit()
         return success(data={"count": count}, message=_("recycle_bin.restored"))
 
-    @router.delete("/recycle-bin/batch", summary="批量删除（升级到管理端）")
+    @router.delete("/recycle-bin/batch", summary="批量删除（推进到总回收站）")
     @action_delete(f"action.{resource_name}.recycle_bin")
     async def recycle_bin_batch_delete(
         request: Request,
@@ -159,13 +140,42 @@ def register_tenant_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db, tenant_admin.tenant_id)
-        count = 0
-        for item_id in ids:
-            result = await svc.escalate_delete(item_id)
-            if result:
-                count += 1
+        count = await svc.batch_promote_to_global(ids)
         await db.commit()
-        return success(data={"count": count}, message=_("recycle_bin.escalated"))
+        return success(data={"count": count}, message=_("recycle_bin.moved_to_global"))
+
+    @router.post("/recycle-bin/{item_id}/restore", summary="恢复记录")
+    @action_delete(f"action.{resource_name}.recycle_bin")
+    async def recycle_bin_restore(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        tenant_admin: ActiveTenantAdmin,
+    ):
+        svc = service_class(db, tenant_admin.tenant_id)
+        instance = await svc.restore(
+            item_id,
+            recycle_stage=RecycleStageEnum.MODULE.value,
+        )
+        if not instance:
+            raise NotFoundException(message=_("recycle_bin.error.not_found"))
+        await db.commit()
+        return success(message=_("recycle_bin.restored"))
+
+    @router.delete("/recycle-bin/{item_id}", summary="从回收站删除（推进到总回收站）")
+    @action_delete(f"action.{resource_name}.recycle_bin")
+    async def recycle_bin_delete(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        tenant_admin: ActiveTenantAdmin,
+    ):
+        svc = service_class(db, tenant_admin.tenant_id)
+        instance = await svc.promote_to_global(item_id)
+        if not instance:
+            raise NotFoundException(message=_("recycle_bin.error.not_found"))
+        await db.commit()
+        return success(message=_("recycle_bin.moved_to_global"))
 
     @router.get("/{item_id}/delete-preview", summary="删除影响预览")
     @action_delete(f"action.{resource_name}.delete")
@@ -192,9 +202,9 @@ def register_admin_recycle_bin_routes(
 
     管理端回收站行为：
     Admin-side recycle bin behavior:
-    - 查询：查 delete_level='admin' 的记录 / Query: records with delete_level='admin'
+    - 查询：查 delete_level='admin' 且 recycle_stage='module' 的记录 / Query: admin-side records in module-stage recycle bin
     - 恢复：还原记录 / Restore: undelete records
-    - 删除：物理删除（permanent_delete） / Delete: permanent hard delete
+    - 删除：推进到管理端总回收站 / Delete: move records into admin global recycle bin
 
     Args:
         router: 控制器路由器 / Controller router
@@ -212,7 +222,10 @@ def register_admin_recycle_bin_routes(
         admin: ActiveAdmin,
     ):
         svc = service_class(db)
-        count = await svc.count_deleted(delete_level=DeleteLevelEnum.ADMIN.value)
+        count = await svc.count_deleted(
+            delete_level=DeleteLevelEnum.ADMIN.value,
+            recycle_stage=RecycleStageEnum.MODULE.value,
+        )
         return success(data={"count": count})
 
     @router.get("/recycle-bin", summary="回收站列表")
@@ -227,6 +240,7 @@ def register_admin_recycle_bin_routes(
         items, total = await svc.query_deleted_list(
             spec=query,
             delete_level=DeleteLevelEnum.ADMIN.value,
+            recycle_stage=RecycleStageEnum.MODULE.value,
         )
         result = [_serialize_with_delete_meta(item, _serialize) for item in items]
         return paginated(
@@ -236,35 +250,8 @@ def register_admin_recycle_bin_routes(
             page_size=query.size,
         )
 
-    @router.post("/recycle-bin/{item_id}/restore", summary="恢复记录")
-    @action_delete(f"action.{resource_name}.recycle_bin")
-    async def recycle_bin_restore(
-        request: Request,
-        db: DbSession,
-        item_id: int,
-        admin: ActiveAdmin,
-    ):
-        svc = service_class(db)
-        instance = await svc.restore(item_id)
-        if not instance:
-            raise NotFoundException(message=_("recycle_bin.error.not_found"))
-        await db.commit()
-        return success(message=_("recycle_bin.restored"))
-
-    @router.delete("/recycle-bin/{item_id}", summary="永久删除")
-    @action_delete(f"action.{resource_name}.recycle_bin")
-    async def recycle_bin_delete(
-        request: Request,
-        db: DbSession,
-        item_id: int,
-        admin: ActiveAdmin,
-    ):
-        svc = service_class(db)
-        result = await svc.permanent_delete(item_id)
-        if not result:
-            raise NotFoundException(message=_("recycle_bin.error.not_found"))
-        await db.commit()
-        return deleted(message=_("recycle_bin.permanently_deleted"))
+    # 静态路径须先于 /recycle-bin/{item_id} 注册，否则 "batch" 会被当成 item_id
+    # Static paths must be registered before /recycle-bin/{item_id} or "batch" is parsed as item_id
 
     @router.post("/recycle-bin/batch-restore", summary="批量恢复")
     @action_delete(f"action.{resource_name}.recycle_bin")
@@ -277,11 +264,18 @@ def register_admin_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db)
-        count = await svc.batch_restore(ids)
+        count = 0
+        for item_id in ids:
+            instance = await svc.restore(
+                item_id,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+            )
+            if instance:
+                count += 1
         await db.commit()
         return success(data={"count": count}, message=_("recycle_bin.restored"))
 
-    @router.delete("/recycle-bin/batch", summary="批量永久删除")
+    @router.delete("/recycle-bin/batch", summary="批量删除（推进到总回收站）")
     @action_delete(f"action.{resource_name}.recycle_bin")
     async def recycle_bin_batch_delete(
         request: Request,
@@ -292,9 +286,42 @@ def register_admin_recycle_bin_routes(
         if len(ids) > _MAX_BATCH_SIZE:
             raise ValidationException(message=_("recycle_bin.error.batch_too_large"))
         svc = service_class(db)
-        count = await svc.batch_permanent_delete(ids)
+        count = await svc.batch_promote_to_global(ids)
         await db.commit()
-        return success(data={"count": count}, message=_("recycle_bin.permanently_deleted"))
+        return success(data={"count": count}, message=_("recycle_bin.moved_to_global"))
+
+    @router.post("/recycle-bin/{item_id}/restore", summary="恢复记录")
+    @action_delete(f"action.{resource_name}.recycle_bin")
+    async def recycle_bin_restore(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        admin: ActiveAdmin,
+    ):
+        svc = service_class(db)
+        instance = await svc.restore(
+            item_id,
+            recycle_stage=RecycleStageEnum.MODULE.value,
+        )
+        if not instance:
+            raise NotFoundException(message=_("recycle_bin.error.not_found"))
+        await db.commit()
+        return success(message=_("recycle_bin.restored"))
+
+    @router.delete("/recycle-bin/{item_id}", summary="推进到总回收站")
+    @action_delete(f"action.{resource_name}.recycle_bin")
+    async def recycle_bin_delete(
+        request: Request,
+        db: DbSession,
+        item_id: int,
+        admin: ActiveAdmin,
+    ):
+        svc = service_class(db)
+        instance = await svc.promote_to_global(item_id)
+        if not instance:
+            raise NotFoundException(message=_("recycle_bin.error.not_found"))
+        await db.commit()
+        return success(message=_("recycle_bin.moved_to_global"))
 
     @router.get("/{item_id}/delete-preview", summary="删除影响预览")
     @action_delete(f"action.{resource_name}.delete")
@@ -310,13 +337,17 @@ def register_admin_recycle_bin_routes(
 
 
 def _serialize_with_delete_meta(instance: Any, serialize_fn: Callable) -> dict:
-    """序列化并自动注入回收站元数据（deleted_at / delete_level） / Serialize and auto-inject recycle bin metadata"""
+    """序列化并自动注入回收站元数据 / Serialize and auto-inject recycle bin metadata"""
     data = serialize_fn(instance)
     if "deleted_at" not in data:
         deleted_at = getattr(instance, "deleted_at", None)
         data["deleted_at"] = deleted_at or getattr(instance, "updated_at", None)
     if "delete_level" not in data:
         data["delete_level"] = getattr(instance, "delete_level", None)
+    if "recycle_stage" not in data:
+        data["recycle_stage"] = getattr(instance, "recycle_stage", None)
+    if "promoted_to_global_at" not in data:
+        data["promoted_to_global_at"] = getattr(instance, "promoted_to_global_at", None)
     return data
 
 

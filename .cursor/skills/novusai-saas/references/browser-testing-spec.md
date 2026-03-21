@@ -142,6 +142,67 @@
 3. list_console_messages(types=["error"]) → 检查控制台错误
 ```
 
+### 3.7 回收站专项回归
+
+#### 管理端模块回收站
+
+目标：确认管理端 CRUD 页面仍用统一弹窗，并可跳转总回收站。
+
+```
+1. navigate_page → 例如 http://localhost:5666/admin/ai/agents
+2. take_snapshot → 打开页面工具栏中的回收站按钮
+3. 验证弹窗内出现“查看总回收站”
+4. list_network_requests(resourceTypes=["fetch", "xhr"]) → 确认 /admin/.../recycle-bin/count 与 /admin/.../recycle-bin?... 返回 200
+5. 点击“查看总回收站” → wait_for(["总回收站"])
+```
+
+#### 企业端模块回收站
+
+目标：确认企业端只有模块回收站，没有总回收站入口。
+
+```
+1. navigate_page → 例如 http://ss.dakkii.cn:5666/tenant/ai/knowledge-bases
+2. take_snapshot → 打开页面工具栏中的回收站按钮
+3. 验证弹窗文案为“转入管理端总回收站，由平台统一恢复或清理”
+4. 验证弹窗内不存在“查看总回收站”
+5. list_network_requests(resourceTypes=["fetch", "xhr"]) → 确认 /tenant/.../recycle-bin/count 与 /tenant/.../recycle-bin?... 返回 200
+```
+
+#### 管理端总回收站
+
+目标：确认唯一总回收站在管理端加载正常。
+
+```
+1. navigate_page → http://localhost:5666/admin/system/recycle-bin
+2. wait_for(["总回收站"])
+3. list_network_requests(resourceTypes=["fetch", "xhr"]) → 确认：
+   - /admin/recycle-bin/modules
+   - /admin/recycle-bin/summary
+   - /admin/recycle-bin?module=...&page[number]=1&page[size]=...
+   均返回 200
+```
+
+#### 企业端不存在总回收站
+
+目标：确认产品边界未被权限误放开。
+
+```
+1. navigate_page → http://ss.dakkii.cn:5666/tenant/system/recycle-bin
+2. take_snapshot
+3. 验证页面是 404 / 未找到页面，而不是可访问的回收站页面
+```
+
+#### 路由冲突排查
+
+适用于像 `/{task_id}`、`/{id}` 这类动态路由较早注册的控制器。
+
+```
+1. 打开对应页面并进入模块回收站
+2. list_network_requests(resourceTypes=["fetch", "xhr"])
+3. 确认请求命中的是 /.../recycle-bin?...，状态是 200
+4. 若出现 422 且错误类似 path.task_id / int_parsing，优先检查后端控制器里 recycle-bin 路由是否注册在动态路由之前
+```
+
 ## 四、注意事项
 
 - **snapshot 优先于 screenshot**：始终优先使用快照获取页面状态，仅在需要视觉验证时截图

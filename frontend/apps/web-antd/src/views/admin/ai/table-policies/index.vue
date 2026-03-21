@@ -1,10 +1,7 @@
 <script lang="ts" setup>
 import type { AITablePolicyInfo } from '#/api/admin/ai';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -81,110 +78,106 @@ async function onToggleCrud(
   }
 }
 
+async function performSyncPolicies() {
+  syncing.value = true;
+  try {
+    const result = await syncAITablePoliciesApi();
+    message.success(
+      $t('admin.ai.tablePolicy.syncSuccess', {
+        synced: result.synced ?? 0,
+      }),
+    );
+    if (Array.isArray(result.declared_tables)) {
+      declaredTables.value = new Set(result.declared_tables);
+    } else {
+      await loadDeclaredTables();
+    }
+    onRefresh();
+    return result;
+  } finally {
+    syncing.value = false;
+  }
+}
+
 async function onSync() {
   Modal.confirm({
     title: $t('admin.ai.tablePolicy.syncConfirm'),
     onOk: async () => {
-      syncing.value = true;
       try {
-        const result = await syncAITablePoliciesApi();
-        message.success(
-          $t('admin.ai.tablePolicy.syncSuccess', {
-            synced: result.synced ?? 0,
-          }),
-        );
-        if (Array.isArray(result.declared_tables)) {
-          declaredTables.value = new Set(result.declared_tables);
-        } else {
-          await loadDeclaredTables();
-        }
-        onRefresh();
+        await performSyncPolicies();
       } catch {
         // handled by interceptor
-      } finally {
-        syncing.value = false;
       }
     },
   });
 }
 
-const { Grid, FormDrawer, onRefresh, gridApi, formAiOperations } =
-  useCrudPage<AITablePolicyInfo>({
-    api: {
-      list: getAITablePolicyListApi,
-      resource: '/admin/ai/table-policies',
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
+  api: {
+    list: getAITablePolicyListApi,
+    resource: '/admin/ai/table-policies',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  i18nPrefix: 'admin.ai.tablePolicy',
+  nameField: 'table_name',
+  defaultSort: 'sort_order',
+  gridOptions: {
+    expandConfig: {
+      accordion: true,
+      trigger: 'row',
+      iconOpen: 'vxe-icon-square-minus',
+      iconClose: 'vxe-icon-square-plus',
     },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    i18nPrefix: 'admin.ai.tablePolicy',
-    nameField: 'table_name',
-    defaultSort: 'sort_order',
-    gridOptions: {
-      expandConfig: {
-        accordion: true,
-        trigger: 'row',
-        iconOpen: 'vxe-icon-square-minus',
-        iconClose: 'vxe-icon-square-plus',
+  },
+  ai: {
+    pageKey: 'admin.ai.table-policies',
+    formSchema: () => useFormSchema(),
+    entityName: $t('admin.ai.tablePolicy.name'),
+    entityDescription: $t('admin.ai.tablePolicy.pageDesc'),
+    disabledOperations: ['create_record', 'delete_record'],
+    tablePolicy: {
+      enabled: true,
+      kind: 'management',
+      relatedResources: ['/admin/ai/table-policies'],
+      relatedTables: ['ai_table_policies'],
+      supportedActions: [
+        'list_policies',
+        'sync_policies',
+        'edit_policy',
+        'inspect_columns',
+      ],
+    },
+    contextExtras: () => ({
+      declared_table_count: declaredTables.value.size,
+      declared_tables: [...declaredTables.value].slice(0, 50),
+    }),
+    extra: [
+      {
+        name: 'sync_policies',
+        label: $t('shared.pageOperation.syncData'),
+        description:
+          'Sync table policies from code declarations / 从代码声明同步表策略',
+        readonly: false,
+        handler: async () => {
+          const result = await performSyncPolicies();
+          return {
+            success: true,
+            message: $t('admin.ai.tablePolicy.syncSuccess', {
+              synced: result.synced ?? 0,
+            }),
+            data: {
+              declared_tables: Array.isArray(result.declared_tables)
+                ? result.declared_tables
+                : [...declaredTables.value],
+              synced: result.synced ?? 0,
+            },
+          };
+        },
       },
-    },
-    ai: {
-      pageKey: 'admin.ai.table-policies',
-      formSchema: () => useFormSchema(),
-    },
-  });
-
-const cleanupPageContext = registerPageContext(
-  'admin/ai/table-policies',
-  () => ({
-    page_key: 'admin.ai.table-policies',
-    page_title: $t('admin.ai.tablePolicy.name'),
-    page_data: { resource: '/admin/ai/table-policies' },
-  }),
-);
-
-const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the table policy list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Table policy list refreshed' };
-    },
+    ],
   },
-  {
-    name: 'sync_policies',
-    label: $t('shared.pageOperation.syncData'),
-    description: 'Sync table policies from database schema',
-    readonly: false,
-    handler: async () => {
-      onSync();
-      return { success: true, message: 'Sync dialog opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search table policies by table name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Table name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[table_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 
@@ -213,9 +206,12 @@ onUnmounted(() => {
                   ({{ (row.blocked_columns || []).length }})
                 </span>
               </div>
-              <div v-if="(row.blocked_columns?.length ?? 0) > 0" class="flex flex-wrap gap-1.5">
+              <div
+                v-if="(row.blocked_columns?.length ?? 0) > 0"
+                class="flex flex-wrap gap-1.5"
+              >
                 <Tag
-                  v-for="col in (row.blocked_columns || [])"
+                  v-for="col in row.blocked_columns || []"
                   :key="col"
                   color="red"
                   class="m-0"
@@ -223,10 +219,7 @@ onUnmounted(() => {
                   {{ col }}
                 </Tag>
               </div>
-              <div
-                v-else
-                class="text-xs text-muted-foreground"
-              >
+              <div v-else class="text-xs text-muted-foreground">
                 {{ $t('admin.ai.tablePolicy.expandNoData') }}
               </div>
             </div>
@@ -242,9 +235,12 @@ onUnmounted(() => {
                   ({{ (row.readonly_columns || []).length }})
                 </span>
               </div>
-              <div v-if="(row.readonly_columns?.length ?? 0) > 0" class="flex flex-wrap gap-1.5">
+              <div
+                v-if="(row.readonly_columns?.length ?? 0) > 0"
+                class="flex flex-wrap gap-1.5"
+              >
                 <Tag
-                  v-for="col in (row.readonly_columns || [])"
+                  v-for="col in row.readonly_columns || []"
                   :key="col"
                   color="orange"
                   class="m-0"
@@ -252,10 +248,7 @@ onUnmounted(() => {
                   {{ col }}
                 </Tag>
               </div>
-              <div
-                v-else
-                class="text-xs text-muted-foreground"
-              >
+              <div v-else class="text-xs text-muted-foreground">
                 {{ $t('admin.ai.tablePolicy.expandNoData') }}
               </div>
             </div>
@@ -268,11 +261,18 @@ onUnmounted(() => {
               >
                 {{ $t('admin.ai.tablePolicy.expandDescribedColumns') }}
                 <span class="ml-1 font-normal">
-                  ({{ row.column_descriptions ? Object.keys(row.column_descriptions).length : 0 }})
+                  ({{
+                    row.column_descriptions
+                      ? Object.keys(row.column_descriptions).length
+                      : 0
+                  }})
                 </span>
               </div>
               <div
-                v-if="row.column_descriptions && Object.keys(row.column_descriptions).length > 0"
+                v-if="
+                  row.column_descriptions &&
+                  Object.keys(row.column_descriptions).length > 0
+                "
                 class="space-y-1"
               >
                 <Collapse :bordered="false" ghost>
@@ -286,21 +286,25 @@ onUnmounted(() => {
                   >
                     <div class="max-h-40 space-y-1.5 overflow-y-auto pr-1">
                       <div
-                        v-for="[colName, desc] in Object.entries(row.column_descriptions)"
+                        v-for="[colName, desc] in Object.entries(
+                          row.column_descriptions,
+                        )"
                         :key="colName"
                         class="flex gap-2 border-b border-border/50 pb-1.5 last:border-0 last:pb-0"
                       >
-                        <code class="shrink-0 text-xs text-foreground">{{ colName }}</code>
-                        <span class="min-w-0 flex-1 break-words text-xs text-muted-foreground">{{ desc }}</span>
+                        <code class="shrink-0 text-xs text-foreground">{{
+                          colName
+                        }}</code>
+                        <span
+                          class="min-w-0 flex-1 break-words text-xs text-muted-foreground"
+                          >{{ desc }}</span
+                        >
                       </div>
                     </div>
                   </CollapsePanel>
                 </Collapse>
               </div>
-              <div
-                v-else
-                class="text-xs text-muted-foreground"
-              >
+              <div v-else class="text-xs text-muted-foreground">
                 {{ $t('admin.ai.tablePolicy.expandNoData') }}
               </div>
             </div>
@@ -343,10 +347,7 @@ onUnmounted(() => {
                 class="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
                 <span>{{ row.label }}</span>
-                <span
-                  v-if="row.permission_code"
-                  class="text-[10px] opacity-60"
-                >
+                <span v-if="row.permission_code" class="text-[10px] opacity-60">
                   · {{ row.permission_code }}
                 </span>
               </div>

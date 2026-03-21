@@ -13,7 +13,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.agent import ConversationStatusEnum
+from app.enums.agent import (
+    ConversationOwnerTypeEnum,
+    ConversationStatusEnum,
+)
 
 
 class AgentConversation(TenantModel):
@@ -42,6 +45,7 @@ class AgentConversation(TenantModel):
         "id": "id",
         "agent_id": "agent_id",
         "user_id": "user_id",
+        "owner_type": "owner_type",
         "status": "status",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
@@ -70,6 +74,14 @@ class AgentConversation(TenantModel):
         nullable=True,
         index=True,
         comment=_("enum.agent_conversation.user_id"),
+    )
+    owner_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=ConversationOwnerTypeEnum.UNKNOWN.value,
+        server_default=ConversationOwnerTypeEnum.UNKNOWN.value,
+        index=True,
+        comment="会话归属类型 / Conversation owner type",
     )
 
     # ==================== 基本信息 ====================
@@ -141,6 +153,7 @@ class AgentConversation(TenantModel):
 
     __table_args__ = (
         Index("ix_agent_conv_tenant_agent_user", "tenant_id", "agent_id", "user_id"),
+        Index("ix_agent_conv_tenant_owner_user", "tenant_id", "owner_type", "user_id"),
     )
 
     # ==================== 关系 ====================
@@ -161,7 +174,10 @@ class AgentConversation(TenantModel):
     )
 
     def __repr__(self) -> str:
-        return f"<AgentConversation(id={self.id}, agent_id={self.agent_id}, tenant_id={self.tenant_id})>"
+        return (
+            f"<AgentConversation(id={self.id}, agent_id={self.agent_id}, "
+            f"tenant_id={self.tenant_id}, owner_type={self.owner_type})>"
+        )
 
 
 if TYPE_CHECKING:

@@ -2476,9 +2476,12 @@ vl = cfg.get_main_option('version_locations') or 'migrations/versions'
 extra = {extra_paths!r}
 target = {f"{branch_label}@head"!r}
 
-vl_norm = set(os.path.normcase(os.path.abspath(p)) for p in vl.split())
+base_parts = [p.strip() for p in vl.splitlines() if p.strip()]
+if not base_parts:
+    base_parts = ['migrations/versions']
+vl_norm = set(os.path.normcase(os.path.abspath(p)) for p in base_parts)
 new_parts = [p for p in extra.split() if os.path.normcase(os.path.abspath(p)) not in vl_norm]
-cfg.set_main_option('version_locations', ' '.join(vl.split() + new_parts))
+cfg.set_main_option('version_locations', '\\n'.join(base_parts + new_parts))
 
 try:
     command.upgrade(cfg, target)
@@ -2569,14 +2572,25 @@ except Exception as exc:
             logger.info("Plugin {} has no alembic version stamp, skipping downgrade", plugin_name)
             return
 
-        downgrade_script = (
-            "from alembic.config import Config; from alembic import command; "
-            "cfg = Config('alembic.ini'); "
-            f"vl = cfg.get_main_option('version_locations') or 'migrations/versions'; "
-            f"pm = '{str(PLUGINS_DIR / plugin_name / 'backend' / 'migrations' / 'versions').replace(chr(92), '/')}'; "
-            "cfg.set_main_option('version_locations', vl + ' ' + pm) if pm not in vl else None; "
-            f"command.downgrade(cfg, '{branch_label}@base')"
-        )
+        downgrade_script = f"""
+from alembic.config import Config
+from alembic import command
+import os
+
+cfg = Config('alembic.ini')
+vl = cfg.get_main_option('version_locations') or 'migrations/versions'
+pm = {str(PLUGINS_DIR / plugin_name / 'backend' / 'migrations' / 'versions').replace(chr(92), '/')!r}
+
+parts = [p.strip() for p in vl.splitlines() if p.strip()]
+if not parts:
+    parts = ['migrations/versions']
+pm_norm = os.path.normcase(os.path.abspath(pm))
+existing = {{os.path.normcase(os.path.abspath(p)) for p in parts}}
+if pm_norm not in existing:
+    parts.append(pm)
+cfg.set_main_option('version_locations', '\\n'.join(parts))
+command.downgrade(cfg, {f"{branch_label}@base"!r})
+"""
         result = await _run_subprocess_async(
             sys.executable, "-c", downgrade_script,
             timeout=120,

@@ -4,11 +4,6 @@
  */
 import type { EmailLogInfo } from '#/api/admin/email-log';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -47,7 +42,7 @@ function onPreview(row: EmailLogInfo) {
   previewDrawerApi.open();
 }
 
-const { Grid, onRefresh, gridApi } = useCrudPage<EmailLogInfo>({
+const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
   api: {
     list: getEmailLogListApi,
     resource: '/admin/email-logs',
@@ -60,47 +55,6 @@ const { Grid, onRefresh, gridApi } = useCrudPage<EmailLogInfo>({
   customActions: {
     detail: onPreview,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/system/email-logs', () => ({
-  page_key: 'admin.system.email-logs',
-  page_title: $t('admin.system.emailLog.name'),
-  page_data: {
-    resource: '/admin/email-logs',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.email-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the email log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Email log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search email logs by subject',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Subject keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[subject][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

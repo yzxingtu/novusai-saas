@@ -4,10 +4,7 @@
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -99,7 +96,7 @@ async function onDownload(row: AttachmentInfo) {
 const pickerRef = ref<InstanceType<typeof FilePicker> | null>(null);
 
 // CRUD 页面 / CRUD page
-const { Grid, gridApi, onRefresh } = useCrudPage<AttachmentInfo>({
+const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
   api: {
     list: getAttachmentListApi,
     resource: '/tenant/attachments',
@@ -113,47 +110,6 @@ const { Grid, gridApi, onRefresh } = useCrudPage<AttachmentInfo>({
     detail: onViewDetail,
     download: onDownload,
   },
-});
-
-const cleanupPageContext = registerPageContext('tenant/system/attachments', () => ({
-  page_key: 'tenant.system.attachments',
-  page_title: $t('tenant.system.attachment.name'),
-  page_data: {
-    resource: '/tenant/attachments',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.system.attachments', [
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search attachments by file name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'File name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the attachment list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Attachment list refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

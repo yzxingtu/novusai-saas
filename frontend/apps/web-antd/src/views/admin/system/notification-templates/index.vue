@@ -4,10 +4,7 @@
  */
 import type { NotificationTemplateInfo } from '#/api/admin/notification-templates';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -141,7 +138,7 @@ async function handleSave() {
   }
 }
 
-const { Grid, onRefresh: gridReload, gridApi } = useCrudPage<NotificationTemplateInfo>({
+const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
   api: {
     list: getNotificationTemplateListApi,
     resource: '/admin/notification-templates',
@@ -154,47 +151,6 @@ const { Grid, onRefresh: gridReload, gridApi } = useCrudPage<NotificationTemplat
     test: onTest,
     edit: onEdit,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/system/notification-templates', () => ({
-  page_key: 'admin.system.notification-templates',
-  page_title: $t('admin.system.notificationTemplate.name'),
-  page_data: {
-    resource: '/admin/notification-templates',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.notification-templates', [
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search notification templates by code',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Template code keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[code][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the notification template list',
-    readonly: true,
-    handler: async () => {
-      gridReload();
-      return { success: true, message: 'Notification template list refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

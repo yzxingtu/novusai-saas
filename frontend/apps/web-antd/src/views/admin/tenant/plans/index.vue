@@ -5,10 +5,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -17,6 +14,7 @@ import { Card, message, Popover, Tag, Tooltip } from 'ant-design-vue';
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import {
   copyToClipboard,
@@ -59,7 +57,7 @@ function handleSetPermissions(row: TenantPlanInfo) {
 // Declarative CRUD page (export button auto-added) / 声明式 CRUD 页面（导出按钮自动添加）
 const {
   Grid, FormDrawer, ExportModal, openExportModal, gridApi,
-  onRefresh, onCreate, formAiOperations,
+  onRefresh,
 } = useCrudPage<TenantPlanInfo>({
   api: {
     list: admin.getTenantPlanListApi,
@@ -78,11 +76,11 @@ const {
   customActions: {
     permissions: handleSetPermissions,
   },
-  ai: {
-    pageKey: 'admin.tenant.plans',
-    formSchema: useFormSchema,
-  },
-});
+    ai: {
+      pageKey: 'admin.tenant.plans',
+      formSchema: useFormSchema,
+    },
+  });
 
 // Drag sort (auto-initialized) / 拖拽排序（自动初始化）
 useAutoTableDragSort(() => gridApi.grid, {
@@ -90,66 +88,22 @@ useAutoTableDragSort(() => gridApi.grid, {
   keyField: 'id',
 });
 
-const cleanupPageContext = registerPageContext('admin/tenant/plans', () => ({
-  page_key: 'admin.tenant.plans',
-  page_title: $t('admin.tenant.plan.name'),
-  page_data: {
-    resource: '/admin/plans',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.tenant.plans', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the tenant plan list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Plan list refreshed' };
+usePageAIRegistration({
+  pageKey: 'admin.tenant.plans',
+  registerContext: false,
+  operationStrategy: 'append',
+  operations: [
+    {
+      name: 'export_data',
+      label: $t('shared.pageOperation.exportData'),
+      description: 'Open the export dialog for tenant plans',
+      readonly: true,
+      handler: async () => {
+        openExportModal();
+        return { success: true, message: 'Export dialog opened' };
+      },
     },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create plan form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create plan form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search tenant plans by name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Plan name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'export_data',
-    label: $t('shared.pageOperation.exportData'),
-    description: 'Open the export dialog for tenant plans',
-    readonly: true,
-    handler: async () => {
-      openExportModal();
-      return { success: true, message: 'Export dialog opened' };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

@@ -71,6 +71,16 @@ class AgentKBBindingService:
             item["kb_scope"] = getattr(kb, "scope", None)
             item["kb_visibility"] = getattr(kb, "visibility", None)
             item["kb_document_count"] = getattr(kb, "document_count", None)
+            item["kb_chunk_strategy"] = getattr(kb, "chunk_strategy", None)
+            item["kb_embedding_model_id"] = getattr(kb, "embedding_model_id", None)
+            item["kb_embedding_dimensions"] = getattr(kb, "embedding_dimensions", None)
+            embedding_model = getattr(kb, "embedding_model", None)
+            item["kb_embedding_model_name"] = getattr(embedding_model, "name", None)
+        else:
+            item["kb_chunk_strategy"] = None
+            item["kb_embedding_model_id"] = None
+            item["kb_embedding_dimensions"] = None
+            item["kb_embedding_model_name"] = None
         return item
 
     async def get_agent_kb_bindings(

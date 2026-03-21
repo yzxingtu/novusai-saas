@@ -9,6 +9,8 @@
  * - Route result notification badge / 路由结果提示 badge
  * - Pin agent UI / Pin 智能体 UI
  */
+import type { AIPageMode } from '@vben/types';
+
 import { computed, onMounted, onUnmounted, reactive, ref, toRef, watch, watchEffect } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -39,10 +41,21 @@ import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
+import {
+  canExposePageOperations,
+  filterPageOperationsByPolicy,
+  normalizePageAIMode,
+  shouldDisablePageContext,
+} from '#/utils/ai-page-capabilities';
 import { getFileIcon } from '#/utils/file';
 
+import { normalizePageKey } from './page-key-utils';
 import { pageContextVersion, resolvePageContext } from './page-context-registry';
-import { listPageOperations, pageOperationVersion } from './page-operation-registry';
+import {
+  listPageOperations,
+  pageOperationVersion,
+  type PageOperation,
+} from './page-operation-registry';
 import { useAgentRouter } from './use-agent-router';
 
 defineOptions({ name: 'AIChatSlidePanel' });
@@ -51,6 +64,12 @@ const props = withDefaults(
   defineProps<{
     /** API prefix / API 前缀 */
     apiPrefix: string;
+    /** Effective AI mode for current page / 当前页面生效的 AI 模式 */
+    aiMode?: AIPageMode;
+    /** Disabled capability keys for current page / 当前页面禁用的能力键 */
+    disabledCapabilities?: string[];
+    /** Disabled operation names for current page / 当前页面禁用的操作名 */
+    disabledOperations?: string[];
     /** Page-level pageContextKey (from route.meta.ai) / 页面级 pageContextKey（来自 route.meta.ai） */
     pageContextKey?: string;
     /** External pending message (from CommandBar) / 外部传入的消息（来自 CommandBar） */
@@ -63,6 +82,9 @@ const props = withDefaults(
     uploadUrl: string;
   }>(),
   {
+    aiMode: 'operate',
+    disabledCapabilities: undefined,
+    disabledOperations: undefined,
     showAttachments: true,
     pendingMessage: null,
     pendingConversationId: null,
@@ -80,6 +102,12 @@ const emit = defineEmits<{
 const aiPanelStore = useAIPanelStore();
 const publicConfigStore = usePublicConfigStore();
 const { modalState } = useModalDetector();
+const normalizedPageMode = computed(() => normalizePageAIMode(props.aiMode));
+const pageAIPolicy = computed(() => ({
+  mode: normalizedPageMode.value,
+  disabledCapabilities: props.disabledCapabilities,
+  disabledOperations: props.disabledOperations,
+}));
 
 /** Panel title: "{SiteName} AI" / 面板标题 */
 const panelTitle = computed(() => {
@@ -130,8 +158,7 @@ const chat = useAIChat({
   onStreamComplete: () => {
     aiPanelStore.markUnread();
   },
-  pageContextResolver: () =>
-    enrichPageContextWithOperations(resolvePageContext(props.pageContextKey)),
+  pageContextResolver: () => currentPageContext.value,
   pageSessionIdGetter: getActivePageSessionId,
   onVariablesMissing: () => {
     const agent = selectedAgent.value;
@@ -373,6 +400,8 @@ const { routing, routeMessage } = useAgentRouter({
 
 /** Route result notice (fade out) / 路由结果提示（渐隐） */
 const routeNotice = ref<null | string>(null);
+const forceRerouteNextTurn = ref(false);
+const manualNewConversationAgentId = ref<null | number>(null);
 let routeNoticeTimer: null | ReturnType<typeof setTimeout> = null;
 
 function showRouteNotice(text: string) {
@@ -383,24 +412,78 @@ function showRouteNotice(text: string) {
   }, 4000);
 }
 
+const currentConversationAgentName = computed(() => {
+  if (!activeConversationId.value) return '';
+  return (
+    selectedAgent.value?.name ||
+    conversations.value.find((conv) => conv.id === activeConversationId.value)
+      ?.agent_name ||
+    ''
+  );
+});
+
+const canForceReroute = computed(
+  () =>
+    !!activeConversationId.value &&
+    !isPinned.value &&
+    !routing.value &&
+    !sending.value &&
+    !streaming.value,
+);
+
+const switchAgentMenuItems = computed(() =>
+  agents.value.map((agent) => ({
+    key: String(agent.id),
+    label: agent.name,
+    onClick: () => onStartNewChatWithAgent(agent.id),
+  })),
+);
+
+function clearRoutingIntent() {
+  forceRerouteNextTurn.value = false;
+  manualNewConversationAgentId.value = null;
+}
+
+function onToggleForceReroute() {
+  forceRerouteNextTurn.value = !forceRerouteNextTurn.value;
+}
+
 // ============ Page AI Capability Indicator ============
 
 /** Current page context (reactive to route changes AND registry mutations) / 当前页面上下文 */
-const currentPageContext = computed(() => {
+const rawPageContext = computed(() => {
   void pageContextVersion.value;
   return resolvePageContext(props.pageContextKey);
+});
+
+/** Resolved page key (prefer context, fallback to route key) / 解析后的页面 key */
+const resolvedPageKey = computed(() => {
+  return (
+    rawPageContext.value?.page_key ??
+    (props.pageContextKey ? normalizePageKey(props.pageContextKey) : undefined)
+  );
 });
 
 /** Current page operations list / 当前页面操作列表 */
 const currentPageOperations = computed(() => {
   void pageOperationVersion.value;
-  const ctx = currentPageContext.value;
-  if (!ctx) return [];
-  return listPageOperations(ctx.page_key);
+  const pageKey = resolvedPageKey.value;
+  if (!pageKey) return [];
+  return filterPageOperationsByPolicy(
+    listPageOperations(pageKey),
+    pageAIPolicy.value,
+  );
 });
 
+/** Current page context with runtime AI policy applied / 应用运行时 AI 策略后的当前页面上下文 */
+const currentPageContext = computed(() =>
+  enrichPageContextWithOperations(rawPageContext.value, currentPageOperations.value),
+);
+
 /** Whether the current page has registered AI context / 当前页是否已注册 AI 上下文 */
-const hasPageAI = computed(() => !!currentPageContext.value);
+const hasPageAI = computed(
+  () => !!currentPageContext.value || currentPageOperations.value.length > 0,
+);
 
 // ============ Send message (routing + streaming) / 发送消息（路由 + 流式） ============
 
@@ -427,14 +510,15 @@ function collectVisualState() {
  * Return value is safe to spread into page_data.
  */
 const MAX_FORM_FIELDS = 20;
-const DEFAULT_PAGE_CONTEXT_MAX_BYTES = 8192;
+// Runtime fallback only; actual admin-configurable limit comes from ai_page_context_max_bytes / 仅运行时兜底；实际可配置上限来自 ai_page_context_max_bytes
+const DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK = 8192;
 const PAGE_CONTEXT_SOFT_RESERVE_BYTES = 1024;
 
 const pageContextHardLimitBytes = computed(() => {
   return (
     publicConfigStore.platformConfig?.runtimeLimits?.pageContextMaxBytes ||
     publicConfigStore.tenantConfig?.runtimeLimits?.pageContextMaxBytes ||
-    DEFAULT_PAGE_CONTEXT_MAX_BYTES
+    DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK
   );
 });
 
@@ -530,9 +614,15 @@ function guardPageDataSize(pageData: Record<string, unknown>): Record<string, un
  */
 function enrichPageContextWithOperations(
   ctx: ReturnType<typeof resolvePageContext>,
+  ops: readonly PageOperation[] = [],
 ): ReturnType<typeof resolvePageContext> {
   if (!ctx) return ctx;
-  const ops = listPageOperations(ctx.page_key);
+  if (
+    normalizedPageMode.value === 'disabled'
+    || shouldDisablePageContext(props.disabledCapabilities)
+  ) {
+    return null;
+  }
 
   // When form is open, prefer live fieldDescriptors from formStateTracker / 表单打开时优先使用 formStateTracker 的实时 fieldDescriptors
   // (refreshed each time the drawer opens) over the static version registered
@@ -547,11 +637,17 @@ function enrichPageContextWithOperations(
     }
   }
 
+  const {
+    available_operations: _availableOperations,
+    visual_state: _visualState,
+    ...basePageData
+  } = ctx.page_data ?? {};
+
   let pageData: Record<string, unknown> = {
-    ...ctx.page_data,
+    ...basePageData,
     ...(liveFormFields ? { form_fields: liveFormFields } : {}),
     visual_state: collectVisualState(),
-    ...(ops.length > 0
+    ...(canExposePageOperations(normalizedPageMode.value) && ops.length > 0
       ? {
           available_operations: ops.map((op) => ({
             name: op.name,
@@ -576,9 +672,7 @@ async function handleSendMessage() {
     (a) => a.type === 'image',
   );
 
-  const pageContext = enrichPageContextWithOperations(
-    resolvePageContext(props.pageContextKey),
-  );
+  const pageContext = currentPageContext.value;
 
   const mentionTarget = mentionedAgent.value;
   if (mentionTarget) {
@@ -641,6 +735,27 @@ async function handleSendMessage() {
     return;
   }
 
+  const forceReroute = forceRerouteNextTurn.value;
+  if (forceReroute) {
+    forceRerouteNextTurn.value = false;
+  }
+
+  if (
+    !activeConversationId.value &&
+    manualNewConversationAgentId.value &&
+    selectedAgentId.value === manualNewConversationAgentId.value
+  ) {
+    const explicitAgentId = manualNewConversationAgentId.value;
+    manualNewConversationAgentId.value = null;
+    sendMessage({ agentId: explicitAgentId, pageContext });
+    return;
+  }
+
+  if (activeConversationId.value && selectedAgentId.value && !forceReroute) {
+    sendMessage({ pageContext });
+    return;
+  }
+
   try {
     // /route 要求 message 非空；仅发图时用占位符 / Route API requires non-empty message
     const routeMessageText = text || (hasImageAttachments ? ' ' : '');
@@ -649,9 +764,12 @@ async function handleSendMessage() {
       props.pageContextKey,
       pageContext,
       hasImageAttachments,
+      forceReroute,
     );
 
-    // Update current agent context (don't clear messages/conversations, support multi-agent chat) / 更新当前智能体上下文（不清除消息/对话，支持多智能体对话）
+    manualNewConversationAgentId.value = null;
+
+    // Update current agent context after explicit routing / 路由后更新当前智能体上下文
     if (result.agentId !== selectedAgentId.value) {
       selectedAgentId.value = result.agentId;
     }
@@ -695,7 +813,7 @@ async function handleSendMessage() {
       ...(result.routedBy === 'mention' ? { routeSource: 'mention' } : {}),
     });
   } catch (error: unknown) {
-    if (selectedAgentId.value) {
+    if (selectedAgentId.value && !hasImageAttachments) {
       message.warning($t('common.globalAiChat.routeFailedFallback'));
       sendMessage({ pageContext });
       return;
@@ -814,6 +932,7 @@ const groupedConversations = computed<ConversationGroup[]>(() => {
 });
 
 function onSelectConversation(convId: number) {
+  clearRoutingIntent();
   aiPanelStore.clearResolvedPageOps?.();
   loadConversationMessages(convId);
   showHistory.value = false;
@@ -851,10 +970,37 @@ function cancelEditTitle() {
 }
 
 function onStartNewChat() {
+  clearRoutingIntent();
   aiPanelStore.clearResolvedPageOps?.();
   startNewConversation();
   showHistory.value = false;
   showMemoryPanel.value = false;
+}
+
+function onStartNewChatWithAgent(agentId: number) {
+  const targetAgent = agents.value.find((agent) => agent.id === agentId);
+  if (!targetAgent) return;
+
+  if (
+    aiPanelStore.pinnedAgentId &&
+    aiPanelStore.pinnedAgentId !== agentId
+  ) {
+    aiPanelStore.unpinAgent();
+  }
+
+  selectedAgentId.value = agentId;
+  manualNewConversationAgentId.value = agentId;
+  forceRerouteNextTurn.value = false;
+  aiPanelStore.clearResolvedPageOps?.();
+  startNewConversation(true);
+  showHistory.value = false;
+  showMemoryPanel.value = false;
+  conversationSearch.value = '';
+  showRouteNotice(
+    $t('common.globalAiChat.newConversationWithAgent', {
+      agent: targetAgent.name,
+    }),
+  );
 }
 
 // ============ Panel Controls ============
@@ -1084,6 +1230,8 @@ watch(
     if (visible) {
       aiPanelStore.clearResolvedPageOps?.();
       const pendingId = aiPanelStore.consumePendingAgentId();
+      forceRerouteNextTurn.value = false;
+      manualNewConversationAgentId.value = pendingId ?? null;
       // On panel open: reset messages/conversation but KEEP session vars
       // (vars only clear when user explicitly clicks "+" new chat)
       startNewConversation(true);
@@ -1100,6 +1248,12 @@ watch(
 watch(selectedAgentId, (agentId) => {
   if (agentId) {
     ensureAgentVarsLoaded(agentId);
+  }
+  if (
+    manualNewConversationAgentId.value &&
+    agentId !== manualNewConversationAgentId.value
+  ) {
+    manualNewConversationAgentId.value = null;
   }
 });
 
@@ -1119,8 +1273,12 @@ watch(
 
 // ============ Sync conversation state to store / 同步对话状态到 store ============
 
-watch(activeConversationId, (id) => {
-  aiPanelStore.setConversation(id, selectedAgentId.value ?? undefined);
+watch([activeConversationId, selectedAgentId], ([conversationId, agentId]) => {
+  if (conversationId == null) {
+    aiPanelStore.resetConversation();
+    return;
+  }
+  aiPanelStore.setConversation(conversationId, agentId ?? undefined);
 });
 
 // ============ Lifecycle ============
@@ -1303,6 +1461,24 @@ onUnmounted(() => {
                     <IconifyIcon icon="lucide:x" class="size-2" />
                   </button>
                 </Tooltip>
+                <span
+                  v-if="activeConversationId && currentConversationAgentName"
+                  class="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground"
+                >
+                  <IconifyIcon icon="lucide:bot" class="size-2.5" />
+                  {{
+                    $t('common.globalAiChat.currentConversationAgent', {
+                      agent: currentConversationAgentName,
+                    })
+                  }}
+                </span>
+                <span
+                  v-if="forceRerouteNextTurn"
+                  class="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-700"
+                >
+                  <IconifyIcon icon="lucide:compass" class="size-2.5" />
+                  {{ $t('common.globalAiChat.rerouteArmed') }}
+                </span>
                 <!-- Route notice -->
                 <Transition name="fade">
                   <span
@@ -1390,6 +1566,42 @@ onUnmounted(() => {
                   />
                 </button>
               </Tooltip>
+              <Tooltip
+                v-if="activeConversationId && !isPinned"
+                :title="$t('common.globalAiChat.rerouteThisTurn')"
+              >
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+                  :class="
+                    forceRerouteNextTurn
+                      ? 'bg-amber-500/12 text-amber-700'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  "
+                  :aria-label="$t('common.globalAiChat.rerouteThisTurn')"
+                  :disabled="!canForceReroute"
+                  @click="onToggleForceReroute"
+                >
+                  <IconifyIcon icon="lucide:compass" class="size-3.5" />
+                </button>
+              </Tooltip>
+              <Dropdown
+                v-if="switchAgentMenuItems.length > 0"
+                :trigger="['click']"
+                placement="bottomRight"
+              >
+                <Tooltip :title="$t('common.globalAiChat.switchAgentNewConversation')">
+                  <button
+                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    :aria-label="$t('common.globalAiChat.switchAgentNewConversation')"
+                    type="button"
+                  >
+                    <IconifyIcon icon="lucide:bot-message-square" class="size-3.5" />
+                  </button>
+                </Tooltip>
+                <template #overlay>
+                  <Menu :items="switchAgentMenuItems" />
+                </template>
+              </Dropdown>
               <Tooltip :title="$t('common.aiPanel.newChat')">
                 <button
                   class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

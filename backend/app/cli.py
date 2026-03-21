@@ -212,6 +212,8 @@ def _discover_plugin_migration_paths() -> list[str]:
     paths: list[str] = []
     if plugins_dir.exists():
         for d in sorted(plugins_dir.iterdir()):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
             versions = d / "backend" / "migrations" / "versions"
             if versions.is_dir():
                 paths.append(str(versions))
@@ -223,10 +225,18 @@ def _get_alembic_config():
     from alembic.config import Config
 
     cfg = Config(str(_BACKEND_DIR / "alembic.ini"))
-    base = cfg.get_main_option("version_locations") or ""
-    plugin_paths = _discover_plugin_migration_paths()
-    if plugin_paths:
-        cfg.set_main_option("version_locations", f"{base} {' '.join(plugin_paths)}")
+    merged_paths: list[str] = []
+    seen_paths: set[str] = set()
+
+    for path in (cfg.get_version_locations_list() or []) + _discover_plugin_migration_paths():
+        normalized = os.path.normcase(os.path.abspath(path))
+        if normalized in seen_paths:
+            continue
+        seen_paths.add(normalized)
+        merged_paths.append(path)
+
+    if merged_paths:
+        cfg.set_main_option("version_locations", "\n".join(merged_paths))
     return cfg
 
 

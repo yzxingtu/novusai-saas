@@ -12,6 +12,20 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
+export interface DnsReadinessIssue {
+  code: string;
+  message: string;
+  severity: string;
+}
+
+export interface AdminSslDnsReadiness {
+  issues: DnsReadinessIssue[];
+  provider_type: string;
+  ready: boolean;
+  summary: string;
+  supported: boolean;
+}
+
 /** Get platform config group list / 获取平台配置分组列表 */
 export async function getAdminConfigGroupsApi(
   options?: ApiRequestOptions,
@@ -42,6 +56,16 @@ export async function updateAdminConfigGroupApi(
   await requestClient.put(
     `/admin/configs/groups/${groupCode}`,
     { configs },
+    options,
+  );
+}
+
+/** Get platform SSL DNS readiness audit / 获取平台 SSL DNS 可用性巡检 */
+export async function getAdminSslDnsReadinessApi(
+  options?: ApiRequestOptions,
+): Promise<AdminSslDnsReadiness> {
+  return await requestClient.get<AdminSslDnsReadiness>(
+    '/admin/configs/platform-ssl/dns-readiness',
     options,
   );
 }

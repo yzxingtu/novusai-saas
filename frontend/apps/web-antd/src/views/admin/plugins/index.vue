@@ -10,9 +10,6 @@ import type { MenuOverrideItem, PluginInfo } from '#/api/admin/plugin';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -37,6 +34,7 @@ import {
   uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import {
   handleDisableError as _handleDisableError,
   refreshAdminMenusAndPluginRoutes as _refreshRoutes,
@@ -206,7 +204,6 @@ onMounted(() => {
   loadPlugins();
   progressStore.startListening();
 });
-
 
 function isProcessing(id: number): boolean {
   return processingIds.value.has(id);
@@ -490,45 +487,45 @@ function getDependencyStatusText(plugin: PluginInfo): string {
     : $t('admin.plugin.dependency.missing');
 }
 
-const cleanupPageContext = registerPageContext('admin/plugins', () => ({
-  page_key: 'admin.plugins',
-  page_title: $t('admin.plugin.title'),
-  page_data: {
-    resource: '/admin/plugins',
+usePageAIRegistration({
+  pageKey: 'admin.plugins',
+  title: () => $t('admin.plugin.title'),
+  resource: '/admin/plugins',
+  data: () => ({
     total_plugins: plugins.value.length,
     enabled_plugins: plugins.value.filter((p) => p.status === 'enabled').length,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.plugins', [
-  {
-    name: 'refresh_plugins',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the plugin list',
-    readonly: true,
-    handler: async () => {
-      await loadPlugins();
-      return { success: true, message: 'Plugin list refreshed' };
+  }),
+  operations: [
+    {
+      name: 'refresh_plugins',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload the plugin list',
+      readonly: true,
+      handler: async () => {
+        await loadPlugins();
+        return { success: true, message: 'Plugin list refreshed' };
+      },
     },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchPlugins'),
-    description: 'Search plugins by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Plugin name keyword' },
+    {
+      name: 'search',
+      label: $t('shared.pageOperation.searchPlugins'),
+      description: 'Search plugins by keyword',
+      readonly: true,
+      params: {
+        keyword: { type: 'string', description: 'Plugin name keyword' },
+      },
+      handler: async (params) => {
+        searchKeyword.value = (params?.keyword as string) || '';
+        return {
+          success: true,
+          message: `Searched for: ${searchKeyword.value}`,
+        };
+      },
     },
-    handler: async (params) => {
-      searchKeyword.value = (params?.keyword as string) || '';
-      return { success: true, message: `Searched for: ${searchKeyword.value}` };
-    },
-  },
-]);
+  ],
+});
 
 onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
   progressStore.stopListening();
 });
 </script>

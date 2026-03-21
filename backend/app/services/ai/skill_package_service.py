@@ -85,14 +85,21 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         await self.repo.delete_skill_bindings(id)
         logger.info("Cascade deleted AgentSkillBindings for package {}", id)
 
-    async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""
-        instance = await self.repo.escalate_delete_by_id(id)
+    async def promote_to_global(self, id: int) -> SkillPackage | None:
+        """推进到总回收站，级联推进技能 / Promote to global recycle bin and cascade skills."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is None:
             return None
 
-        await self.repo.cascade_escalate_skills(id)
+        await self.repo.cascade_promote_skills(id)
         return instance
+
+    async def escalate_delete(self, id: int) -> SkillPackage | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""
@@ -192,14 +199,21 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         await self.repo.delete_skill_bindings(id)
         logger.info("Cascade deleted AgentSkillBindings for package {}", id)
 
-    async def escalate_delete(self, id: int) -> SkillPackage | None:
-        """升级删除层级，级联升级技能 / Escalate delete level, cascade escalate skills."""
-        instance = await self.repo.escalate_delete_by_id(id)
+    async def promote_to_global(self, id: int) -> SkillPackage | None:
+        """推进到总回收站，级联推进技能 / Promote to global recycle bin and cascade skills."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is None:
             return None
 
-        await self.repo.cascade_escalate_skills(id)
+        await self.repo.cascade_promote_skills(id)
         return instance
+
+    async def escalate_delete(self, id: int) -> SkillPackage | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能 / After restore: cascade restore skills."""

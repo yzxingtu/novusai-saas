@@ -2,7 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { AuthenticationLoginExpiredModal, VbenFullScreen } from '@vben/common-ui';
+import {
+  AuthenticationLoginExpiredModal,
+  VbenFullScreen,
+} from '@vben/common-ui';
 import { useRefresh, useWatermark } from '@vben/hooks';
 import { IconifyIcon } from '@vben/icons';
 import {
@@ -26,15 +29,16 @@ import { CommandBar } from '#/components/business/command-bar';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
+import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { useCurrentPageAIPolicy } from '#/composables';
 import { usePageOperationChannel } from '#/composables/use-page-operation-channel';
 import { usePageSession } from '#/composables/use-page-session';
-import { usePreferenceSync } from '#/composables/use-preference-sync';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
   usePluginFrontendInit,
 } from '#/composables/use-plugin-frontend-init';
+import { usePreferenceSync } from '#/composables/use-preference-sync';
 import { $t } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
@@ -47,7 +51,6 @@ import {
 } from '#/store';
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
-import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -71,7 +74,13 @@ const { initSnapshot, skipSync } = usePreferenceSync();
 
 usePageSession();
 usePageOperationChannel();
-const { aiEnabled, pageContextKey } = useCurrentPageAIPolicy();
+const {
+  aiEnabled,
+  disabledCapabilities,
+  disabledOperations,
+  effectiveMode,
+  pageContextKey,
+} = useCurrentPageAIPolicy();
 
 const apiPrefix = computed(() => {
   const path = router.currentRoute.value.path;
@@ -98,7 +107,12 @@ const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 /** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） / AI Panel right offset */
 const aiPanelRightOffset = computed(() => {
-  if (!aiEnabled.value || !aiPanelStore.visible || aiPanelStore.mode === 'full' || !aiPanelStore.docked) {
+  if (
+    !aiEnabled.value ||
+    !aiPanelStore.visible ||
+    aiPanelStore.mode === 'full' ||
+    !aiPanelStore.docked
+  ) {
     return 0;
   }
   return aiPanelStore.panelWidth;
@@ -305,13 +319,14 @@ function updateAllTabsTitles() {
 function resolveWatermarkTemplate(template: string): string {
   const info = userStore.userInfo;
   const tenantName =
-    (info as Record<string, unknown>)?.tenantName as string ||
-    preferences.app.name || '';
+    ((info as Record<string, unknown>)?.tenantName as string) ||
+    preferences.app.name ||
+    '';
   return template
-    .replace(/\{tenant_name\}/g, tenantName)
-    .replace(/\{username\}/g, info?.username || '')
-    .replace(/\{real_name\}/g, info?.realName || '')
-    .replace(/\{user_id\}/g, String(info?.id || ''));
+    .replaceAll('{tenant_name}', tenantName)
+    .replaceAll('{username}', info?.username || '')
+    .replaceAll('{real_name}', info?.realName || '')
+    .replaceAll('{user_id}', String(info?.id || ''));
 }
 
 watch(
@@ -390,10 +405,7 @@ watch(
       </Tooltip>
     </template>
     <template #notification>
-      <Tooltip
-        :title="$t('ui.widgets.notifications')"
-        placement="bottom"
-      >
+      <Tooltip :title="$t('ui.widgets.notifications')" placement="bottom">
         <Popover
           trigger="click"
           placement="bottomRight"
@@ -519,6 +531,9 @@ watch(
       <AIChatSlidePanel
         v-if="aiEnabled"
         :api-prefix="apiPrefix"
+        :ai-mode="effectiveMode"
+        :disabled-capabilities="disabledCapabilities"
+        :disabled-operations="disabledOperations"
         :upload-url="uploadUrl"
         :pending-message="pendingMessage"
         :pending-conversation-id="pendingConversationId"

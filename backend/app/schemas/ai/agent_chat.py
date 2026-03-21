@@ -218,6 +218,10 @@ class AgentRouteRequest(BaseModel):
         None,
         description=_("agent_chat.field.pinned_agent_id"),
     )
+    force_reroute: bool = Field(
+        False,
+        description="Force rerouting even when the conversation is already bound to an agent / 即使当前对话已绑定智能体也强制重新路由",
+    )
     has_image_attachments: bool = Field(
         False,
         description="Whether the user message includes image attachments / 是否包含图片附件",

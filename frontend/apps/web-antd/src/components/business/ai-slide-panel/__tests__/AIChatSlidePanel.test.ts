@@ -1,17 +1,36 @@
+// @vitest-environment happy-dom
 /**
  * AIChatSlidePanel component render tests: confirmCountdown in real component.
  * AIChatSlidePanel 组件挂载测试：倒计时文案在真实组件中渲染。
  *
  * 与 countdown-display.test.ts（纯逻辑单测）互补，覆盖“组件渲染层”。
  */
-import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { flushPromises, mount } from '@vue/test-utils';
+import { defineComponent, reactive, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AIChatSlidePanel from '../AIChatSlidePanel.vue';
 
-// --- Store mock: controlled pendingPageOps for countdown assertion ---
+// Store mock for countdown assertions / 用于倒计时断言的 store mock
 const visible = ref(true);
+const docked = ref(true);
+const minimized = ref(false);
+const mode = ref<'full' | 'panel'>('panel');
+const panelWidth = ref(460);
+const selectedAgentIdValue = ref<null | number>(1);
+const activeConversationIdValue = ref<null | number>(null);
+const inputMessageValue = ref('');
+const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
+const routeMessageMock = vi.fn();
+const sendMessageMock = vi.fn();
+const startNewConversationMock = vi.fn();
+const deleteConversationMock = vi.fn();
+const loadConversationMessagesMock = vi.fn();
+const loadConversationsMock = vi.fn();
+const loadAgentsMock = vi.fn();
+const updateConversationTitleMock = vi.fn();
+const fetchConversationMemoryMock = vi.fn();
+const clearConversationMemoryMock = vi.fn();
 const pendingPageOpsValue = ref<
   Array<{
     invokeId: string;
@@ -22,19 +41,171 @@ const pendingPageOpsValue = ref<
   }>
 >([]);
 const resolvePageOp = vi.fn();
+const antMessageMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  warning: vi.fn(),
+}));
+
+let aiPanelStore: ReturnType<typeof createAIPanelStore>;
+
+vi.mock('@vben/icons', () => ({
+  IconifyIcon: defineComponent({
+    name: 'IconifyIconStub',
+    template: '<span class="iconify-stub"></span>',
+  }),
+}));
+
+vi.mock('ant-design-vue', () => {
+  const TextArea = defineComponent({
+    name: 'TextAreaStub',
+    props: {
+      disabled: {
+        default: false,
+        type: Boolean,
+      },
+      value: {
+        default: '',
+        type: String,
+      },
+    },
+    emits: ['keydown', 'paste', 'update:value'],
+    template: `
+      <textarea
+        data-testid="ai-chat-input"
+        :disabled="disabled"
+        :value="value"
+        @input="$emit('update:value', $event.target.value)"
+        @keydown="$emit('keydown', $event)"
+        @paste="$emit('paste', $event)"
+      />
+    `,
+  });
+
+  const Input = Object.assign(
+    defineComponent({
+      name: 'InputStub',
+      props: {
+        disabled: {
+          default: false,
+          type: Boolean,
+        },
+        value: {
+          default: '',
+          type: String,
+        },
+      },
+      emits: ['update:value'],
+      template: `
+        <input
+          :disabled="disabled"
+          :value="value"
+          @input="$emit('update:value', $event.target.value)"
+        />
+      `,
+    }),
+    { TextArea },
+  );
+
+  const Dropdown = defineComponent({
+    name: 'DropdownStub',
+    template: '<div class="dropdown-stub"><slot /><slot name="overlay" /></div>',
+  });
+
+  const Menu = defineComponent({
+    name: 'MenuStub',
+    props: {
+      items: {
+        default: () => [],
+        type: Array,
+      },
+    },
+    template: '<div class="menu-stub"></div>',
+  });
+
+  const Modal = defineComponent({
+    name: 'ModalStub',
+    props: {
+      open: {
+        default: false,
+        type: Boolean,
+      },
+    },
+    emits: ['update:open'],
+    template: '<div v-if="open" class="modal-stub"><slot /></div>',
+  });
+
+  const Popover = defineComponent({
+    name: 'PopoverStub',
+    template: '<div class="popover-stub"><slot /><slot name="content" /></div>',
+  });
+
+  const Spin = defineComponent({
+    name: 'SpinStub',
+    template: '<div class="spin-stub"><slot /></div>',
+  });
+
+  const Tooltip = defineComponent({
+    name: 'TooltipStub',
+    template: '<div class="tooltip-stub"><slot /></div>',
+  });
+
+  return {
+    Dropdown,
+    Input,
+    Menu,
+    Modal,
+    Popover,
+    Spin,
+    Tooltip,
+    message: antMessageMocks,
+  };
+});
+
+function createAIPanelStore() {
+  const store = reactive({
+    clearResolvedPageOps: vi.fn(),
+    close: vi.fn(() => {
+      store.visible = false;
+    }),
+    consumePendingAgentId: vi.fn(() => null),
+    dispatchToolCall: vi.fn(),
+    docked: true,
+    hasUnread: false,
+    markUnread: vi.fn(),
+    minimize: vi.fn(() => {
+      store.minimized = true;
+      store.visible = false;
+    }),
+    minimized: false,
+    mode: 'panel' as 'full' | 'panel',
+    open: vi.fn(() => {
+      store.visible = true;
+    }),
+    panelWidth: 460,
+    pendingPageOps: [] as typeof pendingPageOpsValue.value,
+    pinnedAgentId: null as null | number,
+    pinnedAgentName: null as null | string,
+    resetConversation: vi.fn(),
+    resolvePageOp,
+    restore: vi.fn(() => {
+      store.minimized = false;
+      store.visible = true;
+    }),
+    setConversation: vi.fn(),
+    toggleDock: vi.fn(),
+    toggleMode: vi.fn(),
+    togglePin: vi.fn(),
+    unpinAgent: vi.fn(() => {
+      store.pinnedAgentId = null;
+      store.pinnedAgentName = null;
+    }),
+    visible: true,
+  });
+  return store;
+}
 
 vi.mock('#/store', () => ({
-  useAIPanelStore: () => ({
-    get visible() {
-      return visible.value;
-    },
-    get pendingPageOps() {
-      return pendingPageOpsValue.value;
-    },
-    resolvePageOp,
-    pinnedAgentId: ref(null),
-    pinnedAgentName: ref(null),
-  }),
+  useAIPanelStore: () => aiPanelStore,
 }));
 
 vi.mock('#/store/shared/public-config', () => ({
@@ -53,22 +224,65 @@ vi.mock('#/locales', () => ({
 
 vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
   const vue = await import('vue');
+  const agents = vue.ref([
+    {
+      id: 1,
+      name: 'Agent One',
+      avatar: null,
+      description: null,
+      status: 'published',
+      tenant_id: 1,
+      model_capabilities: {
+        supports_vision: true,
+        max_image_count: 5,
+        max_image_size_mb: 10,
+      },
+      input_variables: [],
+    },
+    {
+      id: 2,
+      name: 'Agent Two',
+      avatar: null,
+      description: null,
+      status: 'published',
+      tenant_id: 1,
+      model_capabilities: {
+        supports_vision: false,
+        max_image_count: 5,
+        max_image_size_mb: 10,
+      },
+      input_variables: [],
+    },
+  ]);
+  const conversations = vue.ref([
+    {
+      id: 10,
+      agent_id: 2,
+      agent_name: 'Agent Two',
+      title: 'Conversation',
+      status: 'active',
+      created_at: '2024-01-01T00:00:00Z',
+    },
+  ]);
   return {
-  useAIChat: () => ({
-      agents: vue.ref([]),
+    useAIChat: () => ({
+      agents,
       agentsLoading: vue.ref(false),
-      selectedAgentId: vue.ref(null),
-      selectedAgent: vue.computed(() => null),
-      loadAgents: vi.fn(),
-      conversations: vue.ref([]),
+      selectedAgentId: selectedAgentIdValue,
+      selectedAgent: vue.computed(
+        () => agents.value.find((agent) => agent.id === selectedAgentIdValue.value) ?? null,
+      ),
+      loadAgents: loadAgentsMock,
+      conversations,
       conversationsLoading: vue.ref(false),
-      activeConversationId: vue.ref(null),
-      loadConversations: vi.fn(),
-      startNewConversation: vi.fn(),
-      deleteConversation: vi.fn(),
-      loadConversationMessages: vi.fn(),
+      activeConversationId: activeConversationIdValue,
+      loadConversations: loadConversationsMock,
+      startNewConversation: startNewConversationMock,
+      deleteConversation: deleteConversationMock,
+      updateConversationTitle: updateConversationTitleMock,
+      loadConversationMessages: loadConversationMessagesMock,
       chatMessages: vue.ref([]),
-      inputMessage: vue.ref(''),
+      inputMessage: inputMessageValue,
       mentionedAgentId: vue.ref(null),
       mentionedAgent: vue.computed(() => null),
       mentionOpen: vue.ref(false),
@@ -78,7 +292,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       sending: vue.ref(false),
       streaming: vue.ref(false),
       messagesContainer: vue.ref(null),
-      sendMessage: vi.fn(),
+      sendMessage: sendMessageMock,
       stopGeneration: vi.fn(),
       handleMessagesScroll: vi.fn(),
       showScrollToBottom: vue.ref(false),
@@ -93,7 +307,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       selectedKBIds: vue.ref([]),
       clearMentionedAgent: vi.fn(),
       cleanup: vi.fn(),
-      pendingAttachments: vue.ref([]),
+      pendingAttachments: pendingAttachmentsValue,
       uploading: vue.ref(false),
       fileInput: vue.ref(null),
       chatAcceptAttribute: vue.ref(''),
@@ -111,9 +325,9 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
       regenerateMessage: vi.fn(),
       editAndResend: vi.fn(),
       retryLastMessage: vi.fn(),
-      clearConversationMemory: vi.fn(),
+      clearConversationMemory: clearConversationMemoryMock,
       clearingMemory: vue.ref(false),
-      fetchConversationMemory: vi.fn(),
+      fetchConversationMemory: fetchConversationMemoryMock,
       memoryState: vue.ref(null),
       memoryLoading: vue.ref(false),
       lastMemoryUpdated: vue.ref(false),
@@ -133,7 +347,7 @@ vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
 vi.mock('../use-agent-router', () => ({
   useAgentRouter: () => ({
     routing: ref(false),
-    routeMessage: vi.fn(),
+    routeMessage: routeMessageMock,
   }),
 }));
 
@@ -168,16 +382,53 @@ describe('AIChatSlidePanel (component mount)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000_000_000);
     visible.value = true;
+    docked.value = true;
+    minimized.value = false;
+    mode.value = 'panel';
+    panelWidth.value = 460;
+    selectedAgentIdValue.value = 1;
+    activeConversationIdValue.value = null;
+    inputMessageValue.value = '';
+    pendingAttachmentsValue.value = [];
     pendingPageOpsValue.value = [];
+    aiPanelStore = createAIPanelStore();
+    aiPanelStore.visible = visible.value;
+    aiPanelStore.docked = docked.value;
+    aiPanelStore.minimized = minimized.value;
+    aiPanelStore.mode = mode.value;
+    aiPanelStore.panelWidth = panelWidth.value;
+    aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
     resolvePageOp.mockClear();
+    routeMessageMock.mockReset();
+    routeMessageMock.mockResolvedValue({
+      agentId: 1,
+      agentName: 'Agent One',
+      confidence: 1,
+      routedBy: 'router',
+    });
+    sendMessageMock.mockClear();
+    startNewConversationMock.mockClear();
+    startNewConversationMock.mockResolvedValue(undefined);
+    deleteConversationMock.mockClear();
+    loadConversationMessagesMock.mockClear();
+    loadConversationsMock.mockClear();
+    loadConversationsMock.mockResolvedValue(undefined);
+    loadAgentsMock.mockClear();
+    loadAgentsMock.mockResolvedValue(undefined);
+    updateConversationTitleMock.mockClear();
+    fetchConversationMemoryMock.mockClear();
+    clearConversationMemoryMock.mockClear();
+    antMessageMocks.error.mockClear();
+    antMessageMocks.warning.mockClear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    document.body.innerHTML = '';
   });
 
   it('renders confirmCountdown when pending op exists', async () => {
-    const startedAt = 1_000_000_000_000; // same as fake now
+    const startedAt = 1_000_000_000_000; // Same as fake now / 与 fake time 当前值一致
     pendingPageOpsValue.value = [
       {
         invokeId: 'op-1',
@@ -187,6 +438,7 @@ describe('AIChatSlidePanel (component mount)', () => {
         startedAt,
       },
     ];
+    aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
     const wrapper = mount(AIChatSlidePanel, {
       props: {
@@ -196,25 +448,19 @@ describe('AIChatSlidePanel (component mount)', () => {
       attachTo: document.body,
       global: {
         stubs: {
-          IconifyIcon: true,
           ChatMessageItem: true,
-          Modal: true,
-          Spin: true,
-          Dropdown: true,
-          Menu: true,
-          Popover: true,
-          Tooltip: true,
-          Input: true,
         },
       },
     });
 
-    await wrapper.vm.$nextTick();
+    await flushPromises();
 
-    // Panel is teleported to body; confirmCountdown should be visible
+    // Panel is teleported to body; confirmCountdown should be visible / 面板通过 teleport 挂到 body，需能看到倒计时
     const panel = document.querySelector('[data-ai-panel]');
     expect(panel).toBeTruthy();
     expect(panel?.textContent).toMatch(/60s remaining|60/);
+
+    wrapper.unmount();
   });
 
   it('countdown decrements over time and stays >= 0', async () => {
@@ -228,42 +474,97 @@ describe('AIChatSlidePanel (component mount)', () => {
         startedAt: base,
       },
     ];
+    aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
     const wrapper = mount(AIChatSlidePanel, {
       props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
       attachTo: document.body,
       global: {
         stubs: {
-          IconifyIcon: true,
           ChatMessageItem: true,
-          Modal: true,
-          Spin: true,
-          Dropdown: true,
-          Menu: true,
-          Popover: true,
-          Tooltip: true,
-          Input: true,
         },
       },
     });
 
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     let panel = document.querySelector('[data-ai-panel]');
     expect(panel?.textContent).toMatch(/60/);
 
-    // Advance 5s (countdown interval ticks every 1s, we need 5 ticks)
+    // Advance 5s; countdown ticks every 1s / 前进 5 秒；倒计时按 1 秒步进
     for (let i = 0; i < 5; i++) {
       vi.advanceTimersByTime(1000);
-      await wrapper.vm.$nextTick();
+      await flushPromises();
     }
     panel = document.querySelector('[data-ai-panel]');
     expect(panel?.textContent).toMatch(/55/);
 
-    // Advance to 60s+: countdown should show 0, not negative
+    // Advance to 60s+; countdown should clamp at 0 / 前进到 60 秒以上；倒计时应钳制为 0
     vi.advanceTimersByTime(60_000);
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     panel = document.querySelector('[data-ai-panel]');
     expect(panel?.textContent).toMatch(/0s remaining|0/);
+
+    wrapper.unmount();
+  });
+
+  it('sends directly within an active conversation without routing again', async () => {
+    activeConversationIdValue.value = 10;
+    selectedAgentIdValue.value = 2;
+    inputMessageValue.value = 'follow-up';
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(sendButton).toBeTruthy();
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(routeMessageMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith({ pageContext: null });
+
+    wrapper.unmount();
+  });
+
+  it('does not fall back to current agent when image reroute fails', async () => {
+    activeConversationIdValue.value = 10;
+    selectedAgentIdValue.value = 2;
+    inputMessageValue.value = 'look at this';
+    pendingAttachmentsValue.value = [{ type: 'image' }];
+    routeMessageMock.mockRejectedValueOnce(new Error('no vision agent'));
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          ChatMessageItem: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    const rerouteButton = document.body.querySelector(
+      'button[aria-label="common.globalAiChat.rerouteThisTurn"]',
+    );
+    const sendButton = document.body.querySelector('button.send-btn');
+    expect(rerouteButton).toBeTruthy();
+    expect(sendButton).toBeTruthy();
+    rerouteButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    sendButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(routeMessageMock).toHaveBeenCalledOnce();
+    expect(routeMessageMock.mock.calls[0]?.[4]).toBe(true);
+    expect(sendMessageMock).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });

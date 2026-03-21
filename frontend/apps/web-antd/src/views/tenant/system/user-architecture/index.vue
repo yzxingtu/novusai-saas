@@ -2,10 +2,7 @@
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 
-import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -45,11 +42,16 @@ import {
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import { useMemberColumns, useMemberSearchSchema, useUserFormSchema } from './data';
+import {
+  useMemberColumns,
+  useMemberSearchSchema,
+  useUserFormSchema,
+} from './data';
 import PermissionDrawer from './modules/PermissionDrawer.vue';
 import UserForm from './modules/UserForm.vue';
 import UserRoleFormComponent from './modules/UserRoleForm.vue';
@@ -65,17 +67,18 @@ const ALL_USERS_ID = -1;
 const roles = ref<TenantUserRoleInfo[]>([]);
 const rolesLoading = ref(false);
 const searchKeyword = ref('');
-const selectedRole = ref<TenantUserRoleInfo | null>(null);
+const selectedRole = ref<null | TenantUserRoleInfo>(null);
 const panelCollapsed = ref(false);
-const isAllUsersSelected = computed(() => selectedRole.value?.id === ALL_USERS_ID);
+const isAllUsersSelected = computed(
+  () => selectedRole.value?.id === ALL_USERS_ID,
+);
 
 const filteredRoles = computed(() => {
   if (!searchKeyword.value) return roles.value;
   const kw = searchKeyword.value.toLowerCase();
   return roles.value.filter(
     (r) =>
-      r.name.toLowerCase().includes(kw) ||
-      r.code.toLowerCase().includes(kw),
+      r.name.toLowerCase().includes(kw) || r.code.toLowerCase().includes(kw),
   );
 });
 
@@ -90,11 +93,7 @@ async function loadRoles() {
     // If previously selected role still exists, update reference / 如果之前选中的角色仍然存在，更新引用
     if (selectedRole.value) {
       const updated = roles.value.find((r) => r.id === selectedRole.value!.id);
-      if (updated) {
-        selectedRole.value = updated;
-      } else {
-        selectedRole.value = null;
-      }
+      selectedRole.value = updated || null;
     }
   } catch {
     roles.value = [];
@@ -144,7 +143,9 @@ const roleDeleting = ref(false);
 
 async function handleDeleteRole(role: TenantUserRoleInfo) {
   if (role.isSystem) {
-    message.warning($t('tenant.system.userRole.messages.systemRoleCannotDelete'));
+    message.warning(
+      $t('tenant.system.userRole.messages.systemRoleCannotDelete'),
+    );
     return;
   }
   roleDeleting.value = true;
@@ -182,7 +183,7 @@ async function handleToggleRoleStatus(role: TenantUserRoleInfo) {
 // ============================================================
 
 const permissionDrawerVisible = ref(false);
-const currentPermissionRole = ref<TenantUserRoleInfo | null>(null);
+const currentPermissionRole = ref<null | TenantUserRoleInfo>(null);
 
 function handleAssignPermissions(role: TenantUserRoleInfo) {
   currentPermissionRole.value = role;
@@ -198,10 +199,7 @@ function onPermissionSaved() {
 // ============================================================
 
 /** Wrapper to match ToggleStatusApi signature / 包装以匹配 ToggleStatusApi 签名 */
-async function toggleUserStatus(
-  id: number,
-  data: Record<string, boolean>,
-) {
+async function toggleUserStatus(id: number, data: Record<string, boolean>) {
   return toggleTenantUserStatusApi(id, !!data.is_active);
 }
 
@@ -281,7 +279,9 @@ const confirmPasswordRef = ref('');
 async function onForceLogout(row: TenantUserInfo) {
   try {
     await forceLogoutTenantUserApi(row.id);
-    message.success($t('common.auth.forceLogoutSuccess', { name: row.username }));
+    message.success(
+      $t('common.auth.forceLogoutSuccess', { name: row.username }),
+    );
     onMemberRefresh();
   } catch {
     message.error($t('common.requestFailed'));
@@ -303,7 +303,9 @@ async function onResetPassword(row: TenantUserInfo) {
           },
         }),
         h(Input.Password, {
-          placeholder: $t('tenant.system.user.placeholder.inputNewPasswordConfirm'),
+          placeholder: $t(
+            'tenant.system.user.placeholder.inputNewPasswordConfirm',
+          ),
           value: confirmPasswordRef.value,
           'onUpdate:value': (val: string) => {
             confirmPasswordRef.value = val;
@@ -316,7 +318,9 @@ async function onResetPassword(row: TenantUserInfo) {
         throw new Error('validation');
       }
       if (newPasswordRef.value !== confirmPasswordRef.value) {
-        message.warning($t('tenant.system.user.messages.resetPasswordMismatch'));
+        message.warning(
+          $t('tenant.system.user.messages.resetPasswordMismatch'),
+        );
         throw new Error('validation');
       }
       await resetTenantUserPasswordApi(row.id, {
@@ -331,9 +335,10 @@ const {
   Grid: MemberGrid,
   gridApi: memberGridApi,
   FormDrawer: MemberFormDrawer,
+  formApi: memberFormApi,
   onRefresh: onMemberRefresh,
   handleToggleStatus: handleMemberToggleStatus,
-  formAiOperations,
+  aiPageKey: memberAiPageKey,
 } = useCrudPage<TenantUserInfo>({
   api: {
     list: getUserListForRole,
@@ -403,20 +408,11 @@ onMounted(async () => {
 // AI Page Context
 // ============================================================
 
-const cleanupPageContext = registerPageContext(
-  'tenant/system/user-architecture',
-  () => ({
-    page_key: 'tenant.system.userArchitecture',
-    page_title: $t('tenant.system.userArchitecture.title'),
-    page_data: {
-      resource: '/tenant/user-roles',
-    },
-  }),
-);
-
-const cleanupPageOps = registerPageOperations(
-  'tenant.system.userArchitecture',
-  [
+usePageAIRegistration({
+  pageKey: 'tenant.system.userArchitecture',
+  registerContext: false,
+  operationStrategy: 'append',
+  operations: [
     {
       name: 'refresh_roles',
       label: $t('shared.pageOperation.refreshList'),
@@ -457,20 +453,30 @@ const cleanupPageOps = registerPageOperations(
       description: 'Open the add member form for the selected role',
       readonly: false,
       handler: async () => {
-        if (!selectedRole.value) {
-          return { success: false, message: 'No role selected' };
-        }
-        handleCreateRole();
-        return { success: true, message: 'Add member form opened' };
+        const roleId =
+          selectedRole.value && !isAllUsersSelected.value
+            ? selectedRole.value.id
+            : undefined;
+        memberFormApi
+          ?.setData({
+            mode: 'add',
+            _resource: '/tenant/users',
+            _defaults: {
+              is_active: true,
+              ...(roleId ? { role_id: roleId } : {}),
+            },
+            ...(memberAiPageKey ? { _aiPageKey: memberAiPageKey } : {}),
+          })
+          .open();
+        return {
+          success: true,
+          message: roleId
+            ? 'Add member form opened with selected role'
+            : 'Add member form opened',
+        };
       },
     },
-    ...formAiOperations,
   ],
-);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 
@@ -557,7 +563,10 @@ onUnmounted(() => {
         </div>
 
         <!-- 搜索框 -->
-        <div v-show="!panelCollapsed" class="border-b border-border/30 px-2 py-2 lg:px-3">
+        <div
+          v-show="!panelCollapsed"
+          class="border-b border-border/30 px-2 py-2 lg:px-3"
+        >
           <Input
             v-model:value="searchKeyword"
             :placeholder="$t('tenant.system.userArchitecture.searchRole')"
@@ -582,15 +591,17 @@ onUnmounted(() => {
                     ? 'border-primary/30 bg-primary/5 shadow-sm'
                     : '',
                 ]"
-                @click="selectedRole = {
-                  id: ALL_USERS_ID,
-                  name: $t('tenant.system.userArchitecture.allUsers'),
-                  code: 'all_users',
-                  memberCount: 0,
-                  isActive: true,
-                  isSystem: false,
-                  permissionsCount: 0,
-                } as TenantUserRoleInfo"
+                @click="
+                  selectedRole = {
+                    id: ALL_USERS_ID,
+                    name: $t('tenant.system.userArchitecture.allUsers'),
+                    code: 'all_users',
+                    memberCount: 0,
+                    isActive: true,
+                    isSystem: false,
+                    permissionsCount: 0,
+                  } as TenantUserRoleInfo
+                "
               >
                 <div class="flex items-center gap-2.5">
                   <div
@@ -610,7 +621,10 @@ onUnmounted(() => {
               </div>
 
               <!-- 角色分隔线 -->
-              <div v-if="filteredRoles.length > 0" class="my-1 border-t border-border/30" />
+              <div
+                v-if="filteredRoles.length > 0"
+                class="my-1 border-t border-border/30"
+              ></div>
 
               <div
                 v-for="role in filteredRoles"
@@ -632,31 +646,46 @@ onUnmounted(() => {
                       icon="lucide:shield"
                       class="h-4 w-4"
                       :class="
-                        role.isActive
-                          ? 'text-primary'
-                          : 'text-muted-foreground'
+                        role.isActive ? 'text-primary' : 'text-muted-foreground'
                       "
                     />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
-                      <span class="truncate text-sm font-medium text-foreground">
+                      <span
+                        class="truncate text-sm font-medium text-foreground"
+                      >
                         {{ role.name }}
                       </span>
-                      <Tag v-if="role.isSystem" color="orange" class="!text-[10px] !leading-tight !px-1">
+                      <Tag
+                        v-if="role.isSystem"
+                        color="orange"
+                        class="!px-1 !text-[10px] !leading-tight"
+                      >
                         {{ $t('tenant.system.userRole.isSystem') }}
                       </Tag>
                     </div>
-                    <div class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      <code class="rounded bg-muted/70 px-1 text-[10px]">{{ role.code }}</code>
-                      <span>{{ role.memberCount }}{{ $t('tenant.system.userArchitecture.memberUnit') }}</span>
+                    <div
+                      class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <code class="rounded bg-muted/70 px-1 text-[10px]">{{
+                        role.code
+                      }}</code>
+                      <span
+                        >{{ role.memberCount
+                        }}{{
+                          $t('tenant.system.userArchitecture.memberUnit')
+                        }}</span
+                      >
                     </div>
                   </div>
                   <div class="flex-shrink-0">
                     <span
                       class="inline-block h-2 w-2 rounded-full"
-                      :class="role.isActive ? 'bg-success' : 'bg-muted-foreground/30'"
-                    />
+                      :class="
+                        role.isActive ? 'bg-success' : 'bg-muted-foreground/30'
+                      "
+                    ></span>
                   </div>
                 </div>
               </div>
@@ -780,7 +809,8 @@ onUnmounted(() => {
                     }}</code>
                     <span>·</span>
                     <span>
-                      {{ selectedRole.memberCount }}{{ $t('tenant.system.userArchitecture.memberUnit') }}
+                      {{ selectedRole.memberCount
+                      }}{{ $t('tenant.system.userArchitecture.memberUnit') }}
                     </span>
                     <span>·</span>
                     <Badge
@@ -795,7 +825,9 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="flex flex-shrink-0 gap-2">
-                <Tooltip :title="$t('tenant.system.userRole.assignPermissions')">
+                <Tooltip
+                  :title="$t('tenant.system.userRole.assignPermissions')"
+                >
                   <Button
                     v-access:code="['tenant_user_role:assign_permissions']"
                     size="small"
@@ -867,13 +899,19 @@ onUnmounted(() => {
             <Card class="h-full overflow-hidden" size="small">
               <template #title>
                 <span class="text-sm lg:text-base">
-                  {{ isAllUsersSelected ? $t('tenant.system.userArchitecture.allUsersListTitle') : $t('tenant.system.userArchitecture.memberTitle') }}
+                  {{
+                    isAllUsersSelected
+                      ? $t('tenant.system.userArchitecture.allUsersListTitle')
+                      : $t('tenant.system.userArchitecture.memberTitle')
+                  }}
                 </span>
               </template>
               <template #extra>
                 <div class="flex items-center gap-2">
                   <Popconfirm
-                    :title="$t('tenant.system.user.messages.batchApproveConfirm')"
+                    :title="
+                      $t('tenant.system.user.messages.batchApproveConfirm')
+                    "
                     :ok-text="$t('shared.common.confirm')"
                     :cancel-text="$t('shared.common.cancel')"
                     @confirm="handleBatchApprove"
@@ -882,7 +920,7 @@ onUnmounted(() => {
                       v-access:code="['tenant_user:approve']"
                       size="small"
                       type="primary"
-                      class="!bg-success !border-success hover:!bg-success/80"
+                      class="!border-success !bg-success hover:!bg-success/80"
                     >
                       <template #icon>
                         <IconifyIcon icon="lucide:check-circle" />
@@ -891,7 +929,9 @@ onUnmounted(() => {
                     </Button>
                   </Popconfirm>
                   <Popconfirm
-                    :title="$t('tenant.system.user.messages.batchRejectConfirm')"
+                    :title="
+                      $t('tenant.system.user.messages.batchRejectConfirm')
+                    "
                     :ok-text="$t('shared.common.confirm')"
                     :cancel-text="$t('shared.common.cancel')"
                     :ok-button-props="{ danger: true }"
@@ -912,7 +952,7 @@ onUnmounted(() => {
               </template>
               <MemberFormDrawer @success="onMemberFormSuccess" />
               <MemberGrid
-                :checkboxConfig="{ trigger: 'cell', highlight: true }"
+                :checkbox-config="{ trigger: 'cell', highlight: true }"
               >
                 <template #username_cell="{ row }">
                   <div class="flex items-center gap-2">
@@ -945,7 +985,7 @@ onUnmounted(() => {
                               ? 'bg-green-500'
                               : 'bg-muted-foreground/30'
                           "
-                        />
+                        ></span>
                       </Tooltip>
                     </div>
                     <div class="flex flex-col">

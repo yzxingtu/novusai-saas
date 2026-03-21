@@ -5,10 +5,7 @@
 import type { ConversationInfo } from '#/api/tenant/conversations';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -64,7 +61,7 @@ async function loadConversationCallLogs(
   return res.items as ConversationCallLogSummary[];
 }
 
-const { Grid, onRefresh, gridApi } = useCrudPage<ConversationInfo>({
+const { Grid } = useCrudPage<ConversationInfo>({
   api: {
     list: getConversationListApi,
     resource: '/tenant/ai/conversations',
@@ -76,47 +73,42 @@ const { Grid, onRefresh, gridApi } = useCrudPage<ConversationInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('tenant/ai/conversations', () => ({
-  page_key: 'tenant.ai.conversations',
-  page_title: $t('tenant.ai.conversation.name'),
-  page_data: {
-    resource: '/tenant/ai/conversations',
+  ai: {
+    pageKey: 'tenant.ai.conversations',
+    entityName: $t('tenant.ai.conversation.name'),
+    entityDescription: $t('tenant.ai.conversation.pageDesc'),
+    extra: [
+      {
+        name: 'view_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the conversation detail drawer by ID / 按 ID 打开对话详情抽屉',
+        readonly: true,
+        params: {
+          id: {
+            type: 'number',
+            description: 'Conversation ID / 对话 ID',
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const id = Number(params.id);
+          if (!Number.isFinite(id) || id <= 0) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.missingIdParam'),
+            };
+          }
+          detailId.value = id;
+          detailOpen.value = true;
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.detailOpened', { id }),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.conversations', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the conversation list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Conversation list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search conversations by title',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Conversation title keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

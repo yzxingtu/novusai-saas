@@ -7,10 +7,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -27,6 +24,7 @@ import {
 } from 'ant-design-vue';
 
 import { adminApi as admin } from '#/api';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { downloadText } from '#/utils/download';
@@ -409,43 +407,38 @@ onMounted(() => {
   onRefresh();
 });
 
-const cleanupPageContext = registerPageContext('admin/system/system-logs', () => ({
-  page_key: 'admin.system.system-logs',
-  page_title: $t('admin.system.systemLog.name'),
-  page_data: {
-    resource: '/admin/system-logs',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.system-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload system log stats, categories and files',
-    readonly: true,
-    handler: async () => {
-      await onRefresh();
-      return { success: true, message: 'System logs refreshed' };
+usePageAIRegistration({
+  pageKey: 'admin.system.system-logs',
+  title: () => $t('admin.system.systemLog.name'),
+  resource: '/admin/system-logs',
+  operations: [
+    {
+      name: 'refresh_list',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload system log stats, categories and files',
+      readonly: true,
+      handler: async () => {
+        await onRefresh();
+        return { success: true, message: 'System logs refreshed' };
+      },
     },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search within current log content',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
+    {
+      name: 'search',
+      label: $t('shared.pageOperation.searchByKeyword'),
+      description: 'Search within current log content',
+      readonly: true,
+      params: {
+        keyword: { type: 'string', description: 'Search keyword' },
+      },
+      handler: async (params) => {
+        logSearchQuery.value = (params?.keyword as string) || '';
+        return {
+          success: true,
+          message: `Searching for: ${logSearchQuery.value}`,
+        };
+      },
     },
-    handler: async (params) => {
-      logSearchQuery.value = (params?.keyword as string) || '';
-      return { success: true, message: `Searching for: ${logSearchQuery.value}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

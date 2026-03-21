@@ -3,20 +3,25 @@ DNS Provider 抽象层 / DNS Provider Abstraction Layer
 
 为 ACME DNS-01 验证提供 TXT 记录设置/清理能力。
 Provides TXT record set/cleanup for ACME DNS-01 validation.
-支持多种 DNS 提供商（Cloudflare、阿里云 DNS 等），通过平台配置动态选择。
 
-使用方式（由 Celery SSL 任务调用）：
-    provider = await get_dns_provider(db)
-    await provider.set_txt_record("_acme-challenge.example.com", "token_value")
-    # ... ACME 验证完成后 ...
-    await provider.delete_txt_record("_acme-challenge.example.com", "token_value")
+当前产品化自动签发仅支持 Cloudflare。
+At the moment, production-ready automated issuance only supports Cloudflare.
 """
 
 import abc
+from typing import Any
 
+from app.configs.service import ConfigService
+from app.core.config import settings
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.error_code import ErrorCode
+from app.exceptions import BusinessException
 
 logger = LogManager.get_logger("ssl")
+
+_SUPPORTED_AUTOMATION_DNS_PROVIDERS = {"cloudflare"}
+_LEGACY_UNSUPPORTED_DNS_PROVIDERS = {"aliyun", "dnspod"}
 
 
 class DnsProvider(abc.ABC):
@@ -118,26 +123,6 @@ class CloudflareDnsProvider(DnsProvider):
                         record_name, record["id"],
                     )
 
-
-class AliyunDnsProvider(DnsProvider):
-    """
-    阿里云 DNS 提供商（预留接口） / Aliyun DNS provider (reserved).
-
-    需要配置：Requires dns_aliyun_access_key_id, dns_aliyun_access_key_secret, dns_aliyun_domain.
-    """
-
-    def __init__(self, access_key_id: str, access_key_secret: str, domain: str):
-        self._access_key_id = access_key_id
-        self._access_key_secret = access_key_secret
-        self._domain = domain
-
-    async def set_txt_record(self, record_name: str, record_value: str) -> None:
-        raise NotImplementedError("Aliyun DNS provider not yet implemented")
-
-    async def delete_txt_record(self, record_name: str, record_value: str) -> None:
-        raise NotImplementedError("Aliyun DNS provider not yet implemented")
-
-
 class ManualDnsProvider(DnsProvider):
     """
     手动 DNS 提供商（开发/测试用） / Manual DNS provider (dev/test).
@@ -158,13 +143,143 @@ class ManualDnsProvider(DnsProvider):
         )
 
 
-# ==================== 工厂函数 ====================
+# ==================== 配置审计与校验 / Config audit & validation ====================
 
-_DNS_PROVIDERS = {
-    "cloudflare": "cloudflare",
-    "aliyun": "aliyun",
-    "manual": "manual",
-}
+
+def _build_issue(code: str, message: str, severity: str = "error") -> dict[str, str]:
+    """构建 DNS 配置诊断项 / Build a DNS config diagnostic issue."""
+    return {
+        "code": code,
+        "message": message,
+        "severity": severity,
+    }
+
+
+async def audit_dns_provider_config(db) -> dict[str, Any]:
+    """
+    审计当前 DNS provider 配置是否可用于自动化签发 / Audit whether the current DNS provider config is ready for automated issuance.
+
+    Returns:
+        {
+            "provider_type": str,
+            "ready": bool,
+            "supported": bool,
+            "summary": str,
+            "issues": [{"code": str, "message": str, "severity": str}, ...],
+        }
+    """
+    config_svc = ConfigService(db)
+    default_provider = "manual" if settings.DEBUG else "cloudflare"
+    provider_type = str(
+        await config_svc.get_platform_config("dns_provider", default=default_provider) or default_provider
+    ).strip().lower()
+    issues: list[dict[str, str]] = []
+
+    if provider_type in _LEGACY_UNSUPPORTED_DNS_PROVIDERS:
+        issues.append(
+            _build_issue(
+                "legacy_unsupported_provider",
+                _("ssl_certificate.dns_provider_legacy_unsupported", provider=provider_type),
+            )
+        )
+    elif provider_type == "cloudflare":
+        api_token = str(
+            await config_svc.get_platform_config("dns_cloudflare_api_token", default="") or ""
+        ).strip()
+        zone_id = str(
+            await config_svc.get_platform_config("dns_cloudflare_zone_id", default="") or ""
+        ).strip()
+        if not api_token or not zone_id:
+            issues.append(
+                _build_issue(
+                    "cloudflare_missing_credentials",
+                    _("ssl_certificate.cloudflare_dns_not_configured"),
+                )
+            )
+    elif provider_type == "manual":
+        issues.append(
+            _build_issue(
+                "manual_mode_not_supported",
+                _("ssl_certificate.manual_dns_not_supported"),
+                severity="warning",
+            )
+        )
+    else:
+        issues.append(
+            _build_issue(
+                "unknown_provider",
+                _("ssl_certificate.dns_provider_invalid", provider=provider_type or "-"),
+            )
+        )
+
+    ready = provider_type in _SUPPORTED_AUTOMATION_DNS_PROVIDERS and not issues
+    summary = (
+        issues[0]["message"]
+        if issues
+        else _("ssl_certificate.dns_provider_ready", provider="Cloudflare")
+    )
+    return {
+        "provider_type": provider_type,
+        "ready": ready,
+        "supported": provider_type in _SUPPORTED_AUTOMATION_DNS_PROVIDERS,
+        "summary": summary,
+        "issues": issues,
+    }
+
+
+async def ensure_dns_provider_ready(
+    db,
+    *,
+    allow_manual: bool = False,
+) -> str:
+    """确保当前 DNS provider 可用于目标流程 / Ensure current DNS provider is ready for the target flow."""
+    audit = await audit_dns_provider_config(db)
+    provider_type = audit["provider_type"]
+
+    if provider_type == "manual" and allow_manual:
+        return provider_type
+
+    if not audit["ready"]:
+        raise BusinessException(
+            message=audit["summary"],
+            code=ErrorCode.CONFIG_VALIDATION_FAILED,
+        )
+    return provider_type
+
+
+async def validate_platform_ssl_config_patch(
+    configs: dict[str, Any],
+) -> None:
+    """校验平台 SSL 配置补丁 / Validate a platform SSL config patch before saving."""
+    raw_provider = configs.get("dns_provider")
+    if raw_provider is None:
+        return
+
+    provider_type = str(raw_provider or "").strip().lower()
+    configs["dns_provider"] = provider_type
+
+    if provider_type in _LEGACY_UNSUPPORTED_DNS_PROVIDERS:
+        raise BusinessException(
+            message=_("ssl_certificate.dns_provider_legacy_unsupported", provider=provider_type),
+            code=ErrorCode.CONFIG_VALIDATION_FAILED,
+        )
+
+    if provider_type == "manual":
+        if settings.DEBUG:
+            return
+        raise BusinessException(
+            message=_("ssl_certificate.manual_dns_not_supported"),
+            code=ErrorCode.CONFIG_VALIDATION_FAILED,
+        )
+
+    if provider_type != "cloudflare":
+        raise BusinessException(
+            message=_("ssl_certificate.dns_provider_invalid", provider=provider_type or "-"),
+            code=ErrorCode.CONFIG_VALIDATION_FAILED,
+        )
+
+
+# ==================== 工厂函数 / Factory ====================
 
 
 async def get_dns_provider(db) -> DnsProvider:
@@ -180,37 +295,17 @@ async def get_dns_provider(db) -> DnsProvider:
         DnsProvider 实例 / DnsProvider instance
 
     Raises:
-        RuntimeError: 配置缺失或提供商类型不支持 / Missing config or unsupported provider
+        BusinessException: 配置缺失或当前 provider 不可用于自动化签发 / Missing config or provider not ready
     """
-    from app.configs.service import ConfigService
-    from app.core.config import settings
-
     config_svc = ConfigService(db)
-
-    provider_type = await config_svc.get_platform_config(
-        "dns_provider", default="manual",
-    )
+    provider_type = await ensure_dns_provider_ready(db)
 
     if provider_type == "cloudflare":
         api_token = await config_svc.get_platform_config("dns_cloudflare_api_token", default="")
         zone_id = await config_svc.get_platform_config("dns_cloudflare_zone_id", default="")
-        if not api_token or not zone_id:
-            raise RuntimeError(
-                "Cloudflare DNS provider requires dns_cloudflare_api_token and dns_cloudflare_zone_id"
-            )
         return CloudflareDnsProvider(api_token=api_token, zone_id=zone_id)
 
-    if provider_type == "aliyun":
-        access_key_id = await config_svc.get_platform_config("dns_aliyun_access_key_id", default="")
-        access_key_secret = await config_svc.get_platform_config("dns_aliyun_access_key_secret", default="")
-        domain = await config_svc.get_platform_config("dns_aliyun_domain", default="")
-        if not access_key_id or not access_key_secret:
-            raise RuntimeError(
-                "Aliyun DNS provider requires dns_aliyun_access_key_id and dns_aliyun_access_key_secret"
-            )
-        return AliyunDnsProvider(access_key_id, access_key_secret, domain)
-
-    if provider_type == "manual" or settings.DEBUG:
+    if provider_type == "manual":
         return ManualDnsProvider()
 
     raise RuntimeError(f"Unsupported DNS provider: {provider_type}")
@@ -219,7 +314,9 @@ async def get_dns_provider(db) -> DnsProvider:
 __all__ = [
     "DnsProvider",
     "CloudflareDnsProvider",
-    "AliyunDnsProvider",
     "ManualDnsProvider",
+    "audit_dns_provider_config",
+    "ensure_dns_provider_ready",
     "get_dns_provider",
+    "validate_platform_ssl_config_patch",
 ]

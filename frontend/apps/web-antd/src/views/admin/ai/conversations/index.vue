@@ -5,10 +5,7 @@
 import type { AIConversationInfo } from '#/api/admin/ai';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -59,7 +56,7 @@ async function loadConversationCallLogs(
   return res.items as ConversationCallLogSummary[];
 }
 
-const { Grid, onRefresh, gridApi } = useCrudPage<AIConversationInfo>({
+const { Grid, gridApi } = useCrudPage<AIConversationInfo>({
   api: {
     list: getAIConversationListApi,
     resource: '/admin/ai/conversations',
@@ -71,63 +68,83 @@ const { Grid, onRefresh, gridApi } = useCrudPage<AIConversationInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/conversations', () => ({
-  page_key: 'admin.ai.conversations',
-  page_title: $t('admin.ai.conversation.name'),
-  page_data: {
-    resource: '/admin/ai/conversations',
+  ai: {
+    pageKey: 'admin.ai.conversations',
+    entityName: $t('admin.ai.conversation.name'),
+    entityDescription: $t('admin.ai.conversation.pageDesc'),
+    extra: [
+      {
+        name: 'search',
+        label: $t('shared.pageOperation.searchByKeyword'),
+        description:
+          'Search conversations by title keyword / 按标题关键字搜索对话',
+        readonly: true,
+        params: {
+          keyword: {
+            type: 'string',
+            description: 'Conversation title keyword / 对话标题关键字',
+          },
+        },
+        handler: async (params) => {
+          const keyword = (params?.keyword as string) || '';
+          gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
+          gridApi.reload({ page: 1 });
+          return {
+            success: true,
+            message: keyword
+              ? $t('shared.pageOperation.msg.searchApplied', {
+                  fields: 'title',
+                })
+              : $t('shared.pageOperation.msg.searchCleared'),
+          };
+        },
+      },
+      {
+        name: 'clear_search',
+        label: $t('shared.pageOperation.clearSearch'),
+        description:
+          'Clear the conversation title search filter / 清空对话标题搜索条件',
+        readonly: true,
+        handler: async () => {
+          gridApi.formApi?.setValues({ 'filter[title][ilike]': undefined });
+          gridApi.reload({ page: 1 });
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.searchCleared'),
+          };
+        },
+      },
+      {
+        name: 'view_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the conversation detail drawer by ID / 按 ID 打开对话详情抽屉',
+        readonly: true,
+        params: {
+          id: {
+            type: 'number',
+            description: 'Conversation ID / 对话 ID',
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const id = Number(params.id);
+          if (!Number.isFinite(id) || id <= 0) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.missingIdParam'),
+            };
+          }
+          detailId.value = id;
+          detailOpen.value = true;
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.detailOpened', { id }),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.conversations', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the conversation list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Conversation list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search conversations by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'view_detail',
-    label: $t('shared.pageOperation.viewDetail'),
-    description: 'View conversation detail by ID',
-    readonly: true,
-    params: {
-      id: { type: 'number', description: 'Conversation ID' },
-    },
-    handler: async (params) => {
-      const id = params?.id as number;
-      if (!id) return { success: false, message: 'ID is required' };
-      detailId.value = id;
-      detailOpen.value = true;
-      return { success: true, message: `Viewing conversation ${id}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

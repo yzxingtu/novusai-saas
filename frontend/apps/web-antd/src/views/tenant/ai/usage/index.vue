@@ -12,10 +12,7 @@ import type {
   ModelDistributionItem,
 } from '#/api/tenant/analytics';
 
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -29,6 +26,7 @@ import {
   getTenantCallTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'TenantAIUsage' });
@@ -283,34 +281,38 @@ function renderCharts() {
 watch([trendData, modelData], renderCharts);
 onMounted(loadCharts);
 
-const cleanupPageContext = registerPageContext('tenant/ai/usage', () => ({
-  page_key: 'tenant.ai.usage',
-  page_title: $t('tenant.ai.usage.name'),
-  page_data: {
-    resource: '/tenant/ai/usage',
+usePageAIRegistration({
+  pageKey: 'tenant.ai.usage',
+  title: () => $t('tenant.ai.usage.name'),
+  resource: '/tenant/ai/usage',
+  entityName: () => $t('tenant.ai.usage.name'),
+  entityDescription: () => $t('tenant.ai.usage.pageDesc'),
+  data: () => ({
+    access_channel_count: accessChannelRowsNonEmpty.value.length,
+    end_date: dateRange.value[1]?.format('YYYY-MM-DD'),
+    model_distribution_count: modelData.value.length,
+    start_date: dateRange.value[0]?.format('YYYY-MM-DD'),
+    success_rate: successRate.value,
     total_calls: summary.value?.total_calls ?? 0,
-    total_tokens: summary.value?.total_tokens ?? 0,
     total_cost: summary.value?.total_cost ?? 0,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.usage', [
-  {
-    name: 'refresh_data',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload usage summary and charts',
-    readonly: true,
-    handler: async () => {
-      await loadSummary();
-      await loadCharts();
-      return { success: true, message: 'Usage data refreshed' };
+    total_tokens: summary.value?.total_tokens ?? 0,
+  }),
+  operations: [
+    {
+      name: 'refresh_list',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload usage summary and charts / 重新加载用量摘要与图表',
+      readonly: true,
+      handler: async () => {
+        await loadSummary();
+        await loadCharts();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.listRefreshed'),
+        };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

@@ -169,6 +169,12 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 100
 
     # ========================================
+    # 回收站配置 / Recycle Bin Configuration
+    # ========================================
+    RECYCLE_BIN_MODULE_RETENTION_DAYS: int = 30
+    RECYCLE_BIN_GLOBAL_RETENTION_DAYS: int = 30
+
+    # ========================================
     # 域名配置 / Domain Configuration
     # ========================================
     # 平台管理端域名列表 / Platform admin domain list (comma-separated), for frontend domain detection

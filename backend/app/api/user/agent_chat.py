@@ -21,7 +21,11 @@ from app.core.base_controller import BaseController
 from app.core.deps import ActiveTenantUser, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import deleted, paginated, success
-from app.enums.agent import MemoryChannelEnum, MemorySceneEnum
+from app.enums.agent import (
+    ConversationOwnerTypeEnum,
+    MemoryChannelEnum,
+    MemorySceneEnum,
+)
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
@@ -215,11 +219,13 @@ class UserAgentChatController(BaseController):
                 db,
                 tenant_id=current_user.tenant_id,
                 message=data.message,
+                conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.TENANT_USER.value,
                 user_role_id=current_user.role_id,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=current_user.id,
+                force_reroute=data.force_reroute,
                 has_image_attachments=data.has_image_attachments,
             )
 
@@ -270,6 +276,11 @@ class UserAgentChatController(BaseController):
             service = ConversationService(db, current_user.tenant_id)
             forced = [
                 FilterRule(field="user_id", operator="eq", value=current_user.id),
+                FilterRule(
+                    field="owner_type",
+                    operator="eq",
+                    value=ConversationOwnerTypeEnum.TENANT_USER.value,
+                ),
             ]
             items, total = await service.query_list(
                 spec=query,
@@ -298,6 +309,7 @@ class UserAgentChatController(BaseController):
             result = await service.get_conversation_detail(
                 conversation_id,
                 user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             return success(data=result)
 
@@ -319,6 +331,7 @@ class UserAgentChatController(BaseController):
                 conversation_id,
                 title=data.title,
                 user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             await db.commit()
             return success(data={"id": conv.id, "title": conv.title})
@@ -339,6 +352,7 @@ class UserAgentChatController(BaseController):
             await service.delete_accessible_conversation(
                 conversation_id,
                 user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             await db.commit()
             return deleted(message=_("agent_chat.conversation_deleted"))
@@ -363,6 +377,7 @@ class UserAgentChatController(BaseController):
             state = await service.get_conversation_memory_state(
                 conversation_id,
                 user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             return success(data=state)
 
@@ -382,6 +397,7 @@ class UserAgentChatController(BaseController):
             deleted_count = await service.clear_conversation_memory_state(
                 conversation_id,
                 user_id=current_user.id,
+                owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
             return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
 

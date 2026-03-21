@@ -138,6 +138,145 @@ class TestPublishAgent:
         assert hasattr(service, 'rollback_agent')
         assert hasattr(service, 'get_versions')
 
+    @pytest.mark.asyncio
+    async def test_publish_agent_snapshots_rag_config(self, mock_db):
+        from app.services.ai.agent_service import AgentService
+
+        rag_config = {
+            "search_mode": "hybrid",
+            "top_k": 7,
+            "score_threshold": 0.42,
+            "rewrite_strategy": "multi",
+            "reranker_enabled": True,
+            "context_token_ratio": 0.55,
+        }
+        agent = _make_agent(
+            rag_config=rag_config,
+            context_config={"max_history_messages": 12},
+            output_schema=[{"name": "answer"}],
+            quota_config={"daily_token_limit": 1000},
+            welcome_message="hello",
+            suggested_questions=["q1"],
+            input_variables=[{"name": "customer"}],
+        )
+        updated = _make_agent(
+            status="published",
+            published_version=4,
+            rag_config=rag_config,
+        )
+
+        version_repo = AsyncMock()
+        version_repo.get_latest_version_number = AsyncMock(return_value=3)
+        version_repo.create = AsyncMock()
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=agent)
+        service.repo.update = AsyncMock(return_value=updated)
+        service._get_version_repo = MagicMock(return_value=version_repo)
+        service._snapshot_skill_bindings = AsyncMock(return_value=[])
+
+        result = await service.publish_agent(
+            agent_id=agent.id,
+            change_log="rag updated",
+            created_by=9,
+        )
+
+        assert result is updated
+        version_repo.create.assert_awaited_once()
+        created_payload = version_repo.create.await_args.args[0]
+        assert created_payload["version"] == 4
+        assert created_payload["rag_config"] == rag_config
+        assert created_payload["context_config"] == {"max_history_messages": 12}
+        assert created_payload["output_schema"] == [{"name": "answer"}]
+        assert created_payload["tool_bindings"] == []
+
+
+class TestCascadeConversationMemoryCleanup:
+
+    @pytest.mark.asyncio
+    async def test_tenant_before_delete_clears_cascaded_conversation_memory(self, mock_db):
+        from app.services.ai.agent_service import AgentService
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service._default_delete_level = "tenant"
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(owner_tenant_id=1, is_system=False),
+        )
+        service.repo.list_conversation_memory_cleanup_targets = AsyncMock(
+            return_value=[(1, 101), (1, 102), (1, 101)],
+        )
+        service.repo.cascade_soft_delete_conversations = AsyncMock()
+
+        memory_svc = AsyncMock()
+        memory_svc.clear_conversation_memories = AsyncMock(return_value=3)
+
+        with patch(
+            "app.services.ai.session_memory_service.SessionMemoryService",
+            return_value=memory_svc,
+        ) as mock_memory_service:
+            await service._before_delete(9)
+
+        service.repo.cascade_soft_delete_conversations.assert_awaited_once_with(
+            9,
+            "tenant",
+        )
+        mock_memory_service.assert_called_once_with(1)
+        memory_svc.clear_conversation_memories.assert_awaited_once_with(
+            [101, 102, 101],
+        )
+
+    @pytest.mark.asyncio
+    async def test_admin_before_delete_clears_multi_tenant_conversation_memory(self, mock_db):
+        from app.services.ai.agent_service import AdminAgentService
+
+        service = AdminAgentService.__new__(AdminAgentService)
+        service.db = mock_db
+        service._default_delete_level = "admin"
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(owner_tenant_id=7, is_system=False),
+        )
+        service.repo.list_conversation_memory_cleanup_targets = AsyncMock(
+            return_value=[(0, 201), (7, 301), (7, 302)],
+        )
+        service.repo.cascade_soft_delete_conversations = AsyncMock()
+
+        memory_services: dict[int, AsyncMock] = {}
+
+        def _memory_factory(tenant_id: int):
+            svc = memory_services.get(tenant_id)
+            if svc is None:
+                svc = AsyncMock()
+                svc.clear_conversation_memories = AsyncMock(return_value=1)
+                memory_services[tenant_id] = svc
+            return svc
+
+        assignment_repo = AsyncMock()
+        assignment_repo.delete_all_for_resource = AsyncMock()
+
+        with patch(
+            "app.services.ai.session_memory_service.SessionMemoryService",
+            side_effect=_memory_factory,
+        ), patch(
+            "app.repositories.system.resource_tenant_assignment_repository.ResourceTenantAssignmentRepository",
+            return_value=assignment_repo,
+        ):
+            await service._before_delete(11)
+
+        service.repo.cascade_soft_delete_conversations.assert_awaited_once_with(
+            11,
+            "admin",
+        )
+        memory_services[0].clear_conversation_memories.assert_awaited_once_with([201])
+        memory_services[7].clear_conversation_memories.assert_awaited_once_with([301, 302])
+        assignment_repo.delete_all_for_resource.assert_awaited_once_with("agent", 11)
+
 
 class TestRollbackBindings:
 
@@ -224,6 +363,153 @@ class TestRollbackBindings:
                 "config_override": {"region": "cn"},
             },
         )
+
+
+class TestVersionRagConfig:
+
+    @pytest.mark.asyncio
+    async def test_rollback_agent_restores_rag_config(self, mock_db):
+        from app.services.ai.agent_service import AgentService
+
+        version_record = make_mock_model(
+            version=2,
+            system_prompt="prompt v2",
+            model_id=3,
+            temperature=0.5,
+            max_tokens=1024,
+            top_p=0.9,
+            execution_mode="conversation",
+            input_variables=[{"name": "region"}],
+            welcome_message="welcome",
+            suggested_questions=["s1"],
+            quota_config={"daily_token_limit": 2000},
+            rag_config={
+                "search_mode": "keyword",
+                "top_k": 8,
+                "score_threshold": 0.3,
+                "rewrite_strategy": "none",
+                "reranker_enabled": False,
+                "context_token_ratio": 0.4,
+            },
+            context_config={"max_history_messages": 8},
+            output_schema=[{"name": "summary"}],
+            tool_bindings=[{"package_id": 9}],
+        )
+        updated = _make_agent(
+            status="draft",
+            rag_config=version_record.rag_config,
+        )
+
+        version_repo = AsyncMock()
+        version_repo.get_by_agent_and_version = AsyncMock(return_value=version_record)
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_agent())
+        service.repo.update = AsyncMock(return_value=updated)
+        service._get_version_repo = MagicMock(return_value=version_repo)
+        service._restore_skill_bindings = AsyncMock()
+
+        result = await service.rollback_agent(agent_id=1, version=2)
+
+        assert result is updated
+        service.repo.update.assert_awaited_once()
+        rollback_payload = service.repo.update.await_args.args[1]
+        assert rollback_payload["rag_config"] == version_record.rag_config
+        assert rollback_payload["context_config"] == {"max_history_messages": 8}
+        assert rollback_payload["output_schema"] == [{"name": "summary"}]
+        service._restore_skill_bindings.assert_awaited_once_with(
+            1,
+            [{"package_id": 9}],
+        )
+
+    @pytest.mark.asyncio
+    async def test_diff_versions_includes_rag_config(self, mock_db):
+        from app.services.ai.agent_service import AgentService
+
+        version_repo = AsyncMock()
+        version_repo.get_by_agent_and_version = AsyncMock(
+            side_effect=[
+                make_mock_model(
+                    rag_config={"search_mode": "hybrid", "top_k": 5},
+                    context_config={"max_history_messages": 10},
+                    output_schema=[{"name": "answer"}],
+                    system_prompt="v1",
+                    model_id=1,
+                    temperature=0.7,
+                    max_tokens=1000,
+                    top_p=1.0,
+                    execution_mode="conversation",
+                    input_variables=[],
+                    welcome_message=None,
+                    suggested_questions=[],
+                    quota_config=None,
+                ),
+                make_mock_model(
+                    rag_config={"search_mode": "keyword", "top_k": 8},
+                    context_config={"max_history_messages": 10},
+                    output_schema=[{"name": "answer"}],
+                    system_prompt="v1",
+                    model_id=1,
+                    temperature=0.7,
+                    max_tokens=1000,
+                    top_p=1.0,
+                    execution_mode="conversation",
+                    input_variables=[],
+                    welcome_message=None,
+                    suggested_questions=[],
+                    quota_config=None,
+                ),
+            ]
+        )
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service._get_version_repo = MagicMock(return_value=version_repo)
+
+        diff = await service.diff_versions(agent_id=1, v1=1, v2=2)
+
+        assert diff["changes"]["rag_config"] == {
+            "v1": {"search_mode": "hybrid", "top_k": 5},
+            "v2": {"search_mode": "keyword", "top_k": 8},
+        }
+
+    def test_normalize_agent_rag_config_rejects_invalid_payload(self):
+        from app.exceptions import BusinessException
+        from app.services.ai.agent_service import _normalize_agent_rag_config
+
+        with pytest.raises(BusinessException):
+            _normalize_agent_rag_config("bad-payload")
+
+        with pytest.raises(BusinessException):
+            _normalize_agent_rag_config({"top_k": 0})
+
+        with pytest.raises(BusinessException):
+            _normalize_agent_rag_config({"context_token_ratio": 1.2})
+
+    def test_normalize_agent_rag_config_accepts_supported_fields(self):
+        from app.services.ai.agent_service import _normalize_agent_rag_config
+
+        result = _normalize_agent_rag_config({
+            "search_mode": "hybrid",
+            "top_k": 6,
+            "score_threshold": 0.66,
+            "rewrite_strategy": "multi",
+            "reranker_enabled": True,
+            "context_token_ratio": 0.45,
+        })
+
+        assert result == {
+            "search_mode": "hybrid",
+            "top_k": 6,
+            "score_threshold": 0.66,
+            "rewrite_strategy": "multi",
+            "reranker_enabled": True,
+            "context_token_ratio": 0.45,
+        }
 
 
 class TestGetAgentDetail:

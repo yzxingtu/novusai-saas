@@ -1,9 +1,9 @@
 """
 Text Chunker Module / 文本分块器模块
 
-Supports three strategies: recursive splitting, semantic chunking, and paragraph chunking.
+Supports recursive, sentence, semantic, and paragraph chunking.
 Unified output as ChunkData list for embedding and storage.
-支持递归分割、语义分块、段落分块三种策略，统一输出 ChunkData 列表供 Embedding 和存储使用。
+支持递归分割、句子分块、语义分块、段落分块，统一输出 ChunkData 列表供 Embedding 和存储使用。
 """
 
 from __future__ import annotations
@@ -323,15 +323,12 @@ class ParagraphChunker(BaseChunker):
         return chunks
 
 
-class SemanticChunker(BaseChunker):
+class SentenceChunker(BaseChunker):
     """
-    Semantic Chunker (advanced strategy) / 语义分块器（高级策略）
+    Sentence Chunker / 句子分块器
 
-    Splits by sentences first, then at semantic transition points.
-    Since semantic chunking requires extra embedding computation,
-    this is simplified to sentence-boundary-based chunking.
-    先按句子分割，然后在语义转折点切分。
-    由于语义分块需要额外 Embedding 计算，此处简化为基于句子边界的分块。
+    Lightweight sentence-boundary chunking for FAQ and short-form text.
+    轻量的句边界分块，适合 FAQ 与短文本。
     """
 
     # Chinese and English sentence separators / 中英文句子分隔符
@@ -388,8 +385,135 @@ class SemanticChunker(BaseChunker):
                 chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
                 chunk_index += 1
 
+        logger.info("SentenceChunker: {} pages → {} chunks", len(pages), len(chunks))
+        return chunks
+
+
+class SemanticChunker(BaseChunker):
+    """
+    Semantic Chunker (structure-aware) / 语义分块器（结构感知）
+
+    Prefers semantic boundaries such as headings, lists, tables and paragraphs,
+    then falls back to sentence splitting for oversized blocks.
+    优先按标题、列表、表格、段落等结构边界切分，再对超长块回退到句子级拆分。
+    """
+
+    _BLOCK_SPLITTER = re.compile(r"\n\s*\n+")
+    _HEADING_RE = re.compile(
+        r"^(?:#{1,6}\s+.+|第[一二三四五六七八九十百零\d]+[章节部分篇条款、.．]\s*.+|"
+        r"[一二三四五六七八九十]+[、.．]\s*.+|\d+[.)、．]\s*.+|[A-Za-z][.)]\s*.+)$"
+    )
+    _LIST_RE = re.compile(r"^(?:[-*•]\s+.+|\d+[.)、．]\s+.+)")
+
+    def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        pages = self._merge_small_pages(pages)
+
+        chunks: list[ChunkData] = []
+        chunk_index = 0
+        sentence_chunker = SentenceChunker(self.chunk_size, self.chunk_overlap)
+        recursive_chunker = RecursiveChunker(self.chunk_size, self.chunk_overlap)
+
+        for page in pages:
+            text = page.content.strip()
+            if not text:
+                continue
+
+            semantic_units = self._split_semantic_units(text)
+            current = ""
+            for unit in semantic_units:
+                candidate = current + "\n\n" + unit if current else unit
+                if len(candidate) <= self.chunk_size:
+                    current = candidate
+                    continue
+
+                if current:
+                    chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                    chunk_index += 1
+
+                if len(unit) > self.chunk_size:
+                    sub_pages = [ParsedPage(content=unit, metadata=page.metadata.copy())]
+                    splitter = (
+                        sentence_chunker
+                        if self._prefers_sentence_split(unit)
+                        else recursive_chunker
+                    )
+                    sub_chunks = splitter.chunk(sub_pages)
+                    for sub_chunk in sub_chunks:
+                        sub_chunk.chunk_index = chunk_index
+                        chunks.append(sub_chunk)
+                        chunk_index += 1
+                    current = ""
+                    continue
+
+                current = self._with_overlap_seed(current, unit)
+
+            if current:
+                chunks.append(self._build_chunk(current, chunk_index, page.metadata.copy()))
+                chunk_index += 1
+
         logger.info("SemanticChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
+
+    def _split_semantic_units(self, text: str) -> list[str]:
+        blocks = [block.strip() for block in self._BLOCK_SPLITTER.split(text) if block.strip()]
+        if not blocks:
+            return []
+
+        units: list[str] = []
+        pending_heading = ""
+        for block in blocks:
+            block = block.strip()
+            if not block:
+                continue
+
+            if pending_heading:
+                block = pending_heading + "\n" + block
+                pending_heading = ""
+
+            if self._is_heading_block(block):
+                pending_heading = block
+                continue
+
+            if self._is_structured_block(block):
+                units.append(block)
+                continue
+
+            sentences = SentenceChunker.SENTENCE_SEPARATORS.split(block)
+            normalized = [sentence.strip() for sentence in sentences if sentence.strip()]
+            if normalized:
+                units.extend(normalized)
+            else:
+                units.append(block)
+
+        if pending_heading:
+            units.append(pending_heading)
+
+        return units
+
+    def _is_heading_block(self, block: str) -> bool:
+        single_line = "\n" not in block
+        return single_line and len(block) <= max(120, self.chunk_size // 3) and bool(
+            self._HEADING_RE.match(block)
+        )
+
+    def _is_structured_block(self, block: str) -> bool:
+        if block.startswith("```") and block.endswith("```"):
+            return True
+        if block.count("|") >= 4 or "\t" in block:
+            return True
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if len(lines) >= 2 and all(self._LIST_RE.match(line) for line in lines):
+            return True
+        return False
+
+    def _prefers_sentence_split(self, block: str) -> bool:
+        return "。" in block or "！" in block or "？" in block or ". " in block
+
+    def _with_overlap_seed(self, current: str, next_unit: str) -> str:
+        if not current or self.chunk_overlap <= 0:
+            return next_unit
+        tail = current[-self.chunk_overlap:]
+        return f"{tail}\n{next_unit}"
 
 
 def get_chunker(strategy: str, chunk_size: int = 512, chunk_overlap: int = 50) -> BaseChunker:
@@ -397,7 +521,7 @@ def get_chunker(strategy: str, chunk_size: int = 512, chunk_overlap: int = 50) -
     Factory method: get chunker by strategy / 工厂方法：根据策略获取分块器
 
     Args:
-        strategy: Chunking strategy (recursive/semantic/paragraph) / 分块策略
+        strategy: Chunking strategy (recursive/sentence/semantic/paragraph) / 分块策略
         chunk_size: Maximum characters per chunk / 每块最大字符数
         chunk_overlap: Overlap characters between chunks / 块间重叠字符数
 
@@ -406,6 +530,7 @@ def get_chunker(strategy: str, chunk_size: int = 512, chunk_overlap: int = 50) -
     """
     chunkers: dict[str, type[BaseChunker]] = {
         "recursive": RecursiveChunker,
+        "sentence": SentenceChunker,
         "semantic": SemanticChunker,
         "paragraph": ParagraphChunker,
     }
@@ -417,6 +542,7 @@ __all__ = [
     "ChunkData",
     "BaseChunker",
     "RecursiveChunker",
+    "SentenceChunker",
     "SemanticChunker",
     "ParagraphChunker",
     "get_chunker",

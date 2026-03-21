@@ -4,10 +4,7 @@
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -60,7 +57,7 @@ function applyQuickFilter(filter: 'all' | 'failed' | 'success') {
   gridApi.reload();
 }
 
-const { Grid, gridApi, onRefresh } = useCrudPage<TenantAICallLogInfo>({
+const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
   api: {
     list: getTenantAICallLogListApi,
     resource: '/tenant/ai/call-logs',
@@ -72,47 +69,45 @@ const { Grid, gridApi, onRefresh } = useCrudPage<TenantAICallLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('tenant/ai/call-logs', () => ({
-  page_key: 'tenant.ai.call-logs',
-  page_title: $t('tenant.ai.callLog.name'),
-  page_data: {
-    resource: '/tenant/ai/call-logs',
+  ai: {
+    pageKey: 'tenant.ai.call-logs',
+    entityName: $t('tenant.ai.callLog.name'),
+    entityDescription: $t('tenant.ai.callLog.pageDesc'),
+    contextExtras: () => ({
+      quick_status_filter: activeFilter.value,
+    }),
+    extra: [
+      {
+        name: 'view_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the call log detail drawer by ID / 按 ID 打开调用日志详情抽屉',
+        readonly: true,
+        params: {
+          id: {
+            type: 'number',
+            description: 'Call log ID / 调用日志 ID',
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const id = Number(params.id);
+          if (!Number.isFinite(id) || id <= 0) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.missingIdParam'),
+            };
+          }
+          detailLogId.value = id;
+          detailOpen.value = true;
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.detailOpened', { id }),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.call-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the call log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Call log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search call logs by model name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Model name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

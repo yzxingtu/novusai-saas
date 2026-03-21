@@ -41,10 +41,11 @@
 
 import { ref } from 'vue';
 
-import { $t } from '#/locales';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
+import { $t } from '#/locales';
 
 import { normalizePageKey } from './page-key-utils';
+import { getDefaultPageOperations } from './page-operation-defaults';
 
 /** Operation execution result / 操作执行结果 */
 export interface PageOperationResult {
@@ -134,18 +135,15 @@ export function registerPageOperations(
   };
 }
 
-function mergeOperationGroups(
-  primary: PageOperation[] = [],
-  extraGroups: PageOperation[][] = [],
-): PageOperation[] {
-  const merged: PageOperation[] = [...primary];
+function mergeOperationGroups(groups: PageOperation[][] = []): PageOperation[] {
+  const merged: PageOperation[] = [];
 
-  // Later appended operations override same-named primary operations.
-  // 后追加操作覆盖同名主操作。
-  for (const group of extraGroups) {
+  // Later groups override earlier groups with the same name.
+  // 后面的分组会覆盖前面分组中的同名操作。
+  for (const group of groups) {
     for (const op of group) {
       const existingIndex = merged.findIndex((item) => item.name === op.name);
-      if (existingIndex >= 0) {
+      if (existingIndex !== -1) {
         merged.splice(existingIndex, 1);
       }
       merged.push(op);
@@ -156,9 +154,10 @@ function mergeOperationGroups(
 }
 
 function getMergedOperations(key: string): PageOperation[] {
+  const defaults = getDefaultPageOperations(key);
   const primary = registry.get(key) ?? [];
   const extraGroups = extrasRegistry.get(key) ?? [];
-  return mergeOperationGroups(primary, extraGroups);
+  return mergeOperationGroups([defaults, primary, ...extraGroups]);
 }
 
 /**
@@ -237,20 +236,28 @@ export async function executePageOperation(
     const available = operations.map((op) => op.name).join(', ') || 'none';
     return {
       success: false,
-      message: $t('shared.pageOperation.msg.opNotFound', { op: operationName, page: nk, available }),
+      message: $t('shared.pageOperation.msg.opNotFound', {
+        op: operationName,
+        page: nk,
+        available,
+      }),
     };
   }
 
   if (!operation.handler) {
     return {
       success: false,
-      message: $t('shared.pageOperation.msg.opNoHandler', { op: operationName }),
+      message: $t('shared.pageOperation.msg.opNoHandler', {
+        op: operationName,
+      }),
     };
   }
 
   // Snapshot form state before execution for context_diff
   const beforeFormOpen = formStateTracker.isOpen(nk);
-  const beforeHasModal = !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)');
+  const beforeHasModal = !!document.querySelector(
+    '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
+  );
   const beforeHasDrawer = !!document.querySelector('.ant-drawer-open');
 
   try {
@@ -260,7 +267,9 @@ export async function executePageOperation(
     await new Promise<void>((r) => setTimeout(r, 120));
 
     const afterFormOpen = formStateTracker.isOpen(nk);
-    const afterHasModal = !!document.querySelector('.ant-modal-wrap:not(.ant-modal-wrap-hidden)');
+    const afterHasModal = !!document.querySelector(
+      '.ant-modal-wrap:not(.ant-modal-wrap-hidden)',
+    );
     const afterHasDrawer = !!document.querySelector('.ant-drawer-open');
 
     result.data = {
@@ -277,15 +286,17 @@ export async function executePageOperation(
 
     return result;
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn(
       `[PageOperation] Failed to execute "${operationName}" on "${nk}":`,
       error,
     );
     return {
       success: false,
-      message: $t('shared.pageOperation.msg.opFailed', { op: operationName, error: errorMessage }),
+      message: $t('shared.pageOperation.msg.opFailed', {
+        op: operationName,
+        error: errorMessage,
+      }),
     };
   }
 }
@@ -311,7 +322,7 @@ export function findPageOperation(
  * 获取当前所有已注册的页面操作 key（调试用）
  */
 export function getRegisteredOperationKeys(): string[] {
-  return [...new Set([...registry.keys(), ...extrasRegistry.keys()])];
+  return [...new Set([...extrasRegistry.keys(), ...registry.keys()])];
 }
 
 /**

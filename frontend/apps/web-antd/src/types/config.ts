@@ -16,6 +16,14 @@ export type ConfigValueType =
   | 'string'
   | 'text';
 
+export type ConfigScalar = boolean | number | string | null;
+
+export interface ConfigObject {
+  [key: string]: ConfigValue | undefined;
+}
+
+export type ConfigValue = ConfigScalar | ConfigObject | ConfigValue[];
+
 export interface ValidationRuleMeta {
   type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';
   value: number | string;
@@ -48,7 +56,7 @@ export interface DisplayRuleMeta {
   /** Rule type / 规则类型 */
   operator: DisplayRuleOperator;
   /** Target value (single value for equals, array for in) / 目标值（equals 时为单值，in 时为数组） */
-  value: any;
+  value: ConfigScalar | ConfigScalar[];
   /** Action (currently fixed to show) / 动作（目前固定为 show） */
   action?: 'show';
 }
@@ -64,8 +72,8 @@ export interface ConfigItemMeta {
   /** Config item description (translation key) / 配置项描述（翻译 key） */
   description_key?: string;
   value_type: ConfigValueType;
-  value?: any;
-  default_value?: any;
+  value?: ConfigValue;
+  default_value?: ConfigValue;
   options?: ConfigOptionMeta[];
   validation_rules?: ValidationRuleMeta[];
   is_required?: boolean;
@@ -118,4 +126,4 @@ export interface ConfigGroupMeta {
   configs: ConfigItemMeta[];
 }
 
-export type ConfigSubmitPayload = Record<string, any>;
+export type ConfigSubmitPayload = Record<string, unknown>;

@@ -23,6 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
+from app.enums.error_code import ErrorCode
+from app.exceptions import BusinessException
 from app.tasks.async_db import task_async_session as _task_async_session
 from app.tasks.base import BaseTask, register_task
 
@@ -140,6 +142,26 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                         "message": str(exc),
                     }
 
+                if isinstance(exc, BusinessException) and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED:
+                    logger.warning(
+                        "SSL provisioning blocked by DNS config for domain {}: {}",
+                        domain_id, str(exc),
+                    )
+                    try:
+                        async with _task_async_session() as db2:
+                            ssl_service = SslCertificateService(db2)
+                            await ssl_service.mark_provision_failed(
+                                domain_id, str(exc),
+                            )
+                            await db2.commit()
+                    except Exception:
+                        pass
+                    return {
+                        "error": "dns_provider_not_ready",
+                        "domain_id": domain_id,
+                        "message": str(exc),
+                    }
+
                 # Other errors: log ERROR + mark failed + retry / 其他错误：记录 ERROR + 标记失败 + 重试
                 logger.error(
                     "SSL provisioning failed for domain {}: {}",
@@ -205,23 +227,43 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                 ssl_service = SslCertificateService(db)
 
                 # 1. Query expiring platform certs → trigger renewal / 查询即将过期的平台证书 → 触发续期
-                platform_certs = await repo.get_expiring_platform_certs(
-                    days=30,
+                from app.configs.service import ConfigService
+                from app.services.system.dns_provider import audit_dns_provider_config
+
+                config_svc = ConfigService(db)
+                readiness = await audit_dns_provider_config(db)
+                renew_days_raw = await config_svc.get_platform_config(
+                    "ssl_auto_renew_days", default=30,
                 )
-                for cert in platform_certs:
-                    try:
-                        task_renew_ssl.delay(cert_id=cert.id)
-                        stats["platform_renewals_triggered"] += 1
-                        logger.info(
-                            "Renewal triggered for cert {} (domain_id={}, expires={})",
-                            cert.id, cert.domain_id, cert.expires_at,
-                        )
-                    except Exception as e:
-                        stats["errors"] += 1
-                        logger.error(
-                            "Failed to trigger renewal for cert {}: {}",
-                            cert.id, str(e),
-                        )
+                try:
+                    renew_days = int(renew_days_raw)
+                except (TypeError, ValueError):
+                    renew_days = 30
+
+                if readiness["ready"]:
+                    platform_certs = await repo.get_expiring_platform_certs(
+                        days=renew_days,
+                    )
+                    for cert in platform_certs:
+                        try:
+                            task_renew_ssl.delay(cert_id=cert.id)
+                            stats["platform_renewals_triggered"] += 1
+                            logger.info(
+                                "Renewal triggered for cert {} (domain_id={}, expires={})",
+                                cert.id, cert.domain_id, cert.expires_at,
+                            )
+                        except Exception as e:
+                            stats["errors"] += 1
+                            logger.error(
+                                "Failed to trigger renewal for cert {}: {}",
+                                cert.id, str(e),
+                            )
+                else:
+                    stats["errors"] += 1
+                    logger.warning(
+                        "Skipping platform SSL renewal trigger because DNS automation is not ready: {}",
+                        readiness["summary"],
+                    )
 
                 # 2. Query expiring custom certs → record reminder + email notification / 查询即将过期的自定义证书 → 记录提醒 + 邮件通知
                 custom_certs = await repo.get_expiring_custom_certs(days=30)
@@ -393,6 +435,17 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                         await db2.commit()
                 except Exception:
                     pass
+
+                if isinstance(exc, BusinessException) and exc.code == ErrorCode.CONFIG_VALIDATION_FAILED:
+                    logger.warning(
+                        "SSL renewal blocked by DNS config for cert {}: {}",
+                        cert_id, str(exc),
+                    )
+                    return {
+                        "error": "dns_provider_not_ready",
+                        "cert_id": cert_id,
+                        "message": str(exc),
+                    }
 
                 raise self.retry(
                     exc=exc,

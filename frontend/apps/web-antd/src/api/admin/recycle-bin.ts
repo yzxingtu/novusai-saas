@@ -2,38 +2,16 @@
  * Recycle bin management API / 回收站管理 API
  * Backend: /admin/recycle-bin/*
  */
+import type {
+  RecycleBinItem,
+  RecycleBinModuleMeta,
+  RecycleBinModuleSummary,
+  TriggerRecycleBinCleanupParams,
+} from '#/api/shared/recycle-bin';
+
 import { requestClient } from '#/utils/request';
 
 const BASE_URL = '/admin/recycle-bin';
-
-/** Recycle bin module summary / 回收站模块摘要 */
-export interface RecycleBinModuleSummary {
-  module: string;
-  label: string;
-  count: number;
-  is_tenant: boolean;
-}
-
-/** Recycle bin module metadata / 回收站模块元数据 */
-export interface RecycleBinModuleMeta {
-  label: string;
-  is_tenant: boolean;
-  columns: string[];
-  label_field: string;
-  filterable: string[];
-  /** 后端按当前语言生成的列/筛选项标题，未包含的字段由前端 getColumnLabel 回退 */
-  column_labels?: Record<string, string>;
-}
-
-/** Recycle bin item / 回收站记录项 */
-export interface RecycleBinItem {
-  id: number;
-  deleted_at: null | string;
-  delete_level: null | string;
-  tenant_id?: number;
-  tenant_name?: string;
-  [key: string]: unknown;
-}
 
 /** Get all recyclable module metadata (columns, search fields, is_tenant) / 获取所有可回收模块元数据 */
 export function getRecycleBinModulesApi() {
@@ -76,8 +54,25 @@ export function clearRecycleBinModuleApi(module: string) {
 }
 
 /** Manually trigger expired cleanup / 手动触发过期清理 */
-export function triggerRecycleBinCleanupApi(retentionDays: number = 30) {
+export function triggerRecycleBinCleanupApi(
+  params: number | TriggerRecycleBinCleanupParams = {},
+) {
+  const requestParams =
+    typeof params === 'number'
+      ? { retention_days: params }
+      : {
+          ...(params.retentionDays !== undefined
+            ? { retention_days: params.retentionDays }
+            : {}),
+          ...(params.moduleRetentionDays !== undefined
+            ? { module_retention_days: params.moduleRetentionDays }
+            : {}),
+          ...(params.globalRetentionDays !== undefined
+            ? { global_retention_days: params.globalRetentionDays }
+            : {}),
+        };
+
   return requestClient.delete(`${BASE_URL}/cleanup`, {
-    params: { retention_days: retentionDays },
+    params: requestParams,
   });
 }

@@ -2,15 +2,32 @@
  * Page session room recovery tests.
  * 页面会话房间自愈测试。
  */
-import { effectScope, nextTick, ref } from 'vue';
+import { effectScope, nextTick } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const connected = ref(false);
-const pageSessionId = ref<null | string>('page-session-1');
-const emit = vi.fn();
-const registerHandler = vi.fn();
-const unregisterHandler = vi.fn();
+const {
+  connected,
+  currentPageAIExecutionPolicy,
+  emit,
+  pageSessionId,
+  registerHandler,
+  unregisterHandler,
+} = vi.hoisted(() => ({
+  connected: (require('vue') as typeof import('vue')).ref(false),
+  currentPageAIExecutionPolicy: (require('vue') as typeof import('vue')).ref({
+      disabledCapabilities: [] as string[],
+      disabledOperations: [] as string[],
+      mode: 'operate' as const,
+      pageContextKey: 'admin.ai.agents',
+    }),
+  emit: vi.fn(),
+  pageSessionId: (require('vue') as typeof import('vue')).ref(
+    'page-session-1' as null | string,
+  ),
+  registerHandler: vi.fn(),
+  unregisterHandler: vi.fn(),
+}));
 
 vi.mock('#/store', () => ({
   useSocketIOStore: () => ({
@@ -38,10 +55,15 @@ vi.mock('#/components/business/ai-slide-panel', () => ({
 vi.mock('#/components/business/ai-slide-panel/page-operation-registry', () => ({
   executePageOperation: vi.fn(),
   findPageOperation: vi.fn(),
+  listPageOperations: vi.fn(),
 }));
 
 vi.mock('#/composables/use-page-session', () => ({
   getActivePageSessionId: () => pageSessionId.value,
+}));
+
+vi.mock('#/composables/use-ai-page-policy', () => ({
+  currentPageAIExecutionPolicy,
 }));
 
 vi.mock('@vben/locales', () => ({
@@ -49,6 +71,11 @@ vi.mock('@vben/locales', () => ({
 }));
 
 import { usePageOperationChannel } from '../use-page-operation-channel';
+import {
+  executePageOperation,
+  findPageOperation,
+  listPageOperations,
+} from '#/components/business/ai-slide-panel/page-operation-registry';
 
 describe('usePageOperationChannel', () => {
   beforeEach(() => {
@@ -58,6 +85,15 @@ describe('usePageOperationChannel', () => {
     emit.mockClear();
     registerHandler.mockClear();
     unregisterHandler.mockClear();
+    currentPageAIExecutionPolicy.value = {
+      disabledCapabilities: [],
+      disabledOperations: [],
+      mode: 'operate',
+      pageContextKey: 'admin.ai.agents',
+    };
+    vi.mocked(executePageOperation).mockReset();
+    vi.mocked(findPageOperation).mockReset();
+    vi.mocked(listPageOperations).mockReset();
   });
 
   afterEach(() => {
@@ -127,5 +163,57 @@ describe('usePageOperationChannel', () => {
     expect(emit).toHaveBeenCalledWith('page_session_leave', {
       page_session_id: 'page-session-2',
     });
+  });
+
+  it('rejects operations disabled by current page policy before execution', async () => {
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    currentPageAIExecutionPolicy.value = {
+      disabledCapabilities: ['search'],
+      disabledOperations: [],
+      mode: 'operate',
+      pageContextKey: 'admin.ai.agents',
+    };
+    vi.mocked(findPageOperation).mockReturnValue({
+      description: 'Search items',
+      label: 'Search',
+      name: 'search',
+      readonly: true,
+    });
+    vi.mocked(listPageOperations).mockReturnValue([
+      {
+        description: 'Search items',
+        label: 'Search',
+        name: 'search',
+        readonly: true,
+      },
+    ]);
+
+    const invokeHandler = registerHandler.mock.calls[0]?.[1] as
+      | ((data: unknown) => Promise<void>)
+      | undefined;
+
+    await invokeHandler?.({
+      invoke_id: 'op-1',
+      operation_name: 'search',
+      page_key: 'admin.ai.agents',
+      params: {},
+      requires_confirmation: false,
+    });
+
+    expect(executePageOperation).not.toHaveBeenCalled();
+    expect(emit).toHaveBeenCalledWith(
+      'page_operation_result',
+      expect.objectContaining({
+        error_type: 'disabled_by_policy',
+        invoke_id: 'op-1',
+        success: false,
+      }),
+    );
+
+    scope.stop();
   });
 });

@@ -5,10 +5,7 @@
  */
 import type { AICallLogInfo } from '#/api/admin/ai';
 
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -121,7 +118,7 @@ function onViewDetail(row: AICallLogInfo) {
 
 // ========== Grid ==========
 
-const { Grid, onRefresh, gridApi } = useCrudPage<AICallLogInfo>({
+const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
   api: {
     list: getAICallLogListApi,
     resource: '/admin/ai/call-logs',
@@ -133,51 +130,64 @@ const { Grid, onRefresh, gridApi } = useCrudPage<AICallLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/call-logs', () => ({
-  page_key: 'admin.ai.call-logs',
-  page_title: $t('admin.ai.callLog.name'),
-  page_data: {
-    resource: '/admin/ai/call-logs',
-    total_calls: summaryData.value.total_calls,
-    success_rate: successRate.value,
-    avg_latency_ms: summaryData.value.avg_latency_ms,
+  ai: {
+    pageKey: 'admin.ai.call-logs',
+    entityName: $t('admin.ai.callLog.name'),
+    entityDescription: $t('admin.ai.callLog.pageDesc'),
+    contextExtras: () => ({
+      avg_latency_ms: summaryData.value.avg_latency_ms,
+      success_rate: successRate.value,
+      total_calls: summaryData.value.total_calls,
+      total_cost: summaryData.value.total_cost,
+      total_tokens: summaryData.value.total_tokens,
+    }),
+    extra: [
+      {
+        name: 'refresh_list',
+        label: $t('shared.pageOperation.refreshList'),
+        description:
+          'Reload the call log list and summary / 重新加载调用日志列表与摘要',
+        readonly: true,
+        handler: async () => {
+          onRefresh();
+          await loadSummary();
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.listRefreshed'),
+          };
+        },
+      },
+      {
+        name: 'view_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the call log detail drawer by ID / 按 ID 打开调用日志详情抽屉',
+        readonly: true,
+        params: {
+          id: {
+            type: 'number',
+            description: 'Call log ID / 调用日志 ID',
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const id = Number(params.id);
+          if (!Number.isFinite(id) || id <= 0) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.missingIdParam'),
+            };
+          }
+          detailLogId.value = id;
+          detailOpen.value = true;
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.detailOpened', { id }),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.call-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the call log list and summary',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      await loadSummary();
-      return { success: true, message: 'Call log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search call logs by model name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Model name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

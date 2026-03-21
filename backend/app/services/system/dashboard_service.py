@@ -14,11 +14,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import case, func, select, text
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
+from app.enums.common import ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.call_log import AICallLog
@@ -29,8 +30,56 @@ from app.models.system.plugin import Plugin
 from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
+from app.repositories.system.resource_tenant_assignment_repository import (
+    assigned_resource_ids_subquery,
+)
 
 logger = LogManager.get_logger("dashboard")
+
+_ASSIGNED_SCOPES = (
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+)
+
+
+def _visible_agent_condition(tenant_id: int):
+    assigned_subq = assigned_resource_ids_subquery("agent", tenant_id)
+    platform_visible = or_(
+        Agent.scope.in_(
+            [
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+            ]
+        ),
+        and_(
+            Agent.scope.in_(_ASSIGNED_SCOPES),
+            Agent.id.in_(assigned_subq),
+        ),
+    )
+    return or_(
+        Agent.owner_tenant_id == tenant_id,
+        and_(Agent.owner_tenant_id.is_(None), platform_visible),
+    )
+
+
+def _visible_kb_condition(tenant_id: int):
+    assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
+    platform_visible = or_(
+        KnowledgeBase.scope.in_(
+            [
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.GLOBAL_SHARED.value,
+            ]
+        ),
+        and_(
+            KnowledgeBase.scope.in_(_ASSIGNED_SCOPES),
+            KnowledgeBase.id.in_(assigned_subq),
+        ),
+    )
+    return or_(
+        KnowledgeBase.owner_tenant_id == tenant_id,
+        and_(KnowledgeBase.owner_tenant_id.is_(None), platform_visible),
+    )
 
 
 class AdminDashboardService:
@@ -375,9 +424,9 @@ class TenantDashboardService:
         storage_used = await self._get_storage_used()
 
         # B5: 智能体 & 知识库 & 对话统计 / B5: Agent & KB & conversation stats
-        total_agents = await self._count_tenant_model(Agent)
-        total_knowledge_bases = await self._count_tenant_model(KnowledgeBase)
-        total_kb_documents = await self._count_tenant_model(KnowledgeDocument)
+        total_agents = await self._count_visible_agents()
+        total_knowledge_bases = await self._count_visible_knowledge_bases()
+        total_kb_documents = await self._count_visible_knowledge_documents()
         monthly_conversations = await self._count_tenant_model(
             AgentConversation,
             AgentConversation.created_at >= thirty_days_ago,
@@ -537,8 +586,41 @@ class TenantDashboardService:
         )
         return (await self.db.execute(query)).scalar() or 0
 
+    async def _count_visible_agents(self) -> int:
+        """统计当前企业可见智能体数 / Count agents visible to current tenant."""
+        query = select(func.count()).select_from(Agent).where(
+            Agent.is_deleted.is_(False),
+            _visible_agent_condition(self.tenant_id),
+        )
+        return int((await self.db.execute(query)).scalar() or 0)
+
+    async def _count_visible_knowledge_bases(self) -> int:
+        """统计当前企业可见知识库数 / Count KBs visible to current tenant."""
+        query = select(func.count()).select_from(KnowledgeBase).where(
+            KnowledgeBase.is_deleted.is_(False),
+            _visible_kb_condition(self.tenant_id),
+        )
+        return int((await self.db.execute(query)).scalar() or 0)
+
+    async def _count_visible_knowledge_documents(self) -> int:
+        """统计当前企业可见知识库文档数 / Count KB documents visible to current tenant."""
+        query = (
+            select(func.count(KnowledgeDocument.id))
+            .select_from(KnowledgeDocument)
+            .join(
+                KnowledgeBase,
+                KnowledgeBase.id == KnowledgeDocument.knowledge_base_id,
+            )
+            .where(
+                KnowledgeDocument.is_deleted.is_(False),
+                KnowledgeBase.is_deleted.is_(False),
+                _visible_kb_condition(self.tenant_id),
+            )
+        )
+        return int((await self.db.execute(query)).scalar() or 0)
+
     async def _count_tenant_model(self, model, *extra_filters) -> int:
-        """通用企业模型计数（模型须含 tenant_id + deleted_at）/ Generic tenant model count"""
+        """统计 tenant_id 隔离模型 / Count tenant-backed models with tenant_id."""
         query = select(func.count()).select_from(model).where(
             model.deleted_at.is_(None),
             model.tenant_id == self.tenant_id,

@@ -7,11 +7,6 @@ import type {
   TenantRateLimitInfo,
 } from '#/api/tenant/ai';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -34,11 +29,11 @@ import { formatTokens, getPeriodText, getQuotaTypeText } from './data';
 defineOptions({ name: 'TenantAIQuotas' });
 
 // ========== 配额 Tab — useCrudList（只读，含使用量） ==========
-const { list: quotas, loading: quotaLoading } =
+const { list: quotas, loadList: loadQuotas, loading: quotaLoading } =
   useCrudList<TenantQuotaWithUsageInfo>({
     api: {
       list: getTenantQuotasApi,
-      resource: '',
+      resource: '/tenant/ai/quotas',
     },
     i18nPrefix: 'tenant.ai.quota',
     pager: false,
@@ -51,15 +46,40 @@ const { list: quotas, loading: quotaLoading } =
         : [],
       total: Array.isArray(data) ? (data as unknown[]).length : 0,
     }),
-    ai: false,
+    ai: {
+      pageKey: 'tenant.ai.quotas',
+      entityName: $t('tenant.ai.quota.name'),
+      entityDescription: $t('tenant.ai.quota.pageDesc'),
+      contextExtras: (): Record<string, number> => ({
+        active_rate_limit_count: rateLimits.value.filter((item) => item.is_active)
+          .length,
+        rate_limit_count: rateLimits.value.length,
+      }),
+      extra: [
+        {
+          name: 'refresh_list',
+          label: $t('shared.pageOperation.refreshList'),
+          description:
+            'Reload quotas and rate limits / 重新加载配额与速率限制',
+          readonly: true,
+          handler: async () => {
+            await Promise.all([loadQuotas(), loadRateLimits()]);
+            return {
+              success: true,
+              message: $t('shared.pageOperation.msg.listRefreshed'),
+            };
+          },
+        },
+      ],
+    },
   });
 
 // ========== 速率限制 Tab — useCrudList（只读） ==========
-const { list: rateLimits, loading: rateLimitLoading } =
+const { list: rateLimits, loadList: loadRateLimits, loading: rateLimitLoading } =
   useCrudList<TenantRateLimitInfo>({
     api: {
       list: getTenantRateLimitsApi,
-      resource: '',
+      resource: '/tenant/ai/rate-limits',
     },
     i18nPrefix: 'tenant.ai.rateLimit',
     pager: false,
@@ -76,45 +96,6 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
   if (item.is_warning) return '#faad14';
   return '#52c41a';
 }
-
-const cleanupPageContext = registerPageContext('tenant/ai/quotas', () => ({
-  page_key: 'tenant.ai.quotas',
-  page_title: $t('tenant.ai.quota.name'),
-  page_data: {
-    resource: '/tenant/ai/quotas',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.quotas', [
-  {
-    name: 'refresh_quotas',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload quotas and rate limits',
-    readonly: true,
-    handler: async () => {
-      quotas.value = [];
-      rateLimits.value = [];
-      // Trigger reload by re-fetching
-      const [q, r] = await Promise.all([
-        getTenantQuotasApi(),
-        getTenantRateLimitsApi(),
-      ]);
-      quotas.value = Array.isArray(q)
-        ? (q as TenantQuotaWithUsageInfo[]).map((item) => ({
-            ...item,
-            id: item.quota?.id,
-          }))
-        : [];
-      rateLimits.value = Array.isArray(r) ? r : [];
-      return { success: true, message: 'Quotas refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>

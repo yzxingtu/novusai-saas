@@ -15,10 +15,7 @@ import type {
  *
  * 集成所有 ECharts 图表 + 日期范围筛选
  */
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -32,6 +29,7 @@ import {
   getSuccessRateTrendApi,
   getTenantRankingApi,
 } from '#/api/admin/analytics';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
@@ -93,30 +91,22 @@ onMounted(() => {
   loadAll();
 });
 
-const cleanupPageContext = registerPageContext('admin/analytics', () => ({
-  page_key: 'admin.analytics',
-  page_title: $t('admin.analytics.title'),
-  page_data: {
-    resource: '/admin/analytics',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.analytics', [
-  {
-    name: 'refresh_analytics',
-    label: $t('shared.pageOperation.refreshAnalytics'),
-    description: 'Reload all analytics charts and data',
-    readonly: true,
-    handler: async () => {
-      await loadAll();
-      return { success: true, message: 'Analytics data refreshed' };
+usePageAIRegistration({
+  pageKey: 'admin.analytics',
+  title: () => $t('admin.analytics.title'),
+  resource: '/admin/analytics',
+  operations: [
+    {
+      name: 'refresh_analytics',
+      label: $t('shared.pageOperation.refreshAnalytics'),
+      description: 'Reload all analytics charts and data',
+      readonly: true,
+      handler: async () => {
+        await loadAll();
+        return { success: true, message: 'Analytics data refreshed' };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

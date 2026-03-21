@@ -225,7 +225,12 @@
     "domain_not_verified": "Domain not verified, please complete domain verification first",
     "custom_ssl_not_allowed": "Custom SSL certificates not supported by current plan",
     "provision_in_progress": "Certificate provisioning in progress, please try again later",
-    "encryption_key_not_configured": "SSL private key encryption key not configured. Please set it in System Config → SSL Certificate Management"
+    "encryption_key_not_configured": "SSL private key encryption key not configured. Please set it in System Config → SSL Certificate Management",
+    "dns_provider_ready": "DNS automation is ready: {provider}",
+    "cloudflare_dns_not_configured": "Cloudflare DNS automation is not fully configured. Please provide both API Token and Zone ID",
+    "manual_dns_not_supported": "Manual DNS mode is not supported by the current automated issuance flow. Switch to Cloudflare",
+    "dns_provider_legacy_unsupported": "The current DNS provider is a retired unsupported value: {provider}. Switch to Cloudflare",
+    "dns_provider_invalid": "Invalid DNS provider configuration: {provider}"
   },
   "tenant_settings": {
     "invalid_theme_color": "Theme color must be a valid hex color code (e.g. #FF5500)",
@@ -304,6 +309,7 @@
     "restored": "Restored successfully",
     "permanently_deleted": "Permanently deleted",
     "escalated": "Moved to admin recycle bin",
+    "moved_to_global": "Moved to global recycle bin",
     "error": {
       "not_found": "Record not found",
       "not_in_recycle_bin": "Record is not in recycle bin",
@@ -327,7 +333,12 @@
         "updated_at": "Updated at",
         "provider_id": "Provider",
         "tenant_id": "Tenant",
+        "owner_tenant_id": "Owner tenant",
         "model_id": "Model",
+        "task_path": "Task path",
+        "schedule_type": "Schedule type",
+        "recycle_stage": "Recycle stage",
+        "promoted_to_global_at": "Moved to global recycle bin at",
         "tier": "Tier",
         "supports_vision": "Vision",
         "supports_audio": "Audio",
@@ -397,7 +408,9 @@
       "system_agent_not_found": "System agent not found, please run database migrations first",
       "audience_not_allowed": "You are not authorized to access this agent (target audience restriction)",
       "publication_org_node_not_supported": "Organization-node publication is not supported yet; choose another access type",
-      "rejected_legacy_field": "Field '{field}' is no longer accepted. Remove it from the request."
+      "rejected_legacy_field": "Field '{field}' is no longer accepted. Remove it from the request.",
+      "invalid_rag_config": "Invalid RAG config payload",
+      "invalid_rag_config_field": "Invalid RAG config field: {field}"
     },
     "batch": {
       "cancelled": "Batch task cancelled"
@@ -425,6 +438,9 @@
         "welcome_message": "Welcome Message",
         "suggested_questions": "Suggested Questions",
         "quota_config": "Quota Config",
+        "rag_config": "RAG Config",
+        "context_config": "Context Config",
+        "output_schema": "Output Schema",
         "change_log": "Change Log",
         "created_by": "Published By"
       },
@@ -704,6 +720,11 @@
       "router_timeout": "Router agent timed out, using default agent",
       "default_agent_not_configured": "Please ask administrator to configure default AI assistant",
       "default_agent_not_accessible": "Default agent is not accessible for your role or tenant",
+      "default_agent_not_vision": "The default agent does not support images. Please ask an administrator to configure a vision-capable agent.",
+      "no_vision_agent_available": "No vision-capable agent is available right now. Please switch to a vision-capable agent or contact an administrator.",
+      "pinned_agent_not_vision": "The pinned agent does not support images. Please unpin it and try again.",
+      "conversation_agent_not_vision": "The current conversation agent does not support images. Please switch agents and start a new conversation.",
+      "conversation_agent_mismatch": "This conversation is already bound to a different agent. Please start a new conversation and try again.",
       "agent_not_accessible": "This agent is not accessible"
     },
     "conversation_deleted": "Conversation deleted",
@@ -882,7 +903,9 @@
         "not_error_status": "Document is not in error status, cannot retry",
         "max_retries_exceeded": "Maximum retries exceeded",
         "parse_failed": "Document parsing failed",
-        "unsupported_type": "Unsupported document type"
+        "unsupported_type": "Unsupported document type",
+        "audio_text_unavailable": "Audio text is not available yet. Configure an audio description model and retry.",
+        "video_text_unavailable": "Video text is not available yet. Configure a video description model and retry."
       }
     },
     "chunk": {
@@ -1846,8 +1869,12 @@
       "reject": "Reject Execution"
     },
     "delete_level": {
-      "tenant": "Tenant Recycle Bin",
-      "admin": "Admin Recycle Bin"
+      "tenant": "Tenant-side deletion",
+      "admin": "Admin-side deletion"
+    },
+    "recycle_stage": {
+      "module": "Module recycle bin",
+      "global": "Global recycle bin"
     },
     "user_role": {
       "platform_admin": "Platform Admin",
@@ -1921,6 +1948,7 @@
       },
       "chunk_strategy": {
         "recursive": "Recursive Split",
+        "sentence": "Sentence Chunking",
         "semantic": "Semantic Chunking",
         "paragraph": "Paragraph Chunking"
       },
@@ -2104,8 +2132,8 @@
         "desc": "ACME/Let's Encrypt configuration, certificate auto-renewal policy"
       },
       "platform_ai_toolkit": {
-        "name": "AI Toolkit Security",
-        "desc": "Security policies, resource limits, and static analysis for user-uploaded Toolkits"
+        "name": "AI Toolkit & Page Context",
+        "desc": "Security policies and resource limits for user-uploaded Toolkits, plus AI chat page-context size limits"
       },
       "platform_websocket": {
         "name": "Real-time & Notifications",
@@ -2375,11 +2403,10 @@
       },
       "dns_provider": {
         "name": "DNS Provider",
-        "desc": "DNS provider for ACME DNS-01 challenge validation",
-        "manual": "Manual (requires manual DNS record setup)",
+        "desc": "Production automation currently supports only Cloudflare DNS-01; manual mode is for development/debug only",
+        "manual": "Manual (development/debug only, no automated issuance)",
         "cloudflare": "Cloudflare",
-        "aliyun": "Alibaba Cloud DNS",
-        "dnspod": "DNSPod (Tencent Cloud)"
+        "legacy_option": "Current legacy value: {provider} (retired, must be changed)"
       },
       "dns_cloudflare_api_token": {
         "name": "Cloudflare API Token",
@@ -2388,22 +2415,6 @@
       "dns_cloudflare_zone_id": {
         "name": "Cloudflare Zone ID",
         "desc": "Cloudflare domain zone ID"
-      },
-      "dns_aliyun_access_key_id": {
-        "name": "Alibaba Cloud AccessKey ID",
-        "desc": "Alibaba Cloud RAM AccessKey ID (requires AliyunDNSFullAccess permission)"
-      },
-      "dns_aliyun_access_key_secret": {
-        "name": "Alibaba Cloud AccessKey Secret",
-        "desc": "Alibaba Cloud RAM AccessKey Secret"
-      },
-      "dns_dnspod_secret_id": {
-        "name": "DNSPod SecretId",
-        "desc": "Tencent Cloud API SecretId (requires DNSPod domain resolution permission)"
-      },
-      "dns_dnspod_secret_key": {
-        "name": "DNSPod SecretKey",
-        "desc": "Tencent Cloud API SecretKey"
       },
       "toolkit_security_level": {
         "name": "Toolkit Security Level",
@@ -3096,8 +3107,8 @@
   "enum.agent_model.max_tokens": "Max Output Tokens",
   "agent.version.field.max_tokens": "Max Output Tokens",
   "enum.ai_model.max_output_tokens": "Max Output Tokens",
-  "config.platform.ai_page_context_max_bytes.name": "Page Context Max Bytes",
-  "config.platform.ai_page_context_max_bytes.desc": "Maximum bytes allowed for frontend page_context.page_data; chat and route requests above this limit are rejected",
+  "config.platform.ai_page_context_max_bytes.name": "Chat Page Context Max Bytes",
+  "config.platform.ai_page_context_max_bytes.desc": "Maximum bytes allowed for page_context.page_data in AI chat/router requests. Default is 8192; this is a page-context budget, not a model input/output token limit",
   "config.tenant.user_privacy_policy_url.name": "Privacy Policy URL",
   "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
   "config.tenant.user_terms_url.name": "Terms of Service URL",

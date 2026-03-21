@@ -9,10 +9,7 @@
 import type { OrgNodeType } from '#/api/admin/organization';
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -35,6 +32,7 @@ import { OrgNodeDialog } from '#/components/business/org-node-dialog';
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
 import { PermissionPreview } from '#/components/business/permission-preview';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemOrganization' });
@@ -179,40 +177,32 @@ onMounted(async () => {
   }
 });
 
-const cleanupPageContext = registerPageContext('admin/system/organization', () => ({
-  page_key: 'admin.system.organization',
-  page_title: $t('admin.system.organization.name'),
-  page_data: {
-    resource: '/admin/organization',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.organization', [
-  {
-    name: 'refresh_tree',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Refresh the organization tree',
-    readonly: true,
-    handler: async () => {
-      await refreshTree();
-      return { success: true, message: 'Organization tree refreshed' };
+usePageAIRegistration({
+  pageKey: 'admin.system.organization',
+  title: () => $t('admin.system.organization.name'),
+  resource: '/admin/organization',
+  operations: [
+    {
+      name: 'refresh_tree',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Refresh the organization tree',
+      readonly: true,
+      handler: async () => {
+        await refreshTree();
+        return { success: true, message: 'Organization tree refreshed' };
+      },
     },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open dialog to create a root organization node',
-    readonly: false,
-    handler: async () => {
-      handleCreateRoot();
-      return { success: true, message: 'Create root node dialog opened' };
+    {
+      name: 'create_record',
+      label: $t('shared.pageOperation.createRecord'),
+      description: 'Open dialog to create a root organization node',
+      readonly: false,
+      handler: async () => {
+        handleCreateRoot();
+        return { success: true, message: 'Create root node dialog opened' };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

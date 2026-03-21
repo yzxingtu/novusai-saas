@@ -6,6 +6,7 @@ Defines agent status, execution mode, tool type, conversation status, message ro
 """
 
 from app.enums.base import LabeledStrEnum
+from app.enums.common import UserRoleEnum
 
 
 class AgentStatusEnum(LabeledStrEnum):
@@ -81,6 +82,24 @@ class ConversationStatusEnum(LabeledStrEnum):
 
     ACTIVE = ("active", "enum.agent.conversation_status.active")
     ARCHIVED = ("archived", "enum.agent.conversation_status.archived")
+
+
+class ConversationOwnerTypeEnum(LabeledStrEnum):
+    """Conversation Owner Type Enum / 对话归属主体类型枚举"""
+
+    PLATFORM_ADMIN = ("platform_admin", "")
+    TENANT_ADMIN = ("tenant_admin", "")
+    TENANT_USER = ("tenant_user", "")
+    UNKNOWN = ("unknown", "")
+
+    @classmethod
+    def from_user_role(cls, user_role: str | None) -> str:
+        mapping = {
+            UserRoleEnum.PLATFORM_ADMIN.value: cls.PLATFORM_ADMIN.value,
+            UserRoleEnum.TENANT_ADMIN.value: cls.TENANT_ADMIN.value,
+            UserRoleEnum.TENANT_USER.value: cls.TENANT_USER.value,
+        }
+        return mapping.get(user_role, cls.UNKNOWN.value)
 
 
 class MessageRoleEnum(LabeledStrEnum):
@@ -223,6 +242,7 @@ __all__ = [
     "ToolTypeEnum",
     "SkillTypeEnum",
     "ConversationStatusEnum",
+    "ConversationOwnerTypeEnum",
     "MessageRoleEnum",
     "AgentVisibilityEnum",
     "AccessTypeEnum",

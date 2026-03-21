@@ -13,7 +13,7 @@ from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.enums.common import RecycleStageEnum, ResourceScopeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_base import KnowledgeBase
@@ -98,7 +98,14 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
         # 级联软删除文档
         await self.repo.db.execute(
@@ -107,12 +114,22 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
-    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """升级删除层级，级联升级文档和分块 / Escalate delete level, cascade escalate docs and chunks."""
-        instance = await self.repo.escalate_delete_by_id(id)
+    async def promote_to_global(self, id: int) -> KnowledgeBase | None:
+        """推进到总回收站，级联推进文档和分块 / Promote to global recycle bin and cascade docs/chunks."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is None:
             return None
 
@@ -127,7 +144,11 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -135,9 +156,17 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
         return instance
+
+    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
@@ -149,7 +178,14 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 KnowledgeDocument.knowledge_base_id == instance.id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
         # 级联恢复文档分块
         doc_ids_query = select(KnowledgeDocument.id).where(
@@ -161,7 +197,14 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
     async def get_kb_detail(self, kb_id: int) -> dict[str, Any]:
@@ -422,7 +465,14 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -430,7 +480,14 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
         from app.repositories.system.resource_tenant_assignment_repository import (
@@ -439,9 +496,12 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         rta_repo = ResourceTenantAssignmentRepository(self.db)
         await rta_repo.delete_all_for_resource("knowledge_base", id)
 
-    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
-        """升级删除层级，级联升级文档和分块 / Escalate delete level, cascade escalate docs and chunks."""
-        instance = await self.repo.escalate_delete_by_id(id)
+    async def promote_to_global(self, id: int) -> KnowledgeBase | None:
+        """推进到总回收站，级联推进文档和分块 / Promote to global recycle bin and cascade docs/chunks."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is None:
             return None
 
@@ -456,7 +516,11 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -464,9 +528,17 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
         return instance
+
+    async def escalate_delete(self, id: int) -> KnowledgeBase | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块 / After restore: cascade restore docs and chunks."""
@@ -477,7 +549,14 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 KnowledgeDocument.knowledge_base_id == instance.id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == instance.id,
@@ -488,7 +567,14 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
     async def _check_name_unique(

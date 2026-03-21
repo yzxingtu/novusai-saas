@@ -398,7 +398,12 @@ export interface PluginSlotData {
   icon?: string;
   position?: string;
   event?: string;
-  ai?: { mode?: string; page_context_key?: string };
+  ai?: {
+    disabled_capabilities?: string[];
+    disabled_operations?: string[];
+    mode?: string;
+    page_context_key?: string;
+  };
   [key: string]: unknown;
 }
 

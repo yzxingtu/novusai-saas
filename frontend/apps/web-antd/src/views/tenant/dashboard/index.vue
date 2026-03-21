@@ -13,11 +13,8 @@ import type {
   TenantDashboardStats,
 } from '#/api/tenant/dashboard';
 
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { IconifyIcon } from '@vben/icons';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
@@ -31,6 +28,7 @@ import {
   getTenantRecentActivitiesApi,
 } from '#/api/tenant/dashboard';
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { formatDate as formatDateUtil } from '#/utils/common';
 
@@ -234,47 +232,41 @@ function navigateTo(route: string) {
   router.push(route);
 }
 
-const cleanupPageOps = registerPageOperations('tenant.dashboard', [
-  {
-    name: 'refresh_dashboard',
-    label: $t('shared.pageOperation.refreshDashboard'),
-    description: 'Reload all dashboard statistics and charts',
-    readonly: true,
-    handler: async () => {
-      await loadAll();
-      return { success: true, message: 'Dashboard refreshed successfully' };
-    },
-  },
-  {
-    name: 'navigate_to',
-    label: $t('shared.pageOperation.navigateTo'),
-    description: 'Navigate to a specific tenant page (e.g. /tenant/ai/agents, /tenant/analytics)',
-    readonly: true,
-    params: {
-      route: { type: 'string', description: 'Target route path' },
-    },
-    handler: async (params) => {
-      const route = (params?.route as string) || '/tenant/ai/agents';
-      navigateTo(route);
-      return { success: true, message: `Navigated to ${route}` };
-    },
-  },
-]);
-
-const cleanupPageContext = registerPageContext('tenant/dashboard', () => ({
-  page_key: 'tenant.dashboard',
-  page_title: $t('tenant.dashboard.title'),
-  page_data: {
-    resource: '/tenant/dashboard',
+usePageAIRegistration({
+  pageKey: 'tenant.dashboard',
+  title: () => $t('tenant.dashboard.title'),
+  resource: '/tenant/dashboard',
+  data: () => ({
     api_calls: stats.value?.api_calls ?? 0,
     storage_used_mb: stats.value?.storage_used_mb ?? 0,
     total_tokens: stats.value?.total_tokens ?? 0,
-  },
-}));
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  }),
+  operations: [
+    {
+      name: 'refresh_dashboard',
+      label: $t('shared.pageOperation.refreshDashboard'),
+      description: 'Reload all dashboard statistics and charts',
+      readonly: true,
+      handler: async () => {
+        await loadAll();
+        return { success: true, message: 'Dashboard refreshed successfully' };
+      },
+    },
+    {
+      name: 'navigate_to',
+      label: $t('shared.pageOperation.navigateTo'),
+      description: 'Navigate to a specific tenant page (e.g. /tenant/ai/agents, /tenant/analytics)',
+      readonly: true,
+      params: {
+        route: { type: 'string', description: 'Target route path' },
+      },
+      handler: async (params) => {
+        const route = (params?.route as string) || '/tenant/ai/agents';
+        navigateTo(route);
+        return { success: true, message: `Navigated to ${route}` };
+      },
+    },
+  ],
 });
 </script>
 

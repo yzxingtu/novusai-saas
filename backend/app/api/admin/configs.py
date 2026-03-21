@@ -43,7 +43,15 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
     for opt in config.get("options", []):
         translated_options.append({
             "value": opt["value"],
-            "label": _(opt["label_key"]) if opt.get("label_key") else str(opt.get("value", "")),
+            "label": (
+                opt["label"]
+                if opt.get("label")
+                else (
+                    _(opt["label_key"])
+                    if opt.get("label_key")
+                    else str(opt.get("value", ""))
+                )
+            ),
         })
 
     # 翻译验证规则消息 / Translate validation rule messages
@@ -90,6 +98,32 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         tag_separator=config.get("tag_separator", ","),
         file_accept=config.get("file_accept", ""),
     )
+
+
+def _inject_legacy_select_option(config: dict) -> dict:
+    """
+    为已下线的 select 当前值追加一个只读占位选项 / Inject a placeholder option for retired current select values.
+    """
+    if config.get("key") != "dns_provider" or config.get("value_type") != "select":
+        return config
+
+    current_value = config.get("value")
+    if current_value in (None, ""):
+        return config
+
+    option_values = {opt.get("value") for opt in config.get("options", [])}
+    if current_value in option_values:
+        return config
+
+    patched = dict(config)
+    patched["options"] = [
+        *config.get("options", []),
+        {
+            "value": current_value,
+            "label": _("config.platform.dns_provider.legacy_option", provider=current_value),
+        },
+    ]
+    return patched
 
 
 @permission_resource(
@@ -199,10 +233,17 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
+            raw_configs = target_group["configs"]
+            if group_code == "platform_ssl":
+                raw_configs = [
+                    _inject_legacy_select_option(c)
+                    for c in raw_configs
+                ]
+
             # 转换响应 / Convert response
             configs = [
                 _translate_config_item(c)
-                for c in target_group["configs"]
+                for c in raw_configs
             ]
 
             return success(
@@ -214,6 +255,21 @@ class AdminConfigController(GlobalController):
                     sort_order=target_group["sort_order"],
                     configs=configs,
                 ),
+                message=_("common.success"),
+            )
+
+        @router.get("/platform-ssl/dns-readiness", summary="获取 SSL DNS 配置巡检结果")
+        @action_read("action.platform_config.detail")
+        async def get_platform_ssl_dns_readiness(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """获取当前平台 SSL DNS 自动化可用性诊断 / Get current platform SSL DNS automation readiness audit."""
+            from app.services.system.dns_provider import audit_dns_provider_config
+
+            return success(
+                data=await audit_dns_provider_config(db),
                 message=_("common.success"),
             )
 
@@ -260,6 +316,11 @@ class AdminConfigController(GlobalController):
                     code=ErrorCode.CONFIG_INVALID_KEYS,
                 )
 
+            if group_code == "platform_ssl":
+                from app.services.system.dns_provider import validate_platform_ssl_config_patch
+
+                await validate_platform_ssl_config_patch(configs)
+
             # 更新配置 / Update configs
             config_service = ConfigService(db)
             for key, value in configs.items():
@@ -278,9 +339,16 @@ class AdminConfigController(GlobalController):
                     target_group = g
                     break
 
+            raw_configs = target_group["configs"] if target_group else []
+            if group_code == "platform_ssl":
+                raw_configs = [
+                    _inject_legacy_select_option(c)
+                    for c in raw_configs
+                ]
+
             configs = [
                 _translate_config_item(c)
-                for c in target_group["configs"]
+                for c in raw_configs
             ] if target_group else []
 
             return success(

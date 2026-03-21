@@ -186,6 +186,18 @@
     "title": "系统配置",
     "description": "管理企业级配置项"
   },
+  "recycleBin": {
+    "title": "回收站",
+    "description": "查看并恢复本企业总回收站中的记录",
+    "noModule": "请选择模块",
+    "sort": "排序",
+    "modules": "数据模块",
+    "clearModule": "清空当前模块",
+    "clearModuleConfirm": "确定要永久删除「{module}」中所有记录吗？此操作不可恢复。",
+    "clearModuleSuccess": "已清空当前模块，共永久删除 {count} 条记录",
+    "clearModuleDisabledTip": "当前模块没有可清空的记录",
+    "configUnavailable": "回收站模块配置加载失败，请刷新页面或稍后重试"
+  },
   "domain": {
     "title": "域名管理",
     "add": "添加域名",

@@ -10,13 +10,11 @@ import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface'
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { useRoute } from 'vue-router';
 
 import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -63,6 +61,7 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { createFormOperations } from '#/composables/use-ai-operations';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import SkillForm from '../skills/modules/form.vue';
@@ -524,62 +523,73 @@ onMounted(() => {
   loadPackages();
 });
 
-const cleanupPageContext = registerPageContext('admin/ai/skill-packages', () => ({
-  page_key: 'admin.ai.skill-packages',
-  page_title: $t('admin.ai.skillPackage.name'),
-  page_data: {
-    resource: '/admin/ai/skill-packages',
-    total_packages: packages.value.length,
-    selected_package: selectedPackage.value?.name ?? null,
-  },
-}));
-
 const packageFormOps = createFormOperations({
   pageKey: PKG_PAGE_KEY,
   formSchema: usePackageFormSchema,
   resource: '/admin/ai/skill-packages',
 });
 
-const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the skill package list',
-    readonly: true,
-    handler: async () => {
-      await loadPackages();
-      return { success: true, message: 'Skill package list refreshed' };
+usePageAIRegistration({
+  pageKey: PKG_PAGE_KEY,
+  title: () => $t('admin.ai.skillPackage.name'),
+  resource: '/admin/ai/skill-packages',
+  entityName: () => $t('admin.ai.skillPackage.name'),
+  entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
+  data: () => ({
+    selected_package: selectedPackage.value?.name ?? null,
+    total_packages: packages.value.length,
+  }),
+  operations: [
+    {
+      name: 'refresh_list',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload the skill package list / 重新加载技能包列表',
+      readonly: true,
+      handler: async () => {
+        await loadPackages();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.listRefreshed'),
+        };
+      },
     },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create skill package form',
-    readonly: false,
-    handler: async () => {
-      onCreatePackage();
-      return { success: true, message: 'Create skill package form opened' };
+    {
+      name: 'create_record',
+      label: $t('shared.pageOperation.createRecord'),
+      description:
+        'Open the skill package creation form / 打开技能包创建表单',
+      readonly: false,
+      handler: async () => {
+        onCreatePackage();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.createFormOpenedEmpty'),
+        };
+      },
     },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search skill packages by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
+    {
+      name: 'search',
+      label: $t('shared.pageOperation.searchByKeyword'),
+      description:
+        'Search skill packages by keyword / 按关键词搜索技能包',
+      readonly: true,
+      params: {
+        keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+      },
+      handler: async (params) => {
+        searchKeyword.value = (params?.keyword as string) || '';
+        return {
+          success: true,
+          message: searchKeyword.value
+            ? $t('shared.pageOperation.msg.searchApplied', {
+                fields: 'keyword',
+              })
+            : $t('shared.pageOperation.msg.searchCleared'),
+        };
+      },
     },
-    handler: async (params) => {
-      searchKeyword.value = (params?.keyword as string) || '';
-      return { success: true, message: `Searched for: ${searchKeyword.value}` };
-    },
-  },
-  ...packageFormOps,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+    ...packageFormOps,
+  ],
 });
 </script>
 

@@ -4,11 +4,6 @@
  */
 import type { tenantApi } from '#/api';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
 import { Badge, Card, Tag, Tooltip } from 'ant-design-vue';
@@ -39,7 +34,7 @@ function onViewDetail(row: TaskLogInfo) {
   detailDrawerApi.setData({ id: row.id, mode: 'view' }).open();
 }
 
-const { Grid, onRefresh, gridApi } = useCrudPage<TaskLogInfo>({
+const { Grid } = useCrudPage<TaskLogInfo>({
   api: {
     list: tenant.getTaskLogListApi,
     resource: '/tenant/tasks',
@@ -52,47 +47,6 @@ const { Grid, onRefresh, gridApi } = useCrudPage<TaskLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('tenant/system/task-logs', () => ({
-  page_key: 'tenant.system.task-logs',
-  page_title: $t('tenant.system.taskLog.name'),
-  page_data: {
-    resource: '/tenant/tasks',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.system.task-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the task log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Task log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search task logs by task name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Task name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[task_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

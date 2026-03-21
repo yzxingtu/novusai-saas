@@ -501,7 +501,7 @@ if os.path.isdir(plugins_root):
         )
         if os.path.isdir(_plugin_versions_dir):
             _version_locations.append(_plugin_versions_dir)
-cfg.set_main_option('version_locations', ' '.join(_version_locations))
+cfg.set_main_option('version_locations', '\\n'.join(_version_locations))
 
 try:
     command.upgrade(cfg, 'heads')

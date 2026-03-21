@@ -1,21 +1,32 @@
+import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 
-import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useCrudPage } from '../use-crud-page';
+
 const mockRefs = vi.hoisted(() => ({
+  appendPageOperations: vi.fn(() => vi.fn()),
   crudGridProps: [] as Array<Record<string, unknown>>,
   gridQuery: vi.fn(),
   gridReload: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
+  registerPageContext: vi.fn(() => vi.fn()),
+  registerPageContextExtras: vi.fn(() => vi.fn()),
   requestDelete: vi.fn(),
   requestGet: vi.fn(),
 }));
 
 vi.mock('@vben/common-ui', () => ({
-  useVbenDrawer: () => [defineComponent({ name: 'MockDrawer', render: () => null }), {}],
-  useVbenModal: () => [defineComponent({ name: 'MockModal', render: () => null }), {}],
+  useVbenDrawer: () => [
+    defineComponent({ name: 'MockDrawer', render: () => null }),
+    {},
+  ],
+  useVbenModal: () => [
+    defineComponent({ name: 'MockModal', render: () => null }),
+    {},
+  ],
 }));
 
 vi.mock('vue-router', () => ({
@@ -58,6 +69,15 @@ vi.mock('#/components/business/dependency-block-modal/index.vue', () => ({
   }),
 }));
 
+vi.mock('#/components/business/ai-slide-panel', () => ({
+  appendPageOperations: mockRefs.appendPageOperations,
+  registerPageContextExtras: mockRefs.registerPageContextExtras,
+}));
+
+vi.mock('#/components/business/ai-slide-panel/page-context-registry', () => ({
+  registerPageContext: mockRefs.registerPageContext,
+}));
+
 vi.mock('#/composables/use-ai-operations', () => ({
   buildCrudListSummary: () => undefined,
   buildCrudPaginationState: () => ({
@@ -77,6 +97,7 @@ vi.mock('#/composables/use-ai-operations', () => ({
 vi.mock('#/composables/use-form-state-tracker', () => ({
   formStateTracker: {
     close: vi.fn(),
+    isOpen: vi.fn(() => false),
   },
 }));
 
@@ -105,7 +126,10 @@ vi.mock('../components', () => ({
     },
   }),
   useExportModal: () => ({
-    ExportModal: defineComponent({ name: 'MockExportModal', render: () => null }),
+    ExportModal: defineComponent({
+      name: 'MockExportModal',
+      render: () => null,
+    }),
     openExportModal: vi.fn(),
   }),
 }));
@@ -121,8 +145,6 @@ vi.mock('../use-vxe-grid', () => ({
     },
   ],
 }));
-
-import { useCrudPage } from '../use-crud-page';
 
 function mountCrudPage(options: Record<string, unknown>) {
   const wrapper = mount(
@@ -150,6 +172,7 @@ function mountCrudPage(options: Record<string, unknown>) {
 
 describe('useCrudPage', () => {
   beforeEach(() => {
+    mockRefs.appendPageOperations.mockClear();
     mockRefs.crudGridProps.length = 0;
     mockRefs.requestGet.mockReset();
     mockRefs.requestDelete.mockReset();
@@ -157,6 +180,8 @@ describe('useCrudPage', () => {
     mockRefs.messageSuccess.mockReset();
     mockRefs.gridQuery.mockReset();
     mockRefs.gridReload.mockReset();
+    mockRefs.registerPageContext.mockClear();
+    mockRefs.registerPageContextExtras.mockClear();
   });
 
   it('uses custom delete api when provided', async () => {
@@ -210,12 +235,17 @@ describe('useCrudPage', () => {
               resource: '/admin/items',
             },
             columns: () => [],
-            formComponent: defineComponent({ name: 'InlineForm', render: () => null }),
+            formComponent: defineComponent({
+              name: 'InlineForm',
+              render: () => null,
+            }),
             i18nPrefix: 'admin.test',
           });
         },
         render() {
-          const Grid = (this as unknown as { Grid: ReturnType<typeof defineComponent> }).Grid;
+          const Grid = (
+            this as unknown as { Grid: ReturnType<typeof defineComponent> }
+          ).Grid;
           return Grid ? h(Grid) : null;
         },
       }),
@@ -226,5 +256,21 @@ describe('useCrudPage', () => {
     const latestProps = mockRefs.crudGridProps.at(-1);
     expect(latestProps?.onCreate).toBeUndefined();
     expect(latestProps?.createPermission).toBe('');
+  });
+
+  it('auto-registers page AI when ai config is omitted', () => {
+    mountCrudPage({});
+
+    expect(mockRefs.appendPageOperations).toHaveBeenCalled();
+    expect(mockRefs.registerPageContext).toHaveBeenCalled();
+    expect(mockRefs.registerPageContextExtras).toHaveBeenCalled();
+  });
+
+  it('skips page AI registration when ai is false', () => {
+    mountCrudPage({ ai: false });
+
+    expect(mockRefs.appendPageOperations).not.toHaveBeenCalled();
+    expect(mockRefs.registerPageContext).not.toHaveBeenCalled();
+    expect(mockRefs.registerPageContextExtras).not.toHaveBeenCalled();
   });
 });

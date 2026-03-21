@@ -8,6 +8,7 @@ Orchestrates full chat flow: create/resume conversation → load history → cal
 import json
 import time
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,7 @@ from app.core.logging import LogManager
 from app.enums.agent import (
     AgentExecutionModeEnum,
     AgentStatusEnum,
+    ConversationOwnerTypeEnum,
     MemoryChannelEnum,
     MemorySceneEnum,
 )
@@ -404,6 +406,11 @@ class AgentChatService:
         return delta
 
     @staticmethod
+    def _build_memory_event_id(conversation_id: int) -> str:
+        """生成请求级唯一记忆事件 ID / Build a request-scoped unique memory event ID."""
+        return f"memevt:{conversation_id}:{uuid4().hex}"
+
+    @staticmethod
     def _resolve_memory_context(
         memory_scene: str,
         memory_channel: str,
@@ -536,12 +543,15 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
             conversation_id=conversation_id,
             user_id=user_id,
+            owner_type=conversation_owner_type,
             first_message=message,
         )
+        memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数（用于 conversations_per_day 配额）/ Increment daily conversation count for new convos
         if is_new_conversation:
@@ -684,7 +694,7 @@ class AgentChatService:
                 request=request,
                 message=message,
                 response=result.output or "",
-                event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
+                event_id=memory_event_id,
             )
             if memory_delta:
                 await self.conversation_svc.mark_memory_updated(conversation.id)
@@ -772,12 +782,15 @@ class AgentChatService:
 
         # 1. 获取或创建对话 / Get or create conversation
         is_new_conversation = conversation_id is None
+        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
         conversation = await self.conversation_svc.get_or_create_for_chat(
             agent_id=agent_id,
             conversation_id=conversation_id,
             user_id=user_id,
+            owner_type=conversation_owner_type,
             first_message=first_message,
         )
+        memory_event_id = self._build_memory_event_id(conversation.id)
 
         # 1.5 新对话时递增每日对话计数
         if is_new_conversation:
@@ -1071,7 +1084,7 @@ class AgentChatService:
                                     request=request,
                                     message=message,
                                     response=result.output or "",
-                                    event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
+                                    event_id=memory_event_id,
                                 )
                                 if memory_delta:
                                     extra["memory_updated"] = True

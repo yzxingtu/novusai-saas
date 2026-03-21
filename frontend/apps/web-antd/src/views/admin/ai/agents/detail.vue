@@ -15,11 +15,11 @@ import type {
 } from '#/api/admin/ai';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { useDetailPageAi } from '#/composables/use-detail-page-ai';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -559,6 +559,26 @@ const unboundKBs = computed(() => {
   return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
 });
 
+function getKbChunkStrategyText(strategy: null | string | undefined): string {
+  switch (strategy) {
+    case 'paragraph': {
+      return $t('tenant.knowledgeBase.field.chunkStrategyParagraph');
+    }
+    case 'recursive': {
+      return $t('tenant.knowledgeBase.field.chunkStrategyRecursive');
+    }
+    case 'semantic': {
+      return $t('tenant.knowledgeBase.field.chunkStrategySemantic');
+    }
+    case 'sentence': {
+      return $t('tenant.knowledgeBase.field.chunkStrategySentence');
+    }
+    default: {
+      return strategy || '-';
+    }
+  }
+}
+
 async function bindKB() {
   if (selectedNewKBs.value.length === 0) return;
   const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
@@ -606,6 +626,72 @@ async function updateKBWeight(bindingId: number, weight: number) {
   } catch {
     message.error($t('common.saveFailed'));
   }
+}
+
+const ragTopK = ref(5);
+const ragScoreThreshold = ref(0.5);
+const ragSearchMode = ref<'hybrid' | 'keyword' | 'vector'>('hybrid');
+const ragRewriteStrategy = ref<'hyde' | 'multi' | 'none'>('none');
+const ragRerankerEnabled = ref(false);
+const ragContextTokenRatio = ref(0.6);
+
+const ragSearchModeOptions = [
+  {
+    label: $t('admin.ai.agent.knowledgeBase.searchModeOptions.hybrid'),
+    value: 'hybrid',
+  },
+  {
+    label: $t('admin.ai.agent.knowledgeBase.searchModeOptions.vector'),
+    value: 'vector',
+  },
+  {
+    label: $t('admin.ai.agent.knowledgeBase.searchModeOptions.keyword'),
+    value: 'keyword',
+  },
+];
+
+const ragRewriteOptions = [
+  {
+    label: $t('admin.ai.agent.knowledgeBase.rewriteOptions.none'),
+    value: 'none',
+  },
+  {
+    label: $t('admin.ai.agent.knowledgeBase.rewriteOptions.multi'),
+    value: 'multi',
+  },
+  {
+    label: $t('admin.ai.agent.knowledgeBase.rewriteOptions.hyde'),
+    value: 'hyde',
+  },
+];
+
+function initRagConfig() {
+  if (!agent.value) return;
+  const rc = (agent.value.rag_config ?? {}) as Record<string, unknown>;
+  ragTopK.value = (rc.top_k as number | undefined) ?? 5;
+  ragScoreThreshold.value = (rc.score_threshold as number | undefined) ?? 0.5;
+  ragSearchMode.value =
+    ((rc.search_mode as 'hybrid' | 'keyword' | 'vector' | undefined) ??
+      'hybrid');
+  ragRewriteStrategy.value =
+    ((rc.rewrite_strategy as 'hyde' | 'multi' | 'none' | undefined) ??
+      'none');
+  ragRerankerEnabled.value = Boolean(rc.reranker_enabled);
+  ragContextTokenRatio.value =
+    (rc.context_token_ratio as number | undefined) ?? 0.6;
+}
+
+async function saveRagConfig() {
+  await saveFields({
+    rag_config: {
+      search_mode: ragSearchMode.value,
+      top_k: ragTopK.value,
+      score_threshold: ragScoreThreshold.value,
+      rewrite_strategy: ragRewriteStrategy.value,
+      reranker_enabled: ragRerankerEnabled.value,
+      context_token_ratio: ragContextTokenRatio.value,
+    },
+  });
 }
 
 // ==================== Quota Tab ====================
@@ -776,19 +862,25 @@ function onTabChange(key: number | string) {
       loadKBOptions();
       break;
     }
+    case 'rag': {
+      initRagConfig();
+      break;
+    }
   }
 }
 
-const cleanupPageContext = registerPageContext('admin/ai/agents/detail', () => ({
-  page_key: 'admin.ai.agents.detail',
-  page_title: agent.value?.name ?? $t('admin.ai.agent.detail'),
-  page_data: {
-    resource: '/admin/ai/agents',
+usePageAIRegistration({
+  pageKey: 'admin.ai.agents.detail',
+  title: () => agent.value?.name ?? $t('admin.ai.agent.detail'),
+  resource: '/admin/ai/agents',
+  entityName: () => agent.value?.name ?? $t('admin.ai.agent.detail'),
+  entityDescription: () => $t('admin.ai.agent.pageDesc'),
+  data: () => ({
     agent_id: agentId.value,
     agent_name: agent.value?.name ?? '',
     status: agent.value?.status ?? '',
-  },
-}));
+  }),
+});
 
 useDetailPageAi({
   pageKey: 'admin.ai.agents.detail',
@@ -806,10 +898,6 @@ useDetailPageAi({
       },
     },
   ],
-});
-
-onBeforeUnmount(() => {
-  cleanupPageContext();
 });
 </script>
 
@@ -863,6 +951,7 @@ onBeforeUnmount(() => {
                 <Upload
                   :show-upload-list="false"
                   :before-upload="beforeAvatarUpload"
+                  :aria-label="$t('admin.ai.agent.detail.uploadAvatar')"
                   accept="image/*"
                 >
                   <div
@@ -872,6 +961,8 @@ onBeforeUnmount(() => {
                         ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
                         : 'bg-primary/10 text-primary ring-primary/20'
                     "
+                    :aria-label="$t('admin.ai.agent.detail.uploadAvatar')"
+                    :title="$t('admin.ai.agent.detail.uploadAvatar')"
                   >
                     <img
                       v-if="avatarDisplayUrl"
@@ -897,6 +988,9 @@ onBeforeUnmount(() => {
                 <button
                   v-if="avatarDisplayUrl && !avatarUploading"
                   class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                  type="button"
+                  :aria-label="$t('admin.ai.agent.detail.removeAvatar')"
+                  :title="$t('admin.ai.agent.detail.removeAvatar')"
                   @click.stop="removeAvatar"
                 >
                   <IconifyIcon icon="lucide:x" class="size-3" />
@@ -1079,6 +1173,7 @@ onBeforeUnmount(() => {
                     <Switch
                       :checked="adminMemoryEnabled"
                       :loading="memorySaving"
+                      :aria-label="$t('admin.ai.agent.memory.agentSwitch')"
                       @change="(val) => updateAdminMemoryEnabled(Boolean(val))"
                     />
                   </div>
@@ -1794,6 +1889,129 @@ onBeforeUnmount(() => {
               </div>
             </TabPane>
 
+            <TabPane key="rag">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:search" class="size-3.5" />
+                  {{ $t('admin.ai.agent.knowledgeBase.title') }}
+                </span>
+              </template>
+              <div class="p-5 pt-3">
+                <p class="mb-4 text-xs text-muted-foreground">
+                  {{ $t('admin.ai.agent.detail.ragHint') }}
+                </p>
+                <div class="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="admin-agent-rag-search-mode"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('admin.ai.agent.knowledgeBase.searchMode')
+                    }}</label>
+                    <ASelect
+                      id="admin-agent-rag-search-mode"
+                      v-model:value="ragSearchMode"
+                      :options="ragSearchModeOptions"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.searchMode')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="admin-agent-rag-rewrite-strategy"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('admin.ai.agent.knowledgeBase.rewriteStrategy')
+                    }}</label>
+                    <ASelect
+                      id="admin-agent-rag-rewrite-strategy"
+                      v-model:value="ragRewriteStrategy"
+                      :options="ragRewriteOptions"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.rewriteStrategy')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="admin-agent-rag-top-k"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('admin.ai.agent.knowledgeBase.topK')
+                    }}</label>
+                    <InputNumber
+                      id="admin-agent-rag-top-k"
+                      v-model:value="ragTopK"
+                      :min="1"
+                      :max="20"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.topK')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="admin-agent-rag-score-threshold"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('admin.ai.agent.knowledgeBase.scoreThreshold')
+                    }}</label>
+                    <InputNumber
+                      id="admin-agent-rag-score-threshold"
+                      v-model:value="ragScoreThreshold"
+                      :min="0"
+                      :max="1"
+                      :step="0.05"
+                      :precision="2"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.scoreThreshold')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="admin-agent-rag-context-token-ratio"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('admin.ai.agent.knowledgeBase.contextTokenRatio')
+                    }}</label>
+                    <InputNumber
+                      id="admin-agent-rag-context-token-ratio"
+                      v-model:value="ragContextTokenRatio"
+                      :min="0.1"
+                      :max="0.9"
+                      :step="0.05"
+                      :precision="2"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.contextTokenRatio')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div
+                    class="flex flex-col justify-between rounded-xl border bg-accent/30 p-4"
+                  >
+                    <div>
+                      <label class="mb-2 block text-xs text-muted-foreground">{{
+                        $t('admin.ai.agent.knowledgeBase.rerankerEnabled')
+                      }}</label>
+                      <p class="mb-3 text-xs text-muted-foreground">
+                        {{
+                          $t(
+                            'admin.ai.agent.knowledgeBase.rerankerEnabledHelp',
+                          )
+                        }}
+                      </p>
+                    </div>
+                    <Switch
+                      v-model:checked="ragRerankerEnabled"
+                      :aria-label="$t('admin.ai.agent.knowledgeBase.rerankerEnabled')"
+                    />
+                  </div>
+                </div>
+                <div class="mt-5">
+                  <Button type="primary" :loading="saving" @click="saveRagConfig">
+                    {{ $t('common.save') }}
+                  </Button>
+                </div>
+              </div>
+            </TabPane>
+
             <!-- ========== 知识库绑定 ========== -->
             <TabPane key="knowledgeBases">
               <template #tab>
@@ -1814,6 +2032,9 @@ onBeforeUnmount(() => {
                         $t('admin.ai.agent.detail.knowledgeBasesGlobalHint')
                       "
                     />
+                    <p class="text-xs text-muted-foreground">
+                      {{ $t('admin.ai.agent.detail.kbWeightFusionHint') }}
+                    </p>
                     <!-- Add binding row -->
                     <div
                       class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
@@ -1875,6 +2096,33 @@ onBeforeUnmount(() => {
                             >
                               {{ b.kb_description }}
                             </p>
+                            <div class="mt-1 flex flex-wrap gap-1.5">
+                              <Tag
+                                v-if="b.kb_embedding_model_name"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ $t('admin.ai.agent.detail.kbEmbeddingModel') }}:
+                                {{ b.kb_embedding_model_name }}
+                              </Tag>
+                              <Tag
+                                v-if="b.kb_embedding_dimensions != null"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{
+                                  $t('admin.ai.agent.detail.kbEmbeddingDimensions')
+                                }}:
+                                {{ b.kb_embedding_dimensions }}
+                              </Tag>
+                              <Tag
+                                v-if="b.kb_chunk_strategy"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ $t('admin.ai.agent.detail.kbChunkStrategy') }}:
+                                {{
+                                  getKbChunkStrategyText(b.kb_chunk_strategy)
+                                }}
+                              </Tag>
+                            </div>
                           </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -1901,6 +2149,7 @@ onBeforeUnmount(() => {
                           <Switch
                             :checked="b.enabled"
                             size="small"
+                            :aria-label="`${$t('admin.ai.agent.detail.kbEnabled')}: ${b.kb_name ?? b.knowledge_base_id}`"
                             @change="toggleKBEnabled(b)"
                           />
                           <!-- Unbind -->
@@ -2058,6 +2307,7 @@ onBeforeUnmount(() => {
                         <Switch
                           v-model:checked="routingEnabled"
                           class="shrink-0"
+                          :aria-label="$t('admin.ai.agent.routing.enableRouting')"
                         />
                       </div>
                       <div

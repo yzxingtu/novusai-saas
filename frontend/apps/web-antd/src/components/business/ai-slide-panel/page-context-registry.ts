@@ -127,11 +127,16 @@ function mergeExtrasIntoContext(
     try {
       const ext = res();
       if (!ext?.page_data || typeof ext.page_data !== 'object') continue;
-      const baseDesc = (result.page_data as Record<string, unknown>).entity_description;
       const extAppend = (ext.page_data as Record<string, unknown>).entity_description_append as string | undefined;
       const merged = { ...(result.page_data as object), ...(ext.page_data as object) } as Record<string, unknown>;
-      if (extAppend && typeof baseDesc === 'string') {
-        merged.entity_description = baseDesc + '\n\n' + extAppend;
+      const currentDesc =
+        typeof merged.entity_description === 'string'
+          ? merged.entity_description
+          : undefined;
+      if (extAppend) {
+        merged.entity_description = currentDesc
+          ? currentDesc + '\n\n' + extAppend
+          : extAppend;
       }
       delete merged.entity_description_append;
       result = { ...result, page_data: merged };
@@ -165,10 +170,10 @@ export function resolvePageContext(
   if (key) {
     const nk = normalizePageKey(key);
     const resolver = registry.get(nk);
+    const extras = extrasRegistry.get(nk);
     if (resolver) {
       try {
         const base = resolver();
-        const extras = extrasRegistry.get(nk);
         if (base && extras?.length) {
           return mergeExtrasIntoContext(base, extras);
         }
@@ -181,18 +186,23 @@ export function resolvePageContext(
       }
     }
     // Fallback: use DOM semantic snapshot for unregistered pages / 降级：对未注册页面使用 DOM 语义快照
-    return buildDomFallbackContext(nk);
+    const fallback = buildDomFallbackContext(nk, {
+      allowMinimal: !!extras?.length,
+    });
+    return fallback && extras?.length
+      ? mergeExtrasIntoContext(fallback, extras)
+      : fallback;
   }
 
   // Attempt route-based matching first to avoid multi-resolver conflicts / 优先路由匹配，避免多 resolver 冲突
   const inferredKey = normalizePageKey(window.location.pathname);
   const routeResolver = registry.get(inferredKey);
+  const routeExtras = extrasRegistry.get(inferredKey);
   if (routeResolver) {
     try {
       const base = routeResolver();
-      const extras = extrasRegistry.get(inferredKey);
-      if (base && extras?.length) {
-        return mergeExtrasIntoContext(base, extras);
+      if (base && routeExtras?.length) {
+        return mergeExtrasIntoContext(base, routeExtras);
       }
       if (base) return base;
     } catch (error) {
@@ -200,6 +210,15 @@ export function resolvePageContext(
         `[PageContextRegistry] Route-inferred resolver '${inferredKey}' error:`,
         error,
       );
+    }
+  }
+
+  if (routeExtras?.length) {
+    const fallback = buildDomFallbackContext(inferredKey, {
+      allowMinimal: true,
+    });
+    if (fallback) {
+      return mergeExtrasIntoContext(fallback, routeExtras);
     }
   }
 
@@ -238,11 +257,34 @@ export function resolvePageContext(
  * 从 DOM 语义扫描构建最小页面上下文。
  * 当无 resolver 注册或全部返回 null 时作为降级方案。
  */
-function buildDomFallbackContext(pageKey?: string): PageContextData | null {
-  const snapshot = scanDomSemantics();
-  if (!snapshot) return null;
+function buildMinimalFallbackContext(pageKey: string): PageContextData {
+  const title =
+    typeof document !== 'undefined'
+      ? document.title.trim()
+      : '';
 
-  const inferredKey = pageKey || window.location.pathname.replace(/^\//, '').replaceAll('/', '.');
+  return {
+    page_key: pageKey,
+    page_title: title || pageKey,
+    page_data: {
+      source: 'minimal_fallback',
+    },
+  };
+}
+
+function buildDomFallbackContext(
+  pageKey?: string,
+  options: { allowMinimal?: boolean } = {},
+): PageContextData | null {
+  const inferredKey =
+    pageKey || window.location.pathname.replace(/^\//, '').replaceAll('/', '.');
+  const snapshot = scanDomSemantics();
+  if (!snapshot) {
+    return options.allowMinimal && pageKey
+      ? buildMinimalFallbackContext(inferredKey)
+      : null;
+  }
+
   return {
     page_key: inferredKey,
     page_title: snapshot.page_title || inferredKey,

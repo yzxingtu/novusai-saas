@@ -10,11 +10,11 @@
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { useDetailPageAi } from '#/composables/use-detail-page-ai';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -205,15 +205,18 @@ const valvesRequired = computed(() => {
   return ((valvesSchema.value as Record<string, unknown>)?.required ||
     []) as string[];
 });
-const cleanupPageContext = registerPageContext('admin/ai/skill-packages/detail', () => ({
-  page_key: 'admin.ai.skill-packages.detail',
-  page_title: pkg.value?.name ?? $t('admin.ai.skillPackage.detail'),
-  page_data: {
-    resource: '/admin/ai/skill-packages',
+
+usePageAIRegistration({
+  pageKey: 'admin.ai.skill-packages.detail',
+  title: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail'),
+  resource: '/admin/ai/skill-packages',
+  entityName: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail'),
+  entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
+  data: () => ({
     package_id: packageId.value,
     package_name: pkg.value?.name ?? '',
-  },
-}));
+  }),
+});
 
 useDetailPageAi({
   pageKey: 'admin.ai.skill-packages.detail',
@@ -222,10 +225,6 @@ useDetailPageAi({
     await loadSkills();
   },
   backRoute: '/admin/ai/skill-packages',
-});
-
-onBeforeUnmount(() => {
-  cleanupPageContext();
 });
 </script>
 

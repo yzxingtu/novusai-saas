@@ -22,11 +22,14 @@ from app.ai.constants import (
     SESSION_MEMORY_TTL_SECONDS,
     session_memory_conversation_pattern,
     session_memory_key,
+    session_memory_tenant_pattern,
 )
 from app.core.logging import LogManager
 from app.core.redis import get_redis_client
 
 logger = LogManager.get_logger("ai.session_memory_service")
+
+_REDIS_DELETE_BATCH_SIZE = 500
 
 
 class SessionMemoryService:
@@ -167,6 +170,24 @@ class SessionMemoryService:
             if len(merged) >= limit:
                 break
         return merged
+
+    @staticmethod
+    def _extract_conversation_id_from_key(key: str) -> int | None:
+        """Extract trailing conversation_id from session memory key / 从会话记忆 key 末尾提取 conversation_id。"""
+        try:
+            return int(str(key).rsplit(":", 1)[-1])
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    async def _delete_keys_in_batches(redis, keys: list[str]) -> int:
+        """Delete Redis keys in bounded batches / 按批次删除 Redis key，避免单次参数过大。"""
+        total_deleted = 0
+        for start in range(0, len(keys), _REDIS_DELETE_BATCH_SIZE):
+            chunk = keys[start:start + _REDIS_DELETE_BATCH_SIZE]
+            if chunk:
+                total_deleted += await redis.delete(*chunk)
+        return total_deleted
 
     async def update_state_cas(
         self,
@@ -453,6 +474,49 @@ class SessionMemoryService:
             "Session memory cleared by conversation: tenant={} conversation={} deleted={}",
             self.tenant_id,
             conversation_id,
+            total_deleted,
+        )
+        return total_deleted
+
+    async def clear_conversation_memories(
+        self,
+        conversation_ids: list[int],
+    ) -> int:
+        """
+        批量清理多个 conversation 的会话记忆 / Clear session memory for multiple conversations.
+        """
+        if not conversation_ids:
+            return 0
+
+        redis = self._get_redis_safe()
+        if redis is None:
+            return 0
+
+        target_ids = {int(conversation_id) for conversation_id in conversation_ids}
+        if not target_ids:
+            return 0
+
+        if len(target_ids) == 1:
+            return await self.clear_conversation_memory(next(iter(target_ids)))
+
+        pattern = session_memory_tenant_pattern(self.tenant_id)
+        cursor = 0
+        matched_keys: list[str] = []
+        while True:
+            cursor, keys = await redis.scan(cursor=cursor, match=pattern, count=500)
+            if keys:
+                for key in keys:
+                    conversation_id = self._extract_conversation_id_from_key(key)
+                    if conversation_id in target_ids:
+                        matched_keys.append(key)
+            if cursor == 0:
+                break
+
+        total_deleted = await self._delete_keys_in_batches(redis, matched_keys)
+        logger.info(
+            "Session memory cleared by batch conversations: tenant={} conversations={} keys={}",
+            self.tenant_id,
+            len(target_ids),
             total_deleted,
         )
         return total_deleted

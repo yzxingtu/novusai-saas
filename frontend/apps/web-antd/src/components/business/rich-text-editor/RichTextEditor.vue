@@ -107,7 +107,11 @@ const {
   discardResult,
 } = useEditorAI(editor);
 
-useEditorPageOps(editor, props.pageKey);
+useEditorPageOps(editor, {
+  editable: computed(() => props.editable !== false),
+  enabled: computed(() => props.ai !== false && !!editor.value),
+  pageKey: computed(() => props.pageKey),
+});
 
 const sourceMode = ref(false);
 const sourceCode = ref('');

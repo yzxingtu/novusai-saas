@@ -11,11 +11,11 @@ import type {
   AgentSkillBindingInfo,
 } from '#/api/tenant/agents';
 
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { useDetailPageAi } from '#/composables/use-detail-page-ai';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -486,6 +486,26 @@ const unboundKBs = computed(() => {
   return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
 });
 
+function getKbChunkStrategyText(strategy: null | string | undefined): string {
+  switch (strategy) {
+    case 'paragraph': {
+      return $t('tenant.knowledgeBase.field.chunkStrategyParagraph');
+    }
+    case 'recursive': {
+      return $t('tenant.knowledgeBase.field.chunkStrategyRecursive');
+    }
+    case 'semantic': {
+      return $t('tenant.knowledgeBase.field.chunkStrategySemantic');
+    }
+    case 'sentence': {
+      return $t('tenant.knowledgeBase.field.chunkStrategySentence');
+    }
+    default: {
+      return strategy || '-';
+    }
+  }
+}
+
 async function bindKB() {
   if (selectedNewKBs.value.length === 0) return;
   try {
@@ -563,6 +583,73 @@ async function togglePlatformKbOptOut(
   } finally {
     platformKbSuppressLoadingKbId.value = null;
   }
+}
+
+const ragTopK = ref(5);
+const ragScoreThreshold = ref(0.5);
+const ragSearchMode = ref<'hybrid' | 'keyword' | 'vector'>('hybrid');
+const ragRewriteStrategy = ref<'hyde' | 'multi' | 'none'>('none');
+const ragRerankerEnabled = ref(false);
+const ragContextTokenRatio = ref(0.6);
+
+const ragSearchModeOptions = [
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.searchModeOptions.hybrid'),
+    value: 'hybrid',
+  },
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.searchModeOptions.vector'),
+    value: 'vector',
+  },
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.searchModeOptions.keyword'),
+    value: 'keyword',
+  },
+];
+
+const ragRewriteOptions = [
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.rewriteOptions.none'),
+    value: 'none',
+  },
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.rewriteOptions.multi'),
+    value: 'multi',
+  },
+  {
+    label: $t('tenant.ai.agent.knowledgeBase.rewriteOptions.hyde'),
+    value: 'hyde',
+  },
+];
+
+function initRagConfig() {
+  if (!agent.value) return;
+  const rc = (agent.value.rag_config ?? {}) as Record<string, unknown>;
+  ragTopK.value = (rc.top_k as number | undefined) ?? 5;
+  ragScoreThreshold.value = (rc.score_threshold as number | undefined) ?? 0.5;
+  ragSearchMode.value =
+    ((rc.search_mode as 'hybrid' | 'keyword' | 'vector' | undefined) ??
+      'hybrid');
+  ragRewriteStrategy.value =
+    ((rc.rewrite_strategy as 'hyde' | 'multi' | 'none' | undefined) ??
+      'none');
+  ragRerankerEnabled.value = Boolean(rc.reranker_enabled);
+  ragContextTokenRatio.value =
+    (rc.context_token_ratio as number | undefined) ?? 0.6;
+}
+
+async function saveRagConfig() {
+  if (!isTenantOwned.value) return;
+  await saveFields({
+    rag_config: {
+      search_mode: ragSearchMode.value,
+      top_k: ragTopK.value,
+      score_threshold: ragScoreThreshold.value,
+      rewrite_strategy: ragRewriteStrategy.value,
+      reranker_enabled: ragRerankerEnabled.value,
+      context_token_ratio: ragContextTokenRatio.value,
+    },
+  });
 }
 
 // ==================== Quota Tab ====================
@@ -696,19 +783,25 @@ function onTabChange(key: number | string) {
       loadKBOptions();
       break;
     }
+    case 'rag': {
+      initRagConfig();
+      break;
+    }
   }
 }
 
-const cleanupPageContext = registerPageContext('tenant/ai/agents/detail', () => ({
-  page_key: 'tenant.ai.agents.detail',
-  page_title: agent.value?.name ?? $t('tenant.ai.agent.detail.title'),
-  page_data: {
-    resource: '/tenant/ai/agents',
+usePageAIRegistration({
+  pageKey: 'tenant.ai.agents.detail',
+  title: () => agent.value?.name ?? $t('tenant.ai.agent.detail.title'),
+  resource: '/tenant/ai/agents',
+  entityName: () => agent.value?.name ?? $t('tenant.ai.agent.detail.title'),
+  entityDescription: () => $t('tenant.ai.agent.pageDesc'),
+  data: () => ({
     agent_id: agentId.value,
     agent_name: agent.value?.name ?? '',
     status: agent.value?.status ?? '',
-  },
-}));
+  }),
+});
 
 useDetailPageAi({
   pageKey: 'tenant.ai.agents.detail',
@@ -726,10 +819,6 @@ useDetailPageAi({
       },
     },
   ],
-});
-
-onBeforeUnmount(() => {
-  cleanupPageContext();
 });
 </script>
 
@@ -787,6 +876,7 @@ onBeforeUnmount(() => {
                   v-if="isTenantOwned"
                   :show-upload-list="false"
                   :before-upload="beforeAvatarUpload"
+                  :aria-label="$t('tenant.ai.agent.detail.uploadAvatar')"
                   accept="image/*"
                 >
                   <div
@@ -796,6 +886,8 @@ onBeforeUnmount(() => {
                         ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
                         : 'bg-primary/10 text-primary ring-primary/20'
                     "
+                    :aria-label="$t('tenant.ai.agent.detail.uploadAvatar')"
+                    :title="$t('tenant.ai.agent.detail.uploadAvatar')"
                   >
                     <img
                       v-if="avatarDisplayUrl"
@@ -839,6 +931,9 @@ onBeforeUnmount(() => {
                 <button
                   v-if="isTenantOwned && avatarDisplayUrl && !avatarUploading"
                   class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                  type="button"
+                  :aria-label="$t('tenant.ai.agent.detail.removeAvatar')"
+                  :title="$t('tenant.ai.agent.detail.removeAvatar')"
                   @click.stop="removeAvatar"
                 >
                   <IconifyIcon icon="lucide:x" class="size-3" />
@@ -1001,6 +1096,7 @@ onBeforeUnmount(() => {
                       :checked="tenantMemoryDisabled"
                       :loading="memorySaving"
                       :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.memory.tenantSwitch')"
                       @change="
                         (val) => updateTenantMemoryDisabled(Boolean(val))
                       "
@@ -1549,6 +1645,146 @@ onBeforeUnmount(() => {
               </div>
             </TabPane>
 
+            <TabPane key="rag">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:search" class="size-3.5" />
+                  {{ $t('tenant.ai.agent.knowledgeBase.title') }}
+                </span>
+              </template>
+              <div class="p-5 pt-3">
+                <div class="mb-4 flex flex-wrap items-center gap-2">
+                  <p class="text-xs text-muted-foreground">
+                    {{ $t('tenant.ai.agent.detail.ragHint') }}
+                  </p>
+                  <span
+                    v-if="!isTenantOwned"
+                    class="rounded-full bg-warning/15 px-2 py-px text-[10px] font-medium text-warning"
+                  >{{ $t('tenant.ai.agent.readonlyHint') }}</span>
+                </div>
+                <div class="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="tenant-agent-rag-search-mode"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('tenant.ai.agent.knowledgeBase.searchMode')
+                    }}</label>
+                    <ASelect
+                      id="tenant-agent-rag-search-mode"
+                      v-model:value="ragSearchMode"
+                      :options="ragSearchModeOptions"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.searchMode')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="tenant-agent-rag-rewrite-strategy"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('tenant.ai.agent.knowledgeBase.rewriteStrategy')
+                    }}</label>
+                    <ASelect
+                      id="tenant-agent-rag-rewrite-strategy"
+                      v-model:value="ragRewriteStrategy"
+                      :options="ragRewriteOptions"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.rewriteStrategy')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="tenant-agent-rag-top-k"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('tenant.ai.agent.knowledgeBase.topK')
+                    }}</label>
+                    <InputNumber
+                      id="tenant-agent-rag-top-k"
+                      v-model:value="ragTopK"
+                      :min="1"
+                      :max="20"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.topK')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="tenant-agent-rag-score-threshold"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('tenant.ai.agent.knowledgeBase.scoreThreshold')
+                    }}</label>
+                    <InputNumber
+                      id="tenant-agent-rag-score-threshold"
+                      v-model:value="ragScoreThreshold"
+                      :min="0"
+                      :max="1"
+                      :step="0.05"
+                      :precision="2"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.scoreThreshold')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <label
+                      for="tenant-agent-rag-context-token-ratio"
+                      class="mb-2 block text-xs text-muted-foreground"
+                    >{{
+                      $t('tenant.ai.agent.knowledgeBase.contextTokenRatio')
+                    }}</label>
+                    <InputNumber
+                      id="tenant-agent-rag-context-token-ratio"
+                      v-model:value="ragContextTokenRatio"
+                      :min="0.1"
+                      :max="0.9"
+                      :step="0.05"
+                      :precision="2"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.contextTokenRatio')"
+                      class="w-full"
+                    />
+                  </div>
+                  <div
+                    class="flex flex-col justify-between rounded-xl border bg-accent/30 p-4"
+                  >
+                    <div>
+                      <label class="mb-2 block text-xs text-muted-foreground">{{
+                        $t('tenant.ai.agent.knowledgeBase.rerankerEnabled')
+                      }}</label>
+                      <p class="mb-3 text-xs text-muted-foreground">
+                        {{
+                          $t(
+                            'tenant.ai.agent.knowledgeBase.rerankerEnabledHelp',
+                          )
+                        }}
+                      </p>
+                    </div>
+                    <Switch
+                      v-model:checked="ragRerankerEnabled"
+                      :disabled="!isTenantOwned"
+                      :aria-label="$t('tenant.ai.agent.knowledgeBase.rerankerEnabled')"
+                    />
+                  </div>
+                </div>
+                <div class="mt-5">
+                  <Button
+                    type="primary"
+                    :loading="saving"
+                    :disabled="!isTenantOwned"
+                    @click="saveRagConfig"
+                  >
+                    {{ $t('common.save') }}
+                  </Button>
+                </div>
+              </div>
+            </TabPane>
+
             <!-- ========== 知识库绑定 ========== -->
             <TabPane key="knowledgeBases">
               <template #tab>
@@ -1565,6 +1801,9 @@ onBeforeUnmount(() => {
                       class="text-xs text-muted-foreground"
                     >
                       {{ $t('tenant.ai.agent.detail.kbTenantOverlayHint') }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ $t('tenant.ai.agent.detail.kbWeightFusionHint') }}
                     </p>
                     <!-- Add binding row -->
                     <div
@@ -1635,6 +1874,35 @@ onBeforeUnmount(() => {
                             >
                               {{ b.kb_description }}
                             </p>
+                            <div class="mt-1 flex flex-wrap gap-1.5">
+                              <Tag
+                                v-if="b.kb_embedding_model_name"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ $t('tenant.ai.agent.detail.kbEmbeddingModel') }}:
+                                {{ b.kb_embedding_model_name }}
+                              </Tag>
+                              <Tag
+                                v-if="b.kb_embedding_dimensions != null"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{
+                                  $t(
+                                    'tenant.ai.agent.detail.kbEmbeddingDimensions',
+                                  )
+                                }}:
+                                {{ b.kb_embedding_dimensions }}
+                              </Tag>
+                              <Tag
+                                v-if="b.kb_chunk_strategy"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ $t('tenant.ai.agent.detail.kbChunkStrategy') }}:
+                                {{
+                                  getKbChunkStrategyText(b.kb_chunk_strategy)
+                                }}
+                              </Tag>
+                            </div>
                           </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -1669,6 +1937,7 @@ onBeforeUnmount(() => {
                               !canManageKnowledgeBases ||
                               isKbBindingReadonly(b)
                             "
+                            :aria-label="`${$t('tenant.ai.agent.detail.kbEnabled')}: ${b.kb_name ?? b.knowledge_base_id}`"
                             @change="toggleKBEnabled(b)"
                           />
                           <!-- Platform KB: tenant opt-out from RAG -->
@@ -1686,6 +1955,7 @@ onBeforeUnmount(() => {
                                 platformKbSuppressLoadingKbId ===
                                 b.knowledge_base_id
                               "
+                              :aria-label="`${$t('tenant.ai.agent.detail.kbPlatformOptOut')}: ${b.kb_name ?? b.knowledge_base_id}`"
                               @change="
                                 (val) =>
                                   togglePlatformKbOptOut(b, Boolean(val))
@@ -1872,6 +2142,7 @@ onBeforeUnmount(() => {
                           v-model:checked="routingEnabled"
                           :disabled="!isTenantOwned"
                           class="shrink-0"
+                          :aria-label="$t('tenant.ai.agent.routing.enableRouting')"
                         />
                       </div>
                       <div

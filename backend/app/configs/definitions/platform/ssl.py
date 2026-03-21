@@ -6,6 +6,7 @@ Includes ACME/Let's Encrypt connection config, auto-renewal policy, etc.
 
 from app.configs.definitions.groups import PLATFORM_SSL_GROUP
 from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
+from app.core.config import settings
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
@@ -102,19 +103,24 @@ SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
 # ==========================================
 
 # DNS provider type / DNS 提供商类型
+_DNS_PROVIDER_OPTIONS = [
+    ConfigOption(value="cloudflare", label_key="config.platform.dns_provider.cloudflare"),
+]
+
+if settings.DEBUG:
+    _DNS_PROVIDER_OPTIONS.insert(
+        0,
+        ConfigOption(value="manual", label_key="config.platform.dns_provider.manual"),
+    )
+
 DNS_PROVIDER = ConfigMeta(
     key="dns_provider",
     name_key="config.platform.dns_provider.name",
     description_key="config.platform.dns_provider.desc",
     scope=ConfigScope.ADMIN_ONLY,
     value_type=ConfigValueType.SELECT,
-    default_value="manual",
-    options=[
-        ConfigOption(value="manual", label_key="config.platform.dns_provider.manual"),
-        ConfigOption(value="cloudflare", label_key="config.platform.dns_provider.cloudflare"),
-        ConfigOption(value="aliyun", label_key="config.platform.dns_provider.aliyun"),
-        ConfigOption(value="dnspod", label_key="config.platform.dns_provider.dnspod"),
-    ],
+    default_value="manual" if settings.DEBUG else "cloudflare",
+    options=_DNS_PROVIDER_OPTIONS,
     sort_order=80,
 )
 
@@ -147,66 +153,6 @@ DNS_CLOUDFLARE_ZONE_ID = ConfigMeta(
     sort_order=82,
 )
 
-# ---- Aliyun DNS ----
-
-DNS_ALIYUN_ACCESS_KEY_ID = ConfigMeta(
-    key="dns_aliyun_access_key_id",
-    name_key="config.platform.dns_aliyun_access_key_id.name",
-    description_key="config.platform.dns_aliyun_access_key_id.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.PASSWORD,
-    default_value="",
-    is_encrypted=True,
-    display_rules=[
-        DisplayRule(field="dns_provider", operator="equals", value="aliyun")
-    ],
-    sort_order=83,
-)
-
-DNS_ALIYUN_ACCESS_KEY_SECRET = ConfigMeta(
-    key="dns_aliyun_access_key_secret",
-    name_key="config.platform.dns_aliyun_access_key_secret.name",
-    description_key="config.platform.dns_aliyun_access_key_secret.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.PASSWORD,
-    default_value="",
-    is_encrypted=True,
-    display_rules=[
-        DisplayRule(field="dns_provider", operator="equals", value="aliyun")
-    ],
-    sort_order=84,
-)
-
-# ---- DNSPod (Tencent Cloud) ----
-
-DNS_DNSPOD_SECRET_ID = ConfigMeta(
-    key="dns_dnspod_secret_id",
-    name_key="config.platform.dns_dnspod_secret_id.name",
-    description_key="config.platform.dns_dnspod_secret_id.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.PASSWORD,
-    default_value="",
-    is_encrypted=True,
-    display_rules=[
-        DisplayRule(field="dns_provider", operator="equals", value="dnspod")
-    ],
-    sort_order=85,
-)
-
-DNS_DNSPOD_SECRET_KEY = ConfigMeta(
-    key="dns_dnspod_secret_key",
-    name_key="config.platform.dns_dnspod_secret_key.name",
-    description_key="config.platform.dns_dnspod_secret_key.desc",
-    scope=ConfigScope.ADMIN_ONLY,
-    value_type=ConfigValueType.PASSWORD,
-    default_value="",
-    is_encrypted=True,
-    display_rules=[
-        DisplayRule(field="dns_provider", operator="equals", value="dnspod")
-    ],
-    sort_order=86,
-)
-
 
 # ==========================================
 # Register configs to group / 注册配置项到分组
@@ -223,8 +169,4 @@ PLATFORM_SSL_GROUP.configs = [
     DNS_PROVIDER,
     DNS_CLOUDFLARE_API_TOKEN,
     DNS_CLOUDFLARE_ZONE_ID,
-    DNS_ALIYUN_ACCESS_KEY_ID,
-    DNS_ALIYUN_ACCESS_KEY_SECRET,
-    DNS_DNSPOD_SECRET_ID,
-    DNS_DNSPOD_SECRET_KEY,
 ]

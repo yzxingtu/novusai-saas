@@ -13,7 +13,7 @@ from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql import Select
 
 from app.core.base_model import BaseModel, utc_now
-from app.enums.common import DeleteLevelEnum
+from app.enums.common import RecycleStageEnum
 from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 from app.schemas.common.select import SelectOption
 
@@ -1180,6 +1180,7 @@ class BaseRepository(Generic[ModelType]):
         self,
         spec: QuerySpec,
         delete_level: str | None = None,
+        recycle_stage: str | None = None,
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
@@ -1188,7 +1189,8 @@ class BaseRepository(Generic[ModelType]):
 
         Args:
             spec: 查询规格 / Query specification (filters/sort/pagination)
-            delete_level: 删除层级过滤 / Delete level filter ('tenant' or 'admin'), None for all
+            delete_level: 删除侧别过滤 / Delete scope filter ('tenant' or 'admin'), None for all
+            recycle_stage: 回收站阶段过滤 / Recycle stage filter ('module' or 'global'), None for all
             scope: 作用域 / Scope
             forced_filters: 强制过滤条件 / Forced filter conditions
 
@@ -1203,6 +1205,8 @@ class BaseRepository(Generic[ModelType]):
 
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
+        if recycle_stage:
+            query = query.where(self.model.recycle_stage == recycle_stage)
 
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)
@@ -1218,8 +1222,19 @@ class BaseRepository(Generic[ModelType]):
         # 回收站自动允许 deleted_at 排序 / Auto-allow deleted_at sorting in recycle bin
         if hasattr(self.model, "deleted_at") and "deleted_at" not in sortable_fields:
             sortable_fields["deleted_at"] = self.model.deleted_at
-        # 回收站默认按删除时间倒序 / Default sort by deleted_at descending in recycle bin
-        if not spec.sort and hasattr(self.model, "deleted_at"):
+        if (
+            hasattr(self.model, "promoted_to_global_at")
+            and "promoted_to_global_at" not in sortable_fields
+        ):
+            sortable_fields["promoted_to_global_at"] = self.model.promoted_to_global_at
+        # 总回收站默认按进入总回收站时间倒序，模块回收站默认按删除时间倒序
+        # Default sort: global stage by promoted_to_global_at desc, module stage by deleted_at desc
+        if not spec.sort and recycle_stage == RecycleStageEnum.GLOBAL.value and hasattr(self.model, "promoted_to_global_at"):
+            query = query.order_by(
+                desc(self.model.promoted_to_global_at),
+                desc(self.model.deleted_at),
+            )
+        elif not spec.sort and hasattr(self.model, "deleted_at"):
             query = query.order_by(desc(self.model.deleted_at))
         else:
             query = self._apply_sort(query, spec.sort, sortable_fields)
@@ -1234,12 +1249,14 @@ class BaseRepository(Generic[ModelType]):
     async def count_deleted(
         self,
         delete_level: str | None = None,
+        recycle_stage: str | None = None,
     ) -> int:
         """
         统计回收站记录数量 / Count recycle bin records
 
         Args:
-            delete_level: 删除层级过滤 / Delete level filter
+            delete_level: 删除侧别过滤 / Delete scope filter
+            recycle_stage: 回收站阶段过滤 / Recycle stage filter
 
         Returns:
             已删除记录数量 / Count of deleted records
@@ -1249,11 +1266,18 @@ class BaseRepository(Generic[ModelType]):
         )
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
+        if recycle_stage:
+            query = query.where(self.model.recycle_stage == recycle_stage)
 
         result = await self.db.execute(query)
         return result.scalar() or 0
 
-    async def restore_by_id(self, id: int) -> ModelType | None:
+    async def restore_by_id(
+        self,
+        id: int,
+        delete_level: str | None = None,
+        recycle_stage: str | None = None,
+    ) -> ModelType | None:
         """
         恢复已删除记录 / Restore a deleted record
 
@@ -1266,18 +1290,27 @@ class BaseRepository(Generic[ModelType]):
         instance = await self.get_by_id(id, include_deleted=True)
         if instance is None or not instance.is_deleted:
             return None
+        if delete_level and getattr(instance, "delete_level", None) != delete_level:
+            return None
+        if recycle_stage and getattr(instance, "recycle_stage", None) != recycle_stage:
+            return None
 
         instance.restore()
         await self.db.flush()
         await self.db.refresh(instance)
         return instance
 
-    async def escalate_delete_by_id(self, id: int) -> ModelType | None:
+    async def promote_to_global_by_id(
+        self,
+        id: int,
+        delete_level: str | None = None,
+    ) -> ModelType | None:
         """
-        升级删除层级 / Escalate delete level (tenant → admin), reset deleted_at
+        推进到总回收站 / Promote a deleted record to the global recycle bin
 
         Args:
             id: 记录 ID / Record ID
+            delete_level: 删除侧别过滤 / Delete scope filter
 
         Returns:
             更新后的模型实例或 None / Updated model instance or None
@@ -1285,16 +1318,26 @@ class BaseRepository(Generic[ModelType]):
         instance = await self.get_by_id(id, include_deleted=True)
         if instance is None or not instance.is_deleted:
             return None
-        # 仅 tenant 级别才可升级，已在 admin 级别则无需重复操作 / Only tenant level can escalate; already admin level = no-op
-        if getattr(instance, "delete_level", None) == DeleteLevelEnum.ADMIN.value:
+        if delete_level and getattr(instance, "delete_level", None) != delete_level:
+            return None
+        if getattr(instance, "recycle_stage", None) == RecycleStageEnum.GLOBAL.value:
             return instance
 
-        instance.escalate_delete()
+        instance.promote_to_global()
         await self.db.flush()
         await self.db.refresh(instance)
         return instance
 
-    async def permanent_delete(self, id: int) -> bool:
+    async def escalate_delete_by_id(self, id: int) -> ModelType | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global_by_id"""
+        return await self.promote_to_global_by_id(id)
+
+    async def permanent_delete(
+        self,
+        id: int,
+        delete_level: str | None = None,
+        recycle_stage: str | None = RecycleStageEnum.GLOBAL.value,
+    ) -> bool:
         """
         物理删除记录 / Permanently delete a record
 
@@ -1305,7 +1348,11 @@ class BaseRepository(Generic[ModelType]):
             是否删除成功 / Whether deletion was successful
         """
         instance = await self.get_by_id(id, include_deleted=True)
-        if instance is None:
+        if instance is None or not instance.is_deleted:
+            return False
+        if delete_level and getattr(instance, "delete_level", None) != delete_level:
+            return False
+        if recycle_stage and getattr(instance, "recycle_stage", None) != recycle_stage:
             return False
 
         await self.db.delete(instance)
@@ -1335,6 +1382,8 @@ class BaseRepository(Generic[ModelType]):
                 is_deleted=False,
                 deleted_at=None,
                 delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
                 updated_at=utc_now(),
             )
         )
@@ -1357,6 +1406,7 @@ class BaseRepository(Generic[ModelType]):
         stmt = delete(self.model).where(
             self.model.id.in_(ids),
             self.model.is_deleted.is_(True),
+            self.model.recycle_stage == RecycleStageEnum.GLOBAL.value,
         )
         result = await self.db.execute(stmt)
         return result.rowcount
@@ -1376,8 +1426,9 @@ class BaseRepository(Generic[ModelType]):
         cutoff = utc_now() - timedelta(days=days)
         stmt = delete(self.model).where(
             self.model.is_deleted.is_(True),
-            self.model.deleted_at.is_not(None),
-            self.model.deleted_at < cutoff,
+            self.model.recycle_stage == RecycleStageEnum.GLOBAL.value,
+            self.model.promoted_to_global_at.is_not(None),
+            self.model.promoted_to_global_at < cutoff,
         )
         result = await self.db.execute(stmt)
         return result.rowcount
@@ -1402,6 +1453,20 @@ class TenantRepository(BaseRepository[ModelType]):
         super().__init__(db)
         self.tenant_id = tenant_id
 
+    def _tenant_scope_field_name(self) -> str:
+        """Resolve tenant ownership field name / 解析租户归属字段名。"""
+        if hasattr(self.model, "owner_tenant_id"):
+            return "owner_tenant_id"
+        if hasattr(self.model, "tenant_id"):
+            return "tenant_id"
+        raise AttributeError(
+            f"{self.model.__name__} must define tenant_id or owner_tenant_id"
+        )
+
+    def _tenant_scope_column(self):
+        """Resolve tenant ownership column / 解析租户归属列。"""
+        return getattr(self.model, self._tenant_scope_field_name())
+
     async def get_list(
         self,
         skip: int = 0,
@@ -1411,7 +1476,7 @@ class TenantRepository(BaseRepository[ModelType]):
         **filters: Any,
     ) -> list[ModelType]:
         """获取企业级记录列表 / Get tenant-scoped record list"""
-        filters["tenant_id"] = self.tenant_id
+        filters[self._tenant_scope_field_name()] = self.tenant_id
         return await super().get_list(
             skip=skip,
             limit=limit,
@@ -1426,12 +1491,12 @@ class TenantRepository(BaseRepository[ModelType]):
         **filters: Any,
     ) -> int:
         """统计企业级记录数量 / Count tenant-scoped records"""
-        filters["tenant_id"] = self.tenant_id
+        filters[self._tenant_scope_field_name()] = self.tenant_id
         return await super().count(include_deleted=include_deleted, **filters)
 
     async def create(self, data: dict[str, Any]) -> ModelType:
         """创建企业级记录，对 __data_permission__ 模型自动填充 created_by / dept_id / Create tenant-scoped record, auto-fill created_by/dept_id for __data_permission__ models"""
-        data["tenant_id"] = self.tenant_id
+        data[self._tenant_scope_field_name()] = self.tenant_id
         if getattr(self.model, "__data_permission__", False):
             from app.core.data_permission import data_permission_ctx
 
@@ -1447,12 +1512,18 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         id: int,
         include_deleted: bool = False,
-    ) -> ModelType | None:
+        ) -> ModelType | None:
         """根据 ID 获取企业级记录 / Get tenant-scoped record by ID"""
         instance = await super().get_by_id(id, include_deleted)
         # 验证企业归属 / Verify tenant ownership
-        if instance and hasattr(instance, "tenant_id") and instance.tenant_id != self.tenant_id:
-            return None
+        if instance:
+            tenant_value = getattr(
+                instance,
+                self._tenant_scope_field_name(),
+                None,
+            )
+            if tenant_value != self.tenant_id:
+                return None
         return instance
 
     async def get_by_ids(
@@ -1462,9 +1533,10 @@ class TenantRepository(BaseRepository[ModelType]):
     ) -> list[ModelType]:
         """根据 ID 列表获取企业级记录，自动过滤非本企业数据 / Get tenant records by IDs, auto-filter non-tenant data"""
         instances = await super().get_by_ids(ids, include_deleted)
+        tenant_field = self._tenant_scope_field_name()
         return [
             inst for inst in instances
-            if not hasattr(inst, "tenant_id") or inst.tenant_id == self.tenant_id
+            if getattr(inst, tenant_field, None) == self.tenant_id
         ]
 
     async def get_one_by(
@@ -1473,7 +1545,7 @@ class TenantRepository(BaseRepository[ModelType]):
         **filters: Any,
     ) -> ModelType | None:
         """根据条件获取企业级单条记录，自动注入 tenant_id / Get single tenant record by conditions, auto-inject tenant_id"""
-        filters["tenant_id"] = self.tenant_id
+        filters[self._tenant_scope_field_name()] = self.tenant_id
         return await super().get_one_by(include_deleted=include_deleted, **filters)
 
     async def query_list(
@@ -1490,7 +1562,10 @@ class TenantRepository(BaseRepository[ModelType]):
         Automatically injects tenant_id filter condition.
         """
         # 强制添加企业过滤 / Force add tenant filter
-        tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
+        tenant_filter = FilterRule(
+            field=self._tenant_scope_field_name(),
+            value=self.tenant_id,
+        )
         all_forced = [tenant_filter] + (forced_filters or [])
 
         return await super().query_list(
@@ -1529,7 +1604,7 @@ class TenantRepository(BaseRepository[ModelType]):
         """
         # 自动添加企业过滤
         all_filters = filters.copy() if filters else {}
-        all_filters["tenant_id"] = self.tenant_id
+        all_filters[self._tenant_scope_field_name()] = self.tenant_id
 
         return await super().get_select_options(
             search=search,
@@ -1545,15 +1620,20 @@ class TenantRepository(BaseRepository[ModelType]):
         self,
         spec: QuerySpec,
         delete_level: str | None = None,
+        recycle_stage: str | None = None,
         scope: str | None = None,
         forced_filters: list[FilterRule] | None = None,
     ) -> tuple[list[ModelType], int]:
         """企业级回收站查询，自动注入 tenant_id / Tenant recycle bin query, auto-inject tenant_id"""
-        tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
+        tenant_filter = FilterRule(
+            field=self._tenant_scope_field_name(),
+            value=self.tenant_id,
+        )
         all_forced = [tenant_filter] + (forced_filters or [])
         return await super().query_deleted(
             spec=spec,
             delete_level=delete_level,
+            recycle_stage=recycle_stage,
             scope=scope,
             forced_filters=all_forced,
         )
@@ -1561,14 +1641,17 @@ class TenantRepository(BaseRepository[ModelType]):
     async def count_deleted(
         self,
         delete_level: str | None = None,
+        recycle_stage: str | None = None,
     ) -> int:
         """企业级回收站计数，自动注入 tenant_id / Tenant recycle bin count, auto-inject tenant_id"""
         query = select(func.count(self.model.id)).where(
             self.model.is_deleted.is_(True),
-            self.model.tenant_id == self.tenant_id,
+            self._tenant_scope_column() == self.tenant_id,
         )
         if delete_level:
             query = query.where(self.model.delete_level == delete_level)
+        if recycle_stage:
+            query = query.where(self.model.recycle_stage == recycle_stage)
 
         result = await self.db.execute(query)
         return result.scalar() or 0
@@ -1587,7 +1670,7 @@ class TenantRepository(BaseRepository[ModelType]):
             .where(
                 self.model.id.in_(ids),
                 self.model.is_deleted.is_(False),
-                self.model.tenant_id == self.tenant_id,
+                self._tenant_scope_column() == self.tenant_id,
             )
             .values(**data)
         )
@@ -1609,14 +1692,14 @@ class TenantRepository(BaseRepository[ModelType]):
                 .where(
                     self.model.id.in_(ids),
                     self.model.is_deleted.is_(False),
-                    self.model.tenant_id == self.tenant_id,
+                    self._tenant_scope_column() == self.tenant_id,
                 )
                 .values(is_deleted=True, deleted_at=utc_now())
             )
         else:
             stmt = delete(self.model).where(
                 self.model.id.in_(ids),
-                self.model.tenant_id == self.tenant_id,
+                self._tenant_scope_column() == self.tenant_id,
             )
 
         result = await self.db.execute(stmt)
@@ -1632,12 +1715,14 @@ class TenantRepository(BaseRepository[ModelType]):
             .where(
                 self.model.id.in_(ids),
                 self.model.is_deleted.is_(True),
-                self.model.tenant_id == self.tenant_id,
+                self._tenant_scope_column() == self.tenant_id,
             )
             .values(
                 is_deleted=False,
                 deleted_at=None,
                 delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
                 updated_at=utc_now(),
             )
         )
@@ -1652,7 +1737,8 @@ class TenantRepository(BaseRepository[ModelType]):
         stmt = delete(self.model).where(
             self.model.id.in_(ids),
             self.model.is_deleted.is_(True),
-            self.model.tenant_id == self.tenant_id,
+            self.model.recycle_stage == RecycleStageEnum.GLOBAL.value,
+            self._tenant_scope_column() == self.tenant_id,
         )
         result = await self.db.execute(stmt)
         return result.rowcount

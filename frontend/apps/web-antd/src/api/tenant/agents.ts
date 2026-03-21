@@ -42,6 +42,16 @@ export interface AgentAccessConfig {
   tenant_role_ids: null | number[];
 }
 
+/** Agent rag config / 智能体 RAG 配置 */
+export interface AgentRagConfig {
+  search_mode?: 'hybrid' | 'keyword' | 'vector';
+  top_k?: number;
+  score_threshold?: number;
+  rewrite_strategy?: 'hyde' | 'multi' | 'none';
+  reranker_enabled?: boolean;
+  context_token_ratio?: number;
+}
+
 /** Update agent access request / 更新智能体访问权限请求 */
 export interface AgentAccessUpdateRequest {
   admin_role_ids?: null | number[];
@@ -88,7 +98,7 @@ export interface AgentInfo extends AgentListItem {
   context_config: null | Record<string, unknown>;
   output_schema: null | unknown[];
   knowledge_base_ids: null | number[];
-  rag_config: null | Record<string, unknown>;
+  rag_config: AgentRagConfig | null;
 }
 
 /** Create agent request / 创建智能体请求 */
@@ -112,7 +122,7 @@ export interface AgentCreateRequest {
   quota_config?: null | Record<string, unknown>;
   visibility?: string;
   knowledge_base_ids?: null | number[];
-  rag_config?: null | Record<string, unknown>;
+  rag_config?: AgentRagConfig | null;
 }
 
 /** Update agent request / 更新智能体请求 */
@@ -137,7 +147,7 @@ export interface AgentUpdateRequest {
   quota_config?: null | Record<string, unknown>;
   visibility?: null | string;
   knowledge_base_ids?: null | number[];
-  rag_config?: null | Record<string, unknown>;
+  rag_config?: AgentRagConfig | null;
 }
 
 /** Agent memory config (tenant side) / 智能体记忆配置（企业侧） */
@@ -186,7 +196,10 @@ export interface AgentVersionDetail extends AgentVersionListItem {
   input_variables: null | unknown[];
   welcome_message: null | string;
   suggested_questions: null | unknown[];
+  context_config: null | Record<string, unknown>;
+  output_schema: null | unknown[];
   quota_config: null | Record<string, unknown>;
+  rag_config: AgentRagConfig | null;
 }
 
 /** Version diff result / 版本对比结果 */
@@ -488,6 +501,10 @@ export interface AgentKBBindingInfo {
   kb_scope: string | null;
   kb_visibility: string | null;
   kb_document_count: number | null;
+  kb_chunk_strategy: null | string;
+  kb_embedding_model_id: null | number;
+  kb_embedding_model_name: null | string;
+  kb_embedding_dimensions: null | number;
 }
 
 /** Get agent KB bindings / 获取智能体知识库绑定列表 */

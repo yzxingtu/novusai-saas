@@ -14,6 +14,7 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import deleted, paginated, success
 from app.enums.agent import (
+    ConversationOwnerTypeEnum,
     MemoryChannelEnum,
     MemorySceneEnum,
 )
@@ -38,9 +39,22 @@ from app.schemas.ai.agent_chat import (
     AgentRouteRequest,
     UpdateConversationTitleRequest,
 )
+from app.schemas.common.query import FilterRule
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.conversation_service import ConversationService
 from app.services.ai.page_context_limits import validate_page_context_size
+
+
+def _build_platform_admin_chat_filters(admin_id: int) -> list[FilterRule]:
+    """Build forced filters for current platform admin chat scope / 构建当前平台管理员聊天范围的强制过滤条件。"""
+    return [
+        FilterRule(field="user_id", operator="eq", value=admin_id),
+        FilterRule(
+            field="owner_type",
+            operator="eq",
+            value=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+        ),
+    ]
 
 
 @permission_resource(
@@ -190,11 +204,13 @@ class AdminAgentChatController(GlobalController):
                 db,
                 tenant_id=PLATFORM_TENANT_ID,
                 message=data.message,
+                conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 user_role_id=admin.role_id,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=admin.id,
+                force_reroute=data.force_reroute,
                 has_image_attachments=data.has_image_attachments,
             )
 
@@ -249,7 +265,10 @@ class AdminAgentChatController(GlobalController):
             权限 / Permission: admin_agent_chat:conversations
             """
             service = ConversationService(db, PLATFORM_TENANT_ID)
-            items, total = await service.query_list(spec=query)
+            items, total = await service.query_list(
+                spec=query,
+                forced_filters=_build_platform_admin_chat_filters(admin.id),
+            )
             return paginated(
                 items=enrich_conversations_with_agent(items),
                 total=total,
@@ -273,11 +292,16 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:conversation_detail
             """
-            service, _ = await ConversationService.get_service_for_conversation(
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
+                admin.id,
             )
-            result = await service.get_conversation_detail(conversation_id)
+            result = await service.get_conversation_detail(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
             return success(data=result)
 
         @router.delete(
@@ -296,11 +320,16 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:delete_conversation
             """
-            service, _ = await ConversationService.get_service_for_conversation(
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
+                admin.id,
             )
-            await service.delete_accessible_conversation(conversation_id)
+            await service.delete_accessible_conversation(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
             await db.commit()
             return deleted(message=_("agent_chat.conversation_deleted"))
 
@@ -317,14 +346,16 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """更新对话标题 / Update conversation title"""
-            service, _ = await ConversationService.get_service_for_conversation(
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
+                admin.id,
             )
             conv = await service.update_conversation_title(
                 conversation_id,
                 title=data.title,
-                user_id=None,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
             )
             await db.commit()
             return success(data={"id": conv.id, "title": conv.title})
@@ -343,11 +374,16 @@ class AdminAgentChatController(GlobalController):
             """
             获取指定对话的记忆状态 / Get memory state for a specific conversation.
             """
-            service, _ = await ConversationService.get_service_for_conversation(
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
+                admin.id,
             )
-            state = await service.get_conversation_memory_state(conversation_id)
+            state = await service.get_conversation_memory_state(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
             return success(data=state)
 
         @router.delete(
@@ -364,11 +400,16 @@ class AdminAgentChatController(GlobalController):
             """
             清除指定对话的记忆状态 / Clear memory state for a specific conversation.
             """
-            service, _ = await ConversationService.get_service_for_conversation(
+            service, _ = await ConversationService.get_platform_admin_chat_service_for_user(
                 db,
                 conversation_id,
+                admin.id,
             )
-            deleted_count = await service.clear_conversation_memory_state(conversation_id)
+            deleted_count = await service.clear_conversation_memory_state(
+                conversation_id,
+                user_id=admin.id,
+                owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
             return success(data={"deleted_count": deleted_count})
 
 

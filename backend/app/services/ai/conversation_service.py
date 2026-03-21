@@ -20,7 +20,11 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import ConversationStatusEnum, MessageRoleEnum
+from app.enums.agent import (
+    ConversationOwnerTypeEnum,
+    ConversationStatusEnum,
+    MessageRoleEnum,
+)
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
@@ -153,13 +157,34 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             )
         return cls(db, conversation.tenant_id), conversation
 
+    @classmethod
+    async def get_platform_admin_chat_service_for_user(
+        cls,
+        db: AsyncSession,
+        conversation_id: int,
+        admin_user_id: int,
+    ) -> tuple["ConversationService", AgentConversation]:
+        """Resolve platform-admin chat conversation scoped to current admin / 解析当前平台管理员自己的聊天会话。"""
+        service = cls(db, PLATFORM_TENANT_ID)
+        conversation = await service.get_accessible_conversation(
+            conversation_id,
+            user_id=admin_user_id,
+            owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+        )
+        return service, conversation
+
     async def get_accessible_conversation(
         self,
         conversation_id: int,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> AgentConversation:
         conversation = await self.repo.get_by_id(conversation_id)
         if not conversation:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+        if owner_type is not None and conversation.owner_type != owner_type:
             raise NotFoundException(
                 message=_("agent_chat.error.conversation_not_found"),
             )
@@ -175,6 +200,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         message_skip: int = 0,
         message_limit: int = 50,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> dict[str, Any]:
         """
         获取对话详情（含分页消息列表）/ Get conversation detail with paginated messages.
@@ -190,6 +216,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation = await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
+            owner_type=owner_type,
         )
 
         # 获取分页消息
@@ -239,10 +266,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         self,
         conversation_id: int,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> None:
         await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
+            owner_type=owner_type,
         )
         await self.delete(conversation_id)
 
@@ -251,11 +280,13 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation_id: int,
         title: str,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> AgentConversation:
         """更新对话标题 / Update conversation title."""
         conversation = await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
+            owner_type=owner_type,
         )
         s = (title or "").strip()
         conversation.title = s[:200] if s else None
@@ -269,10 +300,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         self,
         conversation_id: int,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> dict[str, Any]:
         await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
+            owner_type=owner_type,
         )
         memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         return await memory_svc.get_conversation_memory_state(conversation_id)
@@ -281,10 +314,12 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         self,
         conversation_id: int,
         user_id: int | None = None,
+        owner_type: str | None = None,
     ) -> int:
         await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
+            owner_type=owner_type,
         )
         memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         return await memory_svc.clear_conversation_memory(conversation_id)
@@ -595,6 +630,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         agent_id: int,
         conversation_id: int | None,
         user_id: int | None,
+        owner_type: str,
         first_message: str,
     ) -> AgentConversation:
         """
@@ -622,11 +658,17 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                     if self.tenant_id != PLATFORM_TENANT_ID
                     else None
                 ),
+                owner_type=owner_type,
             )
 
             if conversation.status == ConversationStatusEnum.ARCHIVED.value:
                 raise BusinessException(
                     message=_("agent_chat.error.conversation_archived"),
+                )
+
+            if conversation.agent_id != agent_id:
+                raise BusinessException(
+                    message=_("agent_chat.error.conversation_agent_mismatch"),
                 )
 
             return conversation
@@ -637,6 +679,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             "tenant_id": self.tenant_id,
             "agent_id": agent_id,
             "user_id": user_id,
+            "owner_type": owner_type,
             "title": title,
             "status": ConversationStatusEnum.ACTIVE.value,
             "token_count": 0,
@@ -644,10 +687,11 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         })
 
         logger.info(
-            "Conversation created: id={} agent={} tenant={}",
+            "Conversation created: id={} agent={} tenant={} owner_type={}",
             conversation.id,
             agent_id,
             self.tenant_id,
+            owner_type,
         )
 
         return conversation
@@ -1022,4 +1066,3 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
 
 __all__ = ["ConversationService"]
-

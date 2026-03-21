@@ -5,10 +5,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -28,6 +25,7 @@ import {
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import {
   copyToClipboard,
@@ -180,7 +178,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // Declarative CRUD page (plan dropdown auto-loaded by ApiSelect, export button auto-added) / 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActionClick, openExportModal, formAiOperations } =
+const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, openExportModal } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -211,67 +209,22 @@ const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActio
     },
     ai: { pageKey: 'admin.tenant.list', formSchema: useFormSchema },
   });
-
-const cleanupPageContext = registerPageContext('admin/tenant/list', () => ({
-  page_key: 'admin.tenant.list',
-  page_title: $t('admin.tenant.name'),
-  page_data: {
-    resource: '/admin/tenants',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.tenant.list', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the tenant list data',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Tenant list refreshed' };
+usePageAIRegistration({
+  pageKey: 'admin.tenant.list',
+  registerContext: false,
+  operationStrategy: 'append',
+  operations: [
+    {
+      name: 'export_data',
+      label: $t('shared.pageOperation.exportData'),
+      description: 'Open the data export dialog for the tenant list',
+      readonly: true,
+      handler: async () => {
+        openExportModal();
+        return { success: true, message: 'Export dialog opened' };
+      },
     },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create tenant form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create tenant form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search tenants by name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Tenant name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'export_data',
-    label: $t('shared.pageOperation.exportData'),
-    description: 'Open the data export dialog for the tenant list',
-    readonly: true,
-    handler: async () => {
-      openExportModal();
-      return { success: true, message: 'Export dialog opened' };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

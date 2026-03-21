@@ -303,6 +303,75 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             raise NotFoundException(message=_("tenant_domain.not_found"))
         return result
 
+    def _should_auto_provision_after_verify(self) -> bool:
+        """
+        域名验证成功后是否自动触发签发 / Whether to auto-start certificate issuance after domain verification.
+
+        管理端本地 DEBUG 环境默认不自动签发；
+        Tenant-side service overrides this to keep real issuance behavior.
+        """
+        return not settings.DEBUG
+
+    def _send_ssl_provision_task(self, domain_id: int) -> None:
+        """发送 SSL 签发任务 / Enqueue SSL provisioning task."""
+        from app.celery_app import celery_app
+
+        celery_app.send_task(
+            "app.tasks.ssl_tasks.task_provision_ssl",
+            args=[domain_id],
+            queue="default",
+            countdown=2,
+        )
+
+    async def start_ssl_provision(self, domain_id: int) -> TenantDomain:
+        """
+        校验 DNS 自动化能力并触发签发 / Validate DNS automation readiness and enqueue provisioning.
+        """
+        from app.services.system.dns_provider import ensure_dns_provider_ready
+
+        domain = await self.get_by_id(domain_id)
+        if not domain:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+        if not domain.is_verified:
+            raise BusinessException(
+                message=_("ssl_certificate.domain_not_verified"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+        if domain.ssl_status == DomainSslStatus.PROVISIONING.value:
+            raise BusinessException(
+                message=_("ssl_certificate.provision_in_progress"),
+                code=ErrorCode.CONFLICT,
+            )
+
+        await ensure_dns_provider_ready(self.db)
+        result = await self.update(
+            domain_id,
+            {"ssl_status": DomainSslStatus.PROVISIONING.value},
+        )
+        if not result:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+
+        self._send_ssl_provision_task(domain_id)
+        return result
+
+    async def maybe_auto_start_ssl_after_verify(
+        self,
+        domain_id: int,
+    ) -> TenantDomain | None:
+        """
+        在验证事务提交后再决定是否自动触发签发 / Decide whether to auto-start provisioning after verify transaction has committed.
+        """
+        if not self._should_auto_provision_after_verify():
+            return None
+
+        from app.services.system.dns_provider import audit_dns_provider_config
+
+        readiness = await audit_dns_provider_config(self.db)
+        if not readiness["ready"]:
+            return None
+
+        return await self.start_ssl_provision(domain_id)
+
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
         验证域名 / Verify domain.
@@ -346,7 +415,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         result = await self.update(domain_id, {
             "is_verified": True,
             "verified_at": utc_now(),
-            "ssl_status": DomainSslStatus.PROVISIONING.value,
+            "ssl_status": DomainSslStatus.NONE.value,
         })
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
@@ -354,16 +423,6 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject verified custom domain into hosts file
         if self._should_inject_hosts() and is_dev_local():
             await async_add_host_entry(domain.domain)
-
-        # ⚠️  LOCAL DEV ENVIRONMENT: skip SSL provisioning for local domains
-        # (.app.local / .localhost cannot obtain public CA certificates)
-        if not settings.DEBUG:
-            from app.celery_app import celery_app
-            celery_app.send_task(
-                "app.tasks.ssl_tasks.task_provision_ssl",
-                args=[domain_id],
-                queue="default",
-            )
 
         return result
 
@@ -659,6 +718,9 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             触发签发的域名数量
         """
         from app.enums.domain import DomainSslStatus
+        from app.services.system.dns_provider import ensure_dns_provider_ready
+
+        await ensure_dns_provider_ready(self.db)
 
         result = await self.db.execute(
             select(TenantDomain).where(
@@ -675,17 +737,13 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         domains = list(result.scalars().all())
 
         triggered = 0
-        # ⚠️  LOCAL DEV ENVIRONMENT: skip SSL provisioning in DEBUG mode
-        if not settings.DEBUG:
-            from app.celery_app import celery_app
-            for domain in domains:
-                await self.update(domain.id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
-                celery_app.send_task(
-                    "app.tasks.ssl_tasks.task_provision_ssl",
-                    args=[domain.id],
-                    queue="default",
-                )
-                triggered += 1
+        for domain in domains:
+            await self.update(
+                domain.id,
+                {"ssl_status": DomainSslStatus.PROVISIONING.value},
+            )
+            self._send_ssl_provision_task(domain.id)
+            triggered += 1
 
         return triggered
 
@@ -700,6 +758,10 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
     def _should_inject_hosts(self) -> bool:
         """企业端禁止 hosts 注入，防止非预期写入本地系统文件 / Tenant side: disable hosts injection."""
         return False
+
+    def _should_auto_provision_after_verify(self) -> bool:
+        """企业端始终尝试自动签发 / Tenant side always attempts auto provisioning when DNS automation is ready."""
+        return True
 
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
@@ -731,18 +793,10 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
         result = await self.update(domain_id, {
             "is_verified": True,
             "verified_at": utc_now(),
-            "ssl_status": DomainSslStatus.PROVISIONING.value,
+            "ssl_status": DomainSslStatus.NONE.value,
         })
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
-
-        # 触发 SSL 证书签发（企业端不跳过，SSL 是真实需要的）
-        from app.celery_app import celery_app
-        celery_app.send_task(
-            "app.tasks.ssl_tasks.task_provision_ssl",
-            args=[domain_id],
-            queue="default",
-        )
 
         return result
 

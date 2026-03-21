@@ -29,6 +29,7 @@ def _make_conversation():
     conv.id = 100
     conv.agent_id = 1
     conv.user_id = 10
+    conv.owner_type = "tenant_admin"
     return conv
 
 
@@ -287,4 +288,15 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
     call_kwargs = service._persist_session_memory.call_args.kwargs
     assert call_kwargs["message"] == "hello"
     assert call_kwargs["response"] == "ok"
-    assert call_kwargs["event_id"].startswith("100:2:")
+    assert call_kwargs["event_id"].startswith("memevt:100:")
+
+
+def test_memory_event_id_is_request_unique():
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    first = AgentChatService._build_memory_event_id(100)
+    second = AgentChatService._build_memory_event_id(100)
+
+    assert first.startswith("memevt:100:")
+    assert second.startswith("memevt:100:")
+    assert first != second

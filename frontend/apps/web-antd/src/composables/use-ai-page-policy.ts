@@ -17,23 +17,62 @@
  */
 import type { AIPageMode } from '@vben/types';
 
-import { computed } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 
 import { useRoute } from 'vue-router';
 
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import {
+  normalizeCapabilityKeys,
+  normalizeOperationNames,
+  normalizePageAIMode,
+} from '#/utils/ai-page-capabilities';
 import { useAIPermission } from './use-ai-permission';
 
-/** Default AI mode: global assistant (sidebar panel, page-unaware) / 默认 AI 模式：全局助手（侧边栏浮窗，不感知页面） */
-const DEFAULT_AI_MODE: AIPageMode = 'context_only';
+type RouteAIMeta = {
+  disabledCapabilities?: string[] | string;
+  disabledOperations?: string[] | string;
+  mode?: AIPageMode;
+  pageContextKey?: string;
+};
+
+export interface CurrentPageAIExecutionPolicy {
+  disabledCapabilities: string[];
+  disabledOperations: string[];
+  mode: AIPageMode;
+  pageContextKey?: string;
+}
+
+/** Default AI mode: page-aware operate mode / 默认 AI 模式：页面感知 operate 模式 */
+const DEFAULT_AI_MODE: AIPageMode = 'operate';
+
+export const currentPageAIExecutionPolicy = ref<CurrentPageAIExecutionPolicy>({
+  disabledCapabilities: [],
+  disabledOperations: [],
+  mode: DEFAULT_AI_MODE,
+  pageContextKey: undefined,
+});
 
 export function useCurrentPageAIPolicy() {
   const route = useRoute();
   const { canChat, canViewHistory, canRoute, resource } = useAIPermission();
+  const rawAIMeta = computed<RouteAIMeta>(
+    () => (route.meta?.ai as RouteAIMeta | undefined) ?? {},
+  );
 
   /** Effective AI mode: route config > default / 生效的 AI 模式：路由配置 > 默认值 */
   const pageMode = computed<AIPageMode>(
-    () => route.meta?.ai?.mode ?? DEFAULT_AI_MODE,
+    () => normalizePageAIMode(rawAIMeta.value.mode, DEFAULT_AI_MODE),
+  );
+
+  /** Disabled capability keys / 禁用的能力键 */
+  const disabledCapabilities = computed(() =>
+    normalizeCapabilityKeys(rawAIMeta.value.disabledCapabilities),
+  );
+
+  /** Disabled operation names / 禁用的操作名 */
+  const disabledOperations = computed(() =>
+    normalizeOperationNames(rawAIMeta.value.disabledOperations),
   );
 
   /**
@@ -45,8 +84,8 @@ export function useCurrentPageAIPolicy() {
    */
   const pageContextKey = computed<string | undefined>(
     () =>
-      (route.meta?.ai?.pageContextKey
-        ? normalizePageKey(route.meta.ai.pageContextKey as string)
+      (rawAIMeta.value.pageContextKey
+        ? normalizePageKey(rawAIMeta.value.pageContextKey)
         : undefined) ??
       (route.path ? normalizePageKey(route.path) : undefined),
   );
@@ -70,6 +109,15 @@ export function useCurrentPageAIPolicy() {
     return pageMode.value;
   });
 
+  watchEffect(() => {
+    currentPageAIExecutionPolicy.value = {
+      disabledCapabilities: [...disabledCapabilities.value],
+      disabledOperations: [...disabledOperations.value],
+      mode: effectiveMode.value,
+      pageContextKey: pageContextKey.value,
+    };
+  });
+
   return {
     /** AI total switch (permission + config) / AI 总开关（权限 + 配置） */
     aiEnabled,
@@ -79,6 +127,10 @@ export function useCurrentPageAIPolicy() {
     canViewHistory,
     /** Whether can execute route (pure RBAC) / 是否可执行路由（纯 RBAC） */
     canRoute,
+    /** Disabled capability keys / 禁用的能力键 */
+    disabledCapabilities,
+    /** Disabled operation names / 禁用的操作名 */
+    disabledOperations,
     /** Effective AI mode for current page / 当前页面生效的 AI 模式 */
     effectiveMode,
     /** Page AI disabled flag / 页面 AI 禁用标志 */

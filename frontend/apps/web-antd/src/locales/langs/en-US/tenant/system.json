@@ -186,6 +186,18 @@
     "title": "System Configs",
     "description": "Manage tenant-level configurations"
   },
+  "recycleBin": {
+    "title": "Recycle Bin",
+    "description": "View and restore records from this tenant's global recycle bin",
+    "noModule": "Please select a module",
+    "sort": "Sort",
+    "modules": "Modules",
+    "clearModule": "Clear Module",
+    "clearModuleConfirm": "Are you sure you want to permanently delete all records in \"{module}\"? This action cannot be undone.",
+    "clearModuleSuccess": "Cleared the current module and permanently deleted {count} records",
+    "clearModuleDisabledTip": "No records can be cleared in this module",
+    "configUnavailable": "Failed to load recycle-bin module configuration. Please refresh or try again later."
+  },
   "domain": {
     "title": "Domain Management",
     "add": "Add Domain",

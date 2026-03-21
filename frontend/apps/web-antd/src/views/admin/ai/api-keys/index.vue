@@ -5,11 +5,6 @@
  */
 import type { AIApiKeyInfo } from '#/api/admin/ai';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -62,7 +57,7 @@ function onToggleActive(row: AIApiKeyInfo) {
   });
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = useCrudPage<AIApiKeyInfo>({
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
   api: {
     list: getAIApiKeyListApi,
     resource: '/admin/ai/api-keys',
@@ -79,59 +74,9 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = use
   ai: {
     pageKey: 'admin.ai.api-keys',
     formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
+    entityName: $t('admin.ai.apiKey.name'),
+    entityDescription: $t('admin.ai.apiKey.pageDesc'),
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/api-keys', () => ({
-  page_key: 'admin.ai.api-keys',
-  page_title: $t('admin.ai.apiKey.name'),
-  page_data: {
-    resource: '/admin/ai/api-keys',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the API key list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'API key list refreshed' };
-    },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createApiKey'),
-    description: 'Open the create API key form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create API key form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search API keys by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

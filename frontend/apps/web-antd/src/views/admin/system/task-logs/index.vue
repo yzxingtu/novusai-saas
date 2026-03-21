@@ -4,11 +4,6 @@
  */
 import type { adminApi } from '#/api';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
 import { Badge, Card, message, Tag, Tooltip } from 'ant-design-vue';
@@ -51,7 +46,7 @@ async function onRetryTask(row: TaskLogInfo) {
   }
 }
 
-const { Grid, onRefresh, gridApi } = useCrudPage<TaskLogInfo>({
+const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
   api: {
     list: admin.getTaskLogListApi,
     resource: '/admin/tasks',
@@ -65,47 +60,6 @@ const { Grid, onRefresh, gridApi } = useCrudPage<TaskLogInfo>({
     detail: onViewDetail,
     retry: onRetryTask,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/system/task-logs', () => ({
-  page_key: 'admin.system.task-logs',
-  page_title: $t('admin.system.taskLog.name'),
-  page_data: {
-    resource: '/admin/tasks',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.task-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the task log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Task log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search task logs by task name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Task name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[task_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

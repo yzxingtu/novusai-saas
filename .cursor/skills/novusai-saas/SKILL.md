@@ -201,9 +201,11 @@ show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 - 新增 AI 功能标准流程：定义类型 → 实现 Executor → 注册映射 → 创建 Skill → 绑定 Agent
 - **技能（Skill）无独立 `scope` 字段**，可见性和操作权限完全继承自所属 SkillPackage
 - 页面感知与操作遵循三层架构：Layer 1 通过 `page_context -> input_variables -> system prompt` 注入基础感知，Layer 2 通过 builtin skill `get_page_context` 提供深度上下文，Layer 3 通过 builtin skill `invoke_page_operation` 经 WebSocket 双向通信执行前端页面操作
+- **RAG 运行时配置中心是 `Agent.rag_config`**：KB 表上的 `search_mode/top_k/score_threshold` 仅作兼容；多 KB 检索默认按 KB 独立召回再融合，绑定权重进入融合层而非摆设字段
 - **仅注册 Executor 不算完成**，必须同时存在 `SkillPackage + builtin Skill + auto-bind`，让工具进入 LLM function calling tools schema
 - `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
 - 页面感知标准接入点：`useCrudList` 的 `ai` 配置自动注册 context + operations；ref 模式页面需传递 `_aiPageKey`
+- 页面感知 `page_context` 字节预算由平台配置 `ai_page_context_max_bytes` 控制；入口在 **管理端 → 系统配置 → AI Toolkit 与页面上下文**，默认 `8192` bytes，**不是**模型输入/输出 token 限制
 - 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，超时 30s
 - **禁止手动 `registerPageContext` 与 `useCrudList` 的 `ai` 配置共存**——会覆盖增强 context，使用 `contextExtras` 合并自定义数据
 
@@ -225,6 +227,8 @@ show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 → 会话记忆规范：[references/session-memory-spec.md](references/session-memory-spec.md)
 → 页面感知系统接入规范：[references/page-awareness-spec.md](references/page-awareness-spec.md)
 → 模型多模态使用规范（Adapter/KB/RAG 选型与前端约定）：[references/multimodal-model-usage.md](references/multimodal-model-usage.md)
+→ 多模态 RAG / Agent 级 RAG 配置规范：[references/multimodal-rag.md](references/multimodal-rag.md)
+→ 知识库 / RAG 专题技能：[../knowledge-base-rag/SKILL.md](../knowledge-base-rag/SKILL.md)
 → AI 写作专题技能：[../ai-writing/SKILL.md](../ai-writing/SKILL.md)
 → 会话记忆专题技能：[../session-memory/SKILL.md](../session-memory/SKILL.md)
 → 页面感知专题技能：[../ai-page-awareness/SKILL.md](../ai-page-awareness/SKILL.md)

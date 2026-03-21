@@ -1,23 +1,23 @@
 """
-管理端总回收站 API / Admin Recycle Bin API
-
-聚合展示所有模块的已删除记录，支持按模块筛选、恢复、升级、永久删除。
-Aggregate display of all modules' deleted records, supports filtering by module, restore, upgrade, permanent delete.
-支持：/ Supports：
-- 区分管理端/企业级记录（is_tenant + tenant_name） / Distinguish admin/tenant-level records
-- 继承原模块 __filterable__/__sortable__ 搜索能力 / Inherit original module __filterable__/__sortable__ search capabilities
+管理端总回收站 API / Admin global recycle-bin API
 """
 
-from typing import Any
-
 from fastapi import APIRouter, Query, Request
-from sqlalchemy import func, select
 
+from app.api.shared.recycle_bin_registry import (
+    build_module_metadata,
+    get_module_config,
+    get_recycle_bin_summary,
+    get_service,
+    list_global_deleted_ids,
+    serialize_deleted_items,
+)
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import deleted, paginated, success
-from app.exceptions import NotFoundException, ValidationException
+from app.enums.common import RecycleStageEnum
+from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     MenuConfig,
     PermissionScope,
@@ -30,242 +30,7 @@ logger = LogManager.get_logger("db")
 
 router = APIRouter(prefix="/recycle-bin", tags=["admin-recycle-bin"])
 
-_MAX_BATCH_SIZE = 100
-
-
-def _recycle_column_label(module_code: str, field: str) -> str:
-    """字段展示名：模块优先，其次通用键；无翻译时返回空串（由前端回退） / Display label: module-specific, then common; empty if none (frontend fallback)."""
-    for key in (
-        f"recycle_bin.column.{module_code}.{field}",
-        f"recycle_bin.column.common.{field}",
-    ):
-        text = _(key)
-        if text != key:
-            return text
-    return ""
-
-
-def _build_column_labels(
-    module_code: str,
-    config: dict[str, Any],
-    filterable_keys: list[str],
-) -> dict[str, str]:
-    """合并列表列与可筛字段，生成非空标签映射 / Merge list columns and filterable fields into non-empty label map."""
-    columns = list(config.get("columns") or [])
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for f in columns + filterable_keys:
-        if f in seen:
-            continue
-        seen.add(f)
-        ordered.append(f)
-    out: dict[str, str] = {}
-    for f in ordered:
-        label = _recycle_column_label(module_code, f)
-        if label:
-            out[f] = label
-    return out
-
-
-# ── 可回收模块注册表 / Recyclable Module Registry ──
-# columns: 前端需要展示的字段列表（id / deleted_at / delete_level / tenant_name 由框架自动附加） / columns: fields frontend needs to display (id / deleted_at / delete_level / tenant_name are auto-appended by framework)
-RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
-    "ai_providers": {
-        "model": "app.models.ai.provider.AIProvider",
-        "service": "app.services.ai.provider_service.AIProviderService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.ai_provider",
-        "is_tenant": False,
-        "columns": ["name", "code", "status"],
-    },
-    "ai_models": {
-        "model": "app.models.ai.model.AIModel",
-        "service": "app.services.ai.model_service.AIModelService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.ai_model",
-        "is_tenant": False,
-        "columns": ["name", "model_id", "provider_id", "status"],
-    },
-    "ai_api_keys": {
-        "model": "app.models.ai.api_key.ProviderApiKey",
-        "service": "app.services.ai.api_key_service.ProviderApiKeyService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.provider_api_key",
-        "is_tenant": True,
-        "columns": ["name", "provider_id"],
-    },
-    "agents": {
-        "model": "app.models.ai.agent.Agent",
-        "service": "app.services.ai.agent_service.AgentService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.agent",
-        "is_tenant": True,
-        "columns": ["name", "status"],
-    },
-    "skill_packages": {
-        "model": "app.models.ai.skill_package.SkillPackage",
-        "service": "app.services.ai.skill_package_service.SkillPackageService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.skill_package",
-        "is_tenant": True,
-        "columns": ["name", "scope", "status"],
-    },
-    "knowledge_bases": {
-        "model": "app.models.ai.knowledge_base.KnowledgeBase",
-        "service": "app.services.ai.knowledge_base_service.KnowledgeBaseService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.knowledge_base",
-        "is_tenant": True,
-        "columns": ["name", "status"],
-    },
-    "admin_roles": {
-        "model": "app.models.auth.admin_role.AdminRole",
-        "service": "app.services.system.admin_role_service.AdminRoleService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.admin_role",
-        "is_tenant": False,
-        "columns": ["name", "code"],
-    },
-    "tenant_plans": {
-        "model": "app.models.tenant.tenant_plan.TenantPlan",
-        "service": "app.services.tenant.tenant_plan_service.TenantPlanService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.tenant_plan",
-        "is_tenant": False,
-        "columns": ["name", "code", "status"],
-    },
-    "tenants": {
-        "model": "app.models.tenant.tenant.Tenant",
-        "service": "app.services.system.tenant_service.TenantService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.tenant",
-        "is_tenant": False,
-        "columns": ["name", "code", "status"],
-    },
-    "tenant_domains": {
-        "model": "app.models.tenant.tenant_domain.TenantDomain",
-        "service": "app.services.system.tenant_domain_service.TenantDomainService",
-        "label_field": "domain",
-        "i18n_key": "deletion.model.tenant_domain",
-        "is_tenant": True,
-        "columns": ["domain"],
-    },
-    "table_policies": {
-        "model": "app.models.ai.table_policy.AITablePolicy",
-        "service": "app.services.ai.table_policy_service.AITablePolicyService",
-        "label_field": "table_name",
-        "i18n_key": "deletion.model.table_policy",
-        "is_tenant": False,
-        "columns": ["table_name", "label"],
-    },
-    "periodic_tasks": {
-        "model": "app.models.system.periodic_task.PeriodicTask",
-        "service": "app.services.tenant.periodic_task_service.TenantPeriodicTaskService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.periodic_task",
-        "is_tenant": True,
-        "columns": ["name", "is_active"],
-    },
-    "tenant_admin_roles": {
-        "model": "app.models.auth.tenant_admin_role.TenantAdminRole",
-        "service": "app.services.tenant.tenant_admin_role_service.TenantAdminRoleService",
-        "label_field": "name",
-        "i18n_key": "deletion.model.tenant_admin_role",
-        "is_tenant": True,
-        "columns": ["name", "code"],
-    },
-}
-
-# ── 模块类缓存 / Module Class Cache ──
-_model_cache: dict[str, type] = {}
-_svc_cache: dict[str, type] = {}
-
-
-def _import_class(path: str):
-    """动态导入类 / Dynamically import class"""
-    import importlib
-    module_path, class_name = path.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    return getattr(module, class_name)
-
-
-def _get_model(module_code: str):
-    """获取并缓存模块的 Model 类 / Get and cache module's Model class"""
-    if module_code not in _model_cache:
-        config = RECYCLABLE_MODULES[module_code]
-        _model_cache[module_code] = _import_class(config["model"])
-    return _model_cache[module_code]
-
-
-def _get_service(module_code: str, db: Any):
-    """获取模块对应的 Service 实例 / Get the Service instance for the module
-
-    TenantService 子类需要 tenant_id，但管理端总回收站跨企业查询，
-    TenantService subclasses require tenant_id, but admin recycle bin queries across tenants,
-    因此对 TenantService 子类动态构建基于 BaseRepository 的
-    so for TenantService subclasses, dynamically build a BaseRepository-based
-    GlobalService（无企业隔离），并继承原模型的 __filterable__ /
-    GlobalService (no tenant isolation), inheriting original model's __filterable__ /
-    __sortable__ 搜索能力，同时额外开放 tenant_id 过滤。
-    __sortable__ search capabilities, with additional tenant_id filter.
-    """
-    from app.core.base_repository import BaseRepository
-    from app.core.base_service import GlobalService
-    from app.core.base_service import TenantService as _TenantSvc
-
-    config = RECYCLABLE_MODULES.get(module_code)
-    if not config:
-        raise ValidationException(
-            message=_("recycle_bin.error.invalid_module"),
-        )
-    svc_class = _import_class(config["service"])
-
-    if issubclass(svc_class, _TenantSvc):
-        model_cls = _get_model(module_code)
-
-        class _CrossTenantRepo(BaseRepository):
-            model = model_cls
-
-            def get_allowed_fields(self, scope=None):
-                """继承原模型 __filterable__ 并额外开放 tenant_id / Inherit original model __filterable__ and additionally expose tenant_id"""
-                fields = super().get_allowed_fields(scope)
-                if hasattr(self.model, "tenant_id") and "tenant_id" not in fields:
-                    fields["tenant_id"] = self.model.tenant_id
-                return fields
-
-        class _CrossTenantService(GlobalService):
-            repository_class = _CrossTenantRepo
-            model_class = model_cls
-
-        return _CrossTenantService(db)
-
-    return svc_class(db)
-
-
-def _model_to_dict(instance: Any, columns: list[str]) -> dict[str, Any]:
-    """将模型实例序列化为 dict，仅包含指定列 + 通用字段 / Serialize model instance to dict, only including specified columns + common fields"""
-    data: dict[str, Any] = {"id": instance.id}
-    for col in columns:
-        val = getattr(instance, col, None)
-        data[col] = val
-    data["deleted_at"] = getattr(instance, "deleted_at", None)
-    data["delete_level"] = getattr(instance, "delete_level", None)
-    if hasattr(instance, "tenant_id"):
-        data["tenant_id"] = instance.tenant_id
-    return data
-
-
-async def _batch_resolve_tenant_names(
-    db: Any,
-    tenant_ids: set[int],
-) -> dict[int, str]:
-    """批量查询 tenant_id → tenant_name 映射 / Batch query tenant_id → tenant_name mapping"""
-    if not tenant_ids:
-        return {}
-    from app.models.tenant.tenant import Tenant
-    stmt = select(Tenant.id, Tenant.name).where(Tenant.id.in_(list(tenant_ids)))
-    rows = (await db.execute(stmt)).all()
-    return {row[0]: row[1] for row in rows}
+_SIDE = "admin"
 
 
 @permission_resource(
@@ -285,80 +50,35 @@ class AdminRecycleBinController:
     pass
 
 
-# ──────────────────── 模块元数据 / Module Metadata ────────────────────
-
-@router.get("/modules", summary="获取所有可回收模块元数据")
+@router.get("/modules", summary="获取管理端总回收站模块元数据")
 @action_read()
 async def recycle_bin_modules(
     request: Request,
     db: DbSession,
     admin: ActiveAdmin,
 ):
-    """
-    返回各模块的元数据：label、is_tenant、columns、filterable fields / Return recyclable module metadata: label, is_tenant, columns, filterable.
-
-    前端据此渲染动态列和搜索表单。
-    Frontend uses this to render dynamic columns and search forms.
-    """
-    result = {}
-    for code, config in RECYCLABLE_MODULES.items():
-        model_cls = _get_model(code)
-        filterable = getattr(model_cls, "__filterable__", {})
-        # 对企业模型额外开放 tenant_id / Additionally expose tenant_id for tenant models
-        if config.get("is_tenant") and "tenant_id" not in filterable:
-            filterable = {**filterable, "tenant_id": "tenant_id"}
-        filter_keys = list(filterable.keys())
-        result[code] = {
-            "label": _(config["i18n_key"]),
-            "is_tenant": config.get("is_tenant", False),
-            "columns": config["columns"],
-            "label_field": config["label_field"],
-            "filterable": filter_keys,
-            "column_labels": _build_column_labels(code, config, filter_keys),
-        }
-    return success(data=result)
+    _ctx = (request, db, admin)
+    return success(data=build_module_metadata(_SIDE))
 
 
-# ──────────────────── 汇总 / Summary ────────────────────
-
-@router.get("/summary", summary="各模块已删除记录数统计")
+@router.get("/summary", summary="获取管理端总回收站汇总")
 @action_read()
 async def recycle_bin_summary(
     request: Request,
     db: DbSession,
     admin: ActiveAdmin,
 ):
-    """返回各模块在 admin 回收站中的已删除记录数 / Return deleted record counts for each module in admin recycle bin"""
-    results = []
-    for code, config in RECYCLABLE_MODULES.items():
-        try:
-            model_cls = _get_model(code)
-            if not hasattr(model_cls, "is_deleted"):
-                continue
-
-            stmt = (
-                select(func.count())
-                .select_from(model_cls)
-                .where(model_cls.is_deleted.is_(True))
-            )
-            count = (await db.execute(stmt)).scalar() or 0
-
-            if count > 0:
-                results.append({
-                    "module": code,
-                    "label": _(config["i18n_key"]),
-                    "count": count,
-                    "is_tenant": config.get("is_tenant", False),
-                })
-        except Exception as e:
-            logger.warning("Failed to count {}: {}", code, e)
-
-    return success(data=results)
+    _ctx = (request, admin)
+    return success(
+        data=await get_recycle_bin_summary(
+            db,
+            _SIDE,
+            aggregate_all_levels=True,
+        )
+    )
 
 
-# ──────────────────── 列表（支持搜索） / List (with search) ────────────────────
-
-@router.get("", summary="按模块查询已删除记录")
+@router.get("", summary="按模块查询管理端总回收站记录")
 @action_read()
 async def recycle_bin_list(
     request: Request,
@@ -366,40 +86,16 @@ async def recycle_bin_list(
     admin: ActiveAdmin,
     query: QueryParams,
     module: str = Query(..., description=_("api.param.module")),
-    delete_level: str = Query("", description=_("api.param.delete_level")),
 ):
-    """
-    查询指定模块的已删除记录。
-    Query deleted records for the specified module.
-
-    搜索/排序继承原模块的 __filterable__ / __sortable__ 定义。
-    Search/sort inherits the original module's __filterable__ / __sortable__ definitions.
-    企业级记录自动附带 tenant_id / tenant_name。
-    Tenant-level records automatically include tenant_id / tenant_name.
-    支持 delete_level 筛选。 / Supports delete_level filtering.
-    """
-    config = RECYCLABLE_MODULES.get(module)
-    if not config:
-        raise ValidationException(
-            message=_("recycle_bin.error.invalid_module"),
-        )
-
-    svc = _get_service(module, db)
-    level_filter = delete_level if delete_level in ("tenant", "admin") else None
-    items, total = await svc.query_deleted_list(spec=query, delete_level=level_filter)
-
-    columns = config["columns"]
-    is_tenant = config.get("is_tenant", False)
-
-    result = [_model_to_dict(item, columns) for item in items]
-
-    # 批量解析企业名称 / Batch resolve tenant names
-    if is_tenant:
-        tenant_ids = {r["tenant_id"] for r in result if r.get("tenant_id")}
-        name_map = await _batch_resolve_tenant_names(db, tenant_ids)
-        for r in result:
-            r["tenant_name"] = name_map.get(r.get("tenant_id"), "")
-
+    _ctx = (request, admin)
+    get_module_config(module, _SIDE)
+    service = get_service(module, _SIDE, db)
+    items, total = await service.query_deleted_list(
+        spec=query,
+        delete_level=None,
+        recycle_stage=RecycleStageEnum.GLOBAL.value,
+    )
+    result = await serialize_deleted_items(db, module, items)
     return paginated(
         items=result,
         total=total,
@@ -408,9 +104,7 @@ async def recycle_bin_list(
     )
 
 
-# ──────────────────── 恢复 / 永久删除 / 清理 / Restore / Permanent Delete / Cleanup ────────────────────
-
-@router.post("/{module}/{item_id}/restore", summary="恢复记录")
+@router.post("/{module}/{item_id}/restore", summary="从管理端总回收站恢复记录")
 @action_delete()
 async def recycle_bin_restore(
     request: Request,
@@ -419,15 +113,21 @@ async def recycle_bin_restore(
     module: str,
     item_id: int,
 ):
-    svc = _get_service(module, db)
-    instance = await svc.restore(item_id)
+    _ctx = (request, admin)
+    get_module_config(module, _SIDE)
+    service = get_service(module, _SIDE, db)
+    instance = await service.restore(
+        item_id,
+        recycle_stage=RecycleStageEnum.GLOBAL.value,
+        delete_level=None,
+    )
     if not instance:
         raise NotFoundException(message=_("recycle_bin.error.not_found"))
     await db.commit()
     return success(message=_("recycle_bin.restored"))
 
 
-@router.delete("/{module}/clear", summary="清空指定模块的所有已删除记录")
+@router.delete("/{module}/clear", summary="清空指定模块的管理端总回收站")
 @action_delete()
 async def recycle_bin_clear_module(
     request: Request,
@@ -435,33 +135,35 @@ async def recycle_bin_clear_module(
     admin: ActiveAdmin,
     module: str,
 ):
-    """永久删除指定模块的所有回收站记录 / Permanently delete all recycle bin records for the specified module"""
-    config = RECYCLABLE_MODULES.get(module)
-    if not config:
-        raise ValidationException(
-            message=_("recycle_bin.error.invalid_module"),
-        )
+    _ctx = request
+    get_module_config(module, _SIDE)
+    service = get_service(module, _SIDE, db)
+    ids = await list_global_deleted_ids(
+        db,
+        module,
+        _SIDE,
+        aggregate_all_levels=True,
+    )
 
-    model_cls = _get_model(module)
-    if not hasattr(model_cls, "is_deleted"):
-        raise ValidationException(
-            message=_("recycle_bin.error.invalid_module"),
-        )
+    count = 0
+    for item_id in ids:
+        if await service.permanent_delete(item_id, delete_level=None):
+            count += 1
 
-    from sqlalchemy import delete as sa_delete
-    stmt = sa_delete(model_cls).where(model_cls.is_deleted.is_(True))
-    result = await db.execute(stmt)
     await db.commit()
-    count = result.rowcount or 0
-
-    logger.info("Admin {} cleared module '{}': {} records permanently deleted", admin.id, module, count)
+    logger.info(
+        "Admin recycle-bin clear module={} admin_id={} count={}",
+        module,
+        admin.id,
+        count,
+    )
     return success(
         message=_("recycle_bin.module_cleared"),
         data={"count": count},
     )
 
 
-@router.delete("/{module}/{item_id}", summary="永久删除")
+@router.delete("/{module}/{item_id}", summary="从管理端总回收站永久删除")
 @action_delete()
 async def recycle_bin_permanent_delete(
     request: Request,
@@ -470,25 +172,38 @@ async def recycle_bin_permanent_delete(
     module: str,
     item_id: int,
 ):
-    svc = _get_service(module, db)
-    result = await svc.permanent_delete(item_id)
+    _ctx = (request, admin)
+    get_module_config(module, _SIDE)
+    service = get_service(module, _SIDE, db)
+    result = await service.permanent_delete(item_id, delete_level=None)
     if not result:
         raise NotFoundException(message=_("recycle_bin.error.not_found"))
     await db.commit()
     return deleted(message=_("recycle_bin.permanently_deleted"))
 
 
-@router.delete("/cleanup", summary="手动触发过期清理")
+@router.delete("/cleanup", summary="手动触发回收站定时任务")
 @action_delete()
 async def recycle_bin_cleanup(
     request: Request,
     db: DbSession,
     admin: ActiveAdmin,
-    retention_days: int = Query(default=30, ge=1, le=365),
+    retention_days: int | None = Query(default=None, ge=1, le=365),
+    module_retention_days: int | None = Query(default=None, ge=1, le=365),
+    global_retention_days: int | None = Query(default=None, ge=1, le=365),
 ):
-    """手动触发回收站过期记录清理 / Manually trigger expired record cleanup in recycle bin"""
+    _ctx = (request, db, admin)
     from app.tasks.recycle_bin import cleanup_recycle_bin
-    result = cleanup_recycle_bin.delay(retention_days=retention_days)
+
+    kwargs: dict[str, int] = {}
+    if retention_days is not None:
+        kwargs["retention_days"] = retention_days
+    if module_retention_days is not None:
+        kwargs["module_retention_days"] = module_retention_days
+    if global_retention_days is not None:
+        kwargs["global_retention_days"] = global_retention_days
+
+    result = cleanup_recycle_bin.delay(**kwargs)
     return success(
         data={"task_id": str(result.id)},
         message=_("recycle_bin.cleanup_triggered"),

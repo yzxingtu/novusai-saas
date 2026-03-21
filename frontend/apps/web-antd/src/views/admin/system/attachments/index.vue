@@ -4,10 +4,7 @@
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -112,7 +109,7 @@ async function onDownload(row: AttachmentInfo) {
 }
 
 // CRUD 页面（只读列表，不需要新建/编辑表单）
-const { Grid, onRefresh, gridApi } = useCrudPage<AttachmentInfo>({
+const { Grid } = useCrudPage<AttachmentInfo>({
   api: {
     list: getAttachmentListApi,
     resource: '/admin/attachments',
@@ -126,47 +123,6 @@ const { Grid, onRefresh, gridApi } = useCrudPage<AttachmentInfo>({
     detail: onViewDetail,
     download: onDownload,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/system/attachments', () => ({
-  page_key: 'admin.system.attachments',
-  page_title: $t('admin.system.attachment.name'),
-  page_data: {
-    resource: '/admin/attachments',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.attachments', [
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search attachments by file name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'File name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the attachment list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Attachment list refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

@@ -133,7 +133,7 @@ if _plugins_dir.exists():
 
 config.set_main_option(
     "version_locations",
-    " ".join(_version_paths),
+    "\n".join(_version_paths),
 )
 
 # 配置日志

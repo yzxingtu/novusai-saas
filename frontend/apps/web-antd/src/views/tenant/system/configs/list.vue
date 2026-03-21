@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -16,6 +14,7 @@ import {
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
 import { ConfigForm } from '#/components';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t as t } from '#/locales';
 
@@ -164,16 +163,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 
-const cleanupPageContext = registerPageContext('tenant/system/configs', () => ({
-  page_key: 'tenant.system.configs',
-  page_title: t('tenant.system.config.name'),
-  page_data: {
-    resource: '/tenant/system/configs',
+usePageAIRegistration({
+  pageKey: 'tenant.system.configs',
+  title: () => t('tenant.system.config.name'),
+  resource: '/tenant/system/configs',
+  data: () => ({
     total_groups: groups.value.length,
-  },
-}));
-
-onUnmounted(cleanupPageContext);
+  }),
+});
 </script>
 
 <template>

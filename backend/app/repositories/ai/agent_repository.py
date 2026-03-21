@@ -15,7 +15,7 @@ from app.enums.agent import (
     AgentPublicationAccessTypeEnum,
     AgentStatusEnum,
 )
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.enums.common import RecycleStageEnum, ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.tenant_agent_publication import TenantAgentPublication
@@ -196,6 +196,22 @@ class AgentRepository(TenantRepository[Agent]):
         items = list(result.scalars().unique().all())
         return items, total
 
+    async def list_conversation_memory_cleanup_targets(
+        self,
+        agent_id: int,
+    ) -> list[tuple[int, int]]:
+        """列出需要清理记忆的会话 (tenant_id, conversation_id) / List conversations whose session memory should be cleared."""
+        result = await self.db.execute(
+            select(AgentConversation.tenant_id, AgentConversation.id).where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(False),
+            )
+        )
+        return [
+            (int(tenant_id), int(conversation_id))
+            for tenant_id, conversation_id in result.all()
+        ]
+
     async def cascade_soft_delete_conversations(
         self, agent_id: int, delete_level: str,
     ) -> None:
@@ -207,11 +223,18 @@ class AgentRepository(TenantRepository[Agent]):
                 AgentConversation.agent_id == agent_id,
                 AgentConversation.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=delete_level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
-    async def cascade_escalate_conversations(self, agent_id: int) -> None:
-        """级联升级对话记录的删除层级 / Cascade escalate conversation delete level."""
+    async def cascade_promote_conversations(self, agent_id: int) -> None:
+        """级联推进对话记录到总回收站 / Cascade promote conversations to global recycle bin."""
         now = utc_now()
         await self.db.execute(
             update(AgentConversation)
@@ -219,8 +242,16 @@ class AgentRepository(TenantRepository[Agent]):
                 AgentConversation.agent_id == agent_id,
                 AgentConversation.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
+
+    async def cascade_escalate_conversations(self, agent_id: int) -> None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for cascade_promote_conversations."""
+        await self.cascade_promote_conversations(agent_id)
 
     async def cascade_restore_conversations(self, agent_id: int) -> None:
         """级联恢复对话记录 / Cascade restore conversations."""
@@ -231,7 +262,14 @@ class AgentRepository(TenantRepository[Agent]):
                 AgentConversation.agent_id == agent_id,
                 AgentConversation.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
     async def get_by_status(
@@ -325,6 +363,22 @@ class AdminAgentRepository(BaseRepository[Agent]):
 
     model = Agent
 
+    async def list_conversation_memory_cleanup_targets(
+        self,
+        agent_id: int,
+    ) -> list[tuple[int, int]]:
+        """列出需要清理记忆的会话 (tenant_id, conversation_id) / List conversations whose session memory should be cleared."""
+        result = await self.db.execute(
+            select(AgentConversation.tenant_id, AgentConversation.id).where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(False),
+            )
+        )
+        return [
+            (int(tenant_id), int(conversation_id))
+            for tenant_id, conversation_id in result.all()
+        ]
+
     async def cascade_soft_delete_conversations(
         self, agent_id: int, delete_level: str,
     ) -> None:
@@ -336,7 +390,49 @@ class AdminAgentRepository(BaseRepository[Agent]):
                 AgentConversation.agent_id == agent_id,
                 AgentConversation.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=delete_level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
+        )
+
+    async def cascade_promote_conversations(self, agent_id: int) -> None:
+        """级联推进对话记录到总回收站 / Cascade promote conversations to global recycle bin."""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
+        )
+
+    async def cascade_restore_conversations(self, agent_id: int) -> None:
+        """级联恢复对话记录 / Cascade restore conversations."""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
     async def exists_by_name(

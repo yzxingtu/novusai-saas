@@ -5,10 +5,7 @@
  */
 import type { AIModelInfo } from '#/api/admin/ai';
 
-import { onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -110,7 +107,7 @@ async function onTestModel(row: AIModelInfo) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = useCrudPage<AIModelInfo>({
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
   api: {
     list: getAIModelListApi,
     resource: '/admin/ai/models',
@@ -127,59 +124,12 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } = use
   customActions: {
     test: onTestModel,
   },
-  ai: { pageKey: 'admin.ai.models', formSchema: useFormSchema },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/models', () => ({
-  page_key: 'admin.ai.models',
-  page_title: $t('admin.ai.model.name'),
-  page_data: {
-    resource: '/admin/ai/models',
+  ai: {
+    pageKey: 'admin.ai.models',
+    formSchema: useFormSchema,
+    entityName: $t('admin.ai.model.name'),
+    entityDescription: $t('admin.ai.model.pageDesc'),
   },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.models', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the AI model list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Model list refreshed' };
-    },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create model form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create model form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search models by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

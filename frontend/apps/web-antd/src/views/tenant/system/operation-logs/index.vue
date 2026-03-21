@@ -5,10 +5,7 @@
  */
 import type { tenantApi } from '#/api';
 
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
@@ -16,7 +13,6 @@ import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
-import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
@@ -62,7 +58,7 @@ function onUserTypeChange(userType: string | undefined) {
 }
 
 // CRUD page (read-only list) / CRUD 页面（只读列表）
-const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
+const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
   api: {
     list: tenant.getOperationLogListApi,
     resource: '/tenant/operation-logs',
@@ -97,46 +93,6 @@ onMounted(() => {
   loadAvatarMap();
 });
 
-const cleanupPageContext = registerPageContext('tenant/system/operation-logs', () => ({
-  page_key: 'tenant.system.operation-logs',
-  page_title: $t('tenant.system.operationLog.name'),
-  page_data: {
-    resource: '/tenant/operation-logs',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.system.operation-logs', [
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search operation logs by path',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Request path keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[path][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the operation log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Operation log list refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>

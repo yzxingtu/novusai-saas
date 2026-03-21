@@ -814,6 +814,18 @@ def get_parser(
             knowledge_base=knowledge_base,
         )
 
+    if file_type in _AUDIO_TYPES:
+        return AudioParser(
+            audio_describer=audio_describer,
+            knowledge_base=knowledge_base,
+        )
+
+    if file_type in _VIDEO_TYPES:
+        return VideoParser(
+            video_describer=video_describer,
+            knowledge_base=knowledge_base,
+        )
+
     raise BusinessException(
         message=_("knowledge_base.document.error.unsupported_type"),
     )

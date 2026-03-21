@@ -19,6 +19,7 @@ def _make_conversation(**overrides):
         "tenant_id": 1,
         "agent_id": 1,
         "user_id": 1,
+        "owner_type": "tenant_admin",
         "title": "Test Conversation",
         "status": "active",
         "is_archived": False,
@@ -83,6 +84,40 @@ class TestGetServiceForConversation:
         assert conversation.tenant_id is None
 
 
+class TestGetPlatformAdminChatServiceForUser:
+
+    @pytest.mark.asyncio
+    async def test_scopes_to_current_platform_admin(self, mock_db):
+        from app.configs.service import PLATFORM_TENANT_ID
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(
+            id=12,
+            tenant_id=PLATFORM_TENANT_ID,
+            user_id=88,
+            owner_type="platform_admin",
+        )
+
+        with patch.object(
+            ConversationService,
+            "get_accessible_conversation",
+            new=AsyncMock(return_value=conversation),
+        ) as mock_access:
+            service, result = await ConversationService.get_platform_admin_chat_service_for_user(
+                mock_db,
+                12,
+                88,
+            )
+
+        assert service.tenant_id == PLATFORM_TENANT_ID
+        assert result is conversation
+        mock_access.assert_awaited_once_with(
+            12,
+            user_id=88,
+            owner_type="platform_admin",
+        )
+
+
 class TestGetAccessibleConversation:
 
     @pytest.mark.asyncio
@@ -100,6 +135,25 @@ class TestGetAccessibleConversation:
         with pytest.raises(NotFoundException):
             await service.get_accessible_conversation(10, user_id=1)
 
+    @pytest.mark.asyncio
+    async def test_rejects_same_numeric_id_with_different_owner_type(self, mock_db):
+        from app.exceptions import NotFoundException
+        from app.services.ai.conversation_service import ConversationService
+
+        existing = _make_conversation(id=10, user_id=1, owner_type="tenant_admin")
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=existing)
+
+        with pytest.raises(NotFoundException):
+            await service.get_accessible_conversation(
+                10,
+                user_id=1,
+                owner_type="tenant_user",
+            )
+
 
 class TestConversationAccessHelpers:
 
@@ -116,7 +170,11 @@ class TestConversationAccessHelpers:
 
         await service.delete_accessible_conversation(10, user_id=1)
 
-        service.get_accessible_conversation.assert_awaited_once_with(10, user_id=1)
+        service.get_accessible_conversation.assert_awaited_once_with(
+            10,
+            user_id=1,
+            owner_type=None,
+        )
         service.delete.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
@@ -141,7 +199,11 @@ class TestConversationAccessHelpers:
             result = await service.get_conversation_memory_state(10, user_id=1)
 
         assert result == {"preferences": []}
-        service.get_accessible_conversation.assert_awaited_once_with(10, user_id=1)
+        service.get_accessible_conversation.assert_awaited_once_with(
+            10,
+            user_id=1,
+            owner_type=None,
+        )
         memory_svc.get_conversation_memory_state.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
@@ -164,7 +226,11 @@ class TestConversationAccessHelpers:
             result = await service.clear_conversation_memory_state(10, user_id=1)
 
         assert result == 2
-        service.get_accessible_conversation.assert_awaited_once_with(10, user_id=1)
+        service.get_accessible_conversation.assert_awaited_once_with(
+            10,
+            user_id=1,
+            owner_type=None,
+        )
         memory_svc.clear_conversation_memory.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
@@ -262,7 +328,11 @@ class TestGetOrCreateForChat:
         service.repo.get_by_id = AsyncMock(return_value=existing)
 
         result = await service.get_or_create_for_chat(
-            agent_id=1, conversation_id=10, user_id=1, first_message="hello"
+            agent_id=1,
+            conversation_id=10,
+            user_id=1,
+            owner_type="tenant_admin",
+            first_message="hello",
         )
 
         assert result.id == 10
@@ -281,8 +351,57 @@ class TestGetOrCreateForChat:
 
         with pytest.raises(NotFoundException):
             await service.get_or_create_for_chat(
-                agent_id=99, conversation_id=10, user_id=1, first_message="hello"
+                agent_id=99,
+                conversation_id=10,
+                user_id=1,
+                owner_type="tenant_admin",
+                first_message="hello",
             )
+
+    @pytest.mark.asyncio
+    async def test_rejects_conversation_agent_mismatch(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.conversation_service import ConversationService
+
+        existing = _make_conversation(id=10, is_archived=False, agent_id=1, user_id=1)
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=existing)
+
+        with pytest.raises(BusinessException):
+            await service.get_or_create_for_chat(
+                agent_id=2,
+                conversation_id=10,
+                user_id=1,
+                owner_type="tenant_admin",
+                first_message="hello",
+            )
+
+    @pytest.mark.asyncio
+    async def test_creates_new_conversation_with_owner_type(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        created = _make_conversation(id=11, owner_type="tenant_user", user_id=8)
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.create = AsyncMock(return_value=created)
+
+        result = await service.get_or_create_for_chat(
+            agent_id=7,
+            conversation_id=None,
+            user_id=8,
+            owner_type="tenant_user",
+            first_message="hello world",
+        )
+
+        assert result is created
+        payload = service.repo.create.await_args.args[0]
+        assert payload["owner_type"] == "tenant_user"
+        assert payload["user_id"] == 8
 
 
 class TestUpdateStats:

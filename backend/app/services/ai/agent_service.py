@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -21,6 +22,7 @@ from app.enums.agent import (
 )
 from app.enums.ai import CallAccessChannelEnum
 from app.enums.common import ResourceScopeEnum, UserRoleEnum
+from app.enums.knowledge_base import RewriteStrategyEnum, SearchModeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.repositories.ai import AIModelRepository
@@ -48,11 +50,71 @@ _VERSION_SNAPSHOT_FIELDS = [
     "welcome_message",
     "suggested_questions",
     "quota_config",
+    "rag_config",
     "context_config",
     "output_schema",
-    # NOTE: tool_bindings / knowledge_base_ids / rag_config removed —
+    # NOTE: tool_bindings / knowledge_base_ids removed —
     # replaced by AgentSkillBinding architecture (SkillPackage-based)
 ]
+
+
+def _normalize_agent_rag_config(raw: Any) -> dict[str, Any] | None:
+    """Validate mutable Agent.rag_config fields / 校验并归一化可写的 Agent.rag_config 字段。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise BusinessException(message=_("agent.error.invalid_rag_config"))
+
+    normalized = dict(raw)
+
+    def _raise_invalid(field: str) -> None:
+        raise BusinessException(
+            message=_("agent.error.invalid_rag_config_field").format(field=field)
+        )
+
+    search_mode = raw.get("search_mode")
+    if search_mode is not None:
+        allowed_search_modes = {item.value for item in SearchModeEnum}
+        if search_mode not in allowed_search_modes:
+            _raise_invalid("search_mode")
+
+    rewrite_strategy = raw.get("rewrite_strategy")
+    if rewrite_strategy is not None:
+        allowed_rewrite_strategies = {item.value for item in RewriteStrategyEnum}
+        if rewrite_strategy not in allowed_rewrite_strategies:
+            _raise_invalid("rewrite_strategy")
+
+    if "top_k" in raw and raw.get("top_k") is not None:
+        top_k = raw.get("top_k")
+        if isinstance(top_k, bool) or not isinstance(top_k, int) or not (1 <= top_k <= 20):
+            _raise_invalid("top_k")
+        normalized["top_k"] = top_k
+
+    if "score_threshold" in raw and raw.get("score_threshold") is not None:
+        score_threshold = raw.get("score_threshold")
+        if isinstance(score_threshold, bool) or not isinstance(score_threshold, (float, int)):
+            _raise_invalid("score_threshold")
+        score_threshold = float(score_threshold)
+        if not (0.0 <= score_threshold <= 1.0):
+            _raise_invalid("score_threshold")
+        normalized["score_threshold"] = score_threshold
+
+    if "reranker_enabled" in raw and raw.get("reranker_enabled") is not None:
+        reranker_enabled = raw.get("reranker_enabled")
+        if not isinstance(reranker_enabled, bool):
+            _raise_invalid("reranker_enabled")
+        normalized["reranker_enabled"] = reranker_enabled
+
+    if "context_token_ratio" in raw and raw.get("context_token_ratio") is not None:
+        context_token_ratio = raw.get("context_token_ratio")
+        if isinstance(context_token_ratio, bool) or not isinstance(context_token_ratio, (float, int)):
+            _raise_invalid("context_token_ratio")
+        context_token_ratio = float(context_token_ratio)
+        if not (0.1 <= context_token_ratio <= 0.9):
+            _raise_invalid("context_token_ratio")
+        normalized["context_token_ratio"] = context_token_ratio
+
+    return normalized
 
 
 def _role_ids_allow(role_ids: list[int] | None, user_role_id: int | None) -> bool:
@@ -92,6 +154,35 @@ async def _validate_agent_max_tokens_against_model(
             model_name=getattr(model, "name", model_id),
         ),
     )
+
+
+async def _clear_cascaded_conversation_memories(
+    targets: list[tuple[int, int]],
+) -> int:
+    """Best-effort clear session memories for cascaded conversation deletes / 级联删除会话后的记忆最佳努力清理。"""
+    if not targets:
+        return 0
+
+    from app.services.ai.session_memory_service import SessionMemoryService
+
+    grouped: dict[int, list[int]] = defaultdict(list)
+    for tenant_id, conversation_id in targets:
+        grouped[int(tenant_id)].append(int(conversation_id))
+
+    total_deleted = 0
+    for tenant_id, conversation_ids in grouped.items():
+        try:
+            total_deleted += await SessionMemoryService(tenant_id).clear_conversation_memories(
+                conversation_ids,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Cascade conversation memory cleanup failed: tenant={} count={} err={}",
+                tenant_id,
+                len(conversation_ids),
+                str(exc),
+            )
+    return total_deleted
 
 
 class AgentService(TenantService[Agent, AgentRepository]):
@@ -309,6 +400,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if scope_val not in {e.value for e in ResourceScopeEnum}:
             raise BusinessException(message=_("agent.error.invalid_scope"))
         data["scope"] = scope_val
+        if "rag_config" in data:
+            data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
 
         name = data.get("name")
         if name:
@@ -368,6 +461,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if "scope" in data and data["scope"] is not None:
             if data["scope"] not in {e.value for e in ResourceScopeEnum}:
                 raise BusinessException(message=_("agent.error.invalid_scope"))
+        if "rag_config" in data:
+            data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
 
         if agent.is_system:
             protected = {"is_system", "status", "execution_mode"}
@@ -425,8 +520,19 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if agent.is_system:
             raise BusinessException(message=_("agent.error.system_protected"))
 
+        conversation_targets = await self.repo.list_conversation_memory_cleanup_targets(
+            id,
+        )
         # 级联软删除智能体的对话记录
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+        deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
+        if conversation_targets:
+            logger.info(
+                "Cascade conversation cleanup finished: agent_id={} conversations={} deleted_keys={}",
+                id,
+                len(conversation_targets),
+                deleted_keys,
+            )
 
     async def _after_delete(self, instance: Agent) -> None:
         """删除后：触发插件钩子 / After delete: trigger plugin hooks."""
@@ -440,14 +546,21 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 agent_id=instance.id,
             )
 
-    async def escalate_delete(self, id: int) -> Agent | None:
-        """升级删除层级，级联升级对话记录 / Escalate delete level, cascade escalate conversations."""
-        instance = await self.repo.escalate_delete_by_id(id)
+    async def promote_to_global(self, id: int) -> Agent | None:
+        """推进到总回收站，级联推进对话记录 / Promote to global recycle bin and cascade conversations."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
         if instance is None:
             return None
 
-        await self.repo.cascade_escalate_conversations(id)
+        await self.repo.cascade_promote_conversations(id)
         return instance
+
+    async def escalate_delete(self, id: int) -> Agent | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
 
     async def _after_restore(self, instance: Agent) -> None:
         """恢复后：级联恢复对话记录 / After restore: cascade restore conversations."""
@@ -1070,6 +1183,8 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         data.pop("tenant_id", None)
         data["scope"] = self._validate_resource_scope(data.get("scope"))
         data.pop("tenant_ids", None)
+        if "rag_config" in data:
+            data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
 
         name = data.get("name")
         if name:
@@ -1118,6 +1233,8 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         if "scope" in data and data["scope"] is not None:
             data["scope"] = self._validate_resource_scope(data["scope"])
         data.pop("tenant_ids", None)
+        if "rag_config" in data:
+            data["rag_config"] = _normalize_agent_rag_config(data.get("rag_config"))
 
         name = data.get("name")
         if name:
@@ -1156,8 +1273,19 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         if agent.is_system:
             raise BusinessException(message=_("agent.error.system_protected"))
 
+        conversation_targets = await self.repo.list_conversation_memory_cleanup_targets(
+            id,
+        )
         # 级联软删除智能体的对话记录
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+        deleted_keys = await _clear_cascaded_conversation_memories(conversation_targets)
+        if conversation_targets:
+            logger.info(
+                "Admin cascade conversation cleanup finished: agent_id={} conversations={} deleted_keys={}",
+                id,
+                len(conversation_targets),
+                deleted_keys,
+            )
 
         # 清理 resource_tenant_assignments 残留记录
         from app.repositories.system.resource_tenant_assignment_repository import (
@@ -1165,6 +1293,26 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         )
         rta_repo = ResourceTenantAssignmentRepository(self.db)
         await rta_repo.delete_all_for_resource("agent", id)
+
+    async def promote_to_global(self, id: int) -> Agent | None:
+        """推进到总回收站，级联推进对话记录 / Promote to global recycle bin and cascade conversations."""
+        instance = await self.repo.promote_to_global_by_id(
+            id,
+            delete_level=self._default_delete_level,
+        )
+        if instance is None:
+            return None
+
+        await self.repo.cascade_promote_conversations(id)
+        return instance
+
+    async def escalate_delete(self, id: int) -> Agent | None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for promote_to_global."""
+        return await self.promote_to_global(id)
+
+    async def _after_restore(self, instance: Agent) -> None:
+        """恢复后：级联恢复对话记录 / After restore: cascade restore conversations."""
+        await self.repo.cascade_restore_conversations(instance.id)
 
     def _get_platform_access_repo(self) -> AgentAccessRepository:
         """平台侧访问配置 Repository（tenant_id=0）/ Platform access config repository (tenant_id=0)."""

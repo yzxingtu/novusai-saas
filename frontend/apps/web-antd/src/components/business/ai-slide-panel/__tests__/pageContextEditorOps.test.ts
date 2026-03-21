@@ -52,6 +52,29 @@ describe('Page context editor ops', () => {
     expect(replaceSection!.params!.content_format).toEqual({ type: 'string', enum: ['html', 'markdown'] });
   });
 
+  it('provides default page read operations for unregistered pages', () => {
+    const ops = listPageOperations('admin.dashboard');
+    expect(ops.map((op) => op.name)).toContain('read_current_view');
+    expect(ops.map((op) => op.name)).toContain('read_current_sections');
+  });
+
+  it('page-specific registrations override same-named default operations', () => {
+    registerPageOperations('admin.dashboard', [
+      {
+        name: 'read_current_view',
+        label: 'Custom Current View',
+        description: 'Custom read view implementation',
+        readonly: true,
+        handler: async () => ({ success: true, message: 'custom' }),
+      },
+    ]);
+
+    const operation = listPageOperations('admin.dashboard').find(
+      (item) => item.name === 'read_current_view',
+    );
+    expect(operation?.label).toBe('Custom Current View');
+  });
+
   it('registerPageContextExtras merges without overwriting primary entity_description', () => {
     const primaryDesc = 'Primary editor context. Use get_editor_html, replace_section.';
     registerPageContext(EDITOR_KEY, () => ({
@@ -181,12 +204,23 @@ describe('Page context editor ops', () => {
     ]);
 
     const ops = listPageOperations(EDITOR_KEY);
-    expect(ops.map((op) => op.name)).toEqual(['refresh_list', 'search', 'next_page']);
+    expect(ops.map((op) => op.name)).toEqual([
+      'read_current_view',
+      'read_current_sections',
+      'refresh_list',
+      'search',
+      'next_page',
+    ]);
     expect(ops.find((op) => op.name === 'search')?.label).toBe('Structured Search');
 
     cleanupAppend();
     const afterCleanup = listPageOperations(EDITOR_KEY);
-    expect(afterCleanup.map((op) => op.name)).toEqual(['refresh_list', 'search']);
+    expect(afterCleanup.map((op) => op.name)).toEqual([
+      'read_current_view',
+      'read_current_sections',
+      'refresh_list',
+      'search',
+    ]);
     expect(afterCleanup.find((op) => op.name === 'search')?.label).toBe('Legacy Search');
   });
 
@@ -208,5 +242,23 @@ describe('Page context editor ops', () => {
     const resolved = resolvePageContext(EDITOR_KEY);
     expect(resolved!.page_data?.entity_description).toBe(baseDesc + '\n\nAppended by DocumentEditor.');
     expect(resolved!.page_data?.document_title).toBe('Doc Title');
+  });
+
+  it('extras also merge into DOM fallback context when no primary resolver exists', () => {
+    registerPageContextExtras(EDITOR_KEY, () => ({
+      page_key: EDITOR_KEY,
+      page_data: {
+        document_id: 42,
+        entity_description_append: 'Editor extras merged into fallback.',
+      },
+    }));
+
+    const resolved = resolvePageContext(EDITOR_KEY);
+    expect(resolved).not.toBeNull();
+    expect(resolved!.page_key).toBe(EDITOR_KEY);
+    expect(resolved!.page_data?.document_id).toBe(42);
+    expect(String(resolved!.page_data?.entity_description ?? '')).toContain(
+      'Editor extras merged into fallback.',
+    );
   });
 });

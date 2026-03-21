@@ -2,15 +2,13 @@
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
 import type { CallTrendItem } from '#/api/admin/analytics';
+import type { AIUsageStatInfo } from '#/api/admin/ai';
 
 /**
  * 平台管理端 AI 使用量统计页面
  * Platform admin AI usage statistics page
  */
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -33,6 +31,9 @@ import {
 } from './data';
 
 defineOptions({ name: 'AdminAIUsage' });
+
+const AI_PAGE_KEY = 'admin.ai.usage';
+const USAGE_TABLE_PREVIEW_LIMIT = 8;
 
 // ============================================================
 // Summary statistics / 汇总统计
@@ -233,7 +234,52 @@ onMounted(loadTrend);
 // Grid / 表格
 // ============================================================
 
-const { Grid, onRefresh, gridApi } = useCrudPage({
+function buildTrendPreview() {
+  return trendData.value.slice(-7).map((item) => ({
+    date: item.date,
+    calls: item.calls,
+    success: item.success,
+    failed: item.failed,
+    input_tokens: item.input_tokens,
+    output_tokens: item.output_tokens,
+  }));
+}
+
+function buildVisibleTablePreview() {
+  const grid = gridApi.grid as unknown as {
+    getTableData?: () => { tableData?: Record<string, unknown>[] };
+  };
+  const rows = (grid?.getTableData?.().tableData ?? []) as unknown as AIUsageStatInfo[];
+
+  return rows.slice(0, USAGE_TABLE_PREVIEW_LIMIT).map((row) => ({
+    stat_date: row.stat_date,
+    tenant_name: row.tenant_name ?? null,
+    model_name: row.model_name ?? null,
+    request_type: row.request_type,
+    total_tokens: row.total_tokens,
+    input_tokens: row.input_tokens,
+    output_tokens: row.output_tokens,
+    call_count: row.call_count,
+    success_count: row.success_count,
+    failed_count: row.failed_count,
+    success_rate:
+      row.call_count > 0
+        ? Number(((row.success_count / row.call_count) * 100).toFixed(1))
+        : 0,
+    total_cost: row.total_cost,
+    avg_latency_ms: row.avg_latency_ms,
+  }));
+}
+
+async function refreshUsagePage() {
+  await Promise.all([
+    Promise.resolve(gridApi.query()),
+    loadSummary(),
+    loadTrend(),
+  ]);
+}
+
+const { Grid, gridApi } = useCrudPage({
   api: {
     list: getAIUsageStatsApi,
     resource: '/admin/ai/usage/stats',
@@ -242,58 +288,46 @@ const { Grid, onRefresh, gridApi } = useCrudPage({
   searchSchema: useGridFormSchema(),
   i18nPrefix: 'admin.ai.usage',
   defaultSort: '-stat_date',
+  ai: {
+    pageKey: AI_PAGE_KEY,
+    entityName: $t('admin.ai.usage.name'),
+    entityDescription: $t('admin.ai.usage.pageDesc'),
+    contextExtras: () => {
+      const visibleTablePreview = buildVisibleTablePreview();
+      const recentTrend = buildTrendPreview();
+
+      return {
+        total_calls: summaryData.value.total_calls,
+        total_tokens: summaryData.value.total_tokens,
+        total_cost: summaryData.value.total_cost,
+        success_calls: summaryData.value.success_calls,
+        success_rate: successRate.value,
+        visible_table_preview: visibleTablePreview,
+        visible_table_row_count: visibleTablePreview.length,
+        recent_call_trend: recentTrend,
+      };
+    },
+    extra: [
+      {
+        name: 'refresh_list',
+        label: $t('shared.pageOperation.refreshList'),
+        readonly: true,
+        handler: async () => {
+          await refreshUsagePage();
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.listRefreshed'),
+          };
+        },
+      },
+    ],
+  },
   toolbar: {
     search: true,
     refresh: true,
     export: true,
     zoom: true,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/usage', () => ({
-  page_key: 'admin.ai.usage',
-  page_title: $t('admin.ai.usage.name'),
-  page_data: {
-    resource: '/admin/ai/usage/stats',
-    total_calls: summaryData.value.total_calls,
-    total_tokens: summaryData.value.total_tokens,
-    total_cost: summaryData.value.total_cost,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.usage', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the usage statistics and trend chart',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      await loadSummary();
-      await loadTrend();
-      return { success: true, message: 'Usage data refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search usage stats by model name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Model name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

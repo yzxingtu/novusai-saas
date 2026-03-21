@@ -74,7 +74,7 @@ export interface UseAgentRouterOptions {
 export function useAgentRouter(options: UseAgentRouterOptions) {
   const routing = ref(false);
   const lastRouteResult = ref<null | RouteResult>(null);
-  /** Route cache: key = pageKey-convId, 同一对话/页面后续消息复用 */
+  /** Route cache: key = pageKey-convId, force_reroute requests bypass cache / 路由缓存，force_reroute 时跳过 */
   const routeCache = new Map<
     string,
     { result: RouteResult; expiresAt: number }
@@ -101,6 +101,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     pageContextKey?: string,
     pageContext?: null | PageContext,
     hasImageAttachments?: boolean,
+    forceReroute = false,
   ): Promise<RouteResult> {
     routing.value = true;
     lastRouteResult.value = null;
@@ -111,6 +112,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
         pageContextKey,
         pageContext,
         hasImageAttachments,
+        forceReroute,
       );
       lastRouteResult.value = result;
       return result;
@@ -124,6 +126,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     pageContextKey?: string,
     pageContext?: null | PageContext,
     hasImageAttachments?: boolean,
+    forceReroute = false,
   ): Promise<RouteResult> {
     const pinId = unref(options.pinnedAgentId);
     const pinName = unref(options.pinnedAgentName);
@@ -151,6 +154,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       pageContextKey,
       pageCtx,
       hasImageAttachments,
+      forceReroute,
     );
   }
 
@@ -212,6 +216,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     pageContextKey: string | undefined,
     pageContext: null | PageContext,
     hasImageAttachments?: boolean,
+    forceReroute = false,
   ): Promise<RouteResult> {
     const convId = options.activeConversationId
       ? unref(options.activeConversationId)
@@ -228,9 +233,11 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     const cacheKey = `${pageKey}-${convId ?? 'new'}-${msgHash}-${pageDataHash}-img${imgFlag}`;
 
     const now = Date.now();
-    const cached = routeCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) {
-      return cached.result;
+    if (!forceReroute) {
+      const cached = routeCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.result;
+      }
     }
 
     const prefix = unref(options.apiPrefix);
@@ -241,6 +248,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       conversation_id: convId,
       page_context: pageContext,
       pinned_agent_id: pinId,
+      force_reroute: forceReroute,
       has_image_attachments: Boolean(hasImageAttachments),
     });
 
@@ -250,10 +258,12 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       confidence: response.confidence,
       routedBy: response.routed_by,
     };
-    routeCache.set(cacheKey, {
-      result,
-      expiresAt: now + ROUTE_CACHE_TTL_MS,
-    });
+    if (!forceReroute) {
+      routeCache.set(cacheKey, {
+        result,
+        expiresAt: now + ROUTE_CACHE_TTL_MS,
+      });
+    }
     return result;
   }
 

@@ -1,18 +1,29 @@
+import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
-import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useCrudList } from '../use-crud-list';
+
 const mockRefs = vi.hoisted(() => ({
+  appendPageOperations: vi.fn(() => vi.fn()),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
+  registerPageContext: vi.fn(() => vi.fn()),
+  registerPageContextExtras: vi.fn(() => vi.fn()),
   requestDelete: vi.fn(),
   requestGet: vi.fn(),
 }));
 
 vi.mock('@vben/common-ui', () => ({
-  useVbenDrawer: () => [defineComponent({ name: 'MockDrawer', render: () => null }), {}],
-  useVbenModal: () => [defineComponent({ name: 'MockModal', render: () => null }), {}],
+  useVbenDrawer: () => [
+    defineComponent({ name: 'MockDrawer', render: () => null }),
+    {},
+  ],
+  useVbenModal: () => [
+    defineComponent({ name: 'MockModal', render: () => null }),
+    {},
+  ],
 }));
 
 vi.mock('vue-router', () => ({
@@ -45,16 +56,18 @@ vi.mock('#/utils/request', () => ({
   },
 }));
 
+vi.mock('#/components/business/ai-slide-panel', () => ({
+  appendPageOperations: mockRefs.appendPageOperations,
+  registerPageContext: mockRefs.registerPageContext,
+  registerPageContextExtras: mockRefs.registerPageContextExtras,
+}));
+
 vi.mock('#/components/business/ai-slide-panel/page-key-utils', () => ({
   normalizePageKey: (value: string) => value,
 }));
 
 vi.mock('#/components/business/ai-slide-panel/page-context-registry', () => ({
-  registerPageContext: () => vi.fn(),
-}));
-
-vi.mock('#/components/business/ai-slide-panel/page-operation-registry', () => ({
-  registerPageOperations: () => vi.fn(),
+  registerPageContext: mockRefs.registerPageContext,
 }));
 
 vi.mock('../use-ai-operations', () => ({
@@ -68,8 +81,6 @@ vi.mock('../use-form-state-tracker', () => ({
     isOpen: vi.fn(() => false),
   },
 }));
-
-import { useCrudList } from '../use-crud-list';
 
 function mountCrudList(options: Record<string, unknown> = {}) {
   const wrapper = mount(
@@ -96,10 +107,13 @@ function mountCrudList(options: Record<string, unknown> = {}) {
 
 describe('useCrudList', () => {
   beforeEach(() => {
+    mockRefs.appendPageOperations.mockClear();
     mockRefs.requestGet.mockReset();
     mockRefs.requestDelete.mockReset();
     mockRefs.messageError.mockReset();
     mockRefs.messageSuccess.mockReset();
+    mockRefs.registerPageContext.mockClear();
+    mockRefs.registerPageContextExtras.mockClear();
   });
 
   it('shows an error when delete preview fails with non-404', async () => {
@@ -139,5 +153,23 @@ describe('useCrudList', () => {
     expect(mockRefs.messageSuccess).toHaveBeenCalledWith(
       'admin.test.messages.deleteSuccess',
     );
+  });
+
+  it('auto-registers page AI when ai config is omitted', async () => {
+    mountCrudList();
+    await flushPromises();
+
+    expect(mockRefs.appendPageOperations).toHaveBeenCalled();
+    expect(mockRefs.registerPageContext).toHaveBeenCalled();
+    expect(mockRefs.registerPageContextExtras).toHaveBeenCalled();
+  });
+
+  it('skips page AI registration when ai is false', async () => {
+    mountCrudList({ ai: false });
+    await flushPromises();
+
+    expect(mockRefs.appendPageOperations).not.toHaveBeenCalled();
+    expect(mockRefs.registerPageContext).not.toHaveBeenCalled();
+    expect(mockRefs.registerPageContextExtras).not.toHaveBeenCalled();
   });
 });

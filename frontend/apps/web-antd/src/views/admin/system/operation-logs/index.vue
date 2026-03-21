@@ -5,10 +5,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -129,46 +126,6 @@ function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
 }
 
-const cleanupPageContext = registerPageContext('admin/system/operation-logs', () => ({
-  page_key: 'admin.system.operation-logs',
-  page_title: $t('admin.system.operationLog.name'),
-  page_data: {
-    resource: '/admin/operation-logs',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.operation-logs', [
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search operation logs by path',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Request path keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[path][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the operation log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Operation log list refreshed' };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>

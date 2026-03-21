@@ -4,11 +4,6 @@
  */
 import type { adminApi } from '#/api';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -69,7 +64,7 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
+const { Grid, FormDrawer, onRefresh } =
   useCrudPage<PeriodicTaskInfo>({
     api: {
       list: admin.getPeriodicTaskListApi,
@@ -94,58 +89,6 @@ const { Grid, FormDrawer, onRefresh, onCreate, gridApi, formAiOperations } =
       formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
     },
   });
-
-const cleanupPageContext = registerPageContext('admin/system/periodic-tasks', () => ({
-  page_key: 'admin.system.periodic-tasks',
-  page_title: $t('admin.system.periodicTask.name'),
-  page_data: {
-    resource: '/admin/periodic-tasks',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.periodic-tasks', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the periodic task list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Periodic task list refreshed' };
-    },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create periodic task form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create periodic task form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search periodic tasks by name',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Task name keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
-});
 </script>
 
 <template>

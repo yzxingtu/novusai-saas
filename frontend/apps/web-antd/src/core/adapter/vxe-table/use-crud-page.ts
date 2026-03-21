@@ -35,33 +35,32 @@ import type {
   UseCrudPageOptions,
 } from './types';
 
-import { defineComponent, h, onBeforeUnmount, ref } from 'vue';
+import type { FormPopupApi } from '#/composables/use-ai-operations';
 
+import { defineComponent, h, onBeforeUnmount, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import {
   appendPageOperations,
   registerPageContextExtras,
 } from '#/components/business/ai-slide-panel';
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
-import type { FormPopupApi } from '#/composables/use-ai-operations';
 import {
   buildCrudListSummary,
   buildCrudPaginationState,
   compactCrudContextValues,
-  createFormOperations,
   createStandardOperations,
   extractFormParams,
 } from '#/composables/use-ai-operations';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
+import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
   getErrorMessage,
@@ -109,9 +108,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   } = options;
 
   const route = useRoute();
-  const aiPageKey = ai
+  const aiConfig = ai === false ? false : (ai ?? {});
+  const aiPageKey = aiConfig
     ? normalizePageKey(
-        ai.pageKey ??
+        aiConfig.pageKey ??
           ((route.meta?.ai as Record<string, unknown> | undefined)
             ?.pageContextKey as string | undefined) ??
           route.path,
@@ -170,9 +170,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const aiCurrentPage = ref(1);
   const aiCurrentPageSize = ref(
     Number(
-      (
-        extraGridOptions.pagerConfig as { pageSize?: number } | undefined
-      )?.pageSize ?? 15,
+      (extraGridOptions.pagerConfig as undefined | { pageSize?: number })
+        ?.pageSize ?? 15,
     ),
   );
 
@@ -246,17 +245,17 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
     setProcessing(row.id, true);
     try {
-      let preview: Record<string, unknown> | null = null;
+      let preview: null | Record<string, unknown> = null;
       try {
         const res = await requestClient.get(
           `${api.resource}/${row.id}/delete-preview`,
           { showCodeMessage: false },
         );
         preview = (res?.data ?? res) as Record<string, unknown>;
-      } catch (err: unknown) {
-        const status = getErrorStatus(err);
+      } catch (error: unknown) {
+        const status = getErrorStatus(error);
         if (status !== 404) {
-          message.error(getErrorMessage(err, 'common.deleteFailed'));
+          message.error(getErrorMessage(error, 'common.deleteFailed'));
           return;
         }
       }
@@ -297,7 +296,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       }
     } catch (error: unknown) {
       const respData = getErrorData(error);
-      if (respData?.code === DEPENDENCY_BLOCKED_CODE && respData?.dependencies) {
+      if (
+        respData?.code === DEPENDENCY_BLOCKED_CODE &&
+        respData?.dependencies
+      ) {
         const displayName = String(row[nameField] || row.id);
         depBlockRef.value?.open(
           respData.dependencies as Parameters<
@@ -560,16 +562,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     },
   });
 
-  // AI form operations / AI 表单操作
-  const formAiOperations: PageOperation[] =
-    ai?.formSchema && aiPageKey
-      ? createFormOperations({
-          pageKey: aiPageKey,
-          formSchema: ai.formSchema,
-          resource: api.resource,
-        })
-      : [];
-
   function getVisibleColumnFields(): string[] {
     const grid = gridApi?.grid as {
       getTableColumn?: () => { fullColumn?: Array<{ field?: string }> };
@@ -579,14 +571,17 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       .map((column) => column.field)
       .filter(
         (field): field is string =>
-          !!field && !field.startsWith('_') && field !== 'id' && field !== 'operation',
+          !!field &&
+          !field.startsWith('_') &&
+          field !== 'id' &&
+          field !== 'operation',
       )
       .slice(0, 6);
   }
 
   function getActiveFilters(): Record<string, unknown> {
     const grid = gridApi?.grid as {
-      getProxyInfo?: () => { form?: Record<string, unknown> } | null;
+      getProxyInfo?: () => null | { form?: Record<string, unknown> };
     };
     const proxyInfo = grid?.getProxyInfo?.();
     return compactCrudContextValues(
@@ -608,11 +603,11 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   let cleanupAiContextBase: (() => void) | null = null;
   let cleanupAiContextExtras: (() => void) | null = null;
 
-  if (ai && aiPageKey) {
+  if (aiConfig && aiPageKey) {
     const routeTitle = route.meta?.title as string | undefined;
-    const entityName = ai.entityName ?? routeTitle ?? '';
-    const formFieldDescriptors = ai.formSchema
-      ? extractFormParams(ai.formSchema(false))
+    const entityName = aiConfig.entityName ?? routeTitle ?? '';
+    const formFieldDescriptors = aiConfig.formSchema
+      ? extractFormParams(aiConfig.formSchema(false))
       : undefined;
 
     const standardOps = createStandardOperations({
@@ -627,7 +622,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       pageSize: aiCurrentPageSize,
       setCurrentPage: async (page) => {
         aiCurrentPage.value = page;
-        const grid = gridApi?.grid as { setCurrentPage?: (value: number) => Promise<void> };
+        const grid = gridApi?.grid as {
+          setCurrentPage?: (value: number) => Promise<void>;
+        };
         await grid?.setCurrentPage?.(page);
       },
       setPageSize: async (size) => {
@@ -643,13 +640,16 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       formPopupApi: formPopupApi as FormPopupApi | null,
       formDefaults,
       searchSchema: searchSchema ? () => searchSchema : undefined,
-      formSchema: ai.formSchema,
-      detailRoute: ai.detailRoute,
+      formSchema: aiConfig.formSchema,
+      detailRoute: aiConfig.detailRoute,
       hasRecycleBin: recycleBinEnabled,
       openRecycleBin: recycleBinEnabled ? openRecycleBin : undefined,
-      disabled: ai.disabled,
-      extra: ai.extra,
+      disabled: aiConfig.disabled,
+      disabledCapabilities: aiConfig.disabledCapabilities,
+      disabledOperations: aiConfig.disabledOperations,
+      extra: aiConfig.extra,
       pageKey: aiPageKey,
+      displayKeys: getVisibleColumnFields,
     });
 
     cleanupAiOps = appendPageOperations(aiPageKey, standardOps);
@@ -674,6 +674,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       });
       const activeFilters = getActiveFilters();
       const visibleColumns = getVisibleColumnFields();
+      const tablePolicySupport = buildTablePolicySupportData(
+        aiConfig.tablePolicy,
+      );
 
       return {
         page_key: aiPageKey,
@@ -682,14 +685,17 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
           total: aiTotalRows.value,
           list_count: aiCurrentRows.value.length,
           ...(entityName ? { entity_name: entityName } : {}),
-          ...(ai.entityDescription ? { entity_description: ai.entityDescription } : {}),
-          ...(ai.formPurpose ? { form_purpose: ai.formPurpose } : {}),
-          ...(formFieldDescriptors && Object.keys(formFieldDescriptors).length > 0
+          ...(aiConfig.entityDescription
+            ? { entity_description: aiConfig.entityDescription }
+            : {}),
+          ...(aiConfig.formPurpose
+            ? { form_purpose: aiConfig.formPurpose }
+            : {}),
+          ...(formFieldDescriptors &&
+          Object.keys(formFieldDescriptors).length > 0
             ? { form_fields: formFieldDescriptors }
             : {}),
-          ...(formStateTracker.isOpen(aiPageKey)
-            ? { form_is_open: true }
-            : {}),
+          ...(formStateTracker.isOpen(aiPageKey) ? { form_is_open: true } : {}),
           ...(visibleColumns.length > 0
             ? { visible_columns: visibleColumns }
             : {}),
@@ -697,7 +703,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
             ? { active_filters: activeFilters }
             : {}),
           ...(listSummary ? { list_summary: listSummary } : {}),
-          ...(ai.contextExtras ? ai.contextExtras() : {}),
+          ...(tablePolicySupport
+            ? { table_policy_support: tablePolicySupport }
+            : {}),
+          ...(aiConfig.contextExtras ? aiConfig.contextExtras() : {}),
         },
       };
     });
@@ -739,7 +748,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     openRecycleBin,
     recycleBinRef,
 
-    // AI form operations (spread into registerPageOperations) / AI 表单操作（展开到 registerPageOperations）
-    formAiOperations,
+    // AI / AI
+    aiPageKey,
   };
 }

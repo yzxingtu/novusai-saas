@@ -6,7 +6,7 @@
  */
 import type { ActionLogItem, ActionLogStats } from '#/api/tenant/action-logs';
 
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -18,8 +18,6 @@ import {
   getActionLogListApi,
   getActionLogStatsApi,
 } from '#/api/tenant/action-logs';
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -67,13 +65,18 @@ function computeSuccessRate() {
   successRate.value = `${rate.toFixed(1)}%`;
 }
 
+async function loadStats() {
+  await fetchStats();
+  computeSuccessRate();
+}
+
 onMounted(() => {
-  fetchStats().then(computeSuccessRate);
+  loadStats();
 });
 
 // ============ 列表 ============
 
-const { Grid, onRefresh, gridApi } = useCrudPage<ActionLogItem>({
+const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   api: {
     list: getActionLogListApi,
     resource: '/tenant/ai/action-logs',
@@ -82,48 +85,37 @@ const { Grid, onRefresh, gridApi } = useCrudPage<ActionLogItem>({
   searchSchema: useGridFormSchema(),
   i18nPrefix: 'tenant.ai.actionLog',
   defaultSort: '-created_at',
-});
-
-const cleanupPageContext = registerPageContext('tenant/ai/action-logs', () => ({
-  page_key: 'tenant.ai.action-logs',
-  page_title: $t('tenant.ai.actionLog.name'),
-  page_data: {
-    resource: '/tenant/ai/action-logs',
+  ai: {
+    pageKey: 'tenant.ai.action-logs',
+    entityName: $t('tenant.ai.actionLog.name'),
+    entityDescription: $t('tenant.ai.actionLog.pageDesc'),
+    contextExtras: () => ({
+      avg_duration_ms: stats.value.avg_duration_ms,
+      failed_count: stats.value.failed_count,
+      pending_count: stats.value.pending_count,
+      rejected_count: stats.value.rejected_count,
+      success_count: stats.value.success_count,
+      success_rate: successRate.value,
+      total_actions: stats.value.total,
+    }),
+    extra: [
+      {
+        name: 'refresh_list',
+        label: $t('shared.pageOperation.refreshList'),
+        description:
+          'Reload the action log list and summary / 重新加载操作日志列表与摘要',
+        readonly: true,
+        handler: async () => {
+          onRefresh();
+          await loadStats();
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.listRefreshed'),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.ai.action-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the action log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      await fetchStats();
-      return { success: true, message: 'Action log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search action logs by action type',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Action type keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[action_type][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

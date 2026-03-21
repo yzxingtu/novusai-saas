@@ -462,7 +462,7 @@ class AdminAgentController(GlobalController):
                 enabled=data.enabled,
             )
             await db.commit()
-            return created(data=binding.to_dict())
+            return created(data=kb_service.serialize_binding_public(binding))
 
         @router.put("/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）")
         @action_update("action.ai_agent.batch_bind_kbs")
@@ -485,7 +485,7 @@ class AdminAgentController(GlobalController):
                 knowledge_base_ids=data.knowledge_base_ids,
             )
             await db.commit()
-            return success(data=[b.to_dict() for b in bindings])
+            return success(data=[kb_service.serialize_binding_public(b) for b in bindings])
 
         @router.put("/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置")
         @action_update("action.ai_agent.update_kb_binding")
@@ -513,7 +513,7 @@ class AdminAgentController(GlobalController):
                     message=_("agent_kb_binding.error.binding_not_found")
                 )
             await db.commit()
-            return success(data=updated.to_dict())
+            return success(data=kb_service.serialize_binding_public(updated))
 
         @router.delete("/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库")
         @action_update("action.ai_agent.unbind_kb")
@@ -612,6 +612,31 @@ class AdminAgentController(GlobalController):
             service = AgentService(db, agent.owner_tenant_id)
             versions = await service.get_versions(agent_id)
             return success(data=versions)
+
+        @router.get("/{agent_id}/versions/diff", summary="对比两个版本")
+        @action_read("action.ai_agent.version_diff")
+        async def diff_versions(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            v1: int,
+            v2: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            对比两个版本的字段差异 / Compare field differences between two versions
+
+            Query params: v1, v2
+            权限 / Permission: ai_agent:version_diff
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.owner_tenant_id)
+            diff = await service.diff_versions(agent_id, v1, v2)
+            return success(data=diff)
 
         @router.get("/{agent_id}/versions/{version}", summary="获取版本详情")
         @action_read("action.ai_agent.version_detail")

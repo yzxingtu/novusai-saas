@@ -7,20 +7,15 @@
  */
 
 import type { Editor } from '@tiptap/core';
-import type { ShallowRef } from 'vue';
+import type { MaybeRefOrGetter, ShallowRef } from 'vue';
 
-import { onBeforeUnmount, watch } from 'vue';
+import { toValue } from 'vue';
 
 import { $t } from '@vben/locales';
 import MarkdownIt from 'markdown-it';
 
-import {
-  appendPageOperations,
-  listPageOperations,
-  registerPageContext,
-  registerPageOperations,
-} from '#/components/business/ai-slide-panel';
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { validateReplaceContentParams } from './replaceContentValidator';
 
 const md = new MarkdownIt({ html: true, breaks: true });
@@ -75,51 +70,67 @@ function ensureHtml(content: string, format?: string): string {
   return format === 'markdown' ? md.render(content) : content;
 }
 
+export interface EditorPageOpsOptions {
+  editable?: MaybeRefOrGetter<boolean>;
+  enabled?: MaybeRefOrGetter<boolean>;
+  pageKey?: MaybeRefOrGetter<string | undefined>;
+}
+
 export function useEditorPageOps(
   editorRef: ShallowRef<Editor | undefined>,
-  pageKey?: string | undefined,
+  pageKeyOrOptions?: EditorPageOpsOptions | string,
 ) {
-  const effectiveKey = pageKey || normalizePageKey(window.location.pathname);
-  if (!effectiveKey) return;
+  const options =
+    typeof pageKeyOrOptions === 'string'
+      ? { pageKey: pageKeyOrOptions }
+      : (pageKeyOrOptions ?? {});
 
-  let cleanupOps: (() => void) | undefined;
-  let cleanupCtx: (() => void) | undefined;
+  const effectiveKey = () =>
+    toValue(options.pageKey) || normalizePageKey(window.location.pathname);
 
-  function register() {
-    cleanupOps?.();
-    cleanupCtx?.();
-    const editor = editorRef.value;
-    if (!editor) return;
+  /** Conservative excerpt size (~2.4KB UTF-8, ≈800 CJK chars) so page_data stays small alongside available_operations. / 保守的摘要长度（约 2.4KB UTF-8，约 800 个中文字符），避免 page_data 与 available_operations 一起超出预算。 */
+  const DOCUMENT_BODY_EXCERPT_LEN = 800;
 
-    /** ~2.4KB UTF-8 (≈800 CJK chars) to stay within page_data 8KB limit with available_operations. */
-    const DOCUMENT_BODY_EXCERPT_LEN = 800;
-
-    cleanupCtx = registerPageContext(effectiveKey, () => {
-      const fullText = editor.getText?.() ?? '';
-      const documentBodyText = fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN);
-      const documentBodyLength = fullText.length;
+  usePageAIRegistration({
+    pageKey: effectiveKey,
+    enabled: () => {
+      const pageKey = effectiveKey();
+      return Boolean(
+        pageKey
+          && editorRef.value
+          && (toValue(options.enabled) ?? true),
+      );
+    },
+    contextStrategy: 'extras',
+    operationStrategy: 'append',
+    title: () => $t('common.richTextEditor'),
+    entityName: () => $t('common.richTextEditor'),
+    entityDescription:
+      'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
+      + 'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n'
+      + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
+      + '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n'
+      + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
+      + '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
+    data: () => {
+      const editor = editorRef.value;
+      const fullText = editor?.getText?.() ?? '';
       return {
-        page_key: effectiveKey,
-        page_title: $t('common.richTextEditor'),
-        page_data: {
-          entity_name: $t('common.richTextEditor'),
-          entity_description:
-            'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n'
-            + 'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n'
-            + '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n'
-            + '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n'
-            + '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n'
-            + '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。',
-          has_editor: true,
-          word_count: editor.storage.characterCount?.words?.() ?? 0,
-          document_body_text: documentBodyText,
-          document_body_length: documentBodyLength,
-        },
+        document_body_length: fullText.length,
+        document_body_text: fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN),
+        editor_editable: toValue(options.editable) !== false,
+        has_editor: !!editor,
+        word_count: editor?.storage.characterCount?.words?.() ?? 0,
       };
-    });
+    },
+    operations: () => {
+      const editor = editorRef.value;
+      if (!editor) {
+        return [];
+      }
 
-    const existingOps = listPageOperations(effectiveKey);
-    const editorOps = [
+      const allowMutations = toValue(options.editable) !== false;
+      const editorOps = [
       {
         name: 'get_editor_text',
         label: $t('common.getEditorText'),
@@ -159,6 +170,24 @@ export function useEditorPageOps(
           };
         },
       },
+      {
+        name: 'get_selection',
+        label: $t('common.getSelection'),
+        description: 'Get current selection text and position (from, to).',
+        readonly: true,
+        handler: async () => {
+          const { from, to } = editor.state.selection;
+          const text = editor.state.doc.textBetween(from, to, '');
+          return {
+            success: true,
+            message: $t('common.editorOp.selectionChars', { count: text.length }),
+            data: { text, from, to },
+          };
+        },
+      },
+    ];
+
+      const mutationOps = [
       {
         name: 'insert_content',
         label: $t('common.insertContent'),
@@ -219,7 +248,7 @@ export function useEditorPageOps(
           if (!validation.valid) {
             console.warn(
               '[replace_content audit] page_key=%s operation_name=replace_content input_size=%d success=false error_type=%s',
-              effectiveKey,
+              effectiveKey(),
               inputSize,
               validation.error_type,
             );
@@ -366,21 +395,6 @@ export function useEditorPageOps(
         },
       },
       // --- Selection & history ---
-      {
-        name: 'get_selection',
-        label: $t('common.getSelection'),
-        description: 'Get current selection text and position (from, to).',
-        readonly: true,
-        handler: async () => {
-          const { from, to } = editor.state.selection;
-          const text = editor.state.doc.textBetween(from, to, '');
-          return {
-            success: true,
-            message: $t('common.editorOp.selectionChars', { count: text.length }),
-            data: { text, from, to },
-          };
-        },
-      },
       {
         name: 'select_all',
         label: $t('common.selectAll'),
@@ -589,25 +603,9 @@ export function useEditorPageOps(
           return { success: true, message: $t('common.editorOp.tableInserted', { rows, cols }) };
         },
       },
-    ];
-    if (existingOps.length > 0) {
-      cleanupOps = appendPageOperations(effectiveKey, editorOps);
-    } else {
-      cleanupOps = registerPageOperations(effectiveKey, editorOps);
-    }
-  }
+      ];
 
-  const unwatch = watch(
-    editorRef,
-    (ed) => {
-      if (ed) register();
+      return allowMutations ? [...editorOps, ...mutationOps] : editorOps;
     },
-    { immediate: true },
-  );
-
-  onBeforeUnmount(() => {
-    cleanupOps?.();
-    cleanupCtx?.();
-    unwatch();
   });
 }

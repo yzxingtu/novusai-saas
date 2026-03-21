@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 
 from app.core.base_model import utc_now
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.tasks.base import TenantTask, register_task
 
@@ -208,7 +209,15 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
         knowledge_base=kb,
     )
     pages = await parser.parse(file_content, doc.file_name)
-    return [p for p in pages if p.content.strip()]
+    parsed_pages = [p for p in pages if p.content.strip()]
+    if parsed_pages:
+        return parsed_pages
+
+    if doc.file_type in _AUDIO_DOC_TYPES:
+        raise ValueError(_("knowledge_base.document.error.audio_text_unavailable"))
+    if doc.file_type in _VIDEO_DOC_TYPES:
+        raise ValueError(_("knowledge_base.document.error.video_text_unavailable"))
+    return parsed_pages
 
 
 async def get_document_progress(document_id: int) -> dict | None:

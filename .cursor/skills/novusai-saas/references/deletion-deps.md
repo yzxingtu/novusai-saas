@@ -91,7 +91,25 @@ const { Grid } = useCrudPage({
 
 ---
 
-## 六、新模块 Checklist
+## 六、两阶段回收站架构
+
+- 普通 CRUD 页统一使用**模块回收站**；管理端和企业端都走同一套弹窗交互。
+- **总回收站只有一个**，固定在管理端：`/admin/system/recycle-bin`。
+- 企业端**没有**总回收站页面；模块回收站二次删除后，数据进入管理端总回收站，由平台统一恢复或清理。
+- 模块回收站查询阶段：
+  - 管理端：`delete_level='admin'` + `recycle_stage='module'`
+  - 企业端：`delete_level='tenant'` + `recycle_stage='module'`
+- 总回收站查询阶段：查 `recycle_stage='global'` 的二阶段记录，覆盖管理端与企业端来源。
+
+### 关键实现约束
+
+- 控制器里 `register_admin_recycle_bin_routes()` / `register_tenant_recycle_bin_routes()` 必须放在 `/{id}`、`/{task_id}` 等动态路由之前，否则 `/recycle-bin` 会被误解析成路径参数。
+- `batch`、`batch-restore` 这类静态子路径也必须先于 `/recycle-bin/{item_id}` 注册。
+- 企业端模型如果实际归属字段是 `owner_tenant_id`，回收站查询和计数必须使用归属列，不要再硬编码 `tenant_id` 过滤。
+
+---
+
+## 七、新模块 Checklist
 
 每次新增模块时，按以下清单逐项完成：
 
@@ -101,10 +119,12 @@ const { Grid } = useCrudPage({
 - [ ] **RECYCLABLE_MODELS 注册** — `backend/app/tasks/recycle_bin.py` 添加模型路径，注意顺序（叶子先父后）
 - [ ] **总回收站模块注册** — `backend/app/api/admin/recycle_bin.py` 的 `RECYCLABLE_MODULES` 添加条目
 - [ ] **i18n 模型名称** — 后端 `deletion.model.xxx` + 前端 `common.dependency.model.xxx`（zh-CN + en-US）
+- [ ] **路由顺序验证** — `recycle-bin` 静态路由必须先于动态 `/{id}` 路由
+- [ ] **浏览器回归** — 管理端模块页能跳总回收站，企业端模块页没有总回收站入口，企业端总回收站 URL 为 404
 
 ---
 
-## 七、错误码
+## 八、错误码
 
 | 错误码 | 含义 | 前端处理 |
 |--------|------|---------|

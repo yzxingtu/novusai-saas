@@ -9,10 +9,7 @@ import type {
   AdminActionLogItem,
 } from '#/api/admin/action-logs';
 
-import { computed, onUnmounted, ref, watch } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { computed, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -149,11 +146,15 @@ async function copyPayload(text: string) {
 }
 
 async function openDetail(row: AdminActionLogItem) {
+  await openDetailById(row.id);
+}
+
+async function openDetailById(id: number) {
   detailOpen.value = true;
   detailLoading.value = true;
   activeTab.value = 'overview';
   try {
-    detailData.value = await getAdminActionLogDetailApi(row.id);
+    detailData.value = await getAdminActionLogDetailApi(id);
     activeTab.value = detailData.value?.error_message ? 'error' : 'overview';
   } catch {
     detailData.value = null;
@@ -186,7 +187,7 @@ const errorPayloadText = computed(() => detailData.value?.error_message?.trim() 
 
 // ============ 列表 ============
 
-const { Grid, onRefresh, gridApi } = useCrudPage<AdminActionLogItem>({
+const { Grid } = useCrudPage<AdminActionLogItem>({
   api: {
     list: getAdminActionLogListApi,
     resource: '/admin/ai/action-logs',
@@ -198,47 +199,41 @@ const { Grid, onRefresh, gridApi } = useCrudPage<AdminActionLogItem>({
   customActions: {
     detail: openDetail,
   },
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/action-logs', () => ({
-  page_key: 'admin.ai.action-logs',
-  page_title: $t('admin.ai.actionLog.name'),
-  page_data: {
-    resource: '/admin/ai/action-logs',
+  ai: {
+    pageKey: 'admin.ai.action-logs',
+    entityName: $t('admin.ai.actionLog.name'),
+    entityDescription: $t('admin.ai.actionLog.pageDesc'),
+    extra: [
+      {
+        name: 'view_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the action log detail drawer by ID / 按 ID 打开操作日志详情抽屉',
+        readonly: true,
+        params: {
+          id: {
+            type: 'number',
+            description: 'Action log ID / 操作日志 ID',
+            required: true,
+          },
+        },
+        handler: async (params) => {
+          const id = Number(params.id);
+          if (!Number.isFinite(id) || id <= 0) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.missingIdParam'),
+            };
+          }
+          await openDetailById(id);
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.detailOpened', { id }),
+          };
+        },
+      },
+    ],
   },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.action-logs', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the action log list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Action log list refreshed' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search action logs by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[action_type][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

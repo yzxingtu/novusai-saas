@@ -4,7 +4,10 @@ import type { Rule } from 'ant-design-vue/es/form';
 
 import type {
   ConfigItemMeta,
+  ConfigObject,
+  ConfigScalar,
   ConfigSubmitPayload,
+  ConfigValue,
   DisplayRuleMeta,
   ValidationRuleMeta,
 } from '#/types/config';
@@ -25,9 +28,24 @@ interface Props {
 
 const props = defineProps<Props>();
 const formRef = ref<FormInstance>();
-const formModel = reactive<Record<string, any>>({});
+type ConfigFormModel = Record<string, ConfigValue | undefined>;
+
+const formModel = reactive<ConfigFormModel>({});
 // Save initial values for comparison to detect modifications / 保存初始值用于比较是否有修改
 let initialSnapshot = '';
+
+function isConfigObject(value: unknown): value is ConfigObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isConfigScalar(value: unknown): value is ConfigScalar {
+  return (
+    value === null ||
+    typeof value === 'boolean' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  );
+}
 
 /**
  * Get value from nested object by path
@@ -35,12 +53,15 @@ let initialSnapshot = '';
  * @param obj Object / 对象
  * @param path Path, supports dot notation / 路径，支持 . 分隔
  */
-function getValueByPath(obj: any, path: string): any {
+function getValueByPath(
+  obj: ConfigObject | undefined,
+  path: string,
+): ConfigValue | undefined {
   if (!obj || !path) return undefined;
   const keys = path.split('.');
-  let result = obj;
+  let result: ConfigValue | undefined = obj;
   for (const key of keys) {
-    if (result === null || result === undefined) return undefined;
+    if (!isConfigObject(result)) return undefined;
     result = result[key];
   }
   return result;
@@ -53,16 +74,20 @@ function getValueByPath(obj: any, path: string): any {
  * @param path Path, supports dot notation / 路径，支持 . 分隔
  * @param value Value to set / 要设置的值
  */
-function setValueByPath(obj: any, path: string, value: any): void {
+function setValueByPath(
+  obj: ConfigObject,
+  path: string,
+  value: ConfigValue | undefined,
+): void {
   if (!obj || !path) return;
   const keys = path.split('.');
-  let current = obj;
+  let current: ConfigObject = obj;
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i]!;
-    if (current[key] === undefined || current[key] === null) {
+    if (!isConfigObject(current[key])) {
       current[key] = {};
     }
-    current = current[key];
+    current = current[key] as ConfigObject;
   }
   current[keys[keys.length - 1]!] = value;
 }
@@ -75,8 +100,8 @@ function setValueByPath(obj: any, path: string, value: any): void {
  */
 function initConfigValue(
   cfg: ConfigItemMeta,
-  data: Record<string, any>,
-  parentJsonValue?: any,
+  data: ConfigFormModel,
+  parentJsonValue?: ConfigObject,
 ) {
   const raw = cfg.value ?? cfg.default_value;
 
@@ -99,8 +124,10 @@ function initConfigValue(
   // If there are children, recursively initialize child fields / 如果有 children，递归初始化子字段
   if (cfg.children && cfg.children.length > 0) {
     // Parent field's JSON value / 父字段的 JSON 值
-    const jsonValue =
-      typeof data[cfg.key] === 'object' ? data[cfg.key] : tryParseJson(raw);
+    const currentValue = data[cfg.key];
+    const jsonValue = isConfigObject(currentValue)
+      ? currentValue
+      : tryParseJson(raw);
     for (const child of cfg.children) {
       initConfigValue(child, data, jsonValue);
     }
@@ -110,21 +137,22 @@ function initConfigValue(
 /**
  * Try to parse JSON string / 尝试解析 JSON 字符串
  */
-function tryParseJson(val: any): any {
+function tryParseJson(val: unknown): ConfigObject {
   if (typeof val === 'string') {
     try {
-      return JSON.parse(val);
+      const parsed: unknown = JSON.parse(val);
+      return isConfigObject(parsed) ? parsed : {};
     } catch {
       return {};
     }
   }
-  return val ?? {};
+  return isConfigObject(val) ? val : {};
 }
 
 /**
  * Format JSON value to string (for TextArea display) / 格式化 JSON 值为字符串（用于 TextArea 显示）
  */
-function formatJsonValue(val: any): string {
+function formatJsonValue(val: ConfigValue | undefined): string {
   if (val === null || val === undefined) return '';
   if (typeof val === 'string') return val;
   try {
@@ -151,7 +179,7 @@ function updateJsonValue(key: string, val: string) {
 watch(
   () => props.configs,
   (list) => {
-    const data: Record<string, any> = {};
+    const data: ConfigFormModel = {};
     (list || []).forEach((cfg) => {
       initConfigValue(cfg, data);
     });
@@ -175,16 +203,19 @@ const orderedConfigs = computed(() => {
  */
 function checkDisplayRule(
   rule: DisplayRuleMeta,
-  formValues: Record<string, any>,
+  formValues: ConfigFormModel,
 ): boolean {
   const fieldValue = formValues[rule.field];
   switch (rule.operator) {
     case 'equals': {
+      if (!isConfigScalar(fieldValue) || Array.isArray(rule.value)) {
+        return false;
+      }
       return fieldValue === rule.value;
     }
     case 'in': {
       if (Array.isArray(rule.value)) {
-        return rule.value.includes(fieldValue);
+        return isConfigScalar(fieldValue) && rule.value.includes(fieldValue);
       }
       return false;
     }
@@ -287,6 +318,10 @@ function getSelectOptions(cfg: ConfigItemMeta) {
   });
 }
 
+function getConfigItemId(key: string): string {
+  return `config-item-${key}`;
+}
+
 /**
  * Recursively collect validation rules for all config items / 递归收集所有配置项的校验规则
  */
@@ -373,7 +408,108 @@ async function validate() {
   await formRef.value?.validate();
 }
 
-function getValues(): Record<string, any> {
+function getStringValue(key: string): string | undefined {
+  const value = formModel[key];
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return undefined;
+}
+
+function setStringValue(
+  key: string,
+  value: null | number | string | undefined,
+): void {
+  formModel[key] = value == null ? undefined : String(value);
+}
+
+function getNumberValue(key: string): number | undefined {
+  const value = formModel[key];
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function setNumberValue(
+  key: string,
+  value: null | number | string | undefined,
+): void {
+  if (value == null || value === '') {
+    formModel[key] = undefined;
+    return;
+  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  formModel[key] = Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getBooleanValue(key: string): boolean {
+  return Boolean(formModel[key]);
+}
+
+function setBooleanValue(key: string, value: unknown): void {
+  formModel[key] = Boolean(value);
+}
+
+function getSelectValue(key: string): number | string | undefined {
+  const value = formModel[key];
+  return typeof value === 'number' || typeof value === 'string'
+    ? value
+    : undefined;
+}
+
+function setSelectValue(
+  key: string,
+  value: unknown,
+): void {
+  formModel[key] =
+    typeof value === 'number' || typeof value === 'string'
+      ? value
+      : undefined;
+}
+
+function getMultiSelectValue(key: string): Array<number | string> {
+  const value = formModel[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (item): item is number | string =>
+      typeof item === 'number' || typeof item === 'string',
+  );
+}
+
+function setMultiSelectValue(key: string, value: unknown): void {
+  if (!Array.isArray(value)) {
+    formModel[key] = [];
+    return;
+  }
+  formModel[key] = value.filter(
+    (item): item is number | string =>
+      typeof item === 'number' || typeof item === 'string',
+  );
+}
+
+function getHtmlValue(key: string): string {
+  return getStringValue(key) ?? '';
+}
+
+function setHtmlValue(key: string, value: string): void {
+  formModel[key] = value;
+}
+
+function getImageValue(key: string): string {
+  return getStringValue(key) ?? '';
+}
+
+function setImageValue(key: string, value: string): void {
+  formModel[key] = value;
+}
+
+function getValues(): ConfigFormModel {
   return { ...formModel };
 }
 
@@ -390,17 +526,7 @@ function mergeChildrenToParent(
   }
 
   // Get parent field's current JSON value / 获取父字段当前的 JSON 值
-  let parentValue = payload[cfg.key];
-  if (typeof parentValue === 'string') {
-    try {
-      parentValue = JSON.parse(parentValue);
-    } catch {
-      parentValue = {};
-    }
-  }
-  if (!parentValue || typeof parentValue !== 'object') {
-    parentValue = {};
-  }
+  const parentValue = tryParseJson(payload[cfg.key]);
 
   // Merge child field values into parent JSON / 将子字段的值合并到父字段 JSON 中
   for (const child of cfg.children) {
@@ -491,125 +617,151 @@ defineExpose({
   >
     <template v-for="cfg in orderedConfigs" :key="cfg.key">
       <Transition name="config-slide">
-        <Form.Item
+        <div
           v-if="shouldShowConfig(cfg)"
-          :name="cfg.key"
-          :label="getConfigLabel(cfg)"
-          :extra="getConfigDesc(cfg)"
+          :id="getConfigItemId(cfg.key)"
+          class="scroll-mt-24 rounded-xl transition-colors"
         >
-          <!-- string -->
-          <Input
-            v-if="cfg.value_type === 'string'"
-            v-model:value="formModel[cfg.key]"
-            autocomplete="new-password"
-          />
-
-          <!-- number -->
-          <InputNumber
-            v-else-if="cfg.value_type === 'number'"
-            v-model:value="formModel[cfg.key]"
-            :style="{ width: '100%' }"
-            :min="getRuleNumber(cfg, 'min_value')"
-            :max="getRuleNumber(cfg, 'max_value')"
-          />
-
-          <!-- boolean -->
-          <Switch
-            v-else-if="cfg.value_type === 'boolean'"
-            v-model:checked="formModel[cfg.key]"
-          />
-
-          <!-- select -->
-          <Select
-            v-else-if="cfg.value_type === 'select'"
-            v-model:value="formModel[cfg.key]"
-            :options="getSelectOptions(cfg)"
-          />
-
-          <!-- multi_select -->
-          <Select
-            v-else-if="cfg.value_type === 'multi_select'"
-            v-model:value="formModel[cfg.key]"
-            mode="multiple"
-            :options="getSelectOptions(cfg)"
-          />
-
-          <!-- text -->
-          <Input.TextArea
-            v-else-if="cfg.value_type === 'text'"
-            v-model:value="formModel[cfg.key]"
-            :rows="4"
-          />
-
-          <!-- html (sanitized on server) -->
-          <ConfigHtmlEditor
-            v-else-if="cfg.value_type === 'html'"
-            v-model="formModel[cfg.key]"
-          />
-
-          <!-- password -->
-          <div
-            v-else-if="cfg.value_type === 'password'"
-            class="flex items-center gap-2"
+          <Form.Item
+            :name="cfg.key"
+            :label="getConfigLabel(cfg)"
+            :extra="getConfigDesc(cfg)"
           >
-            <Input.Password
-              v-model:value="formModel[cfg.key]"
+            <!-- string -->
+            <Input
+              v-if="cfg.value_type === 'string'"
+              :value="getStringValue(cfg.key)"
               autocomplete="new-password"
-              :visibility-toggle="formModel[cfg.key] !== '******'"
-              class="flex-1"
+              @update:value="(val) => setStringValue(cfg.key, val)"
             />
-            <slot
-              :name="`generate-${cfg.key}`"
-              :set-value="(v: string) => (formModel[cfg.key] = v)"
-            ></slot>
-          </div>
 
-          <!-- color -->
-          <div
-            v-else-if="cfg.value_type === 'color'"
-            class="flex items-center gap-2"
-          >
-            <input
-              type="color"
-              :value="formModel[cfg.key]"
-              class="h-8 w-8 cursor-pointer rounded border border-border"
-              @input="
-                (e) =>
-                  (formModel[cfg.key] = (e.target as HTMLInputElement).value)
+            <!-- number -->
+            <InputNumber
+              v-else-if="cfg.value_type === 'number'"
+              :value="getNumberValue(cfg.key)"
+              :style="{ width: '100%' }"
+              :min="getRuleNumber(cfg, 'min_value')"
+              :max="getRuleNumber(cfg, 'max_value')"
+              @update:value="(val) => setNumberValue(cfg.key, val)"
+            />
+
+            <!-- boolean -->
+            <Switch
+              v-else-if="cfg.value_type === 'boolean'"
+              :checked="getBooleanValue(cfg.key)"
+              @update:checked="(val) => setBooleanValue(cfg.key, val)"
+            />
+
+            <!-- select -->
+            <Select
+              v-else-if="cfg.value_type === 'select'"
+              :value="getSelectValue(cfg.key)"
+              :options="getSelectOptions(cfg)"
+              @update:value="(val) => setSelectValue(cfg.key, val)"
+            />
+
+            <!-- multi_select -->
+            <Select
+              v-else-if="cfg.value_type === 'multi_select'"
+              :value="getMultiSelectValue(cfg.key)"
+              mode="multiple"
+              :options="getSelectOptions(cfg)"
+              @update:value="(val) => setMultiSelectValue(cfg.key, val)"
+            />
+
+            <!-- text -->
+            <Input.TextArea
+              v-else-if="cfg.value_type === 'text'"
+              :value="getStringValue(cfg.key)"
+              :rows="4"
+              @update:value="(val) => setStringValue(cfg.key, val)"
+            />
+
+            <!-- html (sanitized on server) -->
+            <ConfigHtmlEditor
+              v-else-if="cfg.value_type === 'html'"
+              :model-value="getHtmlValue(cfg.key)"
+              @update:model-value="(val) => setHtmlValue(cfg.key, val)"
+            />
+
+            <!-- password -->
+            <div
+              v-else-if="cfg.value_type === 'password'"
+              class="flex items-center gap-2"
+            >
+              <Input.Password
+                :value="getStringValue(cfg.key)"
+                autocomplete="new-password"
+                :visibility-toggle="getStringValue(cfg.key) !== '******'"
+                class="flex-1"
+                @update:value="(val) => setStringValue(cfg.key, val)"
+              />
+              <slot
+                :name="`generate-${cfg.key}`"
+                :set-value="(v: string) => setStringValue(cfg.key, v)"
+              ></slot>
+            </div>
+
+            <!-- color -->
+            <div
+              v-else-if="cfg.value_type === 'color'"
+              class="flex items-center gap-2"
+            >
+              <input
+                type="color"
+                :value="getStringValue(cfg.key)"
+                class="h-8 w-8 cursor-pointer rounded border border-border"
+                @input="
+                  (e) =>
+                    setStringValue(
+                      cfg.key,
+                      (e.target as HTMLInputElement).value,
+                    )
+                "
+              />
+              <Input
+                :value="getStringValue(cfg.key)"
+                style="width: 120px"
+                @update:value="(val) => setStringValue(cfg.key, val)"
+              />
+            </div>
+
+            <!-- image：使用附件管理器选择图片，存储附件 ID / Use attachment manager to select image, store attachment ID -->
+            <ConfigImagePicker
+              v-else-if="cfg.value_type === 'image'"
+              :model-value="getImageValue(cfg.key)"
+              @update:model-value="(val) => setImageValue(cfg.key, val)"
+            />
+
+            <!-- json with children: render children as sub-fields / JSON 类型且有子字段时，渲染子字段 -->
+            <template
+              v-else-if="
+                cfg.value_type === 'json' &&
+                cfg.children &&
+                cfg.children.length > 0
               "
+            >
+              <!-- When JSON type has child fields, don't render parent input, render child fields instead / JSON 类型且有子字段时，不渲染父字段输入框，而是渲染子字段 -->
+            </template>
+
+            <!-- json without children: textarea for raw JSON editing -->
+            <Input.TextArea
+              v-else-if="cfg.value_type === 'json'"
+              :value="formatJsonValue(formModel[cfg.key])"
+              @update:value="(val: string) => updateJsonValue(cfg.key, val)"
+              :rows="6"
+              :placeholder="t('shared.config.page.json_placeholder')"
             />
-            <Input v-model:value="formModel[cfg.key]" style="width: 120px" />
-          </div>
 
-          <!-- image：使用附件管理器选择图片，存储附件 ID / Use attachment manager to select image, store attachment ID -->
-          <ConfigImagePicker
-            v-else-if="cfg.value_type === 'image'"
-            v-model="formModel[cfg.key]"
-          />
-
-          <!-- json with children: render children as sub-fields / JSON 类型且有子字段时，渲染子字段 -->
-          <template
-            v-else-if="
-              cfg.value_type === 'json' &&
-              cfg.children &&
-              cfg.children.length > 0
-            "
-          >
-            <!-- When JSON type has child fields, don't render parent input, render child fields instead / JSON 类型且有子字段时，不渲染父字段输入框，而是渲染子字段 -->
-          </template>
-
-          <!-- json without children: textarea for raw JSON editing -->
-          <Input.TextArea
-            v-else-if="cfg.value_type === 'json'"
-            :value="formatJsonValue(formModel[cfg.key])"
-            @update:value="(val: string) => updateJsonValue(cfg.key, val)"
-            :rows="6"
-            :placeholder="t('shared.config.page.json_placeholder')"
-          />
-
-          <!-- fallback: textarea -->
-          <Input.TextArea v-else v-model:value="formModel[cfg.key]" :rows="6" />
-        </Form.Item>
+            <!-- fallback: textarea -->
+            <Input.TextArea
+              v-else
+              :value="getStringValue(cfg.key)"
+              :rows="6"
+              @update:value="(val) => setStringValue(cfg.key, val)"
+            />
+          </Form.Item>
+        </div>
       </Transition>
 
       <!-- Render JSON field's child fields / 渲染 JSON 字段的子字段 -->
@@ -623,105 +775,121 @@ defineExpose({
       >
         <template v-for="child in getOrderedChildren(cfg)" :key="child.key">
           <Transition name="config-slide">
-            <Form.Item
+            <div
               v-if="shouldShowConfig(child)"
-              :name="child.key"
-              :label="getConfigLabel(child)"
-              :extra="getConfigDesc(child)"
-              class="ml-4 border-l-2 border-primary/20 pl-4"
+              :id="getConfigItemId(child.key)"
+              class="ml-4 scroll-mt-24 rounded-xl border-l-2 border-primary/20 pl-4 transition-colors"
             >
-              <!-- string -->
-              <Input
-                v-if="child.value_type === 'string'"
-                v-model:value="formModel[child.key]"
-              />
-
-              <!-- number -->
-              <InputNumber
-                v-else-if="child.value_type === 'number'"
-                v-model:value="formModel[child.key]"
-                :style="{ width: '100%' }"
-                :min="getRuleNumber(child, 'min_value')"
-                :max="getRuleNumber(child, 'max_value')"
-              />
-
-              <!-- boolean -->
-              <Switch
-                v-else-if="child.value_type === 'boolean'"
-                v-model:checked="formModel[child.key]"
-              />
-
-              <!-- select -->
-              <Select
-                v-else-if="child.value_type === 'select'"
-                v-model:value="formModel[child.key]"
-                :options="getSelectOptions(child)"
-              />
-
-              <!-- multi_select -->
-              <Select
-                v-else-if="child.value_type === 'multi_select'"
-                v-model:value="formModel[child.key]"
-                mode="multiple"
-                :options="getSelectOptions(child)"
-              />
-
-              <!-- text -->
-              <Input.TextArea
-                v-else-if="child.value_type === 'text'"
-                v-model:value="formModel[child.key]"
-                :rows="4"
-              />
-
-              <!-- html -->
-              <ConfigHtmlEditor
-                v-else-if="child.value_type === 'html'"
-                v-model="formModel[child.key]"
-              />
-
-              <!-- password -->
-              <Input.Password
-                v-else-if="child.value_type === 'password'"
-                v-model:value="formModel[child.key]"
-                autocomplete="new-password"
-                :visibility-toggle="formModel[child.key] !== '******'"
-              />
-
-              <!-- color -->
-              <div
-                v-else-if="child.value_type === 'color'"
-                class="flex items-center gap-2"
+              <Form.Item
+                :name="child.key"
+                :label="getConfigLabel(child)"
+                :extra="getConfigDesc(child)"
               >
-                <input
-                  type="color"
-                  :value="formModel[child.key]"
-                  class="h-8 w-8 cursor-pointer rounded border border-border"
-                  @input="
-                    (e) =>
-                      (formModel[child.key] = (
-                        e.target as HTMLInputElement
-                      ).value)
-                  "
-                />
+                <!-- string -->
                 <Input
-                  v-model:value="formModel[child.key]"
-                  style="width: 120px"
+                  v-if="child.value_type === 'string'"
+                  :value="getStringValue(child.key)"
+                  @update:value="(val) => setStringValue(child.key, val)"
                 />
-              </div>
 
-              <!-- image: use attachment manager to select image, store attachment ID / 使用附件管理器选择图片，存储附件 ID -->
-              <ConfigImagePicker
-                v-else-if="child.value_type === 'image'"
-                v-model="formModel[child.key]"
-              />
+                <!-- number -->
+                <InputNumber
+                  v-else-if="child.value_type === 'number'"
+                  :value="getNumberValue(child.key)"
+                  :style="{ width: '100%' }"
+                  :min="getRuleNumber(child, 'min_value')"
+                  :max="getRuleNumber(child, 'max_value')"
+                  @update:value="(val) => setNumberValue(child.key, val)"
+                />
 
-              <!-- fallback -->
-              <Input.TextArea
-                v-else
-                v-model:value="formModel[child.key]"
-                :rows="4"
-              />
-            </Form.Item>
+                <!-- boolean -->
+                <Switch
+                  v-else-if="child.value_type === 'boolean'"
+                  :checked="getBooleanValue(child.key)"
+                  @update:checked="(val) => setBooleanValue(child.key, val)"
+                />
+
+                <!-- select -->
+                <Select
+                  v-else-if="child.value_type === 'select'"
+                  :value="getSelectValue(child.key)"
+                  :options="getSelectOptions(child)"
+                  @update:value="(val) => setSelectValue(child.key, val)"
+                />
+
+                <!-- multi_select -->
+                <Select
+                  v-else-if="child.value_type === 'multi_select'"
+                  :value="getMultiSelectValue(child.key)"
+                  mode="multiple"
+                  :options="getSelectOptions(child)"
+                  @update:value="(val) => setMultiSelectValue(child.key, val)"
+                />
+
+                <!-- text -->
+                <Input.TextArea
+                  v-else-if="child.value_type === 'text'"
+                  :value="getStringValue(child.key)"
+                  :rows="4"
+                  @update:value="(val) => setStringValue(child.key, val)"
+                />
+
+                <!-- html -->
+                <ConfigHtmlEditor
+                  v-else-if="child.value_type === 'html'"
+                  :model-value="getHtmlValue(child.key)"
+                  @update:model-value="(val) => setHtmlValue(child.key, val)"
+                />
+
+                <!-- password -->
+                <Input.Password
+                  v-else-if="child.value_type === 'password'"
+                  :value="getStringValue(child.key)"
+                  autocomplete="new-password"
+                  :visibility-toggle="getStringValue(child.key) !== '******'"
+                  @update:value="(val) => setStringValue(child.key, val)"
+                />
+
+                <!-- color -->
+                <div
+                  v-else-if="child.value_type === 'color'"
+                  class="flex items-center gap-2"
+                >
+                  <input
+                    type="color"
+                    :value="getStringValue(child.key)"
+                    class="h-8 w-8 cursor-pointer rounded border border-border"
+                    @input="
+                      (e) =>
+                        setStringValue(
+                          child.key,
+                          (e.target as HTMLInputElement).value,
+                        )
+                    "
+                  />
+                  <Input
+                    :value="getStringValue(child.key)"
+                    style="width: 120px"
+                    @update:value="(val) => setStringValue(child.key, val)"
+                  />
+                </div>
+
+                <!-- image: use attachment manager to select image, store attachment ID / 使用附件管理器选择图片，存储附件 ID -->
+                <ConfigImagePicker
+                  v-else-if="child.value_type === 'image'"
+                  :model-value="getImageValue(child.key)"
+                  @update:model-value="(val) => setImageValue(child.key, val)"
+                />
+
+                <!-- fallback -->
+                <Input.TextArea
+                  v-else
+                  :value="getStringValue(child.key)"
+                  :rows="4"
+                  @update:value="(val) => setStringValue(child.key, val)"
+                />
+              </Form.Item>
+            </div>
           </Transition>
         </template>
       </template>

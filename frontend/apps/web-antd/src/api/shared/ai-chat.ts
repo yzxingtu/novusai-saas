@@ -257,7 +257,9 @@ export async function routeMessageApi(
     message: string;
     page_context?: null | PageContext;
     pinned_agent_id?: null | number;
-    /** 含图片附件时传 true，后端优先路由到支持视觉的智能体 */
+    /** 强制重新路由，忽略当前对话已绑定的智能体 */
+    force_reroute?: boolean;
+    /** 含图片附件时传 true，后端强制要求视觉能力 */
     has_image_attachments?: boolean;
   },
 ): Promise<AgentRouteResponse> {

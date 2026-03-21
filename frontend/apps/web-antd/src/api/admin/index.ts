@@ -13,6 +13,7 @@ export * from './organization';
 export * from './periodic-task';
 export * from './permission';
 export * from './plan';
+export * from './recycle-bin';
 export * from './role';
 export * from './system-log';
 export * from './task-log';

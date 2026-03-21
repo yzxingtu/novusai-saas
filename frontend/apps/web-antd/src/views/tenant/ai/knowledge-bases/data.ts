@@ -167,6 +167,10 @@ export function getChunkStrategyOptions() {
       value: 'recursive',
     },
     {
+      label: $t('tenant.knowledgeBase.field.chunkStrategySentence'),
+      value: 'sentence',
+    },
+    {
       label: $t('tenant.knowledgeBase.field.chunkStrategySemantic'),
       value: 'semantic',
     },

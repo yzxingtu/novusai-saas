@@ -333,7 +333,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
 
-        domain.soft_delete()
+        domain.soft_delete(level=self._default_delete_level)
         await self.db.flush()
 
         # Execute cascade deletions (SSL certificates) / 执行级联删除（SSL 证书）

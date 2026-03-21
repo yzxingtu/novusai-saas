@@ -23,6 +23,16 @@
 - 页面状态变化后重新 snapshot，不要复用失效的 `uid` / `ref`
 - 先查 console / network，再判断前端逻辑是否失败
 
+## 回收站回归最低要求
+
+- 凡是列表页开启了 `recycleBin: true`，至少验证一次模块回收站弹窗可打开，且 `.../recycle-bin/count`、`.../recycle-bin?page[number]=1&page[size]=20` 返回 `200`
+- 管理端模块回收站必须出现“查看总回收站”按钮，并跳转到 `/admin/system/recycle-bin`
+- 企业端模块回收站必须**没有**“查看总回收站”按钮；直接访问 `/tenant/system/recycle-bin` 必须是 `404`
+- 总回收站页面至少验证 `/admin/recycle-bin/modules`、`/admin/recycle-bin/summary`、`/admin/recycle-bin?...` 三类请求返回 `200`
+- 控制器存在 `/{id}` 或 `/{task_id}` 之类动态路由时，必须确认 `register_admin_recycle_bin_routes()` / `register_tenant_recycle_bin_routes()` 注册在动态路由之前，避免把 `recycle-bin` 误解析成路径参数
+- 企业端模型若归属列是 `owner_tenant_id`，必须额外验证回收站查询不会再强制注入错误的 `tenant_id` 过滤
+- 浏览器验证完成后，顺手检查 `list_console_messages(types=[\"error\"])`；若有报错，需要区分是本次改动引入，还是页面原有噪音
+
 ## 验收最低要求
 
 - 新增表单：至少验证打开、填写、提交、错误提示

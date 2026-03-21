@@ -48,6 +48,7 @@ class ChunkStrategyEnum(LabeledStrEnum):
     """Text Chunk Strategy Enum / 文本分块策略枚举"""
 
     RECURSIVE = ("recursive", "enum.knowledge_base.chunk_strategy.recursive")
+    SENTENCE = ("sentence", "enum.knowledge_base.chunk_strategy.sentence")
     SEMANTIC = ("semantic", "enum.knowledge_base.chunk_strategy.semantic")
     PARAGRAPH = ("paragraph", "enum.knowledge_base.chunk_strategy.paragraph")
 

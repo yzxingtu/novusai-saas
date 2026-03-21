@@ -14,10 +14,7 @@ import type {
  * 集成 ECharts 图表 + 日期范围筛选
  * T9/T10 复用 Admin 端的 AiCallTrendChart / ModelDistributionChart
  */
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -29,6 +26,7 @@ import {
   getTenantCostTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
@@ -82,30 +80,22 @@ onMounted(() => {
   loadAll();
 });
 
-const cleanupPageContext = registerPageContext('tenant/analytics', () => ({
-  page_key: 'tenant.analytics',
-  page_title: $t('tenant.analytics.title'),
-  page_data: {
-    resource: '/tenant/analytics',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.analytics', [
-  {
-    name: 'refresh_analytics',
-    label: $t('shared.pageOperation.refreshAnalytics'),
-    description: 'Reload all analytics charts and data',
-    readonly: true,
-    handler: async () => {
-      await loadAll();
-      return { success: true, message: 'Analytics data refreshed' };
+usePageAIRegistration({
+  pageKey: 'tenant.analytics',
+  title: () => $t('tenant.analytics.title'),
+  resource: '/tenant/analytics',
+  operations: [
+    {
+      name: 'refresh_analytics',
+      label: $t('shared.pageOperation.refreshAnalytics'),
+      description: 'Reload all analytics charts and data',
+      readonly: true,
+      handler: async () => {
+        await loadAll();
+        return { success: true, message: 'Analytics data refreshed' };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

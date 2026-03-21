@@ -307,6 +307,10 @@ class TenantDomainController(TenantController):
             # 执行 DNS TXT 记录验证 / Execute DNS TXT record verification
             domain = await service.verify_domain(domain_id)
             await db.commit()
+            auto_provisioned = await service.maybe_auto_start_ssl_after_verify(domain_id)
+            if auto_provisioned:
+                await db.commit()
+                domain = auto_provisioned
 
             return success(
                 data=TenantDomainResponse.model_validate(domain, from_attributes=True),
@@ -377,12 +381,8 @@ class TenantDomainController(TenantController):
             if not domain.is_verified:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.domain_not_verified"))
 
-            from app.enums.domain import DomainSslStatus
-            await service.update(domain_id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
+            await service.start_ssl_provision(domain_id)
             await db.commit()
-
-            from app.celery_app import celery_app
-            celery_app.send_task("app.tasks.ssl_tasks.task_provision_ssl", args=[domain_id], queue="default")
 
             return success(message=_("ssl_certificate.provision_started"))
 
@@ -409,6 +409,9 @@ class TenantDomainController(TenantController):
             if cert.cert_type != SslCertType.PLATFORM.value:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.custom_cert_no_renew"))
 
+            from app.services.system.dns_provider import ensure_dns_provider_ready
+
+            await ensure_dns_provider_ready(db)
             from app.celery_app import celery_app
             celery_app.send_task("app.tasks.ssl_tasks.task_renew_ssl", kwargs={"cert_id": cert.id}, queue="default")
 

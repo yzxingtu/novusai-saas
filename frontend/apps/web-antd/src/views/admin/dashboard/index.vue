@@ -29,8 +29,6 @@ import {
   watch,
 } from 'vue';
 
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -49,6 +47,7 @@ import {
   getTenantGrowthApi,
 } from '#/api/admin/dashboard';
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { formatDate as formatDateUtil } from '#/utils/common';
 
@@ -95,10 +94,10 @@ async function loadAll() {
   }
 }
 
-const cleanupPageContext = registerPageContext('admin/dashboard', () => ({
-  page_key: 'admin.dashboard',
-  page_title: $t('admin.dashboard.platformConsole'),
-  page_data: {
+usePageAIRegistration({
+  pageKey: 'admin.dashboard',
+  title: () => $t('admin.dashboard.platformConsole'),
+  data: () => ({
     system_health: health.value?.status ?? 'unknown',
     total_tenants: stats.value.total_tenants,
     active_tenants: stats.value.active_tenants,
@@ -108,35 +107,34 @@ const cleanupPageContext = registerPageContext('admin/dashboard', () => ({
     ai_total_tokens: aiOverview.value?.total_tokens ?? 0,
     storage_files: storageOverview.value?.total_files ?? 0,
     plugins_enabled: pluginOverview.value?.enabled ?? 0,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.dashboard', [
-  {
-    name: 'refresh_dashboard',
-    label: $t('shared.pageOperation.refreshDashboard'),
-    description: 'Reload all dashboard statistics and charts',
-    readonly: true,
-    handler: async () => {
-      await loadAll();
-      return { success: true, message: 'Dashboard refreshed successfully' };
+  }),
+  operations: [
+    {
+      name: 'refresh_dashboard',
+      label: $t('shared.pageOperation.refreshDashboard'),
+      description: 'Reload all dashboard statistics and charts',
+      readonly: true,
+      handler: async () => {
+        await loadAll();
+        return { success: true, message: 'Dashboard refreshed successfully' };
+      },
     },
-  },
-  {
-    name: 'navigate_to',
-    label: $t('shared.pageOperation.navigateTo'),
-    description: 'Navigate to a specific admin page (e.g. /admin/tenant, /admin/ai/agents, /admin/analytics)',
-    readonly: true,
-    params: {
-      route: { type: 'string', description: 'Target route path' },
+    {
+      name: 'navigate_to',
+      label: $t('shared.pageOperation.navigateTo'),
+      description: 'Navigate to a specific admin page (e.g. /admin/tenant, /admin/ai/agents, /admin/analytics)',
+      readonly: true,
+      params: {
+        route: { type: 'string', description: 'Target route path' },
+      },
+      handler: async (params) => {
+        const route = (params?.route as string) || '/admin/tenant';
+        navigateTo(route);
+        return { success: true, message: `Navigated to ${route}` };
+      },
     },
-    handler: async (params) => {
-      const route = (params?.route as string) || '/admin/tenant';
-      navigateTo(route);
-      return { success: true, message: `Navigated to ${route}` };
-    },
-  },
-]);
+  ],
+});
 
 onMounted(() => {
   loadAll();
@@ -361,8 +359,6 @@ onActivated(startClock);
 onDeactivated(stopClock);
 onUnmounted(() => {
   stopClock();
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

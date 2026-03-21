@@ -54,6 +54,13 @@ class TenantPeriodicTaskController(TenantController):
     def _register_routes(self) -> None:
         router = self.router
 
+        # 回收站路由必须在 /{task_id} 之前注册，避免路径冲突 / Recycle bin routes must be registered before /{task_id} to avoid path conflicts
+        register_tenant_recycle_bin_routes(
+            router=router,
+            service_class=TenantPeriodicTaskService,
+            resource_name="periodic_task",
+        )
+
         @router.get("", summary="获取定时任务列表")
         @action_read("action.periodic_task.list")
         async def list_periodic_tasks(
@@ -172,12 +179,6 @@ class TenantPeriodicTaskController(TenantController):
                 data={"triggered_task_id": triggered_task_id},
                 message=_("common.success"),
             )
-
-        register_tenant_recycle_bin_routes(
-            router=router,
-            service_class=TenantPeriodicTaskService,
-            resource_name="periodic_task",
-        )
 
 
 router = TenantPeriodicTaskController.get_router()

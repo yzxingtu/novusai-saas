@@ -29,6 +29,7 @@ import type { VbenFormSchema } from '#/core/adapter/form/setup';
 
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
+import { mergeDisabledOperations, type PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 import { requestClient } from '#/utils/request';
 import { resolveFormOptionsFieldName } from './form-option-param-utils';
 import { formStateTracker } from './use-form-state-tracker';
@@ -165,12 +166,20 @@ export interface CrudAiOperationsOptions {
   hasRecycleBin?: boolean;
   /** Open recycle bin callback / 打开回收站回调 */
   openRecycleBin?: () => void;
-  /** Operations to disable (default: 'delete' is always excluded) / 禁用的操作名称列表 */
+  /** Legacy disabled operation names / 旧版禁用操作名称列表 */
   disabled?: string[];
+  /** Disabled capability groups / 禁用的能力分组 */
+  disabledCapabilities?: PageAICapabilityKey[];
+  /** Disabled operation names / 禁用的操作名称列表 */
+  disabledOperations?: string[];
   /** Extra custom operations merged with standard ops (extra overrides same-named standard) / 额外自定义操作 */
   extra?: PageOperation[];
   /** Page key (for form state tracking via formStateTracker) / 页面标识（用于表单状态追踪） */
   pageKey?: string;
+  /** Row key field name / 行主键字段名 */
+  rowKeyField?: string;
+  /** Preferred display keys for row previews / 行预览优先展示字段 */
+  displayKeys?: ValueResolver<string[]>;
 }
 
 function resolveValue<T>(value?: ValueResolver<T>): T | undefined {
@@ -313,36 +322,47 @@ export function extractSearchParams(
       continue;
     }
 
+    const component = item.component as string;
+    let type: 'boolean' | 'number' | 'string' = 'string';
+
+    if (component === 'InputNumber') {
+      type = 'number';
+    }
+
+    if (component === 'Select') {
+      const opts = (
+        item.componentProps as Record<string, unknown> | undefined
+      )?.options;
+      if (
+        Array.isArray(opts) &&
+        opts.some(
+          (o: unknown) =>
+            typeof (o as { value: unknown }).value === 'boolean',
+        )
+      ) {
+        type = 'boolean';
+      }
+    }
+
     // Filter field: filter[field] or filter[field][op] / JSON:API 过滤字段
     const filterMatch = fieldName.match(/^filter\[([^\]]+)\](?:\[[^\]]+\])?$/);
     if (filterMatch) {
       const field = filterMatch[1]!;
-      const component = item.component as string;
-      let type: 'boolean' | 'number' | 'string' = 'string';
-
-      // Detect boolean type for statusSelect / 检测 statusSelect 的 boolean 类型
-      if (component === 'Select') {
-        const opts = (
-          item.componentProps as Record<string, unknown> | undefined
-        )?.options;
-        if (
-          Array.isArray(opts) &&
-          opts.some(
-            (o: unknown) =>
-              typeof (o as { value: unknown }).value === 'boolean',
-          )
-        ) {
-          type = 'boolean';
-        }
-      }
-
       params[field] = {
         type,
         description: label,
         filterFieldName: fieldName,
         formFieldName: fieldName,
       };
+      continue;
     }
+
+    params[fieldName] = {
+      type,
+      description: label,
+      filterFieldName: fieldName,
+      formFieldName: fieldName,
+    };
   }
 
   return params;
@@ -757,12 +777,23 @@ export function createStandardOperations(
     detailRoute,
     hasRecycleBin,
     openRecycleBin,
-    disabled = [],
+    disabled,
+    disabledCapabilities,
+    disabledOperations,
     extra = [],
     pageKey: optsPageKey,
+    rowKeyField = 'id',
+    displayKeys,
   } = opts;
 
-  const isDisabled = (name: string) => disabled.includes(name);
+  const disabledOperationNames = new Set(
+    mergeDisabledOperations({
+      disabledCapabilities,
+      disabledOperations,
+      legacyDisabledOperations: disabled,
+    }),
+  );
+  const isDisabled = (name: string) => disabledOperationNames.has(name);
 
   // Extract internal param maps with filter field mappings
   // 提取含 filter 字段映射的内部参数 map
@@ -843,6 +874,41 @@ export function createStandardOperations(
       pageSize,
       total,
     });
+  }
+
+  function getRowKeyValue(row: Record<string, unknown>): unknown {
+    return row[rowKeyField] ?? row.id;
+  }
+
+  function getResolvedDisplayKeys(rows: Record<string, unknown>[]): string[] {
+    const configuredKeys = (resolveValue(displayKeys) ?? []).filter(Boolean);
+    if (configuredKeys.length > 0) {
+      return configuredKeys.slice(0, 8);
+    }
+
+    if (rows.length === 0) return [];
+    return Object.keys(rows[0] ?? {})
+      .filter(
+        (key) => !key.startsWith('_') && key !== rowKeyField && key !== 'id',
+      )
+      .slice(0, 8);
+  }
+
+  function buildVisibleRowPayload(
+    row: Record<string, unknown>,
+    displayFieldNames: string[],
+  ): Record<string, unknown> {
+    const preview: Record<string, unknown> = {
+      [rowKeyField]: getRowKeyValue(row),
+    };
+
+    for (const key of displayFieldNames) {
+      const value = row[key];
+      if (value === undefined) continue;
+      preview[key] = value;
+    }
+
+    return preview;
   }
 
   const createOpParams: Record<string, unknown> = {};
@@ -929,6 +995,35 @@ export function createStandardOperations(
     });
   }
 
+  // ── 3a. read_visible_rows — Read visible table rows / 读取当前可见表格行 ──
+  if (!isDisabled('read_visible_rows')) {
+    operations.push({
+      name: 'read_visible_rows',
+      label: $t('shared.pageOperation.readVisibleRows'),
+      description:
+        'Read the currently visible table rows on this page / 读取当前页面表格中可见的记录行',
+      readonly: true,
+      handler: async () => {
+        const rows = (list.value as Record<string, unknown>[]) ?? [];
+        const visibleFieldNames = getResolvedDisplayKeys(rows);
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.visibleRowsRead', {
+            count: rows.length,
+          }),
+          data: {
+            pagination: getPaginationState(),
+            row_key_field: rowKeyField,
+            rows: rows.map((row) =>
+              buildVisibleRowPayload(row, visibleFieldNames),
+            ),
+            visible_columns: visibleFieldNames,
+          },
+        };
+      },
+    });
+  }
+
   // ── 3b. pagination operations — Navigate list pages / 分页操作 ──
   if (
     !isDisabled('next_page')
@@ -959,6 +1054,59 @@ export function createStandardOperations(
         return {
           success: true,
           message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+        };
+      },
+    });
+  }
+
+  // ── 3c. read_row_detail — Read a specific row detail / 读取指定行详情 ──
+  if (!isDisabled('read_row_detail')) {
+    operations.push({
+      name: 'read_row_detail',
+      label: $t('shared.pageOperation.readRowDetail'),
+      description:
+        'Read the current list row detail by record id / 按记录主键读取当前列表中的行详情',
+      readonly: true,
+      params: {
+        id: {
+          type: 'string',
+          description: 'Record id / 记录主键',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const id = params.id;
+        if (id == null || id === '') {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.missingIdParam'),
+          };
+        }
+
+        const rows = (list.value as Record<string, unknown>[]) ?? [];
+        const record = rows.find((row) => {
+          const rowId = getRowKeyValue(row);
+          return rowId === id || String(rowId) === String(id);
+        });
+
+        if (!record) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.recordNotFoundInList', {
+              id,
+            }),
+          };
+        }
+
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.rowDetailRead', {
+            id: String(id),
+          }),
+          data: {
+            row: record,
+            row_key_field: rowKeyField,
+          },
         };
       },
     });
@@ -1150,8 +1298,8 @@ export function createStandardOperations(
         // 在当前列表中查找记录（先精确匹配，再数字转换匹配）
         const rows = list.value as Record<string, unknown>[];
         const record =
-          rows.find((r) => r['id'] === id) ??
-          rows.find((r) => r['id'] === Number(id));
+          rows.find((r) => getRowKeyValue(r) === id) ??
+          rows.find((r) => String(getRowKeyValue(r)) === String(id));
 
         if (!record) {
           return {
@@ -1515,7 +1663,7 @@ export function createStandardOperations(
     }
   }
 
-  return operations;
+  return operations.filter((operation) => !isDisabled(operation.name));
 }
 
 // ============ Form-only Operations / 仅表单操作 ============

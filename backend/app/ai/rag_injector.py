@@ -156,20 +156,19 @@ async def inject_rag_context(
         # Only KBs passing tenant-scoped repo validation are allowed for retrieval
         # 只有通过 tenant-scoped repo 校验的 KB 才允许检索
         validated_kb_ids: list[int] = []
-        primary_kb = None
+        validated_kbs = []
         for kid in kb_ids:
             kb = await kb_repo.get_by_id(kid)
             if kb:
                 validated_kb_ids.append(kid)
-                if primary_kb is None:
-                    primary_kb = kb
+                validated_kbs.append(kb)
             else:
                 logger.warning(
                     "KB {} not accessible for tenant {}, skipped",
                     kid, tenant_id,
                 )
 
-        if not primary_kb or not validated_kb_ids:
+        if not validated_kbs or not validated_kb_ids:
             return messages, None
 
         kb_ids = validated_kb_ids
@@ -189,7 +188,6 @@ async def inject_rag_context(
         # RAG retrieval params unified from Agent.rag_config, no longer falling back to KB model fields
         # RAG 检索参数统一从 Agent.rag_config 读取，不再回退到 KB 模型字段
         chunks = await retriever.search(
-            knowledge_base=primary_kb,
             query=user_query,
             top_k=rag_config.get("top_k", 5),
             score_threshold=rag_config.get("score_threshold", 0.5),
@@ -197,17 +195,20 @@ async def inject_rag_context(
             kb_ids=kb_ids,
             rewrite_strategy=rag_config.get("rewrite_strategy", "none"),
             reranker_enabled=rag_config.get("reranker_enabled", False),
+            knowledge_bases=validated_kbs,
+            kb_weights=kb_weights,
         )
 
         if not chunks:
             return messages, None
 
         kb_name_map: dict[int, str] = {}
-        for kid in validated_kb_ids:
-            kb_row = await kb_repo.get_by_id(kid)
-            if kb_row:
-                label = (getattr(kb_row, "name", None) or "").strip() or f"KB#{kid}"
-                kb_name_map[kid] = label
+        for kb in validated_kbs:
+            kid = int(getattr(kb, "id", 0) or 0)
+            if kid <= 0:
+                continue
+            label = (getattr(kb, "name", None) or "").strip() or f"KB#{kid}"
+            kb_name_map[kid] = label
 
         # Calculate token budget / 计算 Token 预算
         builder = RAGContextBuilder(

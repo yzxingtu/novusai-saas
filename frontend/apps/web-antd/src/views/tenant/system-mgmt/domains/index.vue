@@ -1,10 +1,7 @@
 <script lang="ts" setup>
 import type { TenantDomainInfo } from './modules/domains-types';
 
-import { onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -28,6 +25,7 @@ import {
   setPrimaryDomainApi,
   verifyTenantDomainApi,
 } from '#/api/tenant/domain';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
@@ -171,31 +169,25 @@ function onCopy(text: string) {
   message.success($t('common.copied'));
 }
 
-const cleanupPageContext = registerPageContext('tenant/system-mgmt/domains', () => ({
-  page_key: 'tenant.system.domains',
-  page_title: $t('tenant.system.domain.name'),
-  page_data: {
-    resource: '/tenant/domains',
+usePageAIRegistration({
+  pageKey: 'tenant.system.domains',
+  title: () => $t('tenant.system.domain.name'),
+  resource: '/tenant/domains',
+  data: () => ({
     total: domains.value.length,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('tenant.system.domains', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the domain list',
-    readonly: true,
-    handler: async () => {
-      await onRefresh();
-      return { success: true, message: 'Domain list refreshed' };
+  }),
+  operations: [
+    {
+      name: 'refresh_list',
+      label: $t('shared.pageOperation.refreshList'),
+      description: 'Reload the domain list',
+      readonly: true,
+      handler: async () => {
+        await onRefresh();
+        return { success: true, message: 'Domain list refreshed' };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 

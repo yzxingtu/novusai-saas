@@ -16,15 +16,12 @@
  * });
  * ```
  */
-
-import { onBeforeUnmount } from 'vue';
-
-import { useRoute, useRouter } from 'vue-router';
-
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
+import { useRouter } from 'vue-router';
+
 import { $t } from '#/locales';
+import { usePageAIRegistration } from './use-page-ai-registration';
 
 /**
  * Options for useDetailPageAi
@@ -63,9 +60,6 @@ export interface DetailPageAiOptions {
  *
  * Auto-registers: refresh_detail, navigate_back (if backRoute provided)
  * 自动注册：refresh_detail、navigate_back（有 backRoute 时）
- *
- * Cleanup is handled automatically via onBeforeUnmount.
- * 通过 onBeforeUnmount 自动清理。
  */
 export function useDetailPageAi(opts: DetailPageAiOptions): void {
   const {
@@ -75,15 +69,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     extra = [],
   } = opts;
 
-  const route = useRoute();
   const router = useRouter();
-
-  const pageKey = normalizePageKey(
-    opts.pageKey ??
-    ((route.meta?.ai as Record<string, unknown> | undefined)
-      ?.pageContextKey as string | undefined) ??
-    route.path,
-  );
 
   const isDisabled = (name: string) => disabled.includes(name);
 
@@ -133,9 +119,9 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     }
   }
 
-  const cleanup = registerPageOperations(pageKey, operations);
-
-  onBeforeUnmount(() => {
-    cleanup();
+  usePageAIRegistration({
+    pageKey: opts.pageKey,
+    registerContext: false,
+    operations,
   });
 }

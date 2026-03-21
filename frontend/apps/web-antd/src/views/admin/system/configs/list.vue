@@ -1,23 +1,35 @@
 <script setup lang="ts">
-import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
+import type {
+  ConfigGroupListItemMeta,
+  ConfigItemMeta,
+  ConfigSubmitPayload,
+} from '#/types/config';
+import type { AdminSslDnsReadiness } from '#/api/admin/configs';
 
-import { computed, onActivated, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Empty, Modal, Spin } from 'ant-design-vue';
+import { Alert, Button, Card, Empty, Modal, Spin } from 'ant-design-vue';
 
 import {
   generateFernetKeyApi,
   getAdminConfigGroupDetailApi,
   getAdminConfigGroupsApi,
+  getAdminSslDnsReadinessApi,
   updateAdminConfigGroupApi,
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
+import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t, $t as t } from '#/locales';
 
@@ -25,6 +37,16 @@ import { $t, $t as t } from '#/locales';
 import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
 
 defineOptions({ name: 'SystemConfigList' });
+
+const route = useRoute();
+const router = useRouter();
+
+const CONFIG_GROUP_QUERY_KEY = 'group';
+const CONFIG_ITEM_QUERY_KEY = 'config';
+const DEFAULT_PAGE_CONTEXT_MAX_BYTES = 8192;
+const PAGE_CONTEXT_GROUP_CODE = 'platform_ai_toolkit';
+const PAGE_CONTEXT_CONFIG_KEY = 'ai_page_context_max_bytes';
+const PLATFORM_SSL_GROUP_CODE = 'platform_ssl';
 
 const generatingKey = ref(false);
 async function onGenerateFernetKey(setValue: (v: string) => void) {
@@ -41,14 +63,95 @@ async function onGenerateFernetKey(setValue: (v: string) => void) {
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
 const configs = ref<ConfigItemMeta[]>([]);
+const dnsReadiness = ref<AdminSslDnsReadiness | null>(null);
 const loading = ref(false);
 const groupLoading = ref(false);
 const saving = ref(false);
-const formRef = ref<any>();
+interface ConfigFormExpose {
+  isDirty: () => boolean;
+  prepareSubmitData: () => ConfigSubmitPayload;
+  validate: () => Promise<void>;
+}
+
+const formRef = ref<ConfigFormExpose>();
 const storagePanelRef = ref<{
   onSave: () => Promise<void>;
   saving: { value: boolean };
 }>();
+
+function getQueryStringParam(key: string): string {
+  const value = route.query[key];
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0] : '';
+  }
+  return typeof value === 'string' ? value : '';
+}
+
+function getRequestedGroupCode(): string {
+  return getQueryStringParam(CONFIG_GROUP_QUERY_KEY);
+}
+
+function getRequestedConfigKey(): string {
+  return getQueryStringParam(CONFIG_ITEM_QUERY_KEY);
+}
+
+function getResolvedRequestedGroupCode(): string | undefined {
+  const requestedGroupCode = getRequestedGroupCode();
+  if (!requestedGroupCode) return undefined;
+  return groups.value.some((group) => group.code === requestedGroupCode)
+    ? requestedGroupCode
+    : undefined;
+}
+
+async function syncRouteSelection(groupCode: string, configKey?: string) {
+  const currentGroupCode = getRequestedGroupCode();
+  const currentConfigKey = getRequestedConfigKey();
+  const nextConfigKey = configKey ?? '';
+  if (
+    currentGroupCode === groupCode &&
+    currentConfigKey === nextConfigKey
+  ) {
+    return;
+  }
+
+  const nextQuery: Record<string, string> = {};
+  for (const [key, value] of Object.entries(route.query)) {
+    if (Array.isArray(value)) {
+      if (typeof value[0] === 'string') {
+        nextQuery[key] = value[0];
+      }
+      continue;
+    }
+    if (typeof value === 'string') {
+      nextQuery[key] = value;
+    }
+  }
+  nextQuery[CONFIG_GROUP_QUERY_KEY] = groupCode;
+  if (configKey) {
+    nextQuery[CONFIG_ITEM_QUERY_KEY] = configKey;
+  } else {
+    delete nextQuery[CONFIG_ITEM_QUERY_KEY];
+  }
+  await router.replace({ path: route.path, query: nextQuery });
+}
+
+async function scrollToConfigItem(configKey: string) {
+  await nextTick();
+  const target = document.getElementById(`config-item-${configKey}`);
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function focusRequestedConfig(groupCode: string) {
+  const requestedConfigKey = getRequestedConfigKey();
+  if (
+    !requestedConfigKey ||
+    groupCode !== getRequestedGroupCode() ||
+    !configs.value.some((cfg) => cfg.key === requestedConfigKey)
+  ) {
+    return;
+  }
+  await scrollToConfigItem(requestedConfigKey);
+}
 
 // Currently selected group data / 当前选中的分组数据
 const activeGroupData = computed(() =>
@@ -93,6 +196,22 @@ const sortedGroups = computed(() =>
   groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
 );
 
+async function activateGroup(
+  code: string,
+  options?: { configKey?: string; syncRoute?: boolean },
+) {
+  activeGroup.value = code;
+  if (options?.syncRoute !== false) {
+    await syncRouteSelection(code, options?.configKey);
+  }
+  if (code === 'platform_storage') {
+    configs.value = [];
+    dnsReadiness.value = null;
+    return;
+  }
+  await loadGroupDetail(code);
+}
+
 async function loadGroups() {
   groupLoading.value = true;
   try {
@@ -104,11 +223,14 @@ async function loadGroups() {
       );
       const firstGroup = sorted[0];
       if (!firstGroup) return;
-      activeGroup.value = firstGroup.code;
-      // platform_storage uses dedicated panel, no need to load config detail / 专用面板无需加载配置详情
-      if (activeGroup.value !== 'platform_storage') {
-        await loadGroupDetail(activeGroup.value);
-      }
+      const requestedGroupCode = getResolvedRequestedGroupCode();
+      const initialGroupCode = requestedGroupCode || firstGroup.code;
+      await activateGroup(initialGroupCode, {
+        configKey:
+          requestedGroupCode === initialGroupCode
+            ? getRequestedConfigKey() || undefined
+            : undefined,
+      });
     }
   } finally {
     groupLoading.value = false;
@@ -118,10 +240,23 @@ async function loadGroups() {
 async function loadGroupDetail(code: string) {
   loading.value = true;
   try {
-    const detail = await getAdminConfigGroupDetailApi(code);
+    const detailPromise = getAdminConfigGroupDetailApi(code);
+    const readinessPromise =
+      code === PLATFORM_SSL_GROUP_CODE
+        ? getAdminSslDnsReadinessApi({
+            showCodeMessage: false,
+            showErrorMessage: false,
+          }).catch(() => null)
+        : Promise.resolve(null);
+    const [detail, readiness] = await Promise.all([
+      detailPromise,
+      readinessPromise,
+    ]);
     configs.value = (detail.configs || []).toSorted(
       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
     );
+    dnsReadiness.value = readiness;
+    await focusRequestedConfig(code);
   } finally {
     loading.value = false;
   }
@@ -137,20 +272,23 @@ async function onSelectGroup(code: string) {
       okText: t('shared.common.confirm'),
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
-        activeGroup.value = code;
-        // platform_storage uses dedicated panel / 专用面板
-        if (code !== 'platform_storage') {
-          await loadGroupDetail(code);
-        }
+        await activateGroup(code);
       },
     });
   } else {
-    activeGroup.value = code;
-    // platform_storage uses dedicated panel / 专用面板
-    if (code !== 'platform_storage') {
-      await loadGroupDetail(code);
-    }
+    await activateGroup(code);
   }
+}
+
+async function onLocatePageContextLimit() {
+  if (activeGroup.value !== PAGE_CONTEXT_GROUP_CODE) {
+    await activateGroup(PAGE_CONTEXT_GROUP_CODE, {
+      configKey: PAGE_CONTEXT_CONFIG_KEY,
+    });
+    return;
+  }
+  await syncRouteSelection(PAGE_CONTEXT_GROUP_CODE, PAGE_CONTEXT_CONFIG_KEY);
+  await scrollToConfigItem(PAGE_CONTEXT_CONFIG_KEY);
 }
 
 async function onSave() {
@@ -166,6 +304,7 @@ async function onSave() {
     return;
   }
   const payload = formRef.value?.prepareSubmitData();
+  if (!payload) return;
   saving.value = true;
   try {
     await updateAdminConfigGroupApi(activeGroup.value, payload, {
@@ -197,6 +336,14 @@ onActivated(() => {
     isInitialMount = false;
     return;
   }
+  const requestedGroupCode = getResolvedRequestedGroupCode();
+  if (requestedGroupCode) {
+    activateGroup(requestedGroupCode, {
+      configKey: getRequestedConfigKey() || undefined,
+      syncRoute: false,
+    });
+    return;
+  }
   if (activeGroup.value && activeGroup.value !== 'platform_storage') {
     loadGroupDetail(activeGroup.value);
   }
@@ -205,41 +352,41 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 
-const cleanupPageContext = registerPageContext('admin/system/configs', () => ({
-  page_key: 'admin.system.configs',
-  page_title: $t('admin.system.config.title'),
-  page_data: {
-    resource: '/admin/system/configs',
+usePageAIRegistration({
+  pageKey: 'admin.system.configs',
+  title: () => $t('admin.system.config.title'),
+  resource: '/admin/system/configs',
+  data: () => ({
     active_group: activeGroup.value,
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.system.configs', [
-  {
-    name: 'refresh_configs',
-    label: $t('shared.pageOperation.refreshConfig'),
-    description: 'Reload config groups and current group detail',
-    readonly: true,
-    handler: async () => {
-      await loadGroups();
-      return { success: true, message: 'Config groups refreshed' };
+  }),
+  operations: [
+    {
+      name: 'refresh_configs',
+      label: $t('shared.pageOperation.refreshConfig'),
+      description: $t('shared.pageOperation.refreshConfig'),
+      readonly: true,
+      handler: async () => {
+        await loadGroups();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.detailRefreshed'),
+        };
+      },
     },
-  },
-  {
-    name: 'save_config',
-    label: $t('shared.pageOperation.saveConfig'),
-    description: 'Save the current config group settings',
-    readonly: false,
-    handler: async () => {
-      await onSave();
-      return { success: true, message: 'Config saved' };
+    {
+      name: 'save_config',
+      label: $t('shared.pageOperation.saveConfig'),
+      description: $t('shared.pageOperation.saveConfig'),
+      readonly: false,
+      handler: async () => {
+        await onSave();
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
+        };
+      },
     },
-  },
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
+  ],
 });
 </script>
 
@@ -341,7 +488,51 @@ onUnmounted(() => {
             ref="storagePanelRef"
           />
           <div v-else-if="activeGroup" class="max-w-[800px]">
-            <ConfigForm ref="formRef" :configs="configs">
+            <Alert
+              v-if="activeGroup === PAGE_CONTEXT_GROUP_CODE"
+              class="mb-4"
+              type="info"
+              show-icon
+              :message="t('shared.config.page.page_context_limit_title')"
+              :description="
+                t('shared.config.page.page_context_limit_desc', {
+                  configKey: PAGE_CONTEXT_CONFIG_KEY,
+                  defaultValue: DEFAULT_PAGE_CONTEXT_MAX_BYTES,
+                })
+              "
+            >
+              <template #action>
+                <Button size="small" @click="onLocatePageContextLimit">
+                  {{ t('shared.config.page.locate_page_context_limit') }}
+                </Button>
+              </template>
+            </Alert>
+            <Alert
+              v-if="activeGroup === PLATFORM_SSL_GROUP_CODE && dnsReadiness"
+              class="mb-4"
+              :type="dnsReadiness.ready ? 'success' : 'warning'"
+              show-icon
+              :message="dnsReadiness.summary"
+            >
+              <template
+                v-if="dnsReadiness.issues.length > 0"
+                #description
+              >
+                <ul class="mb-0 pl-5">
+                  <li
+                    v-for="issue in dnsReadiness.issues"
+                    :key="issue.code"
+                    class="leading-6"
+                  >
+                    {{ issue.message }}
+                  </li>
+                </ul>
+              </template>
+            </Alert>
+            <ConfigForm
+              ref="formRef"
+              :configs="configs"
+            >
               <template #generate-ssl_private_key_encryption_key="{ setValue }">
                 <Button
                   size="small"

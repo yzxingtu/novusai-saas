@@ -22,11 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
+from app.enums.agent import (
+    AgentExecutionModeEnum,
+    AgentStatusEnum,
+    ConversationOwnerTypeEnum,
+)
 from app.enums.ai import CallAccessChannelEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
+from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
@@ -38,6 +43,7 @@ logger = LogManager.get_logger("ai")
 ROUTED_BY_PINNED = "pinned"
 ROUTED_BY_ROUTER = "router"
 ROUTED_BY_DEFAULT = "default"
+ROUTED_BY_CONVERSATION = "conversation"
 
 # Router 超时秒数
 ROUTER_TIMEOUT_SECONDS = 15
@@ -82,11 +88,13 @@ class AgentRouterService:
         self,
         tenant_id: int | None,
         message: str,
+        conversation_id: int | None = None,
         page_context: dict[str, Any] | None = None,
         pinned_agent_id: int | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         user_role_id: int | None = None,
         user_id: int | None = None,
+        force_reroute: bool = False,
         has_image_attachments: bool = False,
     ) -> RouteResult:
         """
@@ -95,6 +103,7 @@ class AgentRouterService:
         Args：
             tenant_id: 企业 ID（管理端可为 None）
             message: 用户消息
+            conversation_id: 已有对话 ID（若存在且未 force_reroute，则沿用当前对话绑定智能体）
             page_context: 页面上下文信息
             pinned_agent_id: 用户固定选择的智能体 ID
             user_role: 调用方角色（UserRoleEnum 值），用于候选列表过滤
@@ -102,6 +111,48 @@ class AgentRouterService:
         Returns：
             RouteResult 路由结果
         """
+        if conversation_id and not force_reroute:
+            conversation = await self._get_accessible_conversation(
+                conversation_id,
+                tenant_id,
+                user_role,
+                user_id=user_id,
+            )
+            agent = await self._get_published_agent(conversation.agent_id)
+            if agent and await self._is_agent_visible(
+                agent,
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
+            ):
+                if has_image_attachments:
+                    self._ensure_agent_supports_images(
+                        agent,
+                        error_key="agent_chat.error.conversation_agent_not_vision",
+                    )
+                return RouteResult(
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    confidence=1.0,
+                    routed_by=ROUTED_BY_CONVERSATION,
+                )
+
+            logger.warning(
+                "Conversation-bound agent {} unavailable for conversation={} tenant={} role={}",
+                conversation.agent_id,
+                conversation_id,
+                tenant_id,
+                user_role,
+            )
+            return await self._fallback_to_default(
+                tenant_id,
+                user_role,
+                user_id=user_id,
+                user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
+            )
+
         # P1: pinned 直通
         if pinned_agent_id:
             agent = await self._get_published_agent(pinned_agent_id)
@@ -113,6 +164,11 @@ class AgentRouterService:
                     user_id=user_id,
                     user_role_id=user_role_id,
                 ):
+                    if has_image_attachments:
+                        self._ensure_agent_supports_images(
+                            agent,
+                            error_key="agent_chat.error.pinned_agent_not_vision",
+                        )
                     return RouteResult(
                         agent_id=agent.id,
                         agent_name=agent.name,
@@ -137,6 +193,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         if has_image_attachments:
@@ -144,12 +201,15 @@ class AgentRouterService:
                 a for a in candidates
                 if getattr(getattr(a, "model", None), "supports_vision", False)
             ]
-            if vision_candidates:
-                candidates = vision_candidates
-                logger.info(
-                    "Agent router: narrowed to {} vision-capable agents (image attachments)",
-                    len(candidates),
+            if not vision_candidates:
+                raise BusinessException(
+                    message=_("agent_chat.error.no_vision_agent_available"),
                 )
+            candidates = vision_candidates
+            logger.info(
+                "Agent router: narrowed to {} vision-capable agents (image attachments)",
+                len(candidates),
+            )
 
         valid_ids = {a.id for a in candidates}
 
@@ -162,6 +222,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         if not router_agent.model_id:
@@ -171,6 +232,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         # P3.5: 调用 Router 智能体（TASK 模式）
@@ -197,6 +259,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         if not route_result:
@@ -205,6 +268,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         # P4: 二次校验
@@ -221,6 +285,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         if confidence < MIN_CONFIDENCE_THRESHOLD:
@@ -233,6 +298,7 @@ class AgentRouterService:
                 user_role,
                 user_id=user_id,
                 user_role_id=user_role_id,
+                has_image_attachments=has_image_attachments,
             )
 
         # 查找候选中的名称
@@ -484,6 +550,7 @@ class AgentRouterService:
         *,
         user_id: int | None,
         user_role_id: int | None,
+        has_image_attachments: bool = False,
     ) -> RouteResult:
         """
         降级到 default_chat 绑定的智能体 / Fallback to default_chat bound agent.
@@ -545,6 +612,12 @@ class AgentRouterService:
                 message=_("agent_chat.error.default_agent_not_accessible"),
             )
 
+        if has_image_attachments:
+            self._ensure_agent_supports_images(
+                agent,
+                error_key="agent_chat.error.default_agent_not_vision",
+            )
+
         return RouteResult(
             agent_id=agent.id,
             agent_name=agent.name,
@@ -559,13 +632,54 @@ class AgentRouterService:
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
         """获取已发布的智能体 / Get published agent."""
         result = await self.db.execute(
-            select(Agent).where(
+            select(Agent).options(selectinload(Agent.model)).where(
                 Agent.id == agent_id,
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
                 Agent.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
+
+    async def _get_accessible_conversation(
+        self,
+        conversation_id: int,
+        tenant_id: int | None,
+        user_role: str,
+        *,
+        user_id: int | None,
+    ) -> AgentConversation:
+        """Resolve an accessible conversation for routing / 为路由解析当前可访问的对话。"""
+        stmt = select(AgentConversation).where(
+            AgentConversation.id == conversation_id,
+            AgentConversation.is_deleted.is_(False),
+        )
+        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
+            stmt = stmt.where(
+                AgentConversation.tenant_id == PLATFORM_TENANT_ID,
+                AgentConversation.owner_type == ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
+            )
+        elif tenant_id:
+            stmt = stmt.where(
+                AgentConversation.tenant_id == tenant_id,
+                AgentConversation.owner_type == ConversationOwnerTypeEnum.from_user_role(
+                    user_role,
+                ),
+            )
+        else:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+
+        if user_role != UserRoleEnum.PLATFORM_ADMIN.value and user_id is not None:
+            stmt = stmt.where(AgentConversation.user_id == user_id)
+
+        result = await self.db.execute(stmt.limit(1))
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+        return conversation
 
     async def _is_agent_visible(
         self,
@@ -592,6 +706,21 @@ class AgentRouterService:
             )
         except NotFoundException:
             return False
+
+    @staticmethod
+    def _agent_supports_images(agent: Agent | None) -> bool:
+        model = getattr(agent, "model", None)
+        return bool(getattr(model, "supports_vision", False))
+
+    def _ensure_agent_supports_images(
+        self,
+        agent: Agent | None,
+        *,
+        error_key: str,
+    ) -> None:
+        if self._agent_supports_images(agent):
+            return
+        raise BusinessException(message=_(error_key))
 
     @staticmethod
     def _build_router_billing_context(

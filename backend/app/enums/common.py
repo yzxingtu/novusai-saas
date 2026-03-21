@@ -112,10 +112,21 @@ class ApprovalStatusEnum(LabeledStrEnum):
 
 
 class DeleteLevelEnum(LabeledStrEnum):
-    """删除层级枚举（两级回收站） / Delete Level Enum (two-tier recycle bin)"""
+    """删除侧别枚举 / Delete Scope Enum
+
+    表示删除动作发生在哪个端别（管理端 / 企业端），不是回收站阶段。
+    Represents which endpoint side initiated the deletion, not recycle-bin stage.
+    """
 
     TENANT = ("tenant", "enum.delete_level.tenant")
     ADMIN = ("admin", "enum.delete_level.admin")
+
+
+class RecycleStageEnum(LabeledStrEnum):
+    """回收站阶段枚举 / Recycle Stage Enum"""
+
+    MODULE = ("module", "enum.recycle_stage.module")
+    GLOBAL = ("global", "enum.recycle_stage.global")
 
 
 class UserRoleEnum(LabeledStrEnum):
@@ -152,6 +163,7 @@ __all__ = [
     "SkillBindModeEnum",
     "ApprovalStatusEnum",
     "DeleteLevelEnum",
+    "RecycleStageEnum",
     "UserRoleEnum",
     "AudienceEnum",
 ]

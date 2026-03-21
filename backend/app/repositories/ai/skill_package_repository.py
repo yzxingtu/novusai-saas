@@ -8,7 +8,7 @@ from sqlalchemy import delete as sa_delete
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import AudienceEnum, DeleteLevelEnum
+from app.enums.common import AudienceEnum, RecycleStageEnum
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
@@ -29,11 +29,18 @@ class _SkillPackageCascadeMixin:
                 Skill.package_id == package_id,
                 Skill.is_deleted.is_(False),
             )
-            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                delete_level=delete_level,
+                recycle_stage=RecycleStageEnum.MODULE.value,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
-    async def cascade_escalate_skills(self, package_id: int) -> None:
-        """级联升级技能的删除层级 / Cascade escalate skill delete level."""
+    async def cascade_promote_skills(self, package_id: int) -> None:
+        """级联推进技能到总回收站 / Cascade promote skills to global recycle bin."""
         now = utc_now()
         await self.db.execute(
             update(Skill)
@@ -41,8 +48,16 @@ class _SkillPackageCascadeMixin:
                 Skill.package_id == package_id,
                 Skill.is_deleted.is_(True),
             )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+            .values(
+                recycle_stage=RecycleStageEnum.GLOBAL.value,
+                promoted_to_global_at=now,
+                updated_at=now,
+            )
         )
+
+    async def cascade_escalate_skills(self, package_id: int) -> None:
+        """兼容旧接口：升级删除 → 推进总回收站 / Backward-compatible alias for cascade_promote_skills."""
+        await self.cascade_promote_skills(package_id)
 
     async def cascade_restore_skills(self, package_id: int) -> None:
         """级联恢复技能 / Cascade restore skills."""
@@ -53,7 +68,14 @@ class _SkillPackageCascadeMixin:
                 Skill.package_id == package_id,
                 Skill.is_deleted.is_(True),
             )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                recycle_stage=None,
+                promoted_to_global_at=None,
+                updated_at=now,
+            )
         )
 
     async def delete_skill_bindings(self, package_id: int) -> None:

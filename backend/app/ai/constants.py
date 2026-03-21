@@ -139,6 +139,11 @@ def session_memory_conversation_pattern(tenant_id: int, conversation_id: int) ->
     return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*:*:*:*:{conversation_id}"
 
 
+def session_memory_tenant_pattern(tenant_id: int) -> str:
+    """Match all session memory keys by tenant / 按 tenant 维度匹配全部会话记忆 key。"""
+    return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*"
+
+
 # ============================================
 # OpenAI-compatible provider URL suffixes / OpenAI 兼容供应商 URL 路径后缀
 # ============================================
@@ -184,6 +189,7 @@ __all__ = [
     "SESSION_MEMORY_TTL_SECONDS",
     "session_memory_key",
     "session_memory_conversation_pattern",
+    "session_memory_tenant_pattern",
     # OpenAI-compatible URL normalization / OpenAI 兼容 URL 规范化
     "OPENAI_COMPATIBLE_URL_SUFFIX_TO_WIRE_API",
 ]

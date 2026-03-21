@@ -5,11 +5,6 @@
  */
 import type { AIProviderInfo } from '#/api/admin/ai';
 
-import { onUnmounted } from 'vue';
-
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -66,7 +61,7 @@ function onToggleActive(row: AIProviderInfo) {
 // CRUD Grid / CRUD 表格
 // ============================================================
 
-const { Grid, FormDrawer, formAiOperations, gridApi, onRefresh, onCreate } = useCrudPage<AIProviderInfo>({
+const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
   api: {
     list: getAIProviderListApi,
     resource: '/admin/ai/providers',
@@ -80,7 +75,12 @@ const { Grid, FormDrawer, formAiOperations, gridApi, onRefresh, onCreate } = use
   defaultSort: 'sort_order',
   recycleBin: true,
   createPermission: 'ai_provider:create',
-  ai: { pageKey: 'admin.ai.providers', formSchema: useFormSchema },
+  ai: {
+    pageKey: 'admin.ai.providers',
+    formSchema: useFormSchema,
+    entityName: $t('admin.ai.provider.name'),
+    entityDescription: $t('admin.ai.provider.pageDesc'),
+  },
 });
 
 function onFormSuccess() {
@@ -91,58 +91,6 @@ function onFormSuccess() {
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => reorderAIProvidersApi(ids as number[]),
   keyField: 'id',
-});
-
-const cleanupPageContext = registerPageContext('admin/ai/providers', () => ({
-  page_key: 'admin.ai.providers',
-  page_title: $t('admin.ai.provider.name'),
-  page_data: {
-    resource: '/admin/ai/providers',
-  },
-}));
-
-const cleanupPageOps = registerPageOperations('admin.ai.providers', [
-  {
-    name: 'refresh_list',
-    label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the AI provider list',
-    readonly: true,
-    handler: async () => {
-      onRefresh();
-      return { success: true, message: 'Provider list refreshed' };
-    },
-  },
-  {
-    name: 'create_record',
-    label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create provider form',
-    readonly: false,
-    handler: async () => {
-      onCreate();
-      return { success: true, message: 'Create provider form opened' };
-    },
-  },
-  {
-    name: 'search',
-    label: $t('shared.pageOperation.searchByKeyword'),
-    description: 'Search providers by keyword',
-    readonly: true,
-    params: {
-      keyword: { type: 'string', description: 'Search keyword' },
-    },
-    handler: async (params) => {
-      const keyword = (params?.keyword as string) || '';
-      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
-      gridApi.reload({ page: 1 });
-      return { success: true, message: `Searched for: ${keyword}` };
-    },
-  },
-  ...formAiOperations,
-]);
-
-onUnmounted(() => {
-  cleanupPageContext();
-  cleanupPageOps();
 });
 </script>
 

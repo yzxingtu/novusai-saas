@@ -46,7 +46,6 @@ const versions = ref<AgentVersionListItem[]>([]);
 const agentId = ref<number>(0);
 const publishedVersion = ref<null | number>(null);
 
-// Version diff state / 版本对比状态
 const diffLoading = ref(false);
 const diffResult = ref<AgentVersionDiff | null>(null);
 const diffV1 = ref<number | undefined>(undefined);
@@ -65,7 +64,6 @@ const [Drawer, drawerApi] = useVbenDrawer({
         await loadVersions();
       }
     } else {
-      // Reset on close / 关闭时重置
       versions.value = [];
       diffResult.value = null;
       diffV1.value = undefined;
@@ -101,7 +99,7 @@ async function onRollback(version: number) {
         emits('success');
         drawerApi.close();
       } catch {
-        // error handled by global interceptor / 错误由请求拦截器处理 / 错误由请求拦截器处理
+        // error handled by global interceptor / 错误由请求拦截器处理
       }
     },
   });
@@ -129,7 +127,6 @@ function formatFieldValue(val: unknown): string {
   return String(val);
 }
 
-/** 版本下拉选项 / Version dropdown options */
 const versionOptions = computed(() =>
   versions.value.map((v) => ({
     label: `v${v.version}`,
@@ -150,7 +147,6 @@ const diffChanges = computed(() => {
 <template>
   <Drawer :title="title" class="w-[640px]">
     <Spin :spinning="loading">
-      <!-- 版本对比区 -->
       <div
         v-if="versions.length >= 2"
         class="mb-4 rounded-lg border border-border bg-accent/30 p-4"
@@ -203,7 +199,6 @@ const diffChanges = computed(() => {
           </Button>
         </div>
 
-        <!-- 对比结果 -->
         <div v-if="diffResult" class="mt-3">
           <div
             v-if="diffChanges.length === 0"
@@ -247,7 +242,6 @@ const diffChanges = computed(() => {
         </div>
       </div>
 
-      <!-- 版本时间线 -->
       <Empty
         v-if="!loading && versions.length === 0"
         :description="$t('tenant.ai.agent.version.noVersions')"
