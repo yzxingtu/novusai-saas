@@ -7,6 +7,7 @@ import { useCrudPage } from '../use-crud-page';
 
 const mockRefs = vi.hoisted(() => ({
   appendPageOperations: vi.fn(() => vi.fn()),
+  createStandardOperations: vi.fn(() => []),
   crudGridProps: [] as Array<Record<string, unknown>>,
   gridQuery: vi.fn(),
   gridReload: vi.fn(),
@@ -90,7 +91,7 @@ vi.mock('#/composables/use-ai-operations', () => ({
   }),
   compactCrudContextValues: (value: Record<string, unknown>) => value,
   createFormOperations: () => [],
-  createStandardOperations: () => [],
+  createStandardOperations: mockRefs.createStandardOperations,
   extractFormParams: () => ({}),
 }));
 
@@ -173,6 +174,7 @@ function mountCrudPage(options: Record<string, unknown>) {
 describe('useCrudPage', () => {
   beforeEach(() => {
     mockRefs.appendPageOperations.mockClear();
+    mockRefs.createStandardOperations.mockClear();
     mockRefs.crudGridProps.length = 0;
     mockRefs.requestGet.mockReset();
     mockRefs.requestDelete.mockReset();
@@ -264,6 +266,17 @@ describe('useCrudPage', () => {
     expect(mockRefs.appendPageOperations).toHaveBeenCalled();
     expect(mockRefs.registerPageContext).toHaveBeenCalled();
     expect(mockRefs.registerPageContextExtras).toHaveBeenCalled();
+  });
+
+  it('passes export modal opener to standard AI ops when export is enabled', () => {
+    mountCrudPage({});
+
+    expect(mockRefs.createStandardOperations).toHaveBeenCalled();
+    const latestCall = mockRefs.createStandardOperations.mock.calls.at(
+      -1,
+    ) as [Record<string, unknown>] | undefined;
+    const latestArgs = latestCall?.[0];
+    expect(latestArgs?.openExportModal).toBeTypeOf('function');
   });
 
   it('skips page AI registration when ai is false', () => {

@@ -125,7 +125,6 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
     test: onTestModel,
   },
   ai: {
-    pageKey: 'admin.ai.models',
     formSchema: useFormSchema,
     entityName: $t('admin.ai.model.name'),
     entityDescription: $t('admin.ai.model.pageDesc'),

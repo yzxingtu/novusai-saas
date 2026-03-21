@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.i18n import _
 from app.enums.agent import SkillTypeEnum
+from app.enums.skill import SkillSourceTypeEnum, SkillStatusEnum
 
 
 class Skill(TenantModel):
@@ -33,19 +34,21 @@ class Skill(TenantModel):
         "blocked_columns": ["toolkit_content"],
     }
 
-    # 覆盖 TenantModel 的 tenant_id，由所属 SkillPackage 决定
+    # 覆盖 TenantModel 的 tenant_id，逐步从 SkillPackage 归属迁移为 Skill 自有归属
     tenant_id = Column(
         Integer,
         nullable=True,
         index=True,
-        comment="企业ID（由所属技能包决定）"
+        comment="企业ID（过渡期可继承自技能包）"
     )
 
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",
         "name": "name",
+        "key": "key",
         "type": "type",
+        "source_type": "source_type",
         "is_active": "is_active",
         "package_id": "package_id",
         "is_system": "is_system",
@@ -86,6 +89,13 @@ class Skill(TenantModel):
         index=True,
         comment=_("skill.field.name"),
     )
+    key: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        unique=True,
+        index=True,
+        comment="Stable skill key / 稳定技能 Key",
+    )
     description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -105,6 +115,42 @@ class Skill(TenantModel):
         default=SkillTypeEnum.TOOLKIT.value,
         index=True,
         comment=_("skill.field.type"),
+    )
+    source_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default=SkillSourceTypeEnum.CUSTOM.value,
+        index=True,
+        comment="Skill source type / 技能来源类型",
+    )
+    source_ref: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Skill source reference / 技能来源引用",
+    )
+    skill_md: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="AgentScope-style SKILL.md content / AgentScope 风格 SKILL.md 内容",
+    )
+    version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="1.0.0",
+        comment="Skill version / 技能版本",
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=SkillStatusEnum.ACTIVE.value,
+        index=True,
+        comment="Skill status / 技能状态",
+    )
+    is_readonly: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Readonly managed skill / 只读托管技能",
     )
 
     # ==================== 类型特定配置 ====================
@@ -184,12 +230,30 @@ class Skill(TenantModel):
         back_populates="skills",
         lazy="noload",
     )
+    resources = relationship(
+        "SkillResource",
+        back_populates="skill",
+        lazy="noload",
+        cascade="all, delete-orphan",
+    )
+    capability_bindings = relationship(
+        "SkillCapabilityBinding",
+        back_populates="skill",
+        lazy="noload",
+        cascade="all, delete-orphan",
+    )
+    agent_grants = relationship(
+        "AgentSkillGrant",
+        back_populates="skill",
+        lazy="noload",
+    )
 
     # ==================== 复合索引 ====================
 
     __table_args__ = (
         Index("ix_skills_tenant_type", "tenant_id", "type"),
         Index("ix_skills_tenant_active", "tenant_id", "is_active"),
+        Index("ix_skills_source_status", "source_type", "status"),
     )
 
     def __repr__(self) -> str:

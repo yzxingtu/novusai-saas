@@ -33,6 +33,7 @@ import {
   getAdminActionLogDetailApi,
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
+import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
@@ -200,38 +201,17 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
     detail: openDetail,
   },
   ai: {
-    pageKey: 'admin.ai.action-logs',
     entityName: $t('admin.ai.actionLog.name'),
     entityDescription: $t('admin.ai.actionLog.pageDesc'),
     extra: [
-      {
-        name: 'view_detail',
-        label: $t('shared.pageOperation.viewDetail'),
+      createViewDetailPageOperation({
         description:
           'Open the action log detail drawer by ID / 按 ID 打开操作日志详情抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Action log ID / 操作日志 ID',
-            required: true,
-          },
-        },
-        handler: async (params) => {
-          const id = Number(params.id);
-          if (!Number.isFinite(id) || id <= 0) {
-            return {
-              success: false,
-              message: $t('shared.pageOperation.msg.missingIdParam'),
-            };
-          }
+        idDescription: 'Action log ID / 操作日志 ID',
+        openDetail: async (id) => {
           await openDetailById(id);
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.detailOpened', { id }),
-          };
         },
-      },
+      }),
     ],
   },
 });

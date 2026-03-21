@@ -1,13 +1,14 @@
 """
-# DEPRECATED: Use `novusai plugin <create|validate|pack|list>` instead.
-# 已弃用：请使用 `novusai plugin <create|validate|pack|list>` 替代。
+# DEPRECATED: Prefer `novusai plugin <build|create|validate|pack|list>` instead.
+# 已弃用：请优先使用 `novusai plugin <build|create|validate|pack|list>` 替代。
 
 NovusAI 插件开发 CLI 工具
 
 用法:
     python scripts/plugin_cli.py create <name> [--template=minimal|skill|full-module]
+    python scripts/plugin_cli.py build <dir>
     python scripts/plugin_cli.py validate <dir>
-    python scripts/plugin_cli.py pack <dir> [--output=output.zip]
+    python scripts/plugin_cli.py pack <dir> [--release|--source] [--output=output.zip]
     python scripts/plugin_cli.py publish <zip> [--token=GITHUB_TOKEN]
 """
 
@@ -17,6 +18,8 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -48,6 +51,7 @@ extensions: {{}}
 
 dependencies:
   python: []
+  plugins: []
 
 pricing:
   type: free
@@ -152,10 +156,26 @@ extensions:
 
 _FULLMOD_YAML_FRONTEND_EXT = """
   frontend:
-    header_widgets:
-      - name: {name}-widget
-        component: "{class_name}Widget"
-        sort_order: 90
+    pages:
+      - name: "{name_underscore}_admin_home"
+        path: "/admin/plugins/{name}"
+        component: "{class_name}Page"
+        scope: "admin"
+        icon: "lucide:puzzle"
+        title:
+          zh-CN: "{display_name}"
+          en: "{display_name_en}"
+        menu:
+          parent: "system_mgmt"
+          sort_order: 95
+          icon: "lucide:puzzle"
+          title:
+            zh-CN: "{display_name}"
+            en: "{display_name_en}"
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"
 """
 
 # ── Frontend templates for full-module ──
@@ -165,9 +185,8 @@ _FE_INDEX_TS = '''/**
  */
 import type {{ NovusPluginSharedAPI }} from './types';
 
-import {class_name}Widget from './{class_name}Widget.vue';
+import {class_name}Page from './{class_name}Page.vue';
 import {{ zhCN, enUS }} from './locales';
-import {{ {prefix_upper}_STYLES }} from './styles';
 
 export function setup(): void {{
   const shared = (window as unknown as Record<string, unknown>)
@@ -179,36 +198,9 @@ export function setup(): void {{
     shared.registerLocale('en-US', 'plugin.{name}', enUS);
     shared.registerLocale('en', 'plugin.{name}', enUS);
   }}
-
-  if (!document.getElementById('{prefix}-plugin-styles')) {{
-    const style = document.createElement('style');
-    style.id = '{prefix}-plugin-styles';
-    style.textContent = {prefix_upper}_STYLES;
-    document.head.appendChild(style);
-  }}
 }}
 
-export {{ {class_name}Widget }};
-'''
-
-_FE_STYLES_TS = '''/**
- * {display_name} 插件样式
- *
- * 通过 setup() JS 注入到 <head>，避免 scoped CSS 在 portal 中失效。
- * 以 .{prefix}- 前缀避免全局冲突。
- */
-export const {prefix_upper}_STYLES = `
-/* {display_name} plugin styles */
-.{prefix}-widget {{
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}}
-`;
+export {{ {class_name}Page }};
 '''
 
 _FE_LOCALES_TS = '''/**
@@ -240,18 +232,33 @@ export interface NovusPluginSharedAPI {{
 }}
 '''
 
-_FE_WIDGET_VUE = '''<script lang="ts" setup>
-import {{ $t, IconifyIcon }} from '@novus/plugin-shared';
+_FE_PAGE_VUE = '''<script lang="ts" setup>
+import {{ $t }} from '@novus/plugin-shared';
 </script>
 
 <template>
-  <div class="{prefix}-widget">
-    <IconifyIcon icon="lucide:puzzle" class="size-4" />
-    <span>{{{{ $t('plugin.{name}.title') }}}}</span>
-  </div>
+  <section class="{prefix}-page">
+    <h1>{{{{ $t('plugin.{name}.title') }}}}</h1>
+    <p>{{{{ $t('plugin.{name}.description') }}}}</p>
+  </section>
 </template>
 
-<!-- 所有样式通过 setup() JS 注入（scoped CSS 在 Popover portal 中不生效） -->
+<style>
+.{prefix}-page {{
+  padding: 24px;
+}}
+
+.{prefix}-page h1 {{
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}}
+
+.{prefix}-page p {{
+  color: rgb(100 116 139);
+  line-height: 1.6;
+}}
+</style>
 '''
 
 _FE_PACKAGE_JSON = '''{{
@@ -273,6 +280,8 @@ _FE_PACKAGE_JSON = '''{{
 
 _FE_VITE_CONFIG_TS = '''/**
  * 插件前端 UMD 构建配置
+ *
+ * 正式运行时由 dist/plugin.manifest.json 声明入口与资源，不再固定依赖 dist/index.js。
  */
 import {{ defineConfig }} from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -287,7 +296,7 @@ export default defineConfig({{
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'NovusPlugin_{name_underscore}',
       formats: ['umd'],
-      fileName: () => 'index.js',
+      fileName: () => 'plugin.js',
     }},
     rollupOptions: {{
       external: ['vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared'],
@@ -298,13 +307,22 @@ export default defineConfig({{
           'ant-design-vue': 'AntDesignVue',
           '@novus/plugin-shared': 'NovusPluginShared',
         }},
-        assetFileNames: '[name][extname]',
+        assetFileNames: 'assets/[name][extname]',
       }},
     }},
-    cssCodeSplit: false,
+    cssCodeSplit: true,
     minify: 'esbuild',
   }},
 }});
+'''
+
+_FE_RELEASE_MANIFEST_TEMPLATE = '''{{
+  "format": "novus.plugin.release.v1",
+  "entry": "plugin.js",
+  "global_var": "NovusPlugin_{name_underscore}",
+  "css": [],
+  "assets": []
+}}
 '''
 
 _FE_GITIGNORE = """node_modules/
@@ -396,16 +414,98 @@ def _normalize_debug_env_for_cli(warnings: list[str]) -> None:
 def _manifest_has_frontend_extensions(manifest_data: dict) -> bool:
     frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
     return bool(
-        frontend.get("menus")
+        frontend.get("pages")
         or frontend.get("header_widgets")
         or frontend.get("floating_panels")
         or frontend.get("dashboard_widgets")
         or frontend.get("settings_tabs")
-        or frontend.get("standalone_pages")
         or frontend.get("notification_ui")
-        or (frontend.get("admin") or {}).get("entry")
-        or (frontend.get("tenant") or {}).get("entry")
     )
+
+
+def _detect_package_manager(frontend_dir: Path) -> list[str]:
+    is_windows = os.name == "nt"
+    if (frontend_dir / "pnpm-lock.yaml").is_file():
+        return ["pnpm.cmd" if is_windows else "pnpm", "run", "build"]
+    if (frontend_dir / "yarn.lock").is_file():
+        return ["yarn.cmd" if is_windows else "yarn", "build"]
+    return ["npm.cmd" if is_windows else "npm", "run", "build"]
+
+
+def _collect_dist_files(dist_dir: Path) -> list[str]:
+    return sorted(
+        str(path.relative_to(dist_dir)).replace("\\", "/")
+        for path in dist_dir.rglob("*")
+        if path.is_file()
+        and path.name != "plugin.manifest.json"
+        and not path.name.endswith(".map")
+    )
+
+
+def _pick_release_entry(js_files: list[str]) -> str | None:
+    for candidate in ("plugin.js", "index.js"):
+        if candidate in js_files:
+            return candidate
+    return js_files[0] if js_files else None
+
+
+def _generate_release_manifest(plugin_dir: Path, manifest_name: str) -> Path:
+    import yaml
+
+    from app.plugins.frontend_contract import default_plugin_global_var
+
+    with open(plugin_dir / "plugin.yaml", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    dist_dir = plugin_dir / "frontend" / "dist"
+    if not dist_dir.is_dir():
+        raise RuntimeError("frontend/dist missing after build")
+
+    files = _collect_dist_files(dist_dir)
+    js_files = [file for file in files if file.endswith(".js")]
+    css_files = [file for file in files if file.endswith(".css")]
+    entry = _pick_release_entry(js_files)
+    if not entry:
+        raise RuntimeError("No release JavaScript entry found under frontend/dist")
+
+    plugin_name = str(data.get("name") or plugin_dir.name)
+    payload = {
+        "format": "novus.plugin.release.v1",
+        "entry": entry,
+        "global_var": default_plugin_global_var(plugin_name),
+        "css": css_files,
+        "assets": [file for file in files if file not in {entry, *css_files}],
+    }
+
+    manifest_path = dist_dir / manifest_name
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
+def _should_exclude_release_file(rel_path: Path) -> bool:
+    rel_posix = str(rel_path).replace("\\", "/")
+    if rel_posix.startswith("frontend/src/") or rel_posix.startswith("backend/tests/"):
+        return True
+    if rel_posix in {
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/pnpm-lock.yaml",
+        "frontend/tsconfig.json",
+        "frontend/vite.config.js",
+        "frontend/vite.config.mjs",
+        "frontend/vite.config.ts",
+        "frontend/yarn.lock",
+    }:
+        return True
+    if any(marker in rel_path.parts for marker in {"__tests__", "tests"}):
+        return True
+    if rel_path.name.endswith((".spec.ts", ".spec.tsx", ".test.ts", ".test.tsx")):
+        return True
+    return False
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -499,13 +599,12 @@ def cmd_create(args: argparse.Namespace) -> None:
         (output_dir / "backend" / "api").mkdir()
         (output_dir / "backend" / "api" / "__init__.py").touch()
 
-        # Derive CSS prefix (first 2 letters of each word, e.g. my-plugin -> mp)
+        # Derive CSS prefix (first letters of each word, e.g. my-plugin -> mp)
         prefix = "".join(w[0] for w in name.split("-"))
-        prefix_upper = prefix.upper()
         fe_vars = {
             "name": name, "name_underscore": name_underscore, "class_name": class_name,
             "display_name": display_name, "display_name_en": display_name,
-            "prefix": prefix, "prefix_upper": prefix_upper,
+            "prefix": prefix,
         }
 
         # Append frontend extension to yaml
@@ -516,16 +615,20 @@ def cmd_create(args: argparse.Namespace) -> None:
         fe_src = output_dir / "frontend" / "src"
         fe_src.mkdir(parents=True)
         (fe_src / "index.ts").write_text(_FE_INDEX_TS.format(**fe_vars), encoding="utf-8")
-        (fe_src / "styles.ts").write_text(_FE_STYLES_TS.format(**fe_vars), encoding="utf-8")
         (fe_src / "locales.ts").write_text(_FE_LOCALES_TS.format(**fe_vars), encoding="utf-8")
         (fe_src / "types.ts").write_text(_FE_TYPES_TS.format(**fe_vars), encoding="utf-8")
-        (fe_src / f"{class_name}Widget.vue").write_text(_FE_WIDGET_VUE.format(**fe_vars), encoding="utf-8")
+        (fe_src / f"{class_name}Page.vue").write_text(_FE_PAGE_VUE.format(**fe_vars), encoding="utf-8")
 
         # frontend/ config files
         fe_dir = output_dir / "frontend"
         (fe_dir / "package.json").write_text(_FE_PACKAGE_JSON.format(**fe_vars), encoding="utf-8")
         (fe_dir / "vite.config.ts").write_text(_FE_VITE_CONFIG_TS.format(**fe_vars), encoding="utf-8")
         (fe_dir / ".gitignore").write_text(_FE_GITIGNORE, encoding="utf-8")
+        (fe_dir / "dist").mkdir()
+        (fe_dir / "dist" / "plugin.manifest.json").write_text(
+            _FE_RELEASE_MANIFEST_TEMPLATE.format(**fe_vars),
+            encoding="utf-8",
+        )
 
     # locales
     for lang, label in [("zh-CN", display_name), ("en", display_name)]:
@@ -548,6 +651,46 @@ def cmd_create(args: argparse.Namespace) -> None:
 
 
 # ============================================================
+# build — 构建前端发布产物
+# ============================================================
+
+def cmd_build(args: argparse.Namespace) -> None:
+    """构建插件前端产物并生成 release manifest"""
+    plugin_dir = Path(args.dir)
+    yaml_path = plugin_dir / "plugin.yaml"
+    if not yaml_path.is_file():
+        print(f"Error: No plugin.yaml in {plugin_dir}")
+        sys.exit(1)
+
+    import yaml
+
+    with open(yaml_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    if not _manifest_has_frontend_extensions(data):
+        print("  [INFO] No frontend extensions declared; nothing to build.")
+        return
+
+    frontend = ((data.get("extensions") or {}).get("frontend") or {})
+    release_manifest_name = str(
+        ((frontend.get("release") or {}).get("manifest") or "plugin.manifest.json")
+    )
+
+    frontend_dir = plugin_dir / "frontend"
+    package_json = frontend_dir / "package.json"
+    if not package_json.is_file():
+        print(f"Error: Missing frontend/package.json in {plugin_dir}")
+        sys.exit(1)
+
+    command = _detect_package_manager(frontend_dir)
+    print(f"  [RUN] {' '.join(command)}")
+    subprocess.run(command, cwd=frontend_dir, check=True)
+
+    release_manifest_path = _generate_release_manifest(plugin_dir, release_manifest_name)
+    print(f"  [OK] Generated frontend/dist/{release_manifest_path.name}")
+
+
+# ============================================================
 # validate — 校验插件
 # ============================================================
 
@@ -565,10 +708,14 @@ def cmd_validate(args: argparse.Namespace) -> None:
     yaml_path = plugin_dir / "plugin.yaml"
     if not yaml_path.is_file():
         errors.append("Missing plugin.yaml")
+        manifest = None
+        data = {}
     else:
         try:
+            _normalize_debug_env_for_cli(warnings)
             import yaml
 
+            from app.plugins.frontend_contract import load_release_manifest
             from app.plugins.manifest import PluginManifest
 
             with open(yaml_path, encoding="utf-8") as f:
@@ -576,21 +723,93 @@ def cmd_validate(args: argparse.Namespace) -> None:
             manifest = PluginManifest.model_validate(data)
             print(f"  [OK] plugin.yaml valid: {manifest.name} v{manifest.version}")
 
+            frontend = ((data or {}).get("extensions") or {}).get("frontend") or {}
+            legacy_keys = sorted(
+                set(frontend).intersection(
+                    {"admin", "menus", "npm_dependencies", "standalone_pages", "tenant"}
+                )
+            )
+            if legacy_keys:
+                errors.append(
+                    "frontend uses legacy fields: "
+                    + ", ".join(legacy_keys)
+                    + " (migrate to pages + dev.entry + release.manifest)"
+                )
+
             # Check i18n key prefix
             locales_dir = plugin_dir / "locales"
             if locales_dir.is_dir():
                 prefix = f"plugin.{manifest.name}."
                 for json_file in locales_dir.glob("*.json"):
                     locale_data = json.loads(json_file.read_text(encoding="utf-8"))
+                    if (
+                        isinstance(locale_data, dict)
+                        and isinstance(locale_data.get("plugin"), dict)
+                        and isinstance(locale_data["plugin"].get(manifest.name), dict)
+                    ):
+                        continue
+
                     for key in locale_data:
                         if not key.startswith(prefix):
                             warnings.append(f"i18n key '{key}' in {json_file.name} should start with '{prefix}'")
 
-            # Check DB table prefix
-            # (scan Python files for table names)
+            if _manifest_has_frontend_extensions(data or {}):
+                dev_entry_rel = str(
+                    ((frontend.get("dev") or {}).get("entry") or "src/index.ts")
+                )
+                dev_entry = plugin_dir / "frontend" / dev_entry_rel
+                if dev_entry.is_file():
+                    print(f"  [OK] frontend dev entry exists: {dev_entry_rel}")
+                else:
+                    errors.append(
+                        f"frontend dev entry missing: frontend/{dev_entry_rel}"
+                    )
+
+                release_manifest_rel = str(
+                    ((frontend.get("release") or {}).get("manifest") or "plugin.manifest.json")
+                )
+                release_manifest_path = (
+                    plugin_dir / "frontend" / "dist" / release_manifest_rel
+                )
+                if release_manifest_path.is_file():
+                    try:
+                        release_manifest = load_release_manifest(
+                            plugin_dir,
+                            manifest,
+                            strict=True,
+                        )
+                        print(
+                            "  [OK] frontend release manifest valid: "
+                            f"{release_manifest_rel} → {release_manifest.entry}"
+                        )
+                    except Exception as exc:
+                        errors.append(f"frontend release manifest invalid: {exc}")
+                else:
+                    warnings.append(
+                        "frontend release manifest missing - run: "
+                        f"novusai plugin build {plugin_dir}"
+                    )
+
+                # Scan .vue files for forbidden <style scoped>
+                vue_files = list((plugin_dir / "frontend" / "src").rglob("*.vue"))
+                for vue_file in vue_files:
+                    content = vue_file.read_text(encoding="utf-8", errors="ignore")
+                    if "<style scoped" in content or "<style scoped>" in content:
+                        errors.append(
+                            f"{vue_file.relative_to(plugin_dir)}: <style scoped> forbidden"
+                        )
+                if vue_files and not any(
+                    "<style scoped" in vf.read_text(encoding="utf-8", errors="ignore")
+                    for vf in vue_files
+                ):
+                    print(f"  [OK] {len(vue_files)} .vue file(s) - no <style scoped>")
+            else:
+                print("  [INFO] No frontend extensions declared")
 
         except Exception as exc:
             errors.append(f"plugin.yaml validation failed: {exc}")
+            manifest = None
+            data = {}
 
     # 2. backend/main.py
     main_path = plugin_dir / "backend" / "main.py"
@@ -598,41 +817,6 @@ def cmd_validate(args: argparse.Namespace) -> None:
         errors.append("Missing backend/main.py")
     else:
         print("  [OK] backend/main.py exists")
-
-    # 3. Frontend checks (if frontend extensions declared)
-    try:
-        import yaml as _yaml
-        with open(yaml_path, encoding="utf-8") as _yf:
-            _ydata = _yaml.safe_load(_yf)
-        _has_fe = _manifest_has_frontend_extensions(_ydata or {})
-    except Exception:
-        _has_fe = False
-
-    if _has_fe:
-        dist_js = plugin_dir / "frontend" / "dist" / "index.js"
-        if dist_js.is_file():
-            dist_size = sum(f.stat().st_size for f in (plugin_dir / "frontend" / "dist").rglob("*") if f.is_file())
-            if dist_size > 5 * 1024 * 1024:
-                warnings.append(f"frontend/dist/ is {dist_size / 1024 / 1024:.1f} MB (> 5MB recommended limit)")
-            print(f"  [OK] frontend/dist/index.js exists ({dist_size / 1024:.1f} KB)")
-        else:
-            errors.append("frontend/dist/index.js missing - run: cd frontend && npm install && npx vite build")
-
-        # Scan .vue files for forbidden <style scoped>
-        vue_files = list((plugin_dir / "frontend").rglob("*.vue"))
-        for vue_file in vue_files:
-            content = vue_file.read_text(encoding="utf-8", errors="ignore")
-            if "<style scoped" in content or "<style scoped>" in content:
-                errors.append(f"{vue_file.relative_to(plugin_dir)}: <style scoped> forbidden - use styles.ts JS injection")
-            elif "<style>" in content or "<style " in content:
-                warnings.append(f"{vue_file.relative_to(plugin_dir)}: <style> block found - recommend styles.ts JS injection instead")
-
-        if not vue_files:
-            pass  # No Vue files = no frontend component check needed
-        elif not errors:
-            print(f"  [OK] {len(vue_files)} .vue file(s) - no <style scoped>")
-    else:
-        print("  [INFO] No frontend extensions declared")
 
     # 4. Capabilities consistency check
     try:
@@ -708,16 +892,27 @@ def cmd_pack(args: argparse.Namespace) -> None:
         data = yaml.safe_load(f)
     name = data.get("name", plugin_dir.name)
     version = data.get("version", "1.0.0")
+    mode = "source" if getattr(args, "source", False) else "release"
 
-    # Check if frontend extensions declared but dist/ not built
+    # Check if frontend extensions declared but release assets not built
     has_frontend = _manifest_has_frontend_extensions(data or {})
-    if has_frontend:
-        dist_js = plugin_dir / "frontend" / "dist" / "index.js"
-        if not dist_js.is_file():
-            print("  \u26a0\ufe0f  Warning: frontend/dist/index.js not found.")
-            print(f"     Please run: cd {plugin_dir}/frontend && npm install && npx vite build")
+    if has_frontend and mode == "release":
+        frontend = (((data or {}).get("extensions") or {}).get("frontend") or {})
+        release_manifest_rel = str(
+            ((frontend.get("release") or {}).get("manifest") or "plugin.manifest.json")
+        )
+        release_manifest = plugin_dir / "frontend" / "dist" / release_manifest_rel
+        if not release_manifest.is_file():
+            print("Error: frontend release manifest not found.")
+            print(f"  Please run: novusai plugin build {plugin_dir}")
+            sys.exit(1)
 
-    output_path = Path(args.output) if args.output else Path.cwd() / f"{name}-{version}.zip"
+    default_name = (
+        f"{name}-{version}-source.zip"
+        if mode == "source"
+        else f"{name}-{version}.zip"
+    )
+    output_path = Path(args.output) if args.output else Path.cwd() / default_name
 
     file_count = 0
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -734,11 +929,14 @@ def cmd_pack(args: argparse.Namespace) -> None:
             # Skip compiled Python
             if file_path.suffix in _PACK_EXCLUDE_EXTS:
                 continue
+            if mode == "release" and _should_exclude_release_file(rel):
+                continue
             zf.write(file_path, f"{name}/{rel}")
             file_count += 1
 
     size_kb = output_path.stat().st_size / 1024
     print(f"Packed: {output_path}")
+    print(f"  Mode: {mode}")
     print(f"  {file_count} files, {size_kb:.1f} KB")
 
 
@@ -763,10 +961,16 @@ def main() -> None:
     p_validate = subparsers.add_parser("validate", help="Validate plugin")
     p_validate.add_argument("dir", help="Plugin directory")
 
+    # build
+    p_build = subparsers.add_parser("build", help="Build frontend release assets")
+    p_build.add_argument("dir", help="Plugin directory")
+
     # pack
     p_pack = subparsers.add_parser("pack", help="Pack plugin to .zip")
     p_pack.add_argument("dir", help="Plugin directory")
     p_pack.add_argument("--output", help="Output .zip path")
+    p_pack.add_argument("--release", action="store_true", help="Pack production release bundle (default)")
+    p_pack.add_argument("--source", action="store_true", help="Pack source/dev bundle")
 
     args = parser.parse_args()
 
@@ -774,7 +978,12 @@ def main() -> None:
         cmd_create(args)
     elif args.command == "validate":
         cmd_validate(args)
+    elif args.command == "build":
+        cmd_build(args)
     elif args.command == "pack":
+        if args.release and args.source:
+            print("Error: --release and --source are mutually exclusive")
+            sys.exit(1)
         cmd_pack(args)
     else:
         parser.print_help()

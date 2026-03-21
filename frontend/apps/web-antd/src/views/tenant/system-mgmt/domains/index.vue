@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { TenantDomainInfo } from './modules/domains-types';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -25,7 +25,16 @@ import {
   setPrimaryDomainApi,
   verifyTenantDomainApi,
 } from '#/api/tenant/domain';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createOpenRecordPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+  createRecordActionPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
@@ -34,6 +43,7 @@ import {
   getSslStatusConfig,
   getVerificationStatusConfig,
 } from './data';
+import type { DnsGuideData } from './modules/domains-types';
 import DomainsAddDrawer from './modules/DomainsAddDrawer.vue';
 import DomainsDetailDrawer from './modules/DomainsDetailDrawer.vue';
 import DomainsDnsGuideModal from './modules/DomainsDnsGuideModal.vue';
@@ -42,11 +52,21 @@ import DomainsSslDrawer from './modules/DomainsSslDrawer.vue';
 defineOptions({ name: 'TenantDomains' });
 
 const t = (key: string) => $t(`tenant.system.domain.${key}`);
+const AI_PAGE_KEY = 'tenant.system.domains';
 
 // State / 状态
 const domains = ref<TenantDomainInfo[]>([]);
 const loading = ref(false);
 const refreshing = ref(false);
+const verifiedDomainCount = computed(
+  () => domains.value.filter((domain) => domain.verificationStatus === 'verified').length,
+);
+const pendingDomainCount = computed(
+  () => domains.value.filter((domain) => domain.verificationStatus === 'pending').length,
+);
+const primaryDomainId = computed(
+  () => domains.value.find((domain) => domain.isPrimary)?.id ?? null,
+);
 
 // Refs / 引用
 const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
@@ -55,11 +75,7 @@ const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 const sslDrawerRef = ref<InstanceType<typeof DomainsSslDrawer>>();
 
 function onOpenSsl(domain: TenantDomainInfo) {
-  sslDrawerRef.value?.open({
-    domainId: domain.id,
-    domain: domain.domain,
-    isDefault: domain.domainType === 'default',
-  });
+  openSslDrawer(domain);
 }
 
 // Lifecycle / 生命周期
@@ -90,7 +106,7 @@ async function onRefresh() {
 }
 
 function onOpenAddDrawer() {
-  addDrawerRef.value?.open();
+  openAddDrawer();
 }
 
 async function onAddSuccess(newDomain: TenantDomainInfo) {
@@ -101,6 +117,10 @@ async function onAddSuccess(newDomain: TenantDomainInfo) {
 }
 
 function onOpenDetail(domain: TenantDomainInfo) {
+  openDetailDrawer(domain);
+}
+
+function openDetailDrawer(domain: TenantDomainInfo) {
   detailDrawerRef.value?.open({
     domainId: domain.id,
   });
@@ -111,14 +131,37 @@ async function onDetailSuccess() {
 }
 
 function onOpenDnsGuide(domain: TenantDomainInfo) {
-  const guideData = {
+  openDnsGuideModal(domain);
+}
+
+function findDomainById(domainId: number): null | TenantDomainInfo {
+  return domains.value.find((domain) => domain.id === domainId) ?? null;
+}
+
+function buildDnsGuideData(domain: TenantDomainInfo): DnsGuideData {
+  return {
     domain: domain.domain,
     domainId: domain.id,
     verificationInfo: domain.verificationInfo,
     verificationToken: domain.verificationToken,
     cnameTarget: domain.cnameTarget,
   };
-  dnsGuideModalRef.value?.open(guideData);
+}
+
+function openAddDrawer(defaults?: { domain?: string; remark?: string }) {
+  addDrawerRef.value?.open(defaults);
+}
+
+function openDnsGuideModal(domain: TenantDomainInfo) {
+  dnsGuideModalRef.value?.open(buildDnsGuideData(domain));
+}
+
+function openSslDrawer(domain: TenantDomainInfo) {
+  sslDrawerRef.value?.open({
+    domainId: domain.id,
+    domain: domain.domain,
+    isDefault: domain.domainType === 'default',
+  });
 }
 
 async function onSetPrimary(domain: TenantDomainInfo) {
@@ -169,24 +212,157 @@ function onCopy(text: string) {
   message.success($t('common.copied'));
 }
 
-usePageAIRegistration({
-  pageKey: 'tenant.system.domains',
-  title: () => $t('tenant.system.domain.name'),
+usePageAIContext({
+  pageKey: AI_PAGE_KEY,
   resource: '/tenant/domains',
   data: () => ({
     total: domains.value.length,
+    pending_count: pendingDomainCount.value,
+    primary_domain_id: primaryDomainId.value,
+    verified_count: verifiedDomainCount.value,
   }),
+});
+
+usePageAIOperations({
+  pageKey: AI_PAGE_KEY,
+  operationStrategy: 'append',
   operations: [
-    {
-      name: 'refresh_list',
-      label: $t('shared.pageOperation.refreshList'),
+    createRefreshPageOperation({
+      action: onRefresh,
       description: 'Reload the domain list',
-      readonly: true,
-      handler: async () => {
-        await onRefresh();
-        return { success: true, message: 'Domain list refreshed' };
+    }),
+    createPrefilledCreatePageOperation({
+      name: 'create_domain',
+      label: t('add'),
+      description:
+        'Open the add-domain drawer and optionally prefill domain or remark / 打开新增域名抽屉，并可预填域名或备注',
+      params: {
+        domain: {
+          type: 'string',
+          description: 'Domain name to prefill / 预填的域名',
+        },
+        remark: {
+          type: 'string',
+          description: 'Remark to prefill / 预填的备注',
+        },
       },
-    },
+      normalizeParams: (params) => ({
+        ...(String(params.domain ?? '').trim()
+          ? { domain: String(params.domain).trim() }
+          : {}),
+        ...(String(params.remark ?? '').trim()
+          ? { remark: String(params.remark).trim() }
+          : {}),
+      }),
+      openCreate: async (params) => {
+        openAddDrawer(params);
+      },
+    }),
+    createOpenRecordPageOperation({
+      name: 'open_domain_detail',
+      label: t('edit'),
+      description:
+        'Open the domain detail drawer by domain ID / 按域名 ID 打开域名详情抽屉',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Domain ID / 域名 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findDomainById(params.id),
+      resolveRecordId: (params) => params.id,
+      open: async (domain) => {
+        openDetailDrawer(domain);
+      },
+    }),
+    createOpenRecordPageOperation({
+      name: 'open_dns_guide',
+      label: t('dnsGuide'),
+      description:
+        'Open the DNS guide modal for a domain by ID / 按域名 ID 打开 DNS 配置引导弹窗',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Domain ID / 域名 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findDomainById(params.id),
+      resolveRecordId: (params) => params.id,
+      open: async (domain) => {
+        openDnsGuideModal(domain);
+      },
+    }),
+    createOpenRecordPageOperation({
+      name: 'open_ssl_config',
+      label: $t('tenant.system.domain.ssl.title'),
+      description:
+        'Open the SSL settings drawer for a domain by ID / 按域名 ID 打开 SSL 设置抽屉',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Domain ID / 域名 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findDomainById(params.id),
+      resolveRecordId: (params) => params.id,
+      open: async (domain) => {
+        openSslDrawer(domain);
+      },
+    }),
+    createRecordActionPageOperation({
+      name: 'verify_domain',
+      label: t('verify'),
+      description:
+        'Verify a domain by ID / 按域名 ID 触发域名校验',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Domain ID / 域名 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findDomainById(params.id),
+      resolveRecordId: (params) => params.id,
+      action: async (domain) => {
+        await onVerifyDomain(domain);
+      },
+    }),
+    createRecordActionPageOperation({
+      name: 'set_primary_domain',
+      label: t('setPrimary'),
+      description:
+        'Set a verified domain as primary by ID / 按域名 ID 设为主域名',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Domain ID / 域名 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findDomainById(params.id),
+      resolveRecordId: (params) => params.id,
+      action: async (domain) => {
+        await onSetPrimary(domain);
+      },
+    }),
   ],
 });
 </script>

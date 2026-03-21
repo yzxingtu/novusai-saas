@@ -28,7 +28,6 @@ import {
   ref,
   watch,
 } from 'vue';
-
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -47,7 +46,7 @@ import {
   getTenantGrowthApi,
 } from '#/api/admin/dashboard';
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { formatDate as formatDateUtil } from '#/utils/common';
 
@@ -94,8 +93,7 @@ async function loadAll() {
   }
 }
 
-usePageAIRegistration({
-  pageKey: 'admin.dashboard',
+usePageAIContext({
   title: () => $t('admin.dashboard.platformConsole'),
   data: () => ({
     system_health: health.value?.status ?? 'unknown',
@@ -108,32 +106,6 @@ usePageAIRegistration({
     storage_files: storageOverview.value?.total_files ?? 0,
     plugins_enabled: pluginOverview.value?.enabled ?? 0,
   }),
-  operations: [
-    {
-      name: 'refresh_dashboard',
-      label: $t('shared.pageOperation.refreshDashboard'),
-      description: 'Reload all dashboard statistics and charts',
-      readonly: true,
-      handler: async () => {
-        await loadAll();
-        return { success: true, message: 'Dashboard refreshed successfully' };
-      },
-    },
-    {
-      name: 'navigate_to',
-      label: $t('shared.pageOperation.navigateTo'),
-      description: 'Navigate to a specific admin page (e.g. /admin/tenant, /admin/ai/agents, /admin/analytics)',
-      readonly: true,
-      params: {
-        route: { type: 'string', description: 'Target route path' },
-      },
-      handler: async (params) => {
-        const route = (params?.route as string) || '/admin/tenant';
-        navigateTo(route);
-        return { success: true, message: `Navigated to ${route}` };
-      },
-    },
-  ],
 });
 
 onMounted(() => {

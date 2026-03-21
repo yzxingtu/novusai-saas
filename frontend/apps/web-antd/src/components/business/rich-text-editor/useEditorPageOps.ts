@@ -15,7 +15,28 @@ import { $t } from '@vben/locales';
 import MarkdownIt from 'markdown-it';
 
 import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  createParameterizedPageOperation,
+  createSimplePageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  buildEditorEnumParam,
+  buildEditorNumberParam,
+  createEditorEnumCommandOperation,
+  resolveEditorEnumParam,
+  resolveEditorIntParam,
+} from './command-operation-helpers';
+import {
+  buildEditorContentParams,
+  createEditorContentMutationOperation,
+  getEditorContentFormat,
+  isEditorContentInputError,
+  resolveEditorContentInput,
+} from './content-operation-helpers';
 import { validateReplaceContentParams } from './replaceContentValidator';
 
 const md = new MarkdownIt({ html: true, breaks: true });
@@ -70,6 +91,23 @@ function ensureHtml(content: string, format?: string): string {
   return format === 'markdown' ? md.render(content) : content;
 }
 
+function sanitizeEditorHtml(html: string): string {
+  return sanitizeTableAttributesForSetContent(fixTableWidthZero(html));
+}
+
+const TEXT_FORMAT_COMMANDS = [
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'code',
+  'highlight',
+] as const;
+
+const LIST_TYPES = ['bullet', 'ordered'] as const;
+const TEXT_ALIGN_OPTIONS = ['left', 'center', 'right', 'justify'] as const;
+const LINK_ACTIONS = ['set', 'unset'] as const;
+
 export interface EditorPageOpsOptions {
   editable?: MaybeRefOrGetter<boolean>;
   enabled?: MaybeRefOrGetter<boolean>;
@@ -88,21 +126,22 @@ export function useEditorPageOps(
   const effectiveKey = () =>
     toValue(options.pageKey) || normalizePageKey(window.location.pathname);
 
+  const isEnabled = () => {
+    const pageKey = effectiveKey();
+    return Boolean(
+      pageKey
+        && editorRef.value
+        && (toValue(options.enabled) ?? true),
+    );
+  };
+
   /** Conservative excerpt size (~2.4KB UTF-8, ≈800 CJK chars) so page_data stays small alongside available_operations. / 保守的摘要长度（约 2.4KB UTF-8，约 800 个中文字符），避免 page_data 与 available_operations 一起超出预算。 */
   const DOCUMENT_BODY_EXCERPT_LEN = 800;
 
-  usePageAIRegistration({
+  usePageAIContext({
     pageKey: effectiveKey,
-    enabled: () => {
-      const pageKey = effectiveKey();
-      return Boolean(
-        pageKey
-          && editorRef.value
-          && (toValue(options.enabled) ?? true),
-      );
-    },
+    enabled: isEnabled,
     contextStrategy: 'extras',
-    operationStrategy: 'append',
     title: () => $t('common.richTextEditor'),
     entityName: () => $t('common.richTextEditor'),
     entityDescription:
@@ -123,6 +162,12 @@ export function useEditorPageOps(
         word_count: editor?.storage.characterCount?.words?.() ?? 0,
       };
     },
+  });
+
+  usePageAIOperations({
+    pageKey: effectiveKey,
+    enabled: isEnabled,
+    operationStrategy: 'append',
     operations: () => {
       const editor = editorRef.value;
       if (!editor) {
@@ -131,478 +176,504 @@ export function useEditorPageOps(
 
       const allowMutations = toValue(options.editable) !== false;
       const editorOps = [
-      {
-        name: 'get_editor_text',
-        label: $t('common.getEditorText'),
-        description:
-          'Get the current editor plain text content for AI analysis.',
-        readonly: true,
-        handler: async () => {
-          const text = editor.getText();
-          const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-          return {
-            success: true,
-            message: $t('common.editorOp.editorWordCount', { count: words }),
-            data: { text: text.slice(0, 6000), word_count: words },
-          };
-        },
-      },
-      {
-        name: 'get_editor_html',
-        label: $t('common.getEditorHTML'),
-        description:
-          'Get the current editor HTML content with formatting.',
-        readonly: true,
-        handler: async () => {
-          const raw = editor.getHTML();
-          const html = fixTableWidthZero(raw);
-          const maxLen = 8000;
-          const cut =
-            html.length <= maxLen ? html : html.slice(0, maxLen);
-          const lastClose = cut.lastIndexOf('>');
-          const safe =
-            lastClose >= 0 ? cut.slice(0, lastClose + 1) : cut;
-          const hint = 'Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.';
-          return {
-            success: true,
-            message: $t('common.editorOp.htmlRetrieved', { count: html.length }),
-            data: { html: safe, _hint: hint },
-          };
-        },
-      },
-      {
-        name: 'get_selection',
-        label: $t('common.getSelection'),
-        description: 'Get current selection text and position (from, to).',
-        readonly: true,
-        handler: async () => {
-          const { from, to } = editor.state.selection;
-          const text = editor.state.doc.textBetween(from, to, '');
-          return {
-            success: true,
-            message: $t('common.editorOp.selectionChars', { count: text.length }),
-            data: { text, from, to },
-          };
-        },
-      },
-    ];
+        createSimplePageOperation({
+          name: 'get_editor_text',
+          label: $t('common.getEditorText'),
+          description:
+            'Get the current editor plain text content for AI analysis.',
+          readonly: true,
+          action: async () => {
+            const text = editor.getText();
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            return {
+              success: true,
+              message: $t('common.editorOp.editorWordCount', { count: words }),
+              data: { text: text.slice(0, 6000), word_count: words },
+            };
+          },
+        }),
+        createSimplePageOperation({
+          name: 'get_editor_html',
+          label: $t('common.getEditorHTML'),
+          description: 'Get the current editor HTML content with formatting.',
+          readonly: true,
+          action: async () => {
+            const raw = editor.getHTML();
+            const html = fixTableWidthZero(raw);
+            const maxLen = 8000;
+            const cut = html.length <= maxLen ? html : html.slice(0, maxLen);
+            const lastClose = cut.lastIndexOf('>');
+            const safe = lastClose >= 0 ? cut.slice(0, lastClose + 1) : cut;
+            const hint
+              = 'Use short, unique HTML snippets for replace_section old_html; avoid using the entire document.';
+            return {
+              success: true,
+              message: $t('common.editorOp.htmlRetrieved', {
+                count: html.length,
+              }),
+              data: { html: safe, _hint: hint },
+            };
+          },
+        }),
+        createSimplePageOperation({
+          name: 'get_selection',
+          label: $t('common.getSelection'),
+          description: 'Get current selection text and position (from, to).',
+          readonly: true,
+          action: async () => {
+            const { from, to } = editor.state.selection;
+            const text = editor.state.doc.textBetween(from, to, '');
+            return {
+              success: true,
+              message: $t('common.editorOp.selectionChars', {
+                count: text.length,
+              }),
+              data: { text, from, to },
+            };
+          },
+        }),
+      ];
 
       const mutationOps = [
-      {
-        name: 'insert_content',
-        label: $t('common.insertContent'),
-        description:
-          'Insert content at cursor. content MUST be HTML by default; set content_format="markdown" to pass Markdown (auto-converted to HTML).',
-        readonly: false,
-        params: {
-          content: {
-            type: 'string',
-            description: 'HTML content to insert (e.g. <h2>Title</h2><p>text</p>). Use content_format="markdown" for Markdown input.',
+        createEditorContentMutationOperation({
+          name: 'insert_content',
+          label: $t('common.insertContent'),
+          description:
+            'Insert content at cursor. content MUST be HTML by default; set content_format="markdown" to pass Markdown (auto-converted to HTML).',
+          contentDescription:
+            'HTML content to insert (e.g. <h2>Title</h2><p>text</p>). Use content_format="markdown" for Markdown input.',
+          emptyMessage: $t('common.editorOp.noContentProvided'),
+          ensureHtml: toHtml,
+          postprocessHtml: sanitizeEditorHtml,
+          execute: async ({ html, raw }) => {
+            editor.chain().focus().insertContent(html).run();
+            return $t('common.editorOp.insertedChars', { count: raw.length });
           },
-          content_format: {
-            type: 'string',
-            enum: ['html', 'markdown'],
-            description: 'Input format: "html" (default) or "markdown". Default is html.',
-          },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const raw = String(params.content || '');
-          if (!raw)
-            return { success: false, message: $t('common.editorOp.noContentProvided') };
-          const fmt = String(params.content_format || 'html');
-          const html = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(toHtml(raw, fmt)),
-          );
-          editor.chain().focus().insertContent(html).run();
-          return {
-            success: true,
-            message: $t('common.editorOp.insertedChars', { count: raw.length }),
-          };
-        },
-      },
-      {
-        name: 'replace_content',
-        label: $t('common.replaceContent'),
-        description:
-          'Replace ALL editor content. content MUST be HTML by default; set content_format="markdown" for Markdown input. Use ONLY when rewriting the ENTIRE document.',
-        readonly: false,
-        params: {
-          content: {
-            type: 'string',
-            description: 'Complete HTML content for the full document. Use content_format="markdown" for Markdown.',
-          },
-          content_format: {
-            type: 'string',
-            enum: ['html', 'markdown'],
-            description: 'Input format: "html" (default) or "markdown".',
-          },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const inputSize = String(params.content ?? '').trim().length;
-          const fmt = String(params.content_format || 'html');
-          const validation = validateReplaceContentParams(params, {
-            ensureHtml: (s: string) => ensureHtml(s, fmt),
-            fixTableWidthZero,
-            sanitizeTableAttributesForSetContent,
-          });
-          if (!validation.valid) {
-            console.warn(
-              '[replace_content audit] page_key=%s operation_name=replace_content input_size=%d success=false error_type=%s',
-              effectiveKey(),
-              inputSize,
-              validation.error_type,
-            );
+        }),
+        createParameterizedPageOperation({
+          name: 'replace_content',
+          label: $t('common.replaceContent'),
+          description:
+            'Replace ALL editor content. content MUST be HTML by default; set content_format="markdown" for Markdown input. Use ONLY when rewriting the ENTIRE document.',
+          readonly: false,
+          params: buildEditorContentParams({
+            fieldDescription:
+              'Complete HTML content for the full document. Use content_format="markdown" for Markdown.',
+          }),
+          action: async (params) => {
+            const inputSize = String(params.content ?? '').trim().length;
+            const fmt = getEditorContentFormat(params);
+            const validation = validateReplaceContentParams(params, {
+              ensureHtml: (s: string) => ensureHtml(s, fmt),
+              fixTableWidthZero,
+              sanitizeTableAttributesForSetContent,
+            });
+            if (!validation.valid) {
+              console.warn(
+                '[replace_content audit] page_key=%s operation_name=replace_content input_size=%d success=false error_type=%s',
+                effectiveKey(),
+                inputSize,
+                validation.error_type,
+              );
+              return {
+                success: false,
+                message:
+                  inputSize === 0
+                    ? $t('common.replaceContentEmptyError')
+                    : $t('common.invalidInputEmptyContent'),
+                error_type: validation.error_type,
+              };
+            }
+            editor.commands.setContent(validation.html);
             return {
-              success: false,
-              message:
-                inputSize === 0
-                  ? $t('common.replaceContentEmptyError')
-                  : $t('common.invalidInputEmptyContent'),
-              error_type: validation.error_type,
+              success: true,
+              message: $t('common.editorOp.fullContentReplaced', {
+                count: validation.inputLength,
+              }),
             };
-          }
-          editor.commands.setContent(validation.html);
-          return {
-            success: true,
-            message: $t('common.editorOp.fullContentReplaced', {
-              count: validation.inputLength,
+          },
+        }),
+        createParameterizedPageOperation({
+          name: 'replace_section',
+          label: $t('common.replaceSection'),
+          description:
+            'Find a section by its old HTML snippet and replace it with new HTML. '
+            + 'Use this for partial edits — only the matched section is replaced, '
+            + 'the rest of the document is untouched. '
+            + 'old_html should be a short unique HTML fragment from get_editor_html output.',
+          readonly: false,
+          params: {
+            old_html: {
+              type: 'string',
+              description:
+                'Existing HTML snippet to find (must be a unique substring of current content)',
+            },
+            ...buildEditorContentParams({
+              fieldName: 'new_html',
+              fieldDescription:
+                'Replacement HTML. Use content_format="markdown" for Markdown.',
+              formatDescription:
+                'Format of new_html: "html" (default) or "markdown".',
             }),
-          };
-        },
-      },
-      {
-        name: 'replace_section',
-        label: $t('common.replaceSection'),
-        description:
-          'Find a section by its old HTML snippet and replace it with new HTML. '
-          + 'Use this for partial edits — only the matched section is replaced, '
-          + 'the rest of the document is untouched. '
-          + 'old_html should be a short unique HTML fragment from get_editor_html output.',
-        readonly: false,
-        params: {
-          old_html: {
-            type: 'string',
-            description:
-              'Existing HTML snippet to find (must be a unique substring of current content)',
           },
-          new_html: {
-            type: 'string',
-            description: 'Replacement HTML. Use content_format="markdown" for Markdown.',
+          action: async (params) => {
+            const oldSnippet = String(params.old_html || '').trim();
+            if (!oldSnippet) {
+              return {
+                success: false,
+                message: $t('common.editorOp.oldHtmlRequired'),
+                error_type: 'invalid_input',
+              };
+            }
+
+            const currentHtml = editor.getHTML();
+            const normCurrent = normalizeHtmlForMatch(currentHtml);
+            const normOld = normalizeHtmlForMatch(oldSnippet);
+
+            if (normOld.length < 3) {
+              return {
+                success: false,
+                message: $t('common.editorOp.oldHtmlTooShort'),
+                error_type: 'invalid_input',
+              };
+            }
+            const matchCount = normCurrent.split(normOld).length - 1;
+            if (matchCount > 1) {
+              return {
+                success: false,
+                message:
+                  $t('common.editorOp.oldHtmlNotFound')
+                  + ` ${$t('common.editorOp.snippetMatchesMultiple')}`,
+                error_type: 'non_unique_match',
+              };
+            }
+            if (!normCurrent.includes(normOld)) {
+              const snippetLen = 450;
+              const excerpt = currentHtml.slice(0, snippetLen);
+              return {
+                success: false,
+                message:
+                  $t('common.editorOp.oldHtmlNotFound')
+                  + ` First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
+                error_type: 'target_not_found',
+              };
+            }
+
+            const resolvedNewHtml = resolveEditorContentInput(params, {
+              fieldName: 'new_html',
+              trim: true,
+              preprocessRaw: normalizeHtmlForMatch,
+              ensureHtml: toHtml,
+              postprocessHtml: sanitizeEditorHtml,
+              emptyMessage: $t('common.editorOp.newHtmlRequired'),
+              errorType: 'invalid_input',
+            });
+            if (isEditorContentInputError(resolvedNewHtml)) {
+              return resolvedNewHtml;
+            }
+
+            const updatedNorm = normCurrent.replace(normOld, resolvedNewHtml.html);
+            const updatedHtml = sanitizeEditorHtml(updatedNorm);
+
+            try {
+              editor.commands.setContent(updatedHtml);
+            } catch (error) {
+              const errMsg =
+                error instanceof Error ? error.message : String(error);
+              return {
+                success: false,
+                message: $t(
+                  'common.editorOp.replacementInvalidStructure',
+                  { error: errMsg },
+                ),
+                error_type: 'invalid_html',
+              };
+            }
+            return {
+              success: true,
+              message: $t('common.editorOp.sectionReplaced', {
+                old: oldSnippet.length,
+                new: resolvedNewHtml.raw.length,
+              }),
+            };
           },
-          content_format: {
-            type: 'string',
-            enum: ['html', 'markdown'],
-            description: 'Format of new_html: "html" (default) or "markdown".',
+        }),
+        createEditorContentMutationOperation({
+          name: 'append_content',
+          label: $t('common.appendContent'),
+          description:
+            'Append content to the end. content MUST be HTML by default; set content_format="markdown" for Markdown input.',
+          contentDescription:
+            'HTML content to append (e.g. <p>new paragraph</p>). Use content_format="markdown" for Markdown.',
+          emptyMessage: $t('common.editorOp.noContentProvided'),
+          ensureHtml: toHtml,
+          postprocessHtml: sanitizeEditorHtml,
+          execute: async ({ html, raw }) => {
+            const endPos = editor.state.doc.content.size;
+            editor.chain().focus().insertContentAt(endPos, html).run();
+            return $t('common.editorOp.appendedChars', { count: raw.length });
           },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const oldSnippet = String(params.old_html || '').trim();
-          const newSnippet = String(params.new_html || '').trim();
-          if (!oldSnippet)
-            return { success: false, message: $t('common.editorOp.oldHtmlRequired'), error_type: 'invalid_input' };
-          if (!newSnippet)
-            return { success: false, message: $t('common.editorOp.newHtmlRequired'), error_type: 'invalid_input' };
-
-          const currentHtml = editor.getHTML();
-          const normCurrent = normalizeHtmlForMatch(currentHtml);
-          const normOld = normalizeHtmlForMatch(oldSnippet);
-
-          if (normOld.length < 3) {
+        }),
+        createSimplePageOperation({
+          name: 'select_all',
+          label: $t('common.selectAll'),
+          description: 'Select all editor content.',
+          readonly: false,
+          action: async () => {
+            editor.commands.selectAll();
             return {
-              success: false,
-              message: $t('common.editorOp.oldHtmlTooShort'),
-              error_type: 'invalid_input',
+              success: true,
+              message: $t('common.editorOp.selectedAll'),
             };
-          }
-          const matchCount = normCurrent.split(normOld).length - 1;
-          if (matchCount > 1) {
+          },
+        }),
+        createSimplePageOperation({
+          name: 'undo',
+          label: $t('common.undo'),
+          description: 'Undo last change.',
+          readonly: false,
+          action: async () => {
+            const ok = editor.chain().focus().undo().run();
             return {
-              success: false,
-              message: $t('common.editorOp.oldHtmlNotFound') + ` ${$t('common.editorOp.snippetMatchesMultiple')}`,
-              error_type: 'non_unique_match',
+              success: ok,
+              message: ok
+                ? $t('common.editorOp.undone')
+                : $t('common.editorOp.nothingToUndo'),
             };
-          }
-          if (!normCurrent.includes(normOld)) {
-            const snippetLen = 450;
-            const excerpt = currentHtml.slice(0, snippetLen);
+          },
+        }),
+        createSimplePageOperation({
+          name: 'redo',
+          label: $t('common.redo'),
+          description: 'Redo last undone change.',
+          readonly: false,
+          action: async () => {
+            const ok = editor.chain().focus().redo().run();
             return {
-              success: false,
-              message:
-                $t('common.editorOp.oldHtmlNotFound')
-                + ` First ${snippetLen} chars of current document:\n${excerpt}${currentHtml.length > snippetLen ? '...' : ''}`,
-              error_type: 'target_not_found',
+              success: ok,
+              message: ok
+                ? $t('common.editorOp.redone')
+                : $t('common.editorOp.nothingToRedo'),
             };
-          }
-
-          // Normalize new_html so table attributes (colspan/rowspan) parse correctly and don't break TipTap TableMap
-          const fmt = String(params.content_format || 'html');
-          const newHtmlClean = toHtml(normalizeHtmlForMatch(newSnippet), fmt);
-          const updatedNorm = normCurrent.replace(normOld, newHtmlClean);
-          const updatedHtml = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(updatedNorm),
-          );
-
-          try {
-            editor.commands.setContent(updatedHtml);
-          } catch (e) {
-            const errMsg = e instanceof Error ? e.message : String(e);
+          },
+        }),
+        createEditorEnumCommandOperation({
+          name: 'format_text',
+          label: $t('common.formatText'),
+          description:
+            'Apply or toggle format on selection: bold, italic, underline, strike, code, highlight.',
+          paramName: 'command',
+          paramDescription: 'Format command',
+          values: TEXT_FORMAT_COMMANDS,
+          defaultValue: 'bold',
+          execute: async (cmd) => {
+            const chain = editor.chain().focus();
+            const map: Record<(typeof TEXT_FORMAT_COMMANDS)[number], () => boolean> = {
+              bold: () => chain.toggleBold().run(),
+              italic: () => chain.toggleItalic().run(),
+              underline: () => chain.toggleUnderline().run(),
+              strike: () => chain.toggleStrike().run(),
+              code: () => chain.toggleCode().run(),
+              highlight: () => chain.toggleHighlight().run(),
+            };
+            return map[cmd]();
+          },
+          successMessage: (cmd) => $t('common.editorOp.toggledFormat', { cmd }),
+          failureMessage: $t('common.editorOp.formatFailed'),
+        }),
+        createSimplePageOperation({
+          name: 'clear_formatting',
+          label: $t('common.clearFormatting'),
+          description: 'Clear all formatting in selection.',
+          readonly: false,
+          action: async () => {
+            editor.chain().focus().unsetAllMarks().run();
             return {
-              success: false,
-              message: $t('common.editorOp.replacementInvalidStructure', { error: errMsg }),
-              error_type: 'invalid_html',
+              success: true,
+              message: $t('common.editorOp.formattingCleared'),
             };
-          }
-          return {
-            success: true,
-            message: $t('common.editorOp.sectionReplaced', {
-              old: oldSnippet.length,
-              new: newSnippet.length,
+          },
+        }),
+        createParameterizedPageOperation({
+          name: 'set_heading',
+          label: $t('common.setHeading'),
+          description: 'Set current block as heading level 1, 2, or 3.',
+          readonly: false,
+          params: {
+            level: buildEditorNumberParam('Heading level 1, 2, or 3'),
+          },
+          action: async (params) => {
+            const level = resolveEditorIntParam(params.level, {
+              min: 1,
+              max: 3,
+              defaultValue: 1,
+            }) as 1 | 2 | 3;
+            editor.chain().focus().toggleHeading({ level }).run();
+            return {
+              success: true,
+              message: $t('common.editorOp.headingApplied', { level }),
+            };
+          },
+        }),
+        createEditorEnumCommandOperation({
+          name: 'toggle_list',
+          label: $t('common.toggleList'),
+          description: 'Toggle bullet or ordered list.',
+          paramName: 'type',
+          paramDescription: 'bullet or ordered',
+          values: LIST_TYPES,
+          defaultValue: 'bullet',
+          fallbackOnInvalid: true,
+          execute: async (type) => {
+            return type === 'ordered'
+              ? editor.chain().focus().toggleOrderedList().run()
+              : editor.chain().focus().toggleBulletList().run();
+          },
+          successMessage: (type) => $t('common.editorOp.listToggled', { type }),
+          failureMessage: $t('common.editorOp.formatFailed'),
+        }),
+        createSimplePageOperation({
+          name: 'toggle_blockquote',
+          label: $t('common.toggleBlockquote'),
+          description: 'Toggle blockquote on current block.',
+          readonly: false,
+          action: async () => {
+            editor.chain().focus().toggleBlockquote().run();
+            return {
+              success: true,
+              message: $t('common.editorOp.blockquoteToggled'),
+            };
+          },
+        }),
+        createSimplePageOperation({
+          name: 'toggle_code_block',
+          label: $t('common.toggleCodeBlock'),
+          description: 'Toggle code block on current block.',
+          readonly: false,
+          action: async () => {
+            editor.chain().focus().toggleCodeBlock().run();
+            return {
+              success: true,
+              message: $t('common.editorOp.codeBlockToggled'),
+            };
+          },
+        }),
+        createSimplePageOperation({
+          name: 'insert_horizontal_rule',
+          label: $t('common.insertHorizontalRule'),
+          description: 'Insert a horizontal rule.',
+          readonly: false,
+          action: async () => {
+            editor.chain().focus().setHorizontalRule().run();
+            return {
+              success: true,
+              message: $t('common.editorOp.horizontalRuleInserted'),
+            };
+          },
+        }),
+        createEditorEnumCommandOperation({
+          name: 'set_text_align',
+          label: $t('common.setTextAlign'),
+          description: 'Set text alignment: left, center, right, justify.',
+          paramName: 'align',
+          paramDescription: 'Alignment',
+          values: TEXT_ALIGN_OPTIONS,
+          defaultValue: 'left',
+          invalidMessage: $t('common.editorOp.invalidAlign'),
+          execute: async (align) => {
+            return editor.chain().focus().setTextAlign(align).run();
+          },
+          successMessage: (align) =>
+            $t('common.editorOp.alignApplied', { align }),
+          failureMessage: $t('common.editorOp.formatFailed'),
+        }),
+        createParameterizedPageOperation({
+          name: 'manage_link',
+          label: $t('common.manageLink'),
+          description:
+            'Set or unset link on selection. action: set (requires href) or unset.',
+          readonly: false,
+          params: {
+            action: buildEditorEnumParam({
+              values: LINK_ACTIONS,
+              description: 'set or unset link',
             }),
-          };
-        },
-      },
-      {
-        name: 'append_content',
-        label: $t('common.appendContent'),
-        description:
-          'Append content to the end. content MUST be HTML by default; set content_format="markdown" for Markdown input.',
-        readonly: false,
-        params: {
-          content: {
-            type: 'string',
-            description: 'HTML content to append (e.g. <p>new paragraph</p>). Use content_format="markdown" for Markdown.',
+            href: {
+              type: 'string',
+              description: 'URL when action is set',
+            },
           },
-          content_format: {
-            type: 'string',
-            enum: ['html', 'markdown'],
-            description: 'Input format: "html" (default) or "markdown".',
+          action: async (params) => {
+            const action = resolveEditorEnumParam(params.action, {
+              values: LINK_ACTIONS,
+              defaultValue: 'set',
+              normalize: (raw) => raw.trim().toLowerCase(),
+            });
+            if (!action) {
+              return {
+                success: false,
+                message: $t('common.editorOp.formatFailed'),
+                error_type: 'invalid_input',
+              };
+            }
+            if (action === 'unset') {
+              editor.chain().focus().extendMarkRange('link').unsetLink().run();
+              return {
+                success: true,
+                message: $t('common.editorOp.linkRemoved'),
+              };
+            }
+            const href = String(params.href || '').trim();
+            if (!href) {
+              return {
+                success: false,
+                message: $t('common.editorOp.hrefRequired'),
+              };
+            }
+            editor
+              .chain()
+              .focus()
+              .extendMarkRange('link')
+              .setLink({ href })
+              .run();
+            return {
+              success: true,
+              message: $t('common.editorOp.linkSet', { href }),
+            };
           },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const raw = String(params.content || '');
-          if (!raw)
-            return { success: false, message: $t('common.editorOp.noContentProvided') };
-          const fmt = String(params.content_format || 'html');
-          const html = sanitizeTableAttributesForSetContent(
-            fixTableWidthZero(toHtml(raw, fmt)),
-          );
-          const endPos = editor.state.doc.content.size;
-          editor.chain().focus().insertContentAt(endPos, html).run();
-          return {
-            success: true,
-            message: $t('common.editorOp.appendedChars', { count: raw.length }),
-          };
-        },
-      },
-      // --- Selection & history ---
-      {
-        name: 'select_all',
-        label: $t('common.selectAll'),
-        description: 'Select all editor content.',
-        readonly: false,
-        handler: async () => {
-          editor.commands.selectAll();
-          return { success: true, message: $t('common.editorOp.selectedAll') };
-        },
-      },
-      {
-        name: 'undo',
-        label: $t('common.undo'),
-        description: 'Undo last change.',
-        readonly: false,
-        handler: async () => {
-          const ok = editor.chain().focus().undo().run();
-          return { success: ok, message: ok ? $t('common.editorOp.undone') : $t('common.editorOp.nothingToUndo') };
-        },
-      },
-      {
-        name: 'redo',
-        label: $t('common.redo'),
-        description: 'Redo last undone change.',
-        readonly: false,
-        handler: async () => {
-          const ok = editor.chain().focus().redo().run();
-          return { success: ok, message: ok ? $t('common.editorOp.redone') : $t('common.editorOp.nothingToRedo') };
-        },
-      },
-      // --- Text formatting ---
-      {
-        name: 'format_text',
-        label: $t('common.formatText'),
-        description: 'Apply or toggle format on selection: bold, italic, underline, strike, code, highlight.',
-        readonly: false,
-        params: {
-          command: {
-            type: 'string',
-            enum: ['bold', 'italic', 'underline', 'strike', 'code', 'highlight'],
-            description: 'Format command',
+        }),
+        createParameterizedPageOperation({
+          name: 'insert_table',
+          label: $t('common.insertTable'),
+          description:
+            'Insert a table. Optional rows (default 3), cols (default 3).',
+          readonly: false,
+          params: {
+            rows: buildEditorNumberParam('Number of rows'),
+            cols: buildEditorNumberParam('Number of columns'),
           },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const cmd = String(params.command || 'bold');
-          const chain = editor.chain().focus();
-          const map: Record<string, () => boolean> = {
-            bold: () => chain.toggleBold().run(),
-            italic: () => chain.toggleItalic().run(),
-            underline: () => chain.toggleUnderline().run(),
-            strike: () => chain.toggleStrike().run(),
-            code: () => chain.toggleCode().run(),
-            highlight: () => chain.toggleHighlight().run(),
-          };
-          const run = map[cmd];
-          const ok = run ? run() : false;
-          return { success: ok, message: ok ? $t('common.editorOp.toggledFormat', { cmd }) : $t('common.editorOp.formatFailed') };
-        },
-      },
-      {
-        name: 'clear_formatting',
-        label: $t('common.clearFormatting'),
-        description: 'Clear all formatting in selection.',
-        readonly: false,
-        handler: async () => {
-          editor.chain().focus().unsetAllMarks().run();
-          return { success: true, message: $t('common.editorOp.formattingCleared') };
-        },
-      },
-      // --- Block ---
-      {
-        name: 'set_heading',
-        label: $t('common.setHeading'),
-        description: 'Set current block as heading level 1, 2, or 3.',
-        readonly: false,
-        params: {
-          level: {
-            type: 'number',
-            description: 'Heading level 1, 2, or 3',
+          action: async (params) => {
+            const rows = resolveEditorIntParam(params.rows, {
+              min: 1,
+              max: 10,
+              defaultValue: 3,
+            });
+            const cols = resolveEditorIntParam(params.cols, {
+              min: 1,
+              max: 10,
+              defaultValue: 3,
+            });
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows, cols, withHeaderRow: true })
+              .run();
+            return {
+              success: true,
+              message: $t('common.editorOp.tableInserted', { rows, cols }),
+            };
           },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const level = Math.min(3, Math.max(1, Number(params.level) || 1)) as 1 | 2 | 3;
-          editor.chain().focus().toggleHeading({ level }).run();
-          return { success: true, message: $t('common.editorOp.headingApplied', { level }) };
-        },
-      },
-      {
-        name: 'toggle_list',
-        label: $t('common.toggleList'),
-        description: 'Toggle bullet or ordered list.',
-        readonly: false,
-        params: {
-          type: {
-            type: 'string',
-            enum: ['bullet', 'ordered'],
-            description: 'bullet or ordered',
-          },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const t = String(params.type || 'bullet');
-          if (t === 'ordered')
-            editor.chain().focus().toggleOrderedList().run();
-          else
-            editor.chain().focus().toggleBulletList().run();
-          return { success: true, message: $t('common.editorOp.listToggled', { type: t }) };
-        },
-      },
-      {
-        name: 'toggle_blockquote',
-        label: $t('common.toggleBlockquote'),
-        description: 'Toggle blockquote on current block.',
-        readonly: false,
-        handler: async () => {
-          editor.chain().focus().toggleBlockquote().run();
-          return { success: true, message: $t('common.editorOp.blockquoteToggled') };
-        },
-      },
-      {
-        name: 'toggle_code_block',
-        label: $t('common.toggleCodeBlock'),
-        description: 'Toggle code block on current block.',
-        readonly: false,
-        handler: async () => {
-          editor.chain().focus().toggleCodeBlock().run();
-          return { success: true, message: $t('common.editorOp.codeBlockToggled') };
-        },
-      },
-      {
-        name: 'insert_horizontal_rule',
-        label: $t('common.insertHorizontalRule'),
-        description: 'Insert a horizontal rule.',
-        readonly: false,
-        handler: async () => {
-          editor.chain().focus().setHorizontalRule().run();
-          return { success: true, message: $t('common.editorOp.horizontalRuleInserted') };
-        },
-      },
-      {
-        name: 'set_text_align',
-        label: $t('common.setTextAlign'),
-        description: 'Set text alignment: left, center, right, justify.',
-        readonly: false,
-        params: {
-          align: {
-            type: 'string',
-            enum: ['left', 'center', 'right', 'justify'],
-            description: 'Alignment',
-          },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const align = String(params.align || 'left');
-          if (!['left', 'center', 'right', 'justify'].includes(align))
-            return { success: false, message: $t('common.editorOp.invalidAlign') };
-          editor.chain().focus().setTextAlign(align).run();
-          return { success: true, message: $t('common.editorOp.alignApplied', { align }) };
-        },
-      },
-      // --- Link & table ---
-      {
-        name: 'manage_link',
-        label: $t('common.manageLink'),
-        description: 'Set or unset link on selection. action: set (requires href) or unset.',
-        readonly: false,
-        params: {
-          action: {
-            type: 'string',
-            enum: ['set', 'unset'],
-            description: 'set or unset link',
-          },
-          href: {
-            type: 'string',
-            description: 'URL when action is set',
-          },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const action = String(params.action || 'set');
-          if (action === 'unset') {
-            editor.chain().focus().extendMarkRange('link').unsetLink().run();
-            return { success: true, message: $t('common.editorOp.linkRemoved') };
-          }
-          const href = String(params.href || '').trim();
-          if (!href)
-            return { success: false, message: $t('common.editorOp.hrefRequired') };
-          editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
-          return { success: true, message: $t('common.editorOp.linkSet', { href }) };
-        },
-      },
-      {
-        name: 'insert_table',
-        label: $t('common.insertTable'),
-        description: 'Insert a table. Optional rows (default 3), cols (default 3).',
-        readonly: false,
-        params: {
-          rows: { type: 'number', description: 'Number of rows' },
-          cols: { type: 'number', description: 'Number of columns' },
-        },
-        handler: async (params: Record<string, unknown>) => {
-          const rows = Math.min(10, Math.max(1, Number(params.rows) || 3));
-          const cols = Math.min(10, Math.max(1, Number(params.cols) || 3));
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows, cols, withHeaderRow: true })
-            .run();
-          return { success: true, message: $t('common.editorOp.tableInserted', { rows, cols }) };
-        },
-      },
+        }),
       ];
 
       return allowMutations ? [...editorOps, ...mutationOps] : editorOps;

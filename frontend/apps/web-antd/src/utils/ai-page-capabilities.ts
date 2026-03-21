@@ -3,21 +3,21 @@ import type { AIPageMode } from '@vben/types';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 export type PageAICapabilityKey =
-  | 'context'
   | 'content'
-  | 'search'
-  | 'pagination'
-  | 'list_read'
-  | 'form'
-  | 'submit'
+  | 'context'
+  | 'custom'
   | 'detail'
   | 'editor'
-  | 'table_policy'
-  | 'custom';
+  | 'form'
+  | 'list_read'
+  | 'pagination'
+  | 'search'
+  | 'submit'
+  | 'table_policy';
 
 export interface PageAIPolicyLike {
-  disabledCapabilities?: string[] | string;
-  disabledOperations?: string[] | string;
+  disabledCapabilities?: string | string[];
+  disabledOperations?: string | string[];
   mode?: AIPageMode;
 }
 
@@ -69,6 +69,7 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
     'view_recycle_bin',
   ],
   list_read: [
+    'export_data',
     'read_row_detail',
     'read_visible_rows',
     'refresh_list',
@@ -78,17 +79,21 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
   submit: ['submit_form'],
 };
 
-function normalizeStringList(values?: string[] | string): string[] {
+function normalizeStringList(values?: string | string[]): string[] {
   if (!values) return [];
   if (Array.isArray(values)) {
-    return [...new Set(values.map((item) => String(item).trim()).filter(Boolean))];
+    return [
+      ...new Set(values.map((item) => String(item).trim()).filter(Boolean)),
+    ];
   }
-  return [...new Set(
-    String(values)
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-  )];
+  return [
+    ...new Set(
+      String(values)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function normalizePageAIMode(
@@ -101,35 +106,34 @@ export function normalizePageAIMode(
 }
 
 export function normalizeCapabilityKeys(
-  values?: string[] | string,
+  values?: string | string[],
 ): PageAICapabilityKey[] {
   const allowed = new Set<PageAICapabilityKey>([
-    'context',
     'content',
-    'search',
-    'pagination',
-    'list_read',
-    'form',
-    'submit',
+    'context',
+    'custom',
     'detail',
     'editor',
+    'form',
+    'list_read',
+    'pagination',
+    'search',
+    'submit',
     'table_policy',
-    'custom',
   ]);
   return normalizeStringList(values).filter(
-    (item): item is PageAICapabilityKey => allowed.has(item as PageAICapabilityKey),
+    (item): item is PageAICapabilityKey =>
+      allowed.has(item as PageAICapabilityKey),
   );
 }
 
-export function normalizeOperationNames(values?: string[] | string): string[] {
+export function normalizeOperationNames(values?: string | string[]): string[] {
   return normalizeStringList(values);
 }
 
 function normalizeNumberList(values?: number[]): number[] {
   if (!Array.isArray(values)) return [];
-  const normalized = values
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item));
+  const normalized = values.map(Number).filter((item) => Number.isFinite(item));
   return [...new Set(normalized)];
 }
 
@@ -138,13 +142,13 @@ export function canExposePageOperations(mode: AIPageMode): boolean {
 }
 
 export function shouldDisablePageContext(
-  disabledCapabilities?: string[] | string,
+  disabledCapabilities?: string | string[],
 ): boolean {
   return normalizeCapabilityKeys(disabledCapabilities).includes('context');
 }
 
 export function expandDisabledOperationsFromCapabilities(
-  disabledCapabilities?: string[] | string,
+  disabledCapabilities?: string | string[],
 ): string[] {
   const disabled = normalizeCapabilityKeys(disabledCapabilities);
   const operations = new Set<string>();
@@ -167,9 +171,9 @@ export function expandDisabledOperationsFromCapabilities(
 }
 
 export function mergeDisabledOperations(input: {
-  disabledCapabilities?: string[] | string;
-  disabledOperations?: string[] | string;
-  legacyDisabledOperations?: string[] | string;
+  disabledCapabilities?: string | string[];
+  disabledOperations?: string | string[];
+  legacyDisabledOperations?: string | string[];
 }): string[] {
   const merged = new Set<string>([
     ...expandDisabledOperationsFromCapabilities(input.disabledCapabilities),
@@ -179,10 +183,9 @@ export function mergeDisabledOperations(input: {
   return [...merged];
 }
 
-export function filterPageOperationsByPolicy<T extends Pick<PageOperation, 'name'>>(
-  operations: readonly T[],
-  policy: PageAIPolicyLike,
-): T[] {
+export function filterPageOperationsByPolicy<
+  T extends Pick<PageOperation, 'name'>,
+>(operations: readonly T[], policy: PageAIPolicyLike): T[] {
   const mode = normalizePageAIMode(policy.mode);
   if (!canExposePageOperations(mode)) {
     return [];

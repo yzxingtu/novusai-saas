@@ -85,7 +85,6 @@ const { Grid, FormDrawer, onRefresh } =
       logs: onViewLogs,
     },
     ai: {
-      pageKey: 'admin.system.periodic-tasks',
       formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
     },
   });

@@ -23,14 +23,16 @@
 
 import type { Ref } from 'vue';
 
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { VbenFormSchema } from '#/core/adapter/form/setup';
+import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
+
 import { useRouter } from 'vue-router';
 
-import type { VbenFormSchema } from '#/core/adapter/form/setup';
-
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { $t } from '#/locales';
-import { mergeDisabledOperations, type PageAICapabilityKey } from '#/utils/ai-page-capabilities';
+import { mergeDisabledOperations } from '#/utils/ai-page-capabilities';
 import { requestClient } from '#/utils/request';
+
 import { resolveFormOptionsFieldName } from './form-option-param-utils';
 import { formStateTracker } from './use-form-state-tracker';
 
@@ -85,9 +87,9 @@ export interface EnhancedFormFieldDescriptor {
   component: AiFieldComponent;
   /** Field constraints / 字段约束 */
   constraints?: {
+    max?: number;
     maxLength?: number;
     min?: number;
-    max?: number;
     precision?: number;
   };
   /** Static options (for select/checkbox/radio) / 静态可选项 */
@@ -139,19 +141,19 @@ export interface CrudAiOperationsOptions {
   onSearch: (
     params?: Record<string, unknown>,
     state?: CrudSearchStatePayload,
-  ) => void | Promise<void>;
+  ) => Promise<void> | void;
   /** Current list data ref / 当前列表数据 ref */
   list: Ref<unknown[]>;
   /** Total row count / 总行数 */
-  total?: Ref<number> | number;
+  total?: number | Ref<number>;
   /** Current page number / 当前页码 */
   currentPage?: ValueResolver<number>;
   /** Current page size / 当前每页条数 */
   pageSize?: ValueResolver<number>;
   /** Set current page / 设置当前页 */
-  setCurrentPage?: (page: number) => void | Promise<void>;
+  setCurrentPage?: (page: number) => Promise<void> | void;
   /** Set page size / 设置每页条数 */
-  setPageSize?: (size: number) => void | Promise<void>;
+  setPageSize?: (size: number) => Promise<void> | void;
   /** Form popup API (from useVbenDrawer or useVbenModal) / 表单弹窗 API */
   formPopupApi?: FormPopupApi | null;
   /** Form default values / 表单默认值 */
@@ -166,6 +168,8 @@ export interface CrudAiOperationsOptions {
   hasRecycleBin?: boolean;
   /** Open recycle bin callback / 打开回收站回调 */
   openRecycleBin?: () => void;
+  /** Open export modal callback / 打开导出弹窗回调 */
+  openExportModal?: () => void;
   /** Legacy disabled operation names / 旧版禁用操作名称列表 */
   disabled?: string[];
   /** Disabled capability groups / 禁用的能力分组 */
@@ -228,7 +232,8 @@ export function buildCrudPaginationState(opts: {
 function stringifySummaryValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'string') return value.slice(0, 80);
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
   if (value instanceof Date) return value.toISOString();
 
   try {
@@ -252,7 +257,10 @@ export function buildCrudListSummary(
   const fallbackKeys = Object.keys(rows[0] as Record<string, unknown>)
     .filter((key) => !key.startsWith('_') && key !== 'id')
     .slice(0, 6);
-  const displayKeys = (opts.displayKeys?.filter(Boolean) ?? fallbackKeys).slice(0, 6);
+  const displayKeys = (opts.displayKeys?.filter(Boolean) ?? fallbackKeys).slice(
+    0,
+    6,
+  );
 
   const sampleRows = rows.slice(0, 5).map((row) => {
     const record = row as Record<string, unknown>;
@@ -330,14 +338,12 @@ export function extractSearchParams(
     }
 
     if (component === 'Select') {
-      const opts = (
-        item.componentProps as Record<string, unknown> | undefined
-      )?.options;
+      const opts = (item.componentProps as Record<string, unknown> | undefined)
+        ?.options;
       if (
         Array.isArray(opts) &&
         opts.some(
-          (o: unknown) =>
-            typeof (o as { value: unknown }).value === 'boolean',
+          (o: unknown) => typeof (o as { value: unknown }).value === 'boolean',
         )
       ) {
         type = 'boolean';
@@ -487,10 +493,12 @@ export function extractFormParams(
 
     // Resolve options / 解析选项
     const staticOptions = extractStaticOptions(props);
-    const isRemote =
-      component === 'ApiSelect' || component === 'ApiTreeSelect';
-    const optionsSource: EnhancedFormFieldDescriptor['optionsSource'] =
-      isRemote ? 'remote' : staticOptions ? 'static' : undefined;
+    const isRemote = component === 'ApiSelect' || component === 'ApiTreeSelect';
+    const optionsSource: EnhancedFormFieldDescriptor['optionsSource'] = isRemote
+      ? 'remote'
+      : staticOptions
+        ? 'static'
+        : undefined;
 
     // Resolve placeholder / 解析占位提示
     const placeholder = props?.placeholder as string | undefined;
@@ -503,9 +511,9 @@ export function extractFormParams(
       ...(hasConstraints ? { constraints } : {}),
       ...(staticOptions ? { options: staticOptions } : {}),
       ...(optionsSource ? { optionsSource } : {}),
-      ...(item.defaultValue !== undefined
-        ? { defaultValue: item.defaultValue }
-        : {}),
+      ...(item.defaultValue === undefined
+        ? {}
+        : { defaultValue: item.defaultValue }),
       ...(placeholder ? { placeholder } : {}),
     };
 
@@ -569,7 +577,10 @@ export async function resolveRemoteOptions(
       continue;
     }
 
-    const apiParams = { ...(props?.params as Record<string, unknown> ?? {}), 'page[size]': 50 };
+    const apiParams = {
+      ...(props?.params as Record<string, unknown>),
+      'page[size]': 50,
+    };
     const resultField = (props?.resultField as string) || 'items';
 
     const promise = apiFn(apiParams)
@@ -601,8 +612,8 @@ export async function resolveRemoteOptions(
 
   // Wait for all in-flight / 等待所有进行中的请求
   const settled = await Promise.allSettled(tasks.map((t) => t.promise));
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i]!;
+  for (const [i, task_] of tasks.entries()) {
+    const task = task_!;
     const s = settled[i]!;
     if (s.status === 'fulfilled' && s.value.length > 0) {
       result.set(task.fieldName, s.value);
@@ -682,7 +693,9 @@ interface FieldFeedback {
  * mismatches (e.g. passed a label instead of a value for Select fields).
  */
 async function buildFillFormFeedback(
-  trackedApi: { getValues: () => Record<string, unknown> | Promise<Record<string, unknown>> },
+  trackedApi: {
+    getValues: () => Promise<Record<string, unknown>> | Record<string, unknown>;
+  },
   requestedValues: Record<string, unknown>,
 ): Promise<{
   feedback: Record<string, FieldFeedback>;
@@ -704,9 +717,10 @@ async function buildFillFormFeedback(
   let mismatchCount = 0;
   for (const [key, requested] of Object.entries(requestedValues)) {
     const actual = getByDotPath(actualValues, key);
-    const match = actual === requested
-      || (actual == null && requested == null)
-      || JSON.stringify(actual) === JSON.stringify(requested);
+    const match =
+      actual === requested ||
+      (actual == null && requested == null) ||
+      JSON.stringify(actual) === JSON.stringify(requested);
     feedback[key] = { requested, actual, match };
     if (!match) mismatchCount++;
   }
@@ -733,7 +747,8 @@ function buildFieldParamSchema(
     schema.options = entry.options;
   }
   if (entry.optionsSource) schema.optionsSource = entry.optionsSource;
-  if (entry.defaultValue !== undefined) schema.defaultValue = entry.defaultValue;
+  if (entry.defaultValue !== undefined)
+    schema.defaultValue = entry.defaultValue;
   if (entry.placeholder) schema.placeholder = entry.placeholder;
   return schema;
 }
@@ -744,15 +759,16 @@ function buildFieldParamSchema(
  * Create standard CRUD AI operations for a list page
  * 为列表页创建标准 CRUD AI 操作集
  *
- * Generates up to 7 standard operations based on provided options:
- * 根据配置生成最多 7 种标准操作：
+ * Generates up to 8 standard operations based on provided options:
+ * 根据配置生成最多 8 种标准操作：
  * 1. refresh_list       — always registered / 始终注册
- * 2. search             — registered if searchSchema provided / 有 searchSchema 时注册
- * 3. clear_search       — registered if searchSchema provided / 有 searchSchema 时注册
- * 4. create_record      — registered if formSchema + formPopupApi provided / 有表单时注册
- * 5. edit_record        — registered if formSchema + formPopupApi provided / 有表单时注册
- * 6. navigate_to_detail — registered if detailRoute provided / 有 detailRoute 时注册
- * 7. view_recycle_bin   — registered if hasRecycleBin=true / hasRecycleBin=true 时注册
+ * 2. export_data        — registered if openExportModal provided / 有 openExportModal 时注册
+ * 3. search             — registered if searchSchema provided / 有 searchSchema 时注册
+ * 4. clear_search       — registered if searchSchema provided / 有 searchSchema 时注册
+ * 5. create_record      — registered if formSchema + formPopupApi provided / 有表单时注册
+ * 6. edit_record        — registered if formSchema + formPopupApi provided / 有表单时注册
+ * 7. navigate_to_detail — registered if detailRoute provided / 有 detailRoute 时注册
+ * 8. view_recycle_bin   — registered if hasRecycleBin=true / hasRecycleBin=true 时注册
  *
  * Extra operations can override same-named standard operations.
  * extra 中的操作可以覆盖同名的标准操作。
@@ -777,6 +793,7 @@ export function createStandardOperations(
     detailRoute,
     hasRecycleBin,
     openRecycleBin,
+    openExportModal,
     disabled,
     disabledCapabilities,
     disabledOperations,
@@ -820,7 +837,11 @@ export function createStandardOperations(
     }
   }
   // Fire-and-forget preload / 触发后台预加载
-  if (rawFormSchema.some((s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect')) {
+  if (
+    rawFormSchema.some(
+      (s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect',
+    )
+  ) {
     ensureRemoteOptions();
   }
 
@@ -926,23 +947,39 @@ export function createStandardOperations(
     operations.push({
       name: 'refresh_list',
       label: $t('shared.pageOperation.refreshList'),
-      description:
-        'Reload the current list data / 重新加载当前列表数据',
+      description: 'Reload the current list data / 重新加载当前列表数据',
       readonly: true,
       handler: async () => {
         await loadList();
-        return { success: true, message: $t('shared.pageOperation.msg.listRefreshed') };
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.listRefreshed'),
+        };
       },
     });
   }
 
-  // ── 2. search — Search (needs searchSchema) / 搜索，需 searchSchema ──
+  // ── 2. export_data — Open export modal / 打开导出弹窗 ──
+  if (!isDisabled('export_data') && openExportModal) {
+    operations.push({
+      name: 'export_data',
+      label: $t('shared.pageOperation.exportData'),
+      description:
+        'Open the current list export dialog / 打开当前列表导出对话框',
+      readonly: true,
+      handler: async () => {
+        openExportModal();
+        return { success: true, message: 'Export dialog opened' };
+      },
+    });
+  }
+
+  // ── 3. search — Search (needs searchSchema) / 搜索，需 searchSchema ──
   if (!isDisabled('search') && Object.keys(searchParamsMap).length > 0) {
     operations.push({
       name: 'search',
       label: $t('shared.pageOperation.search'),
-      description:
-        'Search by specific field conditions / 按指定字段条件搜索',
+      description: 'Search by specific field conditions / 按指定字段条件搜索',
       readonly: true,
       params: searchOpParams,
       handler: async (params) => {
@@ -968,14 +1005,16 @@ export function createStandardOperations(
           success: true,
           message:
             applied.length > 0
-              ? $t('shared.pageOperation.msg.searchApplied', { fields: applied.join(', ') })
+              ? $t('shared.pageOperation.msg.searchApplied', {
+                  fields: applied.join(', '),
+                })
               : $t('shared.pageOperation.msg.searchCleared'),
         };
       },
     });
   }
 
-  // ── 3. clear_search — Clear search (needs searchSchema) / 清空搜索，需 searchSchema ──
+  // ── 4. clear_search — Clear search (needs searchSchema) / 清空搜索，需 searchSchema ──
   if (!isDisabled('clear_search') && Object.keys(searchParamsMap).length > 0) {
     operations.push({
       name: 'clear_search',
@@ -984,9 +1023,12 @@ export function createStandardOperations(
         'Clear all search conditions and reload / 清空所有搜索条件并重新加载',
       readonly: true,
       handler: async () => {
-        await onSearch({}, {
-          rawFormValues: buildRawSearchFormValues({}),
-        });
+        await onSearch(
+          {},
+          {
+            rawFormValues: buildRawSearchFormValues({}),
+          },
+        );
         return {
           success: true,
           message: $t('shared.pageOperation.msg.searchCleared'),
@@ -1026,16 +1068,17 @@ export function createStandardOperations(
 
   // ── 3b. pagination operations — Navigate list pages / 分页操作 ──
   if (
-    !isDisabled('next_page')
-    && currentPage !== undefined
-    && pageSize !== undefined
-    && total !== undefined
-    && setCurrentPage
+    !isDisabled('next_page') &&
+    currentPage !== undefined &&
+    pageSize !== undefined &&
+    total !== undefined &&
+    setCurrentPage
   ) {
     operations.push({
       name: 'next_page',
       label: $t('shared.pageOperation.nextPage'),
-      description: 'Go to the next page of the current list / 前往当前列表的下一页',
+      description:
+        'Go to the next page of the current list / 前往当前列表的下一页',
       readonly: true,
       handler: async () => {
         const pagination = getPaginationState();
@@ -1053,7 +1096,9 @@ export function createStandardOperations(
         await loadList();
         return {
           success: true,
-          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+          message: $t('shared.pageOperation.msg.pageChanged', {
+            page: targetPage,
+          }),
         };
       },
     });
@@ -1113,16 +1158,17 @@ export function createStandardOperations(
   }
 
   if (
-    !isDisabled('prev_page')
-    && currentPage !== undefined
-    && pageSize !== undefined
-    && total !== undefined
-    && setCurrentPage
+    !isDisabled('prev_page') &&
+    currentPage !== undefined &&
+    pageSize !== undefined &&
+    total !== undefined &&
+    setCurrentPage
   ) {
     operations.push({
       name: 'prev_page',
       label: $t('shared.pageOperation.prevPage'),
-      description: 'Go to the previous page of the current list / 返回当前列表的上一页',
+      description:
+        'Go to the previous page of the current list / 返回当前列表的上一页',
       readonly: true,
       handler: async () => {
         const pagination = getPaginationState();
@@ -1140,18 +1186,20 @@ export function createStandardOperations(
         await loadList();
         return {
           success: true,
-          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+          message: $t('shared.pageOperation.msg.pageChanged', {
+            page: targetPage,
+          }),
         };
       },
     });
   }
 
   if (
-    !isDisabled('go_to_page')
-    && currentPage !== undefined
-    && pageSize !== undefined
-    && total !== undefined
-    && setCurrentPage
+    !isDisabled('go_to_page') &&
+    currentPage !== undefined &&
+    pageSize !== undefined &&
+    total !== undefined &&
+    setCurrentPage
   ) {
     operations.push({
       name: 'go_to_page',
@@ -1168,7 +1216,11 @@ export function createStandardOperations(
       handler: async (params) => {
         const targetPage = Number(params.page);
         const pagination = getPaginationState();
-        if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage > pagination.total_pages) {
+        if (
+          !Number.isFinite(targetPage) ||
+          targetPage < 1 ||
+          targetPage > pagination.total_pages
+        ) {
           return {
             success: false,
             message: $t('shared.pageOperation.msg.pageOutOfRange', {
@@ -1183,7 +1235,9 @@ export function createStandardOperations(
         await loadList();
         return {
           success: true,
-          message: $t('shared.pageOperation.msg.pageChanged', { page: targetPage }),
+          message: $t('shared.pageOperation.msg.pageChanged', {
+            page: targetPage,
+          }),
         };
       },
     });
@@ -1193,7 +1247,8 @@ export function createStandardOperations(
     operations.push({
       name: 'set_page_size',
       label: $t('shared.pageOperation.setPageSize'),
-      description: 'Change the number of rows shown per page / 修改每页显示的行数',
+      description:
+        'Change the number of rows shown per page / 修改每页显示的行数',
       readonly: true,
       params: {
         page_size: {
@@ -1225,7 +1280,7 @@ export function createStandardOperations(
     });
   }
 
-  // ── 4. create_record — Create record (needs formSchema + formPopupApi) / 新建记录 ──
+  // ── 5. create_record — Create record (needs formSchema + formPopupApi) / 新建记录 ──
   if (!isDisabled('create_record') && formPopupApi && formSchema) {
     operations.push({
       name: 'create_record',
@@ -1233,7 +1288,8 @@ export function createStandardOperations(
       description:
         'Open create form with optional pre-filled fields. User must confirm submit. / 打开新建表单，可选预填字段，用户手动确认提交。',
       readonly: false,
-      params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+      params:
+        Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
       handler: async (params) => {
         // Only accept fields defined in formSchema, ignore unknown fields
         // 只接受 formSchema 中定义的字段，忽略未知字段
@@ -1260,14 +1316,16 @@ export function createStandardOperations(
           success: true,
           message:
             filled.length > 0
-              ? $t('shared.pageOperation.msg.createFormOpened', { fields: filled.join(', ') })
+              ? $t('shared.pageOperation.msg.createFormOpened', {
+                  fields: filled.join(', '),
+                })
               : $t('shared.pageOperation.msg.createFormOpenedEmpty'),
         };
       },
     });
   }
 
-  // ── 5. edit_record — Edit record (needs formSchema + formPopupApi) / 编辑记录 ──
+  // ── 6. edit_record — Edit record (needs formSchema + formPopupApi) / 编辑记录 ──
   if (!isDisabled('edit_record') && formPopupApi && formSchema) {
     const editOpParams: Record<string, unknown> = {
       id: {
@@ -1304,7 +1362,9 @@ export function createStandardOperations(
         if (!record) {
           return {
             success: false,
-            message: $t('shared.pageOperation.msg.recordNotFoundInList', { id }),
+            message: $t('shared.pageOperation.msg.recordNotFoundInList', {
+              id,
+            }),
           };
         }
 
@@ -1315,9 +1375,10 @@ export function createStandardOperations(
           if (params[key] !== undefined) overrides[key] = params[key];
         }
 
-        const expandedOverrides = Object.keys(overrides).length > 0
-          ? expandDotKeys(overrides)
-          : undefined;
+        const expandedOverrides =
+          Object.keys(overrides).length > 0
+            ? expandDotKeys(overrides)
+            : undefined;
 
         formPopupApi
           .setData({
@@ -1337,7 +1398,10 @@ export function createStandardOperations(
           success: true,
           message:
             changed.length > 0
-              ? $t('shared.pageOperation.msg.editFormOpened', { id, fields: changed.join(', ') })
+              ? $t('shared.pageOperation.msg.editFormOpened', {
+                  id,
+                  fields: changed.join(', '),
+                })
               : $t('shared.pageOperation.msg.editFormOpenedEmpty', { id }),
         };
       },
@@ -1349,7 +1413,8 @@ export function createStandardOperations(
     operations.push({
       name: 'delete_record',
       label: $t('shared.pageOperation.deleteRecord'),
-      description: 'Delete a record by ID. Requires user confirmation. / 按 ID 删除记录。需用户确认。',
+      description:
+        'Delete a record by ID. Requires user confirmation. / 按 ID 删除记录。需用户确认。',
       readonly: false,
       params: {
         id: {
@@ -1361,7 +1426,10 @@ export function createStandardOperations(
       handler: async (params) => {
         const id = params.id;
         if (id == null) {
-          return { success: false, message: $t('shared.pageOperation.msg.missingIdParam') };
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.missingIdParam'),
+          };
         }
         try {
           await requestClient.delete(`${resource}/${id}`, {
@@ -1369,16 +1437,19 @@ export function createStandardOperations(
             showCodeMessage: false,
           });
           await loadList();
-          return { success: true, message: $t('shared.pageOperation.msg.recordDeleted', { id }) };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.recordDeleted', { id }),
+          };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
           return { success: false, message: msg };
         }
       },
     });
   }
 
-  // ── 6. navigate_to_detail — Navigate to detail (needs detailRoute) / 跳转详情页 ──
+  // ── 7. navigate_to_detail — Navigate to detail (needs detailRoute) / 跳转详情页 ──
   if (!isDisabled('navigate_to_detail') && detailRoute) {
     operations.push({
       name: 'navigate_to_detail',
@@ -1410,12 +1481,13 @@ export function createStandardOperations(
     });
   }
 
-  // ── 7. view_recycle_bin — Open recycle bin (needs hasRecycleBin) / 打开回收站 ──
+  // ── 8. view_recycle_bin — Open recycle bin (needs hasRecycleBin) / 打开回收站 ──
   if (!isDisabled('view_recycle_bin') && hasRecycleBin && openRecycleBin) {
     operations.push({
       name: 'view_recycle_bin',
       label: $t('shared.pageOperation.viewRecycleBin'),
-      description: 'Open the recycle bin to view deleted records / 打开回收站查看已删除记录',
+      description:
+        'Open the recycle bin to view deleted records / 打开回收站查看已删除记录',
       readonly: true,
       handler: async () => {
         openRecycleBin();
@@ -1463,7 +1535,8 @@ export function createStandardOperations(
       description:
         'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
       readonly: false,
-      params: Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
+      params:
+        Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
       handler: async (params) => {
         if (!formStateTracker.isOpenWithFallback(optsPageKey)) {
           return {
@@ -1494,7 +1567,9 @@ export function createStandardOperations(
         if (Object.keys(validFields).length === 0) {
           return {
             success: false,
-            message: $t('shared.pageOperation.msg.noValidFields', { fields: Object.keys(formParamsMap).join(', ') }),
+            message: $t('shared.pageOperation.msg.noValidFields', {
+              fields: Object.keys(formParamsMap).join(', '),
+            }),
           };
         }
 
@@ -1502,18 +1577,37 @@ export function createStandardOperations(
           trackedApi.setValues(expandDotKeys(validFields));
           await new Promise<void>((r) => setTimeout(r, 100));
         } catch {
-          return { success: false, message: $t('shared.pageOperation.msg.setFormValuesFailed') };
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.setFormValuesFailed'),
+          };
         }
 
         const filledKeys = Object.keys(validFields);
-        const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
-        const skippedInfo = skippedFields.length > 0 ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}` : '';
+        const { feedback, mismatchCount } = await buildFillFormFeedback(
+          trackedApi,
+          validFields,
+        );
+        const skippedInfo =
+          skippedFields.length > 0
+            ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}`
+            : '';
         return {
           success: true,
-          message: (mismatchCount > 0
-            ? $t('shared.pageOperation.msg.fillFormPartial', { count: filledKeys.length, mismatch: mismatchCount })
-            : $t('shared.pageOperation.msg.fillFormResult', { count: filledKeys.length })) + skippedInfo,
-          data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
+          message:
+            (mismatchCount > 0
+              ? $t('shared.pageOperation.msg.fillFormPartial', {
+                  count: filledKeys.length,
+                  mismatch: mismatchCount,
+                })
+              : $t('shared.pageOperation.msg.fillFormResult', {
+                  count: filledKeys.length,
+                })) + skippedInfo,
+          data: {
+            filled: filledKeys,
+            skipped: skippedFields,
+            field_feedback: feedback,
+          },
         };
       },
     });
@@ -1536,7 +1630,10 @@ export function createStandardOperations(
         }
         const trackedApi = formStateTracker.getFormApi(optsPageKey);
         if (!trackedApi) {
-          return { success: false, message: $t('shared.pageOperation.msg.formApiNotAvailable') };
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+          };
         }
         try {
           const { valid } = await trackedApi.validate();
@@ -1548,7 +1645,10 @@ export function createStandardOperations(
             data: { valid },
           };
         } catch {
-          return { success: false, message: $t('shared.pageOperation.msg.validationFailed') };
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.validationFailed'),
+          };
         }
       },
     });
@@ -1577,8 +1677,10 @@ export function createStandardOperations(
           };
         }
         const validResult = await trackedApi.validate();
-        const valid = validResult && (validResult as { valid?: boolean }).valid !== false;
-        const errors = (validResult as { errors?: Record<string, unknown> })?.errors;
+        const valid =
+          validResult && (validResult as { valid?: boolean }).valid !== false;
+        const errors = (validResult as { errors?: Record<string, unknown> })
+          ?.errors;
         if (!valid && errors && Object.keys(errors).length > 0) {
           return {
             success: false,
@@ -1589,9 +1691,12 @@ export function createStandardOperations(
         if (trackedApi.submitForm) {
           try {
             await trackedApi.submitForm();
-            return { success: true, message: $t('shared.pageOperation.msg.formSubmittedSuccess') };
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+            return {
+              success: true,
+              message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
+            };
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
             return { success: false, message: msg };
           }
         }
@@ -1613,8 +1718,7 @@ export function createStandardOperations(
       operations.push({
         name: 'get_form_options',
         label: $t('shared.pageOperation.getFormOptions'),
-        description:
-          `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
+        description: `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
         readonly: true,
         params: {
           field_name: {
@@ -1628,7 +1732,10 @@ export function createStandardOperations(
           if (!fieldName || !formParamsMap[fieldName]) {
             return {
               success: false,
-              message: $t('shared.pageOperation.msg.unknownField', { field: fieldName, available: remoteFields.join(', ') }),
+              message: $t('shared.pageOperation.msg.unknownField', {
+                field: fieldName,
+                available: remoteFields.join(', '),
+              }),
             };
           }
 
@@ -1637,14 +1744,19 @@ export function createStandardOperations(
           if (desc?.options && desc.options.length > 0) {
             return {
               success: true,
-              message: $t('shared.pageOperation.msg.foundOptions', { field: fieldName, count: desc.options.length }),
+              message: $t('shared.pageOperation.msg.foundOptions', {
+                field: fieldName,
+                count: desc.options.length,
+              }),
               data: { field: fieldName, options: desc.options },
             };
           }
 
           return {
             success: true,
-            message: $t('shared.pageOperation.msg.noOptionsLoaded', { field: fieldName }),
+            message: $t('shared.pageOperation.msg.noOptionsLoaded', {
+              field: fieldName,
+            }),
             data: { field: fieldName, options: [] },
           };
         },
@@ -1656,10 +1768,10 @@ export function createStandardOperations(
   // 合并额外操作 — extra 中的操作可覆盖同名标准操作
   for (const op of extra) {
     const existingIdx = operations.findIndex((o) => o.name === op.name);
-    if (existingIdx >= 0) {
-      operations[existingIdx] = op;
-    } else {
+    if (existingIdx === -1) {
       operations.push(op);
+    } else {
+      operations[existingIdx] = op;
     }
   }
 
@@ -1713,7 +1825,11 @@ export function createFormOperations(
       }
     }
   }
-  if (rawFormSchema.some((s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect')) {
+  if (
+    rawFormSchema.some(
+      (s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect',
+    )
+  ) {
     ensureRemoteOptions();
   }
 
@@ -1782,7 +1898,9 @@ export function createFormOperations(
       if (Object.keys(validFields).length === 0) {
         return {
           success: false,
-          message: $t('shared.pageOperation.msg.noValidFields', { fields: Object.keys(formParamsMap).join(', ') }),
+          message: $t('shared.pageOperation.msg.noValidFields', {
+            fields: Object.keys(formParamsMap).join(', '),
+          }),
         };
       }
 
@@ -1790,18 +1908,37 @@ export function createFormOperations(
         trackedApi.setValues(expandDotKeys(validFields));
         await new Promise<void>((r) => setTimeout(r, 100));
       } catch {
-        return { success: false, message: $t('shared.pageOperation.msg.setFormValuesFailed') };
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.setFormValuesFailed'),
+        };
       }
 
       const filledKeys = Object.keys(validFields);
-      const { feedback, mismatchCount } = await buildFillFormFeedback(trackedApi, validFields);
-      const skippedInfo = skippedFields.length > 0 ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}` : '';
+      const { feedback, mismatchCount } = await buildFillFormFeedback(
+        trackedApi,
+        validFields,
+      );
+      const skippedInfo =
+        skippedFields.length > 0
+          ? `. ${$t('shared.pageOperation.msg.skippedUnknown', { fields: skippedFields.join(', ') })}`
+          : '';
       return {
         success: true,
-        message: (mismatchCount > 0
-          ? $t('shared.pageOperation.msg.fillFormPartial', { count: filledKeys.length, mismatch: mismatchCount })
-          : $t('shared.pageOperation.msg.fillFormResult', { count: filledKeys.length })) + skippedInfo,
-        data: { filled: filledKeys, skipped: skippedFields, field_feedback: feedback },
+        message:
+          (mismatchCount > 0
+            ? $t('shared.pageOperation.msg.fillFormPartial', {
+                count: filledKeys.length,
+                mismatch: mismatchCount,
+              })
+            : $t('shared.pageOperation.msg.fillFormResult', {
+                count: filledKeys.length,
+              })) + skippedInfo,
+        data: {
+          filled: filledKeys,
+          skipped: skippedFields,
+          field_feedback: feedback,
+        },
       };
     },
   });
@@ -1822,7 +1959,10 @@ export function createFormOperations(
       }
       const trackedApi = formStateTracker.getFormApi(pageKey);
       if (!trackedApi) {
-        return { success: false, message: $t('shared.pageOperation.msg.formApiNotAvailable') };
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.formApiNotAvailable'),
+        };
       }
       try {
         const { valid } = await trackedApi.validate();
@@ -1834,7 +1974,10 @@ export function createFormOperations(
           data: { valid },
         };
       } catch {
-        return { success: false, message: $t('shared.pageOperation.msg.validationFailed') };
+        return {
+          success: false,
+          message: $t('shared.pageOperation.msg.validationFailed'),
+        };
       }
     },
   });
@@ -1861,8 +2004,10 @@ export function createFormOperations(
         };
       }
       const validResult = await trackedApi.validate();
-      const valid = validResult && (validResult as { valid?: boolean }).valid !== false;
-      const errors = (validResult as { errors?: Record<string, unknown> })?.errors;
+      const valid =
+        validResult && (validResult as { valid?: boolean }).valid !== false;
+      const errors = (validResult as { errors?: Record<string, unknown> })
+        ?.errors;
       if (!valid && errors && Object.keys(errors).length > 0) {
         return {
           success: false,
@@ -1873,9 +2018,12 @@ export function createFormOperations(
       if (trackedApi.submitForm) {
         try {
           await trackedApi.submitForm();
-          return { success: true, message: $t('shared.pageOperation.msg.formSubmittedSuccess') };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
+          };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
           return { success: false, message: msg };
         }
       }
@@ -1895,8 +2043,7 @@ export function createFormOperations(
     operations.push({
       name: 'get_form_options',
       label: $t('shared.pageOperation.getFormOptions'),
-      description:
-        `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
+      description: `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
       readonly: true,
       params: {
         field_name: {
@@ -1910,7 +2057,10 @@ export function createFormOperations(
         if (!fieldName || !formParamsMap[fieldName]) {
           return {
             success: false,
-            message: $t('shared.pageOperation.msg.unknownField', { field: fieldName, available: remoteFields.join(', ') }),
+            message: $t('shared.pageOperation.msg.unknownField', {
+              field: fieldName,
+              available: remoteFields.join(', '),
+            }),
           };
         }
 
@@ -1919,14 +2069,19 @@ export function createFormOperations(
         if (desc?.options && desc.options.length > 0) {
           return {
             success: true,
-            message: $t('shared.pageOperation.msg.foundOptions', { field: fieldName, count: desc.options.length }),
+            message: $t('shared.pageOperation.msg.foundOptions', {
+              field: fieldName,
+              count: desc.options.length,
+            }),
             data: { field: fieldName, options: desc.options },
           };
         }
 
         return {
           success: true,
-          message: $t('shared.pageOperation.msg.noOptionsLoaded', { field: fieldName }),
+          message: $t('shared.pageOperation.msg.noOptionsLoaded', {
+            field: fieldName,
+          }),
           data: { field: fieldName, options: [] },
         };
       },

@@ -32,7 +32,7 @@ from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
-from app.models.ai.agent_skill_binding import AgentSkillBinding
+from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
 from app.services.ai.agent_service import AgentService
@@ -333,8 +333,7 @@ class AgentRouterService:
             select(Agent)
             .options(
                 selectinload(Agent.model),
-                selectinload(Agent.skill_bindings)
-                .selectinload(AgentSkillBinding.package),
+                selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
             )
             .where(
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
@@ -426,19 +425,18 @@ class AgentRouterService:
             }
             if m is not None:
                 entry["supports_vision"] = bool(getattr(m, "supports_vision", False))
-            # 提取已启用技能包名称列表，让 Router 知道 Agent 的工具能力
-            # 仅包含 enabled=True 的绑定，排除被禁用的技能包
-            skill_bindings = getattr(a, "skill_bindings", None)
-            if skill_bindings:
-                pkg_names = []
-                for binding in skill_bindings:
-                    if not getattr(binding, "enabled", True):
+            # 提取已启用技能名称列表，让 Router 知道 Agent 的工具能力
+            skill_grants = getattr(a, "skill_grants", None)
+            if skill_grants:
+                skill_names = []
+                for grant in skill_grants:
+                    if not getattr(grant, "enabled", True):
                         continue
-                    pkg = getattr(binding, "package", None)
-                    if pkg and getattr(pkg, "name", None):
-                        pkg_names.append(pkg.name)
-                if pkg_names:
-                    entry["capabilities"] = pkg_names
+                    skill = getattr(grant, "skill", None)
+                    if skill and getattr(skill, "name", None):
+                        skill_names.append(skill.name)
+                if skill_names:
+                    entry["capabilities"] = skill_names
             agent_list.append(entry)
 
         # 构建路由指令消息

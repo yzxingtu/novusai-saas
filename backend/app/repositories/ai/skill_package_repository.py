@@ -2,14 +2,11 @@
 技能包 Repository / Skill Package Repository
 """
 
-
 from sqlalchemy import and_, func, or_, select, update
-from sqlalchemy import delete as sa_delete
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
-from app.enums.common import AudienceEnum, RecycleStageEnum
-from app.models.ai.agent_skill_binding import AgentSkillBinding
+from app.enums.common import RecycleStageEnum
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
 from app.schemas.common.query import FilterRule, QuerySpec
@@ -78,14 +75,6 @@ class _SkillPackageCascadeMixin:
             )
         )
 
-    async def delete_skill_bindings(self, package_id: int) -> None:
-        """物理删除技能包的 AgentSkillBinding 记录 / Hard-delete package AgentSkillBinding."""
-        await self.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == package_id,
-            )
-        )
-
     async def get_with_skill_count(
         self,
         package_id: int,
@@ -146,11 +135,11 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     @staticmethod
     def _is_tenant_accessible(instance: SkillPackage, tenant_id: int | None) -> bool:
-        """Tenant can access own packages and non-admin-only platform packages."""
+        """Tenant can access own packages and shared platform packages."""
         if instance.tenant_id == tenant_id:
             return True
         if instance.tenant_id is None:
-            return instance.target_audience != AudienceEnum.ADMIN_ONLY.value
+            return True
         return False
 
     async def get_by_id(
@@ -169,7 +158,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         ids: list[int],
         include_deleted: bool = False,
     ) -> list[SkillPackage]:
-        """根据 ID 列表获取技能包，并过滤 tenant 不可见的平台 admin_only 包。"""
+        """根据 ID 列表获取技能包，并按企业归属过滤可见性。"""
         instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
         return [
             instance
@@ -190,8 +179,6 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         自动注入条件：(tenant_id = X) OR (平台级包 tenant_id=NULL)
         Auto-inject: (tenant_id = X) OR (platform-level tenant_id=NULL)
         """
-        from app.enums.common import AudienceEnum
-
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
@@ -203,10 +190,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
-                and_(
-                    self.model.tenant_id.is_(None),
-                    self.model.target_audience != AudienceEnum.ADMIN_ONLY.value,
-                ),
+                self.model.tenant_id.is_(None),
             )
         )
 
@@ -256,8 +240,6 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         """
         获取当前企业所有已激活的技能包（含平台级包）/ Get all active skill packages for current tenant (including platform-level).
         """
-        from app.enums.common import AudienceEnum
-
         stmt = (
             select(SkillPackage)
             .where(
@@ -267,10 +249,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_system.is_(False),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
-                        and_(
-                            SkillPackage.tenant_id.is_(None),
-                            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
-                        ),
+                        SkillPackage.tenant_id.is_(None),
                     ),
                 )
             )
@@ -286,13 +265,8 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
         包括 / Includes:
           - 同企业自有包 / Same tenant's own packages
-          - 平台级包（tenant_id=NULL）且 target_audience != admin_only / Platform packages visible to tenants
-
-        不包括 / Excludes:
-          - target_audience=admin_only 的包（仅管理端可见）/ Admin-only audience packages
+          - 平台级包（tenant_id=NULL）/ Platform packages
         """
-        from app.enums.common import AudienceEnum
-
         stmt = (
             select(SkillPackage)
             .where(
@@ -300,7 +274,6 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
                     SkillPackage.is_system.is_(False),
-                    SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         SkillPackage.tenant_id.is_(None),

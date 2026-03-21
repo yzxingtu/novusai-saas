@@ -199,9 +199,9 @@ watch(
 
 function getTypeIcon(type: string): string {
   switch (type) {
-    case 'api': return 'mdi:api';
+    case 'api': return 'lucide:route';
     case 'button': return 'lucide:square';
-    case 'menu': return 'lucide:layout-dashboard';
+    case 'menu': return 'lucide:menu';
     case 'operation': return 'lucide:mouse-pointer-click';
     default: return 'lucide:folder';
   }

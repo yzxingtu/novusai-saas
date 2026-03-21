@@ -21,7 +21,7 @@ import {
 } from 'ant-design-vue';
 
 import { getTenantQuotasApi, getTenantRateLimitsApi } from '#/api/tenant/ai';
-import { useCrudList } from '#/composables';
+import { createRefreshPageOperation, useCrudList } from '#/composables';
 import { $t } from '#/locales';
 
 import { formatTokens, getPeriodText, getQuotaTypeText } from './data';
@@ -47,7 +47,6 @@ const { list: quotas, loadList: loadQuotas, loading: quotaLoading } =
       total: Array.isArray(data) ? (data as unknown[]).length : 0,
     }),
     ai: {
-      pageKey: 'tenant.ai.quotas',
       entityName: $t('tenant.ai.quota.name'),
       entityDescription: $t('tenant.ai.quota.pageDesc'),
       contextExtras: (): Record<string, number> => ({
@@ -56,20 +55,13 @@ const { list: quotas, loadList: loadQuotas, loading: quotaLoading } =
         rate_limit_count: rateLimits.value.length,
       }),
       extra: [
-        {
-          name: 'refresh_list',
-          label: $t('shared.pageOperation.refreshList'),
+        createRefreshPageOperation({
           description:
             'Reload quotas and rate limits / 重新加载配额与速率限制',
-          readonly: true,
-          handler: async () => {
+          action: async () => {
             await Promise.all([loadQuotas(), loadRateLimits()]);
-            return {
-              success: true,
-              message: $t('shared.pageOperation.msg.listRefreshed'),
-            };
           },
-        },
+        }),
       ],
     },
   });

@@ -21,7 +21,7 @@ import type { PageOperation } from '#/components/business/ai-slide-panel/page-op
 import { useRouter } from 'vue-router';
 
 import { $t } from '#/locales';
-import { usePageAIRegistration } from './use-page-ai-registration';
+import { usePageAIOperations } from './use-page-ai-registration';
 
 /**
  * Options for useDetailPageAi
@@ -119,9 +119,8 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     }
   }
 
-  usePageAIRegistration({
+  usePageAIOperations({
     pageKey: opts.pageKey,
-    registerContext: false,
     operations,
   });
 }

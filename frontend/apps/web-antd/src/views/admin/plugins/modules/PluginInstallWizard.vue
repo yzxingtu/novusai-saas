@@ -12,6 +12,7 @@ import { Alert, Button, message, Modal, Tag, Upload } from 'ant-design-vue';
 
 import { installPluginApi, previewPluginInstallApi } from '#/api/admin/plugin';
 import { $t } from '#/locales';
+import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import { derivePluginType, getTypeColor, getTypeText } from '../data';
@@ -181,6 +182,12 @@ const deps = computed(
   () => (previewInfo.value?.dependencies || {}) as Record<string, string[]>,
 );
 
+const resolvedPluginMetadataIcon = computed(() =>
+  resolvePluginMetadataIcon(String(pluginInfo.value.name || 'unknown'), pluginIcon.value, {
+    endpoint: 'admin',
+  }),
+);
+
 defineExpose({ open });
 </script>
 
@@ -246,26 +253,14 @@ defineExpose({ open });
           class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10"
         >
           <img
-            v-if="
-              pluginIcon &&
-              (pluginIcon.startsWith('data:') ||
-                /\.(png|jpg|jpeg|svg|webp)$/i.test(pluginIcon))
-            "
-            :src="
-              pluginIcon.startsWith('data:') || pluginIcon.startsWith('http')
-                ? pluginIcon
-                : `/plugin-assets/${pluginInfo.name || 'unknown'}/${pluginIcon}`
-            "
+            v-if="resolvedPluginMetadataIcon.kind === 'image'"
+            :src="resolvedPluginMetadataIcon.src"
             class="size-7 rounded"
             :alt="pluginName"
           />
           <IconifyIcon
             v-else
-            :icon="
-              pluginIcon && pluginIcon.includes(':')
-                ? pluginIcon
-                : 'lucide:plug'
-            "
+            :icon="resolvedPluginMetadataIcon.icon"
             class="size-7 text-primary"
           />
         </div>

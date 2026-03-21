@@ -1,8 +1,8 @@
 """
 平台端技能管理 API / Platform Skill Management API
 
-提供跨企业技能列表、详情、CRUD，支持 admin + tenant scope 技能管理
-Provides cross-tenant skill listing, details, CRUD, supports admin + tenant scope skill management
+提供跨企业技能列表、详情与 CRUD。
+Provides cross-tenant skill listing, details, and CRUD.
 """
 
 from typing import Any
@@ -66,8 +66,8 @@ class AdminSkillController(GlobalController):
     """
     平台端技能管理控制器 / Platform Skill Management Controller
 
-    跨企业查看 + admin/tenant scope 技能 CRUD + 状态管理
-    Cross-tenant viewing + admin/tenant scope skill CRUD + status management
+    跨企业查看 + 技能 CRUD + 状态管理。
+    Cross-tenant viewing + skill CRUD + status management.
     """
 
     prefix = "/ai/skills"
@@ -104,7 +104,6 @@ class AdminSkillController(GlobalController):
             支持 JSON:API 风格筛选、排序、分页
             Supports JSON:API style filtering, sorting, pagination
             - filter[tenant_id][eq]=1  按企业筛选 / Filter by tenant
-            - filter[scope][eq]=admin  筛选管理技能 / Filter admin skills
             - filter[type][eq]=http  按类型筛选 / Filter by type
             - filter[name][ilike]=xxx  按名称模糊搜索 / Fuzzy search by name
             """

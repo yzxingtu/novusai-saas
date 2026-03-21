@@ -239,6 +239,10 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     model = Skill
     repository_class = AdminSkillRepository
 
+    async def get_by_package_id(self, package_id: int) -> list[Skill]:
+        """获取技能包下的全部技能 / Get all skills under a skill package."""
+        return await self.repo.get_by_package_id(package_id)
+
     async def _get_toolkit_security_level(self) -> str | None:
         """读取平台 Toolkit 安全等级配置 / Get platform toolkit security level."""
         from app.configs.service import ConfigService

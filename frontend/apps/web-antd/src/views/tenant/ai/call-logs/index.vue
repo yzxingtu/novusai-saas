@@ -13,6 +13,7 @@ import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getTenantAICallLogListApi } from '#/api/tenant/ai';
+import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { getProcessedImageUrl } from '#/utils/image';
@@ -70,42 +71,21 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
     detail: onViewDetail,
   },
   ai: {
-    pageKey: 'tenant.ai.call-logs',
     entityName: $t('tenant.ai.callLog.name'),
     entityDescription: $t('tenant.ai.callLog.pageDesc'),
     contextExtras: () => ({
       quick_status_filter: activeFilter.value,
     }),
     extra: [
-      {
-        name: 'view_detail',
-        label: $t('shared.pageOperation.viewDetail'),
+      createViewDetailPageOperation({
         description:
           'Open the call log detail drawer by ID / 按 ID 打开调用日志详情抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Call log ID / 调用日志 ID',
-            required: true,
-          },
-        },
-        handler: async (params) => {
-          const id = Number(params.id);
-          if (!Number.isFinite(id) || id <= 0) {
-            return {
-              success: false,
-              message: $t('shared.pageOperation.msg.missingIdParam'),
-            };
-          }
+        idDescription: 'Call log ID / 调用日志 ID',
+        openDetail: async (id) => {
           detailLogId.value = id;
           detailOpen.value = true;
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.detailOpened', { id }),
-          };
         },
-      },
+      }),
     ],
   },
 });

@@ -1,10 +1,10 @@
 """
 技能包上传共享逻辑 / Skill Package Upload Shared Logic
 
-admin/tenant 两端 upload_skill_package 的公共流程提取，
-Common upload flow extracted from admin/tenant upload_skill_package,
-通过参数区分端（tenant_id / is_system / service 类型）。
-differentiated by parameters (tenant_id / is_system / service type).
+提取技能包 ZIP 上传的公共流程，
+Shared upload flow for skill package ZIP processing,
+通过参数区分归属与服务类型（tenant_id / is_system / service type）。
+differentiated by ownership and service type parameters (tenant_id / is_system / service type).
 """
 
 from __future__ import annotations

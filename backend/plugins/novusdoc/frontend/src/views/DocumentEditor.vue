@@ -12,10 +12,12 @@ import { exportDocumentAsBlob, getDoc, getExportUrl, updateDoc } from '../api/no
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string, params?: Record<string, unknown>) => string;
   router?: { push: (to: string) => void; currentRoute?: { value?: { params?: Record<string, string> } } };
-  listPageOperations?: (key: string) => readonly { name: string }[];
-  registerPageContextExtras?: (key: string, resolver: () => unknown) => () => void;
-  appendPageOperations?: (key: string, ops: unknown[]) => () => void;
+  createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
+  createSavePageOperation?: (options: Record<string, unknown>) => unknown;
+  createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
   downloadBlob?: (blob: Blob, opts: { filename: string }) => void;
+  registerRichTextDocumentPageAI?: (options: Record<string, unknown>) => () => void;
+  waitForRichTextEditorOperations?: (pageKey: string, options?: Record<string, unknown>) => Promise<boolean>;
 } | undefined;
 
 const $t = (key: string, params?: Record<string, unknown>) => {
@@ -202,100 +204,87 @@ const editorPageKey = computed(() => {
   return docId.value ? `${base}.${docId.value}` : base;
 });
 
-let cleanupContext: (() => void) | undefined;
-let cleanupOps: (() => void) | undefined;
+let cleanupPageAI: (() => void) | undefined;
 
 const documentOps = [
-  {
+  shared?.createSavePageOperation?.({
     name: 'save_document',
     label: $t('plugin.novusdoc.op.save'),
     description: 'Save the current document immediately',
-    readonly: false,
-    handler: async () => {
+    action: async () => {
       await saveNow();
       return { success: true, message: $t('plugin.novusdoc.op.savedSuccess', { title: title.value }) };
     },
-  },
-  {
+  }),
+  shared?.createSimplePageOperation?.({
     name: 'toggle_status',
     label: $t('plugin.novusdoc.op.toggleStatus'),
     description: 'Switch between draft and published status',
     readonly: false,
-    handler: async () => {
+    action: async () => {
       await toggleStatus();
       return { success: true, message: $t('plugin.novusdoc.op.statusChangedTo', { status: doc.value?.status ?? '' }) };
     },
-  },
-  {
+  }),
+  shared?.createParameterizedPageOperation?.({
     name: 'update_title',
     label: $t('plugin.novusdoc.op.updateTitle'),
     description: 'Change the document title',
     readonly: false,
-    params: { title: { type: 'string', description: 'New document title' } },
-    handler: async (params: Record<string, unknown>) => {
+    params: {
+      title: {
+        type: 'string',
+        description: 'New document title',
+      },
+    },
+    action: async (params: Record<string, unknown>) => {
       title.value = String(params.title || '');
       debounceSave();
       return { success: true, message: $t('plugin.novusdoc.op.titleUpdatedTo', { title: title.value }) };
     },
-  },
-  {
+  }),
+  shared?.createParameterizedPageOperation?.({
     name: 'export_document',
     label: $t('plugin.novusdoc.op.export'),
     description: 'Export document in HTML, Markdown or PDF format',
     readonly: true,
-    params: { format: { type: 'string', enum: ['html', 'md', 'pdf'], description: 'Export format' } },
-    handler: async (params: Record<string, unknown>) => {
+    params: {
+      format: {
+        type: 'string',
+        enum: ['html', 'md', 'pdf'],
+        description: 'Export format',
+      },
+    },
+    action: async (params: Record<string, unknown>) => {
       if (!doc.value) return { success: false, message: $t('common.noData') };
       const fmt = (params.format as 'html' | 'md' | 'pdf') || 'html';
       const url = getExportUrl(doc.value.id, fmt);
-      // Return URL for LLM to present as link; avoid window.open (blocked when AI-triggered)
-      // 返回链接供 LLM 展示，避免 window.open（AI 触发时会被拦截）
       return {
         success: true,
         message: $t('plugin.novusdoc.op.exportInitiatedIn', { format: fmt }),
         data: { export_url: url },
       };
     },
-  },
-];
-
-/** ~2.4KB UTF-8 (≈800 CJK chars) to stay within page_data 8KB limit with available_operations. */
-const DOCUMENT_BODY_EXCERPT_LEN = 800;
+  }),
+].filter(Boolean);
 
 /** Extras merged onto platform editor context. update_title modifies metadata, not body H1. */
 const ENTITY_DESCRIPTION_APPEND =
   'update_title modifies document metadata title, not body H1. Document ops: save_document, toggle_status, update_title, export_document.';
 
 function setupEditorPageAwareness() {
-  cleanupContext?.();
-  cleanupOps?.();
-
-  if (shared?.registerPageContextExtras) {
-    cleanupContext = shared.registerPageContextExtras(editorPageKey.value, () => {
-      const fullText = mountedEditor.value?.getText?.() ?? '';
-      const documentBodyText = fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN);
-      const documentBodyLength = fullText.length;
-      return {
-        page_key: editorPageKey.value,
-        page_data: {
-          entity_description_append: ENTITY_DESCRIPTION_APPEND,
-          document_id: docId.value,
-          document_title: title.value,
-          document_status: doc.value?.status,
-          word_count: wordCount.value,
-          is_saving: saving.value,
-          has_editor: !!mountedEditor.value,
-          document_body_text: documentBodyText,
-          document_body_length: documentBodyLength,
-        },
-      };
-    });
-  }
-
-  // Append document ops so we do not replace platform editor ops (get_editor_html, replace_section, etc.)
-  if (shared?.appendPageOperations) {
-    cleanupOps = shared.appendPageOperations(editorPageKey.value, documentOps);
-  }
+  cleanupPageAI?.();
+  cleanupPageAI = shared?.registerRichTextDocumentPageAI?.({
+    pageKey: editorPageKey.value,
+    documentId: () => docId.value,
+    documentTitle: () => title.value,
+    documentStatus: () => doc.value?.status,
+    wordCount: () => wordCount.value,
+    saving: () => saving.value,
+    editor: () => mountedEditor.value,
+    entityDescriptionAppend: ENTITY_DESCRIPTION_APPEND,
+    operations: documentOps,
+  });
 }
 
 onMounted(async () => {
@@ -303,8 +292,7 @@ onMounted(async () => {
   if (doc.value) {
     await nextTickMount();
     await nextTick();
-    // Wait until platform useEditorPageOps has registered editor ops, then we append document ops (appendPageOperations).
-    await waitForEditorPageOps();
+    await shared?.waitForRichTextEditorOperations?.(editorPageKey.value);
     setupEditorPageAwareness();
   }
 });
@@ -315,30 +303,8 @@ async function nextTickMount() {
   mountEditor();
 }
 
-const EDITOR_OPS_POLL_MS = 80;
-const EDITOR_OPS_POLL_MAX = 2000;
-
-/** Wait until platform has registered editor ops (e.g. get_editor_html) so appendPageOperations does not get overwritten. */
-async function waitForEditorPageOps() {
-  const list = shared?.listPageOperations;
-  if (!list) return;
-  const key = editorPageKey.value;
-  const deadline = Date.now() + EDITOR_OPS_POLL_MAX;
-  while (Date.now() < deadline) {
-    const ops = list(key);
-    if (ops.some((o) => o.name === 'get_editor_html')) return;
-    await new Promise((r) => setTimeout(r, EDITOR_OPS_POLL_MS));
-  }
-  console.warn(
-    '[DocumentEditor] waitForEditorPageOps timed out: platform editor ops (e.g. get_editor_html) not registered within',
-    EDITOR_OPS_POLL_MAX,
-    'ms. Document ops may be overwritten if platform registers later.',
-  );
-}
-
 onBeforeUnmount(() => {
-  cleanupContext?.();
-  cleanupOps?.();
+  cleanupPageAI?.();
   if (saveTimer) clearTimeout(saveTimer);
   if (mountedEditor.value) {
     saveNow();

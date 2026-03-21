@@ -8,8 +8,8 @@
  * 2. Tenant select (shown when scope=all_tenants，仅特殊场景如定时任务) / 所属企业单选
  * 3. Tenant multi-select (selected_tenants / admin_and_selected_tenants) / 分配企业多选
  *
- * All forms requiring scope selection (skill packages, knowledge bases, agents, etc.) use this.
- * 所有需要作用域选择的表单（技能包、知识库、智能体等）统一使用此函数。
+ * All forms requiring scope selection (knowledge bases, agents, API keys, etc.) use this.
+ * 所有需要作用域选择的表单（知识库、智能体、API Key 等）统一使用此函数。
  */
 import type { VbenFormSchema } from '#/adapter/form';
 
@@ -29,8 +29,8 @@ export interface ScopeFieldsOptions {
    * 是否在 scope=all_tenants 时显示「所属企业」单选，默认 false。
    * Only for semantically different scenarios (e.g. scheduled tasks: all_tenants = belongs to specific tenant).
    * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定企业）。
-   * Regular resources (agents/knowledge bases/skill packages) don't pass this, all_tenants = platform global resource.
-   * 普通资源（智能体/知识库/技能包）不传此项，all_tenants = 平台全局资源。
+   * Regular resources (agents/knowledge bases) don't pass this, all_tenants = platform global resource.
+   * 普通资源（智能体/知识库）不传此项，all_tenants = 平台全局资源。
    */
   showTenantId?: boolean;
   /**

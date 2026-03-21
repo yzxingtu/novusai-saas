@@ -538,6 +538,7 @@
       "allTenants": "All Tenants",
       "tenantId": "Enter tenant ID",
       "allTypes": "All Types",
+      "selectSkills": "Select skills to grant",
       "selectSkillPackages": "Select skill packages to bind",
       "inputWelcomeMessage": "Welcome message shown before the first turn starts",
       "inputSuggestedQuestions": "One question per line, JSON array is also supported",
@@ -553,6 +554,7 @@
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
       "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget and the separate page_context.page_data byte budget. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
+      "skillBindings": "Select the skills this agent can invoke. Skills are the direct runtime grant unit, while skill packages are only used for grouping and management",
       "skillPackageBindings": "Select skill packages this agent can invoke",
       "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
       "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line"
@@ -766,13 +768,11 @@
   },
   "skillPackage": {
     "title": "Skill Package Management",
-    "pageDesc": "Manage platform-wide skill packages. Each package contains multiple skills and can be assigned to agents as a whole.",
+    "pageDesc": "Manage platform-wide skill packages. Packages organize skills, and actual usage is determined by agent bindings.",
     "system": "System",
     "name": "Package Name",
     "description": "Description",
     "avatar": "Icon",
-    "scope": "Scope",
-    "targetAudience": "Target Audience",
     "isRecommended": "Recommended",
     "isActive": "Status",
     "skillCount": "Skills",
@@ -782,18 +782,9 @@
     "placeholder": {
       "searchName": "Search package name",
       "inputName": "Enter package name",
-      "inputDescription": "Enter description",
-      "selectScope": "Select scope",
-      "selectTenant": "Select tenant",
-      "selectAssignedTenants": "Select tenants to assign",
-      "allScopes": "All scopes"
+      "inputDescription": "Enter description"
     },
     "tenantId": "Tenant",
-    "assignedTenants": "Assigned Tenants",
-    "help": {
-      "scope": "Five resource scopes: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants. The last two require tenant assignments (RTA).",
-      "assignedTenants": "Select tenants that are allowed to use this skill package"
-    },
     "tablePolicyFilterHint": "Filtering skills using table policy {id}",
     "clearTablePolicyFilter": "Clear filter",
     "sourcePlugin": "Plugin",
@@ -822,6 +813,7 @@
     },
     "detail": {
       "title": "Package Details",
+      "overview": "Overview",
       "basicInfo": "Basic Info",
       "skills": "Skills in Package",
       "empty": "No skills yet, click the button above to add",
@@ -839,9 +831,12 @@
       "skillStatus": "Status",
       "skillDescription": "Description",
       "backToList": "Back to List",
+      "openWorkspace": "Open Workspace",
       "tools": "Tool Definitions",
       "noTools": "No tool definitions",
-      "toolParams": "Parameters"
+      "toolParams": "Parameters",
+      "envVars": "Env Vars",
+      "configured": "Configured"
     },
     "valves": {
       "configBtn": "Env Config",

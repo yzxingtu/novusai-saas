@@ -42,12 +42,23 @@ import {
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  buildPageAIFormExtraData,
+  createKeywordSearchPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import {
+  getRoleFormDefaults,
+  getUserFormDefaults,
   useMemberColumns,
   useMemberSearchSchema,
   useUserFormSchema,
@@ -57,6 +68,8 @@ import UserForm from './modules/UserForm.vue';
 import UserRoleFormComponent from './modules/UserRoleForm.vue';
 
 defineOptions({ name: 'TenantUserArchitecture' });
+
+const AI_PAGE_KEY = 'tenant.system.userArchitecture';
 
 // ============================================================
 // Left: Role list / 左侧角色列表
@@ -120,7 +133,10 @@ function handleCreateRole() {
     .setData({
       mode: 'add' as const,
       _resource: '/tenant/user-roles',
-      _defaults: { is_active: true, sort_order: 0 },
+      ...buildPageAIFormExtraData({
+        pageKey: AI_PAGE_KEY,
+        defaults: getRoleFormDefaults(),
+      }),
     })
     .open();
 }
@@ -131,6 +147,7 @@ function handleEditRole(role: TenantUserRoleInfo) {
       ...role,
       mode: 'edit' as const,
       _resource: '/tenant/user-roles',
+      ...buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
     })
     .open();
 }
@@ -357,7 +374,7 @@ const {
     resetPassword: onResetPassword,
   },
   ai: {
-    pageKey: 'tenant.system.userArchitecture',
+    pageKey: AI_PAGE_KEY,
     formSchema: (isEdit?: boolean) => useUserFormSchema(Boolean(isEdit)),
   },
 });
@@ -408,74 +425,150 @@ onMounted(async () => {
 // AI Page Context
 // ============================================================
 
-usePageAIRegistration({
-  pageKey: 'tenant.system.userArchitecture',
-  registerContext: false,
+usePageAIContext({
+  pageKey: AI_PAGE_KEY,
+  contextStrategy: 'extras',
+  data: () => ({
+    role_search_keyword: searchKeyword.value || null,
+    roles_total: roles.value.length,
+    selected_role_id: selectedRole.value?.id ?? null,
+    selected_role_name: selectedRole.value?.name ?? null,
+  }),
+});
+
+usePageAIOperations({
+  pageKey: AI_PAGE_KEY,
   operationStrategy: 'append',
   operations: [
-    {
+    createRefreshPageOperation({
       name: 'refresh_roles',
-      label: $t('shared.pageOperation.refreshList'),
+      action: loadRoles,
       description: 'Refresh the role list',
-      readonly: true,
-      handler: async () => {
-        await loadRoles();
-        return { success: true, message: 'Role list refreshed' };
-      },
-    },
-    {
+    }),
+    createPrefilledCreatePageOperation({
       name: 'create_record',
-      label: $t('shared.pageOperation.createRecord'),
-      description: 'Open the create role form',
-      readonly: false,
-      handler: async () => {
-        handleCreateRole();
-        return { success: true, message: 'Create role form opened' };
+      description:
+        'Open the create role form and optionally pre-fill role fields',
+      params: {
+        description: {
+          type: 'string',
+          description: 'Role description',
+        },
+        is_active: {
+          type: 'boolean',
+          description: 'Whether the role should be active',
+        },
+        name: {
+          type: 'string',
+          description: 'Role name',
+        },
+        sort_order: {
+          type: 'number',
+          description: 'Role sort order',
+        },
       },
-    },
-    {
-      name: 'search',
+      normalizeParams: (params) => {
+        const defaults: Record<string, unknown> = {};
+        if (params?.name) defaults.name = params.name;
+        if (params?.description) defaults.description = params.description;
+        if (typeof params?.sort_order === 'number') {
+          defaults.sort_order = params.sort_order;
+        }
+        if (typeof params?.is_active === 'boolean') {
+          defaults.is_active = params.is_active;
+        }
+        return defaults;
+      },
+      openCreate: async (defaults) => {
+        roleFormApi
+          .setData({
+            mode: 'add' as const,
+            _resource: '/tenant/user-roles',
+            ...buildPageAIFormExtraData({
+              pageKey: AI_PAGE_KEY,
+              baseDefaults: getRoleFormDefaults(),
+              defaults,
+            }),
+          })
+          .open();
+      },
+    }),
+    createKeywordSearchPageOperation({
       label: $t('shared.pageOperation.searchByKeyword'),
       description: 'Search roles by name keyword',
-      readonly: true,
-      params: {
-        keyword: { type: 'string', description: 'Role name keyword' },
-      },
-      handler: async (params) => {
-        const keyword = ((params?.keyword as string) || '').toLowerCase();
+      keywordDescription: 'Role name keyword',
+      normalize: (keyword) => keyword.toLowerCase(),
+      setKeyword: (keyword) => {
         searchKeyword.value = keyword;
-        return { success: true, message: `Searched roles for: ${keyword}` };
       },
-    },
-    {
+    }),
+    createPrefilledCreatePageOperation({
       name: 'add_member',
       label: $t('tenant.system.userArchitecture.addMember'),
-      description: 'Open the add member form for the selected role',
-      readonly: false,
-      handler: async () => {
-        const roleId =
+      description:
+        'Open the add member form and optionally pre-fill member fields',
+      params: {
+        email: {
+          type: 'string',
+          description: 'Member email',
+        },
+        is_active: {
+          type: 'boolean',
+          description: 'Whether the member should be active',
+        },
+        nickname: {
+          type: 'string',
+          description: 'Member nickname',
+        },
+        phone: {
+          type: 'string',
+          description: 'Member phone number',
+        },
+        role_id: {
+          type: 'number',
+          description: 'Target role ID',
+        },
+        username: {
+          type: 'string',
+          description: 'Member username',
+        },
+      },
+      normalizeParams: (params) => {
+        const selectedRoleId =
           selectedRole.value && !isAllUsersSelected.value
             ? selectedRole.value.id
             : undefined;
-        memberFormApi
-          ?.setData({
-            mode: 'add',
-            _resource: '/tenant/users',
-            _defaults: {
-              is_active: true,
-              ...(roleId ? { role_id: roleId } : {}),
-            },
-            ...(memberAiPageKey ? { _aiPageKey: memberAiPageKey } : {}),
-          })
-          .open();
         return {
-          success: true,
-          message: roleId
-            ? 'Add member form opened with selected role'
-            : 'Add member form opened',
+          ...(params?.email ? { email: params.email } : {}),
+          ...(typeof params?.is_active === 'boolean'
+            ? { is_active: params.is_active }
+            : {}),
+          ...(params?.nickname ? { nickname: params.nickname } : {}),
+          ...(params?.phone ? { phone: params.phone } : {}),
+          ...(typeof params?.role_id === 'number'
+            ? { role_id: params.role_id }
+            : selectedRoleId
+              ? { role_id: selectedRoleId }
+              : {}),
+          ...(params?.username ? { username: params.username } : {}),
         };
       },
-    },
+      openCreate: async (defaults) => {
+        const formApi = memberFormApi;
+        if (!formApi) return;
+        formApi
+          .setData({
+            mode: 'add',
+            _resource: '/tenant/users',
+            ...buildPageAIFormExtraData({
+              pageKey: memberAiPageKey ?? AI_PAGE_KEY,
+              baseDefaults: getUserFormDefaults(),
+              defaults,
+            }),
+          })
+          .open();
+      },
+    }),
   ],
 });
 </script>

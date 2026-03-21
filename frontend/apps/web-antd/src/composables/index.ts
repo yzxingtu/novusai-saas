@@ -32,3 +32,25 @@ export {
 
 export { useAIPermission } from './use-ai-permission';
 export { useCurrentPageAIPolicy } from './use-ai-page-policy';
+export {
+  usePageAIAnchor,
+  usePageAIContext,
+  usePageAIOperations,
+  usePageAIRegistration,
+} from './use-page-ai-registration';
+export {
+  buildPageAIFormExtraData,
+  createCreateRecordPageOperation,
+  createKeywordSearchPageOperation,
+  createOpenCurrentPageOperation,
+  createOpenPageOperation,
+  createOpenRecordPageOperation,
+  createParameterizedPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+  createRecordActionPageOperation,
+  createSavePageOperation,
+  createSimplePageOperation,
+  createStructuredSearchPageOperation,
+  createViewDetailPageOperation,
+} from './use-page-ai-operation-helpers';

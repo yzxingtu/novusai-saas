@@ -29,7 +29,6 @@ import {
   getSuccessRateTrendApi,
   getTenantRankingApi,
 } from '#/api/admin/analytics';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
@@ -89,24 +88,6 @@ function handleDateChange() {
 
 onMounted(() => {
   loadAll();
-});
-
-usePageAIRegistration({
-  pageKey: 'admin.analytics',
-  title: () => $t('admin.analytics.title'),
-  resource: '/admin/analytics',
-  operations: [
-    {
-      name: 'refresh_analytics',
-      label: $t('shared.pageOperation.refreshAnalytics'),
-      description: 'Reload all analytics charts and data',
-      readonly: true,
-      handler: async () => {
-        await loadAll();
-        return { success: true, message: 'Analytics data refreshed' };
-      },
-    },
-  ],
 });
 </script>
 

@@ -76,7 +76,6 @@ const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
   recycleBin: true,
   createPermission: 'ai_provider:create',
   ai: {
-    pageKey: 'admin.ai.providers',
     formSchema: useFormSchema,
     entityName: $t('admin.ai.provider.name'),
     entityDescription: $t('admin.ai.provider.pageDesc'),

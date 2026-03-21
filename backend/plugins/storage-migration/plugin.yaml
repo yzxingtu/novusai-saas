@@ -7,7 +7,7 @@ description:
   zh-CN: "跨存储驱动文件迁移工具，支持 local / aliyun-oss / amazon-s3 / tencent-cos / qiniu-kodo 之间的双向迁移，包含影响分析、批量同步、断点续传和回滚机制"
   en: "Cross-driver storage migration tool supporting bidirectional migration between local / aliyun-oss / amazon-s3 / tencent-cos / qiniu-kodo, with impact analysis, batch sync, resume capability and rollback"
 author: "NovusAI"
-icon: "lucide:hard-drive-download"
+icon: ""
 icon_color: "#3b82f6"
 scope: admin_only
 tags: ["storage", "migration", "admin", "tools"]
@@ -74,23 +74,26 @@ extensions:
     public_routes: []
 
   frontend:
-    menus:
-      - name: storage_migration
-        path: /admin/plugins/storage-migration
-        icon: "lucide:hard-drive-download"
-        parent: system_mgmt
-        sort_order: 60
-        scope: admin
-        title:
-          zh-CN: "存储迁移"
-          en: "Storage Migration"
-    standalone_pages:
+    pages:
       - name: storage_migration_page
         path: /admin/plugins/storage-migration
         component: StorageMigrationPage
+        scope: admin
+        icon: "lucide:hard-drive-download"
         title:
           zh-CN: "存储迁移"
           en: "Storage Migration"
+        menu:
+          icon: "lucide:hard-drive-download"
+          parent: system_mgmt
+          sort_order: 60
+          title:
+            zh-CN: "存储迁移"
+            en: "Storage Migration"
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"
 
 dependencies:
   python: []

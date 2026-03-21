@@ -11,6 +11,11 @@ import { listDocs, listFolders, createDoc, deleteDoc, createFolder, deleteFolder
 
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string) => string;
+  createKeywordSearchPageOperation?: (options: Record<string, unknown>) => unknown;
+  createPrefilledCreatePageOperation?: (options: Record<string, unknown>) => unknown;
+  createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
+  createRefreshPageOperation?: (options: Record<string, unknown>) => unknown;
+  createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
   router?: { push: (to: string) => void };
   registerPageContext?: (key: string, resolver: () => unknown) => () => void;
   registerPageOperations?: (key: string, ops: unknown[]) => () => void;
@@ -110,74 +115,103 @@ function setupPageAwareness() {
 
   if (shared?.registerPageOperations) {
     cleanupOps = shared.registerPageOperations(pageKey.value, [
-      {
-        name: 'refresh_list',
-        label: $t('plugin.novusdoc.op.refresh') || 'Refresh document list',
+      shared?.createRefreshPageOperation?.({
         description: 'Reload documents and folders',
-        readonly: true,
-        handler: async () => {
+        label: $t('plugin.novusdoc.op.refresh') || 'Refresh document list',
+        name: 'refresh_list',
+        action: async () => {
           await Promise.all([loadFolders(), loadDocs()]);
-          return { success: true, message: `Loaded ${docs.value.length} documents` };
+          return `Loaded ${docs.value.length} documents`;
         },
-      },
-      {
+      }),
+      shared?.createKeywordSearchPageOperation?.({
         name: 'search',
         label: $t('plugin.novusdoc.op.search') || 'Search documents',
         description: 'Search documents by keyword',
-        readonly: true,
-        params: { query: { type: 'string', description: 'Search keyword' } },
-        handler: async (params: Record<string, unknown>) => {
-          searchQuery.value = String(params.query || '');
-          searchActive.value = true;
+        keywordDescription: 'Search keyword',
+        setKeyword: (keyword: string) => {
+          searchQuery.value = keyword;
+          searchActive.value = !!keyword.trim();
           page.value = 1;
-          await loadDocs();
-          return { success: true, message: `Found ${total.value} results for "${searchQuery.value}"` };
         },
-      },
-      {
+        action: async (keyword: string) => {
+          await loadDocs();
+          return keyword.trim()
+            ? `Found ${total.value} results for "${keyword}"`
+            : 'Search cleared';
+        },
+      }),
+      shared?.createSimplePageOperation?.({
         name: 'clear_search',
         label: $t('plugin.novusdoc.op.clearSearch') || 'Clear search',
         description: 'Clear search filter and show all documents',
         readonly: true,
-        handler: async () => {
+        action: async () => {
           clearSearch();
-          return { success: true, message: 'Search cleared' };
+          return 'Search cleared';
         },
-      },
-      {
+      }),
+      shared?.createPrefilledCreatePageOperation?.({
         name: 'create_document',
         label: $t('plugin.novusdoc.doc.newDoc') || 'Create new document',
         description: 'Create a new document and open editor',
-        readonly: false,
         params: {
-          title: { type: 'string', description: 'Document title (optional)' },
-          folder_id: { type: 'number', description: 'Folder ID to place in (optional)' },
+          title: {
+            type: 'string',
+            description: 'Document title (optional)',
+          },
+          folder_id: {
+            type: 'number',
+            description: 'Folder ID to place in (optional)',
+          },
         },
-        handler: async (params: Record<string, unknown>) => {
+        normalizeParams: (params: Record<string, unknown>) => ({
+          ...(params?.title ? { title: params.title } : {}),
+          ...(typeof params?.folder_id === 'number'
+            ? { folder_id: params.folder_id }
+            : activeFolderId.value != null
+              ? { folder_id: activeFolderId.value }
+              : {}),
+        }),
+        openCreate: async (params: Record<string, unknown>) => {
           const res = await createDoc({
-            title: (params.title as string) || $t('plugin.novusdoc.doc.untitled'),
-            folder_id: (params.folder_id as number) || activeFolderId.value,
+            title:
+              (params.title as string) || $t('plugin.novusdoc.doc.untitled'),
+            folder_id:
+              (params.folder_id as number | null | undefined)
+              ?? activeFolderId.value,
             status: 'draft',
           });
           const doc = res.document;
           navigateToEditor(doc.id);
-          return { success: true, message: `Created document "${doc.title}" (id: ${doc.id})` };
         },
-      },
-      {
+        successMessage: (params) => {
+          const folderId =
+            typeof params.folder_id === 'number' ? params.folder_id : null;
+          return folderId != null
+            ? `Create document flow started in folder ${folderId}`
+            : 'Create document flow started';
+        },
+      }),
+      shared?.createParameterizedPageOperation?.({
         name: 'select_folder',
         label: $t('plugin.novusdoc.op.selectFolder') || 'Select folder',
         description: 'Filter documents by folder. Pass null to show all.',
         readonly: true,
-        params: { folder_id: { type: 'number', description: 'Folder ID or null for all' } },
-        handler: async (params: Record<string, unknown>) => {
+        params: {
+          folder_id: {
+            type: 'number',
+            description: 'Folder ID or null for all',
+          },
+        },
+        action: async (params: Record<string, unknown>) => {
           const fid = params.folder_id as number | null;
           selectFolder(fid);
           await loadDocs();
           return { success: true, message: fid ? `Filtered by folder ${fid}` : 'Showing all documents' };
         },
-      },
-    ]);
+      }),
+    ].filter(Boolean));
   }
 }
 

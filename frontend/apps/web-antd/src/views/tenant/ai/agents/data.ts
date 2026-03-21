@@ -13,7 +13,6 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
-import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 import { getScopeOptions } from '#/utils/scope-helpers';
 
@@ -218,34 +217,6 @@ export async function getModelSelectOptions() {
   }
 }
 
-// ============ 技能包下拉 ============
-
-/**
- * 获取技能包下拉选项（用于 Agent 绑定）
- */
-export async function getPackageSelectOptions() {
-  try {
-    const data = await getAvailablePackagesApi();
-    return data.map(
-      (p: {
-        label: string;
-        scope?: string;
-        source_plugin?: string;
-        target_audience?: string;
-        value: number;
-      }) => ({
-        label: p.label,
-        value: p.value,
-        scope: p.scope,
-        source_plugin: p.source_plugin,
-        target_audience: p.target_audience,
-      }),
-    );
-  } catch {
-    return [];
-  }
-}
-
 // ============ 表格列 ============
 
 /**
@@ -289,7 +260,7 @@ export function useColumns<T = AgentListItem>(
       slots: { default: 'model_cell' },
     },
     {
-      field: 'skill_packages',
+      field: 'skills',
       title: $t('tenant.ai.agent.skillCount'),
       width: 180,
       slots: { default: 'skill_count_cell' },
@@ -552,6 +523,6 @@ export function getFormDefaults(): Record<string, unknown> {
     execution_mode: 'conversation',
     temperature: 0.7,
     suggested_questions_str: '',
-    package_ids: [],
+    skill_ids: [],
   };
 }

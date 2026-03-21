@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from starlette.requests import Request
 
-from app.enums.plugin import PluginStatusEnum
 from app.plugins.api_dispatcher import (
     _context_has_db_capability,
     _dispatch_plugin_api,
@@ -57,13 +57,25 @@ def _build_request(
     return Request(scope, _receive)
 
 
-def _enabled_plugin_row(manifest: dict) -> tuple:
-    return (
-        1,
-        PluginStatusEnum.ENABLED.value,
-        "admin_only",
-        manifest,
-        [],
+def _gate_result(
+    manifest: dict,
+    *,
+    allowed: bool = True,
+    reason_code: str = "allowed",
+    granted_capabilities: list[str] | None = None,
+):
+    return SimpleNamespace(
+        allowed=allowed,
+        reason_code=reason_code,
+        plugin_id=1,
+        plugin_name="demo",
+        plugin_scope="admin_only",
+        plugin_status="enabled",
+        manifest=manifest,
+        config={},
+        granted_capabilities=granted_capabilities or [],
+        pricing_type="free",
+        license_status={"runtime_allowed": allowed},
     )
 
 
@@ -148,16 +160,16 @@ async def test_dispatch_raises_app_exception_when_handler_returns_error_dict(
             }
         }
     }
-    query_result = MagicMock()
-    query_result.one_or_none.return_value = _enabled_plugin_row(manifest)
-
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=query_result)
 
     def _handler(request=None, ctx=None):  # noqa: ANN001
         _ = (request, ctx)
         return {"error": "permission denied", "code": 4030}
 
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
     monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
     monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
 
@@ -190,16 +202,16 @@ async def test_dispatch_raises_app_exception_on_handler_runtime_error(
             }
         }
     }
-    query_result = MagicMock()
-    query_result.one_or_none.return_value = _enabled_plugin_row(manifest)
-
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=query_result)
 
     def _handler(request=None, ctx=None):  # noqa: ANN001
         _ = (request, ctx)
         raise RuntimeError("boom")
 
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
     monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
     monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
     monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", False, raising=False)
@@ -216,3 +228,62 @@ async def test_dispatch_raises_app_exception_on_handler_runtime_error(
     assert getattr(exc_info.value, "code", None) == 5000
     assert getattr(exc_info.value, "status_code", None) == 500
     assert str(exc_info.value) == "Internal server error"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_returns_404_when_runtime_gate_denies_license(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = AsyncMock()
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(
+            return_value=_gate_result(
+                manifest={},
+                allowed=False,
+                reason_code="license_inactive",
+            )
+        ),
+    )
+
+    response = await _dispatch_plugin_api(
+        plugin_name="demo",
+        path="ping",
+        request=_build_request(path="/admin/plugins/demo/api/ping"),
+        db=db,
+    )
+
+    assert response.status_code == 404
+    assert b"Plugin not found or disabled" in response.body
+
+
+@pytest.mark.asyncio
+async def test_admin_dispatcher_no_longer_falls_back_to_tenant_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = {
+        "extensions": {
+            "api": {
+                "admin_routes": [],
+                "tenant_routes": [
+                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                ],
+                "public_routes": [],
+            }
+        }
+    }
+    db = AsyncMock()
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
+
+    response = await _dispatch_plugin_api(
+        plugin_name="demo",
+        path="ping",
+        request=_build_request(path="/admin/plugins/demo/api/ping"),
+        db=db,
+    )
+
+    assert response.status_code == 404
+    assert b"Route not found" in response.body

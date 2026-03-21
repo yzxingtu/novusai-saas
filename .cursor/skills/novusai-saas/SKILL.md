@@ -26,6 +26,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 5. **开发环境登录凭据**（仅用于本地调试/测试）：
    - 管理端（`/admin/login`）：`admin` / `admin123456`
    - 企业端（`/tenant/login`）：`adminsss` / `admin123456`
+6. 涉及图标时，必须同步查阅 `references/icon-spec.md`
 
 ---
 
@@ -44,6 +45,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - **禁止手写重复 Schema**：前端用 `searchInput()` / `inputField()` 等辅助函数
 - **禁止敏感信息入代码**：密钥、密码、Token 通过环境变量
 - **禁止在主系统中写入插件代码**：插件组件/逻辑/locale 只能在 `backend/plugins/{name}/` 内，前端通过 UMD 动态加载
+- **禁止依赖在线图标 API**：平台功能图标统一用本地 `lucide:*` 或自托管 `svg:*`，插件元数据图标只允许 `icon.png`
 
 ---
 
@@ -179,6 +181,7 @@ show: (row) => row.tenant_id != null && row.tenant_id === currentTenantId
 
 → 完整代码示例：[references/frontend-crud.md](references/frontend-crud.md)
 → 前端开发手册：[references/frontend-spec.md](references/frontend-spec.md)
+→ 图标规范：[references/icon-spec.md](references/icon-spec.md)
 
 ---
 

@@ -6,11 +6,13 @@
  *
  * M51-T9: fetchSlots 统一调用后端 GET /plugins/slots API（已按 scope 过滤），
  *         替代旧的"拉全量插件列表 + 读 manifest" 方案。
+ * M60: 前端运行态由 loader 自行读取 release manifest，不再依赖 slots API 回传 CSS 列表。
  */
 import type { Component } from 'vue';
 
 import { markRaw, ref } from 'vue';
 
+import { ensureLucideIconCatalogRegistered } from '@vben/icons';
 import { preferences } from '@vben/preferences';
 
 import { defineStore } from 'pinia';
@@ -56,8 +58,8 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
   const settingsTabs = ref<PluginSlotItem[]>([]);
   /** 通知中心自定义 UI 组件（notification_ui slot） / Notification center UI slot */
   const notificationUI = ref<PluginSlotItem[]>([]);
-  /** 独立页面路由（standalone_pages slot，无侧边菜单） / Standalone pages slot */
-  const standalonePages = ref<PluginSlotItem[]>([]);
+  /** 插件页面路由（pages slot，无侧边菜单） / Plugin page routes */
+  const pages = ref<PluginSlotItem[]>([]);
   /** 是否正在加载插槽数据 / Whether slot data is loading */
   const loading = ref(false);
 
@@ -87,9 +89,14 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
           ? await getTenantPluginSlotsApi()
           : await getPluginSlotsApi();
 
-      clearAll();
-      const pluginStyles = resp.plugin_styles ?? {};
+      const hasPluginFrontendSlots = Object.values(resp).some(
+        (items) => Array.isArray(items) && items.length > 0,
+      );
+      if (hasPluginFrontendSlots) {
+        await ensureLucideIconCatalogRegistered();
+      }
 
+      clearAll();
       // 按 slot 类型聚合需要加载的插件模块
       const pluginModCache: Record<string, Record<string, unknown>> = {};
       async function getPluginMod(
@@ -97,10 +104,9 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       ): Promise<Record<string, unknown>> {
         if (!pluginModCache[pluginName]) {
           try {
-            pluginModCache[pluginName] = await loadPluginComponents(
-              pluginName,
-              pluginStyles[pluginName] ?? [],
-            );
+            pluginModCache[pluginName] = await loadPluginComponents(pluginName, {
+              endpoint: side,
+            });
           } catch {
             pluginModCache[pluginName] = {};
           }
@@ -114,7 +120,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
         ['settings_tabs', 'settingsTabs'],
         ['floating_panels', 'floatingPanels'],
         ['notification_ui', 'notificationUI'],
-        ['standalone_pages', 'standalonePages'],
+        ['pages', 'pages'],
       ];
 
       for (const [apiKey, storeKey] of SLOT_MAP) {
@@ -129,7 +135,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             comp = mod[slot.component] as Component | undefined;
             if (comp) {
               comp = markRaw(comp);
-            } else if (storeKey !== 'standalonePages') {
+            } else if (storeKey !== 'pages') {
               continue;
             }
           }
@@ -165,7 +171,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             position: slot.position,
             grid: slot.grid,
             event: typeof slot.event === 'string' ? slot.event : slot.name,
-            hidden: storeKey === 'standalonePages',
+            hidden: storeKey === 'pages',
           });
         }
       }
@@ -183,7 +189,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       dashboardWidgets,
       settingsTabs,
       notificationUI,
-      standalonePages,
+      pages,
     ]) {
       list.value = list.value.filter((item) => item.pluginName !== pluginName);
     }
@@ -195,7 +201,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
     dashboardWidgets.value = [];
     settingsTabs.value = [];
     notificationUI.value = [];
-    standalonePages.value = [];
+    pages.value = [];
   }
 
   function _getSlotList(slotType: string) {
@@ -205,7 +211,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       dashboardWidgets,
       settingsTabs,
       notificationUI,
-      standalonePages,
+      pages,
     };
     return map[slotType];
   }
@@ -253,7 +259,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
     dashboardWidgets,
     settingsTabs,
     notificationUI,
-    standalonePages,
+    pages,
     loading,
     registerSlot,
     unregisterPlugin,

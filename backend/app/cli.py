@@ -343,7 +343,7 @@ def db_autogenerate(message: str) -> None:
 # ============================================================
 
 
-@cli.group("plugin", help="Plugin create / validate / pack / list / cleanup")
+@cli.group("plugin", help="Plugin build / create / validate / pack / list / cleanup")
 def plugin_cmd() -> None:
     pass
 
@@ -396,10 +396,33 @@ def plugin_validate(path: str) -> None:
     pc.cmd_validate(args)
 
 
+@plugin_cmd.command("build")
+@click.argument("path", type=click.Path(exists=True, file_okay=False))
+def plugin_build(path: str) -> None:
+    """Build plugin frontend release assets / 构建插件前端发布产物"""
+    os.chdir(_BACKEND_DIR)
+    _load_plugin_cli()
+    import plugin_cli as pc
+
+    class Args:
+        pass
+
+    args = Args()
+    args.dir = path
+    pc.cmd_build(args)
+
+
 @plugin_cmd.command("pack")
 @click.argument("path", type=click.Path(exists=True, file_okay=False))
 @click.option("--output", type=click.Path(), default=None)
-def plugin_pack(path: str, output: str | None) -> None:
+@click.option("--release", is_flag=True, default=False)
+@click.option("--source", is_flag=True, default=False)
+def plugin_pack(
+    path: str,
+    output: str | None,
+    release: bool,
+    source: bool,
+) -> None:
     """Pack plugin to .zip / 打包插件为 zip"""
     os.chdir(_BACKEND_DIR)
     _load_plugin_cli()
@@ -411,6 +434,8 @@ def plugin_pack(path: str, output: str | None) -> None:
     args = Args()
     args.dir = path
     args.output = output
+    args.release = release
+    args.source = source
     pc.cmd_pack(args)
 
 

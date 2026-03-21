@@ -13,12 +13,12 @@ from app.core.response import success
 from app.exceptions import NotFoundException
 from app.rbac.decorators import action_read
 from app.services.ai.agent_service import AgentService
-from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
+from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
 
 router = APIRouter()
 
 
-@router.get("/{agent_id}/skills", summary="获取智能体技能包绑定列表")
+@router.get("/{agent_id}/skills", summary="获取智能体技能绑定列表")
 @action_read("action.agent.skills")
 async def get_agent_skills(
     request: Request,
@@ -27,13 +27,13 @@ async def get_agent_skills(
     tenant_admin: ActiveTenantAdmin,
 ):
     """
-    获取智能体绑定的所有技能包（含 SkillPackage 详情）/ Get agent bound skill packages with package details.
+    获取智能体绑定的所有技能（含 Skill / Package 详情）/ Get agent bound skills with skill and package details.
     """
     agent_svc = AgentService(db, tenant_admin.tenant_id)
     agent = await agent_svc.get_by_id(agent_id)
     if not agent:
         raise NotFoundException(message=_("agent.error.not_found"))
 
-    binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-    result = await binding_service.get_agent_packages(agent_id)
+    grant_service = AgentSkillGrantService(db, tenant_admin.tenant_id)
+    result = await grant_service.get_agent_skills(agent_id)
     return success(data=result)

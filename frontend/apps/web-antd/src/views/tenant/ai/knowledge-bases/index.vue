@@ -27,19 +27,25 @@ import {
   deleteKnowledgeBaseApi,
   getKnowledgeBaseListApi,
 } from '#/api/tenant/knowledge-bases';
-import { useCrudList } from '#/composables';
+import {
+  buildPageAIFormExtraData,
+  createKeywordSearchPageOperation,
+  createOpenRecordPageOperation,
+  createPrefilledCreatePageOperation,
+  useCrudList,
+} from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import { getKBStatusColor, getKBStatusText, useFormSchema } from './data';
-
-const AI_PAGE_KEY = 'tenant.ai.knowledge-bases';
 import KnowledgeBaseDetail from './modules/KnowledgeBaseDetail.vue';
 import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
 defineOptions({ name: 'TenantKnowledgeBaseList' });
+
+const AI_PAGE_KEY = 'tenant.ai.knowledge-bases';
 
 /** Editable/deletable = owned by current tenant (tenant_id is owner_tenant_id synonym) */
 function isTenantManageableKb(row: KnowledgeBaseItem): boolean {
@@ -70,7 +76,10 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => kbFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+    edit: (row) => kbFormRef.value?.openEdit(
+      row,
+      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+    ),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
@@ -79,30 +88,97 @@ const {
     entityDescription: $t('tenant.knowledgeBase.entityDescription'),
     openRecycleBin: () => recycleBinRef.value?.open(),
     extra: [
-      {
-        name: 'create_record',
-        label: $t('shared.pageOperation.createRecord'),
-        description: 'Open the create knowledge base form / 打开新建知识库表单',
-        readonly: false,
-        handler: async (): Promise<{ success: boolean; message: string }> => {
-          kbFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
-          return { success: true, message: 'Create knowledge base form opened / 新建表单已打开' };
+      createPrefilledCreatePageOperation({
+        description:
+          'Open the create knowledge base form and optionally pre-fill fields / 打开新建知识库表单，可选预填字段',
+        params: {
+          chunk_overlap: {
+            type: 'number',
+            description: 'Chunk overlap / 分块重叠',
+          },
+          chunk_size: {
+            type: 'number',
+            description: 'Chunk size / 分块大小',
+          },
+          chunk_strategy: {
+            type: 'string',
+            description: 'Chunk strategy / 分块策略',
+          },
+          description: {
+            type: 'string',
+            description: 'Knowledge base description / 知识库简介',
+          },
+          embedding_model_id: {
+            type: 'number',
+            description: 'Embedding model ID / 向量模型 ID',
+          },
+          extract_images: {
+            type: 'boolean',
+            description: 'Whether to extract images / 是否抽取图片',
+          },
+          name: {
+            type: 'string',
+            description: 'Knowledge base name / 知识库名称',
+          },
         },
-      },
-      {
-        name: 'search',
-        label: $t('shared.pageOperation.searchByKeyword'),
-        description: 'Search knowledge bases by keyword / 按关键词搜索知识库',
+        normalizeParams: (params) => ({
+          ...(Number.isFinite(Number(params.chunk_overlap))
+            ? { chunk_overlap: Number(params.chunk_overlap) }
+            : {}),
+          ...(Number.isFinite(Number(params.chunk_size))
+            ? { chunk_size: Number(params.chunk_size) }
+            : {}),
+          ...(typeof params.chunk_strategy === 'string' && params.chunk_strategy
+            ? { chunk_strategy: params.chunk_strategy }
+            : {}),
+          ...(typeof params.description === 'string' && params.description.trim()
+            ? { description: params.description.trim() }
+            : {}),
+          ...(Number.isFinite(Number(params.embedding_model_id))
+            ? { embedding_model_id: Number(params.embedding_model_id) }
+            : {}),
+          ...(typeof params.extract_images === 'boolean'
+            ? { extract_images: params.extract_images }
+            : {}),
+          ...(typeof params.name === 'string' && params.name.trim()
+            ? { name: params.name.trim() }
+            : {}),
+        }),
+        openCreate: async (defaults) => {
+          openKnowledgeBaseCreate(defaults);
+        },
+      }),
+      createOpenRecordPageOperation({
+        name: 'open_knowledge_base_detail',
+        label: $t('shared.pageOperation.viewDetail'),
+        description:
+          'Open the knowledge base detail drawer by knowledge base ID / 按知识库 ID 打开详情抽屉',
         readonly: true,
         params: {
-          keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+          id: {
+            type: 'number',
+            description: 'Knowledge base ID / 知识库 ID',
+            required: true,
+          },
         },
-        handler: async (params): Promise<{ success: boolean; message: string }> => {
-          searchKeyword.value = (params?.keyword as string) || '';
+        normalizeParams: (params) => ({
+          id: Number(params.id ?? 0),
+        }),
+        resolveRecord: (params) => findKnowledgeBaseById(params.id),
+        resolveRecordId: (params) => params.id,
+        open: async (record) => {
+          openKnowledgeBaseDetail(record);
+        },
+      }),
+      createKeywordSearchPageOperation({
+        description: 'Search knowledge bases by keyword / 按关键词搜索知识库',
+        setKeyword: (keyword) => {
+          searchKeyword.value = keyword;
+        },
+        action: async () => {
           doSearch();
-          return { success: true, message: `Searched for: ${searchKeyword.value} / 已搜索：${searchKeyword.value}` };
         },
-      },
+      }),
     ],
   },
 });
@@ -119,8 +195,17 @@ function openRecycleBin() {
 // ========== KnowledgeBaseForm (ref 模式) ==========
 const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
 
+function openKnowledgeBaseCreate(defaults: Record<string, unknown> = {}) {
+  kbFormRef.value?.openNew(
+    buildPageAIFormExtraData({
+      pageKey: AI_PAGE_KEY,
+      defaults,
+    }),
+  );
+}
+
 function onCreateKB() {
-  kbFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+  openKnowledgeBaseCreate();
 }
 
 // ========== 详情抽屉 ==========
@@ -129,9 +214,17 @@ const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
 });
 
 function onDetail(row: KnowledgeBaseItem) {
+  openKnowledgeBaseDetail(row);
+}
+
+function openKnowledgeBaseDetail(row: KnowledgeBaseItem) {
   detailDrawerApi
     .setData({ id: row.id, name: row.name, scope: row.scope })
     .open();
+}
+
+function findKnowledgeBaseById(id: number): KnowledgeBaseItem | null {
+  return list.value.find((item) => item.id === id) ?? null;
 }
 
 // ========== 搜索 ==========

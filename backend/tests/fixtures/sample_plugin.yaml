@@ -7,7 +7,7 @@ description:
   zh-CN: "提供客户关系管理功能，包括客户档案、跟进记录、销售漏斗等"
   en: "Customer relationship management with profiles, follow-ups, and sales funnels"
 author: "NovusAI Team"
-icon: "lucide:users"
+icon: ""
 icon_color: "#4F46E5"
 homepage: "https://github.com/novusai/crm-module"
 repository_url: "https://github.com/novusai/crm-module"

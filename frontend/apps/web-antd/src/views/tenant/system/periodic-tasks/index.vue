@@ -64,7 +64,6 @@ const { Grid, FormDrawer, onRefresh } =
       trigger: onTriggerTask,
     },
     ai: {
-      pageKey: 'tenant.system.periodic-tasks',
       formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
     },
   });

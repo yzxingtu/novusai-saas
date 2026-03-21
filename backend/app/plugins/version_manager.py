@@ -152,7 +152,7 @@ class VersionManager:
             # / 清理模块缓存
             unload_plugin_modules(plugin_name)
 
-            # 4. Install new version Python deps (npm installed during re-enable)
+            # 4. Install new version Python deps
             # pip must be installed before migration since migration scripts may import new deps
             # / 安装新版 Python 依赖
             if new_manifest.dependencies.python:

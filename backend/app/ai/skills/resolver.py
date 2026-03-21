@@ -28,7 +28,7 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
-from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
+from app.enums.common import ResourceScopeEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -953,106 +953,6 @@ class SkillResolver:
         return params
 
 
-def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
-    """
-    Check if the given target_audience allows access for the user_role.
-    判断给定的 target_audience 是否允许该 user_role 访问。
-
-    Args:
-        target_audience: AudienceEnum value (all / admin_only / admin_tenant) /
-                         AudienceEnum 值（all / admin_only / admin_tenant）
-        user_role: UserRoleEnum value (platform_admin / tenant_admin / tenant_user) or None /
-                   UserRoleEnum 值（platform_admin / tenant_admin / tenant_user）或 None
-
-    Returns:
-        True means access allowed, False means filtered out /
-        True 表示允许访问，False 表示过滤掉
-    """
-    # No user_role passed (e.g., admin direct call) → allow (backward compatible)
-    # 未传 user_role（如 admin 端直调）→ 允许通过（兼容旧路径）
-    if user_role is None:
-        return True
-
-    if target_audience == AudienceEnum.ALL.value:
-        return True
-
-    if target_audience == AudienceEnum.ADMIN_TENANT.value:
-        return user_role in (
-            UserRoleEnum.PLATFORM_ADMIN.value,
-            UserRoleEnum.TENANT_ADMIN.value,
-        )
-
-    if target_audience == AudienceEnum.ADMIN_ONLY.value:
-        return user_role == UserRoleEnum.PLATFORM_ADMIN.value
-
-    # Unknown value fallback: allow through / 未知值兖底：允许通过
-    logger.warning("Unknown target_audience value: {}", target_audience)
-    return True
-
-
-async def _load_auto_bind_packages(
-    db: AsyncSession,
-    agent_scope: str,
-    tenant_id: int | None,
-    user_role: str | None = None,
-) -> list:
-    """
-    Load bind_mode=auto skill packages filtered by target_audience.
-    加载 bind_mode=auto 的自动绑定技能包，按 target_audience 过滤。
-
-    Rules / 规则:
-    - Admin call (tenant_id=None) + agent_scope=ALL_TENANTS: return [] (tenant-scoped agent in admin context)
-      管理端调用 + agent 为 all_tenants：直接返回空（tenant 作用域智能体在管理端无需加载）
-    - Admin call (tenant_id=None): load all auto packages (any target_audience)
-      管理端调用：加载所有 auto 包
-    - Tenant call: exclude target_audience=admin_only packages
-      企业端调用：排除 admin_only 受众的包
-    - user_role filter: further filter by target_audience (three-endpoint isolation)
-      user_role 过滤：按三端隔离进一步筛选
-    """
-    if tenant_id is None and agent_scope == ResourceScopeEnum.ALL_TENANTS.value:
-        return []
-
-    from sqlalchemy import and_, select
-
-    from app.enums.common import SkillBindModeEnum
-    from app.models.ai.skill_package import SkillPackage
-
-    base_conditions = [
-        SkillPackage.bind_mode == SkillBindModeEnum.AUTO.value,
-        SkillPackage.is_active.is_(True),
-        SkillPackage.is_deleted.is_(False),
-        SkillPackage.tenant_id.is_(None),
-    ]
-
-    if tenant_id is not None:
-        if agent_scope == ResourceScopeEnum.ADMIN_ONLY.value:
-            return []
-        base_conditions.append(
-            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
-        )
-
-    stmt = (
-        select(SkillPackage)
-        .where(and_(*base_conditions))
-        .order_by(SkillPackage.sort_order)
-    )
-
-    result = await db.execute(stmt)
-    packages = list(result.scalars().all())
-
-    if user_role is not None:
-        packages = [
-            pkg for pkg in packages
-            if _audience_allows_role(
-                getattr(pkg, "target_audience", AudienceEnum.ALL.value),
-                user_role,
-            )
-        ]
-
-    return packages
-
-
 async def resolve_for_agent(
     db: AsyncSession,
     agent: Any,
@@ -1060,10 +960,9 @@ async def resolve_for_agent(
     user_role: str | None = None,
 ) -> SkillResolveResult | None:
     """
-    Load and resolve all Skills bound to an Agent from AgentSkillBinding.
+    Load and resolve all Skills granted to an Agent from AgentSkillGrant.
 
     Independent Skill resolution entry point for Dispatcher / Service layer.
-    Engine no longer directly accesses AgentSkillBinding or Skill models.
 
     Error handling strategy:
     - DB connection / SQL errors → re-raise (caller can show "skill loading failed")
@@ -1076,10 +975,8 @@ async def resolve_for_agent(
         agent: Agent model instance / Agent 模型实例
         tenant_id: Tenant ID (can be None for admin-level Agent) /
                    企业 ID（admin 级 Agent 可为 None）
-        user_role: Caller role (UserRoleEnum value, for target_audience three-endpoint filtering).
-                   Pass None to skip filtering (backward compatible, admin direct call).
-                   调用方角色（UserRoleEnum 值，用于 target_audience 三端过滤）。
-                   传 None 则跳过过滤（兼容旧路径，admin 端直调）。
+        user_role: Reserved caller role context (kept for compatibility).
+                   预留的调用方角色上下文（为兼容性保留）。
 
     Returns:
         SkillResolveResult or None (when no bindings) /
@@ -1091,10 +988,12 @@ async def resolve_for_agent(
     """
     from sqlalchemy import and_, select
     from sqlalchemy.exc import SQLAlchemyError
+    from sqlalchemy.orm import selectinload
 
-    from app.models.ai.agent_skill_binding import AgentSkillBinding
+    from app.models.ai.agent_skill_grant import AgentSkillGrant
     from app.models.ai.skill import Skill as SkillModel
-    from app.models.ai.skill_package import SkillPackage
+
+    del user_role
 
     # tenant_id may be PLATFORM_TENANT_ID (0); must not treat 0 as falsy / 0 为合法平台租户 ID，不可当假值
     if tenant_id is not None:
@@ -1102,132 +1001,75 @@ async def resolve_for_agent(
     else:
         agent_tenant_id = getattr(agent, "owner_tenant_id", None)
 
-    agent_scope = getattr(agent, "scope", ResourceScopeEnum.ALL_TENANTS.value)
-
-    # ── Phase 0 (NEW): Load auto-bind skill packages (bind_mode=auto) ──
-    # 加载自动绑定技能包（bind_mode=auto）
-    auto_packages: list[SkillPackage] = []
-    try:
-        auto_packages = await _load_auto_bind_packages(
-            db, agent_scope, agent_tenant_id, user_role=user_role,
-        )
-    except SQLAlchemyError as exc:
-        logger.warning(
-            "Failed to load auto-bind packages for agent {}: {}",
-            agent.id, str(exc),
-        )
-        # Degrade: auto-bind load failure doesn't block, continue with explicit bindings
-        # 降级：auto-bind 加载失败不阻塞，继续使用 explicit bindings
-
-    if auto_packages:
-        logger.info(
-            "Auto-bind: {} packages for agent={} (scope={})",
-            len(auto_packages),
-            agent.name if agent else "?",
-            agent_scope,
-        )
-
-    # ── Phase 1: Load explicit binding data (DB errors re-raised directly) ──
-    # 绑定记录的 tenant_id 跟随 agent.owner_tenant_id，而非调用方的 tenant_id
-    # Binding tenant_id follows agent.owner_tenant_id, not the caller's tenant_id
-    binding_owner_tid = getattr(agent, "owner_tenant_id", None)
-    if binding_owner_tid is not None:
-        binding_tenant_condition = AgentSkillBinding.tenant_id == binding_owner_tid
+    grant_owner_tid = getattr(agent, "owner_tenant_id", None)
+    if grant_owner_tid is not None:
+        grant_tenant_condition = AgentSkillGrant.tenant_id == grant_owner_tid
     else:
-        binding_tenant_condition = AgentSkillBinding.tenant_id.is_(None)
+        grant_tenant_condition = AgentSkillGrant.tenant_id.is_(None)
 
-    binding_stmt = (
-        select(AgentSkillBinding)
+    grant_stmt = (
+        select(AgentSkillGrant)
+        .options(
+            selectinload(AgentSkillGrant.skill).selectinload(SkillModel.package),
+        )
         .where(
             and_(
-                AgentSkillBinding.agent_id == agent.id,
-                binding_tenant_condition,
-                AgentSkillBinding.enabled.is_(True),
-                AgentSkillBinding.is_deleted.is_(False),
+                AgentSkillGrant.agent_id == agent.id,
+                grant_tenant_condition,
+                AgentSkillGrant.enabled.is_(True),
+                AgentSkillGrant.is_deleted.is_(False),
             )
         )
-        .order_by(AgentSkillBinding.sort_order)
+        .order_by(AgentSkillGrant.sort_order)
     )
 
     try:
-        binding_result = await db.execute(binding_stmt)
-        bindings = list(binding_result.scalars().all())
+        grant_result = await db.execute(grant_stmt)
+        grants = list(grant_result.scalars().all())
     except SQLAlchemyError as exc:
         logger.error(
-            "DB error loading skill bindings for agent {}: {}",
+            "DB error loading skill grants for agent {}: {}",
             agent.id, str(exc),
         )
         raise
 
-    # ── Phase 1.5: Merge auto + explicit, deduplicate (explicit takes priority) ──
-    # 合并 auto + explicit，去重（explicit 优先）
-    # Explicit binding package_ids take priority (filtered by target_audience)
-    # explicit binding 的 package_ids 优先（按 target_audience 过滤）
-    explicit_package_ids: set[int] = set()
-    for binding in bindings:
-        if binding.package and binding.package.is_active and not binding.package.is_deleted:
-            pkg_audience = getattr(
-                binding.package, "target_audience", AudienceEnum.ALL.value
-            )
-            if not _audience_allows_role(pkg_audience, user_role):
-                continue
-            explicit_package_ids.add(binding.package.id)
-
-    # If no explicit and no auto, return None
-    # 如果没有 explicit 也没有 auto，返回 None
-    if not bindings and not auto_packages:
+    if not grants:
         return None
 
-    package_ids: list[int] = []
-    config_overrides: dict[int, dict[str, Any]] = {}
-    consent_by_package: dict[int, str] = {}
+    skills: list[SkillModel] = []
+    skill_config_overrides: dict[int, dict[str, Any]] = {}
+    default_consent_by_skill: dict[int, str] = {}
+    capability_overrides_by_skill: dict[int, dict[str, str]] = {}
+    package_name_by_skill: dict[int, str] = {}
 
-    # Add auto packages first (those not in explicit)
-    # 先添加 auto 包（不在 explicit 中的）
-    for pkg in auto_packages:
-        if pkg.id not in explicit_package_ids:
-            package_ids.append(pkg.id)
-            consent_by_package[pkg.id] = "auto"  # auto 包默认 consent_mode=auto
+    for grant in grants:
+        skill = grant.skill
+        if not skill or not skill.is_active or skill.is_deleted:
+            continue
 
-    # Then add explicit packages / 再添加 explicit 包
-    for binding in bindings:
-        if binding.package and binding.package.is_active and not binding.package.is_deleted:
-            package_ids.append(binding.package.id)
-            if binding.config_override:
-                config_overrides[binding.package.id] = binding.config_override
-            consent_by_package[binding.package.id] = getattr(
-                binding, "consent_mode", "auto"
-            )
+        skills.append(skill)
 
-    if not package_ids:
-        return None
+        merged_override: dict[str, Any] = {}
+        package = getattr(skill, "package", None)
+        if package and getattr(package, "name", None):
+            package_name_by_skill[skill.id] = package.name
+        if package and getattr(package, "valves_config", None):
+            merged_override["valves"] = package.valves_config
+        if grant.config_override:
+            merged_override.update(grant.config_override)
+        if merged_override:
+            skill_config_overrides[skill.id] = merged_override
 
-    try:
-        stmt = (
-            select(SkillModel)
-            .where(
-                and_(
-                    SkillModel.package_id.in_(package_ids),
-                    SkillModel.is_active.is_(True),
-                    SkillModel.is_deleted.is_(False),
-                )
-            )
-            .order_by(SkillModel.sort_order)
+        default_consent_by_skill[skill.id] = getattr(
+            grant, "default_consent_mode", "auto",
         )
-        result = await db.execute(stmt)
-        skills = list(result.scalars().all())
-    except SQLAlchemyError as exc:
-        logger.error(
-            "DB error loading skills for agent {}: {}",
-            agent.id, str(exc),
-        )
-        raise
+        overrides = getattr(grant, "capability_consent_overrides", None)
+        if overrides and isinstance(overrides, dict):
+            capability_overrides_by_skill[skill.id] = overrides
 
     if not skills:
         return None
 
-    # ── Hook: BEFORE_SKILL_RESOLVE — plugins can inject/modify skills list ──
-    # 插件可注入/修改 skills 列表
     hook_registry = get_hook_registry()
     if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_RESOLVE):
         hook_ctx = await hook_registry.trigger(
@@ -1235,81 +1077,26 @@ async def resolve_for_agent(
             tenant_id=agent_tenant_id,
             agent_id=agent.id,
             skills=skills,
-            skill_packages=package_ids,
+            skill_ids=[skill.id for skill in skills],
+            skill_packages=[skill.package_id for skill in skills if skill.package_id],
         )
         skills = hook_ctx.get("skills", skills)
 
-    # ── Phase 2: Resolve Skill → ToolDefinition (single failure degrades) ──
-    # 解析 Skill → ToolDefinition（单个失败降级）
-    skill_config_overrides: dict[int, dict[str, Any]] = {}
-    pkg_valves: dict[int, dict[str, Any]] = {}
-    # Load valves from auto-bind packages first
-    for pkg in auto_packages:
-        if pkg.id not in explicit_package_ids and getattr(pkg, "valves_config", None):
-            pkg_valves[pkg.id] = pkg.valves_config
-    # Then from explicit bindings (explicit overrides auto)
-    for binding in bindings:
-        if binding.package and binding.package.valves_config:
-            pkg_valves[binding.package.id] = binding.package.valves_config
-
-    for skill in skills:
-        merged: dict[str, Any] = {}
-        pkg_vc = pkg_valves.get(skill.package_id)
-        if pkg_vc:
-            merged["valves"] = pkg_vc
-        pkg_override = config_overrides.get(skill.package_id)
-        if pkg_override:
-            merged.update(pkg_override)
-        if merged:
-            skill_config_overrides[skill.id] = merged
-
     resolver = SkillResolver(db=db)
     resolve_result = await resolver.resolve(skills, skill_config_overrides)
-    # Note: resolver.resolve() internally catches per-skill errors and logs warnings.
-    # Any warnings from individual skill resolution are already in resolve_result.warnings
-    # via the try/except in SkillResolver._resolve_one → logged by resolver.
 
-    # ── Phase 3: Map consent_mode and package_name (pure memory ops, should not fail) ──
-    # 映射 consent_mode 和 package_name（纯内存操作，不应失败）
-    # Build per-skill consent overrides from bindings
-    skill_overrides_by_package: dict[int, dict[str, str]] = {}
-    for binding in bindings:
-        overrides = getattr(binding, "skill_consent_overrides", None)
-        if overrides and isinstance(overrides, dict) and binding.package:
-            skill_overrides_by_package[binding.package.id] = overrides
-
-    consent_by_skill: dict[int, str] = {}
-    package_name_by_skill: dict[int, str] = {}
-
-    # Build package name lookup from both auto-bind and explicit sources
-    _pkg_name_map: dict[int, str] = {}
-    for pkg in auto_packages:
-        if pkg.id not in explicit_package_ids:
-            _pkg_name_map[pkg.id] = pkg.name
-    for binding in bindings:
-        if binding.package:
-            _pkg_name_map[binding.package.id] = binding.package.name
-
-    for skill in skills:
-        # Default: package-level consent_mode
-        pkg_consent = consent_by_package.get(skill.package_id, "auto")
-        # Override: per-skill consent from skill_consent_overrides
-        pkg_overrides = skill_overrides_by_package.get(skill.package_id, {})
-        consent_by_skill[skill.id] = pkg_overrides.get(
-            str(skill.id), pkg_consent
-        )
-        if skill.package_id in _pkg_name_map:
-            package_name_by_skill[skill.id] = _pkg_name_map[skill.package_id]
     for tool in resolve_result.tools:
-        if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
-            resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
-                tool.source_skill_id
-            ]
-        if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
-            tool.source_package_name = package_name_by_skill[tool.source_skill_id]
+        skill_id = tool.source_skill_id
+        if not skill_id:
+            continue
+        default_mode = default_consent_by_skill.get(skill_id, "auto")
+        overrides = capability_overrides_by_skill.get(skill_id, {})
+        resolve_result.tool_consent_modes[tool.name] = overrides.get(
+            tool.name, default_mode,
+        )
+        if skill_id in package_name_by_skill:
+            tool.source_package_name = package_name_by_skill[skill_id]
 
-    # ── Hook: AFTER_SKILL_RESOLVE — plugins can modify tool_definitions ──
-    # 插件可修改 tool_definitions
     if hook_registry.has_hooks(HookPoint.AFTER_SKILL_RESOLVE):
         hook_ctx = await hook_registry.trigger(
             HookPoint.AFTER_SKILL_RESOLVE,
@@ -1320,9 +1107,9 @@ async def resolve_for_agent(
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
 
     logger.info(
-        "Resolved skills for agent={}: packages={}, tools={}, warnings={}",
+        "Resolved skills for agent={}: skill_ids={}, tools={}, warnings={}",
         agent.name if agent else "?",
-        package_ids,
+        [skill.id for skill in skills],
         [t.name for t in resolve_result.tools],
         len(resolve_result.warnings),
     )

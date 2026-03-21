@@ -8,18 +8,41 @@ const BASE_URL = '/admin/plugins';
 /** Plugin dependency status / 插件依赖状态 */
 export interface PluginDependencyStatus {
   overall: 'installed' | 'missing';
-  production_mode: boolean;
   python: {
     declared: number;
     installed: number;
     missing: string[];
+    details: Array<{
+      installed: boolean;
+      installed_version: null | string;
+      message: string;
+      package: string;
+      requirement: string;
+      satisfied: boolean;
+      state: 'missing' | 'ready';
+    }>;
     state: 'installed' | 'missing';
   };
-  npm: {
+  plugins: {
     declared: number;
     installed: number;
     missing: string[];
-    state: 'installed' | 'missing' | 'not_required';
+    details: Array<{
+      enabled: boolean;
+      installed: boolean;
+      installed_version: null | string;
+      message: string;
+      plugin: string;
+      source: string;
+      state:
+        | 'disabled'
+        | 'missing'
+        | 'ready'
+        | 'unknown'
+        | 'version_mismatch';
+      version: string;
+    }>;
+    state: 'installed' | 'missing';
   };
 }
 
@@ -208,7 +231,7 @@ export function disablePluginApi(id: number, force = false) {
 /** Install plugin dependencies / 安装插件依赖 */
 export function installPluginDependenciesApi(
   id: number,
-  payload: { force?: boolean; npm?: boolean; python?: boolean } = {},
+  payload: { force?: boolean; python?: boolean } = {},
 ) {
   return requestClient.post(`${BASE_URL}/${id}/dependencies/install`, payload, {
     timeout: 300_000,
@@ -218,7 +241,7 @@ export function installPluginDependenciesApi(
 /** Uninstall plugin dependencies / 卸载插件依赖 */
 export function uninstallPluginDependenciesApi(
   id: number,
-  payload: { force?: boolean; npm?: boolean; python?: boolean } = {},
+  payload: { force?: boolean; python?: boolean } = {},
 ) {
   return requestClient.post(
     `${BASE_URL}/${id}/dependencies/uninstall`,
@@ -413,9 +436,8 @@ export interface PluginSlotsResponse {
   dashboard_widgets: PluginSlotData[];
   settings_tabs: PluginSlotData[];
   floating_panels: PluginSlotData[];
-  standalone_pages: PluginSlotData[];
+  pages: PluginSlotData[];
   notification_ui: PluginSlotData[];
-  plugin_styles?: Record<string, string[]>;
 }
 
 /** Get plugin slots / 获取插件插槽 */

@@ -538,6 +538,7 @@
       "allTenants": "全部企业",
       "tenantId": "请输入企业 ID",
       "allTypes": "全部类型",
+      "selectSkills": "选择要授权的技能",
       "selectSkillPackages": "选择要绑定的技能包",
       "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
       "inputWelcomeMessage": "用户在开始首轮对话前看到的欢迎语",
@@ -554,6 +555,7 @@
       "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
       "maxTokens": "只限制单次回复的输出长度，不控制输入上下文上限。留空使用模型默认值，且不能超过所选模型的最大输出 Token。它和模型总上下文窗口、单独配置的页面上下文 page_data 字节预算都不是一回事。1 个中文字约 2 个 Token",
       "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
+      "skillBindings": "选择此智能体可调用的技能。技能是运行时直接授权单元，技能包仅用于分组管理",
       "skillPackageBindings": "选择此智能体可调用的技能包",
       "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
       "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个"
@@ -767,13 +769,11 @@
   },
   "skillPackage": {
     "title": "技能包管理",
-    "pageDesc": "管理全平台技能包，每个技能包包含多个技能，可整体分配给智能体使用。",
+    "pageDesc": "管理全平台技能包。技能包是技能的组织单元，最终通过智能体绑定生效。",
     "system": "系统",
     "name": "技能包名称",
     "description": "描述",
     "avatar": "图标",
-    "scope": "作用域",
-    "targetAudience": "目标受众",
     "isRecommended": "推荐",
     "isActive": "启用状态",
     "skillCount": "技能数",
@@ -783,18 +783,9 @@
     "placeholder": {
       "searchName": "搜索技能包名称",
       "inputName": "请输入技能包名称",
-      "inputDescription": "请输入描述",
-      "selectScope": "请选择作用域",
-      "selectTenant": "请选择企业",
-      "selectAssignedTenants": "请选择要分配的企业",
-      "allScopes": "全部作用域"
+      "inputDescription": "请输入描述"
     },
     "tenantId": "所属企业",
-    "assignedTenants": "分配企业",
-    "help": {
-      "scope": "资源作用域五类：global_shared（全局共享）、admin_only（仅管理端）、all_tenants（全部企业端）、admin_and_selected_tenants（管理端+指定企业）、selected_tenants（仅指定企业）；后两类需配置企业分配。",
-      "assignedTenants": "选择允许使用此技能包的企业"
-    },
     "tablePolicyFilterHint": "筛选使用表策略 {id} 的技能",
     "clearTablePolicyFilter": "清除筛选",
     "sourcePlugin": "插件",
@@ -823,6 +814,7 @@
     },
     "detail": {
       "title": "技能包详情",
+      "overview": "概览",
       "basicInfo": "基本信息",
       "skills": "包内技能",
       "empty": "暂无技能，点击右上角添加",
@@ -840,9 +832,12 @@
       "skillStatus": "启用状态",
       "skillDescription": "技能描述",
       "backToList": "返回列表",
+      "openWorkspace": "打开工作台",
       "tools": "工具定义",
       "noTools": "暂无工具定义",
-      "toolParams": "参数"
+      "toolParams": "参数",
+      "envVars": "环境变量",
+      "configured": "已配置"
     },
     "valves": {
       "configBtn": "环境配置",

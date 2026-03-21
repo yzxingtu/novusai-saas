@@ -12,8 +12,8 @@ from app.repositories.ai.agent_memory_override_repository import (
     AgentMemoryOverrideRepository,
 )
 from app.repositories.ai.agent_repository import AdminAgentRepository, AgentRepository
-from app.repositories.ai.agent_skill_binding_repository import (
-    AgentSkillBindingRepository,
+from app.repositories.ai.agent_skill_grant_repository import (
+    AgentSkillGrantRepository,
 )
 from app.repositories.ai.agent_version_repository import AgentVersionRepository
 from app.repositories.ai.api_key_repository import ProviderApiKeyRepository
@@ -73,5 +73,5 @@ __all__ = [
     "AITablePolicyOverrideRepository",
     "SkillRepository",
     "AdminSkillRepository",
-    "AgentSkillBindingRepository",
+    "AgentSkillGrantRepository",
 ]

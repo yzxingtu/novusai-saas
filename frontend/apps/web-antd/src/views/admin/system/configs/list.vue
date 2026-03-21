@@ -29,7 +29,14 @@ import {
   updateAdminConfigGroupApi,
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createRefreshPageOperation,
+  createSavePageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t, $t as t } from '#/locales';
 
@@ -352,40 +359,28 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 
-usePageAIRegistration({
-  pageKey: 'admin.system.configs',
-  title: () => $t('admin.system.config.title'),
+usePageAIContext({
   resource: '/admin/system/configs',
   data: () => ({
     active_group: activeGroup.value,
   }),
+});
+
+usePageAIOperations({
+  operationStrategy: 'append',
   operations: [
-    {
+    createRefreshPageOperation({
       name: 'refresh_configs',
       label: $t('shared.pageOperation.refreshConfig'),
+      action: loadGroups,
       description: $t('shared.pageOperation.refreshConfig'),
-      readonly: true,
-      handler: async () => {
-        await loadGroups();
-        return {
-          success: true,
-          message: $t('shared.pageOperation.msg.detailRefreshed'),
-        };
-      },
-    },
-    {
+    }),
+    createSavePageOperation({
       name: 'save_config',
       label: $t('shared.pageOperation.saveConfig'),
       description: $t('shared.pageOperation.saveConfig'),
-      readonly: false,
-      handler: async () => {
-        await onSave();
-        return {
-          success: true,
-          message: $t('shared.pageOperation.msg.formSubmittedSuccess'),
-        };
-      },
-    },
+      action: onSave,
+    }),
   ],
 });
 </script>

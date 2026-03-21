@@ -32,7 +32,7 @@ export interface AIAgentInfo {
   is_system: boolean;
   model_id: number;
   model_name: null | string;
-  skill_packages: { id: number; name: string }[];
+  skills: { id: number; name: string }[];
   published_version: null | number;
   welcome_message: null | string;
   suggested_questions: null | string[];
@@ -116,47 +116,52 @@ export interface AIAgentMemoryUpdateRequest {
 }
 
 // ============================================================
-// Type definitions - Agent skill bindings / 类型定义 - 智能体技能绑定
+// Type definitions - Agent skill grants / 类型定义 - 智能体技能授权
 // ============================================================
 
-/** Skill binding info / 技能绑定信息 */
-export interface AIAgentSkillBindingInfo {
+/** Skill grant info / 技能授权信息 */
+export interface AIAgentSkillGrantInfo {
   id: null | number;
   agent_id: number;
-  package_id: number;
+  skill_id: number;
   enabled: boolean;
   config_override: null | Record<string, unknown>;
   sort_order: number;
-  consent_mode: string;
-  is_auto_bound: boolean;
+  default_consent_mode: string;
+  capability_consent_overrides: null | Record<string, string>;
+  skill_name: null | string;
+  skill_key: null | string;
+  skill_description: null | string;
+  skill_type: null | string;
+  skill_source_type: null | string;
+  skill_status: null | string;
   package_name: null | string;
   package_description: null | string;
-  package_target_audience: null | string;
-  package_bind_mode: string;
   package_is_system: boolean;
 }
 
-/** Bind skill package request / 绑定技能包请求 */
-export interface AIAgentSkillBindRequest {
-  package_id: number;
+/** Bind skill request / 绑定技能请求 */
+export interface AIAgentSkillGrantRequest {
+  skill_id: number;
   config_override?: null | Record<string, unknown>;
   sort_order?: number;
-  consent_mode?: string;
+  default_consent_mode?: string;
+  capability_consent_overrides?: null | Record<string, string>;
 }
 
-/** Batch bind request / 批量绑定请求 */
-export interface AIAgentSkillBatchBindRequest {
-  package_ids: number[];
-  consent_modes?: Record<string, string>;
+/** Batch grant request / 批量授权请求 */
+export interface AIAgentSkillBatchGrantRequest {
+  skill_ids: number[];
+  default_consent_modes?: Record<string, string>;
 }
 
-/** Update binding request / 更新绑定请求 */
-export interface AIAgentSkillBindingUpdateRequest {
+/** Update skill grant request / 更新技能授权请求 */
+export interface AIAgentSkillGrantUpdateRequest {
   enabled?: boolean | null;
   config_override?: null | Record<string, unknown>;
   sort_order?: null | number;
-  consent_mode?: null | string;
-  skill_consent_overrides?: null | Record<string, string>;
+  default_consent_mode?: null | string;
+  capability_consent_overrides?: null | Record<string, string>;
 }
 
 // ============================================================
@@ -258,58 +263,58 @@ export async function updateAIAgentMemoryConfigApi(
 }
 
 // ============================================================
-// API - Agent skill bindings (platform) / API 接口 - 智能体技能绑定（平台）
+// API - Agent skill grants (platform) / API 接口 - 智能体技能授权（平台）
 // ============================================================
 
-/** Get agent skill binding list / 获取智能体技能绑定列表 */
+/** Get agent skill grant list / 获取智能体技能授权列表 */
 export async function getAIAgentSkillsApi(
   agentId: number,
-): Promise<AIAgentSkillBindingInfo[]> {
-  return requestClient.get<AIAgentSkillBindingInfo[]>(
+): Promise<AIAgentSkillGrantInfo[]> {
+  return requestClient.get<AIAgentSkillGrantInfo[]>(
     `${AGENT_PREFIX}/${agentId}/skills`,
   );
 }
 
-/** Bind skill package to agent / 绑定技能包到智能体 */
+/** Bind skill to agent / 绑定技能到智能体 */
 export async function bindAIAgentSkillApi(
   agentId: number,
-  data: AIAgentSkillBindRequest,
-): Promise<AIAgentSkillBindingInfo> {
-  return requestClient.post<AIAgentSkillBindingInfo>(
+  data: AIAgentSkillGrantRequest,
+): Promise<AIAgentSkillGrantInfo> {
+  return requestClient.post<AIAgentSkillGrantInfo>(
     `${AGENT_PREFIX}/${agentId}/skills`,
     data,
   );
 }
 
-/** Batch bind skill packages (replace mode) / 批量绑定技能包（替换模式） */
+/** Batch grant skills (replace mode) / 批量授权技能（替换模式） */
 export async function batchBindAIAgentSkillsApi(
   agentId: number,
-  data: AIAgentSkillBatchBindRequest,
-): Promise<AIAgentSkillBindingInfo[]> {
-  return requestClient.put<AIAgentSkillBindingInfo[]>(
+  data: AIAgentSkillBatchGrantRequest,
+): Promise<AIAgentSkillGrantInfo[]> {
+  return requestClient.put<AIAgentSkillGrantInfo[]>(
     `${AGENT_PREFIX}/${agentId}/skills/batch`,
     data,
   );
 }
 
-/** Update skill binding config / 更新技能绑定配置 */
-export async function updateAIAgentSkillBindingApi(
+/** Update skill grant config / 更新技能授权配置 */
+export async function updateAIAgentSkillGrantApi(
   agentId: number,
   bindingId: number,
-  data: AIAgentSkillBindingUpdateRequest,
-): Promise<AIAgentSkillBindingInfo> {
-  return requestClient.put<AIAgentSkillBindingInfo>(
+  data: AIAgentSkillGrantUpdateRequest,
+): Promise<AIAgentSkillGrantInfo> {
+  return requestClient.put<AIAgentSkillGrantInfo>(
     `${AGENT_PREFIX}/${agentId}/skills/${bindingId}`,
     data,
   );
 }
 
-/** Unbind skill package / 解绑技能包 */
+/** Unbind skill / 解绑技能 */
 export async function unbindAIAgentSkillApi(
   agentId: number,
-  packageId: number,
+  skillId: number,
 ): Promise<void> {
-  await requestClient.delete(`${AGENT_PREFIX}/${agentId}/skills/${packageId}`);
+  await requestClient.delete(`${AGENT_PREFIX}/${agentId}/skills/${skillId}`);
 }
 
 // ============================================================

@@ -1,12 +1,10 @@
 """
 技能包模型 / Skill Package Model
 
-技能包是 Skill 的上层容器，一个技能包包含多个技能。
-Skill package is the upper-level container for Skills; one package contains multiple skills.
-Agent 通过绑定技能包来获取其中所有技能的能力。
-
-可见性通过 target_audience 控制（admin_only / admin_tenant / all）。
-Visibility is controlled by target_audience (admin_only / admin_tenant / all).
+技能包是 Skill 的上层分组容器，一个技能包包含多个技能。
+Skill package is the grouping container for Skills; one package contains multiple skills.
+运行时直接绑定 Skill，SkillPackage 仅保留分组、来源和展示职责。
+Runtime binds Skills directly; SkillPackage remains a grouping, source, and management unit.
 tenant_id=NULL 表示平台级包，tenant_id=X 表示企业自有包。
 tenant_id=NULL means platform-level package, tenant_id=X means tenant-owned package.
 """
@@ -18,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.common import AudienceEnum, SkillBindModeEnum
+from app.enums.common import SkillBindModeEnum
 
 
 class SkillPackage(TenantModel):
@@ -38,8 +36,6 @@ class SkillPackage(TenantModel):
     }
 
     __delete_deps__ = [
-        DeletionDep("AgentSkillBinding", "package_id", DeletionStrategy.CASCADE_DELETE,
-                    label_field="id", i18n_key="agent_skill_binding"),
         DeletionDep("Skill", "package_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="name", i18n_key="skill"),
     ]
@@ -55,7 +51,6 @@ class SkillPackage(TenantModel):
     __filterable__ = {
         "id": "id",
         "name": "name",
-        "target_audience": "target_audience",
         "is_active": "is_active",
         "is_system": "is_system",
         "is_recommended": "is_recommended",
@@ -68,7 +63,6 @@ class SkillPackage(TenantModel):
     __sortable__ = {
         "id": "id",
         "name": "name",
-        "target_audience": "target_audience",
         "sort_order": "sort_order",
         "created_at": "created_at",
         "updated_at": "updated_at",
@@ -79,7 +73,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
-        "extra": ["is_system", "source_plugin", "bind_mode", "target_audience"],
+        "extra": ["is_system", "source_plugin", "bind_mode"],
     }
 
     # ==================== 基本信息 ====================
@@ -99,16 +93,6 @@ class SkillPackage(TenantModel):
         String(255),
         nullable=True,
         comment=_("skill_package.field.avatar"),
-    )
-
-    # ==================== 目标受众 ====================
-
-    target_audience: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default=AudienceEnum.ALL.value,
-        index=True,
-        comment=_("skill_package.field.target_audience"),
     )
 
     # ==================== 推荐标记 ====================

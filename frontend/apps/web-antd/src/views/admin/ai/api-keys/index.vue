@@ -72,7 +72,6 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
   createPermission: 'ai_api_key:create',
   recycleBin: true,
   ai: {
-    pageKey: 'admin.ai.api-keys',
     formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
     entityName: $t('admin.ai.apiKey.name'),
     entityDescription: $t('admin.ai.apiKey.pageDesc'),

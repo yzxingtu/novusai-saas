@@ -46,9 +46,10 @@
 ## 四、技能体系核心规则
 
 - Skill **必须**归属 SkillPackage（`package_id` 必填）
-- **绑定模式**：`auto`（按 scope 自动匹配）/ `manual`（需 AgentSkillBinding 显式绑定）
+- SkillPackage / Skill **不承载独立资源作用域**；实际生效范围由资源归属与 Agent 绑定决定
+- **绑定模式**：`auto`（平台自动生效，不依赖 SkillPackage scope）/ `manual`（需 AgentSkillBinding 显式绑定）
 - 系统包（`is_system=True`）默认 `auto`，企业只能创建 `manual`
-- **前端入口**：仅 `/admin/ai/skill-packages` 和 `/tenant/ai/skill-packages`，**禁止独立技能路由**
+- **前端入口**：管理端仅 `/admin/ai/skill-packages`；企业端只允许在 Agent 页面查看/选择技能包辅助信息，**禁止独立技能路由**
 - **7 种技能类型**：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 - **SkillResolver** 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 
@@ -98,6 +99,39 @@
 - `readonly=false` 操作必须前端用户确认后才执行
 - 操作超时 30s，超时后自动清理 asyncio.Future
 - 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
+
+### 七-A、前端接入优先级
+
+1. CRUD 列表页：优先 `useCrudPage` / `useCrudList`
+2. 详情页：优先 `useDetailPageAi()`
+3. 富文本页：优先 `useEditorPageOps()`
+4. 只有在以上三类承载不了时，才允许直接使用 `usePageAIContext()` / `usePageAIOperations()`
+
+### 七-B、统一接入规范
+
+- 页面默认应复用平台自动 page AI 协议，**不要**在业务页重新发明注册流程
+- 自定义上下文只允许追加到 `contextExtras` 或 `usePageAIContext({ contextStrategy: 'extras' })`
+- 自定义页面操作只允许通过 `ai.extra`、`useDetailPageAi({ extra })` 或 `usePageAIOperations({ operationStrategy: 'append' })` 追加
+- 非 CRUD 自定义页面只要使用 `usePageAIOperations()`，默认必须传 `operationStrategy: 'append'`；只有明确需要整体替换平台能力时才允许 `primary`
+- 需要裁剪能力时，优先 `disabledCapabilities` / `disabledOperations` / `enabled: false`，不要复制标准操作后改名重写
+- 打开 drawer/modal/panel 的操作统一用 `createOpenPageOperation()`
+- 打开当前详情页已加载实体的子抽屉/子面板时，统一用 `createOpenCurrentPageOperation()`
+- 若要先从当前可见列表解析记录再打开 UI，统一用 `createOpenRecordPageOperation()`
+- 若要先从当前可见列表解析记录再执行动作，统一用 `createRecordActionPageOperation()`
+- ref 模式表单或 `drawerApi.setData()` 需要带 `_aiPageKey` / `_defaults` 时，统一用 `buildPageAIFormExtraData()`
+- 打开新建表单且带默认值的操作统一用 `createPrefilledCreatePageOperation()`
+- `createPrefilledCreatePageOperation()` 的 `openCreate()` 允许直接返回 `{ success: false, message }` 处理“未选中父实体”“当前上下文不足”等前置条件失败，不要在页面外再包一层重复判断
+- 富文本编辑器内部涉及 `content + content_format` 的操作统一走共享 helper；禁止各页面重复解析 markdown/html
+- 富文本命令型操作（如 format/list/align/table/link）统一走共享 command builder；禁止每个命令各自手写 enum 校验和默认值逻辑
+
+### 七-C、打开型操作规则
+
+- handler 输入只接收稳定参数：优先 `id` / `code` / `slug`
+- 在页面内部先 `findRowById()` / `findEntityByCode()`，或直接复用 `createOpenRecordPageOperation()`，再调用本地 `openXxxDrawer()` / `openXxxModal()`
+- 若目标 UI 位于宿主 modal 内部，优先由宿主组件暴露 `openAddXxx()` / `openDetailXxx()` 这类意图方法，再由页面操作调用宿主方法；不要从父页直接穿透到宿主内部子组件 ref
+- 不允许让 AI 直接传整个 row JSON 或组件内部数据结构
+- 纯“打开 UI”动作应标记为 `readonly: true`，避免落入确认流
+- success / error message 统一复用 `shared.pageOperation.msg.*` 或已有 i18n key
 
 ## 八、上传与存储规则
 

@@ -44,7 +44,6 @@ def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[s
         "name": pkg.name,
         "description": pkg.description,
         "avatar": pkg.avatar,
-        "target_audience": pkg.target_audience,
         "is_system": pkg.is_system,
         "is_active": pkg.is_active,
         "sort_order": pkg.sort_order,
@@ -122,8 +121,8 @@ class AdminSkillPackageController(GlobalController):
             """
             获取所有推荐技能包（is_recommended=true）/ Get all recommended skill packages.
 
-            管理端无 target_audience 限制，返回全部推荐包。
-            Admin has no target_audience restriction, returns all recommended packages.
+            管理端返回全部推荐包，由智能体绑定决定实际使用。
+            Admin returns all recommended packages; actual usage is determined by agent bindings.
             用于创建智能体时显示推荐绑定列表。
             Used to display recommended binding list when creating agents.
             """
@@ -147,9 +146,10 @@ class AdminSkillPackageController(GlobalController):
             skill_counts = await service.get_skill_counts_batch(pkg_ids) if pkg_ids else {}
 
             return success(data=[
-                {**_build_admin_package_item(p, skill_counts.get(p.id, 0)),
-                 "target_audience": getattr(p, "target_audience", "all"),
-                 "is_recommended": True}
+                {
+                    **_build_admin_package_item(p, skill_counts.get(p.id, 0)),
+                    "is_recommended": True,
+                }
                 for p in pkgs
             ])
 
@@ -320,7 +320,7 @@ class AdminSkillPackageController(GlobalController):
             Upload skill ZIP package and auto-create SkillPackage + Skill (toolkit)
 
             ZIP 包结构参见 SKILL.md 规范。 / ZIP structure see SKILL.md spec.
-            - scope=admin, tenant_id=NULL
+            - 管理端上传统一创建平台技能包（tenant_id=NULL） / Admin upload always creates a platform package (tenant_id=NULL)
             - is_system=True 时不可删除 / Cannot be deleted when is_system=True
             """
             from app.api.shared._skill_package_upload import (
@@ -439,58 +439,12 @@ class AdminSkillPackageController(GlobalController):
             """
             获取技能包内所有技能通过 resolve() 解析出的工具定义列表 / Get tool definition list resolved from all skills in the package via resolve().
 
-            仅对插件类型技能（source_plugin 不为空）有效。
-            Only effective for plugin-type skills (source_plugin is not empty).
-            Toolkit 类型技能的工具由 ToolkitResolver 解析。
-            Tools for Toolkit-type skills are resolved by ToolkitResolver.
+            统一通过 SkillResolver 解析，覆盖 toolkit 与插件注册技能。
+            Resolve through SkillResolver for both toolkit and plugin-backed skills.
             """
             service = AdminSkillPackageService(db)
-            pkg = await service.get_by_id(package_id)
-            if not pkg:
-                raise NotFoundException(message=_("skill_package.error.not_found"))
-
-            tools: list[dict] = []
-
-            # Toolkit 类型技能：从 toolkit_content 解析 / Toolkit-type skills: resolve from toolkit_content
-            if not tools:
-                from app.schemas.common.query import FilterRule
-                from app.services.ai.skill_service import AdminSkillService
-                skill_svc = AdminSkillService(db)
-                skill_items, skill_total = await skill_svc.query_list(
-                    None,
-                    forced_filters=[FilterRule(field="package_id", value=package_id)],
-                )
-                logger.debug(
-                    "Resolved tools: loaded {} skills for package {}",
-                    skill_total,
-                    package_id,
-                )
-                for skill_item in skill_items:
-                    if skill_item.type == "toolkit" and skill_item.toolkit_content:
-                        try:
-                            from app.ai.tools.toolkit_resolver import ToolkitResolver
-                            resolver = ToolkitResolver()
-                            tool_defs = resolver.resolve_from_source(
-                                skill_item.toolkit_content,
-                            )
-                            for td in tool_defs:
-                                tools.append({
-                                    "name": td.name,
-                                    "description": td.description,
-                                    "parameters": getattr(td, "parameters", []),
-                                    "source_skill_id": skill_item.id,
-                                    "source_skill_name": skill_item.name,
-                                })
-                        except Exception as exc:
-                            logger.debug("Skill package toolkit parse failed: {}", exc)
-
-            return success(data={
-                "package_id": package_id,
-                "package_name": pkg.name,
-                "source_plugin": pkg.source_plugin,
-                "tool_count": len(tools),
-                "tools": tools,
-            })
+            data = await service.get_resolved_tools(package_id)
+            return success(data=data)
 
         # ==================== 导入 / 导出 / Import / Export ====================
 
@@ -534,8 +488,7 @@ class AdminSkillPackageController(GlobalController):
             参数： / Parameters:
             - data: 导出的 JSON 数据 / Exported JSON data
             - conflict_mode (in data): skip / rename（同名技能包处理方式） / Conflict resolution for same-name packages
-            - target_scope (in data): 目标作用域 (admin/tenant/global) / Target scope
-            - target_tenant_id (in data): 目标企业 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
+            - target_tenant_id (in data): 可选目标企业 ID；不传时保持默认平台导入 / Optional target tenant ID; omit to keep default platform import
             """
             from app.api.shared._skill_package_export import import_skill_package
 
@@ -559,8 +512,7 @@ class AdminSkillPackageController(GlobalController):
 
             参数： / Parameters:
             - new_name: 新技能包名称（可选，默认追加 " (Copy)"） / New name (optional, defaults to append " (Copy)")
-            - target_scope: 目标作用域 (admin/tenant/global) / Target scope
-            - target_tenant_id: 目标企业 ID（scope=tenant 时必填） / Target tenant ID (required when scope=tenant)
+            - target_tenant_id: 可选目标企业 ID；不传时克隆到与原包一致的归属 / Optional target tenant ID; omit to keep the original ownership
             """
             from app.api.shared._skill_package_export import (
                 export_skill_package,

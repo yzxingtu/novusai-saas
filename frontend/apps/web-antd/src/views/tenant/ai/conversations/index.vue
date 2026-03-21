@@ -18,6 +18,7 @@ import {
   getConversationDetailApi,
   getConversationListApi,
 } from '#/api/tenant/conversations';
+import { createViewDetailPageOperation } from '#/composables';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
@@ -74,39 +75,18 @@ const { Grid } = useCrudPage<ConversationInfo>({
     detail: onViewDetail,
   },
   ai: {
-    pageKey: 'tenant.ai.conversations',
     entityName: $t('tenant.ai.conversation.name'),
     entityDescription: $t('tenant.ai.conversation.pageDesc'),
     extra: [
-      {
-        name: 'view_detail',
-        label: $t('shared.pageOperation.viewDetail'),
+      createViewDetailPageOperation({
         description:
           'Open the conversation detail drawer by ID / 按 ID 打开对话详情抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Conversation ID / 对话 ID',
-            required: true,
-          },
-        },
-        handler: async (params) => {
-          const id = Number(params.id);
-          if (!Number.isFinite(id) || id <= 0) {
-            return {
-              success: false,
-              message: $t('shared.pageOperation.msg.missingIdParam'),
-            };
-          }
+        idDescription: 'Conversation ID / 对话 ID',
+        openDetail: async (id) => {
           detailId.value = id;
           detailOpen.value = true;
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.detailOpened', { id }),
-          };
         },
-      },
+      }),
     ],
   },
 });

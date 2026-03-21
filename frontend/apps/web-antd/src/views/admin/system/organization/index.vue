@@ -32,10 +32,20 @@ import { OrgNodeDialog } from '#/components/business/org-node-dialog';
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
 import { PermissionPreview } from '#/components/business/permission-preview';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  createCreateRecordPageOperation,
+  createOpenCurrentPageOperation,
+  createRefreshPageOperation,
+  createSimplePageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemOrganization' });
+const AI_PAGE_KEY = 'admin.system.organization';
 
 // ============================================================
 // Organization tree management / 组织树管理
@@ -177,31 +187,81 @@ onMounted(async () => {
   }
 });
 
-usePageAIRegistration({
-  pageKey: 'admin.system.organization',
-  title: () => $t('admin.system.organization.name'),
-  resource: '/admin/organization',
+usePageAIContext({
+  pageKey: AI_PAGE_KEY,
+  resource: '/admin/system/organization',
+  data: () => ({
+    expanded_count: expandedIds.value.size,
+    root_node_count: treeData.value.length,
+    selected_node_code: selectedNode.value?.code ?? null,
+    selected_node_id: selectedNode.value?.id ?? null,
+    selected_node_name: selectedNode.value?.name ?? null,
+    selected_node_type: selectedNode.value?.type ?? null,
+  }),
+});
+
+usePageAIOperations({
+  pageKey: AI_PAGE_KEY,
+  operationStrategy: 'append',
   operations: [
-    {
+    createRefreshPageOperation({
       name: 'refresh_tree',
-      label: $t('shared.pageOperation.refreshList'),
-      description: 'Refresh the organization tree',
-      readonly: true,
-      handler: async () => {
+      action: async () => {
         await refreshTree();
-        return { success: true, message: 'Organization tree refreshed' };
       },
-    },
-    {
+      description: 'Refresh the organization tree',
+    }),
+    createCreateRecordPageOperation({
       name: 'create_record',
-      label: $t('shared.pageOperation.createRecord'),
       description: 'Open dialog to create a root organization node',
-      readonly: false,
-      handler: async () => {
+      action: () => {
         handleCreateRoot();
-        return { success: true, message: 'Create root node dialog opened' };
       },
-    },
+    }),
+    createSimplePageOperation({
+      name: 'expand_all_nodes',
+      label: $t('admin.system.organization.expandAll'),
+      description: 'Expand all loaded organization nodes / 展开全部已加载组织节点',
+      readonly: true,
+      action: async () => {
+        expandAll();
+      },
+      successMessage: $t('shared.pageOperation.msg.actionCompleted', {
+        target: $t('admin.system.organization.expandAll'),
+      }),
+    }),
+    createSimplePageOperation({
+      name: 'collapse_all_nodes',
+      label: $t('admin.system.organization.collapseAll'),
+      description: 'Collapse all organization nodes / 收起全部组织节点',
+      readonly: true,
+      action: async () => {
+        collapseAll();
+      },
+      successMessage: $t('shared.pageOperation.msg.actionCompleted', {
+        target: $t('admin.system.organization.collapseAll'),
+      }),
+    }),
+    createOpenCurrentPageOperation({
+      name: 'edit_selected_node',
+      label: $t('shared.pageOperation.editRecord'),
+      description:
+        'Open the edit dialog for the currently selected organization node / 打开当前选中组织节点的编辑弹窗',
+      available: () => !!selectedNode.value,
+      open: async () => {
+        handleEditNode(selectedNode.value!);
+      },
+    }),
+    createOpenCurrentPageOperation({
+      name: 'create_child_node',
+      label: $t('admin.system.organization.addChild'),
+      description:
+        'Open the create-child dialog for the currently selected organization node / 为当前选中组织节点打开新建子节点弹窗',
+      available: () => !!selectedNode.value,
+      open: async () => {
+        handleAddChild(selectedNode.value!, selectedNode.value!.type);
+      },
+    }),
   ],
 });
 </script>

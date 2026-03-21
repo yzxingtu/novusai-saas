@@ -1,40 +1,29 @@
 <script lang="ts" setup>
-/**
- * 管理端技能包详情页
- *
- * - 顶部：返回按钮 + 包名 + audience/status 标签
- * - 基本信息卡片：完整展示所有字段（描述/作用域/系统标识/排序/来源插件/时间等）
- * - Tab 1: 包内技能列表（翻译类型、超时、描述、状态切换、删除）
- * - Tab 2: Valves 环境变量配置
- */
-import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
+import type {
+  AdminSkillPackageInfo,
+  SkillPackageValvesInfo,
+} from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
-import { useDetailPageAi } from '#/composables/use-detail-page-ai';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Badge,
+  Alert,
   Button,
-  Card,
-  Descriptions,
-  DescriptionsItem,
   Empty,
+  Input,
+  InputNumber,
   message,
   Popconfirm,
-  Space,
   Spin,
   Switch,
   TabPane,
   Tabs,
   Tag,
-  Tooltip,
 } from 'ant-design-vue';
 
 import {
@@ -44,56 +33,343 @@ import {
   updateSkillPackageValvesApi,
 } from '#/api/admin/skill-packages';
 import { deleteSkillApi, toggleSkillStatusApi } from '#/api/admin/skills';
+import { useDetailPageAi } from '#/composables/use-detail-page-ai';
+import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { formatRelativeTime } from '#/utils/common';
 import { requestClient } from '#/utils/request';
+
 import { getSkillTypeText } from '../skills/data';
+import { getBindModeColor, getBindModeText } from './data';
 
 defineOptions({ name: 'AdminSkillPackageDetail' });
 
+type ResolvedToolParameter = {
+  default?: unknown;
+  description: string;
+  name: string;
+  required: boolean;
+  type: string;
+};
+
+interface ResolvedTool {
+  description: string;
+  name: string;
+  parameters: ResolvedToolParameter[];
+  source_plugin?: null | string;
+  source_skill_id: number;
+  source_skill_name: string;
+  tool_type?: string;
+  timeout?: number;
+}
+
+type ValvesSchema = NonNullable<SkillPackageValvesInfo['valves_schema']>;
+type ValvesInputType = 'json' | 'number' | 'string' | 'switch';
+
+interface ValveField {
+  default?: unknown;
+  description?: string;
+  isRequired: boolean;
+  key: string;
+  type?: string;
+}
+
 const route = useRoute();
 const router = useRouter();
-const packageId = computed(() => Number(route.params.id));
 
-// ==================== State ====================
+const packageId = computed(() => Number(route.params.id));
+const activeTab = ref(
+  typeof route.query.tab === 'string' ? route.query.tab : 'overview',
+);
+
 const loading = ref(false);
 const pkg = ref<AdminSkillPackageInfo | null>(null);
 const skills = ref<AdminSkillInfo[]>([]);
 const skillsLoading = ref(false);
-const activeTab = ref('skills');
-
-// Valves
-const valvesSchema = ref<null | Record<string, unknown>>(null);
+const resolvedTools = ref<ResolvedTool[]>([]);
+const toolsLoading = ref(false);
+const valvesSchema = ref<null | ValvesSchema>(null);
 const valvesConfig = ref<Record<string, unknown>>({});
 const valvesSaving = ref(false);
 
-// Resolved Tools
-interface ResolvedTool {
-  name: string;
-  description: string;
-  parameters: Array<{
-    default?: unknown;
-    description: string;
-    name: string;
-    required: boolean;
-    type: string;
-  }>;
-  timeout: number;
-  source_skill_id: number;
-  source_skill_name: string;
+function getPackageStatusColor(isActive: boolean): string {
+  return isActive ? 'success' : 'default';
 }
-const resolvedTools = ref<ResolvedTool[]>([]);
-const toolsLoading = ref(false);
 
-// ==================== Load ====================
-async function loadPackage() {
+function getPackageStatusText(isActive: boolean): string {
+  return isActive ? $t('admin.common.enabled') : $t('admin.common.disabled');
+}
+
+function getPackageHeroClass(): string {
+  if (pkg.value?.source_plugin) {
+    return 'bg-fuchsia-500/10 text-fuchsia-600 ring-fuchsia-400/20 dark:text-fuchsia-400';
+  }
+  if (pkg.value?.is_system) {
+    return 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400';
+  }
+  return 'bg-primary/10 text-primary ring-primary/20';
+}
+
+function getPackageIcon(icon: null | string | undefined): string {
+  return icon || 'lucide:package';
+}
+
+function getToolTypeColor(type: null | string | undefined): string {
+  switch (type) {
+    case 'builtin': {
+      return 'purple';
+    }
+    case 'code_execution': {
+      return 'orange';
+    }
+    case 'data_create':
+    case 'data_delete':
+    case 'data_query':
+    case 'data_update': {
+      return 'cyan';
+    }
+    case 'email': {
+      return 'gold';
+    }
+    case 'http': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
+function getToolTypeIcon(type: null | string | undefined): string {
+  switch (type) {
+    case 'builtin': {
+      return 'lucide:sparkles';
+    }
+    case 'code_execution': {
+      return 'lucide:square-terminal';
+    }
+    case 'data_create':
+    case 'data_delete':
+    case 'data_query':
+    case 'data_update': {
+      return 'lucide:database-zap';
+    }
+    case 'email': {
+      return 'lucide:mail';
+    }
+    case 'http': {
+      return 'lucide:globe';
+    }
+    default: {
+      return 'lucide:wrench';
+    }
+  }
+}
+
+function getToolTypeText(type: null | string | undefined): string {
+  if (!type) return '-';
+  return type
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getToolRequiredParamCount(tool: ResolvedTool): number {
+  return tool.parameters.filter((item) => item.required).length;
+}
+
+function isSecretKey(key: string): boolean {
+  return /\b(?:api_?key|secret|password|access_?token|auth_?token|private_?key)\b/i.test(
+    key,
+  );
+}
+
+function getValveInputType(type?: string): ValvesInputType {
+  switch (type) {
+    case 'array':
+    case 'object': {
+      return 'json';
+    }
+    case 'integer':
+    case 'number': {
+      return 'number';
+    }
+    case 'boolean': {
+      return 'switch';
+    }
+    default: {
+      return 'string';
+    }
+  }
+}
+
+function isConfiguredValveValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return true;
+}
+
+function buildInitialValvesConfig(
+  data: SkillPackageValvesInfo,
+): Record<string, unknown> {
+  const schema = data.valves_schema;
+  const savedConfig = (data.valves_config || {}) as Record<string, unknown>;
+
+  if (!schema?.properties) {
+    return {};
+  }
+
+  const nextConfig: Record<string, unknown> = {};
+
+  for (const [key, prop] of Object.entries(schema.properties)) {
+    if (key in savedConfig) {
+      nextConfig[key] = savedConfig[key];
+      continue;
+    }
+
+    if (prop.default !== undefined) {
+      nextConfig[key] = prop.default;
+      continue;
+    }
+
+    switch (getValveInputType(prop.type)) {
+      case 'json': {
+        nextConfig[key] = prop.type === 'array' ? [] : {};
+        break;
+      }
+      case 'number': {
+        nextConfig[key] = null;
+        break;
+      }
+      case 'switch': {
+        nextConfig[key] = false;
+        break;
+      }
+      default: {
+        nextConfig[key] = '';
+      }
+    }
+  }
+
+  return nextConfig;
+}
+
+function getStringValveValue(key: string): string {
+  const value = valvesConfig.value[key];
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+}
+
+function getNumberValveValue(key: string): number | undefined {
+  const value = valvesConfig.value[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function getBooleanValveValue(key: string): boolean {
+  return Boolean(valvesConfig.value[key]);
+}
+
+function getJsonValveValue(key: string): string {
+  const value = valvesConfig.value[key];
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+function getJsonValvePlaceholder(field: ValveField): string {
+  if (field.default !== undefined) {
+    return JSON.stringify(field.default, null, 2);
+  }
+  return field.type === 'array' ? '[]' : '{}';
+}
+
+function updateStringValve(key: string, value: string) {
+  valvesConfig.value[key] = value;
+}
+
+function updateNumberValve(key: string, value: null | number) {
+  valvesConfig.value[key] = value;
+}
+
+function updateBooleanValve(key: string, value: boolean) {
+  valvesConfig.value[key] = value;
+}
+
+function updateJsonValve(key: string, value: string) {
+  try {
+    valvesConfig.value[key] = value.trim() ? JSON.parse(value) : null;
+  } catch {
+    valvesConfig.value[key] = value;
+  }
+}
+
+function resetValvesToDefaults() {
+  valvesConfig.value = buildInitialValvesConfig({
+    valves_config: null,
+    valves_schema: valvesSchema.value,
+  });
+}
+
+const sortedValveFields = computed<ValveField[]>(() => {
+  if (!valvesSchema.value?.properties) {
+    return [];
+  }
+
+  const required = new Set(valvesSchema.value.required || []);
+
+  return Object.entries(valvesSchema.value.properties)
+    .map(([key, prop]) => ({
+      key,
+      ...prop,
+      isRequired: required.has(key),
+    }))
+    .sort((a, b) => {
+      if (a.isRequired !== b.isRequired) {
+        return a.isRequired ? -1 : 1;
+      }
+      return a.key.localeCompare(b.key);
+    });
+});
+
+const hasValves = computed(() => sortedValveFields.value.length > 0);
+const valvesFieldCount = computed(() => sortedValveFields.value.length);
+const requiredValveCount = computed(
+  () => sortedValveFields.value.filter((field) => field.isRequired).length,
+);
+const configuredValveCount = computed(
+  () =>
+    sortedValveFields.value.filter((field) =>
+      isConfiguredValveValue(valvesConfig.value[field.key]),
+    ).length,
+);
+
+async function loadPackage(): Promise<boolean> {
   loading.value = true;
   try {
-    const data = await getSkillPackageDetailApi(packageId.value);
-    pkg.value = data;
+    pkg.value = await getSkillPackageDetailApi(packageId.value);
+    return true;
   } catch {
     router.replace('/admin/ai/skill-packages');
+    return false;
   } finally {
     loading.value = false;
   }
@@ -102,11 +378,11 @@ async function loadPackage() {
 async function loadSkills() {
   skillsLoading.value = true;
   try {
-    const res = await getSkillPackageSkillsApi(packageId.value, {
+    const response = await getSkillPackageSkillsApi(packageId.value, {
       'page[size]': 100,
-      sort: 'sort_order',
+      sort: 'sort_order,-created_at',
     });
-    skills.value = res.items;
+    skills.value = response.items;
   } catch {
     skills.value = [];
   } finally {
@@ -118,7 +394,7 @@ async function loadValves() {
   try {
     const data = await getSkillPackageValvesApi(packageId.value);
     valvesSchema.value = data.valves_schema;
-    valvesConfig.value = data.valves_config || {};
+    valvesConfig.value = buildInitialValvesConfig(data);
   } catch {
     valvesSchema.value = null;
     valvesConfig.value = {};
@@ -140,19 +416,21 @@ async function loadResolvedTools() {
   }
 }
 
-onMounted(async () => {
-  await loadPackage();
+async function loadPage() {
+  const exists = await loadPackage();
+  if (!exists) {
+    return;
+  }
   await Promise.all([loadSkills(), loadValves(), loadResolvedTools()]);
-});
+}
 
-// ==================== Actions ====================
 async function handleToggleSkillStatus(skill: AdminSkillInfo) {
   try {
     await toggleSkillStatusApi(skill.id);
     message.success($t('admin.ai.skill.messages.toggleSuccess'));
-    await loadSkills();
+    await Promise.all([loadPackage(), loadSkills(), loadResolvedTools()]);
   } catch {
-    // handled by interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   }
 }
 
@@ -160,9 +438,9 @@ async function handleDeleteSkill(skill: AdminSkillInfo) {
   try {
     await deleteSkillApi(skill.id);
     message.success($t('shared.common.deleteSuccess'));
-    await loadSkills();
+    await Promise.all([loadPackage(), loadSkills(), loadResolvedTools()]);
   } catch {
-    // handled by interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   }
 }
 
@@ -172,45 +450,62 @@ async function handleSaveValves() {
     await updateSkillPackageValvesApi(packageId.value, {
       valves_config: valvesConfig.value,
     });
+    await loadValves();
     message.success($t('admin.ai.skillPackage.valves.saveSuccess'));
   } catch {
-    // handled by interceptor / 错误由请求拦截器处理
+    // handled by interceptor
   } finally {
     valvesSaving.value = false;
   }
+}
+
+function focusTab(tab: string) {
+  activeTab.value = tab;
 }
 
 function goBack() {
   router.push('/admin/ai/skill-packages');
 }
 
-// ==================== Computed ====================
-const hasValves = computed(() => {
-  if (!valvesSchema.value) return false;
-  const props = (valvesSchema.value as Record<string, unknown>)?.properties;
-  return props && typeof props === 'object' && Object.keys(props).length > 0;
+function openWorkspace(createSkill = false) {
+  const query: Record<string, string> = {
+    package_id: String(packageId.value),
+  };
+
+  if (createSkill) {
+    query.action = 'create_skill';
+  }
+
+  router.push({
+    path: '/admin/ai/skill-packages',
+    query,
+  });
+}
+
+function openSkillDetail(skillId: number) {
+  router.push(`/admin/ai/skills/${skillId}`);
+}
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (typeof tab === 'string' && tab.length > 0) {
+      activeTab.value = tab;
+    }
+  },
+);
+
+watch(packageId, () => {
+  void loadPage();
 });
 
-const valvesProperties = computed(() => {
-  if (!valvesSchema.value) return {};
-  return ((valvesSchema.value as Record<string, unknown>)?.properties ||
-    {}) as Record<
-    string,
-    { default?: unknown; description?: string; type?: string }
-  >;
+onMounted(() => {
+  void loadPage();
 });
 
-const valvesRequired = computed(() => {
-  if (!valvesSchema.value) return [];
-  return ((valvesSchema.value as Record<string, unknown>)?.required ||
-    []) as string[];
-});
-
-usePageAIRegistration({
-  pageKey: 'admin.ai.skill-packages.detail',
-  title: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail'),
+usePageAIContext({
   resource: '/admin/ai/skill-packages',
-  entityName: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail'),
+  entityName: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail.title'),
   entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
   data: () => ({
     package_id: packageId.value,
@@ -219,396 +514,931 @@ usePageAIRegistration({
 });
 
 useDetailPageAi({
-  pageKey: 'admin.ai.skill-packages.detail',
   refreshFn: async () => {
-    await loadPackage();
-    await loadSkills();
+    await loadPage();
   },
   backRoute: '/admin/ai/skill-packages',
 });
 </script>
 
 <template>
-  <Page>
+  <Page auto-content-height>
     <Spin :spinning="loading">
-      <!-- Header -->
-      <div class="mb-4 flex items-center gap-3">
-        <Button @click="goBack">
-          <IconifyIcon icon="lucide:arrow-left" class="mr-1" />
-          {{ $t('admin.ai.skillPackage.detail.backToList') }}
-        </Button>
-        <div v-if="pkg" class="flex items-center gap-2">
-          <IconifyIcon
-            :icon="pkg.avatar || 'lucide:package'"
-            class="size-5 text-primary"
-          />
-          <h2 class="m-0 text-lg font-semibold">{{ pkg.name }}</h2>
-          <Tag color="processing">
-            {{ pkg.target_audience }}
-          </Tag>
-          <Tag v-if="pkg.is_system" color="purple">
-            {{ $t('admin.ai.skillPackage.system') }}
-          </Tag>
-          <Badge
-            :status="pkg.is_active ? 'success' : 'default'"
-            :text="
-              pkg.is_active
-                ? $t('admin.common.enabled')
-                : $t('admin.common.disabled')
-            "
-          />
-        </div>
+      <div v-if="!loading && !pkg" class="py-20">
+        <Empty :description="$t('common.noData')" />
       </div>
 
-      <!-- Basic Info Card -->
-      <Card
-        v-if="pkg"
-        class="mb-4"
-        size="small"
-        :title="$t('admin.ai.skillPackage.detail.basicInfo')"
-      >
-        <Descriptions :column="{ xs: 1, sm: 2, md: 3 }" size="small" bordered>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.name')" :span="3">
-            {{ pkg.name }}
-          </DescriptionsItem>
-          <DescriptionsItem
-            :label="$t('admin.ai.skillPackage.description')"
-            :span="3"
-          >
-            <span v-if="pkg.description">{{ pkg.description }}</span>
-            <span v-else class="text-muted-foreground">{{
-              $t('admin.ai.skillPackage.detail.noDescription')
-            }}</span>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.targetAudience')">
-            <Tag color="processing">
-              {{ pkg.target_audience }}
-            </Tag>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.isActive')">
-            <Badge
-              :status="pkg.is_active ? 'success' : 'default'"
-              :text="
-                pkg.is_active
-                  ? $t('admin.common.enabled')
-                  : $t('admin.common.disabled')
-              "
-            />
-          </DescriptionsItem>
-          <DescriptionsItem
-            :label="$t('admin.ai.skillPackage.detail.isSystem')"
-          >
-            {{
-              pkg.is_system
-                ? $t('admin.ai.skillPackage.detail.yes')
-                : $t('admin.ai.skillPackage.detail.no')
-            }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.skillCount')">
-            <Badge
-              :count="pkg.skill_count"
-              :number-style="{ backgroundColor: '#1890ff' }"
-              show-zero
-            />
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.sortOrder')">
-            {{ pkg.sort_order }}
-          </DescriptionsItem>
-          <DescriptionsItem
-            v-if="pkg.source_plugin"
-            :label="$t('admin.ai.skillPackage.detail.sourcePlugin')"
-          >
-            <Tag color="cyan">
-              <IconifyIcon icon="lucide:plug" class="mr-0.5 inline size-3" />
-              {{ pkg.source_plugin }}
-            </Tag>
-          </DescriptionsItem>
-          <DescriptionsItem
-            v-if="pkg.tenant_id"
-            :label="$t('admin.ai.skillPackage.detail.tenantName')"
-          >
-            ID: {{ pkg.tenant_id }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.common.createdAt')">
-            {{ formatRelativeTime(pkg.created_at) }}
-          </DescriptionsItem>
-          <DescriptionsItem
-            :label="$t('admin.ai.skillPackage.detail.updatedAt')"
-          >
-            {{ formatRelativeTime(pkg.updated_at) }}
-          </DescriptionsItem>
-        </Descriptions>
-      </Card>
+      <div v-if="pkg" class="flex flex-col gap-4">
+        <div class="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div
+            class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"
+          ></div>
 
-      <!-- Tabs: Skills + Valves -->
-      <Tabs v-model:active-key="activeTab">
-        <!-- Skills Tab -->
-        <TabPane
-          key="skills"
-          :tab="`${$t('admin.ai.skillPackage.detail.skills')} (${skills.length})`"
-        >
-          <div class="mb-3 flex justify-end">
-            <Button
-              type="primary"
-              @click="router.push('/admin/ai/skill-packages')"
-            >
-              <IconifyIcon icon="lucide:plus" class="mr-1" />
-              {{ $t('admin.ai.skill.create') }}
-            </Button>
-          </div>
-
-          <Spin :spinning="skillsLoading">
-            <div v-if="skills.length === 0" class="py-8">
-              <Empty :description="$t('admin.ai.skillPackage.detail.empty')" />
-            </div>
-            <div v-else class="flex flex-col gap-3">
-              <Card
-                v-for="skill in skills"
-                :key="skill.id"
-                size="small"
-                :body-style="{ padding: '12px 16px' }"
-                class="transition-shadow hover:shadow-sm"
+          <div class="relative p-6">
+            <div class="mb-5 flex items-center justify-between gap-4">
+              <button
+                class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                @click="goBack"
               >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10"
-                    >
-                      <IconifyIcon
-                        :icon="getSkillTypeIcon(skill.type)"
-                        class="size-4 text-primary"
-                      />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="font-medium">{{ skill.name }}</span>
-                        <Tag
-                          :color="getSkillTypeColor(skill.type)"
-                          size="small"
-                        >
-                          {{ getSkillTypeText(skill.type) }}
-                        </Tag>
-                        <Tag v-if="skill.is_system" color="purple" size="small">
-                          {{ $t('admin.ai.skillPackage.system') }}
-                        </Tag>
-                      </div>
-                      <div
-                        v-if="skill.description"
-                        class="mt-1 line-clamp-2 text-xs text-muted-foreground"
-                      >
-                        {{ skill.description }}
-                      </div>
-                      <div
-                        class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
-                      >
-                        <span v-if="skill.timeout">
-                          <IconifyIcon
-                            icon="lucide:clock"
-                            class="mr-0.5 inline size-3"
-                          />
-                          {{ skill.timeout }}s
-                        </span>
-                        <span>
-                          <IconifyIcon
-                            icon="lucide:calendar"
-                            class="mr-0.5 inline size-3"
-                          />
-                          {{ formatRelativeTime(skill.created_at) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Space>
-                    <Tooltip
-                      :title="
-                        skill.is_active
-                          ? $t('admin.common.disable')
-                          : $t('admin.common.enable')
-                      "
-                    >
-                      <Switch
-                        :checked="skill.is_active"
-                        size="small"
-                        :disabled="skill.is_system"
-                        @change="handleToggleSkillStatus(skill)"
-                      />
-                    </Tooltip>
-                    <Popconfirm
-                      v-if="!skill.is_system"
-                      :title="$t('admin.common.confirmDelete')"
-                      @confirm="handleDeleteSkill(skill)"
-                    >
-                      <Button danger size="small" type="text">
-                        <IconifyIcon icon="lucide:trash-2" />
-                      </Button>
-                    </Popconfirm>
-                  </Space>
-                </div>
-              </Card>
-            </div>
-          </Spin>
-        </TabPane>
+                <IconifyIcon icon="lucide:chevron-left" class="size-4" />
+                {{ $t('common.back') }}
+              </button>
 
-        <!-- Tools Tab -->
-        <TabPane
-          key="tools"
-          :tab="`${$t('admin.ai.skillPackage.detail.tools')} (${resolvedTools.length})`"
-        >
-          <Spin :spinning="toolsLoading">
-            <div v-if="resolvedTools.length === 0" class="py-8">
-              <Empty
-                :description="$t('admin.ai.skillPackage.detail.noTools')"
-              />
+              <div class="flex flex-wrap items-center gap-2">
+                <Button size="small" @click="openWorkspace()">
+                  <IconifyIcon
+                    icon="lucide:layout-panel-left"
+                    class="mr-1 size-3.5"
+                  />
+                  {{ $t('admin.ai.skillPackage.detail.openWorkspace') }}
+                </Button>
+                <Button size="small" @click="focusTab('tools')">
+                  <IconifyIcon icon="lucide:wrench" class="mr-1 size-3.5" />
+                  {{ $t('admin.ai.skillPackage.detail.tools') }}
+                </Button>
+                <Button
+                  size="small"
+                  :disabled="!hasValves"
+                  @click="focusTab('valves')"
+                >
+                  <IconifyIcon
+                    icon="lucide:settings-2"
+                    class="mr-1 size-3.5"
+                  />
+                  {{ $t('admin.ai.skillPackage.valves.title') }}
+                </Button>
+              </div>
             </div>
-            <div v-else class="flex flex-col gap-3">
-              <Card
-                v-for="tool in resolvedTools"
-                :key="tool.name"
-                size="small"
-                :body-style="{ padding: '12px 16px' }"
-                class="transition-shadow hover:shadow-sm"
+
+            <div class="flex items-start gap-5">
+              <div
+                class="flex size-16 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-2 ring-offset-2 ring-offset-card"
+                :class="getPackageHeroClass()"
               >
-                <div class="flex items-start gap-3">
+                <IconifyIcon :icon="getPackageIcon(pkg.avatar)" class="size-8" />
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <h1 class="mb-1 text-xl font-bold text-foreground">
+                  {{ pkg.name }}
+                </h1>
+                <p class="mb-4 text-sm text-muted-foreground">
+                  {{
+                    pkg.description ||
+                    $t('admin.ai.skillPackage.detail.noDescription')
+                  }}
+                </p>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <Tag
+                    :color="getBindModeColor(pkg.bind_mode)"
+                    class="!mr-0 !text-xs"
+                  >
+                    {{ getBindModeText(pkg.bind_mode) }}
+                  </Tag>
+                  <Tag
+                    :color="getPackageStatusColor(pkg.is_active)"
+                    class="!mr-0 !text-xs"
+                  >
+                    {{ getPackageStatusText(pkg.is_active) }}
+                  </Tag>
+                  <Tag
+                    v-if="pkg.is_system"
+                    color="purple"
+                    class="!mr-0 !text-xs"
+                  >
+                    {{ $t('admin.ai.skillPackage.system') }}
+                  </Tag>
+                  <Tag
+                    v-if="pkg.is_recommended"
+                    color="gold"
+                    class="!mr-0 !text-xs"
+                  >
+                    <div class="flex items-center gap-1">
+                      <IconifyIcon icon="lucide:star" class="size-3" />
+                      {{ $t('admin.ai.skillPackage.isRecommended') }}
+                    </div>
+                  </Tag>
                   <div
-                    class="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10"
+                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
                   >
                     <IconifyIcon
-                      icon="lucide:wrench"
-                      class="size-4 text-primary"
+                      icon="lucide:boxes"
+                      class="size-3.5 text-primary/70"
                     />
+                    {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.skillCount') }}
                   </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="font-mono text-sm font-semibold text-foreground"
-                        >{{ tool.name }}</span
-                      >
-                      <Tag v-if="tool.timeout" size="small" color="default">
-                        <IconifyIcon
-                          icon="lucide:clock"
-                          class="mr-0.5 inline size-3"
-                        />
-                        {{ tool.timeout }}s
-                      </Tag>
+                  <div
+                    v-if="pkg.source_plugin"
+                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
+                  >
+                    <IconifyIcon
+                      icon="lucide:plug"
+                      class="size-3.5 text-primary/70"
+                    />
+                    {{ pkg.source_plugin }}
+                  </div>
+                  <div
+                    v-else
+                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
+                  >
+                    <IconifyIcon
+                      icon="lucide:shield-check"
+                      class="size-3.5 text-primary/70"
+                    />
+                    {{
+                      pkg.tenant_id === null
+                        ? $t('admin.ai.skillPackage.detail.platformManaged')
+                        : `#${pkg.tenant_id}`
+                    }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border bg-card">
+          <Tabs v-model:active-key="activeTab" class="px-2 pt-1">
+            <TabPane key="overview">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon
+                    icon="lucide:layout-dashboard"
+                    class="size-3.5"
+                  />
+                  {{ $t('admin.ai.skillPackage.detail.overview') }}
+                </span>
+              </template>
+
+              <div class="flex flex-col gap-5 p-5 pt-3">
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <div class="mb-1.5 flex items-center gap-1.5">
+                      <IconifyIcon
+                        icon="lucide:boxes"
+                        class="size-3.5 text-muted-foreground"
+                      />
+                      <span class="text-xs text-muted-foreground">
+                        {{ $t('admin.ai.skillPackage.skillCount') }}
+                      </span>
                     </div>
-                    <p
-                      v-if="tool.description"
-                      class="mt-1 text-xs leading-relaxed text-muted-foreground"
-                    >
-                      {{ tool.description }}
-                    </p>
-                    <!-- 参数列表 -->
-                    <div v-if="tool.parameters?.length" class="mt-2">
+                    <div class="text-lg font-semibold text-foreground">
+                      {{ pkg.skill_count }}
+                    </div>
+                  </div>
+
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <div class="mb-1.5 flex items-center gap-1.5">
+                      <IconifyIcon
+                        icon="lucide:wrench"
+                        class="size-3.5 text-muted-foreground"
+                      />
+                      <span class="text-xs text-muted-foreground">
+                        {{ $t('admin.ai.skillPackage.detail.tools') }}
+                      </span>
+                    </div>
+                    <div class="text-lg font-semibold text-foreground">
+                      {{ resolvedTools.length }}
+                    </div>
+                  </div>
+
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <div class="mb-1.5 flex items-center gap-1.5">
+                      <IconifyIcon
+                        icon="lucide:key-round"
+                        class="size-3.5 text-muted-foreground"
+                      />
+                      <span class="text-xs text-muted-foreground">
+                        {{ $t('admin.ai.skillPackage.detail.envVars') }}
+                      </span>
+                    </div>
+                    <div class="text-lg font-semibold text-foreground">
+                      {{ valvesFieldCount }}
+                    </div>
+                  </div>
+
+                  <div class="rounded-xl border bg-accent/30 p-4">
+                    <div class="mb-1.5 flex items-center gap-1.5">
+                      <IconifyIcon
+                        icon="lucide:clock-3"
+                        class="size-3.5 text-muted-foreground"
+                      />
+                      <span class="text-xs text-muted-foreground">
+                        {{ $t('admin.ai.skillPackage.detail.updatedAt') }}
+                      </span>
+                    </div>
+                    <div class="text-sm font-semibold text-foreground">
+                      {{ formatRelativeTime(pkg.updated_at) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div class="rounded-xl border bg-accent/30 p-5">
+                    <div class="mb-4 flex items-center gap-2">
                       <div
-                        class="mb-1 text-xs font-medium text-muted-foreground"
+                        class="flex size-7 items-center justify-center rounded-lg bg-primary/10"
                       >
-                        {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                        <IconifyIcon
+                          icon="lucide:package-open"
+                          class="size-4 text-primary"
+                        />
                       </div>
-                      <div class="flex flex-col gap-1">
-                        <div
-                          v-for="param in tool.parameters"
-                          :key="param.name"
-                          class="flex items-center gap-2 rounded bg-muted/50 px-2 py-1 text-xs"
-                        >
-                          <span class="font-mono font-medium text-foreground">{{
-                            param.name
-                          }}</span>
+                      <span class="text-sm font-semibold">
+                        {{ $t('admin.ai.skillPackage.detail.basicInfo') }}
+                      </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div
+                        class="rounded-lg border bg-background px-4 py-3 md:col-span-2"
+                      >
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.description') }}
+                        </div>
+                        <div class="mt-1 text-sm leading-relaxed text-foreground">
+                          {{
+                            pkg.description ||
+                            $t('admin.ai.skillPackage.detail.noDescription')
+                          }}
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('common.bindMode.label') }}
+                        </div>
+                        <div class="mt-1">
                           <Tag
-                            size="small"
-                            :color="param.required ? 'red' : 'default'"
+                            :color="getBindModeColor(pkg.bind_mode)"
+                            class="!mr-0 !text-xs"
                           >
-                            {{ param.type }}{{ param.required ? ' *' : '' }}
+                            {{ getBindModeText(pkg.bind_mode) }}
                           </Tag>
-                          <span
-                            v-if="param.description"
-                            class="truncate text-muted-foreground"
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.isActive') }}
+                        </div>
+                        <div class="mt-1">
+                          <Tag
+                            :color="getPackageStatusColor(pkg.is_active)"
+                            class="!mr-0 !text-xs"
                           >
-                            {{ param.description }}
+                            {{ getPackageStatusText(pkg.is_active) }}
+                          </Tag>
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.isRecommended') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{
+                            pkg.is_recommended
+                              ? $t('admin.ai.skillPackage.detail.yes')
+                              : $t('admin.ai.skillPackage.detail.no')
+                          }}
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.sortOrder') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{ pkg.sort_order }}
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.detail.sourcePlugin') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{ pkg.source_plugin || '-' }}
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.detail.tenantName') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{
+                            pkg.tenant_id === null
+                              ? $t('admin.ai.skillPackage.detail.platformManaged')
+                              : `#${pkg.tenant_id}`
+                          }}
+                        </div>
+                      </div>
+
+                      <div class="rounded-lg border bg-background px-4 py-3">
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.common.createdAt') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{ formatRelativeTime(pkg.created_at) }}
+                        </div>
+                      </div>
+
+                      <div
+                        class="rounded-lg border bg-background px-4 py-3 md:col-span-2"
+                      >
+                        <div class="text-xs text-muted-foreground">
+                          {{ $t('admin.ai.skillPackage.detail.updatedAt') }}
+                        </div>
+                        <div class="mt-1 text-sm font-medium text-foreground">
+                          {{ formatRelativeTime(pkg.updated_at) }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-4">
+                    <div class="rounded-xl border bg-accent/30 p-5">
+                      <div class="mb-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                          <div
+                            class="flex size-7 items-center justify-center rounded-lg bg-cyan-500/10"
+                          >
+                            <IconifyIcon
+                              icon="lucide:wrench"
+                              class="size-4 text-cyan-500"
+                            />
+                          </div>
+                          <span class="text-sm font-semibold">
+                            {{ $t('admin.ai.skillPackage.detail.tools') }}
                           </span>
+                        </div>
+                        <Button size="small" type="link" @click="focusTab('tools')">
+                          {{ $t('shared.common.viewDetail') }}
+                        </Button>
+                      </div>
+
+                      <div
+                        v-if="resolvedTools.length === 0"
+                        class="rounded-lg border border-dashed bg-background px-4 py-6 text-center text-sm text-muted-foreground"
+                      >
+                        {{ $t('admin.ai.skillPackage.detail.noTools') }}
+                      </div>
+
+                      <div v-else class="flex flex-col gap-3">
+                        <div
+                          v-for="tool in resolvedTools.slice(0, 3)"
+                          :key="tool.name"
+                          class="rounded-lg border bg-background px-4 py-3"
+                        >
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center gap-2">
+                                <IconifyIcon
+                                  :icon="getToolTypeIcon(tool.tool_type)"
+                                  class="size-4 text-primary/80"
+                                />
+                                <span class="truncate font-mono text-sm font-semibold">
+                                  {{ tool.name }}
+                                </span>
+                              </div>
+                              <div class="mt-1 text-xs text-muted-foreground">
+                                {{ tool.source_skill_name }}
+                              </div>
+                            </div>
+                            <Tag
+                              v-if="tool.tool_type"
+                              :color="getToolTypeColor(tool.tool_type)"
+                              class="!mr-0 !text-[11px]"
+                            >
+                              {{ getToolTypeText(tool.tool_type) }}
+                            </Tag>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="rounded-xl border bg-accent/30 p-5">
+                      <div class="mb-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2">
+                          <div
+                            class="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10"
+                          >
+                            <IconifyIcon
+                              icon="lucide:key-round"
+                              class="size-4 text-emerald-500"
+                            />
+                          </div>
+                          <span class="text-sm font-semibold">
+                            {{ $t('admin.ai.skillPackage.valves.title') }}
+                          </span>
+                        </div>
+                        <Button
+                          size="small"
+                          type="link"
+                          :disabled="!hasValves"
+                          @click="focusTab('valves')"
+                        >
+                          {{ $t('shared.common.viewDetail') }}
+                        </Button>
+                      </div>
+
+                      <div
+                        v-if="!hasValves"
+                        class="rounded-lg border border-dashed bg-background px-4 py-6 text-center text-sm text-muted-foreground"
+                      >
+                        {{ $t('admin.ai.skillPackage.valves.noSchema') }}
+                      </div>
+
+                      <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div class="rounded-lg border bg-background px-4 py-3">
+                          <div class="text-xs text-muted-foreground">
+                            {{ $t('admin.ai.skillPackage.detail.envVars') }}
+                          </div>
+                          <div class="mt-1 text-lg font-semibold text-foreground">
+                            {{ valvesFieldCount }}
+                          </div>
+                        </div>
+                        <div class="rounded-lg border bg-background px-4 py-3">
+                          <div class="text-xs text-muted-foreground">
+                            {{ $t('admin.ai.skillPackage.valves.required') }}
+                          </div>
+                          <div class="mt-1 text-lg font-semibold text-foreground">
+                            {{ requiredValveCount }}
+                          </div>
+                        </div>
+                        <div class="rounded-lg border bg-background px-4 py-3">
+                          <div class="text-xs text-muted-foreground">
+                            {{ $t('admin.ai.skillPackage.detail.configured') }}
+                          </div>
+                          <div class="mt-1 text-lg font-semibold text-foreground">
+                            {{ configuredValveCount }}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </Card>
-            </div>
-          </Spin>
-        </TabPane>
+              </div>
+            </TabPane>
 
-        <!-- Valves Tab -->
-        <TabPane
-          key="valves"
-          :tab="$t('admin.ai.skillPackage.valves.title')"
-          :disabled="!hasValves"
-        >
-          <Card size="small">
-            <template v-if="hasValves">
-              <p class="mb-4 text-sm text-muted-foreground">
-                {{ $t('admin.ai.skillPackage.valves.description') }}
-              </p>
-              <div class="flex flex-col gap-4">
-                <div
-                  v-for="(prop, key) in valvesProperties"
-                  :key="String(key)"
-                  class="flex flex-col gap-1"
-                >
-                  <label class="flex items-center gap-1 text-sm font-medium">
-                    {{ key }}
-                    <Tag
-                      v-if="valvesRequired.includes(String(key))"
-                      color="error"
-                      size="small"
-                    >
-                      {{ $t('admin.ai.skillPackage.valves.required') }}
-                    </Tag>
-                  </label>
-                  <div
-                    v-if="prop.description"
-                    class="text-xs text-muted-foreground"
-                  >
-                    {{ prop.description }}
+            <TabPane key="skills">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:blocks" class="size-3.5" />
+                  {{ $t('admin.ai.skillPackage.detail.skills') }}
+                </span>
+              </template>
+
+              <div class="flex flex-col gap-4 p-5 pt-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <div class="text-sm font-semibold text-foreground">
+                      {{ $t('admin.ai.skillPackage.detail.skills') }}
+                    </div>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.skillCount') }}
+                    </p>
                   </div>
-                  <input
-                    :value="(valvesConfig[String(key)] as string) || ''"
-                    class="rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
-                    :type="
-                      String(key).toLowerCase().includes('password') ||
-                      String(key).toLowerCase().includes('secret') ||
-                      String(key).toLowerCase().includes('key')
-                        ? 'password'
-                        : 'text'
-                    "
-                    :placeholder="
-                      prop.default !== undefined ? String(prop.default) : ''
-                    "
-                    @input="
-                      (e: Event) => {
-                        valvesConfig[String(key)] = (
-                          e.target as HTMLInputElement
-                        ).value;
-                      }
-                    "
+
+                  <div class="flex items-center gap-2">
+                    <Button size="small" @click="openWorkspace()">
+                      <IconifyIcon
+                        icon="lucide:layout-panel-left"
+                        class="mr-1 size-3.5"
+                      />
+                      {{ $t('admin.ai.skillPackage.detail.openWorkspace') }}
+                    </Button>
+                    <Button size="small" type="primary" @click="openWorkspace(true)">
+                      <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
+                      {{ $t('admin.ai.skill.create') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <Spin :spinning="skillsLoading">
+                  <div v-if="skills.length === 0" class="py-12">
+                    <Empty :description="$t('admin.ai.skillPackage.detail.empty')" />
+                  </div>
+
+                  <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div
+                      v-for="skill in skills"
+                      :key="skill.id"
+                      class="rounded-xl border bg-accent/30 p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-sm"
+                    >
+                      <div class="flex items-start justify-between gap-4">
+                        <div class="flex min-w-0 flex-1 items-start gap-3">
+                          <div
+                            class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+                          >
+                            <IconifyIcon
+                              :icon="skill.avatar || getSkillTypeIcon(skill.type)"
+                              class="size-5 text-primary"
+                            />
+                          </div>
+
+                          <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <span class="truncate text-sm font-semibold text-foreground">
+                                {{ skill.name }}
+                              </span>
+                              <Tag
+                                :color="getSkillTypeColor(skill.type)"
+                                class="!mr-0 !text-[11px]"
+                              >
+                                {{ getSkillTypeText(skill.type) }}
+                              </Tag>
+                              <Tag
+                                v-if="skill.is_system"
+                                color="purple"
+                                class="!mr-0 !text-[11px]"
+                              >
+                                {{ $t('admin.ai.skillPackage.system') }}
+                              </Tag>
+                              <Tag
+                                v-if="skill.source_plugin"
+                                color="geekblue"
+                                class="!mr-0 !text-[11px]"
+                              >
+                                {{ skill.source_plugin }}
+                              </Tag>
+                            </div>
+
+                            <p
+                              class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground"
+                            >
+                              {{
+                                skill.description ||
+                                $t('admin.ai.skillPackage.detail.noDescription')
+                              }}
+                            </p>
+
+                            <div
+                              class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+                            >
+                              <span class="flex items-center gap-1">
+                                <IconifyIcon
+                                  icon="lucide:clock-3"
+                                  class="size-3.5"
+                                />
+                                {{ skill.timeout }}s
+                              </span>
+                              <span class="flex items-center gap-1">
+                                <IconifyIcon
+                                  icon="lucide:calendar-days"
+                                  class="size-3.5"
+                                />
+                                {{ formatRelativeTime(skill.created_at) }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-1">
+                          <Button
+                            size="small"
+                            type="text"
+                            @click="openSkillDetail(skill.id)"
+                          >
+                            <IconifyIcon
+                              icon="lucide:external-link"
+                              class="size-4"
+                            />
+                          </Button>
+                          <Switch
+                            :checked="skill.is_active"
+                            size="small"
+                            :disabled="skill.is_system"
+                            @change="handleToggleSkillStatus(skill)"
+                          />
+                          <Popconfirm
+                            v-if="!skill.is_system"
+                            :title="$t('admin.common.confirmDelete')"
+                            @confirm="handleDeleteSkill(skill)"
+                          >
+                            <Button danger size="small" type="text">
+                              <IconifyIcon
+                                icon="lucide:trash-2"
+                                class="size-4"
+                              />
+                            </Button>
+                          </Popconfirm>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Spin>
+              </div>
+            </TabPane>
+            <TabPane key="tools">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:wrench" class="size-3.5" />
+                  {{ $t('admin.ai.skillPackage.detail.tools') }}
+                </span>
+              </template>
+
+              <div class="flex flex-col gap-4 p-5 pt-3">
+                <div>
+                  <div class="text-sm font-semibold text-foreground">
+                    {{ $t('admin.ai.skillPackage.detail.tools') }}
+                  </div>
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    {{ resolvedTools.length }}
+                    {{ $t('admin.ai.skillPackage.detail.tools') }}
+                  </p>
+                </div>
+
+                <Spin :spinning="toolsLoading">
+                  <div v-if="resolvedTools.length === 0" class="py-12">
+                    <Empty :description="$t('admin.ai.skillPackage.detail.noTools')" />
+                  </div>
+
+                  <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div
+                      v-for="tool in resolvedTools"
+                      :key="tool.name"
+                      class="rounded-xl border bg-accent/30 p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-sm"
+                    >
+                      <div class="flex items-start gap-3">
+                        <div
+                          class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+                        >
+                          <IconifyIcon
+                            :icon="getToolTypeIcon(tool.tool_type)"
+                            class="size-5 text-primary"
+                          />
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="font-mono text-sm font-semibold text-foreground">
+                              {{ tool.name }}
+                            </span>
+                            <Tag
+                              v-if="tool.tool_type"
+                              :color="getToolTypeColor(tool.tool_type)"
+                              class="!mr-0 !text-[11px]"
+                            >
+                              {{ getToolTypeText(tool.tool_type) }}
+                            </Tag>
+                            <Tag
+                              v-if="tool.source_plugin"
+                              color="geekblue"
+                              class="!mr-0 !text-[11px]"
+                            >
+                              {{ tool.source_plugin }}
+                            </Tag>
+                          </div>
+
+                          <p
+                            class="mt-2 text-sm leading-relaxed text-muted-foreground"
+                          >
+                            {{
+                              tool.description ||
+                              $t('admin.ai.skillPackage.detail.noDescription')
+                            }}
+                          </p>
+
+                          <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <div class="rounded-lg border bg-background px-3 py-2">
+                              <div class="text-[11px] text-muted-foreground">
+                                {{ $t('admin.ai.skillPackage.detail.skillName') }}
+                              </div>
+                              <div class="mt-1 truncate text-sm font-medium text-foreground">
+                                {{ tool.source_skill_name }}
+                              </div>
+                            </div>
+
+                            <div class="rounded-lg border bg-background px-3 py-2">
+                              <div class="text-[11px] text-muted-foreground">
+                                {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                              </div>
+                              <div class="mt-1 text-sm font-medium text-foreground">
+                                {{ tool.parameters.length }}
+                              </div>
+                            </div>
+
+                            <div class="rounded-lg border bg-background px-3 py-2">
+                              <div class="text-[11px] text-muted-foreground">
+                                {{ $t('admin.ai.skillPackage.valves.required') }}
+                              </div>
+                              <div class="mt-1 text-sm font-medium text-foreground">
+                                {{ getToolRequiredParamCount(tool) }}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div v-if="tool.parameters.length > 0" class="mt-3">
+                            <div class="mb-2 text-xs font-medium text-muted-foreground">
+                              {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                              <div
+                                v-for="param in tool.parameters"
+                                :key="param.name"
+                                class="rounded-full border bg-background px-3 py-1 text-xs"
+                              >
+                                <span class="font-mono text-foreground">
+                                  {{ param.name }}
+                                </span>
+                                <span class="ml-1 text-muted-foreground">
+                                  {{ param.type }}
+                                </span>
+                                <span
+                                  v-if="param.required"
+                                  class="ml-1 text-red-500 dark:text-red-400"
+                                >
+                                  *
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Spin>
+              </div>
+            </TabPane>
+
+            <TabPane key="valves" :disabled="!hasValves">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:settings-2" class="size-3.5" />
+                  {{ $t('admin.ai.skillPackage.valves.title') }}
+                </span>
+              </template>
+
+              <div class="flex flex-col gap-4 p-5 pt-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <div class="text-sm font-semibold text-foreground">
+                      {{ $t('admin.ai.skillPackage.valves.title') }}
+                    </div>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ configuredValveCount }}/{{ valvesFieldCount }}
+                    </p>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <Button
+                      size="small"
+                      :disabled="!hasValves"
+                      @click="resetValvesToDefaults"
+                    >
+                      {{ $t('admin.ai.skillPackage.valves.resetDefaults') }}
+                    </Button>
+                    <Button
+                      size="small"
+                      type="primary"
+                      :loading="valvesSaving"
+                      :disabled="!hasValves"
+                      @click="handleSaveValves"
+                    >
+                      {{ $t('shared.common.save') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <template v-if="hasValves">
+                  <Alert
+                    :message="$t('admin.ai.skillPackage.valves.description')"
+                    type="info"
+                    show-icon
                   />
+
+                  <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div
+                      v-for="field in sortedValveFields"
+                      :key="field.key"
+                      class="rounded-xl border bg-accent/30 p-4"
+                    >
+                      <div class="mb-3 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <code
+                              class="rounded bg-background px-2 py-1 font-mono text-xs text-foreground"
+                            >
+                              {{ field.key }}
+                            </code>
+                            <Tag
+                              v-if="field.isRequired"
+                              color="red"
+                              class="!mr-0 !text-[11px]"
+                            >
+                              {{ $t('admin.ai.skillPackage.valves.required') }}
+                            </Tag>
+                            <Tag
+                              v-if="isSecretKey(field.key)"
+                              color="gold"
+                              class="!mr-0 !text-[11px]"
+                            >
+                              {{ $t('admin.ai.skillPackage.valves.sensitiveHint') }}
+                            </Tag>
+                          </div>
+
+                          <p
+                            v-if="field.description"
+                            class="mt-2 text-xs leading-relaxed text-muted-foreground"
+                          >
+                            {{ field.description }}
+                          </p>
+                        </div>
+
+                        <Tag class="!mr-0 !text-[11px]">
+                          {{ field.type || 'string' }}
+                        </Tag>
+                      </div>
+
+                      <Switch
+                        v-if="getValveInputType(field.type) === 'switch'"
+                        :checked="getBooleanValveValue(field.key)"
+                        @update:checked="
+                          (value) => updateBooleanValve(field.key, Boolean(value))
+                        "
+                      />
+
+                      <InputNumber
+                        v-else-if="getValveInputType(field.type) === 'number'"
+                        :value="getNumberValveValue(field.key)"
+                        class="w-full"
+                        :placeholder="
+                          field.default !== undefined
+                            ? String(field.default)
+                            : undefined
+                        "
+                        @update:value="
+                          (value) =>
+                            updateNumberValve(
+                              field.key,
+                              typeof value === 'number' ? value : null,
+                            )
+                        "
+                      />
+
+                      <Input.TextArea
+                        v-else-if="getValveInputType(field.type) === 'json'"
+                        :value="getJsonValveValue(field.key)"
+                        :rows="5"
+                        class="font-mono text-xs"
+                        :placeholder="getJsonValvePlaceholder(field)"
+                        @update:value="(value) => updateJsonValve(field.key, value)"
+                      />
+
+                      <div
+                        v-else-if="isSecretKey(field.key)"
+                        class="flex items-center gap-2"
+                      >
+                        <Input.Password
+                          :value="getStringValveValue(field.key)"
+                          class="flex-1"
+                          :placeholder="
+                            field.default !== undefined
+                              ? String(field.default)
+                              : undefined
+                          "
+                          @update:value="
+                            (value) => updateStringValve(field.key, value)
+                          "
+                        />
+                        <Tag
+                          v-if="getStringValveValue(field.key) === '******'"
+                          color="green"
+                          class="!mr-0 cursor-pointer !text-[11px]"
+                          @click="updateStringValve(field.key, '')"
+                        >
+                          {{ $t('admin.ai.skillPackage.valves.secretConfigured') }}
+                        </Tag>
+                      </div>
+
+                      <Input
+                        v-else
+                        :value="getStringValveValue(field.key)"
+                        :placeholder="
+                          field.default !== undefined
+                            ? String(field.default)
+                            : undefined
+                        "
+                        @update:value="
+                          (value) => updateStringValve(field.key, value)
+                        "
+                      />
+                    </div>
+                  </div>
+                </template>
+
+                <div v-else class="py-12">
+                  <Empty :description="$t('admin.ai.skillPackage.valves.noSchema')" />
                 </div>
               </div>
-              <div class="mt-4 flex justify-end">
-                <Button
-                  type="primary"
-                  :loading="valvesSaving"
-                  @click="handleSaveValves"
-                >
-                  {{ $t('shared.common.save') }}
-                </Button>
-              </div>
-            </template>
-            <template v-else>
-              <Empty
-                :description="$t('admin.ai.skillPackage.valves.noSchema')"
-              />
-            </template>
-          </Card>
-        </TabPane>
-      </Tabs>
+            </TabPane>
+          </Tabs>
+        </div>
+      </div>
     </Spin>
   </Page>
 </template>

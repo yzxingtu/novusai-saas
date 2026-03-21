@@ -34,7 +34,11 @@ import {
   getAdminKnowledgeBaseListApi,
   getKnowledgeBaseStatsApi,
 } from '#/api/admin/knowledge-bases';
-import { useCrudList } from '#/composables';
+import {
+  createCreateRecordPageOperation,
+  createStructuredSearchPageOperation,
+  useCrudList,
+} from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
@@ -106,12 +110,9 @@ const {
       total_size_bytes: stats.value?.total_size_bytes ?? 0,
     }),
     extra: [
-      {
-        name: 'search',
-        label: $t('shared.pageOperation.searchByKeyword'),
+      createStructuredSearchPageOperation({
         description:
           'Search knowledge bases by keyword and optional scope filter / 按关键词和可选作用域搜索知识库',
-        readonly: true,
         params: {
           keyword: {
             type: 'string',
@@ -123,40 +124,31 @@ const {
               'Resource scope filter: global_shared, admin_only, all_tenants, admin_and_selected_tenants, selected_tenants / 资源作用域过滤',
           },
         },
-        handler: async (
-          params,
-        ): Promise<{ message: string; success: boolean }> => {
-          const keyword = (params?.keyword as string) || '';
-          const scope = (params?.scope as string) || '';
+        normalizeParams: (params) => ({
+          keyword: String(params?.keyword ?? ''),
+          scope: String(params?.scope ?? ''),
+        }),
+        runSearch: async ({ keyword, scope }) => {
           searchKeyword.value = keyword;
           scopeFilter.value = scope || undefined;
           doSearch();
+        },
+        successMessage: ({ keyword, scope }) => {
           const parts: string[] = [];
           if (keyword) parts.push(`keyword="${keyword}"`);
           if (scope) parts.push(`scope="${scope}"`);
-          return {
-            success: true,
-            message: parts.length > 0
-              ? `Searched: ${parts.join(', ')} / 已搜索：${parts.join(', ')}`
-              : 'Filters cleared / 已清除过滤条件',
-          };
+          return parts.length > 0
+            ? `Searched: ${parts.join(', ')} / 已搜索：${parts.join(', ')}`
+            : 'Filters cleared / 已清除过滤条件';
         },
-      },
-      {
-        name: 'create_record',
-        label: $t('shared.pageOperation.createRecord'),
+      }),
+      createCreateRecordPageOperation({
         description:
           'Open the create knowledge base form / 打开新建知识库表单',
-        readonly: false,
-        params: {},
-        handler: async (): Promise<{ message: string; success: boolean }> => {
+        action: () => {
           onCreate();
-          return {
-            success: true,
-            message: 'Create form opened / 新建表单已打开',
-          };
         },
-      },
+      }),
     ],
   },
 });

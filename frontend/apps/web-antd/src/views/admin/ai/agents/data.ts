@@ -5,6 +5,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
 import { getAIModelSelectApi } from '#/api/admin/ai';
+import { getSkillListApi } from '#/api/admin/skills';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { useScopeFields } from '#/components/business/scope-select/use-scope-fields';
 import { $t } from '#/locales';
@@ -137,52 +138,62 @@ export function getFormDefaults() {
     max_tokens: 4096,
     welcome_message: '',
     suggested_questions: '',
-    package_ids: [],
+    skill_ids: [],
   };
 }
 
 /**
- * 获取技能包下拉选项（admin 端所有技能包）
+ * 获取技能下拉选项（admin 端所有技能）
  */
 interface PkgSelectItem {
   label: string;
   value: number;
   extra?: null | {
     is_system?: boolean;
-    scope?: string;
     source_plugin?: string;
     bind_mode?: string;
-    target_audience?: string;
   };
 }
 
-export interface PkgOption {
-  label: string;
-  value: number;
-  scope?: string;
-  sourcePlugin?: string;
-  isSystem?: boolean;
-  bindMode?: string;
-  targetAudience?: string;
+interface SkillListItem {
+  id: number;
+  package_id: number;
+  name: string;
+  type: string;
+  is_system: boolean;
+  is_active: boolean;
 }
 
-export async function getPackageSelectOptions(): Promise<PkgOption[]> {
+export interface SkillOption {
+  label: string;
+  value: number;
+  packageName?: string;
+  isSystem?: boolean;
+  skillType?: string;
+}
+
+export async function getSkillSelectOptions(): Promise<SkillOption[]> {
   try {
-    const resp = (await getSkillPackageSelectApi({ include_system: true })) as unknown as
-      | PkgSelectItem[]
-      | { items: PkgSelectItem[] };
-    const items: PkgSelectItem[] = Array.isArray(resp)
-      ? resp
-      : (resp?.items ?? []);
-    return items.map((p) => ({
-      label: p.label,
-      value: p.value,
-      scope: p.extra?.scope,
-      sourcePlugin: p.extra?.source_plugin,
-      isSystem: p.extra?.is_system,
-      bindMode: p.extra?.bind_mode,
-      targetAudience: p.extra?.target_audience,
-    }));
+    const [skillResp, pkgResp] = await Promise.all([
+      getSkillListApi({ 'page[size]': 500 }),
+      getSkillPackageSelectApi({ include_system: true }),
+    ]);
+    const packages = pkgResp as PkgSelectItem[];
+    const packageNameMap = new Map(
+      packages.map((pkg) => [pkg.value, pkg.label]),
+    );
+
+    return (skillResp.items as SkillListItem[])
+      .filter((skill) => skill.is_active)
+      .map((skill) => ({
+        label: packageNameMap.get(skill.package_id)
+          ? `${skill.name} · ${packageNameMap.get(skill.package_id)}`
+          : skill.name,
+        value: skill.id,
+        packageName: packageNameMap.get(skill.package_id),
+        isSystem: skill.is_system,
+        skillType: skill.type,
+      }));
   } catch {
     return [];
   }

@@ -4,7 +4,7 @@
 导出格式 / Export format (v1):
 {
     "export_version": 1,
-    "package_info": { name, description, avatar, scope, ... },
+    "package_info": { name, description, avatar, ... },
     "skills": [ { name, type, description, config, toolkit_content, ... }, ... ],
     "valves_schema": { ... } | null,
 }
@@ -50,7 +50,6 @@ _PACKAGE_EXPORT_FIELDS = [
     "name",
     "description",
     "avatar",
-    "target_audience",
     "is_recommended",
     "is_system",
     "is_active",
@@ -171,19 +170,10 @@ async def import_skill_package(
             )
 
     # 创建技能包 / Create skill package
-    # 企业端导入时 target_audience 重置为 'all'（企业不能创建 admin_only 包） / Reset target_audience to 'all' for tenant import (tenants cannot create admin_only packages)
-    from app.enums.common import AudienceEnum
-    imported_target_audience = package_info.get("target_audience", AudienceEnum.ALL.value)
-    if target_tenant_id is not None:
-        # 企业端操作：强制不能保留 admin_only / Tenant operation: force cannot retain admin_only
-        if imported_target_audience == AudienceEnum.ADMIN_ONLY.value:
-            imported_target_audience = AudienceEnum.ALL.value
-
     new_pkg = SkillPackage(
         name=pkg_name,
         description=package_info.get("description"),
         avatar=package_info.get("avatar"),
-        target_audience=imported_target_audience,
         is_recommended=package_info.get("is_recommended", False),
         tenant_id=target_tenant_id,
         is_system=False,  # 导入的不标记为系统 / Imported packages are not marked as system

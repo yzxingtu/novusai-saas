@@ -6,13 +6,11 @@
 import type {
   AgentInfo,
   AgentListItem,
-  AgentSkillBindingInfo,
+  AgentSkillGrantInfo,
 } from '#/api/tenant/agents';
 
 import { computed, nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
-
-import { IconifyIcon } from '@vben/icons';
 
 import {
   Button as AButton,
@@ -51,8 +49,7 @@ const TOTAL_STEPS = 2;
 
 const wizardMode = ref(false);
 const currentStep = ref(0);
-const autoBindPackages = ref<AgentSkillBindingInfo[]>([]);
-const manualBindPackages = ref<AgentSkillBindingInfo[]>([]);
+const grantedSkills = ref<AgentSkillGrantInfo[]>([]);
 const modelMaxOutputTokensMap = ref<Record<number, number | undefined>>({});
 
 function resolveModelMaxOutputTokens(
@@ -145,29 +142,26 @@ const {
   detailApi: async (id) => {
     const agent = await getAgentDetailApi(id as number);
     try {
-      const bindings = await getAgentSkillsApi(id as number);
-      autoBindPackages.value = bindings.filter((b) => b.is_auto_bound);
-      manualBindPackages.value = bindings.filter((b) => !b.is_auto_bound);
+      grantedSkills.value = await getAgentSkillsApi(id as number);
     } catch {
-      autoBindPackages.value = [];
-      manualBindPackages.value = [];
+      grantedSkills.value = [];
     }
     return agent;
   },
 });
 
-async function openNew() {
+async function openNew(extraData?: Record<string, unknown>) {
   wizardMode.value = true;
   currentStep.value = 0;
-  _openNew();
+  _openNew(extraData);
   await nextTick();
   formApi.setState({ schema: buildWizardStepSchema(0) });
 }
 
-function openEdit(record: AgentListItem) {
+function openEdit(record: AgentListItem, extraData?: Record<string, unknown>) {
   wizardMode.value = false;
   formApi.setState({ schema: buildSchema() });
-  _openEdit(record);
+  _openEdit(record, extraData);
 }
 
 defineExpose({ openNew, openEdit });
@@ -215,55 +209,42 @@ void loadModelLimits();
     </div>
     <Form />
 
-    <!-- Skill package bindings (read-only, shown in edit mode) -->
-    <div v-if="isEdit && (autoBindPackages.length > 0 || manualBindPackages.length > 0)" class="mb-5">
+    <!-- Skill grants (read-only, shown in edit mode) -->
+    <div v-if="isEdit && grantedSkills.length > 0" class="mb-5">
       <div class="mb-2 text-sm font-medium text-foreground">
-        {{ $t('tenant.ai.agent.skillPackageBindings') }}
+        {{ $t('tenant.ai.agent.skillBindings') }}
       </div>
       <div class="space-y-2">
         <div
-          v-for="pkg in autoBindPackages"
-          :key="`auto-${pkg.package_id}`"
-          class="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2"
-        >
-          <IconifyIcon
-            icon="lucide:lock"
-            class="size-3.5 shrink-0 text-primary/60"
-          />
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
-            pkg.package_name
-          }}</span>
-          <ATag
-            v-if="pkg.package_target_audience"
-            color="processing"
-            class="!m-0 shrink-0 !text-[10px]"
-          >
-            {{ pkg.package_target_audience }}
-          </ATag>
-          <ATag color="blue" class="!m-0 shrink-0 !text-[10px]">
-            {{ $t('common.bindMode.auto') }}
-          </ATag>
-        </div>
-        <div
-          v-for="pkg in manualBindPackages"
-          :key="`manual-${pkg.package_id}`"
+          v-for="skill in grantedSkills"
+          :key="`skill-${skill.skill_id}`"
           class="flex items-center gap-2 rounded-md border border-border px-3 py-2"
         >
           <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
-            pkg.package_name || `#${pkg.package_id}`
+            skill.skill_name || `#${skill.skill_id}`
           }}</span>
           <ATag
-            v-if="pkg.package_target_audience"
-            color="processing"
+            v-if="skill.package_name"
+            color="blue"
             class="!m-0 shrink-0 !text-[10px]"
           >
-            {{ pkg.package_target_audience }}
+            {{ skill.package_name }}
           </ATag>
           <ATag
-            :color="pkg.consent_mode === 'auto' ? 'green' : pkg.consent_mode === 'ask' ? 'orange' : 'red'"
+            :color="
+              skill.default_consent_mode === 'auto'
+                ? 'green'
+                : skill.default_consent_mode === 'ask'
+                  ? 'orange'
+                  : 'red'
+            "
             class="!m-0 shrink-0 !text-[10px]"
           >
-            {{ $t(`tenant.ai.agent.consentModeOptions.${pkg.consent_mode}`) }}
+            {{
+              $t(
+                `tenant.ai.agent.consentModeOptions.${skill.default_consent_mode}`,
+              )
+            }}
           </ATag>
         </div>
       </div>

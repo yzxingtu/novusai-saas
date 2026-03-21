@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { PkgOption } from './data';
+import type { SkillOption } from './data';
 
 /**
  * 管理端智能体详情页
@@ -11,15 +11,12 @@ import type {
   AIAgentInfo,
   AIAgentKBBindingInfo,
   AIAgentMemoryConfig,
-  AIAgentSkillBindingInfo,
+  AIAgentSkillGrantInfo,
 } from '#/api/admin/ai';
-import type { AdminSkillInfo } from '#/api/admin/skills';
+import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
-import { useDetailPageAi } from '#/composables/use-detail-page-ai';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -54,31 +51,35 @@ import {
   updateAIAgentApi,
   updateAIAgentKBBindingApi,
   updateAIAgentMemoryConfigApi,
-  updateAIAgentSkillBindingApi,
+  updateAIAgentSkillGrantApi,
 } from '#/api/admin/ai';
-import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { smartUploadFile } from '#/api/admin/attachment';
-import { getSkillPackageSkillsApi } from '#/api/admin/skill-packages';
+import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
+import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
+import {
+  createOpenCurrentPageOperation,
+  createSavePageOperation,
+} from '#/composables';
+import { useDetailPageAi } from '#/composables/use-detail-page-ai';
+import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import {
   formatStarterQuestionsInput,
   parseStarterQuestionsInput,
 } from '#/utils/ai-starter-questions';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
-  getSkillTypeColor,
-  getSkillTypeIcon,
-} from '#/utils/ai-helpers';
-import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
-
-import type { InputVariable } from '#/components/business/ai-chat-panel/types';
-import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
+  getScopeColor,
+  getScopeIcon,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
 import {
   getExecutionModeText,
   getOwnerTypeColor,
   getOwnerTypeText,
-  getPackageSelectOptions,
+  getSkillSelectOptions,
   getStatusText,
 } from './data';
 import AccessConfigDrawer from './modules/AccessConfig.vue';
@@ -224,7 +225,9 @@ async function handleAvatarUpload(file: File) {
     });
     const attachmentId = String(result.attachment?.id || '');
     if (!attachmentId) throw new Error('Upload failed');
-    agent.value = await updateAIAgentApi(agentId.value, { avatar: attachmentId });
+    agent.value = await updateAIAgentApi(agentId.value, {
+      avatar: attachmentId,
+    });
     message.success($t('admin.ai.agent.detail.saveSuccess'));
   } catch {
     message.error($t('shared.common.uploadFailed'));
@@ -339,9 +342,9 @@ function insertVarAtCursor(varName: string) {
   const start = el.selectionStart ?? chatSystemPrompt.value.length;
   const end = el.selectionEnd ?? start;
   chatSystemPrompt.value =
-    chatSystemPrompt.value.substring(0, start) +
+    chatSystemPrompt.value.slice(0, Math.max(0, start)) +
     token +
-    chatSystemPrompt.value.substring(end);
+    chatSystemPrompt.value.slice(Math.max(0, end));
   nextTick(() => {
     el.focus();
     const newPos = start + token.length;
@@ -354,9 +357,7 @@ function initChatConfig() {
   chatSystemPrompt.value = agent.value.system_prompt || '';
   chatWelcome.value = agent.value.welcome_message || '';
   const sq = agent.value.suggested_questions;
-  chatSuggestions.value = formatStarterQuestionsInput(
-    sq as null | unknown[],
-  );
+  chatSuggestions.value = formatStarterQuestionsInput(sq as null | unknown[]);
   chatInputVars.value = Array.isArray(agent.value.input_variables)
     ? (agent.value.input_variables as unknown as InputVariable[])
     : [];
@@ -371,7 +372,8 @@ async function saveChatConfig() {
     ...(isSystem ? {} : { system_prompt: chatSystemPrompt.value || null }),
     welcome_message: chatWelcome.value || null,
     suggested_questions: parseStarterQuestionsInput(chatSuggestions.value),
-    input_variables: chatInputVars.value.length > 0 ? chatInputVars.value : null,
+    input_variables:
+      chatInputVars.value.length > 0 ? chatInputVars.value : null,
     context_config: {
       max_history_messages: chatContextMessages.value,
       max_history_tokens: chatContextTokens.value,
@@ -380,10 +382,10 @@ async function saveChatConfig() {
 }
 
 // ==================== Skill Bindings Tab ====================
-const bindings = ref<AIAgentSkillBindingInfo[]>([]);
+const bindings = ref<AIAgentSkillGrantInfo[]>([]);
 const bindingsLoading = ref(false);
-const packageOptions = ref<PkgOption[]>([]);
-const selectedNewPkgs = ref<number[]>([]);
+const skillOptions = ref<SkillOption[]>([]);
+const selectedNewSkills = ref<number[]>([]);
 
 async function loadBindings() {
   bindingsLoading.value = true;
@@ -396,36 +398,28 @@ async function loadBindings() {
   }
 }
 
-async function loadPackageOptions() {
+async function loadSkillOptions() {
   try {
-    packageOptions.value = await getPackageSelectOptions();
+    skillOptions.value = await getSkillSelectOptions();
   } catch {
-    packageOptions.value = [];
+    skillOptions.value = [];
   }
 }
 
-const autoBindings = computed(() =>
-  bindings.value.filter((b) => b.is_auto_bound),
-);
-const manualBindings = computed(() =>
-  bindings.value.filter((b) => !b.is_auto_bound),
-);
-
-const unboundPackages = computed(() => {
-  const boundIds = new Set(bindings.value.map((b) => b.package_id));
-  return packageOptions.value.filter((p) => !boundIds.has(p.value));
+const unboundSkills = computed(() => {
+  const boundIds = new Set(bindings.value.map((binding) => binding.skill_id));
+  return skillOptions.value.filter((skill) => !boundIds.has(skill.value));
 });
 
-async function bindPackage() {
-  if (selectedNewPkgs.value.length === 0) return;
-  // Only send manual binding IDs (exclude auto-bound)
-  const currentIds = manualBindings.value.map((b) => b.package_id);
-  for (const pkgId of selectedNewPkgs.value) {
-    if (!currentIds.includes(pkgId)) currentIds.push(pkgId);
+async function bindSkills() {
+  if (selectedNewSkills.value.length === 0) return;
+  const currentIds = bindings.value.map((binding) => binding.skill_id);
+  for (const skillId of selectedNewSkills.value) {
+    if (!currentIds.includes(skillId)) currentIds.push(skillId);
   }
   try {
-    await batchBindAIAgentSkillsApi(agentId.value, { package_ids: currentIds });
-    selectedNewPkgs.value = [];
+    await batchBindAIAgentSkillsApi(agentId.value, { skill_ids: currentIds });
+    selectedNewSkills.value = [];
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
   } catch {
@@ -433,14 +427,16 @@ async function bindPackage() {
   }
 }
 
-function getScopeTagProps(
-  scope?: string,
-  sourcePlugin?: string,
+function getSkillSourceTag(
+  binding: AIAgentSkillGrantInfo,
 ): null | { color: string; text: string } {
-  if (sourcePlugin)
+  if (binding.skill_source_type === 'plugin') {
     return { text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' };
-  if (!scope) return null;
-  return { text: getScopeText(scope), color: getScopeColor(scope) };
+  }
+  if (binding.package_is_system) {
+    return { text: $t('admin.ai.skillPackage.system'), color: 'red' };
+  }
+  return null;
 }
 
 function getStatusColor(status: string | undefined): string {
@@ -460,9 +456,9 @@ function getStatusColor(status: string | undefined): string {
   }
 }
 
-async function unbindPkg(packageId: number) {
+async function unbindSkill(skillId: number) {
   try {
-    await unbindAIAgentSkillApi(agentId.value, packageId);
+    await unbindAIAgentSkillApi(agentId.value, skillId);
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
   } catch {
@@ -472,11 +468,23 @@ async function unbindPkg(packageId: number) {
 
 async function updateConsentMode(bindingId: number, mode: string) {
   try {
-    await updateAIAgentSkillBindingApi(agentId.value, bindingId, {
-      consent_mode: mode,
+    await updateAIAgentSkillGrantApi(agentId.value, bindingId, {
+      default_consent_mode: mode,
     });
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  }
+}
+
+async function toggleSkillEnabled(binding: AIAgentSkillGrantInfo) {
+  if (binding.id == null) return;
+  try {
+    await updateAIAgentSkillGrantApi(agentId.value, binding.id, {
+      enabled: !binding.enabled,
+    });
+    await loadBindings();
   } catch {
     message.error($t('common.saveFailed'));
   }
@@ -488,11 +496,6 @@ const consentModeOptions = [
   { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
 ];
 
-// ==================== Package Skills Expansion ====================
-const expandedPackages = reactive(new Set<number>());
-const packageSkills = reactive(new Map<number, AdminSkillInfo[]>());
-const packageSkillsLoading = reactive(new Set<number>());
-
 function getSkillTypeText(type: string | undefined): string {
   if (!type) return '-';
   const key = `admin.ai.skill.type_options.${type}`;
@@ -503,26 +506,6 @@ function getSkillTypeText(type: string | undefined): string {
       .replaceAll(/\b\w/g, (c) => c.toUpperCase());
   }
   return text;
-}
-
-async function togglePackageSkills(packageId: number) {
-  if (expandedPackages.has(packageId)) {
-    expandedPackages.delete(packageId);
-    return;
-  }
-  expandedPackages.add(packageId);
-  if (packageSkills.has(packageId)) return;
-  packageSkillsLoading.add(packageId);
-  try {
-    const res = await getSkillPackageSkillsApi(packageId, {
-      'page[size]': 100,
-    });
-    packageSkills.set(packageId, res.items || []);
-  } catch {
-    packageSkills.set(packageId, []);
-  } finally {
-    packageSkillsLoading.delete(packageId);
-  }
 }
 
 // ==================== Knowledge Base Bindings Tab ====================
@@ -671,11 +654,9 @@ function initRagConfig() {
   ragTopK.value = (rc.top_k as number | undefined) ?? 5;
   ragScoreThreshold.value = (rc.score_threshold as number | undefined) ?? 0.5;
   ragSearchMode.value =
-    ((rc.search_mode as 'hybrid' | 'keyword' | 'vector' | undefined) ??
-      'hybrid');
+    (rc.search_mode as 'hybrid' | 'keyword' | 'vector' | undefined) ?? 'hybrid';
   ragRewriteStrategy.value =
-    ((rc.rewrite_strategy as 'hyde' | 'multi' | 'none' | undefined) ??
-      'none');
+    (rc.rewrite_strategy as 'hyde' | 'multi' | 'none' | undefined) ?? 'none';
   ragRerankerEnabled.value = Boolean(rc.reranker_enabled);
   ragContextTokenRatio.value =
     (rc.context_token_ratio as number | undefined) ?? 0.6;
@@ -759,7 +740,10 @@ async function loadAdminRoutingModelOptions() {
       'filter[is_active][eq]': true,
     });
     chatModelMaxOutputTokens.value = Object.fromEntries(
-      (chatRes.items || []).map((m) => [m.id, m.max_output_tokens ?? undefined]),
+      (chatRes.items || []).map((m) => [
+        m.id,
+        m.max_output_tokens ?? undefined,
+      ]),
     );
     chatModelOptions.value = (chatRes.items || []).map((m) => ({
       label: `${m.name} (${m.provider_name || '-'})`,
@@ -808,6 +792,10 @@ const [AccessConfigDrawerCmp, accessConfigApi] = useVbenDrawer({
 });
 
 function openAccessConfig() {
+  openAccessConfigDrawer();
+}
+
+function openAccessConfigDrawer() {
   if (!agent.value) return;
   accessConfigApi.setData({
     id: agent.value.id,
@@ -822,6 +810,10 @@ const [VersionHistoryDrawerCmp, versionHistoryApi] = useVbenDrawer({
 });
 
 function openVersionHistory() {
+  openVersionHistoryDrawer();
+}
+
+function openVersionHistoryDrawer() {
   if (!agent.value) return;
   versionHistoryApi.setData({
     id: agent.value.id,
@@ -839,12 +831,21 @@ function onTabChange(key: number | string) {
       initChatConfig();
       break;
     }
+    case 'knowledgeBases': {
+      loadKBBindings();
+      loadKBOptions();
+      break;
+    }
     case 'modelParams': {
       initModelParams();
       break;
     }
     case 'quota': {
       initQuota();
+      break;
+    }
+    case 'rag': {
+      initRagConfig();
       break;
     }
     case 'routing': {
@@ -854,24 +855,13 @@ function onTabChange(key: number | string) {
     }
     case 'skills': {
       loadBindings();
-      loadPackageOptions();
-      break;
-    }
-    case 'knowledgeBases': {
-      loadKBBindings();
-      loadKBOptions();
-      break;
-    }
-    case 'rag': {
-      initRagConfig();
+      loadSkillOptions();
       break;
     }
   }
 }
 
-usePageAIRegistration({
-  pageKey: 'admin.ai.agents.detail',
-  title: () => agent.value?.name ?? $t('admin.ai.agent.detail'),
+usePageAIContext({
   resource: '/admin/ai/agents',
   entityName: () => agent.value?.name ?? $t('admin.ai.agent.detail'),
   entityDescription: () => $t('admin.ai.agent.pageDesc'),
@@ -883,20 +873,38 @@ usePageAIRegistration({
 });
 
 useDetailPageAi({
-  pageKey: 'admin.ai.agents.detail',
   refreshFn: () => loadAgent(),
   backRoute: '/admin/ai/agents',
   extra: [
-    {
+    createSavePageOperation({
       name: 'save_model_params',
       label: $t('shared.pageOperation.saveModelParams'),
-      description: 'Save the current model parameters (temperature, max_tokens, top_p) / 保存当前模型参数',
-      readonly: false,
-      handler: async () => {
+      description:
+        'Save the current model parameters (temperature, max_tokens, top_p) / 保存当前模型参数',
+      action: async () => {
         await saveModelParams();
-        return { success: true, message: 'Model params saved / 模型参数已保存' };
       },
-    },
+    }),
+    createOpenCurrentPageOperation({
+      name: 'open_access_config',
+      label: $t('admin.ai.agent.accessConfig'),
+      description:
+        'Open the access configuration drawer for the current agent / 打开当前智能体的访问配置抽屉',
+      available: () => !!agent.value,
+      open: async () => {
+        openAccessConfigDrawer();
+      },
+    }),
+    createOpenCurrentPageOperation({
+      name: 'open_version_history',
+      label: $t('admin.ai.agent.versionHistory'),
+      description:
+        'Open the version history drawer for the current agent / 打开当前智能体的版本历史抽屉',
+      available: () => !!agent.value,
+      open: async () => {
+        openVersionHistoryDrawer();
+      },
+    }),
   ],
 });
 </script>
@@ -1031,7 +1039,10 @@ useDetailPageAi({
                     class="!mr-0 !text-xs"
                   >
                     <div class="flex items-center gap-1">
-                      <IconifyIcon :icon="getScopeIcon(agent.scope)" class="size-3" />
+                      <IconifyIcon
+                        :icon="getScopeIcon(agent.scope)"
+                        class="size-3"
+                      />
                       {{ getScopeText(agent.scope) }}
                     </div>
                   </Tag>
@@ -1316,7 +1327,9 @@ useDetailPageAi({
                       :min="0"
                       :max="2"
                       :step="0.1"
-                      :placeholder="$t('admin.ai.agent.placeholder.inputTemperature')"
+                      :placeholder="
+                        $t('admin.ai.agent.placeholder.inputTemperature')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1341,7 +1354,9 @@ useDetailPageAi({
                       v-model:value="modelMaxTokens"
                       :min="1"
                       :max="128000"
-                      :placeholder="$t('admin.ai.agent.placeholder.inputMaxTokens')"
+                      :placeholder="
+                        $t('admin.ai.agent.placeholder.inputMaxTokens')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1394,20 +1409,37 @@ useDetailPageAi({
               </template>
               <div class="flex flex-col gap-4 p-5 pt-3">
                 <!-- System Prompt (editable, with variable quick-insert) -->
-                <div class="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div
+                  class="rounded-xl border border-primary/20 bg-primary/5 p-4"
+                >
                   <div class="mb-2 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:message-square-code" class="size-4 text-primary" />
-                      <span class="text-sm font-semibold text-primary">{{ $t('admin.ai.agent.systemPrompt') }}</span>
+                      <IconifyIcon
+                        icon="lucide:message-square-code"
+                        class="size-4 text-primary"
+                      />
+                      <span class="text-sm font-semibold text-primary">{{
+                        $t('admin.ai.agent.systemPrompt')
+                      }}</span>
                       <span
                         v-if="agent?.is_system"
                         class="rounded-full bg-amber-500/10 px-1.5 py-px text-[10px] text-amber-600"
-                      >{{ $t('admin.ai.agent.systemAgentDesc').split('，')[0] }}</span>
+                        >{{
+                          $t('admin.ai.agent.systemAgentDesc').split('，')[0]
+                        }}</span
+                      >
                     </div>
                   </div>
                   <!-- Variable quick-insert chips -->
-                  <div v-if="chatInputVars.length > 0" class="mb-2 flex flex-wrap gap-1.5">
-                    <span class="text-xs text-muted-foreground">{{ $t('admin.ai.agent.detail.chatConfigPromptHint') }}:</span>
+                  <div
+                    v-if="chatInputVars.length > 0"
+                    class="mb-2 flex flex-wrap gap-1.5"
+                  >
+                    <span class="text-xs text-muted-foreground"
+                      >{{
+                        $t('admin.ai.agent.detail.chatConfigPromptHint')
+                      }}:</span
+                    >
                     <button
                       v-for="v in chatInputVars"
                       :key="v.name"
@@ -1415,15 +1447,21 @@ useDetailPageAi({
                       class="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                       @click="insertVarAtCursor(v.name)"
                     >
-                      <span v-text="formatVarChip(v.name)" />
+                      <span v-text="formatVarChip(v.name)"></span>
                     </button>
                   </div>
                   <Textarea
-                    :ref="(el) => { chatSystemPromptRef = el as HTMLTextAreaElement | null }"
+                    :ref="
+                      (el) => {
+                        chatSystemPromptRef = el as HTMLTextAreaElement | null;
+                      }
+                    "
                     v-model:value="chatSystemPrompt"
                     :rows="6"
                     :disabled="agent?.is_system"
-                    :placeholder="$t('admin.ai.agent.placeholder.inputSystemPrompt')"
+                    :placeholder="
+                      $t('admin.ai.agent.placeholder.inputSystemPrompt')
+                    "
                     class="w-full text-xs"
                   />
                 </div>
@@ -1444,7 +1482,9 @@ useDetailPageAi({
                   <Textarea
                     v-model:value="chatWelcome"
                     :rows="3"
-                    :placeholder="$t('admin.ai.agent.placeholder.inputWelcomeMessage')"
+                    :placeholder="
+                      $t('admin.ai.agent.placeholder.inputWelcomeMessage')
+                    "
                     class="w-full"
                   />
                 </div>
@@ -1465,7 +1505,9 @@ useDetailPageAi({
                   <Textarea
                     v-model:value="chatSuggestions"
                     :rows="4"
-                    :placeholder="$t('admin.ai.agent.placeholder.inputSuggestedQuestions')"
+                    :placeholder="
+                      $t('admin.ai.agent.placeholder.inputSuggestedQuestions')
+                    "
                     class="w-full font-mono text-xs"
                   />
                   <p class="mt-1 text-xs text-muted-foreground">JSON</p>
@@ -1546,338 +1588,133 @@ useDetailPageAi({
               <div class="p-5 pt-3">
                 <Spin :spinning="bindingsLoading">
                   <div class="flex flex-col gap-4">
-                    <!-- Add binding row -->
                     <div
                       class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
                     >
                       <ASelect
-                        v-model:value="selectedNewPkgs"
-                        :options="unboundPackages"
-                        :placeholder="
-                          $t('admin.ai.agent.placeholder.selectSkillPackages')
-                        "
+                        v-model:value="selectedNewSkills"
+                        :options="unboundSkills"
+                        :placeholder="$t('admin.ai.agent.placeholder.selectSkills')"
                         mode="multiple"
                         show-search
                         option-filter-prop="label"
                         allow-clear
                         class="flex-1"
                       >
-                        <template
-                          #option="{ label: optLabel, value: optValue }"
-                        >
+                        <template #option="{ label: optLabel, value: optValue }">
                           <div class="flex items-center justify-between gap-2">
                             <span>{{ optLabel }}</span>
-                            <Tag
-                              v-if="
-                                getScopeTagProps(
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.sourcePlugin,
-                                )
-                              "
-                              :color="
-                                getScopeTagProps(
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.sourcePlugin,
-                                )!.color
-                              "
-                              class="mr-0 text-xs"
-                            >
-                              {{
-                                getScopeTagProps(
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  packageOptions.find(
-                                    (p) => p.value === optValue,
-                                  )?.sourcePlugin,
-                                )!.text
-                              }}
-                            </Tag>
+                            <div class="flex items-center gap-1">
+                              <Tag
+                                v-for="tag in [
+                                  skillOptions.find((p) => p.value === optValue)
+                                    ?.packageName,
+                                  skillOptions.find((p) => p.value === optValue)
+                                    ?.skillType,
+                                ].filter(Boolean)"
+                                :key="String(tag)"
+                                class="mr-0 text-xs"
+                              >
+                                {{ tag }}
+                              </Tag>
+                            </div>
                           </div>
                         </template>
                       </ASelect>
                       <Button
                         type="primary"
-                        :disabled="selectedNewPkgs.length === 0"
-                        @click="bindPackage"
+                        :disabled="selectedNewSkills.length === 0"
+                        @click="bindSkills"
                       >
                         <IconifyIcon icon="lucide:plus" class="mr-1" />
                         {{ $t('common.add') }}
                       </Button>
                     </div>
 
-                    <!-- Auto-bound -->
-                    <div v-if="autoBindings.length > 0">
+                    <div v-if="bindings.length > 0" class="flex flex-col gap-2">
                       <div
-                        class="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                        v-for="binding in bindings"
+                        :key="binding.skill_id"
+                        class="rounded-xl border bg-background px-4 py-3 transition-colors"
                       >
-                        <IconifyIcon
-                          icon="lucide:zap"
-                          class="size-3.5 text-primary/60"
-                        />
-                        {{ $t('common.bindMode.auto') }} ({{
-                          autoBindings.length
-                        }})
-                      </div>
-                      <div class="flex flex-col gap-2">
-                        <div
-                          v-for="b in autoBindings"
-                          :key="`auto-${b.package_id}`"
-                          class="overflow-hidden rounded-xl border border-primary/20 bg-primary/5"
-                        >
-                          <div
-                            class="flex cursor-pointer items-center justify-between px-4 py-3"
-                            @click="togglePackageSkills(b.package_id)"
-                          >
-                            <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-between gap-4">
+                          <div class="min-w-0 flex flex-1 items-center gap-3">
+                            <div
+                              class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+                            >
                               <IconifyIcon
-                                icon="lucide:lock"
-                                class="size-4 text-primary/50"
+                                :icon="getSkillTypeIcon(binding.skill_type || 'toolkit')"
+                                class="size-4"
+                                :style="{
+                                  color: `var(--ant-color-${getSkillTypeColor(binding.skill_type || 'toolkit')})`,
+                                }"
                               />
-                              <span class="text-sm font-medium">{{
-                                b.package_name || `#${b.package_id}`
-                              }}</span>
-                              <Tag
-                                v-if="b.package_is_system"
-                                color="red"
-                                class="!text-[10px]"
-                              >
-                                {{ $t('admin.ai.skillPackage.system') }}
-                              </Tag>
                             </div>
-                            <div class="flex items-center gap-2">
-                              <Tag color="blue" class="!text-[10px]">
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center gap-2">
+                                <span class="truncate text-sm font-medium">
+                                  {{ binding.skill_name || `#${binding.skill_id}` }}
+                                </span>
+                                <Tag
+                                  :color="getSkillTypeColor(binding.skill_type || 'toolkit')"
+                                  class="!mr-0 !text-[10px]"
+                                >
+                                  {{ getSkillTypeText(binding.skill_type || undefined) }}
+                                </Tag>
+                                <Tag
+                                  v-if="binding.package_name"
+                                  class="!mr-0 !text-[10px]"
+                                >
+                                  {{ binding.package_name }}
+                                </Tag>
+                                <Tag
+                                  v-if="getSkillSourceTag(binding)"
+                                  :color="getSkillSourceTag(binding)!.color"
+                                  class="!mr-0 !text-[10px]"
+                                >
+                                  {{ getSkillSourceTag(binding)!.text }}
+                                </Tag>
+                              </div>
+                              <p
+                                v-if="binding.skill_description || binding.package_description"
+                                class="mt-0.5 truncate text-xs text-muted-foreground"
+                              >
+                                {{
+                                  binding.skill_description ||
+                                  binding.package_description
+                                }}
+                              </p>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <Switch
+                              :checked="binding.enabled"
+                              size="small"
+                              :aria-label="`${binding.skill_name ?? binding.skill_id}`"
+                              @change="toggleSkillEnabled(binding)"
+                            />
+                            <ASelect
+                              :value="binding.default_consent_mode"
+                              :options="consentModeOptions"
+                              size="small"
+                              class="!w-28"
+                              @change="
+                                (val) =>
+                                  binding.id !== null &&
+                                  updateConsentMode(binding.id, String(val))
+                              "
+                            />
+                            <Popconfirm
+                              :title="$t('common.confirmDelete')"
+                              @confirm="unbindSkill(binding.skill_id)"
+                            >
+                              <Button size="small" danger type="text">
                                 <IconifyIcon
-                                  icon="lucide:zap"
-                                  class="mr-0.5 inline size-3"
+                                  icon="lucide:unlink"
+                                  class="size-3.5"
                                 />
-                                {{ $t('common.bindMode.auto') }}
-                              </Tag>
-                              <IconifyIcon
-                                :icon="
-                                  expandedPackages.has(b.package_id)
-                                    ? 'lucide:chevron-up'
-                                    : 'lucide:chevron-down'
-                                "
-                                class="size-4 text-muted-foreground transition-transform"
-                              />
-                            </div>
-                          </div>
-                          <!-- Skills list -->
-                          <div
-                            v-if="expandedPackages.has(b.package_id)"
-                            class="border-t border-primary/10 bg-background/50 px-4 py-2"
-                          >
-                            <Spin
-                              v-if="packageSkillsLoading.has(b.package_id)"
-                              size="small"
-                              class="flex justify-center py-3"
-                            />
-                            <div
-                              v-else-if="
-                                packageSkills.get(b.package_id)?.length === 0
-                              "
-                              class="py-3 text-center text-xs text-muted-foreground"
-                            >
-                              {{ $t('admin.ai.agent.detail.noSkills') }}
-                            </div>
-                            <div v-else class="flex flex-col gap-1">
-                              <div
-                                v-for="skill in packageSkills.get(
-                                  b.package_id,
-                                )"
-                                :key="skill.id"
-                                class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40"
-                              >
-                                <div
-                                  class="flex size-6 flex-shrink-0 items-center justify-center rounded-md"
-                                  :style="{
-                                    backgroundColor: `color-mix(in srgb, currentColor 8%, transparent)`,
-                                  }"
-                                >
-                                  <IconifyIcon
-                                    :icon="getSkillTypeIcon(skill.type)"
-                                    class="size-3.5"
-                                    :style="{
-                                      color: `var(--ant-color-${getSkillTypeColor(skill.type)})`,
-                                    }"
-                                  />
-                                </div>
-                                <span
-                                  class="min-w-0 flex-1 truncate text-xs font-medium"
-                                  >{{ skill.name }}</span
-                                >
-                                <Tag
-                                  :color="getSkillTypeColor(skill.type)"
-                                  class="!mr-0 !text-[10px]"
-                                >
-                                  {{ getSkillTypeText(skill.type) }}
-                                </Tag>
-                                <span
-                                  :class="
-                                    skill.is_active
-                                      ? 'bg-green-500'
-                                      : 'bg-muted-foreground/30'
-                                  "
-                                  class="inline-block size-1.5 flex-shrink-0 rounded-full"
-                                ></span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Manual-bound -->
-                    <div v-if="manualBindings.length > 0">
-                      <div
-                        class="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-                      >
-                        <IconifyIcon icon="lucide:link" class="size-3.5" />
-                        {{ $t('common.bindMode.manual') }} ({{
-                          manualBindings.length
-                        }})
-                      </div>
-                      <div class="flex flex-col gap-2">
-                        <div
-                          v-for="b in manualBindings"
-                          :key="b.package_id"
-                          class="overflow-hidden rounded-xl border bg-background transition-colors"
-                        >
-                          <div
-                            class="flex items-center justify-between px-4 py-3"
-                          >
-                            <div
-                              class="flex flex-1 cursor-pointer items-center gap-3"
-                              @click="togglePackageSkills(b.package_id)"
-                            >
-                              <div
-                                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
-                              >
-                                {{ (b.package_name || '?')[0] }}
-                              </div>
-                              <div class="min-w-0 flex-1">
-                                <div class="flex items-center gap-2">
-                                  <span class="text-sm font-medium">{{
-                                    b.package_name || `#${b.package_id}`
-                                  }}</span>
-                                  <Tag
-                                    v-if="b.package_is_system"
-                                    color="red"
-                                    class="!text-[10px]"
-                                  >
-                                    {{ $t('admin.ai.skillPackage.system') }}
-                                  </Tag>
-                                </div>
-                                <p
-                                  v-if="b.package_description"
-                                  class="mt-0.5 truncate text-xs text-muted-foreground"
-                                >
-                                  {{ b.package_description }}
-                                </p>
-                              </div>
-                              <IconifyIcon
-                                :icon="
-                                  expandedPackages.has(b.package_id)
-                                    ? 'lucide:chevron-up'
-                                    : 'lucide:chevron-down'
-                                "
-                                class="size-4 shrink-0 text-muted-foreground transition-transform"
-                              />
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <ASelect
-                                :value="b.consent_mode"
-                                :options="consentModeOptions"
-                                size="small"
-                                class="!w-28"
-                                @change="
-                                  (val) =>
-                                    b.id !== null &&
-                                    updateConsentMode(b.id, String(val))
-                                "
-                              />
-                              <Popconfirm
-                                :title="$t('common.confirmDelete')"
-                                @confirm="unbindPkg(b.package_id)"
-                              >
-                                <Button size="small" danger type="text">
-                                  <IconifyIcon
-                                    icon="lucide:unlink"
-                                    class="size-3.5"
-                                  />
-                                </Button>
-                              </Popconfirm>
-                            </div>
-                          </div>
-                          <!-- Skills list -->
-                          <div
-                            v-if="expandedPackages.has(b.package_id)"
-                            class="border-t bg-accent/20 px-4 py-2"
-                          >
-                            <Spin
-                              v-if="packageSkillsLoading.has(b.package_id)"
-                              size="small"
-                              class="flex justify-center py-3"
-                            />
-                            <div
-                              v-else-if="
-                                packageSkills.get(b.package_id)?.length === 0
-                              "
-                              class="py-3 text-center text-xs text-muted-foreground"
-                            >
-                              {{ $t('admin.ai.agent.detail.noSkills') }}
-                            </div>
-                            <div v-else class="flex flex-col gap-1">
-                              <div
-                                v-for="skill in packageSkills.get(
-                                  b.package_id,
-                                )"
-                                :key="skill.id"
-                                class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40"
-                              >
-                                <div
-                                  class="flex size-6 flex-shrink-0 items-center justify-center rounded-md"
-                                  :style="{
-                                    backgroundColor: `color-mix(in srgb, currentColor 8%, transparent)`,
-                                  }"
-                                >
-                                  <IconifyIcon
-                                    :icon="getSkillTypeIcon(skill.type)"
-                                    class="size-3.5"
-                                    :style="{
-                                      color: `var(--ant-color-${getSkillTypeColor(skill.type)})`,
-                                    }"
-                                  />
-                                </div>
-                                <span
-                                  class="min-w-0 flex-1 truncate text-xs font-medium"
-                                  >{{ skill.name }}</span
-                                >
-                                <Tag
-                                  :color="getSkillTypeColor(skill.type)"
-                                  class="!mr-0 !text-[10px]"
-                                >
-                                  {{ getSkillTypeText(skill.type) }}
-                                </Tag>
-                                <span
-                                  :class="
-                                    skill.is_active
-                                      ? 'bg-green-500'
-                                      : 'bg-muted-foreground/30'
-                                  "
-                                  class="inline-block size-1.5 flex-shrink-0 rounded-full"
-                                ></span>
-                              </div>
-                            </div>
+                              </Button>
+                            </Popconfirm>
                           </div>
                         </div>
                       </div>
@@ -1905,14 +1742,17 @@ useDetailPageAi({
                     <label
                       for="admin-agent-rag-search-mode"
                       class="mb-2 block text-xs text-muted-foreground"
-                    >{{
-                      $t('admin.ai.agent.knowledgeBase.searchMode')
-                    }}</label>
+                      >{{
+                        $t('admin.ai.agent.knowledgeBase.searchMode')
+                      }}</label
+                    >
                     <ASelect
                       id="admin-agent-rag-search-mode"
                       v-model:value="ragSearchMode"
                       :options="ragSearchModeOptions"
-                      :aria-label="$t('admin.ai.agent.knowledgeBase.searchMode')"
+                      :aria-label="
+                        $t('admin.ai.agent.knowledgeBase.searchMode')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1920,14 +1760,17 @@ useDetailPageAi({
                     <label
                       for="admin-agent-rag-rewrite-strategy"
                       class="mb-2 block text-xs text-muted-foreground"
-                    >{{
-                      $t('admin.ai.agent.knowledgeBase.rewriteStrategy')
-                    }}</label>
+                      >{{
+                        $t('admin.ai.agent.knowledgeBase.rewriteStrategy')
+                      }}</label
+                    >
                     <ASelect
                       id="admin-agent-rag-rewrite-strategy"
                       v-model:value="ragRewriteStrategy"
                       :options="ragRewriteOptions"
-                      :aria-label="$t('admin.ai.agent.knowledgeBase.rewriteStrategy')"
+                      :aria-label="
+                        $t('admin.ai.agent.knowledgeBase.rewriteStrategy')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1935,9 +1778,8 @@ useDetailPageAi({
                     <label
                       for="admin-agent-rag-top-k"
                       class="mb-2 block text-xs text-muted-foreground"
-                    >{{
-                      $t('admin.ai.agent.knowledgeBase.topK')
-                    }}</label>
+                      >{{ $t('admin.ai.agent.knowledgeBase.topK') }}</label
+                    >
                     <InputNumber
                       id="admin-agent-rag-top-k"
                       v-model:value="ragTopK"
@@ -1951,9 +1793,10 @@ useDetailPageAi({
                     <label
                       for="admin-agent-rag-score-threshold"
                       class="mb-2 block text-xs text-muted-foreground"
-                    >{{
-                      $t('admin.ai.agent.knowledgeBase.scoreThreshold')
-                    }}</label>
+                      >{{
+                        $t('admin.ai.agent.knowledgeBase.scoreThreshold')
+                      }}</label
+                    >
                     <InputNumber
                       id="admin-agent-rag-score-threshold"
                       v-model:value="ragScoreThreshold"
@@ -1961,7 +1804,9 @@ useDetailPageAi({
                       :max="1"
                       :step="0.05"
                       :precision="2"
-                      :aria-label="$t('admin.ai.agent.knowledgeBase.scoreThreshold')"
+                      :aria-label="
+                        $t('admin.ai.agent.knowledgeBase.scoreThreshold')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1969,9 +1814,10 @@ useDetailPageAi({
                     <label
                       for="admin-agent-rag-context-token-ratio"
                       class="mb-2 block text-xs text-muted-foreground"
-                    >{{
-                      $t('admin.ai.agent.knowledgeBase.contextTokenRatio')
-                    }}</label>
+                      >{{
+                        $t('admin.ai.agent.knowledgeBase.contextTokenRatio')
+                      }}</label
+                    >
                     <InputNumber
                       id="admin-agent-rag-context-token-ratio"
                       v-model:value="ragContextTokenRatio"
@@ -1979,7 +1825,9 @@ useDetailPageAi({
                       :max="0.9"
                       :step="0.05"
                       :precision="2"
-                      :aria-label="$t('admin.ai.agent.knowledgeBase.contextTokenRatio')"
+                      :aria-label="
+                        $t('admin.ai.agent.knowledgeBase.contextTokenRatio')
+                      "
                       class="w-full"
                     />
                   </div>
@@ -1992,20 +1840,24 @@ useDetailPageAi({
                       }}</label>
                       <p class="mb-3 text-xs text-muted-foreground">
                         {{
-                          $t(
-                            'admin.ai.agent.knowledgeBase.rerankerEnabledHelp',
-                          )
+                          $t('admin.ai.agent.knowledgeBase.rerankerEnabledHelp')
                         }}
                       </p>
                     </div>
                     <Switch
                       v-model:checked="ragRerankerEnabled"
-                      :aria-label="$t('admin.ai.agent.knowledgeBase.rerankerEnabled')"
+                      :aria-label="
+                        $t('admin.ai.agent.knowledgeBase.rerankerEnabled')
+                      "
                     />
                   </div>
                 </div>
                 <div class="mt-5">
-                  <Button type="primary" :loading="saving" @click="saveRagConfig">
+                  <Button
+                    type="primary"
+                    :loading="saving"
+                    @click="saveRagConfig"
+                  >
                     {{ $t('common.save') }}
                   </Button>
                 </div>
@@ -2062,7 +1914,10 @@ useDetailPageAi({
                     </div>
 
                     <!-- Binding list -->
-                    <div v-if="kbBindings.length > 0" class="flex flex-col gap-2">
+                    <div
+                      v-if="kbBindings.length > 0"
+                      class="flex flex-col gap-2"
+                    >
                       <div
                         v-for="b in kbBindings"
                         :key="b.id"
@@ -2101,7 +1956,9 @@ useDetailPageAi({
                                 v-if="b.kb_embedding_model_name"
                                 class="!mr-0 !text-[10px]"
                               >
-                                {{ $t('admin.ai.agent.detail.kbEmbeddingModel') }}:
+                                {{
+                                  $t('admin.ai.agent.detail.kbEmbeddingModel')
+                                }}:
                                 {{ b.kb_embedding_model_name }}
                               </Tag>
                               <Tag
@@ -2109,7 +1966,9 @@ useDetailPageAi({
                                 class="!mr-0 !text-[10px]"
                               >
                                 {{
-                                  $t('admin.ai.agent.detail.kbEmbeddingDimensions')
+                                  $t(
+                                    'admin.ai.agent.detail.kbEmbeddingDimensions',
+                                  )
                                 }}:
                                 {{ b.kb_embedding_dimensions }}
                               </Tag>
@@ -2117,7 +1976,9 @@ useDetailPageAi({
                                 v-if="b.kb_chunk_strategy"
                                 class="!mr-0 !text-[10px]"
                               >
-                                {{ $t('admin.ai.agent.detail.kbChunkStrategy') }}:
+                                {{
+                                  $t('admin.ai.agent.detail.kbChunkStrategy')
+                                }}:
                                 {{
                                   getKbChunkStrategyText(b.kb_chunk_strategy)
                                 }}
@@ -2307,7 +2168,9 @@ useDetailPageAi({
                         <Switch
                           v-model:checked="routingEnabled"
                           class="shrink-0"
-                          :aria-label="$t('admin.ai.agent.routing.enableRouting')"
+                          :aria-label="
+                            $t('admin.ai.agent.routing.enableRouting')
+                          "
                         />
                       </div>
                       <div

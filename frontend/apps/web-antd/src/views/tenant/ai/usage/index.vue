@@ -26,10 +26,18 @@ import {
   getTenantCallTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createRefreshPageOperation,
+  createStructuredSearchPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'TenantAIUsage' });
+const AI_PAGE_KEY = 'tenant.ai.usage';
 
 // ============ 日期范围 ============
 
@@ -73,6 +81,11 @@ function handlePreset(range: DateRange) {
   dateRange.value = range;
   loadSummary();
   loadCharts();
+}
+
+async function refreshUsageData() {
+  await loadSummary();
+  await loadCharts();
 }
 
 // ============ 数据加载 ============
@@ -281,9 +294,8 @@ function renderCharts() {
 watch([trendData, modelData], renderCharts);
 onMounted(loadCharts);
 
-usePageAIRegistration({
-  pageKey: 'tenant.ai.usage',
-  title: () => $t('tenant.ai.usage.name'),
+usePageAIContext({
+  pageKey: AI_PAGE_KEY,
   resource: '/tenant/ai/usage',
   entityName: () => $t('tenant.ai.usage.name'),
   entityDescription: () => $t('tenant.ai.usage.pageDesc'),
@@ -297,21 +309,91 @@ usePageAIRegistration({
     total_cost: summary.value?.total_cost ?? 0,
     total_tokens: summary.value?.total_tokens ?? 0,
   }),
+});
+
+usePageAIOperations({
+  pageKey: AI_PAGE_KEY,
+  operationStrategy: 'append',
   operations: [
-    {
-      name: 'refresh_list',
-      label: $t('shared.pageOperation.refreshList'),
+    createRefreshPageOperation({
+      action: refreshUsageData,
       description: 'Reload usage summary and charts / 重新加载用量摘要与图表',
-      readonly: true,
-      handler: async () => {
-        await loadSummary();
-        await loadCharts();
+    }),
+    createStructuredSearchPageOperation({
+      name: 'set_date_range',
+      label: $t('tenant.ai.usage.dateRange'),
+      description:
+        'Set the usage analytics date range by preset or explicit start/end dates / 通过预设或开始结束日期设置 AI 用量分析范围',
+      params: {
+        preset: {
+          type: 'string',
+          enum: ['last_7_days', 'last_30_days', 'this_month'],
+          description:
+            'Optional preset: last_7_days, last_30_days, this_month / 可选预设',
+        },
+        start_date: {
+          type: 'string',
+          description: 'Start date in YYYY-MM-DD / 开始日期',
+        },
+        end_date: {
+          type: 'string',
+          description: 'End date in YYYY-MM-DD / 结束日期',
+        },
+      },
+      normalizeParams: (params) => {
+        const preset = String(params.preset ?? '').trim();
+        if (preset === 'last_7_days') {
+          return {
+            end_date: dayjs().format('YYYY-MM-DD'),
+            start_date: dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
+          };
+        }
+        if (preset === 'last_30_days') {
+          return {
+            end_date: dayjs().format('YYYY-MM-DD'),
+            start_date: dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
+          };
+        }
+        if (preset === 'this_month') {
+          return {
+            end_date: dayjs().format('YYYY-MM-DD'),
+            start_date: dayjs().startOf('month').format('YYYY-MM-DD'),
+          };
+        }
         return {
-          success: true,
-          message: $t('shared.pageOperation.msg.listRefreshed'),
+          ...(String(params.start_date ?? '').trim()
+            ? { start_date: String(params.start_date).trim() }
+            : {}),
+          ...(String(params.end_date ?? '').trim()
+            ? { end_date: String(params.end_date).trim() }
+            : {}),
         };
       },
-    },
+      runSearch: async (params) => {
+        if (!params.start_date || !params.end_date) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.dateRangeRequired'),
+            error_type: 'invalid_input',
+          };
+        }
+        const start = dayjs(params.start_date);
+        const end = dayjs(params.end_date);
+        const startMatches = start.isValid()
+          && start.format('YYYY-MM-DD') === params.start_date;
+        const endMatches = end.isValid()
+          && end.format('YYYY-MM-DD') === params.end_date;
+        if (!startMatches || !endMatches || start.isAfter(end)) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.invalidDateRange'),
+            error_type: 'invalid_input',
+          };
+        }
+        dateRange.value = [start.startOf('day'), end.endOf('day')];
+        await refreshUsageData();
+      },
+    }),
   ],
 });
 </script>

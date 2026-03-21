@@ -37,12 +37,12 @@ async def list_available_plugins(
     """
     from sqlalchemy import select
 
-    from app.enums.common import ResourceScopeEnum
     from app.enums.plugin import PluginStatusEnum
     from app.models.system.plugin import Plugin
-    from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+    from app.services.system.plugin_service import PluginService
 
     tenant_id = tenant_admin.tenant_id
+    visible_names = await PluginService(db).get_tenant_visible_plugin_names(tenant_id)
 
     # 查询所有已启用的插件 / Query all enabled plugins
     result = await db.execute(
@@ -53,34 +53,9 @@ async def list_available_plugins(
     )
     all_enabled = list(result.scalars().all())
 
-    # 查询当前企业被分配的插件 ID / Query plugin IDs assigned to current tenant
-    assignment_result = await db.execute(
-        select(ResourceTenantAssignment.resource_id).where(
-            ResourceTenantAssignment.resource_type == "plugin",
-            ResourceTenantAssignment.tenant_id == tenant_id,
-            ResourceTenantAssignment.is_active.is_(True),
-        )
-    )
-    assigned_plugin_ids = set(assignment_result.scalars().all())
-
-    # 根据资源 scope 过滤（与 PluginService.get_tenant_visible_plugin_names 一致）
-    _tenant_all_scopes = {
-        ResourceScopeEnum.ALL_TENANTS.value,
-        ResourceScopeEnum.GLOBAL_SHARED.value,
-    }
-    _tenant_assigned_scopes = {
-        ResourceScopeEnum.SELECTED_TENANTS.value,
-        ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-    }
-
-    visible_plugins = []
-    for plugin in all_enabled:
-        scope = plugin.scope
-        if scope in _tenant_all_scopes or (
-            scope in _tenant_assigned_scopes and plugin.id in assigned_plugin_ids
-        ):
-            visible_plugins.append(plugin)
-        # admin_only → 不返回 / not returned
+    visible_plugins = [
+        plugin for plugin in all_enabled if plugin.name in visible_names
+    ]
 
     items = []
     for p in visible_plugins:
@@ -122,11 +97,10 @@ async def get_plugin_slots(
       "dashboard_widgets": [...],
       "settings_tabs": [...],
       "floating_panels": [...],
-      "standalone_pages": [...],
+      "pages": [...],
       "notification_ui": [...]
     }
     """
-    from app.plugins.loader import PluginLoader
     from app.plugins.registry import ExtensionRegistry
     from app.services.system.plugin_service import PluginService
 
@@ -145,26 +119,4 @@ async def get_plugin_slots(
         for slot_key, slots in grouped.items()
     }
 
-    loader = PluginLoader()
-    plugin_styles: dict[str, list[str]] = {}
-    for plugin_name in visible_names:
-        styles: list[str] = []
-        try:
-            manifest = loader.load_manifest(plugin_name)
-            frontend = (
-                manifest.extensions.frontend
-                if manifest.extensions
-                else None
-            )
-            if frontend and frontend.tenant:
-                styles = list(frontend.tenant.styles or [])
-        except Exception:
-            styles = []
-        plugin_styles[plugin_name] = styles
-
-    return success(
-        data={
-            **filtered,
-            "plugin_styles": plugin_styles,
-        }
-    )
+    return success(data=filtered)

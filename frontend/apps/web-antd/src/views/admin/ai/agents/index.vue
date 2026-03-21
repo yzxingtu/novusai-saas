@@ -40,7 +40,12 @@ import {
   publishAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
-import { useCrudList } from '#/composables';
+import {
+  buildPageAIFormExtraData,
+  createKeywordSearchPageOperation,
+  createPrefilledCreatePageOperation,
+  useCrudList,
+} from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -56,12 +61,12 @@ import {
   getStatusText,
   useFormSchema,
 } from './data';
-
-const AI_PAGE_KEY = 'admin.ai.agents';
 import AgentForm from './modules/form.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'AIAgentList' });
+
+const AI_PAGE_KEY = 'admin.ai.agents';
 
 // ============================================================
 // Declarative CRUD (list/pagination/search/delete/recycle bin) / 声明式 CRUD（列表/分页/搜索/删除/回收站）
@@ -92,7 +97,10 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) => agentFormRef.value?.openEdit(row, { _aiPageKey: AI_PAGE_KEY }),
+    edit: (row) => agentFormRef.value?.openEdit(
+      row,
+      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+    ),
   },
   ai: {
     pageKey: AI_PAGE_KEY,
@@ -105,11 +113,8 @@ const {
       system: agentSummary.value.system,
     }),
     extra: [
-      {
-        name: 'create_record',
-        label: $t('shared.pageOperation.createRecord'),
+      createPrefilledCreatePageOperation({
         description: 'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
-        readonly: false,
         params: {
           name: { type: 'string', description: 'Agent name / 智能体名称' },
           description: { type: 'string', description: 'Agent description / 简介' },
@@ -117,44 +122,35 @@ const {
           system_prompt: { type: 'string', description: 'System prompt / 系统提示词' },
           welcome_message: { type: 'string', description: 'Welcome message / 欢迎语' },
         },
-        handler: async (params): Promise<{ success: boolean; message: string }> => {
+        normalizeParams: (params) => {
           const overrides: Record<string, unknown> = {};
           if (params?.name) overrides.name = params.name;
           if (params?.description) overrides.description = params.description;
           if (params?.model_id) overrides.model_id = params.model_id;
           if (params?.system_prompt) overrides.system_prompt = params.system_prompt;
           if (params?.welcome_message) overrides.welcome_message = params.welcome_message;
-
-          const extraData: Record<string, unknown> = { _aiPageKey: AI_PAGE_KEY };
-          if (Object.keys(overrides).length > 0) {
-            extraData._defaults = { ...getFormDefaults(), ...overrides };
-          }
-          agentFormRef.value?.openNew(extraData);
-
-          const filled = Object.keys(overrides);
-          return {
-            success: true,
-            message: filled.length > 0
-              ? `Create agent form opened with pre-filled: ${filled.join(', ')} / 表单已打开，预填: ${filled.join(', ')}`
-              : 'Create agent form opened / 新建表单已打开',
-          };
+          return overrides;
         },
-      },
-      {
-        name: 'search',
-        label: $t('shared.pageOperation.searchByKeyword'),
+        openCreate: async (overrides) => {
+          agentFormRef.value?.openNew(
+            buildPageAIFormExtraData({
+              pageKey: AI_PAGE_KEY,
+              baseDefaults:
+                Object.keys(overrides).length > 0 ? getFormDefaults() : undefined,
+              defaults: overrides,
+            }),
+          );
+        },
+      }),
+      createKeywordSearchPageOperation({
         description: 'Search agents by keyword / 按关键词搜索智能体',
-        readonly: true,
-        params: {
-          keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
-        },
-        handler: async (params): Promise<{ success: boolean; message: string }> => {
-          const keyword = (params?.keyword as string) || '';
+        setKeyword: (keyword) => {
           searchKeyword.value = keyword;
-          doSearch();
-          return { success: true, message: `Searched for: ${keyword} / 已搜索：${keyword}` };
         },
-      },
+        action: async () => {
+          doSearch();
+        },
+      }),
     ],
   },
 });
@@ -175,11 +171,16 @@ function openRecycleBin() {
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
 
 function onCreateAgent() {
-  agentFormRef.value?.openNew({ _aiPageKey: AI_PAGE_KEY });
+  agentFormRef.value?.openNew(
+    buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+  );
 }
 
 function onEditAgent(agent: AIAgentInfo) {
-  agentFormRef.value?.openEdit(agent, { _aiPageKey: AI_PAGE_KEY });
+  agentFormRef.value?.openEdit(
+    agent,
+    buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+  );
 }
 
 // ============================================================
@@ -724,20 +725,20 @@ const stats = computed(() => {
               </div>
             </Tooltip>
 
-            <!-- Skill Packages -->
+            <!-- Skills -->
             <Tag
-              v-for="pkg in (agent.skill_packages || []).slice(0, 3)"
-              :key="pkg.id"
+              v-for="skill in (agent.skills || []).slice(0, 3)"
+              :key="skill.id"
               color="cyan"
               class="!mr-0 !text-[11px]"
               style="padding: 0 6px; line-height: 20px"
             >
-              {{ pkg.name }}
+              {{ skill.name }}
             </Tag>
             <Tooltip
-              v-if="agent.skill_packages && agent.skill_packages.length > 3"
+              v-if="agent.skills && agent.skills.length > 3"
               :title="
-                agent.skill_packages
+                agent.skills
                   .slice(3)
                   .map((p: { name: string }) => p.name)
                   .join(', ')
@@ -748,7 +749,7 @@ const stats = computed(() => {
                 class="!mr-0 !text-[11px]"
                 style="padding: 0 6px; line-height: 20px"
               >
-                +{{ agent.skill_packages.length - 3 }}
+                +{{ agent.skills.length - 3 }}
               </Tag>
             </Tooltip>
 

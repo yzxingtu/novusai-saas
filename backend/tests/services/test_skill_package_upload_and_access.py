@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.services.conftest import make_mock_model
+from tests.services.conftest import make_mock_model, make_scalars_result
 
 
 class _DummyUploadFile:
@@ -95,28 +95,32 @@ class TestSkillPackageUpload:
 class TestSkillPackageTenantAccess:
 
     @pytest.mark.asyncio
-    async def test_tenant_get_by_id_blocks_admin_only_platform_package(self, mock_db):
-        from app.enums.common import AudienceEnum
+    async def test_tenant_get_by_id_allows_platform_package_with_legacy_audience(
+        self,
+        mock_db,
+    ):
         from app.repositories.ai.skill_package_repository import SkillPackageRepository
 
         repo = SkillPackageRepository(mock_db, tenant_id=12)
-        admin_only_pkg = make_mock_model(
+        platform_pkg = make_mock_model(
             id=9,
             tenant_id=None,
-            target_audience=AudienceEnum.ADMIN_ONLY.value,
+            target_audience="admin_only",
         )
 
         with patch(
             "app.repositories.ai.skill_package_repository.BaseRepository.get_by_id",
-            new=AsyncMock(return_value=admin_only_pkg),
+            new=AsyncMock(return_value=platform_pkg),
         ):
             result = await repo.get_by_id(9)
 
-        assert result is None
+        assert result is platform_pkg
 
     @pytest.mark.asyncio
-    async def test_tenant_get_by_ids_filters_admin_only_platform_package(self, mock_db):
-        from app.enums.common import AudienceEnum
+    async def test_tenant_get_by_ids_keeps_platform_packages_regardless_of_legacy_audience(
+        self,
+        mock_db,
+    ):
         from app.repositories.ai.skill_package_repository import SkillPackageRepository
 
         repo = SkillPackageRepository(mock_db, tenant_id=12)
@@ -124,17 +128,17 @@ class TestSkillPackageTenantAccess:
             make_mock_model(
                 id=1,
                 tenant_id=None,
-                target_audience=AudienceEnum.ADMIN_ONLY.value,
+                target_audience="admin_only",
             ),
             make_mock_model(
                 id=2,
                 tenant_id=None,
-                target_audience=AudienceEnum.ALL.value,
+                target_audience="all",
             ),
             make_mock_model(
                 id=3,
                 tenant_id=12,
-                target_audience=AudienceEnum.ADMIN_ONLY.value,
+                target_audience="admin_only",
             ),
         ]
 
@@ -144,4 +148,27 @@ class TestSkillPackageTenantAccess:
         ):
             result = await repo.get_by_ids([1, 2, 3])
 
-        assert [pkg.id for pkg in result] == [2, 3]
+        assert [pkg.id for pkg in result] == [1, 2, 3]
+
+    @pytest.mark.asyncio
+    async def test_export_omits_legacy_target_audience(self, mock_db):
+        from app.api.shared._skill_package_export import export_skill_package
+
+        pkg = SimpleNamespace(
+            id=5,
+            name="legacy_pkg",
+            description="Legacy package",
+            avatar=None,
+            target_audience="admin_only",
+            is_recommended=False,
+            is_system=False,
+            is_active=True,
+            sort_order=0,
+            source_plugin=None,
+            valves_schema={"type": "object"},
+        )
+        mock_db.execute.return_value = make_scalars_result([])
+
+        export_data = await export_skill_package(mock_db, pkg)
+
+        assert "target_audience" not in export_data["package_info"]

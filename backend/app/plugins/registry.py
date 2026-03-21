@@ -552,11 +552,11 @@ class ExtensionRegistry:
         Register plugin menu entry (stored in-memory, synced to permission system on enable).
         / 注册插件菜单条目（内存存储，enable 时同步到权限系统）。
 
-        scope 须为权限端别字面量：admin / tenant / user（与 PermissionScope 一致）。
+        scope 须为权限端别字面量：admin / tenant（与 PermissionScope 一致）。
         """
         from app.enums.rbac import PermissionScope as _PS
 
-        _allowed_menu_scopes = {_PS.ADMIN.value, _PS.TENANT.value, _PS.USER.value}
+        _allowed_menu_scopes = {_PS.ADMIN.value, _PS.TENANT.value}
         if scope not in _allowed_menu_scopes:
             raise ValueError(
                 f"Invalid plugin menu scope {scope!r}; expected one of {sorted(_allowed_menu_scopes)}"
@@ -628,14 +628,10 @@ class ExtensionRegistry:
         elif scope == PermissionScope.TENANT.value:
             scope_prefix = "tenant"
             perm_scope = PermissionScope.TENANT
-        elif scope == PermissionScope.USER.value:
-            scope_prefix = "user"
-            perm_scope = PermissionScope.USER
         else:
             raise ValueError(
                 f"Invalid plugin menu scope {scope!r}; expected "
-                f"{PermissionScope.ADMIN.value!r}, {PermissionScope.TENANT.value!r}, "
-                f"or {PermissionScope.USER.value!r}"
+                f"{PermissionScope.ADMIN.value!r} or {PermissionScope.TENANT.value!r}"
             )
 
         perm_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
@@ -678,7 +674,6 @@ class ExtensionRegistry:
         safe_name = plugin_name.replace("-", "_")
         permission_registry.unregister(f"menu:admin.plugin_{safe_name}_{name}")
         permission_registry.unregister(f"menu:tenant.plugin_{safe_name}_{name}")
-        permission_registry.unregister(f"menu:user.plugin_{safe_name}_{name}")
 
     def get_plugin_menus(
         self, plugin_name: str | None = None, scope: str | None = None,
@@ -924,6 +919,29 @@ class ExtensionRegistry:
             "Unregistered {} extensions for plugin {}", count, plugin_name
         )
         return count
+
+    def unregister_by_type(self, plugin_name: str, ext_type: str) -> int:
+        """Unregister a single extension type for a plugin. / 反注册插件的单一扩展类型。"""
+        tracked = self._registry.get(plugin_name, [])
+        if not tracked:
+            return 0
+
+        remaining: list[RegisteredExtension] = []
+        removed = 0
+        for ext in tracked:
+            if ext.ext_type != ext_type:
+                remaining.append(ext)
+                continue
+            method_name = self._DISPATCH.get(ext.ext_type)
+            if method_name:
+                getattr(self, method_name)(ext)
+                removed += 1
+
+        if remaining:
+            self._registry[plugin_name] = remaining
+        else:
+            self._registry.pop(plugin_name, None)
+        return removed
 
     def get_conflicts(
         self, manifest: Any
@@ -1208,7 +1226,7 @@ class ExtensionRegistry:
             FrontendSlotTypeEnum.DASHBOARD_WIDGET.value: "dashboard_widgets",
             FrontendSlotTypeEnum.SETTINGS_TAB.value: "settings_tabs",
             FrontendSlotTypeEnum.FLOATING_PANEL.value: "floating_panels",
-            FrontendSlotTypeEnum.STANDALONE_PAGE.value: "standalone_pages",
+            FrontendSlotTypeEnum.STANDALONE_PAGE.value: "pages",
             FrontendSlotTypeEnum.NOTIFICATION_UI.value: "notification_ui",
         }
 

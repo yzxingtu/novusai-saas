@@ -644,6 +644,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       detailRoute: aiConfig.detailRoute,
       hasRecycleBin: recycleBinEnabled,
       openRecycleBin: recycleBinEnabled ? openRecycleBin : undefined,
+      openExportModal: showExportButton ? openExportModal : undefined,
       disabled: aiConfig.disabled,
       disabledCapabilities: aiConfig.disabledCapabilities,
       disabledOperations: aiConfig.disabledOperations,

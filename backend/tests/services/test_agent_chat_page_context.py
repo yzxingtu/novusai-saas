@@ -47,7 +47,7 @@ sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest
-from app.ai.skills.resolver import SkillResolveResult, SkillResolver, _load_auto_bind_packages, resolve_for_agent
+from app.ai.skills.resolver import SkillResolveResult, SkillResolver, resolve_for_agent
 from app.ai.tools.executors.page_context_executor import PageContextExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
@@ -415,47 +415,61 @@ async def test_skill_resolver_exposes_get_page_context_tool_schema() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_auto_bind_includes_get_page_context_tool(mock_db) -> None:
-    agent = MagicMock()
-    agent.id = 7
-    agent.name = "Tenant Agent"
-    agent.scope = ResourceScopeEnum.ALL_TENANTS.value
-    agent.owner_tenant_id = 1
+async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool(mock_db) -> None:
+    agent = types.SimpleNamespace(
+        id=7,
+        name="Tenant Agent",
+        scope=ResourceScopeEnum.ALL_TENANTS.value,
+        owner_tenant_id=1,
+    )
 
-    package = MagicMock()
-    package.id = 301
-    package.name = "页面感知"
-    package.is_active = True
-    package.is_deleted = False
-    package.valves_config = None
+    package = types.SimpleNamespace(
+        id=301,
+        name="页面感知",
+        is_active=True,
+        is_deleted=False,
+        valves_config=None,
+    )
 
-    skill = MagicMock()
-    skill.id = 401
-    skill.package_id = 301
-    skill.is_active = True
-    skill.config = {
-        "builtin_type": "page_context",
-        "tools": [
-            {
-                "name": "get_page_context",
-                "description": "Read current page context",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            }
-        ],
-    }
-    skill.name = "get_page_context"
-    skill.description = "Read current page context"
-    skill.type = SkillTypeEnum.BUILTIN.value
-    skill.timeout = 15
+    skill = types.SimpleNamespace(
+        id=401,
+        package_id=301,
+        is_active=True,
+        is_deleted=False,
+        config={
+            "builtin_type": "page_context",
+            "tools": [
+                {
+                    "name": "get_page_context",
+                    "description": "Read current page context",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                }
+            ],
+        },
+        name="get_page_context",
+        description="Read current page context",
+        type=SkillTypeEnum.BUILTIN.value,
+        timeout=15,
+        package=package,
+    )
+
+    grant = types.SimpleNamespace(
+        id=501,
+        agent_id=7,
+        skill_id=401,
+        enabled=True,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+        config_override=None,
+        skill=skill,
+    )
 
     mock_db.execute.side_effect = [
-        _make_scalars_result([package]),
-        _make_scalars_result([]),
-        _make_scalars_result([skill]),
+        _make_scalars_result([grant]),
         [],
     ]
 
@@ -470,47 +484,61 @@ async def test_resolve_for_agent_auto_bind_includes_get_page_context_tool(mock_d
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_admin_auto_bind_includes_get_page_context_tool(mock_db) -> None:
-    agent = MagicMock()
-    agent.id = 8
-    agent.name = "Admin Agent"
-    agent.scope = ResourceScopeEnum.ADMIN_ONLY.value
-    agent.owner_tenant_id = None
+async def test_resolve_for_agent_admin_grant_applies_capability_override(mock_db) -> None:
+    agent = types.SimpleNamespace(
+        id=8,
+        name="Admin Agent",
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        owner_tenant_id=None,
+    )
 
-    package = MagicMock()
-    package.id = 302
-    package.name = "页面感知"
-    package.is_active = True
-    package.is_deleted = False
-    package.valves_config = None
+    package = types.SimpleNamespace(
+        id=302,
+        name="页面感知",
+        is_active=True,
+        is_deleted=False,
+        valves_config=None,
+    )
 
-    skill = MagicMock()
-    skill.id = 402
-    skill.package_id = 302
-    skill.is_active = True
-    skill.config = {
-        "builtin_type": "page_context",
-        "tools": [
-            {
-                "name": "get_page_context",
-                "description": "Read current page context",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            }
-        ],
-    }
-    skill.name = "get_page_context"
-    skill.description = "Read current page context"
-    skill.type = SkillTypeEnum.BUILTIN.value
-    skill.timeout = 15
+    skill = types.SimpleNamespace(
+        id=402,
+        package_id=302,
+        is_active=True,
+        is_deleted=False,
+        config={
+            "builtin_type": "page_context",
+            "tools": [
+                {
+                    "name": "get_page_context",
+                    "description": "Read current page context",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                }
+            ],
+        },
+        name="get_page_context",
+        description="Read current page context",
+        type=SkillTypeEnum.BUILTIN.value,
+        timeout=15,
+        package=package,
+    )
+
+    grant = types.SimpleNamespace(
+        id=502,
+        agent_id=8,
+        skill_id=402,
+        enabled=True,
+        default_consent_mode="ask",
+        capability_consent_overrides={"get_page_context": "reject"},
+        config_override=None,
+        skill=skill,
+    )
 
     mock_db.execute.side_effect = [
-        _make_scalars_result([package]),
-        _make_scalars_result([]),
-        _make_scalars_result([skill]),
+        _make_scalars_result([grant]),
         [],
     ]
 
@@ -518,63 +546,23 @@ async def test_resolve_for_agent_admin_auto_bind_includes_get_page_context_tool(
 
     assert result is not None
     assert [tool.name for tool in result.tools] == ["get_page_context"]
-    assert result.tool_consent_modes["get_page_context"] == "auto"
+    assert result.tool_consent_modes["get_page_context"] == "reject"
     assert result.tools[0].source_package_name == "页面感知"
     openai_tools = to_openai_tools(result.tools)
     assert openai_tools[0]["function"]["name"] == "get_page_context"
 
-
-# ── _load_auto_bind_packages scope 语义测试 ──
-
-
 @pytest.mark.asyncio
-async def test_load_auto_bind_tenant_scope_excludes_assigned_when_all_tenants(
-    mock_db,
-) -> None:
-    """ALL_TENANTS agent 不查 assigned 作用域 / ALL_TENANTS agent assigned ..."""
+async def test_resolve_for_agent_returns_none_without_skill_grants(mock_db) -> None:
+    agent = MagicMock()
+    agent.id = 9
+    agent.name = "No Skills"
+    agent.owner_tenant_id = 1
+
     mock_db.execute.return_value = _make_scalars_result([])
 
-    await _load_auto_bind_packages(
-        mock_db,
-        agent_scope=ResourceScopeEnum.ALL_TENANTS.value,
-        tenant_id=1,
-    )
+    result = await resolve_for_agent(mock_db, agent, tenant_id=1)
 
-    stmt = mock_db.execute.call_args.args[0]
-    sql_text = str(stmt.compile(compile_kwargs={"literal_binds": True}))
-
-    assert "tenant_id IS NULL" in sql_text
-    assert ResourceScopeEnum.SELECTED_TENANTS.value not in sql_text
-
-
-@pytest.mark.asyncio
-async def test_load_auto_bind_admin_scope_only_admin_visible(mock_db) -> None:
-    """ADMIN_ONLY agent 只查管理端可见作用域 / ADMIN_ONLY agent"""
-    mock_db.execute.return_value = _make_scalars_result([])
-
-    await _load_auto_bind_packages(
-        mock_db,
-        agent_scope=ResourceScopeEnum.ADMIN_ONLY.value,
-        tenant_id=None,
-    )
-
-    stmt = mock_db.execute.call_args.args[0]
-    sql_text = str(stmt.compile(compile_kwargs={"literal_binds": True}))
-
-    assert "tenant_id IS NULL" in sql_text
-    assert ResourceScopeEnum.ALL_TENANTS.value not in sql_text
-
-
-@pytest.mark.asyncio
-async def test_load_auto_bind_returns_empty_for_mismatched_scope(mock_db) -> None:
-    """tenant_id=None + ALL_TENANTS scope → 直接返回空 / tenant_id=None + ALL_TENANTS s..."""
-    result = await _load_auto_bind_packages(
-        mock_db,
-        agent_scope=ResourceScopeEnum.ALL_TENANTS.value,
-        tenant_id=None,
-    )
-    assert result == []
-    mock_db.execute.assert_not_called()
+    assert result is None
 
 
 # ── ConversationEngine 工具注入集成测试 ──

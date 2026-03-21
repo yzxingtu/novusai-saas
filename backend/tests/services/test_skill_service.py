@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -162,3 +162,113 @@ class TestSkillValvesConfig:
         skill.valves_config = new_config
 
         assert skill.valves_config["key"] == "new_value"
+
+
+class TestAdminSkillPackageResolvedTools:
+
+    @pytest.mark.asyncio
+    async def test_missing_package_raises_not_found(self, mock_db):
+        from app.exceptions import NotFoundException
+        from app.services.ai.skill_package_service import AdminSkillPackageService
+
+        service = AdminSkillPackageService.__new__(AdminSkillPackageService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=None)
+
+        with pytest.raises(NotFoundException):
+            await service.get_resolved_tools(7)
+
+    @pytest.mark.asyncio
+    async def test_maps_resolved_tool_payload(self, mock_db):
+        from app.ai.skills.resolver import SkillResolveResult
+        from app.ai.tools.types import ToolDefinition, ToolParameter
+        from app.services.ai.skill_package_service import AdminSkillPackageService
+
+        package = _make_package(id=7, name="Toolkit Package", source_plugin="weather-widget")
+        skills = [_make_skill(id=11, package_id=7, name="weather_tools", type="toolkit")]
+
+        service = AdminSkillPackageService.__new__(AdminSkillPackageService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=package)
+
+        resolve_result = SkillResolveResult(
+            tools=[
+                ToolDefinition(
+                    name="get_weather",
+                    description="Fetch weather by city",
+                    tool_type="http",
+                    parameters=[
+                        ToolParameter(
+                            name="city",
+                            type="string",
+                            description="City name",
+                            required=True,
+                        )
+                    ],
+                    source_skill_id=11,
+                    source_skill_name="weather_tools",
+                )
+            ]
+        )
+
+        skill_service_stub = AsyncMock()
+        skill_service_stub.get_by_package_id = AsyncMock(return_value=skills)
+        resolver_stub = AsyncMock()
+        resolver_stub.resolve = AsyncMock(return_value=resolve_result)
+
+        with (
+            patch("app.services.ai.skill_service.AdminSkillService", return_value=skill_service_stub),
+            patch("app.ai.skills.resolver.SkillResolver", return_value=resolver_stub),
+        ):
+            result = await service.get_resolved_tools(7)
+
+        skill_service_stub.get_by_package_id.assert_awaited_once_with(7)
+        resolver_stub.resolve.assert_awaited_once_with(skills)
+        assert result["package_id"] == 7
+        assert result["package_name"] == "Toolkit Package"
+        assert result["source_plugin"] == "weather-widget"
+        assert result["tool_count"] == 1
+        assert result["tools"][0] == {
+            "name": "get_weather",
+            "description": "Fetch weather by city",
+            "tool_type": "http",
+            "parameters": [
+                {
+                    "name": "city",
+                    "type": "string",
+                    "description": "City name",
+                    "required": True,
+                }
+            ],
+            "source_skill_id": 11,
+            "source_skill_name": "weather_tools",
+            "source_plugin": "weather-widget",
+        }
+
+    @pytest.mark.asyncio
+    async def test_empty_resolve_result_returns_empty_tools(self, mock_db):
+        from app.ai.skills.resolver import SkillResolveResult
+        from app.services.ai.skill_package_service import AdminSkillPackageService
+
+        package = _make_package(id=8, name="Empty Package", source_plugin=None)
+
+        service = AdminSkillPackageService.__new__(AdminSkillPackageService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=package)
+
+        skill_service_stub = AsyncMock()
+        skill_service_stub.get_by_package_id = AsyncMock(return_value=[])
+        resolver_stub = AsyncMock()
+        resolver_stub.resolve = AsyncMock(return_value=SkillResolveResult())
+
+        with (
+            patch("app.services.ai.skill_service.AdminSkillService", return_value=skill_service_stub),
+            patch("app.ai.skills.resolver.SkillResolver", return_value=resolver_stub),
+        ):
+            result = await service.get_resolved_tools(8)
+
+        assert result["tool_count"] == 0
+        assert result["tools"] == []

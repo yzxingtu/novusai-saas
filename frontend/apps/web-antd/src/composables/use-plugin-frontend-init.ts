@@ -6,11 +6,10 @@
  * 注入式加载：通过 API 获取可见插件插槽，再按需 UMD 动态加载插件组件
  *
  * 插件端点 scope（PermissionScope，与资源 ResourceScopeEnum 不同）过滤规则:
- *   - admin              → 仅管理端加载
- *   - tenant             → 仅企业端加载
- *   - user               → 仅用户端加载
- *   - both               → 管理端 + 企业端均加载
- *   Only canonical endpoint scopes are accepted; legacy strings will be rejected.
+ *   - admin   → 仅管理端加载
+ *   - tenant  → 仅企业端加载
+ *   Current plugin frontend model does not support user-side endpoints.
+ *   / 当前插件前端模型不支持 user 端。
  */
 
 import type { Component } from 'vue';
@@ -108,7 +107,7 @@ export function resetPluginRoutesReady(router?: Router) {
  * 独立刷新插件前端插槽（可在启用/禁用/卸载后调用，无需 F5）
  *
  * M51-T9: Uses store.fetchSlots() to call backend /plugins/slots API,
- * then registers Vue Router dynamic routes based on standalonePages.
+ * then registers Vue Router dynamic routes based on pages.
  */
 export async function refreshPluginSlots(
   endpoint: string = '/admin',
@@ -134,8 +133,8 @@ export async function refreshPluginSlots(
 }
 
 /**
- * M51-T9: Register plugin pages from standalonePages as Vue Router dynamic routes
- * 将 standalonePages 中的插件页面注册为 Vue Router 动态路由
+ * M51-T9: Register plugin pages from pages as Vue Router dynamic routes
+ * 将 pages 中的插件页面注册为 Vue Router 动态路由
  * (Does not add sidebar menus, menus are managed by RBAC permission system)
  * （不添加侧边栏菜单，菜单由 RBAC 权限系统管理）
  */
@@ -143,7 +142,7 @@ function _registerStandalonePageRoutes(
   router: Router,
   slotsStore: ReturnType<typeof usePluginSlotsStore>,
 ) {
-  for (const item of slotsStore.standalonePages) {
+  for (const item of slotsStore.pages) {
     if (!item.path || !item.component) continue;
     if (!isValidPluginRoutePath(item.path)) continue;
 
@@ -203,7 +202,7 @@ export function usePluginFrontendInit(endpoint: string = '/admin') {
     // Backend already filters by scope + tenant assignment, no frontend filtering needed / 后端已按 scope 与分配过滤，前端无需再过滤
     await slotsStore.fetchSlots(side);
 
-    // Phase 2: Register standalone_pages dynamic routes / 注册 standalone_pages 动态路由
+    // Phase 2: Register plugin page dynamic routes / 注册插件页面动态路由
     _registerStandalonePageRoutes(router, slotsStore);
   }
 

@@ -13,6 +13,15 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.logging import get_logger
+from app.plugins.dependencies import (
+    build_plugin_dependency_states,
+    build_python_dependency_states,
+    detect_direct_python_dependency_conflicts,
+    get_installed_distribution_version,
+    iter_effective_python_requirements,
+    normalize_plugin_dependencies,
+    normalize_python_package_name,
+)
 from app.plugins.loader import PluginLoader
 
 logger = get_logger(__name__)
@@ -54,6 +63,7 @@ def resolve_i18n(text: dict[str, str] | str, locale: str = "zh-CN") -> str:
 async def generate_preview(
     plugin_path: Path,
     loader: PluginLoader | None = None,
+    db=None,
 ) -> InstallPreview:
     """
     Generate installation preview.
@@ -123,15 +133,66 @@ async def generate_preview(
             f"{r.method} /{r.path}" for r in
             [*ext.api.admin_routes, *ext.api.tenant_routes, *ext.api.public_routes]
         ],
-        "frontend_menus": len(ext.frontend.menus),
-        "frontend_menus_details": [m.title for m in ext.frontend.menus] if ext.frontend.menus else [],
+        "frontend_pages": len(ext.frontend.pages),
+        "frontend_pages_details": [p.title for p in ext.frontend.pages] if ext.frontend.pages else [],
+        "frontend_menus": len([p for p in ext.frontend.pages if p.menu is not None]),
+        "frontend_menus_details": [
+            (p.menu.title or p.title)
+            for p in ext.frontend.pages
+            if p.menu is not None
+        ],
     }
 
     # Dependencies / 依赖
+    plugin_dependency_requirements = normalize_plugin_dependencies(manifest)
+    plugin_dependency_states: list[dict[str, object]] = []
+    if db is not None and plugin_dependency_requirements:
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+
+        dependency_names = sorted({item.plugin for item in plugin_dependency_requirements})
+        result = await db.execute(
+            select(PluginModel.name, PluginModel.version, PluginModel.status).where(
+                PluginModel.name.in_(dependency_names),
+                PluginModel.is_deleted.is_(False),
+            )
+        )
+        plugin_rows = {
+            row[0]: {
+                "name": row[0],
+                "status": row[2],
+                "version": row[1],
+            }
+            for row in result.all()
+        }
+        plugin_dependency_states = [
+            state.to_dict()
+            for state in build_plugin_dependency_states(
+                plugin_dependency_requirements,
+                plugin_rows,
+                require_enabled=False,
+            )
+        ]
+    else:
+        plugin_dependency_states = [
+            {
+                "plugin": item.plugin,
+                "version": item.version,
+                "source": item.source,
+                "installed": False,
+                "enabled": False,
+                "installed_version": None,
+                "state": "unknown",
+                "message": "install preview requires DB context to verify plugin dependency state",
+            }
+            for item in plugin_dependency_requirements
+        ]
+
+    python_dependency_states = build_python_dependency_states(manifest.dependencies.python)
     dependencies = {
-        "python": manifest.dependencies.python,
-        "plugins": manifest.dependencies.plugins,
-        "system": manifest.dependencies.system,
+        "python": python_dependency_states,
+        "plugins": plugin_dependency_states,
     }
 
     # Conflict detection / 冲突检测
@@ -154,7 +215,6 @@ async def generate_preview(
         compatibility = {
             "platform_version": manifest.compatibility.platform_version,
             "conflicts_count": len(manifest.compatibility.conflicts),
-            "requires_count": len(manifest.compatibility.requires),
         }
 
     # Security scan / 安全扫描
@@ -166,37 +226,112 @@ async def generate_preview(
     warnings: list[str] = []
     if conflicts:
         warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
-    if manifest.dependencies.python:
-        # Actually check which packages are installed and which need pip install, avoiding false positives
-        # / 实际检查哪些包已安装、哪些需要 pip install
-        try:
-            import importlib.metadata as _imeta
+    if python_dependency_states:
+        missing_python = [
+            state["requirement"]
+            for state in python_dependency_states
+            if not state["satisfied"]
+        ]
+        if missing_python:
+            warnings.append(
+                "Python dependencies need install or upgrade: "
+                + ", ".join(str(item) for item in missing_python)
+            )
+        else:
+            warnings.append(
+                f"Python dependencies already satisfied ({len(python_dependency_states)} package(s))"
+            )
 
-            from packaging.requirements import Requirement
-            from packaging.version import Version
+    dependency_warnings = [
+        str(state["message"])
+        for state in plugin_dependency_states
+        if state["state"] not in {"ready", "unknown"}
+    ]
+    if dependency_warnings:
+        warnings.append("Plugin dependency issues: " + "; ".join(dependency_warnings))
 
-            to_install: list[str] = []
-            for req_str in manifest.dependencies.python:
-                try:
-                    req_obj = Requirement(req_str.strip())
-                    dist = _imeta.distribution(req_obj.name)
-                    if req_obj.specifier and Version(dist.version) not in req_obj.specifier:
-                        to_install.append(req_str)
-                    # Already satisfied → not counted in to_install / 已满足
-                except _imeta.PackageNotFoundError:
-                    to_install.append(req_str)
-                except Exception:
-                    to_install.append(req_str)
+    if db is not None and manifest.dependencies.python:
+        from sqlalchemy import select
 
-            if to_install:
-                warnings.append(f"Will install {len(to_install)} Python package(s)")
-            else:
-                warnings.append(
-                    f"Python dependencies already satisfied ({len(manifest.dependencies.python)} package(s))"
+        from app.models.system.plugin import Plugin as PluginModel
+
+        host_requirements: list[str] = []
+        pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+        if pyproject_path.is_file():
+            try:
+                raw = pyproject_path.read_bytes()
+                import sys as _sys
+
+                if _sys.version_info >= (3, 11):
+                    import tomllib
+
+                    cfg = tomllib.loads(raw.decode(encoding="utf-8"))
+                else:
+                    import tomli
+
+                    cfg = tomli.loads(raw.decode(encoding="utf-8"))
+                project_cfg = cfg.get("project") or {}
+                host_requirements.extend(
+                    item for item in project_cfg.get("dependencies") or [] if isinstance(item, str)
                 )
-        except ImportError:
-            # Degrade to static hint when packaging is not installed / packaging 未安装时降级为原静态提示
-            warnings.append(f"Will install {len(manifest.dependencies.python)} Python package(s)")
+                optional = project_cfg.get("optional-dependencies") or {}
+                for deps in optional.values():
+                    if isinstance(deps, list):
+                        host_requirements.extend(
+                            item for item in deps if isinstance(item, str)
+                        )
+            except Exception as exc:
+                logger.warning("Preview: failed to parse host pyproject.toml: {}", exc)
+
+        requirement_groups: dict[str, list[tuple[str, str]]] = {}
+        for requirement_text in host_requirements:
+            for requirement in iter_effective_python_requirements([requirement_text]):
+                package = normalize_python_package_name(requirement.name)
+                requirement_groups.setdefault(package, []).append(
+                    ("host", str(requirement))
+                )
+
+        other_plugins_result = await db.execute(
+            select(PluginModel.name, PluginModel.manifest).where(
+                PluginModel.is_deleted.is_(False),
+                PluginModel.name != manifest.name,
+            )
+        )
+        for owner, manifest_data in other_plugins_result.all():
+            if not manifest_data or not isinstance(manifest_data, dict):
+                continue
+            deps = manifest_data.get("dependencies") or {}
+            raw_python = deps.get("python") if isinstance(deps, dict) else None
+            if not isinstance(raw_python, list):
+                continue
+            for requirement in iter_effective_python_requirements(raw_python):
+                package = normalize_python_package_name(requirement.name)
+                requirement_groups.setdefault(package, []).append(
+                    (f"plugin:{owner}", str(requirement))
+                )
+
+        for requirement in iter_effective_python_requirements(manifest.dependencies.python):
+            package = normalize_python_package_name(requirement.name)
+            requirement_groups.setdefault(package, []).append(
+                (f"plugin:{manifest.name}", str(requirement))
+            )
+
+        installed_versions = {
+            package: get_installed_distribution_version(package)
+            for package in requirement_groups
+        }
+        direct_conflicts = detect_direct_python_dependency_conflicts(
+            requirement_groups,
+            installed_versions=installed_versions,
+        )
+        if direct_conflicts:
+            warnings.append(
+                "Python shared-env conflicts: "
+                + "; ".join(
+                    f"{conflict.package}: {conflict.reason}"
+                    for conflict in direct_conflicts
+                )
+            )
     if manifest.pricing.type == "paid" and not manifest.pricing.price:
         warnings.append("Paid plugin but no price specified")
     if scan_result.has_warnings:

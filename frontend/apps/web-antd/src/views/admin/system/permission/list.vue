@@ -82,16 +82,16 @@ function transformTreeData(nodes: PermissionNode[]): TreeNode[] {
 function getTypeIcon(type: string): string {
   switch (type) {
     case 'api': {
-      return 'mdi:api';
+      return 'lucide:route';
     }
     case 'button': {
-      return 'mdi:gesture-tap-button';
+      return 'lucide:square';
     }
     case 'menu': {
-      return 'mdi:menu';
+      return 'lucide:menu';
     }
     default: {
-      return 'mdi:folder';
+      return 'lucide:folder';
     }
   }
 }

@@ -96,6 +96,10 @@ extensions:
       - name: weather-widget
         component: "WeatherHeaderWidget"
         sort_order: 90
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"
 
 config_schema:
   type: object

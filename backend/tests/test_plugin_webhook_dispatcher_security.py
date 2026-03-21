@@ -3,12 +3,35 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from starlette.requests import Request
 
 from app.plugins.webhook_dispatcher import _verify_webhook_auth, webhook_dispatcher
+
+
+def _gate_result(
+    manifest: dict,
+    *,
+    allowed: bool = True,
+    reason_code: str = "allowed",
+    config: dict | None = None,
+):
+    return SimpleNamespace(
+        allowed=allowed,
+        reason_code=reason_code,
+        plugin_id=1,
+        plugin_name="demo",
+        plugin_scope="admin_only",
+        plugin_status="enabled",
+        manifest=manifest,
+        config=config or {},
+        granted_capabilities=[],
+        pricing_type="free",
+        license_status={"runtime_allowed": allowed},
+    )
 
 
 def _build_request(
@@ -66,26 +89,7 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
 ) -> None:
     request = _build_request()
 
-    query_result = MagicMock()
-    query_result.one_or_none.return_value = (
-        "enabled",
-        {},
-        {
-            "extensions": {
-                "webhooks": [
-                    {
-                        "path": "test",
-                        "method": "POST",
-                        "auth": {"type": "none"},
-                        "handler": "webhooks.demo.handle",
-                    }
-                ]
-            }
-        },
-    )
-
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=query_result)
 
     class _SessionContext:
         async def __aenter__(self):
@@ -96,6 +100,25 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
             return False
 
     monkeypatch.setattr("app.core.database.async_session_factory", lambda: _SessionContext())
+    monkeypatch.setattr(
+        "app.plugins.webhook_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(
+            return_value=_gate_result(
+                {
+                    "extensions": {
+                        "webhooks": [
+                            {
+                                "path": "test",
+                                "method": "POST",
+                                "auth": {"type": "none"},
+                                "handler": "webhooks.demo.handle",
+                            }
+                        ]
+                    }
+                }
+            )
+        ),
+    )
 
     async def _raise_handler(**kwargs):
         _ = kwargs
@@ -119,3 +142,31 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
     assert response.status_code == 500
     payload = json.loads(response.body)
     assert payload["error"] == "Internal server error"
+
+
+@pytest.mark.asyncio
+async def test_webhook_dispatcher_returns_404_when_runtime_gate_denies_license(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _build_request()
+    db = AsyncMock()
+
+    class _SessionContext:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, exc_type, exc, tb):
+            _ = (exc_type, exc, tb)
+            return False
+
+    monkeypatch.setattr("app.core.database.async_session_factory", lambda: _SessionContext())
+    monkeypatch.setattr(
+        "app.plugins.webhook_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result({}, allowed=False, reason_code="license_inactive")),
+    )
+
+    response = await webhook_dispatcher("demo", "test", request)
+
+    assert response.status_code == 404
+    payload = json.loads(response.body)
+    assert "not found or disabled" in payload["error"]

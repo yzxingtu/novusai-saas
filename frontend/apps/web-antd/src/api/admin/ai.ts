@@ -28,10 +28,10 @@ export {
   type AIAgentKBBindRequest,
   type AIAgentKBBatchBindRequest,
   type AIAgentKBBindingUpdateRequest,
-  type AIAgentSkillBatchBindRequest,
-  type AIAgentSkillBindingInfo,
-  type AIAgentSkillBindingUpdateRequest,
-  type AIAgentSkillBindRequest,
+  type AIAgentSkillBatchGrantRequest,
+  type AIAgentSkillGrantInfo,
+  type AIAgentSkillGrantRequest,
+  type AIAgentSkillGrantUpdateRequest,
   type AIAgentUpdateRequest,
   type AIAgentVersionItem,
   batchBindAIAgentKBsApi,
@@ -61,7 +61,7 @@ export {
   updateAIAgentApi,
   updateAIAgentKBBindingApi,
   updateAIAgentMemoryConfigApi,
-  updateAIAgentSkillBindingApi,
+  updateAIAgentSkillGrantApi,
   updateAIAgentStatusApi,
 } from './ai-agents';
 

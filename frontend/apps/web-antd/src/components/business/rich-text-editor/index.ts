@@ -9,6 +9,10 @@ import { i18n } from '@vben/locales';
 import RichTextEditor from './RichTextEditor.vue';
 
 export { RichTextEditor };
+export {
+  registerRichTextDocumentPageAI,
+  waitForRichTextEditorOperations,
+} from './document-page-ai';
 export { useRichTextEditor } from './useRichTextEditor';
 export type {
   AttachmentInfo,

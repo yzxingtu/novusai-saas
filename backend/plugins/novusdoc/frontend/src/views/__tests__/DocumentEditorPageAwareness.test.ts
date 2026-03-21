@@ -1,8 +1,8 @@
 /**
  * DocumentEditor 页面感知组件级测试
  *
- * 验证富文本审计方案：DocumentEditor.vue 挂载时调用 registerPageContextExtras 与 appendPageOperations，
- * 不覆盖平台 editor ops，entity_description_append 含 update_title 语义。
+ * 验证富文本审计方案：DocumentEditor.vue 挂载时调用统一的富文档 AI bridge，
+ * 不再自行拼接页面感知注册细节，且保留 update_title 等文档级操作。
  */
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,9 +26,17 @@ vi.mock('../../api/novusdoc', () => ({
 import DocumentEditor from '../DocumentEditor.vue';
 
 const EDITOR_KEY = 'tenant.plugins.novusdoc.editor.42';
-const registerPageContextExtrasSpy = vi.fn(() => () => {});
-const appendPageOperationsSpy = vi.fn(() => () => {});
-const listPageOperationsSpy = vi.fn(() => [{ name: 'get_editor_html' }]);
+const createSavePageOperationSpy = vi.fn((options: Record<string, unknown>) => ({
+  ...options,
+}));
+const createSimplePageOperationSpy = vi.fn((options: Record<string, unknown>) => ({
+  ...options,
+}));
+const createParameterizedPageOperationSpy = vi.fn((options: Record<string, unknown>) => ({
+  ...options,
+}));
+const registerRichTextDocumentPageAISpy = vi.fn(() => () => {});
+const waitForRichTextEditorOperationsSpy = vi.fn(async () => true);
 const mockEditor = {
   getJSON: () => ({}),
   getHTML: () => '<p></p>',
@@ -44,14 +52,19 @@ describe('DocumentEditor page awareness', () => {
     const win = globalThis as unknown as Record<string, unknown>;
     win.NovusPluginShared = {
       $t: (k: string) => k.split('.').pop() ?? k,
-      registerPageContextExtras: registerPageContextExtrasSpy,
-      appendPageOperations: appendPageOperationsSpy,
-      listPageOperations: listPageOperationsSpy,
+      createSavePageOperation: createSavePageOperationSpy,
+      createSimplePageOperation: createSimplePageOperationSpy,
+      createParameterizedPageOperation: createParameterizedPageOperationSpy,
+      registerRichTextDocumentPageAI: registerRichTextDocumentPageAISpy,
+      waitForRichTextEditorOperations: waitForRichTextEditorOperationsSpy,
       mountRichTextEditor: mountRichTextEditorSpy,
       downloadBlob: vi.fn(),
     };
-    registerPageContextExtrasSpy.mockClear();
-    appendPageOperationsSpy.mockClear();
+    createSavePageOperationSpy.mockClear();
+    createSimplePageOperationSpy.mockClear();
+    createParameterizedPageOperationSpy.mockClear();
+    registerRichTextDocumentPageAISpy.mockClear();
+    waitForRichTextEditorOperationsSpy.mockClear();
   });
 
   afterEach(() => {
@@ -59,32 +72,48 @@ describe('DocumentEditor page awareness', () => {
   });
 
   it(
-    'calls registerPageContextExtras and appendPageOperations on mount',
+    'calls the rich text document AI bridge on mount',
     async () => {
       const wrapper = mount(DocumentEditor, { props: { id: '42' }, attachTo: document.body });
       await new Promise((r) => setTimeout(r, 100));
       await wrapper.vm.$nextTick();
 
-      expect(registerPageContextExtrasSpy).toHaveBeenCalledWith(
+      expect(waitForRichTextEditorOperationsSpy).toHaveBeenCalledWith(
         EDITOR_KEY,
-        expect.any(Function),
       );
-      const resolver = registerPageContextExtrasSpy.mock.calls[0][1];
-      const extras = resolver();
-      expect(extras).toMatchObject({
-        page_key: EDITOR_KEY,
-        page_data: expect.objectContaining({
-          entity_description_append: expect.stringContaining('update_title modifies document metadata'),
-          document_id: 42,
-          document_title: 'Test Doc',
+      expect(createSavePageOperationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'save_document',
         }),
-      });
+      );
+      expect(registerRichTextDocumentPageAISpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pageKey: EDITOR_KEY,
+          entityDescriptionAppend: expect.stringContaining(
+            'update_title modifies document metadata',
+          ),
+          operations: expect.arrayContaining([
+            expect.objectContaining({ name: 'save_document' }),
+            expect.objectContaining({
+              name: 'update_title',
+              params: expect.any(Object),
+            }),
+          ]),
+        }),
+      );
 
-      expect(appendPageOperationsSpy).toHaveBeenCalledWith(
-        EDITOR_KEY,
+      const options = registerRichTextDocumentPageAISpy.mock.calls[0][0];
+      expect(options.documentId()).toBe(42);
+      expect(options.documentTitle()).toBe('Test Doc');
+      expect(options.editor()).toBe(mockEditor);
+
+      expect(options.operations).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: 'save_document' }),
-          expect.objectContaining({ name: 'update_title', params: expect.any(Object) }),
+          expect.objectContaining({
+            name: 'update_title',
+            params: expect.any(Object),
+          }),
         ]),
       );
 
@@ -94,18 +123,18 @@ describe('DocumentEditor page awareness', () => {
   );
 
   it(
-    'extras resolver includes has_editor when editor mounted',
+    'passes live editor and document metadata getters to the AI bridge',
     async () => {
       const wrapper = mount(DocumentEditor, { props: { id: '42' }, attachTo: document.body });
       await new Promise((r) => setTimeout(r, 150));
       await wrapper.vm.$nextTick();
 
-      const resolver = registerPageContextExtrasSpy.mock.calls[0][1];
-      const extras = resolver();
-      expect(extras.page_data).toMatchObject({
-        has_editor: true,
-        entity_description_append: expect.stringMatching(/update_title modifies document metadata title/),
-      });
+      const options = registerRichTextDocumentPageAISpy.mock.calls[0][0];
+      expect(options.editor()).toBe(mockEditor);
+      expect(options.documentTitle()).toBe('Test Doc');
+      expect(options.entityDescriptionAppend).toMatch(
+        /update_title modifies document metadata title/,
+      );
 
       wrapper.unmount();
     },

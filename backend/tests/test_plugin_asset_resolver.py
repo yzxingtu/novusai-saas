@@ -57,8 +57,8 @@ def test_resolve_plugin_asset_file_allows_root_icon(tmp_path: Path) -> None:
     assert resolved == icon_file.resolve()
 
 
-def test_resolve_plugin_asset_file_allows_root_svg_icon(tmp_path: Path) -> None:
-    """SVG 图标也应可从根目录访问。 / SVG 。"""
+def test_resolve_plugin_asset_file_rejects_root_non_png_icon(tmp_path: Path) -> None:
+    """插件元数据图标只允许根目录 icon.png。 / Only root icon.png is allowed."""
     plugins_root = tmp_path / "plugins"
     icon_file = plugins_root / "my-plugin" / "logo.svg"
     icon_file.parent.mkdir(parents=True)
@@ -66,7 +66,7 @@ def test_resolve_plugin_asset_file_allows_root_svg_icon(tmp_path: Path) -> None:
 
     resolved = resolve_plugin_asset_file(plugins_root, "my-plugin", "logo.svg")
 
-    assert resolved == icon_file.resolve()
+    assert resolved is None
 
 
 def test_resolve_plugin_asset_file_rejects_root_non_icon(tmp_path: Path) -> None:

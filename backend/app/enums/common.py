@@ -95,8 +95,8 @@ class SkillBindModeEnum(LabeledStrEnum):
     """技能包绑定模式枚举 / Skill Bind Mode Enum
 
     控制技能包如何绑定到智能体 / Controls how skill packages bind to agents:
-      - AUTO:   自动绑定 / Auto-bind by scope matching rules, no AgentSkillBinding needed
-      - MANUAL: 手动绑定 / Manual bind via AgentSkillBinding (default)
+      - AUTO:   自动注入（已弃用，仅历史兼容）
+      - MANUAL: 手动分组（已弃用，仅历史兼容）
     """
 
     AUTO = ("auto", "enum.skill_bind_mode.auto")

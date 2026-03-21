@@ -14,6 +14,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Card, Col, Row, Statistic, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
+import { createRefreshPageOperation } from '#/composables';
 import {
   getActionLogListApi,
   getActionLogStatsApi,
@@ -86,7 +87,6 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   i18nPrefix: 'tenant.ai.actionLog',
   defaultSort: '-created_at',
   ai: {
-    pageKey: 'tenant.ai.action-logs',
     entityName: $t('tenant.ai.actionLog.name'),
     entityDescription: $t('tenant.ai.actionLog.pageDesc'),
     contextExtras: () => ({
@@ -99,21 +99,14 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
       total_actions: stats.value.total,
     }),
     extra: [
-      {
-        name: 'refresh_list',
-        label: $t('shared.pageOperation.refreshList'),
+      createRefreshPageOperation({
         description:
           'Reload the action log list and summary / 重新加载操作日志列表与摘要',
-        readonly: true,
-        handler: async () => {
-          onRefresh();
+        action: async () => {
+          await Promise.resolve(onRefresh());
           await loadStats();
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.listRefreshed'),
-          };
         },
-      },
+      }),
     ],
   },
 });

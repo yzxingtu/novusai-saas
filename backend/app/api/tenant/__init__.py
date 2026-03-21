@@ -58,8 +58,6 @@ from app.api.tenant.roles import TenantRoleController
 from app.api.tenant.roles import router as roles_router
 from app.api.tenant.skill_packages import TenantSkillPackageController
 from app.api.tenant.skill_packages import router as skill_packages_router
-from app.api.tenant.skills import TenantSkillController
-from app.api.tenant.skills import router as skills_router
 from app.api.tenant.tasks import TenantTaskLogController
 from app.api.tenant.tasks import router as tasks_router
 from app.api.tenant.user_roles import TenantUserRoleController
@@ -102,9 +100,8 @@ tenant_router.include_router(ai_action_logs_router)
 tenant_router.include_router(knowledge_bases_router)
 # AI 表策略覆盖 / AI table policies
 tenant_router.include_router(ai_table_policies_router)
-# 技能包 & 技能管理 / Skill packages & skills
+# 技能包辅助接口 / Skill package helpers
 tenant_router.include_router(skill_packages_router)
-tenant_router.include_router(skills_router)
 # WebSocket 在线状态 / WebSocket online status
 tenant_router.include_router(ws_router)
 # 通知
@@ -151,7 +148,6 @@ __all__ = [
     "TenantKnowledgeBaseController",
     # AI 表策略覆盖 / AI table policies
     "TenantAITablePolicyController",
-    # 技能包 & 技能管理 / Skill packages & skills
+    # 技能包辅助接口 / Skill package helpers
     "TenantSkillPackageController",
-    "TenantSkillController",
 ]

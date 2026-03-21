@@ -9,9 +9,9 @@ from fastapi import Request
 
 from app.ai.exceptions import AIGatewayError
 from app.ai.gateway import AIGateway
+from app.ai.internal_ai_service import InternalAIService
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
-from app.ai.system_agent import SystemAgentService
 from app.ai.utils import parse_messages, parse_provider_and_model
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_controller import GlobalController
@@ -75,7 +75,7 @@ class AdminAIGatewayController(GlobalController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                service = SystemAgentService(db)
+                service = InternalAIService(db)
                 response = await service.chat(
                     provider_code=provider_code,
                     messages=messages,
@@ -116,7 +116,7 @@ class AdminAIGatewayController(GlobalController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                service = SystemAgentService(db)
+                service = InternalAIService(db)
                 response = await service.stream_chat(
                     provider_code=provider_code,
                     messages=messages,
@@ -151,7 +151,7 @@ class AdminAIGatewayController(GlobalController):
             provider_code, model = parse_provider_and_model(body.model_code)
 
             try:
-                service = SystemAgentService(db)
+                service = InternalAIService(db)
                 response = await service.embedding(
                     provider_code=provider_code,
                     texts=body.texts,

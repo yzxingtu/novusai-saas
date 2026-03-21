@@ -53,7 +53,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         if pkg.is_system:
-            protected = {"is_system", "is_active", "bind_mode", "target_audience"}
+            protected = {"is_system", "is_active", "bind_mode"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -81,10 +81,6 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         # 级联软删除技能包下的技能
         await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
-        # 级联物理删除关联的 AgentSkillBinding（绑定关系无需回收站）
-        await self.repo.delete_skill_bindings(id)
-        logger.info("Cascade deleted AgentSkillBindings for package {}", id)
-
     async def promote_to_global(self, id: int) -> SkillPackage | None:
         """推进到总回收站，级联推进技能 / Promote to global recycle bin and cascade skills."""
         instance = await self.repo.promote_to_global_by_id(
@@ -110,9 +106,6 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         await super()._before_permanent_delete(id)
         from app.ai.skills.packaging import cleanup_skill_storage
         cleanup_skill_storage(id)
-
-        # 清理可能残留的绑定记录
-        await self.repo.delete_skill_bindings(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
         """获取技能包详情及其技能数量 / Get package detail with skill count."""
@@ -162,7 +155,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
         if pkg.is_system:
-            protected = {"is_system", "is_active", "bind_mode", "target_audience"}
+            protected = {"is_system", "is_active", "bind_mode"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -196,9 +189,6 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
 
         await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
-        await self.repo.delete_skill_bindings(id)
-        logger.info("Cascade deleted AgentSkillBindings for package {}", id)
-
     async def promote_to_global(self, id: int) -> SkillPackage | None:
         """推进到总回收站，级联推进技能 / Promote to global recycle bin and cascade skills."""
         instance = await self.repo.promote_to_global_by_id(
@@ -225,8 +215,6 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         from app.ai.skills.packaging import cleanup_skill_storage
         cleanup_skill_storage(id)
 
-        await self.repo.delete_skill_bindings(id)
-
     async def get_with_skill_count(self, package_id: int) -> dict | None:
         """获取技能包详情及其技能数量 / Get package detail with skill count."""
         return await self.repo.get_with_skill_count(package_id)
@@ -234,6 +222,64 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
     async def get_skill_counts_batch(self, package_ids: list[int]) -> dict[int, int]:
         """批量获取技能包的技能数量 / Batch get skill counts per package."""
         return await self.repo.get_skill_counts_batch(package_ids)
+
+    async def get_resolved_tools(self, package_id: int) -> dict[str, Any]:
+        """
+        获取技能包解析后的工具列表 / Get resolved tools for a skill package.
+
+        统一复用 SkillResolver，覆盖 toolkit 与插件注册技能，避免控制器层手工解析。
+        Reuse SkillResolver for both toolkit and plugin-backed skills instead of
+        performing ad-hoc parsing in controller.
+        """
+        pkg = await self.repo.get_by_id(package_id)
+        if not pkg:
+            raise NotFoundException(message=_("skill_package.error.not_found"))
+
+        from app.ai.skills.resolver import SkillResolver
+        from app.services.ai.skill_service import AdminSkillService
+
+        skill_service = AdminSkillService(self.db)
+        skills = await skill_service.get_by_package_id(package_id)
+
+        resolver = SkillResolver(db=self.db)
+        resolve_result = await resolver.resolve(skills)
+
+        if resolve_result.warnings:
+            logger.warning(
+                "Resolved tools for package {} with {} warnings: {}",
+                package_id,
+                len(resolve_result.warnings),
+                "; ".join(resolve_result.warnings),
+            )
+
+        tools = [
+            {
+                "name": td.name,
+                "description": td.description,
+                "tool_type": td.tool_type,
+                "parameters": [
+                    {
+                        "name": p.name,
+                        "type": p.type,
+                        "description": p.description,
+                        "required": p.required,
+                    }
+                    for p in (td.parameters or [])
+                ],
+                "source_skill_id": td.source_skill_id,
+                "source_skill_name": td.source_skill_name,
+                "source_plugin": td.source_plugin or pkg.source_plugin,
+            }
+            for td in resolve_result.tools
+        ]
+
+        return {
+            "package_id": package_id,
+            "package_name": pkg.name,
+            "source_plugin": pkg.source_plugin,
+            "tool_count": len(tools),
+            "tools": tools,
+        }
 
 
     async def get_select_options(

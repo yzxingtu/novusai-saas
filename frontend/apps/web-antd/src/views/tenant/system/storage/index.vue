@@ -36,7 +36,15 @@ import {
   saveTenantStorageConfigApi,
   testTenantStorageConnectionApi,
 } from '#/api/tenant/configs';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createSimplePageOperation,
+  createRefreshPageOperation,
+  createSavePageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import {
   StorageCredentialForm,
   StorageDriverSelector,
@@ -44,6 +52,7 @@ import {
 import { $t } from '#/locales';
 
 defineOptions({ name: 'TenantStorageConfig' });
+const AI_PAGE_KEY = 'tenant.system.storage';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -166,15 +175,26 @@ async function loadData() {
 
 /** Save custom storage config / 保存自定义存储配置 */
 async function onSave() {
+  if (!canSelfConfig.value) {
+    return {
+      success: false,
+      message: $t('shared.storage.status.selfConfigNotAllowed'),
+    };
+  }
   if (!selectedDriver.value) {
     message.warning($t('shared.storage.selectDriver'));
-    return;
+    return {
+      success: false,
+      message: $t('shared.storage.selectDriver'),
+    };
   }
   if (!credentials.value.root_path?.trim()) {
-    message.warning(
-      `${$t('shared.storage.field.bucket')} ${$t('shared.storage.required')}`,
-    );
-    return;
+    const messageText = `${$t('shared.storage.field.bucket')} ${$t('shared.storage.required')}`;
+    message.warning(messageText);
+    return {
+      success: false,
+      message: messageText,
+    };
   }
   saving.value = true;
   try {
@@ -201,7 +221,18 @@ async function onSave() {
 
 /** Test connection / 测试连接 */
 async function onTestConnection() {
-  if (!selectedDriver.value) return;
+  if (!canSelfConfig.value) {
+    return {
+      success: false,
+      message: $t('shared.storage.status.selfConfigNotAllowed'),
+    };
+  }
+  if (!selectedDriver.value) {
+    return {
+      success: false,
+      message: $t('shared.storage.selectDriver'),
+    };
+  }
   testing.value = true;
   try {
     const result = await testTenantStorageConnectionApi({
@@ -212,11 +243,24 @@ async function onTestConnection() {
     });
     if (result.success) {
       message.success($t('shared.storage.testSuccess'));
+      return {
+        success: true,
+        message: $t('shared.storage.testSuccess'),
+      };
     } else {
-      message.error(result.errors?.[0] || $t('shared.storage.testFailed'));
+      const messageText = result.errors?.[0] || $t('shared.storage.testFailed');
+      message.error(messageText);
+      return {
+        success: false,
+        message: messageText,
+      };
     }
   } catch {
     message.error($t('shared.storage.testFailed'));
+    return {
+      success: false,
+      message: $t('shared.storage.testFailed'),
+    };
   } finally {
     testing.value = false;
   }
@@ -234,34 +278,43 @@ onActivated(() => {
   loadData();
 });
 
-usePageAIRegistration({
-  pageKey: 'tenant.system.storage',
+usePageAIContext({
+  pageKey: AI_PAGE_KEY,
   title: () => $t('tenant.system.storage.name'),
   resource: '/tenant/system/storage',
   data: () => ({
+    can_self_config: canSelfConfig.value,
+    current_form_driver: selectedDriver.value ?? null,
+    drivers_total: drivers.value.length,
+    effective_driver: effectiveDriver.value,
     effective_mode: status.value?.effective_mode ?? 'unknown',
   }),
+});
+
+usePageAIOperations({
+  pageKey: AI_PAGE_KEY,
+  operationStrategy: 'append',
   operations: [
-    {
+    createRefreshPageOperation({
       name: 'refresh_status',
-      label: $t('shared.pageOperation.refreshList'),
+      action: loadData,
       description: 'Reload storage status and driver list',
-      readonly: true,
-      handler: async () => {
-        await loadData();
-        return { success: true, message: 'Storage status refreshed' };
-      },
-    },
-    {
+    }),
+    createSavePageOperation({
       name: 'save_config',
       label: $t('shared.pageOperation.saveConfig'),
-      description: 'Save the current storage configuration (only available in custom mode)',
+      description:
+        'Save the current storage configuration (only available in custom mode)',
+      action: onSave,
+    }),
+    createSimplePageOperation({
+      name: 'test_connection',
+      label: $t('shared.storage.testConnection'),
+      description:
+        'Test the current storage connection with the selected driver and credentials / 使用当前所选驱动与凭证测试存储连接',
       readonly: false,
-      handler: async () => {
-        await onSave();
-        return { success: true, message: 'Storage config saved' };
-      },
-    },
+      action: onTestConnection,
+    }),
   ],
 });
 </script>

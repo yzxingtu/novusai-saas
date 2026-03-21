@@ -132,7 +132,6 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
     },
   },
   ai: {
-    pageKey: 'admin.ai.table-policies',
     formSchema: () => useFormSchema(),
     entityName: $t('admin.ai.tablePolicy.name'),
     entityDescription: $t('admin.ai.tablePolicy.pageDesc'),

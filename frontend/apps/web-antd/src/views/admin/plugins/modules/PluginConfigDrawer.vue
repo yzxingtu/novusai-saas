@@ -73,6 +73,7 @@ import {
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
 import { formatDate } from '#/utils/common';
+import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 import { getScopeText } from '#/utils/scope-helpers';
 
 import {
@@ -592,6 +593,12 @@ async function onDeleteBackup(backupName: string) {
 }
 
 defineExpose({ open });
+
+function getPluginMetadataIcon(pluginName: string, icon: null | string | undefined) {
+  return resolvePluginMetadataIcon(pluginName, icon, {
+    endpoint: 'admin',
+  });
+}
 </script>
 
 <template>
@@ -609,24 +616,14 @@ defineExpose({ open });
           :class="plugin.status === 'enabled' ? 'bg-primary/10' : 'bg-muted/30'"
         >
           <img
-            v-if="
-              plugin.icon && /\.(png|jpg|jpeg|svg|webp)$/i.test(plugin.icon)
-            "
-            :src="
-              plugin.icon.startsWith('http') || plugin.icon.startsWith('/')
-                ? plugin.icon
-                : `/plugin-assets/${plugin.name}/${plugin.icon}`
-            "
+            v-if="getPluginMetadataIcon(plugin.name, plugin.icon).kind === 'image'"
+            :src="getPluginMetadataIcon(plugin.name, plugin.icon).src"
             class="size-7 rounded"
             :alt="plugin.display_name"
           />
           <IconifyIcon
             v-else
-            :icon="
-              plugin.icon && plugin.icon.includes(':')
-                ? plugin.icon
-                : 'lucide:plug'
-            "
+            :icon="getPluginMetadataIcon(plugin.name, plugin.icon).icon"
             class="size-7"
             :class="
               plugin.status === 'enabled'

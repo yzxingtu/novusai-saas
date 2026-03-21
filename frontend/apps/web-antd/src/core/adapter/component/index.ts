@@ -162,13 +162,13 @@ const withPreviewUpload = () => {
         return {
           default: () =>
             h(
-              Button,
-              {
-                icon: h(IconifyIcon, {
-                  icon: 'ant-design:upload-outlined',
-                  class: 'mb-1 size-4',
-                }),
-              },
+                Button,
+                {
+                  icon: h(IconifyIcon, {
+                    icon: 'lucide:upload',
+                    class: 'mb-1 size-4',
+                  }),
+                },
               () => placeholder,
             ),
         };

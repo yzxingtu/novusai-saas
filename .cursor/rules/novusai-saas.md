@@ -19,6 +19,7 @@
 - `trace-and-monitoring.md` — `X-Trace-ID`、LogManager、Prometheus/Grafana
 - `tenant-architecture.md` — 企业端能力边界
 - `menu-i18n.md` — 动态菜单多语言职责边界
+- `.cursor/skills/novusai-saas/references/icon-spec.md` — 图标来源、Lucide 子集、插件图标与第三方 Iconify 离线使用规范
 
 ## 全局禁令
 
@@ -104,9 +105,15 @@ const canEdit = row.tenant_id != null && row.tenant_id === currentTenantId;
 
 ### 图标
 
-- 优先 Lucide：`lucide:user`
+- 平台功能图标只允许：
+  - `lucide:*`
+  - 仓库内自托管 `svg:*`
+- 禁止在运行时请求 `api.iconify.design` 或任何在线 Iconify collection/search 接口
+- 插件元数据图标不走任意 Iconify 前缀，只允许插件根目录 `icon.png`；未提供时统一回退 `lucide:plug`
+- 如确需第三方 Iconify 集合，必须先离线 vendoring 到仓库并更新规范，禁止临时线上拉取
 - 组件：统一用 `IconifyIcon`
 - Tailwind 类：`icon-[lucide--user]`（`--` 代替 `:`）
+- 详细规范见 `.cursor/skills/novusai-saas/references/icon-spec.md`
 
 ### Vue 应用启动
 
@@ -117,6 +124,59 @@ const canEdit = row.tenant_id != null && row.tenant_id === currentTenantId;
 - 页面操作 handler 返回的 `message` 必须用 `$t('shared.pageOperation.msg.xxx')`，禁止硬编码中英文
 - **pageop_ 优先**：有 `pageop_*` 专用工具时优先使用，仅不可用时回退到 `invoke_page_operation`
 - **JSON 参数容错**：`invoke_page_operation` 参数 JSON 解析失败连续 3 次后中止 tool loop，避免无限重试
+- **默认自动接入**：CRUD 列表页优先使用 `useCrudPage` / `useCrudList` 的 `ai` 配置；详情页优先使用 `useDetailPageAi()`；富文本页优先使用 `useEditorPageOps()`。禁止页面重新手写一套 `registerPageContext()` / `registerPageOperations()` 流程
+- **特殊抽屉/弹窗统一 helper**：纯打开型操作优先用 `createOpenPageOperation()`；若先要按 `id/code` 从当前可见列表解析记录，再打开 UI，优先用 `createOpenRecordPageOperation()`；打开新建表单并带默认值时优先用 `createPrefilledCreatePageOperation()`；禁止在注册数组里直接散写 `ref?.open(...)`
+- **当前可见记录动作统一 helper**：如果页面操作要先按 `id/code` 在当前可见列表中解析记录，再执行 verify / set-primary / publish 之类动作，优先用 `createRecordActionPageOperation()`，不要重复手写 `findById + notFound + action`
+- **ref 模式表单打开负载统一构造**：需要传 `_aiPageKey`、`_defaults` 给 `openNew()` / `openEdit()` 或 `drawerApi.setData()` 时，优先用 `buildPageAIFormExtraData()`，不要在页面里重复拼装 `{ _aiPageKey, _defaults }`
+- **详情页当前实体子面板统一 helper**：当前详情页打开 access-config / version-history / permission-drawer 这类“依赖当前实体已加载”的 UI，优先用 `createOpenCurrentPageOperation()`，不要每页手写 `if (!entity) return { success:false }`
+- **嵌套弹窗宿主负责封装意图**：像 `DomainsModal` 这种内部再挂 add/detail/ssl/dns 子 UI 的宿主组件，应暴露 `openAddXxx()` / `openDetailXxx()` 之类意图方法；父页面不要越过宿主直接操作内部子组件 ref
+- **页面级自定义只做两件事**：补 `contextExtras` / `usePageAIContext({ contextStrategy: 'extras' })`，以及通过 `ai.extra` / `useDetailPageAi({ extra })` / `usePageAIOperations({ operationStrategy: 'append' })` 追加少量自定义操作。不要覆盖平台自动能力
+- **非 CRUD 自定义页默认 append**：只要页面使用 `usePageAIOperations()`，默认传 `operationStrategy: 'append'`；只有明确要整体替换平台能力时才允许不追加
+- **禁用优先于重写**：页面需要裁剪 AI 能力时，用 `disabledCapabilities` / `disabledOperations` / `enabled: false`，不要通过复制标准操作再删改来“重写整页”
+- **打开型操作默认只接收稳定参数**：优先传 `id` / `code` 等稳定标识，在 handler 内部查当前页可见数据，再调用本地 `openXxx(...)` helper 打开目标 UI；不要让 AI 直接传整个 row payload
+- **带默认值的新建操作统一承接前置条件**：`createPrefilledCreatePageOperation()` 的 `openCreate()` 可直接返回失败结果，用于“未选中父实体”等前置条件；不要为了这类判断再在页面里手写一层平行 helper
+- **CRUD 页优先挂回 `ai.extra`**：页面如果已经使用 `useCrudPage` / `useCrudList`，特殊 AI 操作优先写进 `ai.extra`；只有非 CRUD 页或必须脱离自动能力时，才额外使用 `usePageAIOperations({ operationStrategy: 'append' })`
+
+```typescript
+// CRUD 列表页：优先走自动 page AI，再用 ai.extra 追加少量特殊操作
+const { aiPageKey } = useCrudPage({
+  ...options,
+  ai: {
+    formSchema: useFormSchema,
+    extra: [
+      createOpenPageOperation({
+        name: 'open_special_drawer',
+        label: $t('xxx.openSpecialDrawer'),
+        description: 'Open the special drawer by record ID / 按记录 ID 打开特殊抽屉',
+        readonly: true,
+        params: {
+          id: { type: 'number', required: true, description: 'Record ID / 记录 ID' },
+        },
+        normalizeParams: (params) => ({ id: Number(params.id ?? 0) }),
+        open: async (_payload, params) => {
+          const row = findVisibleRowById(params.id);
+          if (!row) {
+            return {
+              success: false,
+              message: $t('shared.pageOperation.msg.recordNotFoundInList', { id: params.id }),
+            };
+          }
+          openSpecialDrawer(row);
+        },
+        successMessage: (params) =>
+          $t('shared.pageOperation.msg.detailOpened', { id: params.id }),
+      }),
+    ],
+  },
+});
+
+// 非 CRUD 页面：只追加，不替换
+usePageAIOperations({
+  pageKey: aiPageKey,
+  operationStrategy: 'append',
+  operations: [/* custom ops */],
+});
+```
 
 ### 命名
 

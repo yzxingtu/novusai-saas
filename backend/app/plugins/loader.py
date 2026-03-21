@@ -99,11 +99,27 @@ class PluginLoader:
             )
 
         try:
-            return PluginManifest.model_validate(data)
+            manifest = PluginManifest.model_validate(data)
         except Exception as exc:
             raise PluginManifestError(
                 message=f"Manifest validation failed for '{plugin_name}': {exc}",
             )
+        manifest.icon = self._resolve_plugin_metadata_icon(
+            yaml_path.parent,
+            manifest.icon,
+        )
+        return manifest
+
+    @staticmethod
+    def _resolve_plugin_metadata_icon(
+        plugin_dir: Path,
+        declared_icon: str,
+    ) -> str:
+        raw = (declared_icon or "").strip()
+        if raw == "icon.png":
+            return raw
+
+        return "icon.png" if (plugin_dir / "icon.png").is_file() else ""
 
     def load_manifest(self, plugin_name: str) -> PluginManifest:
         """

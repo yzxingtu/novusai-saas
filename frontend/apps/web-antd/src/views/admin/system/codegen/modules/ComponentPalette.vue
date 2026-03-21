@@ -59,7 +59,7 @@ const PALETTE_GROUPS: { title: string; items: PaletteItem[] }[] = [
     title: 'admin.system.codegen.palette.relation',
     items: [
       { type: 'ForeignKey', component: 'ApiSelect', icon: 'lucide:link', label: 'admin.system.codegen.palette.fkSingle', defaultName: 'category_id' },
-      { type: 'ForeignKey', component: 'ApiSelect', icon: 'lucide:links', label: 'admin.system.codegen.palette.fkMulti', defaultName: 'tag_ids', multiple: true },
+      { type: 'ForeignKey', component: 'ApiSelect', icon: 'lucide:link-2', label: 'admin.system.codegen.palette.fkMulti', defaultName: 'tag_ids', multiple: true },
       { type: 'TreeSelect', component: 'ApiTreeSelect', icon: 'lucide:git-branch', label: 'admin.system.codegen.palette.treeSelect', defaultName: 'parent_id' },
       { type: 'UserSelect', component: 'ApiSelect', icon: 'lucide:user', label: 'admin.system.codegen.palette.userSelect', defaultName: 'created_by' },
       { type: 'DeptSelect', component: 'ApiTreeSelect', icon: 'lucide:building-2', label: 'admin.system.codegen.palette.deptSelect', defaultName: 'dept_id' },

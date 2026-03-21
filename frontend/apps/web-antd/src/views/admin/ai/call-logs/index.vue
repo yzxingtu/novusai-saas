@@ -14,6 +14,10 @@ import { Card, Spin, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogListApi, getAICallLogStatisticsApi } from '#/api/admin/ai';
+import {
+  createRefreshPageOperation,
+  createViewDetailPageOperation,
+} from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { getProcessedImageUrl } from '#/utils/image';
@@ -131,7 +135,6 @@ const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
     detail: onViewDetail,
   },
   ai: {
-    pageKey: 'admin.ai.call-logs',
     entityName: $t('admin.ai.callLog.name'),
     entityDescription: $t('admin.ai.callLog.pageDesc'),
     contextExtras: () => ({
@@ -142,50 +145,23 @@ const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
       total_tokens: summaryData.value.total_tokens,
     }),
     extra: [
-      {
-        name: 'refresh_list',
-        label: $t('shared.pageOperation.refreshList'),
+      createRefreshPageOperation({
         description:
           'Reload the call log list and summary / 重新加载调用日志列表与摘要',
-        readonly: true,
-        handler: async () => {
-          onRefresh();
+        action: async () => {
+          await Promise.resolve(onRefresh());
           await loadSummary();
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.listRefreshed'),
-          };
         },
-      },
-      {
-        name: 'view_detail',
-        label: $t('shared.pageOperation.viewDetail'),
+      }),
+      createViewDetailPageOperation({
         description:
           'Open the call log detail drawer by ID / 按 ID 打开调用日志详情抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Call log ID / 调用日志 ID',
-            required: true,
-          },
-        },
-        handler: async (params) => {
-          const id = Number(params.id);
-          if (!Number.isFinite(id) || id <= 0) {
-            return {
-              success: false,
-              message: $t('shared.pageOperation.msg.missingIdParam'),
-            };
-          }
+        idDescription: 'Call log ID / 调用日志 ID',
+        openDetail: async (id) => {
           detailLogId.value = id;
           detailOpen.value = true;
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.detailOpened', { id }),
-          };
         },
-      },
+      }),
     ],
   },
 });

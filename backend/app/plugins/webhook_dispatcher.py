@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 from app.rbac.decorators import public
 
 logger = get_logger(__name__)
@@ -47,30 +48,25 @@ async def webhook_dispatcher(
     """
     start = time.perf_counter()
 
-    # 1. Find enabled plugin / 查找已启用插件
+    # 1. Resolve runtime gate / 解析运行时闸门
     from app.core.database import async_session_factory
 
     async with async_session_factory() as db:
-        from sqlalchemy import select
-
-        from app.models.system.plugin import Plugin
-
-        result = await db.execute(
-            select(Plugin.status, Plugin.config, Plugin.manifest).where(
-                Plugin.name == plugin_name,
-                Plugin.is_deleted.is_(False),
-            )
+        gate = await evaluate_plugin_runtime_gate(
+            db,
+            plugin_name,
+            tenant_id=None,
+            require_enabled=True,
+            enforce_scope=False,
         )
-        row = result.one_or_none()
-        from app.enums.plugin import PluginStatusEnum
-        if not row or row[0] != PluginStatusEnum.ENABLED.value:
+        if not gate.allowed:
             return JSONResponse(
                 status_code=404,
                 content={"error": f"Plugin '{plugin_name}' not found or disabled"},
             )
 
-        plugin_config = row[1] or {}
-        manifest_data = row[2] or {}
+        plugin_config = gate.config or {}
+        manifest_data = gate.manifest or {}
 
     # 2. Match webhook definition / 匹配 webhook 定义
     extensions = manifest_data.get("extensions", {})

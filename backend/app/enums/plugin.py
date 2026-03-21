@@ -44,6 +44,7 @@ class PluginLicenseTypeEnum(LabeledStrEnum):
     """License Type Enum / License 类型枚举"""
 
     TRIAL = ("trial", "enum.plugin_license.trial")
+    FIXED_TERM = ("fixed_term", "enum.plugin_license.fixed_term")
     PERPETUAL = ("perpetual", "enum.plugin_license.perpetual")
 
 

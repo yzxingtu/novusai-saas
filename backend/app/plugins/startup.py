@@ -19,11 +19,95 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
+from app.plugins.dependencies import (
+    build_plugin_dependency_states,
+    build_python_dependency_states,
+    normalize_plugin_dependencies,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
+
+_STALE_PLUGIN_ERROR_MARKERS = (
+    "Manifest drift detected on disk.",
+    "Disk plugin version drift detected:",
+    "Plugin files missing from disk",
+    "admin_and_assigned",
+    "admin_and_all",
+)
+
+
+def _infer_reconciled_status(plugin) -> str:
+    from app.enums.plugin import PluginStatusEnum
+
+    return (
+        PluginStatusEnum.DISABLED.value
+        if getattr(plugin, "enabled_at", None)
+        else PluginStatusEnum.INSTALLED.value
+    )
+
+
+def _reconcile_stale_plugin_error(plugin) -> bool:
+    from app.enums.plugin import PluginStatusEnum
+
+    message = str(getattr(plugin, "error_message", "") or "")
+    if not message:
+        return False
+
+    if not any(marker in message for marker in _STALE_PLUGIN_ERROR_MARKERS):
+        return False
+
+    status = getattr(plugin, "status", None)
+    if status == PluginStatusEnum.ERROR.value:
+        plugin.status = _infer_reconciled_status(plugin)
+
+    plugin.error_message = None
+    plugin.error_count = 0
+    return True
+
+
+async def _collect_startup_dependency_errors(db: AsyncSession, manifest) -> list[str]:
+    """Collect runtime dependency errors during startup restore. / 启动恢复阶段收集依赖错误。"""
+    from sqlalchemy import select
+
+    from app.models.system.plugin import Plugin as PluginModel
+
+    errors: list[str] = []
+
+    plugin_requirements = normalize_plugin_dependencies(manifest)
+    if plugin_requirements:
+        dependency_names = sorted({item.plugin for item in plugin_requirements})
+        result = await db.execute(
+            select(PluginModel.name, PluginModel.version, PluginModel.status).where(
+                PluginModel.name.in_(dependency_names),
+                PluginModel.is_deleted.is_(False),
+            )
+        )
+        plugin_rows = {
+            row[0]: {
+                "name": row[0],
+                "status": row[2],
+                "version": row[1],
+            }
+            for row in result.all()
+        }
+        for state in build_plugin_dependency_states(
+            plugin_requirements,
+            plugin_rows,
+            require_enabled=True,
+        ):
+            if state.state != "ready":
+                errors.append(state.message)
+
+    for state in build_python_dependency_states(
+        getattr(manifest.dependencies, "python", []) or []
+    ):
+        if not state["satisfied"]:
+            errors.append(str(state["message"]))
+
+    return errors
 
 
 async def discover_and_register(db: AsyncSession) -> dict:
@@ -33,12 +117,13 @@ async def discover_and_register(db: AsyncSession) -> dict:
 
     Scans all subdirectories containing plugin.yaml in plugins/ directory:
     - On disk + not in DB → auto-register as installed (disabled), run Alembic migration + AI features
-    - On disk + in DB → sync manifest to DB (hot-update plugin.yaml fields)
+    - On disk + in DB + same version but manifest drift → mark sync_required, do not hot-sync DB
+    - On disk + in DB + version drift → mark upgrade_required, do not hot-upgrade DB/runtime
     - In DB + not on disk → mark as error (files missing)
-    / 磁盘有+DB无→注册，磁盘有+DB有→同步，DB有+磁盘无→标错
+    / 磁盘有+DB无→注册；磁盘有+DB有但同版本漂移→提示显式 sync；版本漂移→提示正式 upgrade；DB有磁盘无→标错
 
     Returns:
-        {"discovered": N, "synced": N, "missing": N, "failed": N}
+        {"discovered": N, "sync_required": N, "upgrade_required": N, "missing": N, "failed": N}
     """
     from sqlalchemy import select
 
@@ -50,6 +135,7 @@ async def discover_and_register(db: AsyncSession) -> dict:
     )
     from app.models.system.plugin import Plugin as PluginModel
     from app.models.system.plugin_version import PluginVersion
+    from app.plugins.frontend_contract import validate_runtime_frontend_contract
     from app.plugins.loader import PLUGINS_DIR, PluginLoader
     from app.plugins.preview import resolve_i18n
 
@@ -63,14 +149,17 @@ async def discover_and_register(db: AsyncSession) -> dict:
     db_plugins = {p.name: p for p in result.scalars().all()}
 
     discovered = 0
-    synced = 0
+    sync_required = 0
+    upgrade_required = 0
     missing = 0
     failed = 0
+    reconciled = 0
 
     # ── On disk → check if registration or sync needed / 磁盘有 → 检查注册或同步 ──
     for plugin_name in sorted(disk_plugins):
         try:
             manifest = loader.load_manifest(plugin_name)
+            validate_runtime_frontend_contract(loader.plugins_dir / plugin_name, manifest)
         except Exception as exc:
             logger.warning(
                 "Discover: skipping {} (invalid manifest): {}", plugin_name, exc,
@@ -205,23 +294,40 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     "Discover: failed to register {}: {}", plugin_name, exc, exc_info=True,
                 )
         else:
-            # ── Already exists: sync manifest / 已存在：同步 manifest ──
+            # ── Already exists: detect drift only, do not hot-sync / 已存在：仅检测漂移，不热同步 ──
             existing_plugin = db_plugins[plugin_name]
             disk_manifest = manifest.model_dump()
             if existing_plugin.manifest != disk_manifest:
-                existing_plugin.manifest = disk_manifest
-                existing_plugin.display_name = resolve_i18n(manifest.display_name)
-                existing_plugin.description = resolve_i18n(manifest.description) if manifest.description else existing_plugin.description
-                existing_plugin.version = manifest.version
-                existing_plugin.icon = manifest.icon or existing_plugin.icon
-                existing_plugin.icon_color = manifest.icon_color or existing_plugin.icon_color
-                existing_plugin.tags = manifest.tags
-                existing_plugin.scope = manifest.scope
-                existing_plugin.installed_packages = manifest.dependencies.python or []
-                existing_plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else existing_plugin.ai_requirements
-                existing_plugin.granted_capabilities = manifest.capabilities or existing_plugin.granted_capabilities
-                synced += 1
-                logger.info("Discover: synced manifest for {}", plugin_name)
+                if manifest.version != existing_plugin.version:
+                    upgrade_required += 1
+                    existing_plugin.error_message = (
+                        "Disk plugin version drift detected: "
+                        f"DB={existing_plugin.version}, disk={manifest.version}. "
+                        "Use formal upgrade instead of startup discover."
+                    )
+                    logger.warning(
+                        "Discover: plugin {} version drift detected (db={} disk={}), formal upgrade required",
+                        plugin_name,
+                        existing_plugin.version,
+                        manifest.version,
+                    )
+                else:
+                    sync_required += 1
+                    existing_plugin.error_message = (
+                        "Manifest drift detected on disk. "
+                        "Run explicit sync-manifest to apply non-version changes."
+                    )
+                    logger.info(
+                        "Discover: plugin {} manifest drift detected, explicit sync required",
+                        plugin_name,
+                    )
+            elif _reconcile_stale_plugin_error(existing_plugin):
+                reconciled += 1
+                logger.info(
+                    "Discover: reconciled stale plugin error state for {} -> {}",
+                    plugin_name,
+                    existing_plugin.status,
+                )
 
     # ── In DB but not on disk → mark error / DB 有但磁盘无 → 标记 error ──
     for plugin_name, plugin in db_plugins.items():
@@ -232,16 +338,17 @@ async def discover_and_register(db: AsyncSession) -> dict:
             missing += 1
             logger.warning("Discover: plugin {} missing from disk, marked error", plugin_name)
 
-    if discovered > 0 or synced > 0 or missing > 0:
+    if discovered > 0 or sync_required > 0 or upgrade_required > 0 or missing > 0 or reconciled > 0:
         await db.flush()
 
     logger.info(
-        "Plugin discover complete: discovered={}, synced={}, missing={}, failed={}",
-        discovered, synced, missing, failed,
+        "Plugin discover complete: discovered={}, sync_required={}, upgrade_required={}, missing={}, reconciled={}, failed={}",
+        discovered, sync_required, upgrade_required, missing, reconciled, failed,
     )
     return {
         "discovered": discovered,
-        "synced": synced,
+        "sync_required": sync_required,
+        "upgrade_required": upgrade_required,
         "missing": missing,
         "failed": failed,
     }
@@ -289,11 +396,13 @@ async def restore_enabled_plugins(
     registry = ExtensionRegistry.get_instance()
     restored = 0
     failed = 0
+    status_changed = False
 
     from app.plugins._extension_registrar import (
         get_failed_extensions,
         register_all_extensions,
     )
+    from app.plugins.frontend_contract import validate_runtime_frontend_contract
     from app.plugins.lifecycle import PluginLifecycle
 
     lifecycle = PluginLifecycle(db) if run_heavy else None
@@ -301,10 +410,47 @@ async def restore_enabled_plugins(
 
     for plugin in enabled_plugins:
         try:
+            from app.plugins.license import get_plugin_runtime_license_status
+
+            license_status = await get_plugin_runtime_license_status(
+                plugin.id,
+                plugin.pricing_type,
+                db,
+            )
+            if not license_status.get("runtime_allowed", False):
+                if mutate_db_status:
+                    plugin.status = PluginStatusEnum.DISABLED.value
+                    plugin.error_message = (
+                        "Startup restore skipped: "
+                        + (license_status.get("message") or "license inactive")
+                    )
+                    plugin.error_count = 0
+                    status_changed = True
+                logger.warning(
+                    "Restore({}) skipped plugin {} due to inactive license: {}",
+                    mode_label,
+                    plugin.name,
+                    license_status.get("status"),
+                )
+                continue
+
             manifest = loader.load_manifest(plugin.name)
+            validate_runtime_frontend_contract(loader.plugins_dir / plugin.name, manifest)
+            if manifest.version != plugin.version:
+                raise RuntimeError(
+                    "Disk plugin version drift detected: "
+                    f"DB={plugin.version}, disk={manifest.version}. "
+                    "Formal upgrade is required before startup restore."
+                )
 
             # NOTE: manifest sync already handled by discover_and_register(), not repeated here
-            # / manifest sync 已由 discover_and_register() 处理
+            # / 启动阶段不做 manifest 同步，显式 sync-manifest 才允许写回 DB
+
+            dependency_errors = await _collect_startup_dependency_errors(db, manifest)
+            if dependency_errors:
+                raise RuntimeError(
+                    "Dependency validation failed: " + "; ".join(dependency_errors)
+                )
 
             if run_heavy:
                 # Ensure Alembic migration has been executed (prevent plugin tables lost after DB rebuild)
@@ -320,18 +466,6 @@ async def restore_enabled_plugins(
                             plugin.name,
                             exc,
                         )
-
-                # Ensure Python dependencies installed (prevent missing venv after clone/pull)
-                # / 确保 Python 依赖已安装
-                if manifest.dependencies.python:
-                    await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
-
-                # Ensure frontend npm dependencies installed (dev mode, prevent missing deps after clone/pull)
-                # / 确保前端 npm 依赖已安装
-                frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-                npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-                if npm_deps:
-                    await lifecycle._install_npm_deps(plugin.name, npm_deps)
 
             # Register all extension points (shared function, used by lifecycle.enable)
             # / 注册所有扩展点
@@ -355,6 +489,7 @@ async def restore_enabled_plugins(
             if mutate_db_status and plugin.error_count > 0:
                 plugin.error_count = 0
                 plugin.error_message = None
+                status_changed = True
 
             restored += 1
             logger.info(
@@ -370,6 +505,7 @@ async def restore_enabled_plugins(
                 plugin.status = PluginStatusEnum.ERROR.value
                 plugin.error_message = f"Startup restore failed: {exc}"
                 plugin.error_count += 1
+                status_changed = True
             logger.error(
                 "Failed to restore plugin({}) {}: {}",
                 mode_label,
@@ -378,7 +514,7 @@ async def restore_enabled_plugins(
                 exc_info=True,
             )
 
-    if mutate_db_status and (restored > 0 or failed > 0):
+    if mutate_db_status and status_changed:
         await db.flush()
 
     logger.info(

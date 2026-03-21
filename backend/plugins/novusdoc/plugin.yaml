@@ -7,7 +7,7 @@ description:
   zh-CN: "轻量文档管理插件，支持文件夹、标签、全文搜索和导出。编辑器和 AI 能力由平台提供。"
   en: "Lightweight document management plugin with folders, tags, full-text search and export. Editor and AI powered by platform."
 author: "NovusAI"
-icon: "lucide:file-text"
+icon: ""
 scope: admin_and_selected_tenants
 
 capabilities:
@@ -15,6 +15,10 @@ capabilities:
   - storage:read
   - storage:write
   - config:write
+
+dependencies:
+  python: []
+  plugins: []
 
 pricing:
   type: free
@@ -66,35 +70,25 @@ extensions:
       - { method: GET,    path: "docs/{doc_id}/export", handler: "api.export.export_doc" }
 
   frontend:
-    menus:
-      - name: novusdoc_tenant
-        path: /tenant/plugins/novusdoc
-        icon: "lucide:file-text"
-        sort_order: 50
-        scope: tenant
-        title:
-          zh-CN: "文档管理"
-          en: "Documents"
-      - name: novusdoc_admin
-        path: /admin/plugins/novusdoc
-        icon: "lucide:file-text"
-        sort_order: 50
-        scope: admin
-        title:
-          zh-CN: "文档管理"
-          en: "Documents"
-
-    standalone_pages:
+    pages:
       - name: novusdoc-tenant
         path: /tenant/plugins/novusdoc
         component: "NovusDocPage"
+        scope: tenant
         icon: "lucide:file-text"
         title:
           zh-CN: "文档管理"
           en: "Documents"
+        menu:
+          icon: "lucide:file-text"
+          sort_order: 50
+          title:
+            zh-CN: "文档管理"
+            en: "Documents"
       - name: novusdoc-tenant-editor
         path: /tenant/plugins/novusdoc/editor/:id
         component: "NovusDocEditor"
+        scope: tenant
         icon: "lucide:edit-3"
         title:
           zh-CN: "编辑文档"
@@ -102,14 +96,26 @@ extensions:
       - name: novusdoc-admin
         path: /admin/plugins/novusdoc
         component: "NovusDocAdminPage"
+        scope: admin
         icon: "lucide:file-text"
         title:
           zh-CN: "文档管理"
           en: "Documents"
+        menu:
+          icon: "lucide:file-text"
+          sort_order: 50
+          title:
+            zh-CN: "文档管理"
+            en: "Documents"
       - name: novusdoc-admin-editor
         path: /admin/plugins/novusdoc/editor/:id
         component: "NovusDocAdminEditor"
+        scope: admin
         icon: "lucide:edit-3"
         title:
           zh-CN: "编辑文档"
           en: "Edit Document"
+    dev:
+      entry: "src/index.ts"
+    release:
+      manifest: "plugin.manifest.json"

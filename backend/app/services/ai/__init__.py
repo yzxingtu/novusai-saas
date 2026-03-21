@@ -3,7 +3,7 @@ AI 模块 Service 层 / AI Module Service Layer
 """
 
 from app.services.ai.agent_service import AgentService
-from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
+from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
 from app.services.ai.api_key_service import ProviderApiKeyService
 from app.services.ai.call_log_service import CallLogService
 from app.services.ai.model_service import AIModelService
@@ -30,6 +30,6 @@ __all__ = [
     "AITablePolicyService",
     "AITablePolicyOverrideService",
     "SkillService",
-    "AgentSkillBindingService",
+    "AgentSkillGrantService",
     "SessionMemoryService",
 ]

@@ -17,6 +17,10 @@ import {
   getAIConversationDetailApi,
   getAIConversationListApi,
 } from '#/api/admin/ai';
+import {
+  createKeywordSearchPageOperation,
+  createViewDetailPageOperation,
+} from '#/composables';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import type { ConversationCallLogSummary } from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
@@ -69,80 +73,34 @@ const { Grid, gridApi } = useCrudPage<AIConversationInfo>({
     detail: onViewDetail,
   },
   ai: {
-    pageKey: 'admin.ai.conversations',
     entityName: $t('admin.ai.conversation.name'),
     entityDescription: $t('admin.ai.conversation.pageDesc'),
     extra: [
-      {
-        name: 'search',
-        label: $t('shared.pageOperation.searchByKeyword'),
+      createKeywordSearchPageOperation({
         description:
           'Search conversations by title keyword / 按标题关键字搜索对话',
-        readonly: true,
-        params: {
-          keyword: {
-            type: 'string',
-            description: 'Conversation title keyword / 对话标题关键字',
-          },
-        },
-        handler: async (params) => {
-          const keyword = (params?.keyword as string) || '';
-          gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
+        keywordDescription: 'Conversation title keyword / 对话标题关键字',
+        setKeyword: () => {},
+        action: async (keyword) => {
+          gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword || undefined });
           gridApi.reload({ page: 1 });
-          return {
-            success: true,
-            message: keyword
-              ? $t('shared.pageOperation.msg.searchApplied', {
-                  fields: 'title',
-                })
-              : $t('shared.pageOperation.msg.searchCleared'),
-          };
         },
-      },
-      {
-        name: 'clear_search',
-        label: $t('shared.pageOperation.clearSearch'),
-        description:
-          'Clear the conversation title search filter / 清空对话标题搜索条件',
-        readonly: true,
-        handler: async () => {
-          gridApi.formApi?.setValues({ 'filter[title][ilike]': undefined });
-          gridApi.reload({ page: 1 });
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.searchCleared'),
-          };
-        },
-      },
-      {
-        name: 'view_detail',
-        label: $t('shared.pageOperation.viewDetail'),
+        successMessage: (keyword) =>
+          keyword
+            ? $t('shared.pageOperation.msg.searchApplied', {
+                fields: 'title',
+              })
+            : $t('shared.pageOperation.msg.searchCleared'),
+      }),
+      createViewDetailPageOperation({
         description:
           'Open the conversation detail drawer by ID / 按 ID 打开对话详情抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Conversation ID / 对话 ID',
-            required: true,
-          },
-        },
-        handler: async (params) => {
-          const id = Number(params.id);
-          if (!Number.isFinite(id) || id <= 0) {
-            return {
-              success: false,
-              message: $t('shared.pageOperation.msg.missingIdParam'),
-            };
-          }
+        idDescription: 'Conversation ID / 对话 ID',
+        openDetail: async (id) => {
           detailId.value = id;
           detailOpen.value = true;
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.detailOpened', { id }),
-          };
         },
-      },
+      }),
     ],
   },
 });

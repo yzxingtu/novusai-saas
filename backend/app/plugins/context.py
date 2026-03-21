@@ -26,7 +26,6 @@ from app.enums.agent import (
     MemoryChannelEnum,
     MemorySceneEnum,
 )
-from app.enums.plugin import PluginLicenseTypeEnum
 from app.plugins.exceptions import PluginSecurityError
 
 # Precompiled: match SQL keywords followed by table names (including \t \n whitespace separators)
@@ -363,97 +362,9 @@ class PluginContext:
         Only allows reading the current plugin's own license, does not expose arbitrary system table access.
         / 仅允许读取当前插件自身的 license，不暴露任意系统表访问能力。
         """
-        from sqlalchemy import select
+        from app.plugins.license import get_license_status_by_name
 
-        from app.core.base_model import utc_now
-        from app.models.system.plugin import Plugin
-        from app.models.system.plugin_license import PluginLicense
-
-        plugin_id_result = await self._db.execute(
-            select(Plugin.id).where(
-                Plugin.name == self.plugin_name,
-                Plugin.is_deleted.is_(False),
-            )
-        )
-        plugin_id = plugin_id_result.scalar_one_or_none()
-        if not plugin_id:
-            return {
-                "status": "invalid",
-                "license_type": None,
-                "is_valid": False,
-                "message": f"Plugin '{self.plugin_name}' not found",
-            }
-
-        result = await self._db.execute(
-            select(PluginLicense).where(
-                PluginLicense.plugin_id == plugin_id,
-                PluginLicense.is_deleted.is_(False),
-            ).order_by(PluginLicense.created_at.desc()).limit(1)
-        )
-        license_record = result.scalars().first()
-
-        if not license_record:
-            return {
-                "status": "invalid",
-                "license_type": None,
-                "is_valid": False,
-                "message": "No license found",
-            }
-
-        now = utc_now()
-        _TRIAL = PluginLicenseTypeEnum.TRIAL.value
-        license_type = getattr(license_record, "license_type", None)
-        trial_expires_at = getattr(license_record, "trial_expires_at", None)
-        expires_at = getattr(license_record, "expires_at", None)
-        activated_at = getattr(license_record, "activated_at", None)
-        is_valid = bool(getattr(license_record, "is_valid", False))
-
-        if license_type == _TRIAL:
-            if trial_expires_at and now < trial_expires_at:
-                remaining = (trial_expires_at - now).days
-                return {
-                    "status": "trial",
-                    "license_type": _TRIAL,
-                    "is_valid": True,
-                    "trial_days_remaining": remaining,
-                    "expires_at": trial_expires_at.isoformat() if trial_expires_at else None,
-                }
-            return {
-                "status": "expired",
-                "license_type": _TRIAL,
-                "is_valid": False,
-                "message": "Trial period expired",
-            }
-
-        if is_valid:
-            # Check if paid license has expired / 检查付费 License 是否过期
-            if expires_at and now >= expires_at:
-                return {
-                    "status": "expired",
-                    "license_type": license_type,
-                    "is_valid": False,
-                    "message": "License expired",
-                    "expires_at": expires_at.isoformat() if expires_at else None,
-                }
-            remaining_days = None
-            if expires_at:
-                remaining_days = (expires_at - now).days
-            return {
-                "status": "active",
-                "license_type": license_type,
-                "is_valid": True,
-                "license_key": "****",
-                "activated_at": activated_at.isoformat() if activated_at else None,
-                "expires_at": expires_at.isoformat() if expires_at else None,
-                "remaining_days": remaining_days,
-            }
-
-        return {
-            "status": "expired",
-            "license_type": license_type,
-            "is_valid": False,
-            "message": "License expired or revoked",
-        }
+        return await get_license_status_by_name(self.plugin_name, self._db)
 
     # ── Logging / 日志 ──
 

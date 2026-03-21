@@ -629,6 +629,23 @@
       "scope_mismatch": "Agent and skill package scopes are incompatible"
     }
   },
+  "agent_skill_grant": {
+    "field": {
+      "agent_id": "Agent ID",
+      "skill_id": "Skill ID",
+      "enabled": "Enabled",
+      "config_override": "Config Override",
+      "sort_order": "Sort Order",
+      "default_consent_mode": "Default Consent Mode",
+      "capability_consent_overrides": "Capability Consent Overrides"
+    },
+    "error": {
+      "already_bound": "This skill is already bound to this agent",
+      "skill_not_found": "Skill not found",
+      "binding_not_found": "This skill is not bound to this agent",
+      "agent_not_found": "Agent not found"
+    }
+  },
   "platform_tool": {
     "get_dashboard_stats": {
       "name": "Get Dashboard Stats",

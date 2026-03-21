@@ -35,6 +35,14 @@ from app.plugins.exceptions import (
     PluginInstallError,
     PluginSecurityError,
 )
+from app.plugins.dependencies import (
+    build_plugin_dependency_states,
+    detect_direct_python_dependency_conflicts,
+    get_installed_distribution_version,
+    iter_effective_python_requirements,
+    normalize_plugin_dependencies,
+    normalize_python_package_name,
+)
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
 from app.plugins.preview import resolve_i18n
 
@@ -108,7 +116,7 @@ async def _run_subprocess_async(
 
 # Plugin-level distributed lock (prevent concurrent enable/disable/uninstall) / 插件级分布式锁（防止并发 enable/disable/uninstall）
 _LOCK_PREFIX = "plugin:lifecycle:lock:"
-_LOCK_TTL = 900  # seconds, covers long pip/npm/migration flows to prevent premature lock expiry / 秒，覆盖 pip/npm/迁移等长流程，避免锁提前过期导致并发操作
+_LOCK_TTL = 900  # seconds, covers long pip/migration flows to prevent premature lock expiry / 秒，覆盖 pip/迁移等长流程，避免锁提前过期导致并发操作
 _UNLOCK_IF_OWNER_LUA = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
     return redis.call('DEL', KEYS[1])
@@ -205,6 +213,216 @@ class PluginLifecycle:
             )
         return list(dict.fromkeys(prefixes))
 
+    async def _collect_plugin_dependency_states(
+        self,
+        manifest_or_data: object,
+        *,
+        require_enabled: bool,
+    ) -> list[dict[str, object]]:
+        """Collect normalized plugin dependency runtime states. / 收集规范化插件依赖运行时状态。"""
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+
+        requirements = normalize_plugin_dependencies(manifest_or_data)
+        if not requirements:
+            return []
+
+        plugin_names = sorted({item.plugin for item in requirements})
+        result = await self._db.execute(
+            select(PluginModel.name, PluginModel.version, PluginModel.status).where(
+                PluginModel.name.in_(plugin_names),
+                PluginModel.is_deleted.is_(False),
+            )
+        )
+        plugin_rows = {
+            row[0]: {
+                "name": row[0],
+                "status": row[2],
+                "version": row[1],
+            }
+            for row in result.all()
+        }
+        return [
+            state.to_dict()
+            for state in build_plugin_dependency_states(
+                requirements,
+                plugin_rows,
+                require_enabled=require_enabled,
+            )
+        ]
+
+    @staticmethod
+    def _summarize_plugin_dependency_errors(
+        states: list[dict[str, object]],
+    ) -> list[str]:
+        """Convert dependency states to human-readable errors. / 将依赖状态转成错误文本。"""
+        errors: list[str] = []
+        for state in states:
+            if state.get("state") == "ready":
+                continue
+            message = str(state.get("message") or "").strip()
+            if message:
+                errors.append(message)
+        return errors
+
+    async def _assert_plugin_dependencies_ready(
+        self,
+        manifest_or_data: object,
+        *,
+        plugin_name: str,
+        require_enabled: bool,
+        error_cls: type[PluginError],
+        action: str,
+    ) -> list[dict[str, object]]:
+        """Ensure plugin dependencies are satisfied. / 确保插件依赖满足要求。"""
+        states = await self._collect_plugin_dependency_states(
+            manifest_or_data,
+            require_enabled=require_enabled,
+        )
+        errors = self._summarize_plugin_dependency_errors(states)
+        if errors:
+            verb = "enabled" if require_enabled else "installed"
+            raise error_cls(
+                message=(
+                    f"Cannot {action} '{plugin_name}': plugin dependencies are not "
+                    f"{verb}: {'; '.join(errors)}"
+                ),
+            )
+        return states
+
+    def _load_project_pyproject_requirements(self) -> list[str]:
+        """Load declared host requirements from pyproject.toml. / 从 pyproject.toml 加载宿主声明的 requirement。"""
+        requirements: list[str] = []
+        pyproject_path = PLUGINS_DIR.parent / "pyproject.toml"
+        if not pyproject_path.is_file():
+            return requirements
+        try:
+            raw = pyproject_path.read_bytes()
+            if sys.version_info >= (3, 11):
+                import tomllib
+
+                cfg = tomllib.loads(raw.decode(encoding="utf-8"))
+            else:
+                import tomli
+
+                cfg = tomli.loads(raw.decode(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Failed to parse pyproject.toml: {}", exc)
+            return requirements
+
+        project_cfg = cfg.get("project") or {}
+        for item in project_cfg.get("dependencies") or []:
+            if isinstance(item, str):
+                requirements.append(item)
+        optional = project_cfg.get("optional-dependencies") or {}
+        for deps in optional.values():
+            if not isinstance(deps, list):
+                continue
+            for item in deps:
+                if isinstance(item, str):
+                    requirements.append(item)
+        return list(dict.fromkeys(requirements))
+
+    async def _load_other_plugin_python_requirements(
+        self,
+        *,
+        exclude_plugin_name: str | None = None,
+    ) -> dict[str, list[str]]:
+        """Load declared Python requirements from installed plugins. / 加载已安装插件声明的 Python requirement。"""
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+
+        filters = [PluginModel.is_deleted.is_(False)]
+        if exclude_plugin_name:
+            filters.append(PluginModel.name != exclude_plugin_name)
+        result = await self._db.execute(
+            select(PluginModel.name, PluginModel.manifest).where(*filters)
+        )
+
+        requirements_by_owner: dict[str, list[str]] = {}
+        for owner, manifest_data in result.all():
+            if not manifest_data or not isinstance(manifest_data, dict):
+                continue
+            deps = manifest_data.get("dependencies") or {}
+            raw_python = deps.get("python") if isinstance(deps, dict) else None
+            if isinstance(raw_python, list) and raw_python:
+                requirements_by_owner[owner] = [
+                    str(item).strip()
+                    for item in raw_python
+                    if str(item or "").strip()
+                ]
+        return requirements_by_owner
+
+    async def _ensure_python_dependency_preflight(
+        self,
+        plugin_name: str,
+        requirements: list[str],
+    ) -> dict[str, object]:
+        """Preflight direct Python dependency conflicts in shared host env.
+        / 对共享宿主环境做 Python 直接依赖冲突预检。
+        """
+        normalized_requirements = [
+            str(requirement).strip()
+            for requirement in requirements
+            if str(requirement or "").strip()
+        ]
+        effective_requirements = iter_effective_python_requirements(
+            normalized_requirements
+        )
+
+        requirement_groups: dict[str, list[tuple[str, str]]] = {}
+
+        for requirement_text in self._load_project_pyproject_requirements():
+            for requirement in iter_effective_python_requirements([requirement_text]):
+                package = normalize_python_package_name(requirement.name)
+                requirement_groups.setdefault(package, []).append(
+                    ("host", str(requirement))
+                )
+
+        other_plugin_requirements = await self._load_other_plugin_python_requirements(
+            exclude_plugin_name=plugin_name,
+        )
+        for owner, owner_requirements in other_plugin_requirements.items():
+            for requirement in iter_effective_python_requirements(owner_requirements):
+                package = normalize_python_package_name(requirement.name)
+                requirement_groups.setdefault(package, []).append(
+                    (f"plugin:{owner}", str(requirement))
+                )
+
+        for requirement in effective_requirements:
+            package = normalize_python_package_name(requirement.name)
+            requirement_groups.setdefault(package, []).append(
+                (f"plugin:{plugin_name}", str(requirement))
+            )
+
+        installed_versions = {
+            package: get_installed_distribution_version(package)
+            for package in requirement_groups
+        }
+        conflicts = detect_direct_python_dependency_conflicts(
+            requirement_groups,
+            installed_versions=installed_versions,
+        )
+        if conflicts:
+            details = "; ".join(
+                f"{conflict.package}: {conflict.reason}"
+                for conflict in conflicts
+            )
+            raise PluginDependencyError(
+                message=(
+                    f"Python dependency conflict for plugin '{plugin_name}': "
+                    f"{details}"
+                ),
+            )
+
+        return {
+            "declared": [str(requirement) for requirement in effective_requirements],
+            "conflicts": [],
+            "installed_versions": installed_versions,
+        }
+
     # ================================================================
     # install / 安装
     # ================================================================
@@ -230,11 +448,13 @@ class PluginLifecycle:
         from app.models.system.plugin_version import PluginVersion
         from app.plugins.context_factory import create_plugin_context
         from app.plugins.crypto import encrypt_plugin_config
+        from app.plugins.frontend_contract import validate_runtime_frontend_contract
 
         # 1. Copy to plugins dir (skip if source is already in plugins/) / 复制到 plugins 目录（如果 source 已在 plugins/ 中则跳过）
         manifest = self._loader.load_manifest_from_path(source_path)
         plugin_name = manifest.name
         target_dir = PLUGINS_DIR / plugin_name
+        validate_runtime_frontend_contract(source_path, manifest)
 
         # Prevent concurrent installation of same-named plugin (Redis name lock) / 防止并发安装同名插件（基于 Redis 名称锁）
         from app.core.redis import get_redis_client
@@ -322,62 +542,14 @@ class PluginLifecycle:
                 except ImportError:
                     logger.warning("packaging library not available, skipping version check")
 
-            # 3b. Plugin dependency check (dependencies.plugins — name level) / 插件依赖检查（dependencies.plugins — 名称级）
-            if manifest.dependencies.plugins:
-                missing: list[str] = []
-                for dep_name in manifest.dependencies.plugins:
-                    dep_result = await self._db.execute(
-                        select(PluginModel.status).where(
-                            PluginModel.name == dep_name,
-                            PluginModel.is_deleted.is_(False),
-                        )
-                    )
-                    dep_row = dep_result.scalar_one_or_none()
-                    if not dep_row:
-                        missing.append(f"{dep_name} (not installed)")
-                    elif dep_row != PluginStatusEnum.ENABLED.value:
-                        missing.append(f"{dep_name} (not enabled)")
-                if missing:
-                    raise PluginInstallError(
-                        message=f"Missing plugin dependencies: {', '.join(missing)}",
-                    )
-
-            # 3c. Plugin dependency version check (compatibility.requires — with version constraints) / 插件依赖版本检查（compatibility.requires — 含版本约束）
-            if manifest.compatibility and manifest.compatibility.requires:
-                version_errors: list[str] = []
-                for req in manifest.compatibility.requires:
-                    dep_result = await self._db.execute(
-                        select(PluginModel.version, PluginModel.status).where(
-                            PluginModel.name == req.plugin,
-                            PluginModel.is_deleted.is_(False),
-                        )
-                    )
-                    dep_row = dep_result.one_or_none()
-                    if not dep_row:
-                        version_errors.append(f"{req.plugin} (not installed)")
-                    elif dep_row[1] != PluginStatusEnum.ENABLED.value:
-                        version_errors.append(f"{req.plugin} (not enabled)")
-                    elif req.version != "*":
-                        try:
-                            from packaging.specifiers import SpecifierSet
-                            from packaging.version import Version
-
-                            spec = SpecifierSet(req.version)
-                            if Version(dep_row[0]) not in spec:
-                                version_errors.append(
-                                    f"{req.plugin} requires {req.version}, "
-                                    f"installed {dep_row[0]}"
-                                )
-                        except Exception as exc:
-                            logger.warning(
-                                "Version check failed for {}: {}", req.plugin, exc,
-                            )
-                if version_errors:
-                    raise PluginDependencyError(
-                        message=f"Plugin dependency version mismatch: {'; '.join(version_errors)}",
-                    )
-
-                logger.info("Plugin dependency check passed for {}", plugin_name)
+            # 3b. Unified plugin dependency check / 统一插件依赖检查
+            await self._assert_plugin_dependencies_ready(
+                manifest,
+                plugin_name=plugin_name,
+                require_enabled=False,
+                error_cls=PluginInstallError,
+                action="install",
+            )
 
             # 3d. Security scan (high-risk fail-close) / 安全扫描（高风险 fail-close）
             from app.plugins.security_scan import scan_plugin_directory
@@ -393,7 +565,7 @@ class PluginLifecycle:
                     ),
                 )
 
-            # 4. Record declared deps (actual pip/npm install deferred to enable phase) / 记录声明的依赖（pip/npm 实际安装延迟到 enable 阶段）
+            # 4. Record declared deps (runtime environment changes deferred to explicit dependency handling) / 记录声明的依赖（运行时环境变更延迟到显式依赖处理）
             installed_packages = manifest.dependencies.python or []
 
             # 5. Run Alembic migrations / 执行 Alembic 迁移
@@ -562,6 +734,7 @@ class PluginLifecycle:
 
         from app.models.system.plugin import Plugin as PluginModel
         from app.plugins.context_factory import create_plugin_context
+        from app.plugins.frontend_contract import validate_runtime_frontend_contract
         from app.plugins.progress import PluginProgressEmitter
         from app.plugins.registry import ExtensionRegistry
 
@@ -582,6 +755,16 @@ class PluginLifecycle:
         plugin_name = plugin.name
         emitter = PluginProgressEmitter(operator_id, plugin_name, "enable")
         manifest = self._loader.load_manifest(plugin_name)
+        validate_runtime_frontend_contract(self._loader.plugins_dir / plugin_name, manifest)
+
+        from app.plugins.license import assert_plugin_license_active
+        await assert_plugin_license_active(
+            plugin.id,
+            plugin.pricing_type,
+            self._db,
+            plugin_name=plugin_name,
+            operation="enable",
+        )
 
         # DEBUG mode: sync key fields from disk plugin.yaml to DB (scope/manifest etc.) / DEBUG 模式：从磁盘 plugin.yaml 同步到 DB
         # / DEBUG 模式：同步磁盘 plugin.yaml 的关键字段到 DB（scope/manifest 等）
@@ -622,57 +805,14 @@ class PluginLifecycle:
                         ),
                     )
 
-        # Check if all dependency plugins are enabled / 检查依赖插件是否都已启用
-        if manifest.dependencies.plugins:
-            not_enabled: list[str] = []
-            for dep_name in manifest.dependencies.plugins:
-                dep_result = await self._db.execute(
-                    select(PluginModel.status).where(
-                        PluginModel.name == dep_name,
-                        PluginModel.is_deleted.is_(False),
-                    )
-                )
-                dep_status = dep_result.scalar_one_or_none()
-                if dep_status != PluginStatusEnum.ENABLED.value:
-                    not_enabled.append(dep_name)
-            if not_enabled:
-                raise PluginDependencyError(
-                    message=f"Cannot enable '{plugin_name}': dependency plugins not enabled: {', '.join(not_enabled)}. Enable them first.",
-                )
-
-        # Check compatibility.requires version constraints / 检查 compatibility.requires 版本约束
-        if manifest.compatibility and manifest.compatibility.requires:
-            version_errors: list[str] = []
-            for req in manifest.compatibility.requires:
-                dep_result = await self._db.execute(
-                    select(PluginModel.version, PluginModel.status).where(
-                        PluginModel.name == req.plugin,
-                        PluginModel.is_deleted.is_(False),
-                    )
-                )
-                dep_row = dep_result.one_or_none()
-                if not dep_row:
-                    version_errors.append(f"{req.plugin} (not installed)")
-                elif dep_row[1] != PluginStatusEnum.ENABLED.value:
-                    version_errors.append(f"{req.plugin} (not enabled)")
-                elif req.version != "*":
-                    try:
-                        from packaging.specifiers import SpecifierSet
-                        from packaging.version import Version
-
-                        if Version(dep_row[0]) not in SpecifierSet(req.version):
-                            version_errors.append(
-                                f"{req.plugin} requires {req.version}, "
-                                f"installed {dep_row[0]}"
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            "Version check failed for {}: {}", req.plugin, exc,
-                        )
-            if version_errors:
-                raise PluginDependencyError(
-                    message=f"Cannot enable '{plugin_name}': version mismatch: {'; '.join(version_errors)}",
-                )
+        # Unified plugin dependency check / 统一插件依赖检查
+        await self._assert_plugin_dependencies_ready(
+            manifest,
+            plugin_name=plugin_name,
+            require_enabled=True,
+            error_cls=PluginDependencyError,
+            action="enable",
+        )
 
         # Alembic migration (ensure plugin tables are created) / Alembic 迁移（确保插件表已创建）
         # fail-close: mark ERROR and abort enable on migration failure / 迁移失败时标记 ERROR 并中止启用
@@ -713,23 +853,6 @@ class PluginLifecycle:
                 await emitter.emit_step("pip", "success", "Python dependencies already satisfied")
         else:
             await emitter.emit_step("pip", "success", "No Python dependencies")
-
-        # Install frontend npm dependencies (dev mode) / 安装前端 npm 依赖（dev 模式）
-        frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-        npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-        if npm_deps:
-            await emitter.emit_step("npm", "running", f"Checking {len(npm_deps)} npm package(s)...")
-            try:
-                npm_installed = await self._install_npm_deps(plugin_name, npm_deps)
-                if npm_installed > 0:
-                    await emitter.emit_step("npm", "success", f"Installed {npm_installed} npm package(s)")
-                else:
-                    await emitter.emit_step("npm", "success", "npm already satisfied (skipped)")
-            except Exception as exc:
-                await emitter.emit_step("npm", "warning", f"npm install warning: {exc}")
-                logger.warning("npm deps install warning for {}: {}", plugin_name, exc)
-        else:
-            await emitter.emit_step("npm", "success", "No npm dependencies")
 
         # Register extension points / 注册扩展点
         await emitter.emit_step("extensions", "running", "Registering extensions...")
@@ -890,10 +1013,17 @@ class PluginLifecycle:
         emitter = PluginProgressEmitter(operator_id, plugin_name, "disable")
 
         # Check if other plugins depend on this plugin / 检查是否有其他插件依赖此插件
-        dependents = await self._get_dependents(plugin_name)
+        dependents = await self._get_dependents(
+            plugin_name,
+            statuses={PluginStatusEnum.ENABLED.value},
+        )
         if dependents:
             raise PluginDependencyError(
-                message=f"Cannot disable '{plugin_name}': plugins [{', '.join(dependents)}] depend on it. Disable them first.",
+                message=(
+                    f"Cannot disable '{plugin_name}': plugins "
+                    f"[{', '.join(dep['plugin'] for dep in dependents)}] depend on it. "
+                    "Disable them first."
+                ),
             )
 
         # Check if storage driver is in use (force=True auto-switches to local instead of raising) / 检查存储驱动是否正在被使用（force=True 时自动切换到 local 而非抛错）
@@ -977,7 +1107,6 @@ class PluginLifecycle:
         plugin_id: int,
         *,
         install_python: bool = True,
-        install_npm: bool = True,
     ) -> dict:
         """
         Explicitly install plugin dependencies (without changing plugin enable status).
@@ -1004,17 +1133,18 @@ class PluginLifecycle:
 
             manifest = self._loader.load_manifest(plugin.name)
             py_deps = list(manifest.dependencies.python or [])
-            fe = manifest.extensions.frontend if manifest.extensions else None
-            npm_deps = list(fe.npm_dependencies or []) if fe else []
-
             installed_python: list[str] = []
-            installed_npm = 0
+            plugin_states = await self._collect_plugin_dependency_states(
+                manifest,
+                require_enabled=False,
+            )
+            python_preflight = await self._ensure_python_dependency_preflight(
+                plugin.name,
+                py_deps,
+            )
 
             if install_python and py_deps:
                 installed_python = await self._install_python_deps(plugin.name, py_deps)
-
-            if install_npm and npm_deps:
-                installed_npm = await self._install_npm_deps(plugin.name, npm_deps)
 
             return {
                 "plugin_id": plugin.id,
@@ -1023,11 +1153,9 @@ class PluginLifecycle:
                     "declared": py_deps,
                     "installed": installed_python,
                     "installed_count": len(installed_python),
+                    "preflight": python_preflight,
                 },
-                "npm": {
-                    "declared": npm_deps,
-                    "installed_count": installed_npm,
-                },
+                "plugins": plugin_states,
             }
 
     async def uninstall_dependencies(
@@ -1035,7 +1163,6 @@ class PluginLifecycle:
         plugin_id: int,
         *,
         uninstall_python: bool = True,
-        uninstall_npm: bool = True,
         force: bool = False,
     ) -> dict:
         """
@@ -1079,14 +1206,12 @@ class PluginLifecycle:
 
             manifest = self._loader.load_manifest(plugin.name)
             py_deps = list(plugin.installed_packages or manifest.dependencies.python or [])
-            fe = manifest.extensions.frontend if manifest.extensions else None
-            npm_deps = list(fe.npm_dependencies or []) if fe else []
-
+            plugin_states = await self._collect_plugin_dependency_states(
+                manifest,
+                require_enabled=False,
+            )
             if uninstall_python and py_deps:
                 await self._uninstall_python_deps(plugin.name, py_deps)
-
-            if uninstall_npm and npm_deps:
-                await self._uninstall_npm_deps(plugin.name, npm_deps)
 
             return {
                 "plugin_id": plugin.id,
@@ -1095,10 +1220,7 @@ class PluginLifecycle:
                     "declared": py_deps,
                     "attempted": uninstall_python,
                 },
-                "npm": {
-                    "declared": npm_deps,
-                    "attempted": uninstall_npm,
-                },
+                "plugins": plugin_states,
                 "forced": False,
             }
 
@@ -1164,7 +1286,11 @@ class PluginLifecycle:
         dependents = await self._get_dependents(plugin_name)
         if dependents:
             raise PluginDependencyError(
-                message=f"Cannot uninstall '{plugin_name}': plugins [{', '.join(dependents)}] depend on it. Uninstall them first.",
+                message=(
+                    f"Cannot uninstall '{plugin_name}': plugins "
+                    f"[{', '.join(dep['plugin'] for dep in dependents)}] depend on it. "
+                    "Uninstall them first."
+                ),
             )
 
         # 2. Disable (if enabled) / 禁用（如果启用中）
@@ -1253,28 +1379,9 @@ class PluginLifecycle:
                 await emitter.emit_step("cleanup_pip", "success", "Python dependencies cleaned")
             else:
                 await emitter.emit_step("cleanup_pip", "success", "No Python dependencies to clean")
-
-            # 10.5 Uninstall npm deps (shared check: other plugins also declare same package) / 卸载 npm 依赖（共享检查：其他插件是否也声明了同名包）
-            try:
-                manifest = self._loader.load_manifest(plugin_name)
-                frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-                npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-                if npm_deps:
-                    await emitter.emit_step("cleanup_npm", "running", "Uninstalling npm dependencies...")
-                    await self._uninstall_npm_deps(plugin_name, npm_deps)
-                    await emitter.emit_step("cleanup_npm", "success", "npm dependencies cleaned")
-                else:
-                    await emitter.emit_step("cleanup_npm", "success", "No npm dependencies to clean")
-            except Exception as exc:
-                logger.warning("Failed to cleanup npm deps for {}: {}", plugin_name, exc)
         else:
             await emitter.emit_step(
                 "cleanup_pip",
-                "success",
-                "Skipped dependency cleanup (use dependency management API for explicit cleanup)",
-            )
-            await emitter.emit_step(
-                "cleanup_npm",
                 "success",
                 "Skipped dependency cleanup (use dependency management API for explicit cleanup)",
             )
@@ -1317,40 +1424,64 @@ class PluginLifecycle:
     # Dependency checks / 依赖检查
     # ================================================================
 
-    async def _get_dependents(self, plugin_name: str) -> list[str]:
+    async def _get_dependents(
+        self,
+        plugin_name: str,
+        *,
+        statuses: set[str] | None = None,
+    ) -> list[dict[str, object]]:
         """
-        Find **enabled** plugins that depend on the specified plugin.
-        / 查找**已启用**的、依赖指定插件的插件列表。
-
-        Only returns status=enabled plugins — disabled/error/installed plugins
-        have extensions unregistered, not runtime deps, no need to disable them first.
-        / 只返回 status=enabled 的插件 — 已禁用/error/installed 的插件
-        扩展点均已反注册，不构成运行时依赖，无需先禁用它们。
+        Find plugins that depend on the specified plugin.
+        / 查找依赖指定插件的插件列表。
         """
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin as PluginModel
 
+        filters = [
+            PluginModel.name != plugin_name,
+            PluginModel.is_deleted.is_(False),
+        ]
+        if statuses:
+            filters.append(PluginModel.status.in_(sorted(statuses)))
+
         result = await self._db.execute(
-            select(PluginModel.name, PluginModel.manifest).where(
-                PluginModel.name != plugin_name,
-                PluginModel.is_deleted.is_(False),
-                PluginModel.status == PluginStatusEnum.ENABLED.value,
-            )
+            select(
+                PluginModel.id,
+                PluginModel.name,
+                PluginModel.version,
+                PluginModel.status,
+                PluginModel.manifest,
+            ).where(*filters)
         )
-        dependents: list[str] = []
-        for row in result.all():
-            name, manifest_data = row[0], row[1]
-            if not manifest_data or not isinstance(manifest_data, dict):
+        dependents: list[dict[str, object]] = []
+        for plugin_id, name, version, status, manifest_data in result.all():
+            try:
+                requirements = normalize_plugin_dependencies(manifest_data)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to normalize dependent plugin manifest {}: {}",
+                    name,
+                    exc,
+                )
                 continue
-            deps = manifest_data.get("dependencies", {})
-            if isinstance(deps, dict):
-                plugin_deps = deps.get("plugins", [])
-                if isinstance(plugin_deps, list) and plugin_name in plugin_deps:
-                    dependents.append(name)
+
+            for requirement in requirements:
+                if requirement.plugin != plugin_name:
+                    continue
+                dependents.append(
+                    {
+                        "plugin_id": plugin_id,
+                        "plugin": name,
+                        "version": version,
+                        "status": status,
+                        "required_version": requirement.version,
+                        "source": requirement.source,
+                    }
+                )
         return dependents
 
-    async def get_dependents(self, plugin_id: int) -> list[str]:
+    async def get_dependents(self, plugin_id: int) -> list[dict[str, object]]:
         """Get list of plugins that depend on the specified plugin (for API use) / 获取依赖指定插件的插件列表（API 用）"""
         from sqlalchemy import select
 
@@ -1367,25 +1498,28 @@ class PluginLifecycle:
             return []
         return await self._get_dependents(name)
 
-    async def get_dependencies(self, plugin_id: int) -> list[str]:
+    async def get_dependencies(self, plugin_id: int) -> list[dict[str, object]]:
         """Get list of dependency plugins for the specified plugin (for API use) / 获取指定插件的依赖插件列表（API 用）"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin as PluginModel
 
         result = await self._db.execute(
-            select(PluginModel.manifest).where(
+            select(PluginModel.name, PluginModel.manifest).where(
                 PluginModel.id == plugin_id,
                 PluginModel.is_deleted.is_(False),
             )
         )
-        manifest_data = result.scalar_one_or_none()
+        row = result.one_or_none()
+        if not row:
+            return []
+        plugin_name, manifest_data = row
         if not manifest_data or not isinstance(manifest_data, dict):
             return []
-        deps = manifest_data.get("dependencies", {})
-        if isinstance(deps, dict):
-            return deps.get("plugins", [])
-        return []
+        return await self._collect_plugin_dependency_states(
+            manifest_data,
+            require_enabled=False,
+        )
 
     # ================================================================
     # Internal methods / 内部方法
@@ -1676,6 +1810,7 @@ class PluginLifecycle:
         needs_cache_refresh = False
         pip_python = self._resolve_pip_python_executable()
         pip_env = self._build_python_install_env(plugin_name)
+        await self._ensure_python_dependency_preflight(plugin_name, requirements)
 
         for req in requirements:
             normalized_req = req.strip()
@@ -1951,151 +2086,6 @@ class PluginLifecycle:
         )
         return env
 
-    async def _install_npm_deps(
-        self, plugin_name: str, packages: list[str]
-    ) -> int:
-        """Install plugin-declared npm dependencies into the host frontend project (dev mode only).
-        / 安装插件声明的 npm 依赖到宿主前端项目（仅 dev 模式）。
-
-        Returns:
-            Number of packages actually installed via pnpm add (0 means all already present or skipped).
-            / 实际通过 pnpm add 安装的包数量（0 表示全部已存在或跳过安装）
-
-        Production plugins use prebuilt UMD bundles (dist/index.js), no npm deps needed.
-        Dev mode: Vite compiles plugin SFC source directly, requires host node_modules to provide deps.
-        / 生产环境插件使用预编译的 UMD 包（dist/index.js），不需要 npm 依赖。
-        dev 模式下 Vite 直接编译插件 SFC 源码，需要宿主 node_modules 提供依赖。
-        """
-        from app.core.config import settings
-
-        if not settings.DEBUG:
-            logger.info(
-                "Skipping npm deps install for {} (production mode uses UMD bundles)",
-                plugin_name,
-            )
-            return 0
-
-        if not packages:
-            return 0
-
-        # Locate frontend project root: sibling of backend/ / 定位前端项目根目录: backend/ 的兄弟目录 frontend/
-        frontend_root = PLUGINS_DIR.parent.parent / "frontend"
-        if not frontend_root.is_dir():
-            logger.warning(
-                "Frontend directory not found at {}, skipping npm deps for {}",
-                frontend_root, plugin_name,
-            )
-            return 0
-
-        # ── Check if all packages are already installed, skip pnpm add if so ──
-        # pnpm workspace symlinks deps usually in apps/web-antd/node_modules,
-        # root frontend/node_modules serves as fallback path.
-        # / ── 检查是否所有包都已安装，已安装则跳过 pnpm add ──
-        # pnpm workspace 下依赖软链通常存在于 apps/web-antd/node_modules，
-        # 根目录 frontend/node_modules 仅作为后备路径。
-        web_antd_root = frontend_root / "apps" / "web-antd"
-        node_modules_candidates = [
-            web_antd_root / "node_modules",
-            frontend_root / "node_modules",
-        ]
-        existing_node_modules = [path for path in node_modules_candidates if path.is_dir()]
-        missing_packages: list[str] = []
-        if existing_node_modules:
-            for pkg in packages:
-                raw_name = pkg.strip()
-
-                # Safety: reject package names starting with "--" (would be treated as CLI flags by pnpm)
-                # / 安全校验：拒绝以 "--" 开头的包名（会被 pnpm 当作 CLI flag）
-                if raw_name.startswith("--"):
-                    logger.warning(
-                        "Plugin {}: skipping suspicious npm package '{}' (looks like a CLI flag)",
-                        plugin_name, raw_name,
-                    )
-                    continue
-
-                # Safety: reject shell metacharacters and whitespace / 安全校验：拒绝 shell 元字符与空白
-                if any(ch in raw_name for ch in [" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"]):
-                    logger.warning(
-                        "Plugin {}: skipping suspicious npm package '{}' (contains forbidden characters)",
-                        plugin_name, raw_name,
-                    )
-                    continue
-
-                # Parse package name: strip version specifier / 解析包名：去除版本限定符
-                # @scope/name@^1.0 → @scope/name
-                # name@^1.0 → name; @scope/name → @scope/name (no version) / 去除版本限定符
-                # / 解析包名：去掉版本号
-                if raw_name.startswith("@"):
-                    # With scope: prefer @scope/name (last @ may be version separator)
-                    # / 带 scope：优先取 @scope/name（最后一个 @ 才可能是版本分隔）
-                    if "@" in raw_name[1:]:
-                        pkg_name = raw_name.rsplit("@", 1)[0]
-                    else:
-                        pkg_name = raw_name
-                else:
-                    pkg_name = raw_name.split("@")[0]
-                is_installed = any((node_modules / pkg_name).is_dir() for node_modules in existing_node_modules)
-                if not is_installed:
-                    missing_packages.append(pkg)
-        else:
-            # Still need to filter --flag forms and shell metachar illegal package names
-            # / 仍需过滤 --flag 形式与 shell 元字符的非法包名
-            missing_packages = [
-                p for p in packages
-                if (
-                    not p.strip().startswith("--")
-                    and not any(ch in p for ch in [" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"])
-                )
-            ]
-
-        if not missing_packages:
-            logger.debug(
-                "Skipping pnpm add for {}: all npm packages already installed",
-                plugin_name,
-            )
-            return 0
-
-        pnpm_cmd = "pnpm.cmd" if _IS_WINDOWS else "pnpm"
-
-        # Check if pnpm is available / 检查 pnpm 是否可用
-        try:
-            await _run_subprocess_async(
-                pnpm_cmd, "--version",
-                timeout=10,
-                shell=False,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("pnpm not found, skipping npm deps install for {}", plugin_name)
-            return 0
-
-        # pnpm add <missing_packages> --filter=@vben/web-antd
-        cmd = [pnpm_cmd, "add", *missing_packages, "--filter=@vben/web-antd"]
-        logger.info("Installing npm deps for {}: {}", plugin_name, " ".join(missing_packages))
-
-        try:
-            result = await _run_subprocess_async(
-                *cmd,
-                timeout=120,
-                cwd=str(frontend_root),
-                shell=False,
-            )
-            if result.returncode != 0:
-                err = result.stderr.strip() or result.stdout.strip()
-                logger.warning(
-                    "npm deps install for {} failed (non-fatal): {}",
-                    plugin_name, err[:500],
-                )
-                return 0
-            else:
-                logger.info("npm deps installed for {}", plugin_name)
-                return len(missing_packages)
-        except subprocess.TimeoutExpired:
-            logger.warning("npm deps install for {} timed out", plugin_name)
-            return 0
-        except Exception as exc:
-            logger.warning("npm deps install for {} failed: {}", plugin_name, exc)
-            return 0
-
     @staticmethod
     def _normalize_pkg_name(raw: str) -> str:
         """将 pip requirement 字符串规范化为小写包名 / Normalize a pip requirement string to a lowercase package name.
@@ -2219,121 +2209,6 @@ class PluginLifecycle:
                     logger.info("Package {} not installed, skipping", pkg)
             except Exception as exc:
                 logger.warning("Failed to check/uninstall {}: {}", pkg, exc)
-
-    async def _uninstall_npm_deps(
-        self, plugin_name: str, packages: list[str]
-    ) -> None:
-        """Uninstall plugin-exclusive npm dependencies (dev mode only, with shared check).
-        / 卸载插件独占的 npm 依赖（仅 dev 模式，带共享检查）
-
-        Safety policy (keep if any check hits):
-        1. Other enabled/installed plugins' manifest declares the same npm package
-        2. Host package.json dependencies declares the same package (not plugin-installed)
-        / 安全策略（任一命中则保留不删）：
-        1. 其他已启用/已安装插件的 manifest 中声明了同名 npm 包
-        2. 宿主 package.json 的 dependencies 中声明了同名包（非插件安装的）
-        """
-        from app.core.config import settings
-
-        if not settings.DEBUG:
-            return
-
-        if not packages:
-            return
-
-        frontend_root = PLUGINS_DIR.parent.parent / "frontend"
-        if not frontend_root.is_dir():
-            return
-
-        # Layer 1: Collect other plugins' declared npm dependencies / 收集其他插件声明的 npm 依赖
-        from sqlalchemy import select
-
-        from app.models.system.plugin import Plugin as PluginModel
-
-        result = await self._db.execute(
-            select(PluginModel.manifest).where(
-                PluginModel.name != plugin_name,
-                PluginModel.is_deleted.is_(False),
-            )
-        )
-        other_npm_deps: set[str] = set()
-        for manifest_data in result.scalars():
-            if not manifest_data or not isinstance(manifest_data, dict):
-                continue
-            ext = manifest_data.get("extensions", {})
-            fe = ext.get("frontend", {}) if isinstance(ext, dict) else {}
-            npm_list = fe.get("npm_dependencies", []) if isinstance(fe, dict) else []
-            if isinstance(npm_list, list):
-                other_npm_deps.update(npm_list)
-
-        # Layer 2: Read host package.json original dependencies (excluding plugin-installed ones)
-        # / Layer 2: 读取宿主 package.json 的原始 dependencies（排除插件安装的）
-        host_pkg_json = frontend_root / "apps" / "web-antd" / "package.json"
-        host_deps: set[str] = set()
-        if host_pkg_json.is_file():
-            try:
-                import json as _json
-                pkg_data = _json.loads(host_pkg_json.read_text(encoding="utf-8"))
-                for dep_key in ("dependencies", "devDependencies", "peerDependencies"):
-                    deps_dict = pkg_data.get(dep_key, {})
-                    if isinstance(deps_dict, dict):
-                        host_deps.update(deps_dict.keys())
-            except Exception as exc:
-                logger.warning("Failed to read host package.json: {}", exc)
-
-        to_remove: list[str] = []
-        for pkg in packages:
-            # Extract pure package name (strip version constraints) for comparison
-            # / 提取纯包名（去掉版本约束）用于比较
-            pkg_name = pkg.split("@")[0] if not pkg.startswith("@") else pkg
-            if pkg.startswith("@") and "@" in pkg[1:]:
-                pkg_name = pkg.rsplit("@", 1)[0]
-
-            if pkg_name in other_npm_deps or pkg in other_npm_deps:
-                logger.info("Kept npm {} (still needed by other plugins)", pkg)
-                continue
-            if pkg_name in host_deps:
-                logger.info("Kept npm {} (declared in host package.json)", pkg)
-                continue
-            to_remove.append(pkg)
-
-        if not to_remove:
-            return
-
-        pnpm_cmd = "pnpm.cmd" if _IS_WINDOWS else "pnpm"
-
-        try:
-            await _run_subprocess_async(
-                pnpm_cmd, "--version",
-                timeout=10,
-                shell=False,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("pnpm not found, skipping npm deps removal for {}", plugin_name)
-            return
-
-        cmd = [pnpm_cmd, "remove", *to_remove, "--filter=@vben/web-antd"]
-        logger.info("Removing npm deps for {}: {}", plugin_name, " ".join(to_remove))
-
-        try:
-            result = await _run_subprocess_async(
-                *cmd,
-                timeout=120,
-                cwd=str(frontend_root),
-                shell=False,
-            )
-            if result.returncode != 0:
-                err = result.stderr.strip() or result.stdout.strip()
-                logger.warning(
-                    "npm deps removal for {} failed (non-fatal): {}",
-                    plugin_name, err[:500],
-                )
-            else:
-                logger.info("npm deps removed for {}: {}", plugin_name, ", ".join(to_remove))
-        except subprocess.TimeoutExpired:
-            logger.warning("npm deps removal for {} timed out", plugin_name)
-        except Exception as exc:
-            logger.warning("npm deps removal for {} failed: {}", plugin_name, exc)
 
     async def _purge_orphaned_alembic_stamps(self) -> None:
         """Purge orphaned version stamps in alembic_version that no longer have corresponding migration files.
@@ -2741,7 +2616,7 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         1. DB transaction rollback — undo all ORM writes (plugins/versions/agent_assignments etc.)
         2. Alembic + plugin tables — reuse _cleanup_plugin_database (downgrade → DROP → clean stamps)
         3. File cleanup — delete directory copied to plugins/
-        (pip/npm deps are not installed during install phase, no rollback needed)
+        (runtime dependencies are not installed during install phase, no rollback needed)
         / 回滚策略：
         1. DB 事务回滚
         2. Alembic + 插件表 — 复用 _cleanup_plugin_database
@@ -2791,12 +2666,12 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
 
         - If SkillPackage with source_plugin=plugin_name already exists, reuse and update status
         - Otherwise create new platform-level SkillPackage (tenant_id=NULL, is_system=True)
-        - Visibility controlled by target_audience (defaults to 'all', meaning all endpoints can access)
+        - Package visibility is determined by platform ownership + agent binding, not package audience
         - Create or update Skill records for each skill extension
 
         如果已有 source_plugin=plugin_name 的 SkillPackage，则复用并更新状态；
         否则创建新的平台级 SkillPackage（tenant_id=NULL, is_system=True）。
-        可见性由 target_audience 控制（默认 'all'，即所有端均可访问）。
+        技能包可见性由平台归属 + 智能体绑定决定，不再依赖包级受众字段。
         对每个 skill extension 创建或更新 Skill 记录。
         """
         from sqlalchemy import select
@@ -2817,8 +2692,8 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         display_name = resolve_i18n(manifest.display_name)
 
         if not package:
-            # 创建平台级技能包：tenant_id=NULL，可见性由 target_audience 默认值 'all' 控制
-            # Create platform-level package: tenant_id=NULL, visibility controlled by target_audience default 'all' / 创建平台级包：tenant_id=NULL，可见性由 target_audience 默认 'all' 控制
+            # 创建平台级技能包：tenant_id=NULL，实际使用范围由 Agent 绑定决定
+            # Create platform-level package: tenant_id=NULL; effective usage is determined by agent binding
             package = SkillPackage(
                 name=display_name,
                 description=resolve_i18n(manifest.description) if manifest.description else None,

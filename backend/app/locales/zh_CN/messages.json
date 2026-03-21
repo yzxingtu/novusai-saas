@@ -629,6 +629,23 @@
       "scope_mismatch": "智能体与技能包的作用域不兼容，无法绑定"
     }
   },
+  "agent_skill_grant": {
+    "field": {
+      "agent_id": "智能体ID",
+      "skill_id": "技能ID",
+      "enabled": "启用状态",
+      "config_override": "配置覆盖",
+      "sort_order": "排序",
+      "default_consent_mode": "默认授权模式",
+      "capability_consent_overrides": "能力授权覆盖"
+    },
+    "error": {
+      "already_bound": "该技能已绑定到此智能体",
+      "skill_not_found": "技能不存在",
+      "binding_not_found": "该技能未绑定到此智能体",
+      "agent_not_found": "智能体不存在"
+    }
+  },
   "platform_tool": {
     "get_dashboard_stats": {
       "name": "获取仪表盘统计",

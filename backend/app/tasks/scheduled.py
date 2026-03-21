@@ -159,18 +159,18 @@ def reset_agent_daily_stats(self: BaseTask) -> dict:
 
 @register_task(
     queue="scheduled",
-    description="Check plugin trial expirations, auto-disable expired plugins and send warnings / 检查插件试用期到期，自动禁用到期插件并发出预警提醒",
+    description="Check plugin license expirations, auto-disable expired plugins and send warnings / 检查插件 License 到期，自动禁用到期插件并发出预警提醒",
     max_retries=1,
 )
 def check_plugin_trial_expirations(self: BaseTask) -> dict:
-    """Check plugin license trial period; auto-disable on expiry, send reminders for upcoming expiry. / 检查插件 License 试用期，到期自动禁用，即将到期发提醒。"""
+    """Check plugin trial/fixed-term license expiry; auto-disable on expiry. / 检查插件 trial/fixed-term License 到期情况，到期自动禁用。"""
     import asyncio
 
     from app.tasks.async_db import task_async_session
 
     async def _run():
         from app.core.redis import RedisManager
-        from app.plugins.license import check_trial_expirations
+        from app.plugins.license import check_plugin_license_expirations
 
         # Celery worker doesn't go through FastAPI lifespan, RedisManager is not initialized.
         # Celery worker 不走 FastAPI lifespan，RedisManager 未初始化。
@@ -195,7 +195,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
 
         try:
             async with task_async_session() as db:
-                actions = await check_trial_expirations(db)
+                actions = await check_plugin_license_expirations(db)
                 await db.commit()
                 return actions
         finally:
@@ -216,12 +216,12 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
         warnings = [a for a in actions if a.get("action") == "warning"]
         if disabled or warnings:
             logger.info(
-                "Plugin trial check: disabled={}, warnings={}",
+                "Plugin license check: disabled={}, warnings={}",
                 len(disabled), len(warnings),
             )
         return {"disabled": len(disabled), "warnings": len(warnings), "total": len(actions)}
     except Exception as exc:
-        logger.warning("Plugin trial check failed: {}", exc)
+        logger.warning("Plugin license check failed: {}", exc)
         return {"disabled": 0, "warnings": 0, "error": str(exc)}
 
 

@@ -1,5 +1,7 @@
 # 插件系统全面审计报告（2026-03-22）
 
+> 2026-03-22 当日已按本报告启动并落地统一整改。以下审计问题与方案保留为审计依据；当前实现状态以第 14 章“实施回写”补充说明为准。
+
 ## 1. 审计范围
 
 本次审计基于以下范围进行静态代码审计与规则对照：
@@ -21,27 +23,30 @@
   - `.cursor/rules/plugin-system.md`
   - `.cursor/skills/plugin-development/SKILL.md`
 
-本报告重点回答四个问题：
+本报告重点回答五个问题：
 
 1. 当前插件系统整体是否合理。
 2. “试用”和“带期限授权”到底在代码里是什么意思。
 3. 付费插件、尤其前端部分，当前是否适合商业交付。
 4. 当前系统是否真正支持“编译产物模式”和“源码模式”两种运行方式。
+5. 当前插件依赖模型是否合理，是否已经形成完整闭环。
 
 ## 2. 总体结论
 
-结论可以概括为五句话：
+结论可以概括为六句话：
 
 1. 当前插件系统的总体方向是对的，尤其是“零侵入插件目录 + manifest 声明 + 生命周期 + UMD 前端动态加载 + 权限同步”这一套架构方向没有问题。
 2. 当前实现最严重的问题不在“有没有授权”，而在“授权没有形成真正的运行时闭环”。也就是状态可以显示授权，但系统没有稳定、统一地在启用、恢复、分发入口处执行授权闸门。
 3. 当前付费插件交付链路不适合商业化发布，尤其前端部分。原因不是“前端必须编译”，而是即使编译了，官方打包链路仍然会把 `frontend/src` 一起打出去，导致源码照样交付。
 4. 当前系统不是“统一支持编译版和非编译版”的对称模型，而是“生产环境走编译产物，开发环境走源码转译”的双轨模型。这个模型本身可以成立，但目前没有被完整建模和强制校验，导致行为不一致、语义不清晰。
-5. 当前正式插件、历史插件、脚手架模板三套模型并存。也就是说，就算正式插件后续整改到位，如果 `plugin_cli`、`.cursor`、历史插件不一起迁移，后续新插件还会继续生成旧契约。
+5. 当前依赖治理只把“Python 依赖能不能装上”做到了局部闭环，但“跨插件冲突、插件间版本依赖、system 前置条件、启动恢复边界”都没有完整建模。
+6. 当前正式插件、历史插件、脚手架模板三套模型并存。也就是说，就算正式插件后续整改到位，如果 `plugin_cli`、`.cursor`、历史插件不一起迁移，后续新插件还会继续生成旧契约。
 
-换句话说，当前系统最不合适的地方不是某一个函数写错，而是以下三个层面的定位混乱：
+换句话说，当前系统最不合适的地方不是某一个函数写错，而是以下四个层面的定位混乱：
 
 - 授权系统的产品定位混乱：看起来像 DRM，实际上只能做平台运行门禁。
 - 前端发布模型混乱：运行时只认 `dist/index.js`，但打包时又把 `src/` 一起发出去。
+- 依赖治理模型混乱：共享环境、插件依赖、system 前置条件、管理端 API 没有统一语义。
 - manifest 单一事实来源原则落实不彻底：规则上强调 manifest 驱动，实际关键配置仍被硬编码或闲置。
 
 ## 3. 与 `.cursor` 规则的对照结论
@@ -908,6 +913,242 @@
    - 版本变化必须强制走 `VersionManager.upgrade()`
    - 必须写 `PluginVersion`
    - 必须进入 `on_upgrade()` 和正式回滚链路
+
+---
+
+### P1-14. Python 依赖直接安装到宿主共享环境，但没有跨插件/宿主冲突治理
+
+#### 现状
+
+- `_install_python_deps()` 直接对当前项目 Python 解释器执行 `pip install`。
+- 它只判断“当前已安装版本是否满足这个插件自己的 requirement”。
+- 它不会在安装前统一检查：
+  - 是否与其他已安装插件声明的 Python 依赖冲突
+  - 是否会破坏宿主主项目自身依赖
+  - 是否存在“两个插件要求同一包不同主版本”的无解情况
+- `_uninstall_python_deps()` 也只是基于：
+  - 其他插件的 `installed_packages`
+  - 主项目 `pyproject.toml`
+  - `pip show Required-by`
+  做启发式保留/删除，并没有真正的依赖锁或求解结果可回放。
+
+对应代码：
+
+- `backend/app/plugins/lifecycle.py:1599-2203`
+- `backend/app/plugins/startup.py:417-420`
+- `backend/app/plugins/version_manager.py:158-170`
+
+#### 为什么不合适
+
+当前插件后端全部运行在同一个 Python 进程里，这意味着：
+
+- 同名模块的多版本并存并不成立；
+- 最后一次 `pip install` 很可能覆盖前一次插件所依赖的版本；
+- 一个新插件的依赖升级，可能静默破坏：
+  - 其他插件
+  - 宿主后端
+  - 已经通过测试的运行环境
+
+也就是说，当前模型本质上是“共享宿主环境模式”，但系统没有把共享环境该有的冲突治理做完。
+
+#### 为什么必须改
+
+因为现在仓库里的正式插件虽然大多只依赖少量 Python 包，但这不代表模型本身合理。
+
+一旦后面出现：
+
+- 第三方插件
+- 付费插件
+- 更多存储/AI/集成类插件
+
+共享环境下的依赖冲突就会从“隐患”变成“线上不稳定源”。
+
+#### 建议
+
+明确把后端插件依赖模型定为“共享宿主环境 + 安装期求解 + 启动期只校验”，并一次性补齐：
+
+1. 安装/升级前做 Python 依赖冲突预检。
+2. 把“宿主依赖 + 已安装插件依赖 + 新插件依赖”合并成统一求解图。
+3. 无法同时满足时，直接拒绝安装或升级，不允许先装再看。
+4. 生成可追踪的依赖快照或锁定结果，不能只靠 `installed_packages` 回忆历史。
+
+---
+
+### P1-15. 插件间依赖被拆成两套声明，生命周期与卸载保护不一致
+
+#### 现状
+
+- 当前代码同时存在两套“插件依赖”语义：
+  - `dependencies.plugins`：名称级依赖
+  - `compatibility.requires`：带版本约束的依赖
+- 安装和启用时，这两套都会检查。
+- 但停用/卸载保护、依赖查询、依赖方查询只看 `dependencies.plugins`。
+- 也就是说，如果一个插件只通过 `compatibility.requires` 声明依赖：
+  - 启用时会被要求目标插件存在且版本满足
+  - 但目标插件被停用或卸载时，不一定会被这条依赖拦住
+  - 管理端“依赖/被依赖”接口也不会完整反映这条关系
+
+对应代码：
+
+- `backend/app/plugins/manifest.py:771-781`
+- `backend/app/plugins/manifest.py:835-838`
+- `backend/app/plugins/lifecycle.py:327-380`
+- `backend/app/plugins/lifecycle.py:639-683`
+- `backend/app/plugins/lifecycle.py:895-898`
+- `backend/app/plugins/lifecycle.py:1152-1156`
+- `backend/app/plugins/lifecycle.py:1301-1368`
+
+#### 为什么不合适
+
+这不是“写法有点重复”这么简单，而是同一个依赖关系在不同生命周期阶段看到的是两套图：
+
+- 安装/启用看的是 A 图
+- 停用/卸载看的是 B 图
+- 管理端展示又是 C 图
+
+最后会出现一种非常危险的状态：
+
+- 运行前置依赖检查通过
+- 但后续对底座插件的禁用/卸载保护没有完全跟上
+
+#### 为什么必须改
+
+因为插件依赖必须是单一事实来源。
+
+否则插件作者根本不知道：
+
+- 应该写在哪个字段
+- 哪个字段才会真的影响生命周期
+- 哪个字段只是“装的时候看看，卸的时候不认”
+
+#### 建议
+
+不要继续保留这套双轨模型。应统一成一套规范化的插件依赖声明，并让以下链路全部复用同一份归一化结果：
+
+1. install preview
+2. install
+3. enable
+4. disable
+5. uninstall
+6. `get_dependencies`
+7. `get_dependents`
+8. 管理端依赖状态展示
+
+更合适的方向是把插件间依赖收敛到 `dependencies.plugins`，并支持对象化声明版本约束，而不是继续把“依赖”拆一半放在 `compatibility.requires`。
+
+---
+
+### P1-16. 依赖状态、预览与管理 API 没有反映真实依赖模型
+
+#### 现状
+
+- `get_dependency_status()` 目前只真正计算 Python 依赖状态。
+- 它完全忽略：
+  - 插件间依赖
+  - 版本约束依赖
+  - `system` 依赖
+- `npm` 在当前实现里已经不再由宿主运行时安装，但 API 和管理端交互仍然保留：
+  - `python / npm / force` 请求体
+  - `npm` 结果对象
+  - 管理页仍然发送 `npm: true`
+- `dependencies.system` 在 schema 中存在，但目前除了 install preview 原样透出外，没有实际校验、没有预检、没有执行策略。
+
+对应代码：
+
+- `backend/app/services/system/plugin_service.py:580-629`
+- `backend/app/api/admin/plugins.py:83-170`
+- `backend/app/plugins/lifecycle.py:1007-1088`
+- `backend/app/plugins/preview.py:138-206`
+- `frontend/apps/web-antd/src/api/admin/plugin.ts`
+- `frontend/apps/web-antd/src/views/admin/plugins/index.vue`
+
+#### 为什么不合适
+
+这会导致管理端和接口对外表达出错误事实：
+
+- 一个插件明明缺少上游插件或版本不匹配，依赖状态仍可能显示“installed”
+- `system` 字段看起来像支持，实际上没人校验
+- `npm` 看起来还能装/卸，实际上只是兼容外壳
+
+这对新系统来说非常不合适，因为它会直接误导：
+
+- 插件作者
+- 运维人员
+- 后续接手实现的人
+
+#### 为什么必须改
+
+依赖系统最怕“声明支持”和“实际支持”不一致。
+
+如果系统还没有真的支持某类依赖，就不应该继续以正式 API 形态对外承诺。
+
+#### 建议
+
+1. `dependency_status` 改成真实模型：
+   - `python`
+   - `plugins`
+   - `system`
+2. `npm` 从运行期依赖 API 和管理页动作里彻底移除。
+3. `dependencies.system` 二选一：
+   - 要么补成真正可校验的 typed preflight 模型
+   - 要么在当前版本先从正式 schema 与文档里移除
+4. install preview 必须给出：
+   - 缺失插件依赖
+   - 版本不匹配
+   - 缺失系统前置条件
+
+---
+
+### P1-17. 启动恢复仍会自动安装 Python 依赖，运行期与安装期边界没有完全切开
+
+#### 现状
+
+- 插件启用时会安装 Python 依赖。
+- 插件升级时也会安装 Python 依赖。
+- 但服务启动恢复 `restore_enabled_plugins()` 仍然会再次尝试 `_install_python_deps()`。
+
+对应代码：
+
+- `backend/app/plugins/lifecycle.py:716-726`
+- `backend/app/plugins/startup.py:417-420`
+- `backend/app/plugins/version_manager.py:158-159`
+
+#### 为什么不合适
+
+启动恢复本来应该是：
+
+- 校验
+- 恢复注册
+- fail-close 标记错误
+
+而不是在服务启动时继续修改宿主环境。
+
+否则启动成功与否会额外依赖：
+
+- 外部网络
+- 编译工具链（例如 Rust/Cargo）
+- pip 当前索引状态
+- 启动瞬间的环境稳定性
+
+这和前面已经收敛好的“前端 npm 依赖不属于启动恢复”是同一个问题，只是后端 Python 依赖这半边还没有彻底收口。
+
+#### 为什么必须改
+
+因为只要启动阶段还在 `pip install`，生产环境就仍然不是一个确定性可回放的发布环境。
+
+#### 建议
+
+把 Python 依赖补装权限收敛到三个入口：
+
+1. install
+2. upgrade
+3. 显式 repair
+
+而 `startup.restore_enabled_plugins()` 只做：
+
+1. 快速校验依赖是否满足
+2. 不满足则标记 `error / repair_required`
+3. 不再在生产启动链路里直接安装
 
 ---
 
@@ -2173,7 +2414,7 @@ backend/.venv/Scripts/python -m pytest tests/plugins/test_contract_lifecycle.py 
 
 为避免理解偏差，这里明确一下：
 
-- `P0-1` ~ `P3-1` 全部属于本轮
+- 第 4 章列出的全部问题项，包括本次复审新增的 `P1-14` ~ `P1-17`，全部属于本轮
 - 正式插件、历史插件、脚手架、`.cursor` 规则同步都属于本轮
 - 保留的历史样例插件也必须在本轮明确“迁移”或“归档”，不能悬空
 
@@ -2193,6 +2434,10 @@ backend/.venv/Scripts/python -m pytest tests/plugins/test_contract_lifecycle.py 
 7. `granted_capabilities` 禁止被启动同步或磁盘 manifest 热同步自动覆盖。
 8. `/plugin-assets` 改成受 scope / tenant assignment / license 约束的分发模型。
 9. 版本变化必须走正式 upgrade 流程，禁止 discover 阶段做 silent upgrade。
+10. 收敛插件依赖模型，只保留一套插件间依赖语义，并贯通 install/enable/disable/uninstall/query。
+11. 为 Python 依赖建立跨宿主/跨插件冲突预检，禁止无解依赖直接装进共享环境。
+12. 依赖状态、预览和管理 API 改成真实依赖模型，去掉失效的 npm 运行期语义。
+13. 启动恢复不再自动 `pip install`，Python 依赖补装只允许 install/upgrade/repair。
 
 ### 12.3 P2：最后收语义、模型与文档一致性，但仍属于本轮统一交付
 
@@ -2666,7 +2911,141 @@ backend/.venv/Scripts/python -m pytest tests/plugins/test_contract_lifecycle.py 
 4. `.cursor` 规则与技能文档同步完成
 5. 不再保留的历史样例插件已明确归档
 
+### 12.8 插件依赖治理改造方案（本次复审补充）
+
+这一节专门补上这次复审新发现的“依赖问题”。
+
+先给结论：
+
+- 前面的总审计有部分覆盖依赖问题，但只覆盖到了“前端 npm 依赖不该在生产恢复时安装”这一层。
+- 这次把插件依赖模型单独拉出来复核后，可以确认：当前依赖治理还没有收口，必须并入同一份总方案。
+
+#### 12.8.1 本次复审结论
+
+当前依赖体系主要有四个结构性问题：
+
+1. Python 依赖直接装进宿主共享环境，但没有跨插件冲突求解。
+2. 插件间依赖被拆成 `dependencies.plugins` 和 `compatibility.requires` 两套语义。
+3. 依赖状态/预览/API 没有按真实依赖模型返回，`npm` 与 `system` 语义漂移。
+4. 启动恢复仍在自动补装 Python 依赖，安装期与运行期边界没切干净。
+
+这四项不是“以后有插件依赖时再说”的问题，而是新系统现在就应该立住的边界。
+
+#### 12.8.2 现有正式插件依赖审计结果
+
+对当前正式插件的 manifest 复核如下：
+
+1. `aliyun-oss`
+   - Python 依赖：`alibabacloud-oss-v2`、`anyio`
+2. `amazon-s3`
+   - Python 依赖：`boto3`、`anyio`
+3. `qiniu-kodo`
+   - Python 依赖：`qiniu`、`httpx`、`anyio`
+4. `tencent-cos`
+   - Python 依赖：`cos-python-sdk-v5`、`anyio`
+5. `weather-widget`
+   - Python 依赖：`httpx`
+6. `storage-migration`
+   - 当前无显式运行时依赖
+7. `novusdoc`
+   - 审计时未显式声明 `dependencies`，等价于空依赖
+   - 本轮已补成显式空依赖，避免继续保留隐式模型
+
+另外两个重要结论：
+
+1. 当前正式插件里，没有任何一个真正使用：
+   - `dependencies.system`
+   - `compatibility.requires`
+   - 插件到插件的版本依赖
+2. 这说明当前问题主要是“模型不成立”，而不是“现有样例已经大量坏掉”。
+
+也正因为现在还没有大量依赖型插件，才更应该在这一轮把规则立住。
+
+#### 12.8.3 建议采用的目标模型
+
+后端插件既然运行在同一个 Python 进程里，就不要继续假装存在“每个插件都能独立带自己那套 Python 版本”的隐式幻想。
+
+更合理的目标模型是：
+
+1. Python 依赖
+   - 明确属于“共享宿主环境模式”
+   - 只能在 install / upgrade / repair 阶段处理
+   - 安装前必须做冲突预检
+   - 启动阶段只校验，不改环境
+2. 插件间依赖
+   - 只保留一套声明
+   - 同时支持“依赖哪个插件”和“要求什么版本”
+   - disable / uninstall / query / preview 全部认同一套结果
+3. system 依赖
+   - 只用于前置条件校验
+   - 例如二进制、环境变量、宿主能力
+   - 不应该伪装成“系统会帮你自动装”
+4. 前端依赖
+   - 当前版本不再属于运行期 manifest 依赖模型
+   - dev/build 依赖留在插件前端工作区
+   - release 依赖由 `frontend/dist/plugin.manifest.json` 负责发布产物声明
+
+#### 12.8.4 同批改造动作
+
+这一部分也属于本轮统一整改，不是后补项。
+
+1. manifest/schema
+   - 把插件间依赖统一收敛为单一字段
+   - 不再让 `dependencies.plugins` 与 `compatibility.requires` 双轨并存
+   - `dependencies.system` 从正式 schema 移除
+2. install preview
+   - 必须真正检查：
+     - Python 冲突
+     - 缺失插件依赖
+     - 插件版本不匹配
+3. lifecycle
+   - install / upgrade / repair：允许处理 Python 依赖
+   - enable：必须先做共享环境预检，再按需补装未满足的 Python 依赖，不允许跳过冲突检查
+   - disable / uninstall：必须按同一份依赖图阻断被依赖插件
+4. startup restore
+   - 只恢复扩展和做依赖校验
+   - 不再自动 `pip install`
+   - 缺依赖时标记 `error / repair_required`
+5. admin API / 前端管理页
+   - `dependency_status` 返回真实 `python/plugins`
+   - 删除失效的 `npm` 安装/卸载动作语义
+   - `get_dependencies / get_dependents` 返回规范化依赖对象，而不是只有名称列表
+6. 正式插件与模板
+   - 正式插件 manifest 统一补成显式依赖块
+   - `novusdoc` 这类当前依赖为空的插件，也要按新规范补齐空结构
+   - 脚手架默认生成新依赖模型，不能继续生成旧字段
+
+#### 12.8.5 需要修改的代码入口
+
+这部分至少会涉及：
+
+- `backend/app/plugins/manifest.py`
+- `backend/app/plugins/lifecycle.py`
+- `backend/app/plugins/startup.py`
+- `backend/app/plugins/preview.py`
+- `backend/app/services/system/plugin_service.py`
+- `backend/app/api/admin/plugins.py`
+- `frontend/apps/web-antd/src/api/admin/plugin.ts`
+- `frontend/apps/web-antd/src/views/admin/plugins/index.vue`
+- `backend/scripts/plugin_cli.py`
+- `.cursor/rules/plugin-system.md`
+- `.cursor/skills/novusai-saas/references/plugin-spec.md`
+
+#### 12.8.6 验收要求
+
+依赖治理这一块要算“做完”，至少要同时满足：
+
+1. 能阻止无解的 Python 依赖冲突进入共享环境。
+2. versioned plugin dependency 会影响 install / enable / disable / uninstall / query 全链路。
+3. 管理端展示的依赖状态与真实运行规则一致。
+4. 启动恢复不再自动补装 Python 依赖。
+5. 正式插件和脚手架已经迁到新依赖声明模型。
+
+本轮实施已按上述验收要求完成，实际落地情况见第 `14.8` 节。
+
 ## 13. 最终结论
+
+本章保留的是审计时点的原始结论。若与第 `14` 章“实施回写”冲突，以第 `14` 章为准。
 
 插件系统目前不是不能用，而是“核心骨架可用，但商业化与授权闭环不成立，而且正式插件、历史插件、脚手架模型并存”。
 
@@ -2690,5 +3069,233 @@ backend/.venv/Scripts/python -m pytest tests/plugins/test_contract_lifecycle.py 
 7. 升级/版本治理边界
 8. `user` 端支持策略
 9. 历史插件与脚手架迁移
+10. 依赖治理边界
 
 否则系统会长期停留在一种“看起来有收费能力、实际上没有稳定收费边界，而且新旧插件契约会不断混用”的状态。这正是当前最不合适的地方。
+
+## 14. 实施回写（2026-03-22）
+
+本章用于回写本次按本报告实际落地的整改结果，避免文档继续停留在“仅审计、未实现”的失真状态。
+
+### 14.1 已落地的骨干整改
+
+1. License 语义已收敛为三态：
+   - `trial`
+   - `fixed_term`
+   - `perpetual`
+2. 已建立统一 runtime gate，并接入：
+   - 插件启用
+   - 启动恢复
+   - API 分发
+   - webhook 分发
+   - `/plugin-assets`
+   - 管理端/企业端 slots 可见性
+3. `/plugin-assets` 与管理态图标通道已拆分：
+   - `/plugin-assets` 只承载运行时 release 资产；`plugin.manifest.json`、JS、CSS、运行时图片继续统一受 token + enabled + scope + tenant assignment + license 约束
+   - 管理态图片图标改走 `/plugin-icons/{plugin}/{file}`，仅管理端可访问，不再被 `enabled` / license 运行闸门误封
+   - 宿主前端已取消 `query access_token` 模式，改为 `Authorization` + 同源插件资产 Cookie；受控资产响应缓存已改为 `private`，不再返回 `public`
+4. `discover` / `sync-manifest` / `upgrade` 已显式分界：
+   - `discover` 只做发现和漂移标记
+   - `discover` 还会清理已消失的历史漂移/旧 scope 遗留 error 状态
+   - `sync-manifest` 只同步同版本 manifest 漂移
+   - 版本变化必须走正式 `upgrade`
+   - 启动恢复不再处理前端 npm 依赖
+
+### 14.2 前端运行模型已改成 source / release 分轨
+
+1. 开发态：
+   - 宿主前端不再用 `/plugin-assets/{plugin}/index.js`
+   - 改为 `/__plugin_dev__/{plugin}/entry`
+2. 生产态：
+   - 宿主先读取 `/plugin-assets/{plugin}/plugin.manifest.json`
+   - 再按 manifest 的 `entry` / `css` 加载发布产物
+3. `frontend/dist/plugin.manifest.json` 已成为正式契约。
+4. `plugin-loader.ts` 与 `vite-plugin-novus-plugins.ts` 已同步切换到新模型。
+
+### 14.3 菜单 / 页面模型已收敛
+
+1. 新模型以 `extensions.frontend.pages[*]` 为单一事实来源。
+2. `pages[*].menu` 用于声明该页面是否派生为菜单入口。
+3. `menu-config` 更新已改为只重建导航域，不再触发整套扩展重注册。
+4. 当前版本已明确移除 `user` 端插件支持，统一只保留 `admin` / `tenant`。
+
+### 14.4 CLI 与脚手架已切换到新契约
+
+已实现并回归：
+
+- `novusai plugin build`
+- `novusai plugin validate`
+- `novusai plugin pack --release`
+- `novusai plugin pack --source`
+- `novusai plugin create --template=full-module`
+
+当前行为：
+
+1. `build`
+   - 构建前端产物后生成/刷新 `frontend/dist/plugin.manifest.json`
+2. `validate`
+   - 校验新 manifest schema
+   - 校验 `frontend.dev.entry`
+   - 校验 release manifest
+   - 明确拒绝旧字段：
+     - `frontend.menus`
+     - `frontend.standalone_pages`
+     - `frontend.admin.entry`
+     - `frontend.tenant.entry`
+     - `frontend.npm_dependencies`
+3. `pack --release`
+   - 默认排除 `frontend/src`
+   - 排除前端测试文件
+   - 排除 `frontend/package.json` / `vite.config.*` / lockfile
+   - 排除 `backend/tests`
+4. `pack --source`
+   - 保留源码链路，供开发/迁移使用
+
+### 14.5 正式插件与历史对象的本轮处置
+
+正式插件：
+
+- `aliyun-oss`：已纳入新 CLI validate / release pack 验证
+- `amazon-s3`：已纳入新 CLI validate / release pack 验证
+- `novusdoc`：已迁移到 `pages + dev + release.manifest`
+- `qiniu-kodo`：已纳入新 CLI validate / release pack 验证
+- `storage-migration`：已迁移到 `pages + dev + release.manifest`
+- `tencent-cos`：已纳入新 CLI validate / release pack 验证
+- `weather-widget`：已迁移到 `pages + dev + release.manifest`
+
+历史/备份插件：
+
+- `netdisk`：已迁到当前 schema
+  - scope 改为 `admin_and_selected_tenants`
+  - 前端改为 `pages + dev + release.manifest`
+- `novus-crud-code`：已迁到当前 schema
+  - 移除 `menus / standalone_pages / npm_dependencies / admin.entry`
+  - 改为 `pages + dev + release.manifest`
+  - 修复 `<style scoped>` validate 阻塞
+- `regression-probe`：已纳入 validate 基线
+- `example-weather`：已纳入 validate 基线
+
+历史样例：
+
+- `novusdoc-pro`：当前仓库无正式源码根目录，本轮按“已归档样例”处理，不再作为现行插件架构依据
+
+### 14.6 本轮已执行验证
+
+后端自动化（定向新增 / 受影响用例）：
+
+```bash
+backend/.venv/Scripts/python -m pytest \
+  backend/tests/test_plugin_manifest_validation.py \
+  backend/tests/test_plugin_startup_restore_modes.py \
+  backend/tests/test_plugin_dependency_runtime_model.py \
+  backend/tests/test_plugin_cli_release_workflow.py \
+  backend/tests/test_plugin_historical_validate_baseline.py -q
+```
+
+结果：`29 passed`
+
+后端自动化（更大范围插件回归）：
+
+```bash
+backend/.venv/Scripts/python -m pytest \
+  backend/tests/test_plugin_*.py \
+  backend/tests/plugins/test_plugin_menu_canonical_scope.py -q
+```
+
+结果：`114 passed`
+
+前端自动化：
+
+```bash
+pnpm --dir frontend/apps/web-antd exec vitest run \
+  src/utils/__tests__/plugin-asset.test.ts \
+  src/utils/__tests__/plugin-loader.test.ts
+```
+
+结果：`7 passed`
+
+前端类型检查尝试：
+
+```bash
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend/apps/web-antd typecheck
+```
+
+结果：
+
+- `pretypecheck` 已成功执行 `icons:generate`
+- 已生成 / 刷新：
+  - `frontend/packages/icons/src/iconify/lucide-subset.generated.ts`
+  - `frontend/packages/icons/src/iconify/lucide-catalog.generated.ts`
+- `vue-tsc --noEmit --skipLibCheck` 已通过
+
+正式插件实跑：
+
+1. 7 个正式插件已实跑 `plugin validate`
+   - 全部返回 `exit=0`
+2. 7 个正式插件已实跑 `plugin pack --release`
+   - 全部成功产出 ZIP
+3. 同 7 个正式插件已实跑 `plugin pack --source`
+   - 全部成功产出 ZIP
+4. `novusdoc` 已额外执行 `plugin build`
+   - 已生成 / 刷新 `frontend/dist/plugin.manifest.json`
+5. 历史对象 `netdisk / novus-crud-code / regression-probe / example-weather`
+   - 已纳入 validate 基线并通过
+
+### 14.7 对本报告若干旧结论的校正
+
+以下旧结论在本轮实施后已不再成立，应以第 14 章为准：
+
+1. “`/plugin-assets` 只校验 enabled、不校验 license / scope / tenant assignment”
+   - 已修正
+2. “dev 和 prod 共用 `/plugin-assets/{plugin}/index.js`”
+   - 已修正
+3. “菜单与页面双源配置并存”
+   - 已修正
+4. “`plugin pack` 默认会把 `frontend/src` 一起打进商业交付包”
+   - 已修正
+5. “系统表面支持 `user` 端插件”
+   - 已修正为当前版本不支持
+
+本报告第 4 章与第 12 章仍保留作为问题依据与设计依据；当前代码现实以后续实现和本章回写为准。
+
+### 14.8 复审补充：依赖治理已完成收口
+
+本次对依赖模型的单独复审，不再只停留在“前端 npm 依赖不该进入生产恢复期”的局部修补，而是已经按第 `12.8` 节方案完成了整块收口。
+
+1. manifest / schema 已收敛
+   - `dependencies.plugins` 已成为唯一正式插件间依赖字段
+   - `compatibility.requires` 已从 manifest schema 移除，并在 validate 阶段直接拒绝
+   - `dependencies.system` 已从统一 runtime model 移除
+   - `DependenciesSchema` / `CompatibilitySchema` 已设置 `extra="forbid"`
+   - 运行时只对历史数据库里的旧 `manifest` 投影保留只读兼容读取，用于迁移和回放，不再允许新源码继续写旧字段
+2. 共享宿主环境边界已落实
+   - 新增 Python requirement 预检与 direct requirement 冲突检测，阻止无解依赖静默进入宿主共享 venv
+   - `install / upgrade / repair / dependencies/install` 可处理 Python 依赖
+   - `enable` 会在预检通过后按需补装缺失的 Python 依赖，不再跳过冲突检查
+   - `startup restore` 只做 Python/插件依赖校验与恢复注册，不再自动 `pip install`
+3. 生命周期与查询链路已统一
+   - versioned plugin dependency 已贯通 install / enable / disable / uninstall / query
+   - `disable` 只阻断仍处于 enabled 的依赖方
+   - `uninstall` 阻断所有仍已安装的依赖方
+   - `get_dependencies / get_dependents` 已返回结构化依赖对象，不再只是名称列表
+4. 预览、管理 API 与前端管理页已切到真实模型
+   - install preview 现在真实返回 `python + plugins`
+   - `dependency_status` 已按真实运行规则返回 `python + plugins`
+   - 运行期 `npm` 安装/卸载语义已从 API、管理端请求体和进度展示中移除
+5. 正式插件、历史插件与脚手架已同步
+   - `novusdoc` 已补成显式空依赖
+   - `netdisk` 与 `novus-crud-code` 的历史 manifest 已迁到当前依赖 schema，用作 validate 基线
+   - `plugin create` 默认生成 `dependencies.plugins: []`
+   - `plugin build` 已兼容 Windows 下 `pnpm.cmd / yarn.cmd / npm.cmd`
+   - `plugin validate` 已接受插件 locale 的嵌套 `plugin.{name}` 结构
+6. 依赖治理验收结果
+   - 无解的 Python 冲突会在进入共享环境前被阻止
+   - versioned dependency 已影响 install / enable / disable / uninstall / query 全链路
+   - 管理端展示的依赖状态已与真实运行规则一致
+   - 启动恢复已停止自动补装 Python 依赖
+   - 正式插件、历史插件和脚手架都已按新依赖模型处理
+7. 同日补修
+   - 修复了 `plugin_dependency_is_version_satisfied()` 中的不可达代码问题
+   - 现在 `*` 和 `>=...` 等满足条件的版本约束会正确返回 `True`
+   - 已补充“已安装 + 已启用 + 版本满足 => ready”的正向回归测试，避免再次出现“测试全绿但 happy path 已坏”的漏检

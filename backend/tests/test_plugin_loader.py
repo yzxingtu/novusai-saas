@@ -43,3 +43,14 @@ def test_load_manifest_from_path_missing_yaml(tmp_path: Path) -> None:
 
     with pytest.raises(Exception, match=r"not found|does not exist"):
         loader.load_manifest_from_path(plugin_dir)
+
+
+def test_load_manifest_from_path_defaults_root_icon_png(tmp_path: Path) -> None:
+    loader = PluginLoader()
+    plugin_dir = tmp_path / "icon-demo-plugin"
+    _write_manifest(plugin_dir)
+    (plugin_dir / "icon.png").write_bytes(b"\x89PNG")
+
+    manifest = loader.load_manifest_from_path(plugin_dir)
+
+    assert manifest.icon == "icon.png"

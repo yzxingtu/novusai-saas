@@ -24,6 +24,7 @@ EXEMPT_PATH_PREFIXES = (
     "/openapi.json",
     "/health",
     "/plugin-assets",
+    "/plugin-icons",
     "/",  # Root path health check / 根路径健康检查
 )
 

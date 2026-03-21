@@ -19,6 +19,10 @@
     "build": "pnpm vite build --mode production",
     "build:analyze": "pnpm vite build --mode analyze",
     "dev": "pnpm vite --mode development",
+    "prebuild": "pnpm --dir ../.. run icons:generate",
+    "prebuild:analyze": "pnpm --dir ../.. run icons:generate",
+    "predev": "pnpm --dir ../.. run icons:generate",
+    "pretypecheck": "pnpm --dir ../.. run icons:generate",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },

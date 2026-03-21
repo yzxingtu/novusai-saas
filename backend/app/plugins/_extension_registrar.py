@@ -175,58 +175,12 @@ def register_all_extensions(
         else:
             _record_failure(plugin_name, "socketio", sio_ext.handler)
 
-    # Frontend Menus
-    overrides = menu_overrides or {}
-    for menu_ext in ext.frontend.menus:
-        override = overrides.get(menu_ext.name, {})
-        scope = menu_ext.scope or "admin"
-
-        if scope == "both":
-            # both → split into admin + tenant menu permissions with separate parents
-            # Split into admin + tenant menu permissions with separate parents
-            admin_parent = override.get("parent", menu_ext.parent)
-            # tenant_parent falls back to admin parent if not configured / tenant_parent 未配置时沿用 admin parent（降级）
-            tenant_parent = override.get("tenant_parent", admin_parent)
-            registry.register_menu(
-                plugin_name,
-                name=f"{menu_ext.name}_admin",
-                path=menu_ext.path,
-                icon=menu_ext.icon,
-                parent=admin_parent,
-                sort_order=menu_ext.sort_order,
-                scope="admin",
-                component=menu_ext.component,
-                title=menu_ext.title,
-                hidden=menu_ext.hidden,
-            )
-            registry.register_menu(
-                plugin_name,
-                name=f"{menu_ext.name}_tenant",
-                path=menu_ext.path,
-                icon=menu_ext.icon,
-                parent=tenant_parent,
-                sort_order=menu_ext.sort_order,
-                scope="tenant",
-                component=menu_ext.component,
-                title=menu_ext.title,
-                hidden=menu_ext.hidden,
-            )
-        else:
-            # 单端菜单：与 PermissionScope（admin/tenant/user）字面量一致
-            effective_parent = override.get("parent", menu_ext.parent)
-            reg_scope = scope
-            registry.register_menu(
-                plugin_name,
-                name=menu_ext.name,
-                path=menu_ext.path,
-                icon=menu_ext.icon,
-                parent=effective_parent,
-                sort_order=menu_ext.sort_order,
-                scope=reg_scope,
-                component=menu_ext.component,
-                title=menu_ext.title,
-                hidden=menu_ext.hidden,
-            )
+    register_navigation_extensions(
+        registry,
+        manifest,
+        plugin_name,
+        menu_overrides=menu_overrides,
+    )
 
     # ── T9: Frontend Slots (6 types, registered by slot_type) / （6 种前端插槽，按 slot_type 分类注册）──
 
@@ -250,20 +204,7 @@ def register_all_extensions(
             position=panel.position,
         )
 
-    # standalone_pages — Standalone page routes (/admin/plugins/* or /tenant/plugins/*) / 独立页面路由
-    for page in ext.frontend.standalone_pages:
-        slot_kwargs: dict[str, object] = dict(
-            name=page.name,
-            path=page.path,
-            component=page.component,
-            title=page.title,
-        )
-        if page.ai is not None:
-            slot_kwargs["ai"] = page.ai.model_dump(exclude_none=True)
-        registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.STANDALONE_PAGE.value,
-            **slot_kwargs,
-        )
+    register_frontend_page_extensions(registry, manifest, plugin_name)
 
     # notification_ui — Notification center custom UI components / 通知中心自定义 UI 组件
     for notif_ui in ext.frontend.notification_ui:
@@ -332,6 +273,58 @@ def register_all_extensions(
         del _failed_extensions[plugin_name]
 
     return registry.get_registered_count(plugin_name)
+
+
+def register_navigation_extensions(
+    registry: ExtensionRegistry,
+    manifest: PluginManifest,
+    plugin_name: str,
+    menu_overrides: dict[str, dict] | None = None,
+) -> None:
+    """Register page-derived navigation only. / 仅注册页面派生导航。"""
+    overrides = menu_overrides or {}
+    for page in manifest.extensions.frontend.pages:
+        if page.menu is None:
+            continue
+        override = overrides.get(page.name, {})
+        effective_parent = override.get("parent", page.menu.parent)
+        registry.register_menu(
+            plugin_name,
+            name=page.name,
+            path=page.path,
+            icon=page.menu.icon or page.icon,
+            parent=effective_parent or "",
+            sort_order=page.menu.sort_order,
+            scope=page.scope,
+            component=page.component,
+            title=page.menu.title or page.title,
+            hidden=page.menu.hidden,
+        )
+
+
+def register_frontend_page_extensions(
+    registry: ExtensionRegistry,
+    manifest: PluginManifest,
+    plugin_name: str,
+) -> None:
+    """Register page slots from frontend.pages. / 根据 frontend.pages 注册页面插槽。"""
+    for page in manifest.extensions.frontend.pages:
+        slot_kwargs: dict[str, object] = {
+            "name": page.name,
+            "path": page.path,
+            "component": page.component,
+            "title": page.title,
+            "scope": page.scope,
+        }
+        if page.icon:
+            slot_kwargs["icon"] = page.icon
+        if page.ai is not None:
+            slot_kwargs["ai"] = page.ai.model_dump(exclude_none=True)
+        registry.register_frontend_slot(
+            plugin_name,
+            FrontendSlotTypeEnum.STANDALONE_PAGE.value,
+            **slot_kwargs,
+        )
 
 
 def get_failed_extensions(plugin_name: str) -> list[dict[str, str]]:

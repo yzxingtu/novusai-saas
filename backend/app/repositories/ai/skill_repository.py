@@ -15,7 +15,7 @@ class SkillRepository(TenantRepository[Skill]):
     企业级技能 Repository / Tenant-level skill repository.
 
     提供基于企业隔离的技能数据访问。
-    查询时自动包含 scope=global 的全局技能。
+    查询时自动包含平台技能包下的共享技能。
     """
 
     model = Skill
@@ -53,12 +53,9 @@ class SkillRepository(TenantRepository[Skill]):
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
-        from app.enums.common import AudienceEnum
-
         platform_pkg_stmt = select(SkillPackage.id).where(
             SkillPackage.is_deleted.is_(False),
             SkillPackage.tenant_id.is_(None),
-            SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
         )
         platform_pkg_result = await self.db.execute(platform_pkg_stmt)
         platform_pkg_ids = [row[0] for row in platform_pkg_result.all()]
@@ -98,6 +95,24 @@ class SkillRepository(TenantRepository[Skill]):
         items = list(result.scalars().all())
 
         return items, total
+
+    async def get_by_ids(
+        self,
+        ids: list[int],
+        include_deleted: bool = False,
+    ) -> list[Skill]:
+        """Get skills by IDs with tenant-visible package fallback."""
+        instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
+        visible: list[Skill] = []
+        for instance in instances:
+            if instance.tenant_id == self.tenant_id:
+                visible.append(instance)
+                continue
+            if instance.tenant_id is None:
+                pkg = await self.db.get(SkillPackage, instance.package_id)
+                if pkg and pkg.tenant_id is None:
+                    visible.append(instance)
+        return visible
 
     async def get_by_name(
         self,
@@ -181,6 +196,27 @@ class AdminSkillRepository(BaseRepository[Skill]):
     """
 
     model = Skill
+
+    async def get_by_package_id(
+        self,
+        package_id: int,
+        include_deleted: bool = False,
+    ) -> list[Skill]:
+        """
+        获取技能包下的全部技能 / Get all skills under a skill package.
+
+        用于非分页场景（如工具解析），避免 query_list 默认分页截断。
+        Used by non-paginated flows (for example tool resolution) to avoid
+        truncation caused by query_list default pagination.
+        """
+        stmt = select(Skill).where(Skill.package_id == package_id)
+
+        if not include_deleted:
+            stmt = stmt.where(Skill.is_deleted.is_(False))
+
+        stmt = stmt.order_by(Skill.sort_order.asc(), Skill.created_at.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_by_name_in_package(
         self,

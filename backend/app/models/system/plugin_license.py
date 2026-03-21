@@ -31,7 +31,7 @@ class PluginLicense(BaseModel):
         String(500), nullable=True, comment="License Key",
     )
     license_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="trial", comment="许可类型 (trial/perpetual)",
+        String(20), nullable=False, default="trial", comment="许可类型 (trial/fixed_term/perpetual)",
     )
     version_scope: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="版本范围",
@@ -46,7 +46,7 @@ class PluginLicense(BaseModel):
         DateTime, nullable=True, comment="试用到期时间",
     )
     expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, comment="付费 License 到期时间（None 表示永久）",
+        DateTime, nullable=True, comment="正式 License 到期时间（仅 fixed_term 使用，None 表示永久）",
     )
     activated_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="激活时间",

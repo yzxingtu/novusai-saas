@@ -160,3 +160,91 @@ def test_manifest_normalizes_api_webhook_socket_paths() -> None:
     assert webhook.method == "POST"
     assert webhook.path == "/notify/{event_id}"
     assert socketio.path == "collab/main"
+
+
+def test_frontend_page_scope_must_match_route_prefix() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "frontend": {
+            "pages": [
+                {
+                    "name": "docs",
+                    "path": "/tenant/plugins/demo-plugin/docs",
+                    "component": "DemoDocsPage",
+                    "scope": "admin",
+                    "title": {"en": "Docs"},
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(ValidationError, match="path must match scope prefix"):
+        PluginManifest.model_validate(payload)
+
+
+def test_frontend_dev_release_paths_reject_traversal() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "frontend": {
+            "dev": {"entry": "../src/index.ts"},
+            "release": {"manifest": "../plugin.manifest.json"},
+        }
+    }
+
+    with pytest.raises(ValidationError, match="safe relative path"):
+        PluginManifest.model_validate(payload)
+
+
+def test_dependencies_plugins_accepts_versioned_object() -> None:
+    payload = _base_manifest()
+    payload["dependencies"] = {
+        "python": [],
+        "plugins": [
+            {"plugin": "base-plugin", "version": ">=1.2.0,<2.0.0"},
+        ],
+    }
+
+    manifest = PluginManifest.model_validate(payload)
+
+    assert len(manifest.dependencies.plugins) == 1
+    assert manifest.dependencies.plugins[0].plugin == "base-plugin"
+    assert manifest.dependencies.plugins[0].version == ">=1.2.0,<2.0.0"
+
+
+def test_manifest_rejects_legacy_compatibility_requires() -> None:
+    payload = _base_manifest()
+    payload["compatibility"] = {
+        "requires": [{"plugin": "base-plugin", "version": ">=1.0.0"}],
+    }
+
+    with pytest.raises(ValidationError, match="compatibility.requires has been removed"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_rejects_legacy_system_dependencies() -> None:
+    payload = _base_manifest()
+    payload["dependencies"] = {
+        "python": [],
+        "plugins": [],
+        "system": ["redis"],
+    }
+
+    with pytest.raises(ValidationError, match="dependencies.system is not supported"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_accepts_empty_plugin_metadata_icon() -> None:
+    payload = _base_manifest()
+    payload["icon"] = ""
+
+    manifest = PluginManifest.model_validate(payload)
+
+    assert manifest.icon == ""
+
+
+def test_manifest_rejects_non_png_plugin_metadata_icon() -> None:
+    payload = _base_manifest()
+    payload["icon"] = "lucide:file-text"
+
+    with pytest.raises(ValidationError, match="icon.png"):
+        PluginManifest.model_validate(payload)

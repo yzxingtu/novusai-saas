@@ -23,11 +23,11 @@ def _normalize_input_variables(value: Any) -> list[Any]:
 
 def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
     """
-    从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skill_packages。
-    Safely extract related model_name, model_capabilities and skill_packages from ORM Agent object.
+    从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skills。
+    Safely extract related model_name, model_capabilities and skills from ORM Agent object.
 
     Returns:
-        (model_name, model_capabilities, skill_packages) 元组 / tuple
+        (model_name, model_capabilities, skills) 元组 / tuple
     """
     model_name = None
     model_capabilities: dict | None = None
@@ -45,18 +45,18 @@ def extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[d
     except AttributeError:
         pass
 
-    skill_packages: list[dict] = []
+    skills: list[dict] = []
     try:
-        bindings = getattr(agent, "skill_bindings", None)
-        if bindings is not None:
-            for b in bindings:
-                pkg = getattr(b, "package", None)
-                if pkg is not None:
-                    skill_packages.append({"id": pkg.id, "name": pkg.name})
+        grants = getattr(agent, "skill_grants", None)
+        if grants is not None:
+            for grant in grants:
+                skill = getattr(grant, "skill", None)
+                if skill is not None:
+                    skills.append({"id": skill.id, "name": skill.name})
     except AttributeError:
         pass
 
-    return model_name, model_capabilities, skill_packages
+    return model_name, model_capabilities, skills
 
 
 def build_agent_base_item(agent: Any) -> dict[str, Any]:
@@ -66,7 +66,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
     admin/tenant 各自在此基础上追加端特有的字段。
     admin/tenant each append endpoint-specific fields on top of this.
     """
-    model_name, model_capabilities, skill_packages = extract_agent_relations(agent)
+    model_name, model_capabilities, skills = extract_agent_relations(agent)
 
     _otid = getattr(agent, "owner_tenant_id", None)
     # owner_type: 仅列表/详情展示用派生字段（非 ORM 列、非历史 owner_type 列）。
@@ -86,7 +86,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "is_system": agent.is_system,
         "model_name": model_name,
         "model_capabilities": model_capabilities,
-        "skill_packages": skill_packages,
+        "skills": skills,
         "published_version": agent.published_version,
         "welcome_message": agent.welcome_message,
         "suggested_questions": agent.suggested_questions,

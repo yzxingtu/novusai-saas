@@ -70,9 +70,12 @@ from app.models import (
     AITablePolicy,
     AITablePolicyOverride,
     # 技能包 & 技能
+    Capability,
     SkillPackage,
     Skill,
-    AgentSkillBinding,
+    SkillResource,
+    SkillCapabilityBinding,
+    AgentSkillGrant,
     # 域名 SSL
     DomainSslCertificate,
     # 插件

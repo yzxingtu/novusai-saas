@@ -6,11 +6,18 @@ Parse and validate plugin.yaml files, converting YAML content into type-safe Pyt
 """
 
 import re
+from pathlib import PurePosixPath
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.enums.common import ResourceScopeEnum
+from app.plugins.dependencies import (
+    PluginDependencyRequirement,
+    combine_plugin_dependency_versions,
+    validate_plugin_dependency_name,
+    validate_plugin_dependency_version,
+)
 
 # ── Type aliases / 类型别名 ──
 I18nText = dict[str, str]
@@ -18,8 +25,8 @@ I18nText = dict[str, str]
 
 # Plugin manifest menu/slot scope = endpoint side, not ResourceScopeEnum.
 # Only canonical values are accepted; legacy aliases are no longer tolerated.
-_VALID_PLUGIN_ENDPOINT_SCOPES = frozenset({"admin", "tenant", "both", "", "user"})
-_VALID_PLUGIN_PERMISSION_EXT_SCOPES = frozenset({"admin", "tenant", "user", "both"})
+_VALID_PLUGIN_ENDPOINT_SCOPES = frozenset({"admin", "tenant", "both", ""})
+_VALID_PLUGIN_PERMISSION_EXT_SCOPES = frozenset({"admin", "tenant", "both"})
 
 _FRONTEND_PLUGIN_ROUTE_PREFIXES = ("/admin/plugins/", "/tenant/plugins/")
 _API_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
@@ -29,10 +36,6 @@ _WEBHOOK_AUTH_VALUES = {"none", "hmac", "token", "signature"}
 _PATH_PARAM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SOCKETIO_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _PLUGIN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
-_NPM_DEP_SPEC_PATTERN = re.compile(
-    r"^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(?:@[A-Za-z0-9._~^<>=*-]+)?$",
-    re.IGNORECASE,
-)
 _DB_TABLE_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,62}_$")
 # Handler path: dot-separated Python module path, e.g. "api.handlers.handle_current"
 # Allows letters, digits, underscores and dots; forbids .. / \ and other path traversal chars
@@ -54,44 +57,6 @@ def _validate_handler_path(v: str, field_name: str = "handler") -> str:
             f"(e.g. 'api.handlers.my_handler')."
         )
     return path
-
-
-def _validate_plugin_dependency_name(v: str) -> str:
-    """Plugin dependency name validation (lowercase kebab-case) / 插件依赖名称校验（小写 kebab-case）"""
-    name = (v or "").strip()
-    if not name:
-        raise ValueError("dependencies.plugins item cannot be empty")
-    if not _PLUGIN_NAME_PATTERN.match(name):
-        raise ValueError(
-            f"Invalid plugin dependency name '{name}'. "
-            "Must be lowercase kebab-case (e.g. 'crm-module')."
-        )
-    return name
-
-
-def _validate_npm_dependency_spec(v: str) -> str:
-    """npm dependency spec validation, reject CLI injection chars and invalid formats
-    / npm 依赖规格校验，拒绝 CLI 注入字符与非法格式"""
-    spec = (v or "").strip()
-    if not spec:
-        raise ValueError("npm_dependencies item cannot be empty")
-    if spec.startswith("-"):
-        raise ValueError(f"Invalid npm dependency '{spec}': cannot start with '-'")
-
-    # Forbid shell metacharacters and whitespace (prevent command injection)
-    # / 禁止 shell 元字符和空白（避免命令注入）
-    forbidden = {" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"}
-    if any(ch in spec for ch in forbidden):
-        raise ValueError(
-            f"Invalid npm dependency '{spec}': contains forbidden characters"
-        )
-
-    if not _NPM_DEP_SPEC_PATTERN.match(spec):
-        raise ValueError(
-            f"Invalid npm dependency '{spec}'. "
-            "Expected format: 'name', 'name@version', '@scope/name' or '@scope/name@version'."
-        )
-    return spec
 
 
 def _validate_frontend_plugin_route_path(path: str) -> str:
@@ -364,7 +329,7 @@ class NotificationExtensionSchema(BaseModel):
 class PermissionExtensionSchema(BaseModel):
     """Permission extension declaration / 权限扩展声明
 
-    scope 为权限端别（与 ResourceScopeEnum 无关）：admin / tenant / user / both。
+    scope 为权限端别（与 ResourceScopeEnum 无关）：admin / tenant / both。
     """
 
     code: str
@@ -379,7 +344,7 @@ class PermissionExtensionSchema(BaseModel):
         if raw not in _VALID_PLUGIN_PERMISSION_EXT_SCOPES:
             raise ValueError(
                 f"Invalid permission scope '{v}'. "
-                f"Expected one of: admin|tenant|user|both."
+                f"Expected one of: admin|tenant|both."
             )
         return raw
 
@@ -414,7 +379,7 @@ class MenuExtensionSchema(BaseModel):
         raw = "admin" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
             raise ValueError(
-                f"Invalid menu scope '{v}'. Expected one of: admin|tenant|both|user."
+                f"Invalid menu scope '{v}'. Expected one of: admin|tenant|both."
             )
         return raw
 
@@ -436,7 +401,7 @@ class HeaderWidgetSchema(BaseModel):
         if not raw:
             return ""
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid header widget scope '{v}'. Expected one of: admin|tenant|both|user.")
+            raise ValueError(f"Invalid header widget scope '{v}'. Expected one of: admin|tenant|both.")
         return raw
 
 
@@ -449,8 +414,8 @@ class FloatingPanelSchema(BaseModel):
     position: str = "bottom-right"
 
 
-class StandalonePageAISchema(BaseModel):
-    """Standalone page AI metadata (optional) / 独立页面 AI 元信息（可选）"""
+class FrontendPageAISchema(BaseModel):
+    """Frontend page AI metadata (optional) / 前端页面 AI 元信息（可选）"""
 
     mode: Literal["disabled", "context_only", "operate"] | None = Field(
         None,
@@ -470,14 +435,27 @@ class StandalonePageAISchema(BaseModel):
     )
 
 
-class StandalonePageSchema(BaseModel):
-    """Standalone page extension / 独立页面扩展"""
+class FrontendPageMenuSchema(BaseModel):
+    """Frontend page-derived menu declaration. / 前端页面派生菜单声明。"""
+
+    parent: str | None = None
+    sort_order: int = 100
+    icon: str = ""
+    hidden: bool = False
+    title: I18nText = Field(default_factory=dict)
+
+
+class FrontendPageSchema(BaseModel):
+    """Frontend page declaration (single source for page + menu). / 前端页面声明（页面与菜单的单一事实来源）。"""
 
     name: str
     path: str
     component: str
+    scope: Literal["admin", "tenant"]
+    icon: str = ""
     title: I18nText = Field(default_factory=dict)
-    ai: StandalonePageAISchema | None = Field(
+    menu: FrontendPageMenuSchema | None = None
+    ai: FrontendPageAISchema | None = Field(
         None,
         description="Page-level AI strategy (falls back to host default if not declared)",
     )
@@ -486,6 +464,39 @@ class StandalonePageSchema(BaseModel):
     @classmethod
     def validate_path(cls, v: str) -> str:
         return _validate_frontend_plugin_route_path(v)
+
+    @field_validator("scope")
+    @classmethod
+    def validate_scope(cls, v: Literal["admin", "tenant"]) -> Literal["admin", "tenant"]:
+        if v not in {"admin", "tenant"}:
+            raise ValueError("frontend.pages[*].scope must be 'admin' or 'tenant'")
+        return v
+
+    @field_validator("component")
+    @classmethod
+    def validate_component(cls, v: str) -> str:
+        component = (v or "").strip()
+        if not component:
+            raise ValueError("frontend.pages[*].component cannot be empty")
+        return component
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        name = (v or "").strip()
+        if not name:
+            raise ValueError("frontend.pages[*].name cannot be empty")
+        return name
+
+    @model_validator(mode="after")
+    def validate_scope_path_consistency(self) -> "FrontendPageSchema":
+        expected_prefix = f"/{self.scope}/plugins/"
+        if not self.path.startswith(expected_prefix):
+            raise ValueError(
+                "frontend.pages[*].path must match scope prefix "
+                f"'{expected_prefix}'"
+            )
+        return self
 
 
 class NotificationUIExtensionSchema(BaseModel):
@@ -509,7 +520,7 @@ class DashboardWidgetSchema(BaseModel):
     def _normalize_dashboard_scope(cls, v: object) -> str:
         raw = "tenant" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid dashboard widget scope '{v}'. Expected one of: admin|tenant|both|user.")
+            raise ValueError(f"Invalid dashboard widget scope '{v}'. Expected one of: admin|tenant|both.")
         return raw
 
 
@@ -526,38 +537,49 @@ class SettingsTabSchema(BaseModel):
     def _normalize_settings_tab_scope(cls, v: object) -> str:
         raw = "tenant" if v is None else str(v).strip()
         if raw not in _VALID_PLUGIN_ENDPOINT_SCOPES:
-            raise ValueError(f"Invalid settings tab scope '{v}'. Expected one of: admin|tenant|both|user.")
+            raise ValueError(f"Invalid settings tab scope '{v}'. Expected one of: admin|tenant|both.")
         return raw
 
 
-class FrontendSideSchema(BaseModel):
-    """Frontend side declaration (shared structure for admin/tenant) / 前端端侧声明"""
+class FrontendDevSchema(BaseModel):
+    """Frontend dev source contract. / 前端开发态源码契约。"""
 
-    entry: str = ""
-    styles: list[str] = Field(default_factory=list)
+    entry: str = "src/index.ts"
+
+    @field_validator("entry")
+    @classmethod
+    def validate_entry(cls, v: str) -> str:
+        path = PurePosixPath(str(v or "").strip().replace("\\", "/").lstrip("/"))
+        if str(path) in {"", "."} or ".." in path.parts:
+            raise ValueError("frontend.dev.entry must be a safe relative path")
+        return str(path)
+
+
+class FrontendReleaseSchema(BaseModel):
+    """Frontend production release contract. / 前端生产态发布契约。"""
+
+    manifest: str = "plugin.manifest.json"
+
+    @field_validator("manifest")
+    @classmethod
+    def validate_manifest(cls, v: str) -> str:
+        path = PurePosixPath(str(v or "").strip().replace("\\", "/").lstrip("/"))
+        if str(path) in {"", "."} or ".." in path.parts:
+            raise ValueError("frontend.release.manifest must be a safe relative path")
+        return str(path)
 
 
 class FrontendExtensionSchema(BaseModel):
     """Frontend extension aggregate declaration / 前端扩展总声明"""
 
-    menus: list[MenuExtensionSchema] = Field(default_factory=list)
+    pages: list[FrontendPageSchema] = Field(default_factory=list)
     header_widgets: list[HeaderWidgetSchema] = Field(default_factory=list)
     floating_panels: list[FloatingPanelSchema] = Field(default_factory=list)
-    standalone_pages: list[StandalonePageSchema] = Field(default_factory=list)
     notification_ui: list[NotificationUIExtensionSchema] = Field(default_factory=list)
     dashboard_widgets: list[DashboardWidgetSchema] = Field(default_factory=list)
     settings_tabs: list[SettingsTabSchema] = Field(default_factory=list)
-    admin: FrontendSideSchema = Field(default_factory=FrontendSideSchema)
-    tenant: FrontendSideSchema = Field(default_factory=FrontendSideSchema)
-    npm_dependencies: list[str] = Field(default_factory=list)
-
-    @field_validator("npm_dependencies")
-    @classmethod
-    def validate_npm_dependencies(cls, v: list[str]) -> list[str]:
-        cleaned: list[str] = []
-        for dep in v:
-            cleaned.append(_validate_npm_dependency_spec(dep))
-        return list(dict.fromkeys(cleaned))
+    dev: FrontendDevSchema = Field(default_factory=FrontendDevSchema)
+    release: FrontendReleaseSchema = Field(default_factory=FrontendReleaseSchema)
 
 
 # ── Socket.IO Namespace / Socket.IO 命名空间 ──
@@ -708,19 +730,23 @@ class CompatibilityConflictSchema(BaseModel):
     reason: I18nText = Field(default_factory=dict)
 
 
-class CompatibilityRequireSchema(BaseModel):
-    """Plugin dependency declaration / 插件依赖声明"""
-
-    plugin: str
-    version: str = "*"
-
-
 class CompatibilitySchema(BaseModel):
     """Compatibility matrix / 兼容性矩阵"""
 
+    model_config = ConfigDict(extra="forbid")
+
     platform_version: str = "*"
     conflicts: list[CompatibilityConflictSchema] = Field(default_factory=list)
-    requires: list[CompatibilityRequireSchema] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_requires(cls, data: object) -> object:
+        if isinstance(data, dict) and "requires" in data:
+            raise ValueError(
+                "compatibility.requires has been removed. "
+                "Use dependencies.plugins with optional version constraints instead."
+            )
+        return data
 
 
 # ============================================================
@@ -774,9 +800,20 @@ class AIRequirementsSchema(BaseModel):
 class DependenciesSchema(BaseModel):
     """Dependencies declaration / 依赖声明"""
 
+    model_config = ConfigDict(extra="forbid")
+
     python: list[str] = Field(default_factory=list)
-    plugins: list[str] = Field(default_factory=list)
-    system: list[str] = Field(default_factory=list)
+    plugins: list["PluginDependencySchema"] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_system_dependencies(cls, data: object) -> object:
+        if isinstance(data, dict) and "system" in data:
+            raise ValueError(
+                "dependencies.system is not supported in the unified runtime model. "
+                "Move system prerequisites to documentation or typed preflight logic."
+            )
+        return data
 
     @field_validator("python")
     @classmethod
@@ -801,13 +838,70 @@ class DependenciesSchema(BaseModel):
             cleaned.append(req_str)
         return list(dict.fromkeys(cleaned))
 
+    @field_validator("plugins", mode="before")
+    @classmethod
+    def normalize_plugin_dependencies(
+        cls,
+        v: object,
+    ) -> list[dict[str, str]] | object:
+        if not isinstance(v, list):
+            return v
+
+        normalized: list[dict[str, str]] = []
+        for item in v:
+            if isinstance(item, str):
+                normalized.append(
+                    {
+                        "plugin": validate_plugin_dependency_name(item),
+                        "version": "*",
+                    }
+                )
+                continue
+            normalized.append(item)
+        return normalized
+
     @field_validator("plugins")
     @classmethod
-    def validate_plugin_dependencies(cls, v: list[str]) -> list[str]:
-        cleaned: list[str] = []
+    def deduplicate_plugin_dependencies(
+        cls,
+        v: list["PluginDependencySchema"],
+    ) -> list["PluginDependencySchema"]:
+        merged: dict[str, PluginDependencySchema] = {}
         for dep in v:
-            cleaned.append(_validate_plugin_dependency_name(dep))
-        return list(dict.fromkeys(cleaned))
+            existing = merged.get(dep.plugin)
+            if existing is None:
+                merged[dep.plugin] = dep
+                continue
+            merged[dep.plugin] = PluginDependencySchema(
+                plugin=dep.plugin,
+                version=combine_plugin_dependency_versions(
+                    existing.version,
+                    dep.version,
+                ),
+            )
+        return list(merged.values())
+
+
+class PluginDependencySchema(BaseModel):
+    """Plugin dependency declaration / 插件依赖声明"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plugin: str
+    version: str = "*"
+
+    @field_validator("plugin")
+    @classmethod
+    def validate_plugin(cls, v: str) -> str:
+        return validate_plugin_dependency_name(v)
+
+    @field_validator("version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        return validate_plugin_dependency_version(v)
+
+    def to_requirement(self) -> PluginDependencyRequirement:
+        return PluginDependencyRequirement(plugin=self.plugin, version=self.version)
 
 
 class DeveloperSchema(BaseModel):
@@ -951,6 +1045,21 @@ class PluginManifest(BaseModel):
             )
         return v
 
+    @field_validator("icon")
+    @classmethod
+    def validate_plugin_metadata_icon(cls, v: str) -> str:
+        """Plugin metadata icon only allows empty or root icon.png.
+        / 插件元数据图标只允许留空或根目录 icon.png。"""
+        raw = (v or "").strip()
+        if not raw:
+            return ""
+        if raw != "icon.png":
+            raise ValueError(
+                "Plugin metadata icon must be empty or 'icon.png'. "
+                "Use lucide icons only for frontend page/menu functional icons."
+            )
+        return raw
+
     @field_validator("capabilities")
     @classmethod
     def validate_capabilities(cls, v: list[str]) -> list[str]:
@@ -981,3 +1090,6 @@ class PluginManifest(BaseModel):
                 )
             normalized.append(prefix)
         return list(dict.fromkeys(normalized))
+
+
+DependenciesSchema.model_rebuild()

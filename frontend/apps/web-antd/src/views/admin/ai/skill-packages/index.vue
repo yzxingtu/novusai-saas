@@ -10,7 +10,7 @@ import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface'
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import { useRoute } from 'vue-router';
 
@@ -60,12 +60,27 @@ import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesC
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+import {
+  buildPageAIFormExtraData,
+  createCreateRecordPageOperation,
+  createKeywordSearchPageOperation,
+  createOpenCurrentPageOperation,
+  createPrefilledCreatePageOperation,
+  createRefreshPageOperation,
+} from '#/composables';
 import { createFormOperations } from '#/composables/use-ai-operations';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
 
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import SkillForm from '../skills/modules/form.vue';
-import { getAudienceColor, usePackageFormSchema } from './data';
+import {
+  getBindModeColor,
+  getBindModeText,
+  usePackageFormSchema,
+} from './data';
 import PackageForm from './modules/form.vue';
 
 defineOptions({ name: 'AdminSkillPackageList' });
@@ -90,6 +105,29 @@ const selectedPackage = computed(
   () => packages.value.find((p) => p.id === selectedPackageId.value) ?? null,
 );
 
+function getRoutePackageId(): null | number {
+  const raw = route.query.package_id;
+  const normalized = Array.isArray(raw) ? raw[0] : raw;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}
+
+async function maybeHandleRouteAction() {
+  const action = Array.isArray(route.query.action)
+    ? route.query.action[0]
+    : route.query.action;
+
+  if (action !== 'create_skill' || !selectedPackageId.value) {
+    return;
+  }
+
+  await nextTick();
+  onCreateSkill();
+
+  const { action: _ignored, ...rest } = route.query;
+  router.replace({ path: route.path, query: rest });
+}
+
 async function loadPackages() {
   packagesLoading.value = true;
   try {
@@ -98,12 +136,18 @@ async function loadPackages() {
       sort: 'sort_order,-created_at',
     });
     packages.value = res.items;
-    if (
+
+    const routePackageId = getRoutePackageId();
+    if (routePackageId !== null && res.items.some((p) => p.id === routePackageId)) {
+      selectedPackageId.value = routePackageId;
+    } else if (
       selectedPackageId.value === null ||
       !res.items.some((p) => p.id === selectedPackageId.value)
     ) {
       selectedPackageId.value = res.items.length > 0 ? res.items[0]!.id : null;
     }
+
+    await maybeHandleRouteAction();
   } catch {
     packages.value = [];
   } finally {
@@ -240,8 +284,10 @@ function onCreatePackage() {
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skill-packages',
-      _defaults: { is_active: true, sort_order: 0 },
-      _aiPageKey: PKG_PAGE_KEY,
+      ...buildPageAIFormExtraData({
+        pageKey: PKG_PAGE_KEY,
+        defaults: { is_active: true, sort_order: 0 },
+      }),
     })
     .open();
 }
@@ -252,7 +298,7 @@ function onEditPackage(pkg: AdminSkillPackageInfo) {
       ...pkg,
       mode: 'edit',
       _resource: '/admin/ai/skill-packages',
-      _aiPageKey: PKG_PAGE_KEY,
+      ...buildPageAIFormExtraData({ pageKey: PKG_PAGE_KEY }),
     })
     .open();
 }
@@ -343,6 +389,10 @@ function onOpenValvesConfig() {
   valvesConfigPanelRef.value?.open();
 }
 
+function openValvesConfigPanel() {
+  valvesConfigPanelRef.value?.open();
+}
+
 // ==================== 技能列表（右侧） ====================
 const skills = ref<AdminSkillInfo[]>([]);
 const skillsLoading = ref(false);
@@ -376,32 +426,51 @@ const [SkillFormDrawer, skillFormApi] = useVbenDrawer({
   destroyOnClose: true,
 });
 
-function onCreateSkill() {
+function buildSkillCreateDefaults(overrides: Record<string, unknown> = {}) {
+  return {
+    package_id: selectedPackageId.value,
+    type: 'toolkit',
+    timeout: 30,
+    is_active: true,
+    toolkit_content: '',
+    valves_config: {},
+    kb_ids: [],
+    rag_enabled: true,
+    rag_top_k: 5,
+    rag_score_threshold: 0.5,
+    rag_search_mode: 'hybrid',
+    rag_rewrite_strategy: 'none',
+    rag_reranker_enabled: false,
+    rag_context_token_ratio: 0.3,
+    di_table_policy_ids: [],
+    di_max_rows_override: 0,
+    ...overrides,
+  };
+}
+
+function openSkillCreateDrawer(overrides: Record<string, unknown> = {}) {
+  if (!selectedPackageId.value) {
+    return {
+      success: false,
+      message:
+        'Please select a skill package first / 请先选择一个技能包',
+    };
+  }
+
   skillFormApi
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skills',
-      _aiPageKey: PKG_PAGE_KEY,
-      _defaults: {
-        package_id: selectedPackageId.value,
-        type: 'toolkit',
-        timeout: 30,
-        is_active: true,
-        toolkit_content: '',
-        valves_config: {},
-        kb_ids: [],
-        rag_enabled: true,
-        rag_top_k: 5,
-        rag_score_threshold: 0.5,
-        rag_search_mode: 'hybrid',
-        rag_rewrite_strategy: 'none',
-        rag_reranker_enabled: false,
-        rag_context_token_ratio: 0.3,
-        di_table_policy_ids: [],
-        di_max_rows_override: 0,
-      },
+      ...buildPageAIFormExtraData({
+        pageKey: PKG_PAGE_KEY,
+        defaults: buildSkillCreateDefaults(overrides),
+      }),
     })
     .open();
+}
+
+function onCreateSkill() {
+  openSkillCreateDrawer();
 }
 
 function onEditSkill(row: AdminSkillInfo) {
@@ -410,7 +479,7 @@ function onEditSkill(row: AdminSkillInfo) {
       ...row,
       mode: 'edit',
       _resource: '/admin/ai/skills',
-      _aiPageKey: PKG_PAGE_KEY,
+      ...buildPageAIFormExtraData({ pageKey: PKG_PAGE_KEY }),
     })
     .open();
 }
@@ -529,65 +598,103 @@ const packageFormOps = createFormOperations({
   resource: '/admin/ai/skill-packages',
 });
 
-usePageAIRegistration({
-  pageKey: PKG_PAGE_KEY,
-  title: () => $t('admin.ai.skillPackage.name'),
+usePageAIContext({
   resource: '/admin/ai/skill-packages',
   entityName: () => $t('admin.ai.skillPackage.name'),
   entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
   data: () => ({
+    selected_package_has_valves_schema: !!selectedPackage.value?.valves_schema,
+    selected_package_id: selectedPackageId.value,
     selected_package: selectedPackage.value?.name ?? null,
     total_packages: packages.value.length,
   }),
+});
+
+usePageAIOperations({
+  operationStrategy: 'append',
   operations: [
-    {
-      name: 'refresh_list',
-      label: $t('shared.pageOperation.refreshList'),
+    createRefreshPageOperation({
       description: 'Reload the skill package list / 重新加载技能包列表',
-      readonly: true,
-      handler: async () => {
+      action: async () => {
         await loadPackages();
-        return {
-          success: true,
-          message: $t('shared.pageOperation.msg.listRefreshed'),
-        };
       },
-    },
-    {
-      name: 'create_record',
-      label: $t('shared.pageOperation.createRecord'),
+    }),
+    createCreateRecordPageOperation({
       description:
         'Open the skill package creation form / 打开技能包创建表单',
-      readonly: false,
-      handler: async () => {
+      action: () => {
         onCreatePackage();
-        return {
-          success: true,
-          message: $t('shared.pageOperation.msg.createFormOpenedEmpty'),
-        };
       },
-    },
-    {
-      name: 'search',
-      label: $t('shared.pageOperation.searchByKeyword'),
+    }),
+    createKeywordSearchPageOperation({
       description:
         'Search skill packages by keyword / 按关键词搜索技能包',
-      readonly: true,
+      setKeyword: (keyword) => {
+        searchKeyword.value = keyword;
+      },
+    }),
+    createPrefilledCreatePageOperation({
+      name: 'create_skill',
+      label: $t('admin.ai.skill.create'),
+      description:
+        'Open the create skill form for the currently selected package / 为当前选中的技能包打开新建技能表单',
       params: {
-        keyword: { type: 'string', description: 'Search keyword / 搜索关键词' },
+        description: {
+          type: 'string',
+          description: 'Skill description / 技能描述',
+        },
+        is_active: {
+          type: 'boolean',
+          description: 'Whether the skill should be active / 是否启用',
+        },
+        name: {
+          type: 'string',
+          description: 'Skill name / 技能名称',
+        },
+        timeout: {
+          type: 'number',
+          description: 'Skill timeout in seconds / 超时时间（秒）',
+        },
+        type: {
+          type: 'string',
+          enum: [
+            'toolkit',
+            'knowledge_base',
+            'data_intelligence',
+            'builtin',
+            'http',
+            'email',
+            'code_execution',
+          ],
+          description: 'Skill type / 技能类型',
+        },
       },
-      handler: async (params) => {
-        searchKeyword.value = (params?.keyword as string) || '';
-        return {
-          success: true,
-          message: searchKeyword.value
-            ? $t('shared.pageOperation.msg.searchApplied', {
-                fields: 'keyword',
-              })
-            : $t('shared.pageOperation.msg.searchCleared'),
-        };
+      normalizeParams: (params) => ({
+        ...(params?.description ? { description: params.description } : {}),
+        ...(typeof params?.is_active === 'boolean'
+          ? { is_active: params.is_active }
+          : {}),
+        ...(params?.name ? { name: params.name } : {}),
+        ...(typeof params?.timeout === 'number'
+          ? { timeout: params.timeout }
+          : {}),
+        ...(params?.type ? { type: params.type } : {}),
+      }),
+      openCreate: async (overrides) => {
+        return openSkillCreateDrawer(overrides);
       },
-    },
+    }),
+    createOpenCurrentPageOperation({
+      name: 'open_valves_config',
+      label: $t('admin.ai.skillPackage.valves.configBtn'),
+      description:
+        'Open the environment variable configuration panel for the selected skill package / 打开当前技能包的环境变量配置面板',
+      available: () => !!selectedPackage.value?.valves_schema,
+      unavailableMessage: $t('admin.ai.skillPackage.valves.noSchema'),
+      open: async () => {
+        openValvesConfigPanel();
+      },
+    }),
     ...packageFormOps,
   ],
 });
@@ -679,7 +786,6 @@ usePageAIRegistration({
               ]"
             />
           </div>
-          <!-- scope 选择器已移除 / scope selector removed -->
         </div>
         <Upload.Dragger
           :before-upload="handleImportFile"
@@ -870,7 +976,7 @@ usePageAIRegistration({
                 </div>
                 <div class="mt-0.5 flex items-center gap-1.5">
                   <Tag
-                    :color="getAudienceColor(pkg.target_audience)"
+                    :color="getBindModeColor(pkg.bind_mode)"
                     style="
                       padding: 0 3px;
                       margin: 0;
@@ -878,7 +984,7 @@ usePageAIRegistration({
                       line-height: 14px;
                     "
                   >
-                    {{ pkg.target_audience }}
+                    {{ getBindModeText(pkg.bind_mode) }}
                   </Tag>
                   <span class="whitespace-nowrap text-xs text-muted-foreground">
                     {{ pkg.skill_count }}
@@ -1016,6 +1122,17 @@ usePageAIRegistration({
                     ? $t('admin.common.enabled')
                     : $t('admin.common.disabled')
                 }}
+              </Tag>
+              <Tag
+                :color="getBindModeColor(selectedPackage.bind_mode)"
+                style="
+                  padding: 0 4px;
+                  margin: 0;
+                  font-size: 10px;
+                  line-height: 16px;
+                "
+              >
+                {{ getBindModeText(selectedPackage.bind_mode) }}
               </Tag>
             </div>
             <span

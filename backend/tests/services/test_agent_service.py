@@ -176,7 +176,7 @@ class TestPublishAgent:
         service.repo.get_by_id = AsyncMock(return_value=agent)
         service.repo.update = AsyncMock(return_value=updated)
         service._get_version_repo = MagicMock(return_value=version_repo)
-        service._snapshot_skill_bindings = AsyncMock(return_value=[])
+        service._snapshot_skill_grants = AsyncMock(return_value=[])
 
         result = await service.publish_agent(
             agent_id=agent.id,
@@ -281,84 +281,84 @@ class TestCascadeConversationMemoryCleanup:
 class TestRollbackBindings:
 
     @pytest.mark.asyncio
-    async def test_restore_skill_bindings_rebuilds_snapshot_via_batch_bind(self, mock_db):
+    async def test_restore_skill_grants_rebuilds_snapshot_via_batch_bind(self, mock_db):
         from app.services.ai.agent_service import AgentService
 
         service = AgentService.__new__(AgentService)
         service.db = mock_db
         service.tenant_id = 1
 
-        active_pkg_a = make_mock_model(id=11, is_deleted=False)
-        active_pkg_b = make_mock_model(id=22, is_deleted=False)
-        deleted_pkg = make_mock_model(id=33, is_deleted=True)
+        active_skill_a = make_mock_model(id=11, is_deleted=False)
+        active_skill_b = make_mock_model(id=22, is_deleted=False)
+        deleted_skill = make_mock_model(id=33, is_deleted=True)
         mock_db.get = AsyncMock(
-            side_effect=lambda _model, pkg_id: {
-                11: active_pkg_a,
-                22: active_pkg_b,
-                33: deleted_pkg,
-            }.get(pkg_id),
+            side_effect=lambda _model, skill_id: {
+                11: active_skill_a,
+                22: active_skill_b,
+                33: deleted_skill,
+            }.get(skill_id),
         )
 
-        binding_service = AsyncMock()
-        binding_service.batch_bind = AsyncMock(return_value=[
-            make_mock_model(id=101, package_id=11),
-            make_mock_model(id=102, package_id=22),
+        grant_service = AsyncMock()
+        grant_service.batch_bind = AsyncMock(return_value=[
+            make_mock_model(id=101, skill_id=11),
+            make_mock_model(id=102, skill_id=22),
         ])
-        binding_service.update_binding = AsyncMock()
-        binding_service.delete_all_for_agent = AsyncMock()
+        grant_service.update_grant = AsyncMock()
+        grant_service.delete_all_for_agent = AsyncMock()
 
         snapshot = [
             {
-                "package_id": 11,
+                "skill_id": 11,
                 "enabled": False,
-                "consent_mode": "ask",
-                "skill_consent_overrides": {"tool_a": "reject"},
+                "default_consent_mode": "ask",
+                "capability_consent_overrides": {"tool_a": "reject"},
                 "sort_order": 9,
                 "config_override": {"timeout": 30},
             },
             {
-                "package_id": 22,
+                "skill_id": 22,
                 "enabled": True,
-                "consent_mode": "auto",
-                "skill_consent_overrides": None,
+                "default_consent_mode": "auto",
+                "capability_consent_overrides": None,
                 "sort_order": 3,
                 "config_override": {"region": "cn"},
             },
             {
-                "package_id": 33,
+                "skill_id": 33,
                 "enabled": True,
-                "consent_mode": "auto",
+                "default_consent_mode": "auto",
             },
         ]
 
         with patch(
-            "app.services.ai.agent_skill_binding_service.AgentSkillBindingService",
-            return_value=binding_service,
+            "app.services.ai.agent_skill_grant_service.AgentSkillGrantService",
+            return_value=grant_service,
         ):
-            await service._restore_skill_bindings(7, snapshot)
+            await service._restore_skill_grants(7, snapshot)
 
-        binding_service.batch_bind.assert_awaited_once_with(
+        grant_service.batch_bind.assert_awaited_once_with(
             agent_id=7,
-            package_ids=[11, 22],
-            consent_modes={"11": "ask", "22": "auto"},
+            skill_ids=[11, 22],
+            default_consent_modes={"11": "ask", "22": "auto"},
         )
-        binding_service.delete_all_for_agent.assert_not_awaited()
-        assert binding_service.update_binding.await_args_list[0].args == (
+        grant_service.delete_all_for_agent.assert_not_awaited()
+        assert grant_service.update_grant.await_args_list[0].args == (
             101,
             {
                 "enabled": False,
-                "consent_mode": "ask",
-                "skill_consent_overrides": {"tool_a": "reject"},
+                "default_consent_mode": "ask",
+                "capability_consent_overrides": {"tool_a": "reject"},
                 "sort_order": 9,
                 "config_override": {"timeout": 30},
             },
         )
-        assert binding_service.update_binding.await_args_list[1].args == (
+        assert grant_service.update_grant.await_args_list[1].args == (
             102,
             {
                 "enabled": True,
-                "consent_mode": "auto",
-                "skill_consent_overrides": None,
+                "default_consent_mode": "auto",
+                "capability_consent_overrides": None,
                 "sort_order": 3,
                 "config_override": {"region": "cn"},
             },
@@ -393,7 +393,13 @@ class TestVersionRagConfig:
             },
             context_config={"max_history_messages": 8},
             output_schema=[{"name": "summary"}],
-            tool_bindings=[{"package_id": 9}],
+            tool_bindings=[
+                {
+                    "skill_id": 9,
+                    "default_consent_mode": "auto",
+                    "capability_consent_overrides": None,
+                }
+            ],
         )
         updated = _make_agent(
             status="draft",
@@ -410,7 +416,7 @@ class TestVersionRagConfig:
         service.repo.get_by_id = AsyncMock(return_value=_make_agent())
         service.repo.update = AsyncMock(return_value=updated)
         service._get_version_repo = MagicMock(return_value=version_repo)
-        service._restore_skill_bindings = AsyncMock()
+        service._restore_skill_grants = AsyncMock()
 
         result = await service.rollback_agent(agent_id=1, version=2)
 
@@ -420,9 +426,15 @@ class TestVersionRagConfig:
         assert rollback_payload["rag_config"] == version_record.rag_config
         assert rollback_payload["context_config"] == {"max_history_messages": 8}
         assert rollback_payload["output_schema"] == [{"name": "summary"}]
-        service._restore_skill_bindings.assert_awaited_once_with(
+        service._restore_skill_grants.assert_awaited_once_with(
             1,
-            [{"package_id": 9}],
+            [
+                {
+                    "skill_id": 9,
+                    "default_consent_mode": "auto",
+                    "capability_consent_overrides": None,
+                }
+            ],
         )
 
     @pytest.mark.asyncio

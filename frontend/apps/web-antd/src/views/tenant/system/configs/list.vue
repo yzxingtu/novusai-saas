@@ -14,7 +14,7 @@ import {
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
 import { ConfigForm } from '#/components';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t as t } from '#/locales';
 
@@ -163,9 +163,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 
-usePageAIRegistration({
-  pageKey: 'tenant.system.configs',
-  title: () => t('tenant.system.config.name'),
+usePageAIContext({
   resource: '/tenant/system/configs',
   data: () => ({
     total_groups: groups.value.length,

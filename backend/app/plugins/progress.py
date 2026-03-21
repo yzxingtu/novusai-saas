@@ -31,8 +31,8 @@ logger = get_logger("app.plugins.progress")
 EVENT_PLUGIN_PROGRESS = "plugin:install:progress"
 NAMESPACE_ADMIN = "/admin"
 
-# Install steps and their weights (pip/npm deferred to enable phase, install doesn't install dependencies)
-# / 安装步骤及其权重（pip/npm 延迟到 enable 阶段）
+# Install steps and their weights (install phase does not modify runtime dependencies)
+# / 安装步骤及其权重（install 阶段不修改运行时依赖）
 INSTALL_STEPS = [
     ("copy", 15),
     ("alembic", 30),
@@ -44,9 +44,8 @@ INSTALL_STEPS = [
 
 ENABLE_STEPS = [
     ("alembic", 10),
-    ("pip", 25),
-    ("npm", 25),
-    ("extensions", 20),
+    ("pip", 30),
+    ("extensions", 25),
     ("on_enable", 15),
     ("done", 0),
 ]
@@ -67,8 +66,7 @@ UNINSTALL_STEPS = [
     ("cleanup_skills", 5),
     ("cleanup_ai_features", 5),
     ("cleanup_db", 15),
-    ("cleanup_pip", 15),
-    ("cleanup_npm", 15),
+    ("cleanup_pip", 20),
     ("cleanup_records", 5),
     ("cleanup_files", 5),
     ("done", 0),
@@ -134,7 +132,7 @@ class PluginProgressEmitter:
         """Push step progress / 推送步骤进度
 
         Args:
-            step: Step name (copy/pip/npm/alembic/ai_features/on_install/db/done/error etc.) / 步骤名
+            step: Step name (copy/pip/alembic/ai_features/on_install/db/done/error etc.) / 步骤名
             status: Status (running/success/error) / 状态
             message: Description / 描述信息
         """
@@ -154,7 +152,7 @@ class PluginProgressEmitter:
         })
 
     async def emit_log(self, step: str, line: str) -> None:
-        """Push subprocess output log line (pip/pnpm/alembic stdout/stderr)
+        """Push subprocess output log line (pip/alembic stdout/stderr)
         / 推送子进程输出日志行
 
         Args:

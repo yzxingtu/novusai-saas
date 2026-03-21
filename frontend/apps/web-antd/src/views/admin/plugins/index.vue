@@ -34,13 +34,23 @@ import {
   uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIContext,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createOpenPageOperation,
+  createOpenRecordPageOperation,
+  createKeywordSearchPageOperation,
+  createRefreshPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import {
   handleDisableError as _handleDisableError,
   refreshAdminMenusAndPluginRoutes as _refreshRoutes,
 } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
+import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
@@ -220,16 +230,58 @@ async function withProcessing(id: number, fn: () => Promise<void>) {
 }
 
 function onDetail(plugin: PluginInfo) {
+  openPluginConfigDrawer(plugin);
+}
+
+function findPluginById(pluginId: number): null | PluginInfo {
+  return plugins.value.find((plugin) => plugin.id === pluginId) ?? null;
+}
+
+function getPluginMenuOverrides(plugin: PluginInfo) {
+  return ((plugin.config || {}) as Record<string, unknown>).menu_overrides as
+    | Record<string, { parent?: string; tenant_parent?: string }>
+    | undefined;
+}
+
+function openInstallWizard() {
+  installWizardRef.value?.open();
+}
+
+function openPluginConfigDrawer(plugin: PluginInfo) {
   configDrawerRef.value?.open(plugin);
+}
+
+function openPluginMenuConfig(plugin: PluginInfo) {
+  const menus = getPluginMenus(plugin);
+  if (menus.length === 0) {
+    return {
+      success: false,
+      message: $t('admin.plugin.menu_config.no_menus'),
+    };
+  }
+
+  menuConfigUpdatePlugin = plugin;
+  menuConfigModalRef.value?.open(menus, getPluginMenuOverrides(plugin));
 }
 
 function getPluginMenus(plugin: PluginInfo): MenuDeclItem[] {
   const manifest = plugin.manifest || {};
   const extensions = (manifest.extensions || {}) as Record<string, unknown>;
   const frontend = (extensions.frontend || {}) as Record<string, unknown>;
-  const all = (frontend.menus || []) as MenuDeclItem[];
-  // Exclude hidden routes (those belong in standalone_pages) / 排除隐藏路由（归属 standalone_pages）
-  return all.filter((m) => !m.hidden);
+  const pages = (frontend.pages || []) as Array<
+    MenuDeclItem & { menu?: MenuDeclItem; path?: string; component?: string }
+  >;
+  return pages
+    .filter((page) => page.menu)
+    .map((page) => ({
+      name: page.name,
+      title: page.menu?.title || page.title,
+      parent: page.menu?.parent,
+      icon: page.menu?.icon || page.icon,
+      scope: page.scope,
+      hidden: page.menu?.hidden ?? false,
+    }))
+    .filter((m) => !m.hidden);
 }
 
 function onEnable(plugin: PluginInfo) {
@@ -237,11 +289,7 @@ function onEnable(plugin: PluginInfo) {
   if (menus.length > 0) {
     // Has menu extensions → let admin choose mount position first / 有菜单扩展 → 先让管理员选择挂载位置
     pendingEnablePlugin = plugin;
-    const currentOverrides = ((plugin.config || {}) as Record<string, unknown>)
-      .menu_overrides as
-      | Record<string, { parent?: string; tenant_parent?: string }>
-      | undefined;
-    menuConfigModalRef.value?.open(menus, currentOverrides);
+    menuConfigModalRef.value?.open(menus, getPluginMenuOverrides(plugin));
   } else {
     doEnable(plugin);
   }
@@ -295,14 +343,7 @@ function onMenuConfigCancel() {
 }
 
 function onMenuLocation(plugin: PluginInfo) {
-  const menus = getPluginMenus(plugin);
-  if (menus.length === 0) return;
-  const currentOverrides = ((plugin.config || {}) as Record<string, unknown>)
-    .menu_overrides as
-    | Record<string, { parent?: string; tenant_parent?: string }>
-    | undefined;
-  menuConfigUpdatePlugin = plugin;
-  menuConfigModalRef.value?.open(menus, currentOverrides);
+  openPluginMenuConfig(plugin);
 }
 
 function onDisable(plugin: PluginInfo) {
@@ -366,7 +407,6 @@ function onInstallDependencies(plugin: PluginInfo) {
     onOk: () =>
       withProcessing(plugin.id, async () => {
         await installPluginDependenciesApi(plugin.id, {
-          npm: true,
           python: true,
         });
         message.success($t('admin.plugin.messages.installDepsSuccess'));
@@ -391,7 +431,6 @@ function onUninstallDependencies(plugin: PluginInfo) {
         try {
           await uninstallPluginDependenciesApi(plugin.id, {
             python: true,
-            npm: true,
           });
           message.success($t('admin.plugin.messages.uninstallDepsSuccess'));
         } catch (error: unknown) {
@@ -450,7 +489,7 @@ function onForceCleanup(plugin: PluginInfo) {
 }
 
 function onUploadClick() {
-  installWizardRef.value?.open();
+  openInstallWizard();
 }
 
 async function onWizardInstalled() {
@@ -459,18 +498,10 @@ async function onWizardInstalled() {
   await loadPlugins();
 }
 
-function isIconifyIcon(icon: null | string | undefined): boolean {
-  return !!icon && icon.includes(':');
-}
-
-function isImageIcon(icon: null | string | undefined): boolean {
-  if (!icon) return false;
-  return /\.(?:png|jpg|jpeg|svg|webp)$/i.test(icon);
-}
-
-function getPluginIconUrl(pluginName: string, icon: string): string {
-  if (icon.startsWith('http') || icon.startsWith('/')) return icon;
-  return `/plugin-assets/${pluginName}/${icon}`;
+function getPluginMetadataIcon(plugin: PluginInfo) {
+  return resolvePluginMetadataIcon(plugin.name, plugin.icon, {
+    endpoint: 'admin',
+  });
 }
 
 function isDependencyInstalled(plugin: PluginInfo): boolean {
@@ -487,41 +518,80 @@ function getDependencyStatusText(plugin: PluginInfo): string {
     : $t('admin.plugin.dependency.missing');
 }
 
-usePageAIRegistration({
-  pageKey: 'admin.plugins',
-  title: () => $t('admin.plugin.title'),
+usePageAIContext({
   resource: '/admin/plugins',
   data: () => ({
     total_plugins: plugins.value.length,
     enabled_plugins: plugins.value.filter((p) => p.status === 'enabled').length,
   }),
+});
+
+usePageAIOperations({
+  operationStrategy: 'append',
   operations: [
-    {
+    createRefreshPageOperation({
       name: 'refresh_plugins',
-      label: $t('shared.pageOperation.refreshList'),
+      action: loadPlugins,
       description: 'Reload the plugin list',
-      readonly: true,
-      handler: async () => {
-        await loadPlugins();
-        return { success: true, message: 'Plugin list refreshed' };
-      },
-    },
-    {
-      name: 'search',
+    }),
+    createKeywordSearchPageOperation({
       label: $t('shared.pageOperation.searchPlugins'),
       description: 'Search plugins by keyword',
-      readonly: true,
+      keywordDescription: 'Plugin name keyword',
+      setKeyword: (keyword) => {
+        searchKeyword.value = keyword;
+      },
+    }),
+    createOpenPageOperation({
+      name: 'open_plugin_install_wizard',
+      label: $t('admin.plugin.upload'),
+      description:
+        'Open the plugin install wizard / 打开插件安装向导',
+      open: async () => {
+        openInstallWizard();
+      },
+      successMessage: () => $t('shared.pageOperation.msg.createFormOpenedEmpty'),
+    }),
+    createOpenRecordPageOperation({
+      name: 'open_plugin_config',
+      label: $t('admin.plugin.action.detail'),
+      description:
+        'Open the plugin configuration drawer by plugin ID / 按插件 ID 打开插件配置抽屉',
       params: {
-        keyword: { type: 'string', description: 'Plugin name keyword' },
+        id: {
+          type: 'number',
+          description: 'Plugin ID / 插件 ID',
+          required: true,
+        },
       },
-      handler: async (params) => {
-        searchKeyword.value = (params?.keyword as string) || '';
-        return {
-          success: true,
-          message: `Searched for: ${searchKeyword.value}`,
-        };
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findPluginById(params.id),
+      resolveRecordId: (params) => params.id,
+      open: async (plugin) => {
+        openPluginConfigDrawer(plugin);
       },
-    },
+    }),
+    createOpenRecordPageOperation({
+      name: 'open_plugin_menu_config',
+      label: $t('admin.plugin.menu_config.title'),
+      description:
+        'Open the plugin menu location modal by plugin ID / 按插件 ID 打开插件菜单挂载配置弹窗',
+      params: {
+        id: {
+          type: 'number',
+          description: 'Plugin ID / 插件 ID',
+          required: true,
+        },
+      },
+      normalizeParams: (params) => ({
+        id: Number(params.id ?? 0),
+      }),
+      resolveRecord: (params) => findPluginById(params.id),
+      resolveRecordId: (params) => params.id,
+      open: async (plugin) => openPluginMenuConfig(plugin),
+    }),
   ],
 });
 
@@ -726,16 +796,14 @@ onUnmounted(() => {
               "
             >
               <img
-                v-if="isImageIcon(plugin.icon)"
-                :src="getPluginIconUrl(plugin.name, plugin.icon!)"
+                v-if="getPluginMetadataIcon(plugin).kind === 'image'"
+                :src="getPluginMetadataIcon(plugin).src"
                 class="size-5.5 rounded"
                 :alt="plugin.display_name"
               />
               <IconifyIcon
                 v-else
-                :icon="
-                  isIconifyIcon(plugin.icon) ? plugin.icon! : 'lucide:plug'
-                "
+                :icon="getPluginMetadataIcon(plugin).icon"
                 class="size-5.5"
                 :class="
                   plugin.status === 'enabled'

@@ -19,6 +19,7 @@ import { Card, Progress, Spin, Tag, Tooltip } from 'ant-design-vue';
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogStatisticsApi, getAIUsageStatsApi } from '#/api/admin/ai';
 import { getCallTrendApi } from '#/api/admin/analytics';
+import { createRefreshPageOperation } from '#/composables';
 import { $t } from '#/locales';
 
 import {
@@ -308,18 +309,13 @@ const { Grid, gridApi } = useCrudPage({
       };
     },
     extra: [
-      {
-        name: 'refresh_list',
-        label: $t('shared.pageOperation.refreshList'),
-        readonly: true,
-        handler: async () => {
+      createRefreshPageOperation({
+        description:
+          'Reload the usage table, summary, and trend charts / 重新加载用量表格、摘要与趋势图',
+        action: async () => {
           await refreshUsagePage();
-          return {
-            success: true,
-            message: $t('shared.pageOperation.msg.listRefreshed'),
-          };
         },
-      },
+      }),
     ],
   },
   toolbar: {

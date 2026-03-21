@@ -96,7 +96,7 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
         "model": "app.models.ai.skill_package.SkillPackage",
         "label_field": "name",
         "i18n_key": "deletion.model.skill_package",
-        "columns": ["name", "is_active", "target_audience"],
+        "columns": ["name", "is_active", "bind_mode"],
         "services": {
             "admin": "app.services.ai.skill_package_service.AdminSkillPackageService",
         },

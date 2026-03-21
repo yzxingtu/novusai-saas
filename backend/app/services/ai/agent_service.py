@@ -54,7 +54,7 @@ _VERSION_SNAPSHOT_FIELDS = [
     "context_config",
     "output_schema",
     # NOTE: tool_bindings / knowledge_base_ids removed —
-    # replaced by AgentSkillBinding architecture (SkillPackage-based)
+    # replaced by direct AgentSkillGrant + AgentKnowledgeBaseBinding architecture
 ]
 
 
@@ -199,87 +199,100 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """获取版本 Repository / Get version repository."""
         return AgentVersionRepository(self.db, self.tenant_id)
 
-    async def _snapshot_skill_bindings(self, agent_id: int) -> list[dict[str, Any]]:
-        """快照当前 Agent 的技能绑定列表（用于版本发布） / Snapshot agent skill bindings (for version publish)."""
+    async def _snapshot_skill_grants(self, agent_id: int) -> list[dict[str, Any]]:
+        """快照当前 Agent 的技能授权列表（用于版本发布） / Snapshot agent skill grants (for version publish)."""
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
 
-        from app.models.ai.agent_skill_binding import AgentSkillBinding
+        from app.models.ai.agent_skill_grant import AgentSkillGrant
+        from app.models.ai.skill import Skill
 
         result = await self.db.execute(
-            select(AgentSkillBinding).where(
-                AgentSkillBinding.agent_id == agent_id,
-                AgentSkillBinding.is_deleted.is_(False),
-            ).order_by(AgentSkillBinding.sort_order),
+            select(AgentSkillGrant)
+            .options(selectinload(AgentSkillGrant.skill).selectinload(Skill.package))
+            .where(
+                AgentSkillGrant.agent_id == agent_id,
+                AgentSkillGrant.is_deleted.is_(False),
+            )
+            .order_by(AgentSkillGrant.sort_order),
         )
-        bindings = result.scalars().all()
+        grants = result.scalars().all()
 
         return [
             {
-                "package_id": b.package_id,
-                "package_name": b.package.name if b.package else None,
-                "enabled": b.enabled,
-                "consent_mode": b.consent_mode,
-                "skill_consent_overrides": b.skill_consent_overrides,
-                "sort_order": b.sort_order,
-                "config_override": b.config_override,
+                "skill_id": grant.skill_id,
+                "skill_name": grant.skill.name if grant.skill else None,
+                "package_id": grant.skill.package_id if grant.skill else None,
+                "package_name": (
+                    grant.skill.package.name
+                    if grant.skill and grant.skill.package
+                    else None
+                ),
+                "enabled": grant.enabled,
+                "default_consent_mode": grant.default_consent_mode,
+                "capability_consent_overrides": grant.capability_consent_overrides,
+                "sort_order": grant.sort_order,
+                "config_override": grant.config_override,
             }
-            for b in bindings
+            for grant in grants
         ]
 
-    async def _restore_skill_bindings(
+    async def _restore_skill_grants(
         self,
         agent_id: int,
-        bindings_snapshot: list[dict[str, Any]] | None,
+        grants_snapshot: list[dict[str, Any]] | None,
     ) -> None:
-        """从版本快照恢复技能绑定（用于版本回滚） / Restore skill bindings from snapshot (for rollback)."""
-        if bindings_snapshot is None:
+        """从版本快照恢复技能授权（用于版本回滚） / Restore skill grants from snapshot (for rollback)."""
+        if grants_snapshot is None:
             return
 
-        from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
+        from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
 
-        binding_svc = AgentSkillBindingService(self.db, self.tenant_id)
+        grant_svc = AgentSkillGrantService(self.db, self.tenant_id)
 
-        # 从快照重建绑定（跳过已删除的技能包）
-        from app.models.ai.skill_package import SkillPackage
+        from app.models.ai.skill import Skill
+
         valid_items: list[dict[str, Any]] = []
-        consent_modes: dict[str, str] = {}
+        default_consent_modes: dict[str, str] = {}
 
-        for item in bindings_snapshot:
-            pkg_id = item.get("package_id")
-            if not pkg_id:
+        for item in grants_snapshot:
+            skill_id = item.get("skill_id")
+            if not skill_id:
                 continue
-            pkg = await self.db.get(SkillPackage, pkg_id)
-            if not pkg or pkg.is_deleted:
+            skill = await self.db.get(Skill, skill_id)
+            if not skill or skill.is_deleted:
                 logger.warning(
-                    "Skipping deleted package {} during rollback for agent {}",
-                    pkg_id, agent_id,
+                    "Skipping deleted skill {} during rollback for agent {}",
+                    skill_id, agent_id,
                 )
                 continue
 
             valid_items.append(item)
-            consent_modes[str(pkg_id)] = item.get("consent_mode", "auto")
+            default_consent_modes[str(skill_id)] = item.get(
+                "default_consent_mode", "auto",
+            )
 
         if not valid_items:
-            await binding_svc.delete_all_for_agent(agent_id)
+            await grant_svc.delete_all_for_agent(agent_id)
             return
 
-        bindings = await binding_svc.batch_bind(
+        grants = await grant_svc.batch_bind(
             agent_id=agent_id,
-            package_ids=[int(item["package_id"]) for item in valid_items],
-            consent_modes=consent_modes,
+            skill_ids=[int(item["skill_id"]) for item in valid_items],
+            default_consent_modes=default_consent_modes,
         )
-        binding_map = {binding.package_id: binding for binding in bindings}
+        grant_map = {grant.skill_id: grant for grant in grants}
 
         for item in valid_items:
-            pkg_id = int(item["package_id"])
-            binding = binding_map.get(pkg_id)
-            if not binding:
+            skill_id = int(item["skill_id"])
+            grant = grant_map.get(skill_id)
+            if not grant:
                 continue
 
-            await binding_svc.update_binding(binding.id, {
+            await grant_svc.update_grant(grant.id, {
                 "enabled": item.get("enabled", True),
-                "consent_mode": item.get("consent_mode", "auto"),
-                "skill_consent_overrides": item.get("skill_consent_overrides"),
+                "default_consent_mode": item.get("default_consent_mode", "auto"),
+                "capability_consent_overrides": item.get("capability_consent_overrides"),
                 "sort_order": item.get("sort_order", 0),
                 "config_override": item.get("config_override"),
             })
@@ -647,7 +660,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             version_data[field_name] = getattr(agent, field_name)
 
         # 快照包含技能绑定信息
-        version_data["tool_bindings"] = await self._snapshot_skill_bindings(agent_id)
+        version_data["tool_bindings"] = await self._snapshot_skill_grants(agent_id)
 
         await version_repo.create(version_data)
 
@@ -701,7 +714,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         updated = await self.repo.update(agent_id, rollback_data)
 
         # 恢复技能绑定
-        await self._restore_skill_bindings(
+        await self._restore_skill_grants(
             agent_id, version_record.tool_bindings,
         )
 

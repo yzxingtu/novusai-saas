@@ -24,7 +24,14 @@ import {
 } from 'ant-design-vue';
 
 import { adminApi as admin } from '#/api';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import {
+  usePageAIAnchor,
+  usePageAIOperations,
+} from '#/composables/use-page-ai-registration';
+import {
+  createKeywordSearchPageOperation,
+  createRefreshPageOperation,
+} from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { downloadText } from '#/utils/download';
@@ -407,37 +414,26 @@ onMounted(() => {
   onRefresh();
 });
 
-usePageAIRegistration({
+usePageAIAnchor({
   pageKey: 'admin.system.system-logs',
-  title: () => $t('admin.system.systemLog.name'),
   resource: '/admin/system-logs',
+});
+
+usePageAIOperations({
+  pageKey: 'admin.system.system-logs',
+  operationStrategy: 'append',
   operations: [
-    {
-      name: 'refresh_list',
-      label: $t('shared.pageOperation.refreshList'),
+    createRefreshPageOperation({
+      action: onRefresh,
       description: 'Reload system log stats, categories and files',
-      readonly: true,
-      handler: async () => {
-        await onRefresh();
-        return { success: true, message: 'System logs refreshed' };
-      },
-    },
-    {
-      name: 'search',
+    }),
+    createKeywordSearchPageOperation({
       label: $t('shared.pageOperation.searchByKeyword'),
       description: 'Search within current log content',
-      readonly: true,
-      params: {
-        keyword: { type: 'string', description: 'Search keyword' },
+      setKeyword: (keyword) => {
+        logSearchQuery.value = keyword;
       },
-      handler: async (params) => {
-        logSearchQuery.value = (params?.keyword as string) || '';
-        return {
-          success: true,
-          message: `Searching for: ${logSearchQuery.value}`,
-        };
-      },
-    },
+    }),
   ],
 });
 </script>

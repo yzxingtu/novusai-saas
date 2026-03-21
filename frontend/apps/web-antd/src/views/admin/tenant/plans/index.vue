@@ -14,7 +14,7 @@ import { Card, message, Popover, Tag, Tooltip } from 'ant-design-vue';
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
+import { createOpenRecordPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import {
   copyToClipboard,
@@ -51,34 +51,70 @@ const permissionsModalRef = ref<InstanceType<typeof PermissionsModal>>();
 
 // Handle set permissions / 处理设置权限
 function handleSetPermissions(row: TenantPlanInfo) {
+  openPlanPermissions(row);
+}
+
+function openPlanPermissions(row: TenantPlanInfo) {
   permissionsModalRef.value?.open(row);
 }
 
+function getVisiblePlanRows(): TenantPlanInfo[] {
+  const grid = gridApi.grid as unknown as {
+    getTableData?: () => { tableData?: TenantPlanInfo[] };
+  };
+  return (grid?.getTableData?.().tableData ?? []) as TenantPlanInfo[];
+}
+
+function findPlanById(id: number): null | TenantPlanInfo {
+  return getVisiblePlanRows().find((row) => row.id === id) ?? null;
+}
+
 // Declarative CRUD page (export button auto-added) / 声明式 CRUD 页面（导出按钮自动添加）
-const {
-  Grid, FormDrawer, ExportModal, openExportModal, gridApi,
-  onRefresh,
-} = useCrudPage<TenantPlanInfo>({
-  api: {
-    list: admin.getTenantPlanListApi,
-    resource: '/admin/plans',
-    toggles: { is_active: admin.toggleTenantPlanStatusApi },
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  formDefaults: getFormDefaults,
-  i18nPrefix: 'admin.tenant.plan',
-  nameField: 'name',
-  defaultSort: 'sort_order',
-  recycleBin: true,
-  createPermission: 'tenant_plan:create',
-  customActions: {
-    permissions: handleSetPermissions,
-  },
+const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
+  useCrudPage<TenantPlanInfo>({
+    api: {
+      list: admin.getTenantPlanListApi,
+      resource: '/admin/plans',
+      toggles: { is_active: admin.toggleTenantPlanStatusApi },
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    formDefaults: getFormDefaults,
+    i18nPrefix: 'admin.tenant.plan',
+    nameField: 'name',
+    defaultSort: 'sort_order',
+    recycleBin: true,
+    createPermission: 'tenant_plan:create',
+    customActions: {
+      permissions: handleSetPermissions,
+    },
     ai: {
-      pageKey: 'admin.tenant.plans',
       formSchema: useFormSchema,
+      extra: [
+        createOpenRecordPageOperation({
+          name: 'open_plan_permissions',
+          label: $t('admin.tenant.plan.setPermissions'),
+          description:
+            'Open the plan permissions modal by plan ID / 按套餐 ID 打开套餐权限设置弹窗',
+          readonly: true,
+          params: {
+            id: {
+              type: 'number',
+              description: 'Plan ID / 套餐 ID',
+              required: true,
+            },
+          },
+          normalizeParams: (params) => ({
+            id: Number(params.id ?? 0),
+          }),
+          resolveRecord: (params) => findPlanById(params.id),
+          resolveRecordId: (params) => params.id,
+          open: async (plan) => {
+            openPlanPermissions(plan);
+          },
+        }),
+      ],
     },
   });
 
@@ -86,24 +122,6 @@ const {
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => admin.reorderTenantPlansApi(ids as number[]),
   keyField: 'id',
-});
-
-usePageAIRegistration({
-  pageKey: 'admin.tenant.plans',
-  registerContext: false,
-  operationStrategy: 'append',
-  operations: [
-    {
-      name: 'export_data',
-      label: $t('shared.pageOperation.exportData'),
-      description: 'Open the export dialog for tenant plans',
-      readonly: true,
-      handler: async () => {
-        openExportModal();
-        return { success: true, message: 'Export dialog opened' };
-      },
-    },
-  ],
 });
 </script>
 

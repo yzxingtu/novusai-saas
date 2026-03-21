@@ -15,6 +15,11 @@ from app.core.base_service import BaseService
 from app.core.logging import get_logger
 from app.exceptions.base import BusinessException, NotFoundException, ValidationException
 from app.models.system.plugin import Plugin
+from app.plugins.dependencies import (
+    build_plugin_dependency_states,
+    build_python_dependency_states,
+    normalize_plugin_dependencies,
+)
 from app.repositories.system.plugin_repository import PluginRepository
 
 if TYPE_CHECKING:
@@ -168,13 +173,11 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin_id: int,
         *,
         install_python: bool = True,
-        install_npm: bool = True,
     ) -> dict:
         """显式安装插件依赖（不改变插件状态） / Install plugin deps (does not change plugin state)."""
         return await self._lifecycle.install_dependencies(
             plugin_id,
             install_python=install_python,
-            install_npm=install_npm,
         )
 
     async def uninstall_plugin_dependencies(
@@ -182,14 +185,12 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin_id: int,
         *,
         uninstall_python: bool = True,
-        uninstall_npm: bool = True,
         force: bool = False,
     ) -> dict:
         """显式卸载插件依赖（不卸载插件本体） / Uninstall plugin deps (plugin itself remains)."""
         return await self._lifecycle.uninstall_dependencies(
             plugin_id,
             uninstall_python=uninstall_python,
-            uninstall_npm=uninstall_npm,
             force=force,
         )
 
@@ -208,6 +209,110 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             cleanup_dependencies=cleanup_dependencies,
             operator_id=operator_id,
         )
+
+    async def sync_manifest(
+        self,
+        plugin_id: int,
+    ) -> Plugin:
+        """显式同步磁盘 manifest 到 DB；版本变化必须走正式 upgrade。 / Explicitly sync disk manifest to DB; version drift must use formal upgrade."""
+        from app.enums.plugin import PluginStatusEnum
+        from app.plugins._extension_registrar import (
+            get_failed_extensions,
+            register_all_extensions,
+        )
+        from app.plugins.frontend_contract import validate_runtime_frontend_contract
+        from app.plugins.manifest import PluginManifest
+        from app.plugins.preview import resolve_i18n
+        from app.plugins.registry import ExtensionRegistry
+        from app.rbac.sync import PermissionSyncService
+
+        plugin = await self.repo.get_by_id(plugin_id)
+        if not plugin:
+            raise NotFoundException(message="plugin.error.not_found")
+
+        manifest = self._loader.load_manifest(plugin.name)
+        if manifest.version != plugin.version:
+            raise ValidationException(
+                message=(
+                    f"Plugin '{plugin.name}' disk version is {manifest.version}, "
+                    f"but DB version is {plugin.version}. Use formal upgrade instead of sync-manifest."
+                ),
+            )
+
+        validate_runtime_frontend_contract(self._loader.plugins_dir / plugin.name, manifest)
+
+        previous_manifest = None
+        if plugin.manifest:
+            try:
+                previous_manifest = PluginManifest.model_validate(plugin.manifest)
+            except Exception:
+                previous_manifest = None
+
+        manifest_dump = manifest.model_dump()
+        plugin.display_name = resolve_i18n(manifest.display_name)
+        plugin.description = (
+            resolve_i18n(manifest.description)
+            if manifest.description
+            else plugin.description
+        )
+        plugin.author = manifest.author or None
+        plugin.icon = manifest.icon or None
+        plugin.icon_color = manifest.icon_color or None
+        plugin.homepage = manifest.homepage or None
+        plugin.repository_url = manifest.repository_url or None
+        plugin.license_text = manifest.license or None
+        plugin.tags = manifest.tags
+        plugin.scope = manifest.scope
+        plugin.manifest = manifest_dump
+        plugin.ai_requirements = (
+            manifest.ai_requirements.model_dump()
+            if manifest.ai_requirements
+            else None
+        )
+        plugin.pricing_type = manifest.pricing.type
+        plugin.pricing_info = (
+            manifest.pricing.model_dump()
+            if manifest.pricing.type != "free"
+            else None
+        )
+        plugin.installed_packages = manifest.dependencies.python or []
+        await self.db.flush()
+
+        if plugin.status == PluginStatusEnum.ENABLED.value:
+            registry = ExtensionRegistry.get_instance()
+            menu_overrides = (plugin.config or {}).get("menu_overrides")
+            register_all_extensions(
+                registry,
+                manifest,
+                plugin.name,
+                menu_overrides=menu_overrides,
+            )
+            failed = get_failed_extensions(plugin.name)
+            if failed:
+                registry.unregister_all(plugin.name)
+                if previous_manifest is not None:
+                    register_all_extensions(
+                        registry,
+                        previous_manifest,
+                        plugin.name,
+                        menu_overrides=menu_overrides,
+                    )
+                failed_summary = "; ".join(
+                    f"{item['type']}:{item['entry_point']}"
+                    for item in failed[:5]
+                )
+                raise BusinessException(
+                    message=(
+                        "Sync manifest failed: "
+                        f"{len(failed)} extension(s) failed to load. {failed_summary}"
+                    ),
+                )
+
+            sync_service = PermissionSyncService(self.db)
+            await sync_service.sync_plugin_permissions(plugin.name)
+            await self._lifecycle._set_plugin_permissions_enabled(plugin.name, True)
+
+        return plugin
 
     # ── 配置 ──
 
@@ -379,192 +484,109 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         """
         from sqlalchemy import select
 
-        from app.enums.common import ResourceScopeEnum
         from app.enums.plugin import PluginStatusEnum
-        from app.models.system.resource_tenant_assignment import (
-            ResourceTenantAssignment,
-        )
+        from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 
-        # 查询当前企业被分配的插件 ID
-        assignment_result = await self.db.execute(
-            select(ResourceTenantAssignment.resource_id).where(
-                ResourceTenantAssignment.resource_type == "plugin",
-                ResourceTenantAssignment.tenant_id == tenant_id,
-                ResourceTenantAssignment.is_active.is_(True),
-            )
-        )
-        assigned_plugin_ids = set(assignment_result.scalars().all())
-
-        # 查询所有已启用插件的名称+scope+id
+        # 仅先取已启用插件，再逐个走统一 runtime gate（scope + tenant assignment + license）
+        # / First fetch enabled plugins, then apply the unified runtime gate per plugin.
         plugin_result = await self.db.execute(
-            select(Plugin.name, Plugin.scope, Plugin.id).where(
+            select(Plugin.name).where(
                 Plugin.status == PluginStatusEnum.ENABLED.value,
                 Plugin.is_deleted.is_(False),
             )
         )
-        plugin_rows = plugin_result.all()
-
-        _TENANT_ALL_SCOPES = {
-            ResourceScopeEnum.ALL_TENANTS.value,
-            ResourceScopeEnum.GLOBAL_SHARED.value,
-        }
-        _TENANT_ASSIGNED_SCOPES = {
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        }
+        plugin_names = [row[0] for row in plugin_result.all()]
 
         visible: set[str] = set()
-        for row in plugin_rows:
-            pname, pscope, pid = row[0], row[1], row[2]
-            if pscope in _TENANT_ALL_SCOPES or (
-                pscope in _TENANT_ASSIGNED_SCOPES and pid in assigned_plugin_ids
-            ):
-                visible.add(pname)
+        for plugin_name in plugin_names:
+            gate = await evaluate_plugin_runtime_gate(
+                self.db,
+                plugin_name,
+                tenant_id=tenant_id,
+                require_enabled=True,
+                enforce_scope=True,
+            )
+            if gate.allowed:
+                visible.add(plugin_name)
         return visible
 
     # ── 依赖状态（用于前端卡片展示） ──
 
-    @staticmethod
-    def _normalize_python_package_name(raw: str) -> str:
-        """将 requirement 字符串归一化为可用于 metadata 查询的包名。 / Normalize requirement to package name."""
-        name = re.split(r"[><=!~;@\[]", raw, maxsplit=1)[0].strip()
-        return re.sub(r"[-_.]+", "-", name).lower()
-
-    @staticmethod
-    def _is_python_distribution_installed(package_name: str) -> bool:
-        """判断 Python 包是否已安装（兼容 -/_ 命名差异）。 / Check if Python package installed (-/_ normalized)."""
-        from importlib import metadata as importlib_metadata
-
-        normalized = package_name.strip()
-        if not normalized:
-            return False
-
-        candidates = {
-            normalized,
-            normalized.replace("-", "_"),
-            normalized.replace("_", "-"),
-        }
-        for candidate in candidates:
-            try:
-                importlib_metadata.version(candidate)
-                return True
-            except importlib_metadata.PackageNotFoundError:
-                continue
-        return False
-
-    @staticmethod
-    def _parse_npm_package_name(raw: str) -> str:
-        """从 npm spec 中提取包名（支持 scoped package）。 / Extract npm package name from spec."""
-        val = (raw or "").strip()
-        if not val:
-            return ""
-        if val.startswith("@"):
-            # scoped: @scope/name 或 @scope/name@^1.2.3
-            return val.rsplit("@", 1)[0] if "@" in val[1:] else val
-        return val.split("@", 1)[0]
-
-    def _load_host_npm_dependency_names(self) -> set[str]:
-        """读取宿主 web-antd package.json 中声明的依赖名。 / Read host web-antd package.json dependency names."""
-        import json
-
-        host_pkg = (
-            Path(__file__).resolve().parents[4]
-            / "frontend"
-            / "apps"
-            / "web-antd"
-            / "package.json"
-        )
-        if not host_pkg.is_file():
-            return set()
-
-        try:
-            data = json.loads(host_pkg.read_text(encoding="utf-8"))
-        except Exception as exc:
-            logger.warning("Failed to read host package.json for npm deps: {}", exc)
-            return set()
-
-        names: set[str] = set()
-        for key in ("dependencies", "devDependencies", "peerDependencies"):
-            deps = data.get(key, {})
-            if isinstance(deps, dict):
-                names.update(deps.keys())
-        return names
-
-    def get_dependency_status(self, plugin: Plugin) -> dict:
+    async def get_dependency_status(self, plugin: Plugin) -> dict:
         """
         计算插件依赖状态 / Compute plugin dependency status.
 
-        - Python 依赖：按环境标记过滤后逐包检查
-        - npm 依赖：仅 DEBUG 模式检查（生产模式 UMD 不要求 npm 依赖）
+        Returns the real runtime dependency model:
+        - python: shared host environment requirements
+        - plugins: normalized plugin-to-plugin dependencies
+        / 返回真实运行时依赖模型：
+        - python：共享宿主环境 requirement
+        - plugins：规范化后的插件间依赖
         """
-        from app.core.config import settings
+        from sqlalchemy import select
 
+        from app.models.system.plugin import Plugin as PluginModel
         manifest = plugin.manifest or {}
         dependencies = manifest.get("dependencies", {}) if isinstance(manifest, dict) else {}
         raw_python_deps = dependencies.get("python", []) if isinstance(dependencies, dict) else []
-
-        # 1) Python 依赖（考虑 marker）
-        required_python_names: list[str] = []
-        for raw in raw_python_deps if isinstance(raw_python_deps, list) else []:
-            raw_text = str(raw or "").strip()
-            if not raw_text:
-                continue
-            try:
-                from packaging.requirements import Requirement
-
-                req = Requirement(raw_text)
-                if req.marker and not req.marker.evaluate():
-                    continue
-                required_python_names.append(req.name)
-            except Exception:
-                normalized = self._normalize_python_package_name(raw_text)
-                if normalized:
-                    required_python_names.append(normalized)
-
-        # 去重保序
-        required_python_names = list(dict.fromkeys(required_python_names))
+        python_states = build_python_dependency_states(
+            raw_python_deps if isinstance(raw_python_deps, list) else []
+        )
         missing_python = [
-            name
-            for name in required_python_names
-            if not self._is_python_distribution_installed(name)
+            str(item["requirement"])
+            for item in python_states
+            if not item["satisfied"]
         ]
 
-        # 2) npm 依赖（仅 dev 模式需要）
-        extensions = manifest.get("extensions", {}) if isinstance(manifest, dict) else {}
-        frontend = extensions.get("frontend", {}) if isinstance(extensions, dict) else {}
-        raw_npm_deps = (
-            frontend.get("npm_dependencies", [])
-            if isinstance(frontend, dict)
-            else []
-        )
-        npm_declared = [self._parse_npm_package_name(str(v or "")) for v in raw_npm_deps]
-        npm_declared = [v for v in npm_declared if v]
-        npm_declared = list(dict.fromkeys(npm_declared))
+        plugin_requirements = normalize_plugin_dependencies(manifest)
+        plugin_rows: dict[str, dict[str, str]] = {}
+        if plugin_requirements:
+            dependency_names = sorted({item.plugin for item in plugin_requirements})
+            result = await self.db.execute(
+                select(PluginModel.name, PluginModel.version, PluginModel.status).where(
+                    PluginModel.name.in_(dependency_names),
+                    PluginModel.is_deleted.is_(False),
+                )
+            )
+            plugin_rows = {
+                row[0]: {
+                    "name": row[0],
+                    "status": row[2],
+                    "version": row[1],
+                }
+                for row in result.all()
+            }
 
-        if settings.DEBUG:
-            host_npm_names = self._load_host_npm_dependency_names()
-            missing_npm = [name for name in npm_declared if name not in host_npm_names]
-            npm_state = "installed" if not missing_npm else "missing"
-        else:
-            # 生产模式插件前端使用预编译 UMD 包，不要求宿主安装 npm 依赖
-            missing_npm = []
-            npm_state = "not_required"
+        plugin_states = [
+            state.to_dict()
+            for state in build_plugin_dependency_states(
+                plugin_requirements,
+                plugin_rows,
+                require_enabled=True,
+            )
+        ]
+        missing_plugins = [
+            str(item["message"])
+            for item in plugin_states
+            if item["state"] != "ready"
+        ]
 
-        overall_ready = len(missing_python) == 0 and len(missing_npm) == 0
+        overall_ready = len(missing_python) == 0 and len(missing_plugins) == 0
 
         return {
             "overall": "installed" if overall_ready else "missing",
-            "production_mode": not settings.DEBUG,
             "python": {
-                "declared": len(required_python_names),
-                "installed": len(required_python_names) - len(missing_python),
+                "declared": len(python_states),
+                "installed": len(python_states) - len(missing_python),
                 "missing": missing_python,
+                "details": python_states,
                 "state": "installed" if len(missing_python) == 0 else "missing",
             },
-            "npm": {
-                "declared": len(npm_declared),
-                "installed": len(npm_declared) - len(missing_npm),
-                "missing": missing_npm,
-                "state": npm_state,
+            "plugins": {
+                "declared": len(plugin_states),
+                "installed": len(plugin_states) - len(missing_plugins),
+                "missing": missing_plugins,
+                "details": plugin_states,
+                "state": "installed" if len(missing_plugins) == 0 else "missing",
             },
         }

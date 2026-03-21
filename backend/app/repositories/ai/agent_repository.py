@@ -18,6 +18,7 @@ from app.enums.agent import (
 from app.enums.common import RecycleStageEnum, ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
+from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.ai.tenant_agent_publication import TenantAgentPublication
 from app.repositories.system.resource_tenant_assignment_repository import (
     assigned_resource_ids_subquery,
@@ -117,7 +118,9 @@ class AgentRepository(TenantRepository[Agent]):
         sortable_fields = self.get_sortable_fields()
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
-        query = query.options(selectinload(Agent.skill_bindings))
+        query = query.options(
+            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+        )
 
         result = await self.db.execute(query)
         items = list(result.scalars().all())
@@ -190,7 +193,9 @@ class AgentRepository(TenantRepository[Agent]):
         sortable_fields = self.get_sortable_fields()
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
-        query = query.options(selectinload(Agent.skill_bindings))
+        query = query.options(
+            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+        )
 
         result = await self.db.execute(query)
         items = list(result.scalars().unique().all())
@@ -464,7 +469,7 @@ class AdminAgentRepository(BaseRepository[Agent]):
         forced_filters: list[FilterRule] | None = None,
         include_deleted: bool = False,
     ) -> tuple[list[Agent], int]:
-        """重写以 eager load skill_bindings / Override to eager load skill_bindings."""
+        """Override to eager load skill grants."""
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
@@ -486,7 +491,9 @@ class AdminAgentRepository(BaseRepository[Agent]):
         sortable_fields = self.get_sortable_fields()
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
-        query = query.options(selectinload(Agent.skill_bindings))
+        query = query.options(
+            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+        )
 
         result = await self.db.execute(query)
         items = list(result.scalars().all())

@@ -83,7 +83,6 @@ class PluginEnableBody(PydanticBaseModel):
 class PluginDependencyActionBody(PydanticBaseModel):
     """安装/卸载依赖开关 / Install/uninstall dependency switches."""
     python: bool = True
-    npm: bool = True
     force: bool = False
 
 
@@ -143,7 +142,6 @@ class AdminPluginController(GlobalController):
             result = await service.install_plugin_dependencies(
                 plugin_id,
                 install_python=payload.python,
-                install_npm=payload.npm,
             )
             return success(data=result)
 
@@ -170,7 +168,6 @@ class AdminPluginController(GlobalController):
             result = await service.uninstall_plugin_dependencies(
                 plugin_id,
                 uninstall_python=payload.python,
-                uninstall_npm=payload.npm,
                 force=False,
             )
             return success(data=result)
@@ -190,15 +187,15 @@ class AdminPluginController(GlobalController):
               "dashboard_widgets": [...],
               "settings_tabs": [...],
               "floating_panels": [...],
-              "standalone_pages": [...],
+              "pages": [...],
               "notification_ui": [...]
             }
 
             前端 pluginSlotsStore 启动时调用此接口，驱动各插槽渲染。
             Frontend pluginSlotsStore calls this endpoint on startup to drive slot rendering.
             """
-            from app.plugins.loader import PluginLoader
             from app.plugins.registry import ExtensionRegistry
+            from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 
             registry = ExtensionRegistry.get_instance()
             grouped = registry.get_frontend_slots_grouped(scope="admin")
@@ -209,31 +206,27 @@ class AdminPluginController(GlobalController):
                 for slot in slots
                 if slot.get("plugin_name")
             }
-
-            loader = PluginLoader()
-            plugin_styles: dict[str, list[str]] = {}
+            allowed_names: set[str] = set()
             for plugin_name in plugin_names:
-                styles: list[str] = []
-                try:
-                    manifest = loader.load_manifest(plugin_name)
-                    frontend = (
-                        manifest.extensions.frontend
-                        if manifest.extensions
-                        else None
-                    )
-                    if frontend and frontend.admin:
-                        styles = list(frontend.admin.styles or [])
-                except Exception as exc:
-                    logger.warning("Failed to load styles for plugin {}: {}", plugin_name, exc)
-                    styles = []
-                plugin_styles[plugin_name] = styles
+                gate = await evaluate_plugin_runtime_gate(
+                    db,
+                    plugin_name,
+                    tenant_id=None,
+                    require_enabled=True,
+                    enforce_scope=False,
+                )
+                if gate.allowed:
+                    allowed_names.add(plugin_name)
 
-            return success(
-                data={
-                    **grouped,
-                    "plugin_styles": plugin_styles,
-                }
-            )
+            grouped = {
+                slot_key: [
+                    slot for slot in slots
+                    if slot.get("plugin_name") in allowed_names
+                ]
+                for slot_key, slots in grouped.items()
+            }
+
+            return success(data=grouped)
 
         # ── 更新检查 / Update Check ──
 
@@ -392,7 +385,7 @@ class AdminPluginController(GlobalController):
                 extract_dir = zip_path.parent / "extracted"
                 plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
                 loader = PluginLoader(plugins_dir=plugin_dir.parent)
-                preview = await generate_preview(plugin_dir, loader)
+                preview = await generate_preview(plugin_dir, loader, db=db)
                 return success(data=preview.model_dump())
             finally:
                 shutil.rmtree(zip_path.parent, ignore_errors=True)
@@ -546,7 +539,7 @@ class AdminPluginController(GlobalController):
                 config_schema = manifest_data.get("config_schema")
                 if config_schema and data.get("config"):
                     data["config"] = mask_plugin_config(data["config"], config_schema)
-                data["dependency_status"] = service.get_dependency_status(item)
+                data["dependency_status"] = await service.get_dependency_status(item)
                 result_items.append(data)
 
             return paginated(
@@ -578,7 +571,7 @@ class AdminPluginController(GlobalController):
             if config_schema and data.get("config"):
                 data["config"] = mask_plugin_config(data["config"], config_schema)
 
-            data["dependency_status"] = service.get_dependency_status(plugin)
+            data["dependency_status"] = await service.get_dependency_status(plugin)
 
             # 加载 README（按 locale 优先级） / Load README (by locale priority)
             readme = await service.get_readme(plugin_id, locale=locale)
@@ -635,7 +628,7 @@ class AdminPluginController(GlobalController):
                 from app.plugins.loader import PluginLoader
 
                 loader = PluginLoader(plugins_dir=plugin_dir.parent)
-                preview = await generate_preview(plugin_dir, loader)
+                preview = await generate_preview(plugin_dir, loader, db=db)
                 return success(data=preview.model_dump())
             finally:
                 shutil.rmtree(staging_dir, ignore_errors=True)
@@ -705,7 +698,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             body: PluginEnableBody | None = None,
         ):
-            """启用插件（自动安装 pip/npm 依赖，通过 Socket.IO 推送进度） / Enable plugin (auto-install pip/npm deps, push progress via Socket.IO)"""
+            """启用插件（校验插件依赖并按需安装 Python 依赖，通过 Socket.IO 推送进度） / Enable plugin (validate plugin deps and install Python deps when needed, push progress via Socket.IO)"""
             service = self.get_service(db)
 
             # 保存管理员配置的菜单挂载位置 / Save admin-configured menu mount positions
@@ -770,8 +763,7 @@ class AdminPluginController(GlobalController):
             from app.enums.plugin import PluginStatusEnum
             from app.exceptions.base import BusinessException
             from app.plugins._extension_registrar import (
-                get_failed_extensions,
-                register_all_extensions,
+                register_navigation_extensions,
             )
             from app.plugins.loader import PluginLoader
             from app.plugins.registry import ExtensionRegistry
@@ -796,32 +788,41 @@ class AdminPluginController(GlobalController):
             # 如果插件已启用，重新注册扩展点 + 同步权限到 DB / If plugin is enabled, re-register extensions + sync permissions to DB
             if plugin.status == PluginStatusEnum.ENABLED.value:
                 registry = ExtensionRegistry.get_instance()
-                registry.unregister_all(plugin.name)
+                registry.unregister_by_type(plugin.name, "menu")
 
                 loader = PluginLoader()
                 manifest = loader.load_manifest(plugin.name)
                 menu_overrides = config.get("menu_overrides")
-                register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
-
-                failed = get_failed_extensions(plugin.name)
-                if failed:
-                    # fail-close：任一扩展加载失败，撤销本次注册，避免菜单配置“半成功” / fail-close: undo registration if any extension fails, prevent partial success
-                    registry.unregister_all(plugin.name)
-                    failed_summary = "; ".join(
-                        f"{item['type']}:{item['entry_point']}" for item in failed[:5]
+                try:
+                    register_navigation_extensions(
+                        registry,
+                        manifest,
+                        plugin.name,
+                        menu_overrides=menu_overrides,
                     )
+                except Exception as exc:
+                    registry.unregister_by_type(plugin.name, "menu")
                     raise BusinessException(
-                        message=(
-                            f"Menu config update failed: {len(failed)} extension(s) failed to load. "
-                            f"{failed_summary}"
-                        ),
-                    )
+                        message=f"Menu config update failed: {exc}",
+                    ) from exc
 
                 # 仅同步当前插件权限，避免全量 sync 的事务副作用 / Only sync current plugin permissions to avoid side effects of full sync
                 sync_service = PermissionSyncService(db)
                 await sync_service.sync_plugin_permissions(plugin.name)
 
             return success(data={"message": "Menu config updated"})
+
+        @self.router.post("/{plugin_id}/sync-manifest")
+        @action_update("action.plugin.update")
+        async def sync_manifest(
+            plugin_id: int,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """显式同步磁盘 manifest 到数据库；版本变化必须走 upgrade。 / Explicitly sync disk manifest to DB; version drift must use upgrade."""
+            service = self.get_service(db)
+            await service.sync_manifest(plugin_id)
+            return success(data={"message": "Manifest synced"})
 
         @self.router.delete("/{plugin_id}")
         @action_delete("action.plugin.uninstall")
@@ -856,7 +857,7 @@ class AdminPluginController(GlobalController):
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """修复插件：重置错误计数并尝试重新恢复（安装依赖 + 注册扩展点） / Repair plugin: reset error count and attempt recovery (install deps + register extensions)"""
+            """修复插件：重置错误计数并尝试重新恢复（安装 Python 依赖 + 注册扩展点） / Repair plugin: reset error count and attempt recovery (install Python deps + register extensions)"""
             from app.enums.plugin import PluginStatusEnum
             from app.exceptions.base import BusinessException
             from app.plugins._extension_registrar import (
@@ -882,6 +883,8 @@ class AdminPluginController(GlobalController):
             async with _plugin_lock(plugin_id):
                 try:
                     manifest = loader.load_manifest(plugin.name)
+                    from app.plugins.frontend_contract import validate_runtime_frontend_contract
+                    validate_runtime_frontend_contract(loader.plugins_dir / plugin.name, manifest)
 
                     # 安装 Python 依赖 / Install Python dependencies
                     if manifest.dependencies.python:
@@ -893,19 +896,6 @@ class AdminPluginController(GlobalController):
                             await emitter.emit_step("pip", "success", "Python dependencies already satisfied")
                     else:
                         await emitter.emit_step("pip", "success", "No Python dependencies")
-
-                    # 安装前端 npm 依赖 / Install frontend npm dependencies
-                    frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-                    npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-                    if npm_deps:
-                        await emitter.emit_step("npm", "running", f"Checking {len(npm_deps)} npm package(s)...")
-                        npm_installed = await lifecycle._install_npm_deps(plugin.name, npm_deps)
-                        if npm_installed > 0:
-                            await emitter.emit_step("npm", "success", f"Installed {npm_installed} npm package(s)")
-                        else:
-                            await emitter.emit_step("npm", "success", "npm already satisfied (skipped)")
-                    else:
-                        await emitter.emit_step("npm", "success", "No npm dependencies")
 
                     # 确保 DB 表存在（DB 重建后表可能丢失） / Ensure DB tables exist (tables may be lost after DB rebuild)
                     from app.plugins.loader import PLUGINS_DIR as _PLUGINS_DIR
@@ -1084,8 +1074,8 @@ class AdminPluginController(GlobalController):
             with open(icon_path, "wb") as f:
                 f.write(content)
 
-            # 更新 icon 字段为插件静态资源路径 / Update icon field to plugin static resource path
-            plugin.icon = f"/plugin-assets/{plugin.name}/{icon_filename}"
+            # 更新 icon 字段为插件根目录内的相对图标文件 / Store canonical plugin-root relative icon path
+            plugin.icon = icon_filename
             await db.flush()
 
             return success(data={"icon": plugin.icon})
@@ -1219,8 +1209,9 @@ class AdminPluginController(GlobalController):
                 get_license_status_by_id,
             )
 
-            await create_trial_license(plugin_id, trial_days=14, db=db)
-            license_info = await get_license_status_by_id(plugin_id, db)
+            license_info = await create_trial_license(plugin_id, db=db)
+            if not license_info:
+                license_info = await get_license_status_by_id(plugin_id, db)
             return success(data=license_info)
 
         @self.router.delete("/{plugin_id}/license")

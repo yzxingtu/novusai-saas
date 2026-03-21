@@ -15,16 +15,12 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
-from app.enums.common import AudienceEnum
-
-
 class SkillPackageCreate(BaseCreateSchema):
     """创建技能包请求 / Create skill package request."""
 
     name: str = Field(..., max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
-    target_audience: str = Field(AudienceEnum.ALL.value, max_length=20, description=_("skill_package.field.target_audience"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
@@ -37,7 +33,6 @@ class SkillPackageUpdate(BaseUpdateSchema):
     name: str | None = Field(None, max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
-    target_audience: str | None = Field(None, max_length=20, description=_("skill_package.field.target_audience"))
     is_recommended: bool | None = Field(None, description=_("skill_package.field.is_recommended"))
     bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
@@ -51,7 +46,6 @@ class SkillPackageResponse(BaseResponseSchema):
     name: str = Field(..., description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
-    target_audience: str = Field(AudienceEnum.ALL.value, description=_("skill_package.field.target_audience"))
     is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     is_system: bool = Field(False, description=_("skill_package.field.is_system"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))

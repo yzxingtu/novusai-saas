@@ -26,7 +26,6 @@ import {
   getTenantCostTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
@@ -78,24 +77,6 @@ function handleDateChange() {
 
 onMounted(() => {
   loadAll();
-});
-
-usePageAIRegistration({
-  pageKey: 'tenant.analytics',
-  title: () => $t('tenant.analytics.title'),
-  resource: '/tenant/analytics',
-  operations: [
-    {
-      name: 'refresh_analytics',
-      label: $t('shared.pageOperation.refreshAnalytics'),
-      description: 'Reload all analytics charts and data',
-      readonly: true,
-      handler: async () => {
-        await loadAll();
-        return { success: true, message: 'Analytics data refreshed' };
-      },
-    },
-  ],
 });
 </script>
 

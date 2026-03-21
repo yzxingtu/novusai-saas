@@ -28,6 +28,31 @@ export interface UsePageAIRegistrationOptions {
   title?: MaybeRefOrGetter<string>;
 }
 
+export interface UsePageAIContextOptions {
+  contextStrategy?: UsePageAIRegistrationOptions['contextStrategy'];
+  data?: UsePageAIRegistrationOptions['data'];
+  enabled?: UsePageAIRegistrationOptions['enabled'];
+  entityDescription?: UsePageAIRegistrationOptions['entityDescription'];
+  entityName?: UsePageAIRegistrationOptions['entityName'];
+  pageKey?: UsePageAIRegistrationOptions['pageKey'];
+  resource?: UsePageAIRegistrationOptions['resource'];
+  title?: UsePageAIRegistrationOptions['title'];
+}
+
+export interface UsePageAIAnchorOptions {
+  enabled?: UsePageAIRegistrationOptions['enabled'];
+  pageKey?: UsePageAIRegistrationOptions['pageKey'];
+  resource?: UsePageAIRegistrationOptions['resource'];
+  title?: UsePageAIRegistrationOptions['title'];
+}
+
+export interface UsePageAIOperationsOptions {
+  enabled?: UsePageAIRegistrationOptions['enabled'];
+  operationStrategy?: UsePageAIRegistrationOptions['operationStrategy'];
+  operations?: UsePageAIRegistrationOptions['operations'];
+  pageKey?: UsePageAIRegistrationOptions['pageKey'];
+}
+
 export function usePageAIRegistration(
   options: UsePageAIRegistrationOptions,
 ): void {
@@ -156,4 +181,27 @@ export function usePageAIRegistration(
       cleanupRegistrations();
     });
   }
+}
+
+export function usePageAIContext(options: UsePageAIContextOptions): void {
+  usePageAIRegistration({
+    ...options,
+    registerOperations: false,
+  });
+}
+
+export function usePageAIAnchor(options: UsePageAIAnchorOptions): void {
+  usePageAIRegistration({
+    ...options,
+    registerOperations: false,
+  });
+}
+
+export function usePageAIOperations(
+  options: UsePageAIOperationsOptions,
+): void {
+  usePageAIRegistration({
+    ...options,
+    registerContext: false,
+  });
 }

@@ -280,11 +280,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     async with async_session_factory() as db:
                         discover_result = await discover_and_register(db)
                         await db.commit()
-                        if discover_result["discovered"] > 0 or discover_result["missing"] > 0:
+                        if (
+                            discover_result["discovered"] > 0
+                            or discover_result["sync_required"] > 0
+                            or discover_result["upgrade_required"] > 0
+                            or discover_result["missing"] > 0
+                        ):
                             logger.info(
                                 f"Plugin discover: "
                                 f"discovered={discover_result['discovered']}, "
-                                f"synced={discover_result['synced']}, "
+                                f"sync_required={discover_result['sync_required']}, "
+                                f"upgrade_required={discover_result['upgrade_required']}, "
                                 f"missing={discover_result['missing']}, "
                                 f"failed={discover_result['failed']}"
                             )
@@ -749,33 +755,39 @@ def create_application() -> FastAPI:
         """
         import mimetypes as _mimetypes
 
-        from sqlalchemy import select as _select
-
         from app.core.database import async_session_factory
-        from app.enums.plugin import PluginStatusEnum as _PluginStatusEnum
-        from app.models.system.plugin import Plugin as _Plugin
         from app.plugins.asset_resolver import resolve_plugin_asset_file
+        from app.plugins.asset_runtime import authorize_plugin_asset_request
 
-        # Icon files (top-level icon.*) allow access in any status; other assets only for enabled plugins
-        # 图标文件（顶层 icon.*）允许任何状态访问；其他资源仅允许已启用插件
-        _icon_exts = frozenset({".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"})
+        def _build_cache_headers(*, content_length: int | None = None) -> dict[str, str]:
+            headers = {
+                "Cache-Control": "private, max-age=300, must-revalidate",
+                "Vary": "Authorization, Cookie",
+                "X-Content-Type-Options": "nosniff",
+            }
+            if content_length is not None:
+                headers["Content-Length"] = str(content_length)
+            return headers
+
         _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
-        _is_icon = len(_normalized.parts) == 1 and _normalized.suffix.lower() in _icon_exts
+        if str(_normalized) in {"", "."}:
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": "Plugin asset not found"},
+            )
 
-        if not _is_icon:
-            async with async_session_factory() as db:
-                status_result = await db.execute(
-                    _select(_Plugin.status).where(
-                        _Plugin.name == plugin_name,
-                        _Plugin.is_deleted.is_(False),
-                    )
+        async with async_session_factory() as db:
+            access = await authorize_plugin_asset_request(
+                db,
+                request,
+                plugin_name,
+                require_enabled=True,
+            )
+            if not access.allowed:
+                return JSONResponse(
+                    status_code=404,
+                    content={"code": 4040, "message": "Plugin asset not found"},
                 )
-                plugin_status = status_result.scalar_one_or_none()
-                if plugin_status != _PluginStatusEnum.ENABLED.value:
-                    return JSONResponse(
-                        status_code=404,
-                        content={"code": 4040, "message": "Plugin asset not found"},
-                    )
 
         asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:
@@ -785,7 +797,6 @@ def create_application() -> FastAPI:
             )
 
         content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
-        cache_header = "no-cache" if settings.DEBUG else "public, max-age=3600"
 
         if request.method == "HEAD":
             # HEAD returns metadata only, avoiding unnecessary reading of large file contents
@@ -794,17 +805,81 @@ def create_application() -> FastAPI:
             return FastAPIResponse(
                 content=b"",
                 media_type=content_type,
-                headers={
-                    "Cache-Control": cache_header,
-                    "Content-Length": str(file_size),
-                },
+                headers=_build_cache_headers(content_length=file_size),
             )
 
         content = asset_file.read_bytes()
         return FastAPIResponse(
             content=content,
             media_type=content_type,
-            headers={"Cache-Control": cache_header},
+            headers=_build_cache_headers(),
+        )
+
+    @app.api_route(
+        "/plugin-icons/{plugin_name}/{file_path:path}",
+        methods=["GET", "HEAD"],
+    )
+    async def serve_plugin_icon(
+        plugin_name: str,
+        file_path: str,
+        request: Request,
+    ):
+        """
+        Plugin metadata icon service for admin surfaces.
+        / 管理态插件元数据图标服务。
+
+        URL: /plugin-icons/{plugin_name}/{file_path}
+        Filesystem: plugins/{plugin_name}/{file_path}
+        """
+        import mimetypes as _mimetypes
+
+        from app.core.database import async_session_factory
+        from app.plugins.asset_resolver import resolve_plugin_icon_file
+        from app.plugins.asset_runtime import authorize_plugin_icon_request
+
+        _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
+        if str(_normalized) in {"", "."}:
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": "Plugin icon not found"},
+            )
+
+        async with async_session_factory() as db:
+            access = await authorize_plugin_icon_request(db, request, plugin_name)
+            if not access.allowed:
+                return JSONResponse(
+                    status_code=404,
+                    content={"code": 4040, "message": "Plugin icon not found"},
+                )
+
+        asset_file = resolve_plugin_icon_file(PLUGINS_ROOT, plugin_name, file_path)
+        if asset_file is None:
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": "Plugin icon not found"},
+            )
+
+        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
+        headers = {
+            "Cache-Control": "private, max-age=300, must-revalidate",
+            "Vary": "Authorization, Cookie",
+            "X-Content-Type-Options": "nosniff",
+        }
+
+        if request.method == "HEAD":
+            return FastAPIResponse(
+                content=b"",
+                media_type=content_type,
+                headers={
+                    **headers,
+                    "Content-Length": str(asset_file.stat().st_size),
+                },
+            )
+
+        return FastAPIResponse(
+            content=asset_file.read_bytes(),
+            media_type=content_type,
+            headers=headers,
         )
 
     # ========================================

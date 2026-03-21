@@ -30,15 +30,13 @@ from app.core.config import settings
 from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession
 from app.core.logging import get_logger
 from app.core.response import success
-from app.core.scope import ScopeChecker
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
 )
-from app.enums.plugin import PluginStatusEnum
 from app.exceptions.base import AppException
-from app.models.system.plugin import Plugin
 from app.plugins.module_loader import load_plugin_handler
+from app.plugins.runtime_gate import evaluate_plugin_runtime_gate
 from app.rbac.decorators import auth_only, public
 
 if TYPE_CHECKING:
@@ -62,44 +60,21 @@ async def _dispatch_plugin_api(
     allow_public_only: bool = False,
 ) -> JSONResponse:
     """Core plugin API dispatch logic (shared by admin/tenant) / 插件 API 核心分发逻辑（admin/tenant 共用）"""
-    # Check if plugin exists and is enabled / 检查插件是否存在且已启用
-    result = await db.execute(
-        select(
-            Plugin.id, Plugin.status, Plugin.scope,
-            Plugin.manifest, Plugin.granted_capabilities,
-        ).where(
-            Plugin.name == plugin_name,
-            Plugin.is_deleted.is_(False),
-        )
+    gate = await evaluate_plugin_runtime_gate(
+        db,
+        plugin_name,
+        tenant_id=tenant_id,
+        require_enabled=True,
+        enforce_scope=True,
     )
-    row = result.one_or_none()
-    if not row or row[1] != PluginStatusEnum.ENABLED.value:
+    if not gate.allowed:
         return JSONResponse(
             status_code=404,
             content={"code": 4040, "message": "Plugin not found or disabled"},
         )
 
-    plugin_id: int = row[0]
-    plugin_scope: str = row[2]
-
-    # C1: Tenant-side scope visibility check — prevent unauthorized access to admin_only / unassigned plugins
-    # / C1: 企业端 Scope 可见性校验 — 防止越权访问 admin_only / 未分配插件
-    if tenant_id is not None:
-        visible = await ScopeChecker.is_visible_to_tenant(
-            scope=plugin_scope,
-            resource_type="plugin",
-            resource_id=plugin_id,
-            tenant_id=tenant_id,
-            db=db,
-        )
-        if not visible:
-            return JSONResponse(
-                status_code=404,
-                content={"code": 4040, "message": "Plugin not found or disabled"},
-            )
-
-    manifest_data = row[3] or {}
-    granted_capabilities = row[4] or []
+    manifest_data = gate.manifest or {}
+    granted_capabilities = gate.granted_capabilities or []
 
     # Dev mode: read routes from disk plugin.yaml in real-time (no need to re-disable/enable after yaml changes) / 开发模式：从磁盘 plugin.yaml 实时读取路由（改了 yaml 不需要重新禁用/启用）
     # Prod mode: read from DB manifest snapshot (better performance) / 生产模式：从 DB manifest 快照读取（性能更好）
@@ -118,8 +93,8 @@ async def _dispatch_plugin_api(
     #    / allow_public_only=True 时仅允许 public_routes，并且 route.auth 必须为 none
     # 2) Tenant side only matches tenant_routes + public_routes, no fallback to admin_routes
     #    / tenant 端只匹配 tenant_routes + public_routes，不回退到 admin_routes
-    # 3) Admin side matches admin_routes + tenant_routes + public_routes (admin perms ⊇ tenant)
-    #    / admin 端匹配 admin_routes + tenant_routes + public_routes（admin 权限 ⊇ tenant）
+    # 3) Admin side matches admin_routes + public_routes only, no implicit tenant fallback
+    #    / admin 端仅匹配 admin_routes + public_routes，不允许隐式回退 tenant_routes
     method = request.method.upper()
     matched_route = None
     public_routes = api_config.get("public_routes", [])
@@ -131,10 +106,7 @@ async def _dispatch_plugin_api(
         is_tenant_side = request_path.startswith("/tenant")
         side = "tenant" if is_tenant_side else "admin"
         primary_routes = api_config.get(f"{side}_routes", [])
-        # Admin side additionally falls back to tenant_routes (admin is superset of tenant)
-        # / admin 端额外回退到 tenant_routes（admin 是 tenant 的超集）
-        fallback_routes = api_config.get("tenant_routes", []) if side == "admin" else []
-        candidate_routes = [*primary_routes, *fallback_routes, *public_routes]
+        candidate_routes = [*primary_routes, *public_routes]
 
     path_params: dict[str, str] = {}
     for route in candidate_routes:
